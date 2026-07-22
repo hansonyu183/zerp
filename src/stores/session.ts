@@ -68,7 +68,7 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<SessionData>('auth/user/session', {})
+      const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
       return true
     } catch (error) {
@@ -86,7 +86,7 @@ export const useSessionStore = defineStore('session', () => {
     errorMessage.value = null
     try {
       const { data } = await apiClient.post<SessionData, SignInRequest>(
-        'auth/user/signin',
+        'app/user/signin',
         credentials,
       )
       applySession(data)
@@ -102,7 +102,7 @@ export const useSessionStore = defineStore('session', () => {
   async function signOut(): Promise<void> {
     loading.value = true
     try {
-      await apiClient.post<null>('auth/user/signout', {})
+      await apiClient.post<null>('app/user/signout', {})
     } finally {
       clearSession()
       initialized.value = true

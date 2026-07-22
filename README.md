@@ -54,10 +54,19 @@ src/
 ├─ components/                  # 跨页面复用的展示组件
 ├─ layouts/                     # 应用框架和页面布局
 ├─ pages/
-│  └─ {domain}/
-│     └─ {entity}/
-│        ├─ {Entity}.vue        # 模板、Vuetify 组件和页面样式
-│        └─ vm.ts               # 页面状态、业务动作和 API 调用
+│  ├─ signin/                   # 根页面：登录
+│  │  ├─ SignIn.vue
+│  │  └─ vm.ts
+│  ├─ home/                     # 根页面：登录后的应用主页
+│  │  ├─ Home.vue               # 顶栏、侧栏与内容加载出口
+│  │  ├─ vm.ts
+│  │  └─ content/               # 业务内容组件，不是独立根页面
+│  │     └─ {domain}/
+│  │        └─ {entity}/
+│  │           ├─ {Entity}.vue  # 模板、Vuetify 组件和页面样式
+│  │           └─ vm.ts         # 页面状态、业务动作和 API 调用
+│  └─ notfound/                 # 根页面：404
+│     └─ NotFound.vue
 ├─ plugins/                     # Vuetify 等插件初始化
 ├─ router/
 │  ├─ index.ts                  # Router 实例和守卫
@@ -72,15 +81,19 @@ tests/
 └─ e2e/                         # Playwright 真实 API 测试
 ```
 
-## 页面开发约定
+## 页面与业务内容开发约定
 
-每个业务实体对应一个独立页面目录。例如，销售订单页面及其接口 `vou/saleorder/*` 对应：
+`pages` 下只保留 `signin`、`home` 和 `notfound` 三个根页面。登录后的业务界面共用 `home` 的顶栏、侧栏和内容区域；每个业务实体对应 `home/content` 下的一个组件目录。
+
+例如，销售订单组件及其接口 `vou/saleorder/*` 对应：
 
 ```text
-src/pages/vou/saleorder/
+src/pages/home/content/vou/saleorder/
 ├─ SaleOrder.vue
 └─ vm.ts
 ```
+
+`home` 根据当前路由和后端菜单权限，从 `content/{domain}/{entity}` 加载匹配的实体组件。业务组件不得自行创建应用框架，也不得重复实现顶栏和侧栏。
 
 ### `{Entity}.vue`
 
@@ -248,15 +261,15 @@ POST /auth/user/signout  # 注销并由后端清理会话 Cookie
 - 页面路由使用 `/${domain}/${entity}`；
 - 动作权限使用后端返回的 `action` 集合。
 
-前端以 `${domain}/${entity}` 为键，从编译期定义的本地路由表解析页面：
+前端以 `${domain}/${entity}` 为键，从编译期定义的本地注册表解析 `home/content` 下的业务组件，并由 `home` 的内容区域加载：
 
 ```ts
 export const pageRegistry = {
-  'vou/saleorder': () => import('@/pages/vou/saleorder/SaleOrder.vue'),
+  'vou/saleorder': () => import('@/pages/home/content/vou/saleorder/SaleOrder.vue'),
 }
 ```
 
-后端不得返回可被前端直接导入的任意组件路径。未在本地注册的实体不显示，并记录包含 `domain`、`entity` 和 `requestId` 的诊断信息。
+后端不得返回可被前端直接导入的任意组件路径。未在本地注册的实体不显示，并记录包含 `domain`、`entity` 和 `requestId` 的诊断信息。业务路由仍使用 `/${domain}/${entity}`，但它们渲染在 `home` 的 content 出口内，不新增第四种根页面。
 
 前端权限仅用于菜单、按钮和交互控制，不是安全边界。真实后端必须对每次实体操作重新校验会话及动作权限。
 

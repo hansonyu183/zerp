@@ -29,7 +29,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
-      VITE_API_BASE_URL: process.env.E2E_API_BASE_URL ?? '',
+      VITE_API_BASE_URL: process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:5173/mock-api/',
     },
   },
 })

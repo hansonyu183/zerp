@@ -1,7 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { ApiError, getErrorMessage } from '@/api/types'
+
+const UNAUTHENTICATED_CODE = 1001
+
+function isUnauthenticatedError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.kind === 'business' &&
+    (error.code === UNAUTHENTICATED_CODE ||
+      error.code === String(UNAUTHENTICATED_CODE))
+  )
+}
 
 export interface UserProfile {
   id: string
@@ -119,7 +130,9 @@ export const useSessionStore = defineStore('session', () => {
       return true
     } catch (error) {
       clearSession()
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = isUnauthenticatedError(error)
+        ? null
+        : getErrorMessage(error)
       initialized.value = true
       return false
     } finally {

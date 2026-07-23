@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import { normalizeMenus, useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
@@ -96,5 +97,67 @@ describe('normalizeMenus', () => {
 
     expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
     expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
+  })
+})
+
+describe('useSessionStore.restore', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.restoreAllMocks()
+  })
+
+  it.each([1001, '1001'])(
+    '将未登录业务码 %p 视为正常状态且不展示错误',
+    async (code) => {
+      vi.spyOn(apiClient, 'post').mockRejectedValue(
+        new ApiError('business', 'session expired', {
+          code,
+          requestId: 'req-session',
+        }),
+      )
+      const session = useSessionStore()
+
+      await expect(session.restore()).resolves.toBe(false)
+
+      expect(session.initialized).toBe(true)
+      expect(session.authenticated).toBe(false)
+      expect(session.errorMessage).toBeNull()
+    },
+  )
+
+  it('保留真实网络错误供登录页展示', async () => {
+    vi.spyOn(apiClient, 'post').mockRejectedValue(
+      new ApiError('network', '无法连接真实后端 API。'),
+    )
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(false)
+
+    expect(session.initialized).toBe(true)
+    expect(session.authenticated).toBe(false)
+    expect(session.errorMessage).toBe('无法连接真实后端 API。')
+  })
+
+  it('继续恢复有效会话', async () => {
+    vi.spyOn(apiClient, 'post').mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-1',
+          username: 'owner',
+          displayName: 'Owner',
+        },
+        csrfToken: 'csrf-session',
+        menus: [],
+      },
+      requestId: 'req-session',
+    })
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(true)
+
+    expect(session.initialized).toBe(true)
+    expect(session.authenticated).toBe(true)
+    expect(session.user?.id).toBe('user-1')
+    expect(session.errorMessage).toBeNull()
   })
 })

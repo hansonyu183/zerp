@@ -1,14 +1,29 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { hasRegisteredPage } from '@/router/registry'
 import { useDashboardViewModel } from './vm'
 
 const vm = reactive(useDashboardViewModel())
+const router = useRouter()
 
 const quickStarts = [
-  { icon: 'mdi-database-outline', title: '基础资料', text: '统一维护企业经营所需的客户、供应商与商品资料。', color: 'primary' },
-  { icon: 'mdi-cart-outline', title: '销售与采购', text: '从订单到执行，集中处理核心业务流程。', color: 'info' },
-  { icon: 'mdi-warehouse', title: '库存管理', text: '查看即时库存、出入库记录和库存预警。', color: 'success' },
+  { icon: 'mdi-database-outline', title: '基础资料', text: '统一维护企业经营所需的客户、供应商与商品资料。', color: 'primary', domain: 'bob', entity: 'customer' },
+  { icon: 'mdi-cart-outline', title: '销售与采购', text: '从订单到执行，集中处理核心业务流程。', color: 'info', domain: 'trade', entity: 'order' },
+  { icon: 'mdi-warehouse', title: '库存管理', text: '查看即时库存、出入库记录和库存预警。', color: 'success', domain: 'inv', entity: 'stock' },
 ]
+
+const quickStartActions = computed(() =>
+  quickStarts.map((item) => ({
+    ...item,
+    path: `/${item.domain}/${item.entity}`,
+    available: hasRegisteredPage(item.domain, item.entity),
+  })),
+)
+
+async function openModule(path: string): Promise<void> {
+  await router.push(path)
+}
 </script>
 
 <template>
@@ -33,14 +48,22 @@ const quickStarts = [
     </div>
 
     <v-row>
-      <v-col v-for="item in quickStarts" :key="item.title" cols="12" md="4">
+      <v-col v-for="item in quickStartActions" :key="item.title" cols="12" md="4">
         <v-card class="business-card" rounded="xl" variant="flat">
           <v-avatar :color="item.color" size="48" variant="tonal">
             <v-icon :icon="item.icon" size="26" />
           </v-avatar>
           <h4>{{ item.title }}</h4>
           <p>{{ item.text }}</p>
-          <v-btn append-icon="mdi-arrow-right" color="primary" variant="text">查看模块</v-btn>
+          <v-btn
+            append-icon="mdi-arrow-right"
+            color="primary"
+            :disabled="!item.available"
+            variant="text"
+            @click="openModule(item.path)"
+          >
+            {{ item.available ? '查看模块' : '暂未开放' }}
+          </v-btn>
         </v-card>
       </v-col>
     </v-row>

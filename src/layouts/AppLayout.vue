@@ -10,7 +10,7 @@ const router = useRouter()
 const session = useSessionStore()
 const theme = useTheme()
 
-const drawer = ref(true)
+const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
 const profileDialog = ref(false)
 const passwordDialog = ref(false)
 const savingProfile = ref(false)
@@ -38,6 +38,16 @@ const displayName = computed(
 const initials = computed(() => displayName.value.trim().slice(0, 1).toUpperCase() || 'U')
 const isDark = computed(() => theme.global.name.value === 'zerpDark')
 const pageTitle = computed(() => String(route.meta.title || '工作台'))
+const passwordValidationError = computed(() => {
+  if (!passwords.currentPassword) return '请输入当前密码。'
+  if (passwords.newPassword.length < 8) return '新密码至少需要 8 个字符。'
+  if (passwords.newPassword !== passwords.confirmPassword) return '两次输入的新密码不一致。'
+
+  return ''
+})
+const canSavePassword = computed(
+  () => !savingPassword.value && passwordValidationError.value === '',
+)
 
 watch(
   () => session.user,
@@ -93,8 +103,8 @@ async function saveProfile(): Promise<void> {
 async function savePassword(): Promise<void> {
   accountError.value = ''
   accountSuccess.value = ''
-  if (passwords.newPassword !== passwords.confirmPassword) {
-    accountError.value = '两次输入的新密码不一致。'
+  if (!canSavePassword.value) {
+    accountError.value = passwordValidationError.value
     return
   }
 
@@ -260,14 +270,42 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
     <v-card rounded="xl" title="更改密码">
       <v-card-text>
         <v-alert v-if="accountError" class="mb-4" type="error" variant="tonal">{{ accountError }}</v-alert>
-        <v-text-field v-model="passwords.currentPassword" label="当前密码" type="password" variant="outlined" />
-        <v-text-field v-model="passwords.newPassword" label="新密码" type="password" variant="outlined" />
-        <v-text-field v-model="passwords.confirmPassword" label="确认新密码" type="password" variant="outlined" />
+        <v-text-field
+          v-model="passwords.currentPassword"
+          autocomplete="current-password"
+          label="当前密码"
+          required
+          type="password"
+          variant="outlined"
+        />
+        <v-text-field
+          v-model="passwords.newPassword"
+          autocomplete="new-password"
+          label="新密码"
+          required
+          type="password"
+          variant="outlined"
+        />
+        <v-text-field
+          v-model="passwords.confirmPassword"
+          autocomplete="new-password"
+          label="确认新密码"
+          required
+          type="password"
+          variant="outlined"
+        />
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
         <v-btn variant="text" @click="passwordDialog = false">取消</v-btn>
-        <v-btn color="primary" :loading="savingPassword" @click="savePassword">更新密码</v-btn>
+        <v-btn
+          color="primary"
+          :disabled="!canSavePassword"
+          :loading="savingPassword"
+          @click="savePassword"
+        >
+          更新密码
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

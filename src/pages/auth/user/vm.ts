@@ -10,7 +10,7 @@ export function useSignInViewModel() {
   const session = useSessionStore()
   const username = ref('')
   const password = ref('')
-  const errorMessage = ref<string | null>(session.errorMessage)
+  const errorMessage = ref<string | null>(null)
   const submitting = ref(false)
 
   const canSubmit = computed(

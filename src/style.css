@@ -8,6 +8,10 @@
   text-rendering: optimizeLegibility;
 }
 
+html {
+  overflow-y: auto;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -22,6 +26,7 @@ body,
 
 body {
   min-height: 100vh;
+  background: rgb(var(--v-theme-background));
 }
 
 a {

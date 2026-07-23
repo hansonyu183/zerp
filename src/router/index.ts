@@ -24,6 +24,7 @@ export const router = createRouter({
       children: [
         {
           path: '',
+          name: 'app-home-redirect',
           redirect: '/home/dashboard',
         },
         {

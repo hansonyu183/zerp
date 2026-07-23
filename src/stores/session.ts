@@ -7,6 +7,7 @@ export interface UserProfile {
   id: string
   username: string
   displayName: string
+  avatarUrl?: string
 }
 
 export interface MenuEntity {
@@ -28,12 +29,57 @@ export interface MenuDomain {
 export interface SessionData {
   user: UserProfile
   csrfToken: string
-  menus: MenuDomain[]
+  menus?: unknown
 }
 
 export interface SignInRequest {
   username: string
   password: string
+}
+
+export function normalizeMenus(value: unknown): MenuDomain[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((candidate): MenuDomain[] => {
+    if (!candidate || typeof candidate !== 'object') return []
+
+    const domain = candidate as Record<string, unknown>
+    if (
+      typeof domain.domain !== 'string' ||
+      domain.domain === 'app' ||
+      typeof domain.title !== 'string' ||
+      !Array.isArray(domain.children)
+    ) {
+      return []
+    }
+
+    const children = domain.children.flatMap((candidateEntity): MenuEntity[] => {
+      if (!candidateEntity || typeof candidateEntity !== 'object') return []
+
+      const entity = candidateEntity as Record<string, unknown>
+      if (typeof entity.entity !== 'string' || typeof entity.title !== 'string') {
+        return []
+      }
+
+      return [{
+        entity: entity.entity,
+        title: entity.title,
+        ...(typeof entity.icon === 'string' ? { icon: entity.icon } : {}),
+        ...(typeof entity.order === 'number' ? { order: entity.order } : {}),
+        actions: Array.isArray(entity.actions)
+          ? entity.actions.filter((action): action is string => typeof action === 'string')
+          : [],
+      }]
+    })
+
+    return [{
+      domain: domain.domain,
+      title: domain.title,
+      ...(typeof domain.icon === 'string' ? { icon: domain.icon } : {}),
+      ...(typeof domain.order === 'number' ? { order: domain.order } : {}),
+      children,
+    }]
+  })
 }
 
 export const useSessionStore = defineStore('session', () => {
@@ -48,7 +94,7 @@ export const useSessionStore = defineStore('session', () => {
 
   function applySession(session: SessionData): void {
     user.value = session.user
-    menus.value = session.menus
+    menus.value = normalizeMenus(session.menus)
     csrfToken.value = session.csrfToken
     apiClient.setCsrfToken(session.csrfToken)
     errorMessage.value = null
@@ -110,6 +156,24 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function updateProfile(profile: {
+    displayName: string
+    avatarUrl?: string
+  }): Promise<void> {
+    const { data } = await apiClient.post<UserProfile, typeof profile>(
+      'app/user/profile',
+      profile,
+    )
+    user.value = data
+  }
+
+  async function changePassword(passwords: {
+    currentPassword: string
+    newPassword: string
+  }): Promise<void> {
+    await apiClient.post<null, typeof passwords>('app/user/password', passwords)
+  }
+
   return {
     initialized,
     loading,
@@ -121,6 +185,8 @@ export const useSessionStore = defineStore('session', () => {
     restore,
     signIn,
     signOut,
+    updateProfile,
+    changePassword,
     clearSession,
   }
 })

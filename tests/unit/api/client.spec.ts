@@ -10,7 +10,7 @@ describe('ApiClient', () => {
     let csrfToken: string | null = null
 
     mockServer.use(
-      http.post('https://api.test/auth/user/session', ({ request }) => {
+      http.post('https://api.test/app/user/session', ({ request }) => {
         credentials = request.credentials
         csrfToken = request.headers.get('X-CSRF-Token')
         return HttpResponse.json({
@@ -26,7 +26,7 @@ describe('ApiClient', () => {
     client.setCsrfToken('csrf-test')
 
     const result = await client.post<{ user: { id: string } }>(
-      'auth/user/session',
+      'app/user/session',
       {},
     )
 

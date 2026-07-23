@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const appUrl = 'http://127.0.0.1:4173'
+const appUrl = 'http://127.0.0.1:5173'
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -19,7 +19,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev --host 127.0.0.1 --port 4173',
+    command: 'pnpm dev --host 127.0.0.1 --port 5173 --strictPort',
     url: appUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

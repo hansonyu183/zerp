@@ -1,7 +1,23 @@
-import { describe, expect, it } from 'vitest'
-import { normalizeMenus } from '@/stores/session'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { apiClient } from '@/api/client'
+import { normalizeMenus, useSessionStore } from '@/stores/session'
+
+vi.mock('@/api/client', () => ({
+  apiClient: {
+    post: vi.fn(),
+    setCsrfToken: vi.fn(),
+  },
+}))
+
+const mockedApiClient = vi.mocked(apiClient)
 
 describe('normalizeMenus', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
   it.each([undefined, null, {}, 'menus'])('将非数组菜单 %p 归一化为空数组', (menus) => {
     expect(normalizeMenus(menus)).toEqual([])
   })
@@ -61,5 +77,24 @@ describe('normalizeMenus', () => {
         ],
       },
     ])).toEqual([])
+  })
+
+  it('支持强制恢复会话以处理 BFCache 恢复', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        user: { id: '1', username: 'admin', displayName: '管理员' },
+        csrfToken: 'csrf-1',
+        menus: [],
+      },
+    })
+
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(true)
+    await expect(session.restore()).resolves.toBe(true)
+    await expect(session.restore({ force: true })).resolves.toBe(true)
+
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
   })
 })

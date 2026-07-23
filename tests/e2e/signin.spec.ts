@@ -18,3 +18,31 @@ test('使用真实后端会话登录并进入系统', async ({ page }) => {
   await expect(page).not.toHaveURL(/\/signin/)
   await expect(page.getByText('企业资源管理系统').first()).toBeVisible()
 })
+
+test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({ page }) => {
+  test.skip(
+    !apiUrl || !username || !password,
+    '需要 E2E_API_BASE_URL、E2E_USERNAME 和 E2E_PASSWORD 才能执行真实 API 测试。',
+  )
+
+  await page.goto('/signin')
+  await page.getByLabel('用户名').fill(username!)
+  await page.getByLabel('密码').fill(password!)
+  await page.getByRole('button', { name: '登录' }).click()
+
+  await expect(page.getByText('企业资源管理系统').first()).toBeVisible()
+  await page.getByRole('link', { name: /客户/ }).click()
+  await expect(page).toHaveURL(/\/bob\/customer/)
+  await expect(page.getByRole('button', { name: '查询' })).toBeVisible()
+
+  await page.reload()
+  await expect(page).toHaveURL(/\/bob\/customer/)
+
+  await page.locator('.account-button').click()
+  await page.getByText('退出登录').click()
+  await expect(page).toHaveURL(/\/signin/)
+
+  await page.goBack()
+  await expect(page).toHaveURL(/\/signin/)
+  await expect(page.getByLabel('客户关键字')).not.toBeVisible()
+})

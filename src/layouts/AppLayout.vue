@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
 import { hasRegisteredPage } from '@/router/registry'
@@ -120,6 +120,22 @@ async function signOut(): Promise<void> {
     await router.replace({ name: 'signin' })
   }
 }
+
+async function handlePageShow(event: PageTransitionEvent): Promise<void> {
+  if (!event.persisted || route.meta.public) return
+
+  session.clearSession()
+  const restored = await session.restore({ force: true })
+  if (!restored) {
+    await router.replace({
+      name: 'signin',
+      query: { redirect: route.fullPath },
+    })
+  }
+}
+
+onMounted(() => window.addEventListener('pageshow', handlePageShow))
+onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
 </script>
 
 <template>

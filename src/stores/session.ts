@@ -108,8 +108,8 @@ export const useSessionStore = defineStore('session', () => {
     apiClient.setCsrfToken(null)
   }
 
-  async function restore(): Promise<boolean> {
-    if (initialized.value) return authenticated.value
+  async function restore(options: { force?: boolean } = {}): Promise<boolean> {
+    if (initialized.value && !options.force) return authenticated.value
 
     loading.value = true
     errorMessage.value = null

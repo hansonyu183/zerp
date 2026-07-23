@@ -18,6 +18,12 @@ export default defineConfig({
       reporter: ['text', 'html'],
       include: ['src/**/*.{ts,vue}'],
       exclude: ['src/env.d.ts', 'src/main.ts'],
+      thresholds: {
+        lines: 25,
+        statements: 25,
+        branches: 25,
+        functions: 15,
+      },
     },
   },
 })

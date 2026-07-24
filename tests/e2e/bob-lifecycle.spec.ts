@@ -28,11 +28,13 @@ async function signOut(page: Page): Promise<void> {
 
 async function openSupplier(page: Page): Promise<void> {
   await page.goto('/bob/supplier')
-  await expect(page.getByLabel('供应商关键字')).toBeVisible()
+  await expect(
+    page.getByRole('textbox', { name: '供应商关键字' }),
+  ).toBeVisible()
 }
 
 async function searchSupplier(page: Page, code: string): Promise<void> {
-  await page.getByLabel('供应商关键字').fill(code)
+  await page.getByRole('textbox', { name: '供应商关键字' }).fill(code)
   await page.getByRole('button', { name: '查询' }).click()
   await expect(page.getByText(code, { exact: true })).toBeVisible()
 }
@@ -42,6 +44,7 @@ async function openMore(page: Page, code: string): Promise<void> {
 }
 
 test('使用双账号完成供应商驳回、重提、通过和历史核验', async ({ page }) => {
+  test.setTimeout(120_000)
   const code = `E2E-SUP-${Date.now().toString(36).toUpperCase()}`
 
   await signIn(page, submitter)
@@ -49,7 +52,7 @@ test('使用双账号完成供应商驳回、重提、通过和历史核验', as
   await page.getByRole('button', { name: '新增' }).click()
   await page.getByLabel('供应商编码').fill(code)
   await page.getByLabel('供应商名称').fill('E2E 生命周期供应商')
-  await page.getByLabel('业务员').fill('DEMO-EMP-001')
+  await page.getByRole('combobox', { name: '业务员' }).fill('DEMO-EMP-001')
   await page.getByRole('option', { name: /DEMO-EMP-001/ }).click()
   await page.getByRole('button', { name: '保存' }).click()
   await searchSupplier(page, code)

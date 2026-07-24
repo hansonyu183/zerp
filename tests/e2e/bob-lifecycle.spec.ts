@@ -49,6 +49,8 @@ test('使用双账号完成供应商驳回、重提、通过和历史核验', as
   await page.getByRole('button', { name: '新增' }).click()
   await page.getByLabel('供应商编码').fill(code)
   await page.getByLabel('供应商名称').fill('E2E 生命周期供应商')
+  await page.getByLabel('业务员').fill('DEMO-EMP-001')
+  await page.getByRole('option', { name: /DEMO-EMP-001/ }).click()
   await page.getByRole('button', { name: '保存' }).click()
   await searchSupplier(page, code)
   await openMore(page, code)

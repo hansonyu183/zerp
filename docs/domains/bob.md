@@ -157,7 +157,7 @@ interface CustomerData {
   address?: string
   remark?: string
   settlementMethodId?: string
-  salespersonId?: string
+  salespersonEmployeeId: string
 }
 ```
 
@@ -190,8 +190,9 @@ interface CustomerMutationResult {
 `edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`
 使用 `revision` 保护目标版本。所有写操作必须由后端校验权限、状态和
 revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
-除 `name` 和 `customerType` 外的客户字段均可为空；`save` 显式传空字符串
-用于清空可选字段。`customerType` 新建时默认为 `END_USER`。
+除 `name`、`customerType` 和 `salespersonEmployeeId` 外的客户字段均可为空；
+`save` 显式传空字符串用于清空可选字段。`customerType` 新建时默认为
+`END_USER`，`salespersonEmployeeId` 必须引用一个有效员工且不可清空。
 
 ### 6.4 其它实体前端契约
 
@@ -205,6 +206,10 @@ revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除�
 `query` 查询 `EFFECTIVE` 对象，显示“编码 · 名称”，不使用本地假数据。
 分类引用额外按 `targetEntity` 限定，车辆物流平台额外限定
 `supplierType=LOGISTICS_PLATFORM`。
+
+客户和供应商的 `salespersonEmployeeId` 均为必填员工引用。创建和保存时必须
+发送该字段；前端缺少员工查询权限或员工列表加载失败时显示明确错误并阻止
+提交空引用。
 
 `settlement-method` 是当前后端工作区中的临时契约：字段为 `name`、
 `ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`。

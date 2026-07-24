@@ -29,7 +29,7 @@ export interface CustomerSummary {
   address?: string
   remark?: string
   settlementMethodId?: string
-  salespersonId?: string
+  salespersonEmployeeId: string
 }
 
 export interface CustomerListItem {
@@ -61,7 +61,7 @@ export interface CustomerForm {
   address: string
   remark: string
   settlementMethodId: string
-  salespersonId: string
+  salespersonEmployeeId: string
 }
 
 export type CustomerDetailInput = Omit<CustomerForm, 'code'>
@@ -179,7 +179,7 @@ function emptyCustomerForm(): CustomerForm {
     address: '',
     remark: '',
     settlementMethodId: '',
-    salespersonId: '',
+    salespersonEmployeeId: '',
   }
 }
 
@@ -200,7 +200,7 @@ function customerFormFromSummary(
     address: summary.address ?? '',
     remark: summary.remark ?? '',
     settlementMethodId: summary.settlementMethodId ?? '',
-    salespersonId: summary.salespersonId ?? '',
+    salespersonEmployeeId: summary.salespersonEmployeeId ?? '',
   }
 }
 
@@ -218,7 +218,7 @@ function normalizeCustomerForm(form: CustomerForm): CustomerForm {
     address: form.address.trim(),
     remark: form.remark.trim(),
     settlementMethodId: form.settlementMethodId.trim(),
-    salespersonId: form.salespersonId.trim(),
+    salespersonEmployeeId: form.salespersonEmployeeId.trim(),
   }
 }
 
@@ -235,7 +235,7 @@ function customerDetailInput(form: CustomerForm): CustomerDetailInput {
     address: form.address,
     remark: form.remark,
     settlementMethodId: form.settlementMethodId,
-    salespersonId: form.salespersonId,
+    salespersonEmployeeId: form.salespersonEmployeeId,
   }
 }
 
@@ -359,9 +359,10 @@ export function useCustomerViewModel() {
         options: settlementMethodState.options.value,
       },
       {
-        key: 'salespersonId',
+        key: 'salespersonEmployeeId',
         label: '业务员',
         type: 'select',
+        required: true,
         disabled: referenceDisabled(salespersonState, '/bob/employee/query'),
         hint: referenceHint(salespersonState, '/bob/employee/query', '业务员'),
         options: salespersonState.options.value,
@@ -715,21 +716,26 @@ export function useCustomerViewModel() {
       address: customer.address,
       remark: customer.remark,
       settlementMethodId: customer.settlementMethodId,
-      salespersonId: customer.salespersonId,
+      salespersonEmployeeId: customer.salespersonEmployeeId,
     }
     editorResetKey.value += 1
   }
 
   async function saveCustomer(form: CustomerForm): Promise<void> {
     if (saving.value) return
+    const normalized = normalizeCustomerForm(form)
+    if (!normalized.salespersonEmployeeId) {
+      editorErrorMessage.value = '请选择业务员。'
+      return
+    }
 
     saving.value = true
     editorErrorMessage.value = null
     try {
       if (editorMode.value === 'create') {
-        await createCustomer(form)
+        await createCustomer(normalized)
       } else {
-        await saveExistingCustomer(form)
+        await saveExistingCustomer(normalized)
       }
       drawerOpen.value = false
       selectedCustomer.value = null

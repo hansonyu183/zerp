@@ -83,6 +83,59 @@ function mutation(status: BobStatus = 'DRAFT'): BobMutationResult {
   }
 }
 
+function supplierRow(): BobListItem {
+  return {
+    objectId: 'SUP-1',
+    entity: 'supplier',
+    code: 'SUP-001',
+    objectRevision: 3,
+    effectiveVersionId: null,
+    currentVersion: {
+      versionId: 'SUP-VER-1',
+      version: 1,
+      status: 'DRAFT',
+      revision: 5,
+      summary: {
+        name: '示例供应商',
+        supplierType: 'GENERAL',
+        salespersonEmployeeId: 'EMP-1',
+      },
+    },
+    updatedAt: '2026-07-24T10:00:00Z',
+  }
+}
+
+function supplierObjectView(): BobObjectView {
+  return {
+    objectId: 'SUP-1',
+    entity: 'supplier',
+    code: 'SUP-001',
+    objectRevision: 3,
+    currentVersionId: 'SUP-VER-1',
+    effectiveVersionId: null,
+    version: {
+      versionId: 'SUP-VER-1',
+      version: 1,
+      status: 'DRAFT',
+      revision: 5,
+    },
+    data: {
+      name: '示例供应商',
+      supplierType: 'GENERAL',
+      shortName: '',
+      categoryId: '',
+      settlementMethodId: '',
+      salespersonEmployeeId: 'EMP-1',
+      taxNumber: '',
+      contactName: '',
+      contactPhone: '',
+      email: '',
+      address: '',
+      remark: '',
+    },
+  }
+}
+
 function emptyPage() {
   return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
 }
@@ -154,6 +207,160 @@ describe('shared BOB entity configuration and view model', () => {
         dayOfMonth.visible({ ...config.emptyForm(), ruleType: 'FIXED_DAY' }),
     ).toBe(true)
     expect(dayOfMonth).toMatchObject({ min: 1, max: 31 })
+  })
+
+  it('供应商要求不可清空的业务员引用，并在引用不可用时阻止提交', async () => {
+    grant('supplier', 'create')
+    const config = getBobEntityConfig('supplier')
+    const vm = useBobEntityViewModel(config)
+
+    vm.openCreate()
+
+    const salespersonField = vm.editorFields.value.find(
+      (field) => field.key === 'salespersonEmployeeId',
+    )
+    expect(config.emptyForm().salespersonEmployeeId).toBe('')
+    expect(config.detailKeys).toContain('salespersonEmployeeId')
+    expect(config.requiredKeys).toContain('salespersonEmployeeId')
+    expect(config.references?.salespersonEmployeeId).toEqual({
+      entity: 'employee',
+      label: '业务员',
+    })
+    expect(salespersonField).toMatchObject({
+      label: '业务员',
+      required: true,
+      clearable: false,
+      disabled: true,
+      hint: '缺少业务员查询权限。',
+    })
+
+    const saved = await vm.save({
+      ...config.emptyForm(),
+      code: 'SUP-001',
+      name: '示例供应商',
+    })
+
+    expect(saved).toBe(false)
+    expect(vm.editorErrorMessage.value).toBe('请输入业务员。')
+    expect(mockedApiClient.post).not.toHaveBeenCalled()
+  })
+
+  it('供应商业务员查询只加载有效员工', async () => {
+    vi.useFakeTimers()
+    useSessionStore().permissions = ['/bob/employee/query']
+    mockedApiClient.post.mockResolvedValueOnce({
+      data: {
+        items: [{
+          objectId: 'EMP-1',
+          code: 'DEMO-EMP-001',
+          currentVersion: { summary: { name: '演示员工' } },
+        }],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('supplier'))
+    const form = {
+      ...vm.config.emptyForm(),
+      code: 'SUP-001',
+      name: '示例供应商',
+    }
+
+    vm.searchEditorReference(
+      'salespersonEmployeeId',
+      'DEMO-EMP-001',
+      form,
+    )
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      'bob/employee/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          keyword: 'DEMO-EMP-001',
+          status: ['EFFECTIVE'],
+        },
+        sort: [{ field: 'name', order: 'asc' }],
+      },
+    )
+    expect(
+      vm.editorFields.value.find(
+        (field) => field.key === 'salespersonEmployeeId',
+      )?.options,
+    ).toEqual([{ title: 'DEMO-EMP-001 · 演示员工', value: 'EMP-1' }])
+  })
+
+  it('供应商创建和保存发送 salespersonEmployeeId', async () => {
+    grant('supplier', 'create', 'query')
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce(emptyPage())
+    const config = getBobEntityConfig('supplier')
+    const vm = useBobEntityViewModel(config)
+    const form = {
+      ...config.emptyForm(),
+      code: ' sup-001 ',
+      name: ' 示例供应商 ',
+      salespersonEmployeeId: 'EMP-1',
+    }
+
+    vm.openCreate()
+    await vm.save(form)
+
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/supplier/create',
+      {
+        data: {
+          code: 'SUP-001',
+          name: '示例供应商',
+          supplierType: 'GENERAL',
+          salespersonEmployeeId: 'EMP-1',
+        },
+      },
+    )
+
+    vi.clearAllMocks()
+    grant('supplier', 'get', 'save', 'query')
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: supplierObjectView() })
+      .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce(emptyPage())
+
+    await vm.openEdit(supplierRow())
+    await vm.save({
+      ...config.emptyForm(),
+      ...supplierObjectView().data,
+      code: 'SUP-001',
+      salespersonEmployeeId: 'EMP-2',
+    })
+
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      2,
+      'bob/supplier/save',
+      {
+        objectId: 'SUP-1',
+        versionId: 'SUP-VER-1',
+        revision: 5,
+        data: {
+          name: '示例供应商',
+          supplierType: 'GENERAL',
+          shortName: '',
+          categoryId: '',
+          settlementMethodId: '',
+          salespersonEmployeeId: 'EMP-2',
+          taxNumber: '',
+          contactName: '',
+          contactPhone: '',
+          email: '',
+          address: '',
+          remark: '',
+        },
+      },
+    )
   })
 
   it('只发送有值的完整查询筛选', async () => {

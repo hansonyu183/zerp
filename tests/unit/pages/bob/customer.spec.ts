@@ -34,7 +34,7 @@ function makeCustomerData(name = '华东客户') {
     address: '上海市示例路',
     remark: '重点客户',
     settlementMethodId: 'SM-1',
-    salespersonId: 'EMP-1',
+    salespersonEmployeeId: 'EMP-1',
   }
 }
 
@@ -52,7 +52,7 @@ function emptyCustomerForm() {
     address: '',
     remark: '',
     settlementMethodId: '',
-    salespersonId: '',
+    salespersonEmployeeId: '',
   }
 }
 

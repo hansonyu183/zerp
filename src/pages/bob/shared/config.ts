@@ -211,6 +211,7 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
       shortName: '',
       categoryId: '',
       settlementMethodId: '',
+      salespersonEmployeeId: '',
       taxNumber: '',
       contactName: '',
       contactPhone: '',
@@ -220,9 +221,10 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
     }),
     detailKeys: [
       'name', 'supplierType', 'shortName', 'categoryId', 'settlementMethodId',
-      'taxNumber', 'contactName', 'contactPhone', 'email', 'address', 'remark',
+      'salespersonEmployeeId', 'taxNumber', 'contactName', 'contactPhone',
+      'email', 'address', 'remark',
     ],
-    requiredKeys: ['code', 'name', 'supplierType'],
+    requiredKeys: ['code', 'name', 'supplierType', 'salespersonEmployeeId'],
     uppercaseKeys: ['code', 'taxNumber'],
     references: {
       categoryId: {
@@ -233,6 +235,10 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
       settlementMethodId: {
         entity: 'settlement-method',
         label: '结算方式',
+      },
+      salespersonEmployeeId: {
+        entity: 'employee',
+        label: '业务员',
       },
     },
     fields: (context) => [
@@ -247,6 +253,7 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
       text('shortName', '供应商简称', 100),
       reference('categoryId', '供应商分类', context),
       reference('settlementMethodId', '结算方式', context),
+      reference('salespersonEmployeeId', '业务员', context, true),
       text('taxNumber', '税号', 50, {
         rules: [patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。')],
       }),

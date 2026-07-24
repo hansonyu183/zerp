@@ -34,7 +34,7 @@ function makeCustomerData() {
     address: '上海市示例路',
     remark: '重点客户',
     settlementMethodId: 'SM-1',
-    salespersonId: 'EMP-1',
+    salespersonEmployeeId: 'EMP-1',
   }
 }
 
@@ -263,6 +263,14 @@ describe('useCustomerViewModel', () => {
     expect(vm.categoryOptions.value[0]?.title).toBe('CAT001 · 重点客户')
     expect(vm.settlementMethodOptions.value[0]?.value).toBe('SM-1')
     expect(vm.salespersonOptions.value[0]?.value).toBe('EMP-1')
+    expect(
+      vm.editorFields.value.find(
+        (field) => field.key === 'salespersonEmployeeId',
+      ),
+    ).toMatchObject({
+      label: '业务员',
+      required: true,
+    })
     expect(vm.editorFields.value.map((field) => field.label)).toEqual([
       '客户编码',
       '客户名称',
@@ -302,6 +310,18 @@ describe('useCustomerViewModel', () => {
     ).toBe(true)
   })
 
+  it('业务员引用不可用时阻止提交空 salespersonEmployeeId', async () => {
+    grant('create')
+    const vm = useCustomerViewModel()
+    vm.openCreate()
+
+    await vm.saveCustomer(makeForm({ salespersonEmployeeId: '' }))
+
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(vm.editorErrorMessage.value).toBe('请选择业务员。')
+    expect(mockedApiClient.post).not.toHaveBeenCalled()
+  })
+
   it('新增客户时提交编码和名称并刷新列表', async () => {
     grant('create')
     mockedApiClient.post
@@ -336,7 +356,7 @@ describe('useCustomerViewModel', () => {
           address: '上海市示例路',
           remark: '重点客户',
           settlementMethodId: 'SM-1',
-          salespersonId: 'EMP-1',
+          salespersonEmployeeId: 'EMP-1',
         },
       },
     )
@@ -379,7 +399,7 @@ describe('useCustomerViewModel', () => {
       name: ' 华南客户 ',
       shortName: '',
       settlementMethodId: '',
-      salespersonId: '',
+      salespersonEmployeeId: 'EMP-2',
     }))
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       2,
@@ -400,7 +420,7 @@ describe('useCustomerViewModel', () => {
           address: '上海市示例路',
           remark: '重点客户',
           settlementMethodId: '',
-          salespersonId: '',
+          salespersonEmployeeId: 'EMP-2',
         },
       },
     )

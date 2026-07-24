@@ -567,6 +567,17 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
   async function save(form: BobForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
+    const normalized = normalizeForm(form)
+    const missingRequiredKey = config.requiredKeys.find(
+      (key) => !hasValue(normalized[key]),
+    )
+    if (missingRequiredKey) {
+      const field = editorFields.value.find(
+        (candidate) => candidate.key === missingRequiredKey,
+      )
+      editorErrorMessage.value = `请输入${field?.label ?? missingRequiredKey}。`
+      return false
+    }
     saving.value = true
     editorErrorMessage.value = null
     try {

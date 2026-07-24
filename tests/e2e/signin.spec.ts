@@ -1,38 +1,41 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-const apiUrl = process.env.E2E_API_BASE_URL
-const username = process.env.E2E_USERNAME
-const password = process.env.E2E_PASSWORD
+const username = process.env.E2E_USERNAME!
+const password = process.env.E2E_PASSWORD!
 
-test('使用真实后端会话登录并进入系统', async ({ page }) => {
-  test.skip(
-    !apiUrl || !username || !password,
-    '需要 E2E_API_BASE_URL、E2E_USERNAME 和 E2E_PASSWORD 才能执行真实 API 测试。',
-  )
-
+async function signIn(page: Page): Promise<void> {
   await page.goto('/signin')
-  await page.getByLabel('用户名').fill(username!)
-  await page.getByLabel('密码').fill(password!)
+  await page.getByLabel('用户名').fill(username)
+  await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '登录' }).click()
 
   await expect(page).not.toHaveURL(/\/signin/)
-  await expect(page.getByText('企业资源管理系统').first()).toBeVisible()
+  await expect(page.locator('.account-button')).toBeVisible()
+}
+
+async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
+  await page.goto('/home/dashboard')
+  if (isMobile) await page.getByLabel('切换导航').click()
+
+  const customerLink = page.getByRole('link', { name: /客户/ })
+  if (!await customerLink.isVisible()) {
+    await page.getByText('基础业务对象').click()
+  }
+  await expect(customerLink).toBeVisible()
+  await customerLink.click()
+  await expect(page).toHaveURL(/\/bob\/customer/)
+}
+
+test('使用真实后端会话登录并进入系统', async ({ page }) => {
+  await signIn(page)
 })
 
-test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({ page }) => {
-  test.skip(
-    !apiUrl || !username || !password,
-    '需要 E2E_API_BASE_URL、E2E_USERNAME 和 E2E_PASSWORD 才能执行真实 API 测试。',
-  )
-
-  await page.goto('/signin')
-  await page.getByLabel('用户名').fill(username!)
-  await page.getByLabel('密码').fill(password!)
-  await page.getByRole('button', { name: '登录' }).click()
-
-  await expect(page.getByText('企业资源管理系统').first()).toBeVisible()
-  await page.getByRole('link', { name: /客户/ }).click()
-  await expect(page).toHaveURL(/\/bob\/customer/)
+test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({
+  page,
+  isMobile,
+}) => {
+  await signIn(page)
+  await openCustomer(page, isMobile)
   await expect(page.getByRole('button', { name: '查询' })).toBeVisible()
 
   await page.reload()
@@ -50,23 +53,7 @@ test('登录后进入客户业务页面并在退出后退时保护旧页面', as
 test('移动端首次进入仪表盘时导航抽屉默认关闭', async ({ page, isMobile }) => {
   test.skip(!isMobile, '仅在移动端项目验证抽屉初始状态。')
 
-  await page.route('**/mock-api/app/user/session', async (route) => {
-    await route.fulfill({
-      json: {
-        code: 0,
-        message: 'ok',
-        data: {
-          user: { id: '1', username: 'admin', displayName: '管理员' },
-          csrfToken: 'csrf-token',
-          permissions: [
-            '/app/user/query',
-            '/bob/customer/query',
-          ],
-        },
-      },
-    })
-  })
-
+  await signIn(page)
   await page.goto('/home/dashboard')
 
   await expect(page.getByText('业务工作区')).toBeVisible()

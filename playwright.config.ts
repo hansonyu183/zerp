@@ -2,12 +2,26 @@ import { defineConfig, devices } from '@playwright/test'
 import { loadEnv } from 'vite'
 
 const localE2EEnv = loadEnv('e2e', process.cwd(), '')
-const localE2EEnvNames = ['E2E_API_BASE_URL', 'E2E_USERNAME', 'E2E_PASSWORD'] as const
+const requiredE2EEnvNames = [
+  'E2E_API_BASE_URL',
+  'E2E_USERNAME',
+  'E2E_PASSWORD',
+] as const
 
-for (const name of localE2EEnvNames) {
+for (const name of requiredE2EEnvNames) {
   if (process.env[name] === undefined && localE2EEnv[name] !== undefined) {
     process.env[name] = localE2EEnv[name]
   }
+}
+
+const missingE2EEnvNames = requiredE2EEnvNames.filter(
+  (name) => !process.env[name],
+)
+
+if (missingE2EEnvNames.length > 0) {
+  throw new Error(
+    `Playwright 必须连接真实测试后端，缺少配置：${missingE2EEnvNames.join(', ')}`,
+  )
 }
 
 const appUrl = 'http://127.0.0.1:5173'
@@ -39,7 +53,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
-      VITE_API_BASE_URL: process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:5173/mock-api/',
+      VITE_API_BASE_URL: process.env.E2E_API_BASE_URL!,
     },
   },
 })

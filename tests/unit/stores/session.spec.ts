@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { apiClient } from '@/api/client'
 import { ApiError } from '@/api/types'
-import { normalizeMenus, useSessionStore } from '@/stores/session'
+import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
@@ -13,71 +13,65 @@ vi.mock('@/api/client', () => ({
 
 const mockedApiClient = vi.mocked(apiClient)
 
-describe('normalizeMenus', () => {
+describe('useSessionStore permissions', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it.each([undefined, null, {}, 'menus'])('将非数组菜单 %p 归一化为空数组', (menus) => {
-    expect(normalizeMenus(menus)).toEqual([])
-  })
+  it('恢复权限并根据本地注册表生成 Home 菜单', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        user: { id: '1', username: 'admin', displayName: '管理员' },
+        csrfToken: 'csrf-1',
+        permissions: [
+          '/app/user/signout',
+          '/bob/customer/query',
+          '/bob/customer/create',
+          '/bob/customer/query',
+          'bob/customer/update',
+        ],
+      },
+    })
+    const session = useSessionStore()
 
-  it('保留有效菜单并清理无效字段', () => {
-    expect(normalizeMenus([
-      {
-        domain: 'app',
-        title: '系统能力',
-        children: [
-          {
-            entity: 'user',
-            title: '用户',
-            actions: ['query'],
-          },
-        ],
-      },
-      {
-        domain: 'bob',
-        title: '基础资料',
-        children: [
-          {
-            entity: 'customer',
-            title: '客户',
-            actions: ['query', 42, 'create'],
-          },
-          null,
-        ],
-      },
-      { domain: 'invalid-without-title', children: [] },
-    ])).toEqual([
-      {
-        domain: 'bob',
-        title: '基础资料',
-        children: [
-          {
-            entity: 'customer',
-            title: '客户',
-            actions: ['query', 'create'],
-          },
-        ],
-      },
+    await expect(session.restore()).resolves.toBe(true)
+
+    expect(session.permissions).toEqual([
+      '/app/user/signout',
+      '/bob/customer/query',
+      '/bob/customer/create',
     ])
+    expect(session.menus).toHaveLength(1)
+    expect(session.menus[0]?.domain).toBe('bob')
+    expect(session.menus[0]?.children[0]).toMatchObject({
+      entity: 'customer',
+      actions: ['query', 'create'],
+    })
+    expect(session.can('/bob/customer/create')).toBe(true)
+    expect(session.can('/bob/customer/update')).toBe(false)
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
   })
 
-  it('不将 app 领域 API 放入 Home 动态菜单', () => {
-    expect(normalizeMenus([
-      {
-        domain: 'app',
-        title: '应用访问与权限',
-        children: [
+  it('不兼容旧 menus 字段且缺少 permissions 时生成空菜单', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        user: { id: '1', username: 'admin', displayName: '管理员' },
+        csrfToken: 'csrf-1',
+        menus: [
           {
-            entity: 'role',
-            title: '角色',
-            actions: ['query', 'update'],
+            domain: 'bob',
+            title: '基础业务对象',
+            children: [{ entity: 'customer', title: '客户', actions: ['query'] }],
           },
         ],
       },
-    ])).toEqual([])
+    })
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(true)
+    expect(session.permissions).toEqual([])
+    expect(session.menus).toEqual([])
   })
 
   it('支持强制恢复会话以处理 BFCache 恢复', async () => {
@@ -85,10 +79,9 @@ describe('normalizeMenus', () => {
       data: {
         user: { id: '1', username: 'admin', displayName: '管理员' },
         csrfToken: 'csrf-1',
-        menus: [],
+        permissions: [],
       },
     })
-
     const session = useSessionStore()
 
     await expect(session.restore()).resolves.toBe(true)
@@ -96,11 +89,32 @@ describe('normalizeMenus', () => {
     await expect(session.restore({ force: true })).resolves.toBe(true)
 
     expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
-    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
+  })
+
+  it('退出时清空用户、权限、菜单和 CSRF', async () => {
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: ['/bob/customer/query'],
+        },
+      })
+      .mockResolvedValueOnce({ data: null })
+    const session = useSessionStore()
+
+    await session.restore()
+    await session.signOut()
+
+    expect(session.user).toBeNull()
+    expect(session.permissions).toEqual([])
+    expect(session.menus).toEqual([])
+    expect(session.can('/bob/customer/query')).toBe(false)
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith(null)
   })
 })
 
-describe('useSessionStore.restore', () => {
+describe('useSessionStore.restore errors', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.restoreAllMocks()
@@ -136,28 +150,5 @@ describe('useSessionStore.restore', () => {
     expect(session.initialized).toBe(true)
     expect(session.authenticated).toBe(false)
     expect(session.errorMessage).toBe('无法连接真实后端 API。')
-  })
-
-  it('继续恢复有效会话', async () => {
-    vi.spyOn(apiClient, 'post').mockResolvedValue({
-      data: {
-        user: {
-          id: 'user-1',
-          username: 'owner',
-          displayName: 'Owner',
-        },
-        csrfToken: 'csrf-session',
-        menus: [],
-      },
-      requestId: 'req-session',
-    })
-    const session = useSessionStore()
-
-    await expect(session.restore()).resolves.toBe(true)
-
-    expect(session.initialized).toBe(true)
-    expect(session.authenticated).toBe(true)
-    expect(session.user?.id).toBe('user-1')
-    expect(session.errorMessage).toBeNull()
   })
 })

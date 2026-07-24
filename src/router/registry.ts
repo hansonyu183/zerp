@@ -1,52 +1,145 @@
 import type { Component } from 'vue'
 import type { Router } from 'vue-router'
-import type { MenuDomain } from '@/stores/session'
 
 type PageLoader = () => Promise<{ default: Component }>
 
-const pageModules = import.meta.glob<{ default: Component }>([
-  '../pages/*/*/*.vue',
-  '!../pages/auth/user/*.vue',
-  '!../pages/home/dashboard/*.vue',
-  '!../pages/system/notfound/*.vue',
-])
+export interface MenuEntity {
+  entity: string
+  title: string
+  icon?: string
+  order: number
+  actions: string[]
+}
 
-export const pageRegistry: Record<string, PageLoader> = Object.fromEntries(
-  Object.entries(pageModules).flatMap(([path, loader]) => {
-    const match = path.match(/^\.\.\/pages\/([^/]+)\/([^/]+)\/[^/]+\.vue$/)
-    if (!match) return []
+export interface MenuDomain {
+  domain: string
+  title: string
+  icon?: string
+  order: number
+  children: MenuEntity[]
+}
 
-    const [, domain, entity] = match
-    return [[`${domain}/${entity}`, loader as PageLoader]]
-  }),
-)
+export interface PageRegistration {
+  domain: string
+  domainTitle: string
+  domainIcon?: string
+  domainOrder: number
+  entity: string
+  entityTitle: string
+  icon?: string
+  order: number
+  component: PageLoader
+}
+
+const PERMISSION_PATTERN =
+  /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
+
+export const pageRegistrations: readonly PageRegistration[] = [
+  {
+    domain: 'bob',
+    domainTitle: '基础业务对象',
+    domainIcon: 'mdi-database-outline',
+    domainOrder: 10,
+    entity: 'customer',
+    entityTitle: '客户',
+    icon: 'mdi-account-group',
+    order: 10,
+    component: () => import('@/pages/bob/customer/Customer.vue'),
+  },
+]
+
+export const pageRegistry: Readonly<Record<string, PageRegistration>> =
+  Object.fromEntries(
+    pageRegistrations.map((registration) => [
+      `${registration.domain}/${registration.entity}`,
+      registration,
+    ]),
+  )
 
 const registeredRouteNames = new Set<string>()
-const SAFE_SEGMENT = /^[a-z][a-z0-9-]*$/
+
+export function normalizePermissions(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+
+  return [...new Set(
+    value.filter(
+      (permission): permission is string =>
+        typeof permission === 'string' && PERMISSION_PATTERN.test(permission),
+    ),
+  )]
+}
+
+export function buildMenus(
+  permissions: readonly string[],
+  registrations: readonly PageRegistration[] = pageRegistrations,
+): MenuDomain[] {
+  const actionsByPage = new Map<string, string[]>()
+
+  for (const permission of permissions) {
+    const match = permission.match(PERMISSION_PATTERN)
+    if (!match) continue
+
+    const [, domain, entity, action] = match
+    if (domain === 'app') continue
+
+    const key = `${domain}/${entity}`
+    const actions = actionsByPage.get(key) ?? []
+    if (!actions.includes(action)) actions.push(action)
+    actionsByPage.set(key, actions)
+  }
+
+  const domains = new Map<string, MenuDomain>()
+  const sortedRegistrations = [...registrations].sort(
+    (left, right) =>
+      left.domainOrder - right.domainOrder ||
+      left.domain.localeCompare(right.domain) ||
+      left.order - right.order ||
+      left.entity.localeCompare(right.entity),
+  )
+
+  for (const registration of sortedRegistrations) {
+    if (registration.domain === 'app') continue
+
+    const actions = actionsByPage.get(
+      `${registration.domain}/${registration.entity}`,
+    )
+    if (!actions?.includes('query')) continue
+
+    const existingDomain = domains.get(registration.domain)
+    const domain = existingDomain ?? {
+      domain: registration.domain,
+      title: registration.domainTitle,
+      ...(registration.domainIcon ? { icon: registration.domainIcon } : {}),
+      order: registration.domainOrder,
+      children: [],
+    }
+
+    domain.children.push({
+      entity: registration.entity,
+      title: registration.entityTitle,
+      ...(registration.icon ? { icon: registration.icon } : {}),
+      order: registration.order,
+      actions,
+    })
+    domains.set(registration.domain, domain)
+  }
+
+  return [...domains.values()]
+}
 
 export function hasRegisteredPage(domain: string, entity: string): boolean {
   return `${domain}/${entity}` in pageRegistry
 }
 
-export function registerMenuRoutes(
-  router: Router,
-  menus: MenuDomain[] | null | undefined,
-): number {
+export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[]): number {
   const expectedRouteNames = new Set<string>()
   let added = 0
 
-  for (const domain of Array.isArray(menus) ? menus : []) {
-    if (domain.domain === 'app' || !SAFE_SEGMENT.test(domain.domain)) continue
-
+  for (const domain of menus) {
     for (const entity of domain.children) {
-      if (!SAFE_SEGMENT.test(entity.entity)) continue
-
       const key = `${domain.domain}/${entity.entity}`
-      const component = pageRegistry[key]
-      if (!component) {
-        console.warn(`[router] 后端菜单未注册本地页面：${key}`)
-        continue
-      }
+      const registration = pageRegistry[key]
+      if (!registration) continue
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
@@ -55,7 +148,7 @@ export function registerMenuRoutes(
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component,
+        component: registration.component,
         meta: {
           requiresAuth: true,
           title: entity.title,
@@ -76,16 +169,11 @@ export function registerMenuRoutes(
   return added
 }
 
-export function resolveFirstMenuPath(menus: MenuDomain[] | null | undefined): string {
-  for (const domain of Array.isArray(menus) ? menus : []) {
-    if (domain.domain === 'app') continue
+export function resolveFirstMenuPath(menus: readonly MenuDomain[]): string {
+  const firstDomain = menus[0]
+  const firstEntity = firstDomain?.children[0]
 
-    for (const entity of domain.children) {
-      if (hasRegisteredPage(domain.domain, entity.entity)) {
-        return `/${domain.domain}/${entity.entity}`
-      }
-    }
-  }
-
-  return '/home/dashboard'
+  return firstDomain && firstEntity
+    ? `/${firstDomain.domain}/${firstEntity.entity}`
+    : '/home/dashboard'
 }

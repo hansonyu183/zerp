@@ -65,6 +65,9 @@ function documentView(
         product: line.product!,
         orderedQuantity: line.orderedQuantity,
         unitPrice: line.unitPrice,
+        ...(line.purchaseUnitPrice
+          ? { purchaseUnitPrice: line.purchaseUnitPrice }
+          : {}),
         lineAmount: '10.00',
         remark: line.remark,
       })),
@@ -113,6 +116,9 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
       product: reference('product'),
       orderedQuantity: '2.5',
       unitPrice: '4.00',
+      purchaseUnitPrice: config.entity === 'intermediary-sale-order'
+        ? '3.00'
+        : '',
       remark: '',
     }]
   }
@@ -181,7 +187,76 @@ describe('shared VOU entity view model', () => {
       if (config.lineKind !== 'product') expect(data).not.toHaveProperty('productLines')
       if (config.lineKind !== 'expense') expect(data).not.toHaveProperty('expenseLines')
       if (!config.directAmount) expect(data).not.toHaveProperty('amount')
+      if (config.lineKind === 'product') {
+        const productLine = (data.productLines as Array<Record<string, unknown>>)[0]
+        if (config.entity === 'intermediary-sale-order') {
+          expect(productLine).toHaveProperty('purchaseUnitPrice', '3.00')
+          expect(vm.form.value.productLines[0].purchaseUnitPrice).toBe('3.00')
+        } else {
+          expect(productLine).not.toHaveProperty('purchaseUnitPrice')
+        }
+      }
     }
+  })
+
+  it('requires a purchase unit price for intermediary sale order lines', async () => {
+    const config = voucherEntityConfigs['intermediary-sale-order']
+    useSessionStore().permissions = [`/vou/${config.entity}/create`]
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    populate(config, vm.form.value)
+    vm.form.value.productLines[0].purchaseUnitPrice = ''
+
+    expect(await vm.save()).toBe(false)
+    expect(vm.workspaceError.value).toBe('请完整填写有效的采购单价。')
+    expect(mockedPost).not.toHaveBeenCalled()
+  })
+
+  it('loads and saves an intermediary purchase unit price', async () => {
+    const config = voucherEntityConfigs['intermediary-sale-order']
+    const form = useVoucherEntityViewModel(config).form.value
+    populate(config, form)
+    const view = documentView(config, form)
+    useSessionStore().permissions = [
+      `/vou/${config.entity}/get`,
+      `/vou/${config.entity}/save`,
+    ]
+    const vm = useVoucherEntityViewModel(config)
+    let savedData: Record<string, unknown> | undefined
+    mockedPost.mockImplementation(async (path, body) => {
+      if (path.endsWith('/get')) return { data: view }
+      if (path.endsWith('/save')) {
+        savedData = (body as { data: Record<string, unknown> }).data
+        return {
+          data: {
+            documentId: view.documentId,
+            documentNo: view.documentNo,
+            status: 'DRAFT',
+            revision: 2,
+          },
+        }
+      }
+      return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+    })
+
+    await vm.openDocument({
+      documentId: view.documentId,
+      entity: config.entity,
+      documentNo: view.documentNo,
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: form.businessDate,
+      currency: form.currency,
+      amount: view.amount,
+      updatedAt: view.updatedAt,
+    }, true)
+    expect(vm.form.value.productLines[0].purchaseUnitPrice).toBe('3.00')
+
+    vm.form.value.productLines[0].purchaseUnitPrice = '3.25'
+    expect(await vm.save()).toBe(true)
+    expect(
+      (savedData?.productLines as Array<Record<string, unknown>>)[0],
+    ).toHaveProperty('purchaseUnitPrice', '3.25')
   })
 
   it('omits unchanged salesperson when saving an existing draft', async () => {
@@ -198,6 +273,7 @@ describe('shared VOU entity view model', () => {
         product: reference('product'),
         orderedQuantity: '1',
         unitPrice: '10.00',
+        purchaseUnitPrice: '',
         remark: '',
       }],
     }

@@ -1,4 +1,34 @@
 import { expect, test, type Page } from '@playwright/test'
+import { loadEnv } from 'vite'
+
+const localE2EEnv = loadEnv('e2e', process.cwd(), '')
+const requiredVouFixtureNames = [
+  'E2E_VOU_CUSTOMER_KEYWORD',
+  'E2E_VOU_SUPPLIER_KEYWORD',
+  'E2E_VOU_EMPLOYEE_KEYWORD',
+  'E2E_VOU_WAREHOUSE_KEYWORD',
+  'E2E_VOU_PRODUCT_KEYWORD',
+  'E2E_VOU_PLATFORM_KEYWORD',
+  'E2E_VOU_VEHICLE_KEYWORD',
+  'E2E_VOU_FUND_ACCOUNT_KEYWORD',
+  'E2E_VOU_CURRENCY',
+] as const
+
+for (const name of requiredVouFixtureNames) {
+  if (process.env[name] === undefined && localE2EEnv[name] !== undefined) {
+    process.env[name] = localE2EEnv[name]
+  }
+}
+
+const missingVouFixtureNames = requiredVouFixtureNames.filter(
+  (name) => !process.env[name],
+)
+
+if (missingVouFixtureNames.length > 0) {
+  throw new Error(
+    `VOU Playwright 用例缺少真实测试后端资料：${missingVouFixtureNames.join(', ')}`,
+  )
+}
 
 const credentials = {
   username: process.env.E2E_USERNAME!,
@@ -7,6 +37,7 @@ const credentials = {
 
 const fixture = {
   customer: process.env.E2E_VOU_CUSTOMER_KEYWORD!,
+  supplier: process.env.E2E_VOU_SUPPLIER_KEYWORD!,
   employee: process.env.E2E_VOU_EMPLOYEE_KEYWORD!,
   warehouse: process.env.E2E_VOU_WAREHOUSE_KEYWORD!,
   product: process.env.E2E_VOU_PRODUCT_KEYWORD!,
@@ -29,7 +60,7 @@ async function selectReference(
   label: string | RegExp,
   keyword: string,
 ): Promise<void> {
-  const input = page.getByLabel(label).first()
+  const input = page.getByRole('combobox', { name: label }).first()
   await input.click()
   await input.fill(keyword)
   const option = page.getByRole('option').filter({ hasText: keyword }).first()
@@ -46,14 +77,18 @@ async function reverse(
   await page.getByRole('button', { name: `确认${button}` }).click()
 }
 
-test('收款单完成附件、完整生命周期、反向流转和审计', async ({
-  page,
-  isMobile,
-}) => {
-  test.skip(isMobile, 'VOU 完整业务链路在桌面项目执行。')
+function localDate(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+}
+
+test('收款单完成附件、完整生命周期、反向流转和审计', async ({ page }) => {
+  test.setTimeout(180_000)
   await signIn(page)
   await page.goto('/vou/receipt')
   await page.getByRole('button', { name: '新建单据' }).click()
+  const workspace = page.locator('.voucher-workspace')
 
   await selectReference(page, '客户', fixture.customer)
   await selectReference(page, '经办人', fixture.employee)
@@ -61,7 +96,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await expect(page.getByLabel('币种')).toHaveValue(fixture.currency)
   await page.getByLabel('金额').fill('100.00')
   await page.getByRole('button', { name: '创建草稿' }).click()
-  await expect(page.getByText(/^REC-\d{8}-\d{6}$/)).toBeVisible()
+  await expect(workspace.getByText(/^REC-\d{8}-\d{6}$/)).toBeVisible()
 
   await page.getByRole('tab', { name: '附件' }).click()
   await page.locator('input[type=file]').setInputFiles({
@@ -69,7 +104,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.4\nE2E\n%%EOF'),
   })
-  await expect(page.getByText('已上传', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已上传', { exact: true })).toBeVisible()
   const download = page.waitForEvent('download')
   await page.getByLabel('下载 vou-e2e.pdf').click()
   expect((await download).suggestedFilename()).toBe('vou-e2e.pdf')
@@ -77,34 +112,32 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await page.getByRole('tab', { name: '单据' }).click()
   await page.getByRole('button', { name: '取消编辑' }).click()
   await page.getByRole('button', { name: '审核', exact: true }).click()
-  await expect(page.getByText('已审核', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已审核', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(page.getByText('已批准', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '执行', exact: true }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
-  await expect(page.getByText('已执行', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已执行', { exact: true })).toBeVisible()
 
   await reverse(page, '反执行')
   await reverse(page, '反批准')
   await reverse(page, '反审核')
-  await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
   await page.getByRole('tab', { name: '审计' }).click()
-  await expect(page.getByText('反执行', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('反审核', { exact: true }).first()).toBeVisible()
+  await expect(workspace.getByText('反执行', { exact: true }).first()).toBeVisible()
+  await expect(workspace.getByText('反审核', { exact: true }).first()).toBeVisible()
   await page.getByRole('tab', { name: '附件' }).click()
   await page.getByLabel('移除 vou-e2e.pdf').click()
-  await expect(page.getByText('暂无附件')).toBeVisible()
+  await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
-test('销售单完成产品明细、审核批准、签收执行和反执行', async ({
-  page,
-  isMobile,
-}) => {
-  test.skip(isMobile, 'VOU 完整业务链路在桌面项目执行。')
+test('销售单完成产品明细、审核批准、签收执行和反执行', async ({ page }) => {
+  test.setTimeout(180_000)
   await signIn(page)
   await page.goto('/vou/sale-order')
   await page.getByRole('button', { name: '新建单据' }).click()
+  const workspace = page.locator('.voucher-workspace')
 
   await selectReference(page, '客户', fixture.customer)
   await selectReference(page, /业务员/, fixture.employee)
@@ -117,7 +150,7 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   await draftInputs.nth(2).fill('12.50')
   await expect(draftLine).toContainText('25.00')
   await page.getByRole('button', { name: '创建草稿' }).click()
-  await expect(page.getByText(/^SO-\d{8}-\d{6}$/)).toBeVisible()
+  await expect(workspace.getByText(/^SO-\d{8}-\d{6}$/)).toBeVisible()
   await page.getByRole('button', { name: '取消编辑' }).click()
 
   await page.getByRole('button', { name: '审核', exact: true }).click()
@@ -125,12 +158,40 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   await page.getByRole('button', { name: '执行', exact: true }).click()
   await selectReference(page, '物流平台', fixture.platform)
   await selectReference(page, '送货车辆', fixture.vehicle)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDate()
   await page.getByLabel('出库日期').fill(today)
   await page.getByLabel('签收日期').fill(today)
   await page.getByRole('button', { name: '确认执行' }).click()
-  await expect(page.getByText('已执行', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已执行', { exact: true })).toBeVisible()
 
   await reverse(page, '反执行')
-  await expect(page.getByText('已批准', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+})
+
+test('居间销售单创建并保存采购含税单价', async ({ page }) => {
+  test.setTimeout(180_000)
+  await signIn(page)
+  await page.goto('/vou/intermediary-sale-order')
+  await page.getByRole('button', { name: '新建单据' }).click()
+  const workspace = page.locator('.voucher-workspace')
+
+  await selectReference(page, '客户', fixture.customer)
+  await selectReference(page, '普通供应商', fixture.supplier)
+  await selectReference(page, '产品', fixture.product)
+
+  const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
+  const draftInputs = draftLine.locator('input')
+  await draftInputs.nth(1).fill('2')
+  await draftInputs.nth(2).fill('12.50')
+  await draftInputs.nth(3).fill('9.50')
+  await expect(draftLine).toContainText('25.00')
+  await page.getByRole('button', { name: '创建草稿' }).click()
+  await expect(workspace.getByText(/^ISO-\d{8}-\d{6}$/)).toBeVisible()
+
+  const savedLine = workspace.locator('.voucher-lines__table tbody tr').first()
+  await savedLine.locator('input').nth(3).fill('9.75')
+  await page.getByRole('button', { name: '保存草稿' }).click()
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await expect(workspace.locator('.voucher-lines__table tbody tr').first())
+    .toContainText('9.75')
 })

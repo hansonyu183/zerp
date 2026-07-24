@@ -31,6 +31,7 @@ export interface VoucherProductLineDraft {
   product: VoucherReference | null
   orderedQuantity: string
   unitPrice: string
+  purchaseUnitPrice: string
   remark: string
 }
 
@@ -78,6 +79,7 @@ export interface VoucherProductLineView {
   product: VoucherReferenceView
   orderedQuantity: string
   unitPrice: string
+  purchaseUnitPrice?: string
   lineAmount: string
   remark?: string
   outboundQuantity?: string

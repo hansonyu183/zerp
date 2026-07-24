@@ -72,6 +72,7 @@ interface DraftPayload {
     product: VoucherReferenceInput
     orderedQuantity: string
     unitPrice: string
+    purchaseUnitPrice?: string
     remark?: string
   }>
   expenseLines?: Array<{
@@ -113,6 +114,7 @@ function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         product: null,
         orderedQuantity: '',
         unitPrice: '',
+        purchaseUnitPrice: '',
         remark: '',
       }]
       : [],
@@ -168,6 +170,7 @@ function formFromDocument(document: VoucherDocumentView): VoucherDraftForm {
       product: formReference(line.product),
       orderedQuantity: line.orderedQuantity,
       unitPrice: line.unitPrice,
+      purchaseUnitPrice: line.purchaseUnitPrice ?? '',
       remark: line.remark ?? '',
     })),
     expenseLines: (data.expenseLines ?? []).map((line) => ({
@@ -507,6 +510,10 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       for (const line of value.productLines) {
         if (!line.product || !isQuantity(line.orderedQuantity) ||
           !isMoney(line.unitPrice)) return '请完整填写有效的产品、数量和单价。'
+        if (config.entity === 'intermediary-sale-order' &&
+          !isMoney(line.purchaseUnitPrice)) {
+          return '请完整填写有效的采购单价。'
+        }
         const lineAmount = calculateLineAmount(
           line.orderedQuantity,
           line.unitPrice,
@@ -575,6 +582,9 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         product: inputReference(line.product)!,
         orderedQuantity: line.orderedQuantity.trim(),
         unitPrice: line.unitPrice.trim(),
+        ...(config.entity === 'intermediary-sale-order'
+          ? { purchaseUnitPrice: line.purchaseUnitPrice.trim() }
+          : {}),
         ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       }))
     }

@@ -322,6 +322,7 @@ function changeCounterpartyType(value: string): void {
             :product-error="vm.referenceError('product')"
             :product-loading="vm.referenceLoading('product')"
             :product-options="vm.referenceOptions('product')"
+            :purchase-price-required="vm.config.entity === 'intermediary-sale-order'"
             @product-search="vm.searchReference('product', $event)"
           />
           <VoucherExpenseLinesEditor

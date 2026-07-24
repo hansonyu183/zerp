@@ -20,11 +20,13 @@ const props = withDefaults(defineProps<{
   productOptions?: readonly VoucherReference[]
   productLoading?: boolean
   productError?: string | null
+  purchasePriceRequired?: boolean
 }>(), {
   editable: true,
   productOptions: () => [],
   productLoading: false,
   productError: null,
+  purchasePriceRequired: false,
 })
 
 const emit = defineEmits<{
@@ -72,6 +74,7 @@ function addLine(): void {
       product: null,
       orderedQuantity: '',
       unitPrice: '',
+      purchaseUnitPrice: '',
       remark: '',
     },
   ])
@@ -123,6 +126,7 @@ function removeLine(index: number): void {
             <th class="voucher-lines__reference">产品</th>
             <th>数量</th>
             <th>含税单价</th>
+            <th v-if="purchasePriceRequired">采购含税单价</th>
             <th>行金额</th>
             <th>备注</th>
             <th v-if="editable" />
@@ -179,6 +183,22 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.unitPrice }}</span>
             </td>
+            <td v-if="purchasePriceRequired">
+              <v-text-field
+                v-if="editable"
+                density="compact"
+                hide-details="auto"
+                inputmode="decimal"
+                :model-value="line.purchaseUnitPrice"
+                :rules="[
+                  (v: string) => isMoney(v) ||
+                    '请输入大于零且最多两位小数的采购单价。',
+                ]"
+                variant="outlined"
+                @update:model-value="updateLine(index, { purchaseUnitPrice: $event })"
+              />
+              <span v-else>{{ line.purchaseUnitPrice }}</span>
+            </td>
             <td class="text-end">
               {{ calculateLineAmount(line.orderedQuantity, line.unitPrice) ?? '—' }}
             </td>
@@ -206,14 +226,20 @@ function removeLine(index: number): void {
             </td>
           </tr>
           <tr v-if="modelValue.length === 0">
-            <td :colspan="editable ? 7 : 6" class="text-center py-8">
+            <td
+              :colspan="6 + (purchasePriceRequired ? 1 : 0) + (editable ? 1 : 0)"
+              class="text-center py-8"
+            >
               暂无产品明细
             </td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
-            <td :colspan="editable ? 4 : 3" class="text-end font-weight-bold">
+            <td
+              :colspan="4 + (purchasePriceRequired ? 1 : 0)"
+              class="text-end font-weight-bold"
+            >
               合计
             </td>
             <td class="text-end font-weight-bold">{{ total ?? '—' }}</td>

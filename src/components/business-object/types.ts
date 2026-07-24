@@ -3,6 +3,7 @@ export type BusinessObjectFieldType =
   | 'textarea'
   | 'number'
   | 'select'
+  | 'autocomplete'
   | 'date'
   | 'switch'
   | 'readonly'
@@ -35,8 +36,12 @@ export interface BusinessObjectField<T extends object> {
   hint?: string
   readonly?: BusinessObjectFieldState<T>
   disabled?: BusinessObjectFieldState<T>
+  visible?: BusinessObjectFieldState<T>
   span?: 1 | 2
   options?: readonly BusinessObjectFieldOption[]
+  loading?: boolean
+  clearable?: boolean
+  multiple?: boolean
   min?: number
   max?: number
   step?: number
@@ -44,6 +49,10 @@ export interface BusinessObjectField<T extends object> {
   falseLabel?: string
   format?: (value: unknown, record: Readonly<T>) => string
   rules?: readonly BusinessObjectValidationRule<T>[]
+  onChange?: (
+    value: unknown,
+    record: Readonly<T>,
+  ) => Partial<T> | void
 }
 
 export type BusinessObjectRowState<T extends object> =

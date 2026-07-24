@@ -147,7 +147,7 @@ function inputStub(name: string, className: string) {
         default: () => [],
       },
     },
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue', 'update:search'],
     setup(props) {
       const form = inject(testFormKey, null)
       const errors = ref<string[]>([])
@@ -184,6 +184,7 @@ function inputStub(name: string, className: string) {
 
 const testComponents = {
   VAlert: containerStub('VAlert'),
+  VAutocomplete: inputStub('VAutocomplete', 'v-autocomplete'),
   VBtn: VBtnStub,
   VCard: containerStub('VCard'),
   VCardText: containerStub('VCardText'),
@@ -287,6 +288,48 @@ describe('BusinessObjectEditor', () => {
       name: '华南客户',
       id: 'C-1',
     })
+  })
+
+  it('支持异步关联搜索和按草稿条件显示字段', async () => {
+    const advancedFields: readonly BusinessObjectField<ExampleObject>[] = [
+      {
+        key: 'category',
+        label: '客户类型',
+        type: 'autocomplete',
+        options: [{ title: '企业客户', value: 'enterprise' }],
+      },
+      {
+        key: 'notes',
+        label: '备注',
+        type: 'textarea',
+        required: true,
+        visible: (record) => record.active,
+      },
+    ]
+    const wrapper = mountEditor({
+      editing: true,
+      fields: advancedFields,
+    })
+
+    const autocomplete = wrapper.getComponent({ name: 'VAutocomplete' })
+    autocomplete.vm.$emit('update:search', '企业')
+    await flushPromises()
+
+    expect(wrapper.emitted('reference-search')?.[0]?.slice(0, 2)).toEqual([
+      'category',
+      '企业',
+    ])
+    expect(wrapper.get('[data-field="notes"]').isVisible()).toBe(true)
+
+    const hiddenWrapper = mountEditor({
+      editing: true,
+      fields: advancedFields,
+      modelValue: { ...model, active: false, notes: '' },
+    })
+    expect(hiddenWrapper.get('[data-field="notes"]').isVisible()).toBe(false)
+    await buttonByText(hiddenWrapper, '保存').trigger('click')
+    await flushPromises()
+    expect(hiddenWrapper.emitted('save')).toHaveLength(1)
   })
 
   it('取消编辑会丢弃草稿并保留编辑期间收到的外部对象', async () => {

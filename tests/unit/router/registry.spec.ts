@@ -74,8 +74,9 @@ describe('permission menu registry', () => {
           },
           {
             entity: 'supplier',
-            title: 'Supplier',
-            order: Number.MAX_SAFE_INTEGER,
+            title: '供应商',
+            icon: 'mdi-truck-delivery-outline',
+            order: 20,
             actions: ['query'],
           },
         ],
@@ -163,14 +164,14 @@ describe('permission menu registry', () => {
     ])
 
     expect(hasRegisteredPage('bob', 'customer')).toBe(true)
-    expect(hasRegisteredPage('bob', 'supplier')).toBe(false)
+    expect(hasRegisteredPage('bob', 'supplier')).toBe(true)
     expect(registerMenuRoutes(router, menus)).toBe(2)
     expect(router.hasRoute('page:bob/customer')).toBe(true)
     expect(router.hasRoute('page:bob/supplier')).toBe(true)
     expect(router.resolve('/bob/customer').meta.actions).toEqual(['query', 'create'])
     expect(router.resolve('/bob/customer').meta.developing).toBe(false)
     expect(router.resolve('/bob/supplier').meta.actions).toEqual(['query'])
-    expect(router.resolve('/bob/supplier').meta.developing).toBe(true)
+    expect(router.resolve('/bob/supplier').meta.developing).toBe(false)
     expect(resolveFirstMenuPath(menus)).toBe('/bob/customer')
 
     expect(registerMenuRoutes(router, [])).toBe(0)
@@ -178,5 +179,33 @@ describe('permission menu registry', () => {
     expect(router.hasRoute('page:bob/supplier')).toBe(false)
     expect(router.resolve('/bob/customer').name).toBe('not-found')
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
+  })
+
+  it('为 BOB 十二类实体加载真实页面组件', () => {
+    const entities = [
+      'customer',
+      'supplier',
+      'employee',
+      'product',
+      'service',
+      'warehouse',
+      'vehicle',
+      'fund-account',
+      'category',
+      'department',
+      'position',
+      'settlement-method',
+    ]
+    const router = createTestRouter()
+    const menus = buildMenus(
+      entities.map((entity) => `/bob/${entity}/query`),
+    )
+
+    expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+    expect(registerMenuRoutes(router, menus)).toBe(entities.length)
+    for (const entity of entities) {
+      expect(hasRegisteredPage('bob', entity)).toBe(true)
+      expect(router.resolve(`/bob/${entity}`).meta.developing).toBe(false)
+    }
   })
 })

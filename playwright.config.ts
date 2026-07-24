@@ -6,6 +6,8 @@ const requiredE2EEnvNames = [
   'E2E_API_BASE_URL',
   'E2E_USERNAME',
   'E2E_PASSWORD',
+  'E2E_REVIEWER_USERNAME',
+  'E2E_REVIEWER_PASSWORD',
 ] as const
 
 for (const name of requiredE2EEnvNames) {

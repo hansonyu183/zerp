@@ -36,11 +36,19 @@ async function openSupplier(page: Page): Promise<void> {
 async function searchSupplier(page: Page, code: string): Promise<void> {
   await page.getByRole('textbox', { name: '供应商关键字' }).fill(code)
   await page.getByRole('button', { name: '查询' }).click()
-  await expect(page.getByText(code, { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('cell', { name: code, exact: true }),
+  ).toBeVisible()
 }
 
 async function openMore(page: Page, code: string): Promise<void> {
   await page.getByLabel(`更多操作 ${code}`).click()
+}
+
+function supplierRow(page: Page, code: string) {
+  return page.getByRole('row').filter({
+    has: page.getByRole('cell', { name: code, exact: true }),
+  })
 }
 
 test('使用双账号完成供应商驳回、重提、通过和历史核验', async ({ page }) => {
@@ -59,7 +67,9 @@ test('使用双账号完成供应商驳回、重提、通过和历史核验', as
   await openMore(page, code)
   await page.getByText('提交审核', { exact: true }).click()
   await page.getByRole('button', { name: '提交审核' }).click()
-  await expect(page.getByText('待审核', { exact: true })).toBeVisible()
+  await expect(
+    supplierRow(page, code).getByText('待审核', { exact: true }),
+  ).toBeVisible()
   await signOut(page)
 
   await signIn(page, reviewer)
@@ -69,7 +79,9 @@ test('使用双账号完成供应商驳回、重提、通过和历史核验', as
   await page.getByText('审核驳回', { exact: true }).click()
   await page.getByLabel('驳回意见').fill('E2E 验证驳回后重提')
   await page.getByRole('button', { name: '确认驳回' }).click()
-  await expect(page.getByText('已驳回', { exact: true })).toBeVisible()
+  await expect(
+    supplierRow(page, code).getByText('已驳回', { exact: true }),
+  ).toBeVisible()
   await signOut(page)
 
   await signIn(page, submitter)
@@ -91,17 +103,25 @@ test('使用双账号完成供应商驳回、重提、通过和历史核验', as
   await page.getByText('审核通过', { exact: true }).click()
   await page.getByLabel('审核意见（可选）').fill('E2E 审核通过')
   await page.getByRole('button', { name: '确认通过' }).click()
-  await expect(page.getByText('有效', { exact: true })).toBeVisible()
+  await expect(
+    supplierRow(page, code).getByText('有效', { exact: true }),
+  ).toBeVisible()
 
   await openMore(page, code)
   await page.getByText('版本历史', { exact: true }).click()
-  await expect(page.getByRole('heading', { name: '版本历史' })).toBeVisible()
-  await expect(page.getByText('V1', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '关闭' }).click()
+  const versionsDialog = page.getByRole('dialog').filter({
+    hasText: '版本历史',
+  })
+  await expect(versionsDialog).toBeVisible()
+  await expect(versionsDialog.getByText('V1', { exact: true })).toBeVisible()
+  await versionsDialog.getByRole('button', { name: '关闭' }).click()
 
   await openMore(page, code)
   await page.getByText('审核历史', { exact: true }).click()
-  await expect(page.getByRole('heading', { name: '审核历史' })).toBeVisible()
-  await expect(page.getByText('REJECTED', { exact: true })).toBeVisible()
-  await expect(page.getByText('APPROVED', { exact: true })).toBeVisible()
+  const auditDialog = page.getByRole('dialog').filter({
+    hasText: '审核历史',
+  })
+  await expect(auditDialog).toBeVisible()
+  await expect(auditDialog.getByText('REJECTED', { exact: true })).toBeVisible()
+  await expect(auditDialog.getByText('APPROVED', { exact: true })).toBeVisible()
 })

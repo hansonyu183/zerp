@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
-import { hasRegisteredPage } from '@/router/registry'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
@@ -21,16 +20,7 @@ const accountSuccess = ref('')
 const profile = reactive({ displayName: '', avatarUrl: '' })
 const passwords = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
-const visibleMenus = computed(() =>
-  session.menus
-    .map((domain) => ({
-      ...domain,
-      children: domain.children.filter((entity) =>
-        hasRegisteredPage(domain.domain, entity.entity),
-      ),
-    }))
-    .filter((domain) => domain.children.length > 0),
-)
+const visibleMenus = computed(() => session.menus)
 
 const displayName = computed(
   () => session.user?.displayName || session.user?.username || '用户',

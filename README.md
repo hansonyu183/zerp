@@ -98,7 +98,7 @@ src/pages/home/content/vou/saleorder/
 └─ vm.ts
 ```
 
-`home` 根据当前路由和后端菜单权限，从 `content/{domain}/{entity}` 加载匹配的实体组件。业务组件不得自行创建应用框架，也不得重复实现顶栏和侧栏。
+`home` 根据当前路由、会话权限数组和前端本地页面注册表，从 `content/{domain}/{entity}` 加载匹配的实体组件。业务组件不得自行创建应用框架，也不得重复实现顶栏和侧栏。
 
 ### `{Entity}.vue`
 
@@ -245,7 +245,7 @@ HTTP 200 只代表应用服务器返回了业务结果。DNS、CORS、TLS、连�
 
 ```text
 POST /app/user/signin   # 登录并由后端写入会话 Cookie
-POST /app/user/session  # 恢复用户、菜单、权限及 CSRF Token
+POST /app/user/session  # 恢复用户、权限及 CSRF Token
 POST /app/user/signout  # 注销并由后端清理会话 Cookie
 ```
 
@@ -253,30 +253,39 @@ POST /app/user/signout  # 注销并由后端清理会话 Cookie
 - 前端不得读取、复制或持久化会话标识。
 - `api/client.ts` 对所有请求设置 `credentials: 'include'`。
 - 登录后的请求携带会话接口返回的 `X-CSRF-Token`。
-- 未登录业务码触发清空用户、菜单和权限 Store，并跳转登录页。
+- 未登录业务码触发清空用户、权限及由权限生成的菜单，并跳转登录页。
 - 无权限业务码显示权限提示，不自动重试。
 - 跨域部署时，后端必须显式允许准确的前端 Origin 和凭证，禁止使用通配符 CORS。
 
 ## 动态菜单、路由与权限
 
-登录或恢复会话后，后端返回两级菜单及动作权限。菜单标识与 API 路径保持一致：
+登录或恢复会话后，后端返回完整的 API 权限数组，前端结合本地页面注册表生成两级动态菜单：
 
-- 一级菜单使用 `domain`；
-- 二级菜单使用 `entity`；
+- 权限路径格式为 `/{domain}/{entity}/{action}`；
+- `app` 领域不进入 Home 动态菜单；
+- 实体必须具有 `query` 权限并且存在本地注册页面；
+- 没有可访问实体的领域不显示；
 - 页面路由使用 `/${domain}/${entity}`；
-- 动作权限使用后端返回的 `action` 集合。
+- 页面动作使用该实体权限路径中的 `action` 集合。
 
-前端以 `${domain}/${entity}` 为键，从编译期定义的本地注册表解析 `home/content` 下的业务组件，并由 `home` 的内容区域加载：
+前端注册表保存领域和实体的标题、图标、顺序及组件加载器。权限只能启用本地已注册页面，不能指定任意组件路径：
 
 ```ts
-export const pageRegistry = {
-  'vou/saleorder': () => import('@/pages/home/content/vou/saleorder/SaleOrder.vue'),
-}
+{
+  domain: 'bob',
+  domainTitle: '基础业务对象',
+  domainOrder: 10,
+  entity: 'customer',
+  entityTitle: '客户',
+  icon: 'mdi-account-group',
+  order: 10,
+  component: () => import('@/pages/bob/customer/Customer.vue'),
+},
 ```
 
-后端不得返回可被前端直接导入的任意组件路径。未在本地注册的实体不显示，并记录包含 `domain`、`entity` 和 `requestId` 的诊断信息。业务路由仍使用 `/${domain}/${entity}`，但它们渲染在 `home` 的 content 出口内，不新增第四种根页面。
+未在本地注册、缺少 `query` 权限或属于 `app` 领域的实体不显示，也不注册动态路由。业务路由仍使用 `/${domain}/${entity}`，但它们渲染在 `home` 的 content 出口内，不新增第四种根页面。
 
-前端权限仅用于菜单、按钮和交互控制，不是安全边界。真实后端必须对每次实体操作重新校验会话及动作权限。
+前端通过 `can('/bob/customer/create')` 精确判断动作权限。前端权限仅用于菜单、按钮和交互控制，不是安全边界；真实后端必须对每次实体操作重新校验会话及动作权限。
 
 ## 首期业务模块
 

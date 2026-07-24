@@ -58,12 +58,9 @@ test('移动端首次进入仪表盘时导航抽屉默认关闭', async ({ page,
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-token',
-          menus: [
-            {
-              domain: 'bob',
-              title: '基础资料',
-              children: [{ entity: 'customer', title: '客户', actions: ['query'] }],
-            },
+          permissions: [
+            '/app/user/query',
+            '/bob/customer/query',
           ],
         },
       },
@@ -82,4 +79,8 @@ test('移动端首次进入仪表盘时导航抽屉默认关闭', async ({ page,
     const openBox = await page.locator('.sidebar').boundingBox()
     return openBox?.x ?? -999
   }).toBeGreaterThanOrEqual(0)
+  await expect(page.getByText('基础业务对象')).toBeVisible()
+  await page.getByText('基础业务对象').click()
+  await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()
+  await expect(page.getByText('系统能力')).toHaveCount(0)
 })

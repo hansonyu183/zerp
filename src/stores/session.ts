@@ -2,6 +2,12 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { apiClient } from '@/api/client'
 import { ApiError, getErrorMessage } from '@/api/types'
+import {
+  buildMenus,
+  normalizePermissions,
+  type MenuDomain,
+  type MenuEntity,
+} from '@/router/registry'
 
 const UNAUTHENTICATED_CODE = 1001
 
@@ -14,6 +20,8 @@ function isUnauthenticatedError(error: unknown): boolean {
   )
 }
 
+export type { MenuDomain, MenuEntity }
+
 export interface UserProfile {
   id: string
   username: string
@@ -21,26 +29,10 @@ export interface UserProfile {
   avatarUrl?: string
 }
 
-export interface MenuEntity {
-  entity: string
-  title: string
-  icon?: string
-  order?: number
-  actions: string[]
-}
-
-export interface MenuDomain {
-  domain: string
-  title: string
-  icon?: string
-  order?: number
-  children: MenuEntity[]
-}
-
 export interface SessionData {
   user: UserProfile
   csrfToken: string
-  menus?: unknown
+  permissions?: unknown
 }
 
 export interface SignInRequest {
@@ -48,64 +40,25 @@ export interface SignInRequest {
   password: string
 }
 
-export function normalizeMenus(value: unknown): MenuDomain[] {
-  if (!Array.isArray(value)) return []
-
-  return value.flatMap((candidate): MenuDomain[] => {
-    if (!candidate || typeof candidate !== 'object') return []
-
-    const domain = candidate as Record<string, unknown>
-    if (
-      typeof domain.domain !== 'string' ||
-      domain.domain === 'app' ||
-      typeof domain.title !== 'string' ||
-      !Array.isArray(domain.children)
-    ) {
-      return []
-    }
-
-    const children = domain.children.flatMap((candidateEntity): MenuEntity[] => {
-      if (!candidateEntity || typeof candidateEntity !== 'object') return []
-
-      const entity = candidateEntity as Record<string, unknown>
-      if (typeof entity.entity !== 'string' || typeof entity.title !== 'string') {
-        return []
-      }
-
-      return [{
-        entity: entity.entity,
-        title: entity.title,
-        ...(typeof entity.icon === 'string' ? { icon: entity.icon } : {}),
-        ...(typeof entity.order === 'number' ? { order: entity.order } : {}),
-        actions: Array.isArray(entity.actions)
-          ? entity.actions.filter((action): action is string => typeof action === 'string')
-          : [],
-      }]
-    })
-
-    return [{
-      domain: domain.domain,
-      title: domain.title,
-      ...(typeof domain.icon === 'string' ? { icon: domain.icon } : {}),
-      ...(typeof domain.order === 'number' ? { order: domain.order } : {}),
-      children,
-    }]
-  })
-}
-
 export const useSessionStore = defineStore('session', () => {
   const initialized = ref(false)
   const loading = ref(false)
   const user = ref<UserProfile | null>(null)
-  const menus = ref<MenuDomain[]>([])
+  const permissions = ref<string[]>([])
   const csrfToken = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
 
   const authenticated = computed(() => user.value !== null)
+  const menus = computed<MenuDomain[]>(() => buildMenus(permissions.value))
+  const permissionSet = computed(() => new Set(permissions.value))
+
+  function can(permissionPath: string): boolean {
+    return permissionSet.value.has(permissionPath)
+  }
 
   function applySession(session: SessionData): void {
     user.value = session.user
-    menus.value = normalizeMenus(session.menus)
+    permissions.value = normalizePermissions(session.permissions)
     csrfToken.value = session.csrfToken
     apiClient.setCsrfToken(session.csrfToken)
     errorMessage.value = null
@@ -114,7 +67,7 @@ export const useSessionStore = defineStore('session', () => {
 
   function clearSession(): void {
     user.value = null
-    menus.value = []
+    permissions.value = []
     csrfToken.value = null
     apiClient.setCsrfToken(null)
   }
@@ -191,10 +144,12 @@ export const useSessionStore = defineStore('session', () => {
     initialized,
     loading,
     user,
+    permissions,
     menus,
     csrfToken,
     errorMessage,
     authenticated,
+    can,
     restore,
     signIn,
     signOut,

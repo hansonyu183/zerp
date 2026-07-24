@@ -125,6 +125,7 @@ BOB 应区分稳定的“业务对象”和随修改产生的“对象版本”�
 ```ts
 interface CustomerListItem {
   objectId: string
+  entity: 'customer'
   code: string
   objectRevision: number
   effectiveVersionId: string | null
@@ -133,14 +134,31 @@ interface CustomerListItem {
     version: number
     status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
     revision: number
-    summary: { name: string }
+    summary: CustomerData
   }
   updatedAt: string
+}
+
+interface CustomerData {
+  name: string
+  customerType: 'END_USER' | 'DEALER'
+  shortName?: string
+  categoryId?: string
+  taxNumber?: string
+  contactName?: string
+  contactPhone?: string
+  email?: string
+  address?: string
+  remark?: string
+  settlementMethodId?: string
+  salespersonId?: string
 }
 ```
 
 客户详情使用对象视图结构，版本元数据位于顶层 `version`，可编辑名称位于顶层
-`data.name`。`create`、`edit` 和 `save` 返回扁平的变更结果：
+`data` 使用 `CustomerData`。客户分类、结算方式和业务员分别引用当前有效的
+`category`、`settlement-method` 和 `employee` 对象；后两者只保存客户主数据
+默认值，不在本领域自动带入交易单据。`create`、`edit` 和 `save` 返回扁平的变更结果：
 
 ```ts
 interface CustomerMutationResult {
@@ -158,9 +176,9 @@ interface CustomerMutationResult {
 | 动作 | 请求 | 响应 |
 | --- | --- | --- |
 | `get` | `{ objectId, versionId? }` | 顶层包含 `version` 和 `data` 的客户对象视图 |
-| `create` | `{ data: { code, name } }` | `CustomerMutationResult` |
+| `create` | `{ data: { code, ...CustomerData } }` | `CustomerMutationResult` |
 | `edit` | `{ objectId, objectRevision }` | 新草稿的 `CustomerMutationResult` |
-| `save` | `{ objectId, versionId, revision, data: { name } }` | `CustomerMutationResult` |
+| `save` | `{ objectId, versionId, revision, data: CustomerData }` | `CustomerMutationResult` |
 | `delete` | `{ objectId, objectRevision, versionId, revision }` | `null` |
 
 `edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`

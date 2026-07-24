@@ -21,6 +21,41 @@ vi.mock('@/api/client', () => ({
 
 const mockedApiClient = vi.mocked(apiClient)
 
+function makeCustomerData(name = '华东客户') {
+  return {
+    name,
+    customerType: 'DEALER' as const,
+    shortName: '华东',
+    categoryId: 'CAT-1',
+    taxNumber: 'TAX-001',
+    contactName: '张三',
+    contactPhone: '13800000000',
+    email: 'sales@example.com',
+    address: '上海市示例路',
+    remark: '重点客户',
+    settlementMethodId: 'SM-1',
+    salespersonId: 'EMP-1',
+  }
+}
+
+function emptyCustomerForm() {
+  return {
+    code: '',
+    name: '',
+    customerType: 'END_USER',
+    shortName: '',
+    categoryId: '',
+    taxNumber: '',
+    contactName: '',
+    contactPhone: '',
+    email: '',
+    address: '',
+    remark: '',
+    settlementMethodId: '',
+    salespersonId: '',
+  }
+}
+
 function makeRow(status: BobStatus = 'DRAFT'): CustomerListItem {
   return {
     objectId: 'OBJ-1',
@@ -33,7 +68,7 @@ function makeRow(status: BobStatus = 'DRAFT'): CustomerListItem {
       version: 1,
       status,
       revision: 5,
-      summary: { name: '华东客户' },
+      summary: makeCustomerData(),
     },
     updatedAt: '2026-07-24T09:40:18Z',
   }
@@ -53,7 +88,7 @@ function makeObjectView(name = '华东客户'): CustomerObjectView {
       status: 'DRAFT',
       revision: 1,
     },
-    data: { name },
+    data: makeCustomerData(name),
   }
 }
 
@@ -277,7 +312,7 @@ describe('Customer page', () => {
     const wrapper = mountCustomer(makeRow(), ['query', 'create', 'get', 'save'])
     await flushPromises()
 
-    expect(wrapper.text()).toContain('客户编码客户名称状态')
+    expect(wrapper.text()).toContain('客户编码客户名称客户类型状态')
     expect(wrapper.text()).not.toContain('更新时间')
     expect(wrapper.text()).toContain('C001')
     expect(wrapper.text()).toContain('华东客户')
@@ -285,7 +320,7 @@ describe('Customer page', () => {
     await wrapper.get('.list-create').trigger('click')
     expect(wrapper.get('.editor-stub').text()).toContain('新增客户')
     expect(wrapper.get('.editor-model').text()).toContain(
-      '{"code":"","name":""}',
+      JSON.stringify(emptyCustomerForm()),
     )
   })
 

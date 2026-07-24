@@ -48,13 +48,14 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('从权限和本地注册表生成菜单并排除 APP、未知页面和无 query 实体', () => {
+  it('显示所有非 APP 权限实体，并优先使用本地注册菜单元数据', () => {
     const menus = buildMenus(normalizePermissions([
       '/app/user/query',
       '/bob/customer/create',
       '/bob/customer/query',
       '/bob/customer/update',
       '/bob/supplier/query',
+      '/inv/stock/create',
     ]))
 
     expect(menus).toEqual([
@@ -71,13 +72,33 @@ describe('permission menu registry', () => {
             order: 10,
             actions: ['create', 'query', 'update'],
           },
+          {
+            entity: 'supplier',
+            title: 'Supplier',
+            order: Number.MAX_SAFE_INTEGER,
+            actions: ['query'],
+          },
+        ],
+      },
+      {
+        domain: 'inv',
+        title: 'Inv',
+        order: Number.MAX_SAFE_INTEGER,
+        children: [
+          {
+            entity: 'stock',
+            title: 'Stock',
+            order: Number.MAX_SAFE_INTEGER,
+            actions: ['create'],
+          },
         ],
       },
     ])
-    expect(buildMenus(['/bob/customer/create'])).toEqual([])
+    expect(buildMenus(['/app/user/query'])).toEqual([])
+    expect(buildMenus(['/bob/customer/create'])).toHaveLength(1)
   })
 
-  it('按本地领域和实体顺序生成菜单并隐藏空领域', () => {
+  it('按本地领域和实体顺序生成菜单，未注册实体排在已注册实体之后', () => {
     const component = async () => ({ default: { template: '<div />' } })
     const registrations: PageRegistration[] = [
       {
@@ -126,11 +147,14 @@ describe('permission menu registry', () => {
     ], registrations)
 
     expect(menus.map((domain) => domain.domain)).toEqual(['bob', 'vou'])
-    expect(menus[0]?.children.map((entity) => entity.entity)).toEqual(['customer'])
+    expect(menus[0]?.children.map((entity) => entity.entity)).toEqual([
+      'customer',
+      'supplier',
+    ])
     expect(menus[1]?.children.map((entity) => entity.entity)).toEqual(['saleorder'])
   })
 
-  it('只为生成的菜单注册动态路由并在权限移除后删除路由', () => {
+  it('为全部菜单注册路由，未注册组件使用开发中占位页', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/bob/customer/query',
@@ -140,13 +164,18 @@ describe('permission menu registry', () => {
 
     expect(hasRegisteredPage('bob', 'customer')).toBe(true)
     expect(hasRegisteredPage('bob', 'supplier')).toBe(false)
-    expect(registerMenuRoutes(router, menus)).toBe(1)
+    expect(registerMenuRoutes(router, menus)).toBe(2)
     expect(router.hasRoute('page:bob/customer')).toBe(true)
+    expect(router.hasRoute('page:bob/supplier')).toBe(true)
     expect(router.resolve('/bob/customer').meta.actions).toEqual(['query', 'create'])
+    expect(router.resolve('/bob/customer').meta.developing).toBe(false)
+    expect(router.resolve('/bob/supplier').meta.actions).toEqual(['query'])
+    expect(router.resolve('/bob/supplier').meta.developing).toBe(true)
     expect(resolveFirstMenuPath(menus)).toBe('/bob/customer')
 
     expect(registerMenuRoutes(router, [])).toBe(0)
     expect(router.hasRoute('page:bob/customer')).toBe(false)
+    expect(router.hasRoute('page:bob/supplier')).toBe(false)
     expect(router.resolve('/bob/customer').name).toBe('not-found')
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })

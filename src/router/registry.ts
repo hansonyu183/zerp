@@ -33,6 +33,9 @@ export interface PageRegistration {
 
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
+const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
+const developingPage: PageLoader =
+  () => import('@/pages/system/developing/Developing.vue')
 
 export const pageRegistrations: readonly PageRegistration[] = [
   {
@@ -88,7 +91,6 @@ export function buildMenus(
     actionsByPage.set(key, actions)
   }
 
-  const domains = new Map<string, MenuDomain>()
   const sortedRegistrations = [...registrations].sort(
     (left, right) =>
       left.domainOrder - right.domainOrder ||
@@ -96,35 +98,72 @@ export function buildMenus(
       left.order - right.order ||
       left.entity.localeCompare(right.entity),
   )
+  const registrationsByPage = new Map(
+    sortedRegistrations.map((registration) => [
+      `${registration.domain}/${registration.entity}`,
+      registration,
+    ]),
+  )
+  const registrationsByDomain = new Map<string, PageRegistration>()
 
   for (const registration of sortedRegistrations) {
     if (registration.domain === 'app') continue
+    if (!registrationsByDomain.has(registration.domain)) {
+      registrationsByDomain.set(registration.domain, registration)
+    }
+  }
 
-    const actions = actionsByPage.get(
-      `${registration.domain}/${registration.entity}`,
-    )
-    if (!actions?.includes('query')) continue
+  const domains = new Map<string, MenuDomain>()
 
-    const existingDomain = domains.get(registration.domain)
+  for (const [key, actions] of actionsByPage) {
+    const [domainId, entityId] = key.split('/') as [string, string]
+    const registration = registrationsByPage.get(key)
+    const domainRegistration = registration ??
+      registrationsByDomain.get(domainId)
+    const existingDomain = domains.get(domainId)
     const domain = existingDomain ?? {
-      domain: registration.domain,
-      title: registration.domainTitle,
-      ...(registration.domainIcon ? { icon: registration.domainIcon } : {}),
-      order: registration.domainOrder,
+      domain: domainId,
+      title: domainRegistration?.domainTitle ??
+        formatIdentifierTitle(domainId),
+      ...(domainRegistration?.domainIcon
+        ? { icon: domainRegistration.domainIcon }
+        : {}),
+      order: domainRegistration?.domainOrder ?? FALLBACK_ORDER,
       children: [],
     }
 
     domain.children.push({
-      entity: registration.entity,
-      title: registration.entityTitle,
-      ...(registration.icon ? { icon: registration.icon } : {}),
-      order: registration.order,
+      entity: entityId,
+      title: registration?.entityTitle ?? formatIdentifierTitle(entityId),
+      ...(registration?.icon ? { icon: registration.icon } : {}),
+      order: registration?.order ?? FALLBACK_ORDER,
       actions,
     })
-    domains.set(registration.domain, domain)
+    domains.set(domainId, domain)
   }
 
   return [...domains.values()]
+    .map((domain) => ({
+      ...domain,
+      children: domain.children.sort(
+        (left, right) =>
+          left.order - right.order ||
+          left.entity.localeCompare(right.entity),
+      ),
+    }))
+    .sort(
+      (left, right) =>
+        left.order - right.order ||
+        left.domain.localeCompare(right.domain),
+    )
+}
+
+function formatIdentifierTitle(identifier: string): string {
+  return identifier
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
 }
 
 export function hasRegisteredPage(domain: string, entity: string): boolean {
@@ -139,7 +178,6 @@ export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[])
     for (const entity of domain.children) {
       const key = `${domain.domain}/${entity.entity}`
       const registration = pageRegistry[key]
-      if (!registration) continue
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
@@ -148,11 +186,12 @@ export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[])
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component: registration.component,
+        component: registration?.component ?? developingPage,
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
+          developing: !registration,
         },
       })
       registeredRouteNames.add(routeName)

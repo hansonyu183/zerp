@@ -208,4 +208,24 @@ describe('permission menu registry', () => {
       expect(router.resolve(`/bob/${entity}`).meta.developing).toBe(false)
     }
   })
+
+  it('注册 VOU 七类精确连字符实体页面', () => {
+    const entities = [
+      'sale-order',
+      'purchase-order',
+      'intermediary-sale-order',
+      'receipt',
+      'payment',
+      'expense-reimbursement',
+      'other-income',
+    ]
+
+    expect(entities.every((entity) => hasRegisteredPage('vou', entity))).toBe(true)
+    const menus = buildMenus(
+      entities.map((entity) => `/vou/${entity}/query`),
+    )
+    expect(menus).toHaveLength(1)
+    expect(menus[0]?.title).toBe('业务单据')
+    expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+  })
 })

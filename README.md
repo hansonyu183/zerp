@@ -8,6 +8,7 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 
 - [APP（应用访问与权限管理）](./docs/domains/app.md)
 - [BOB（基础业务对象）](./docs/domains/bob.md)
+- [VOU（业务单据）](./docs/domains/vou.md)
 
 ## 技术栈
 
@@ -90,10 +91,10 @@ tests/
 
 `pages` 下只保留 `signin`、`home` 和 `notfound` 三个根页面。登录后的业务界面共用 `home` 的顶栏、侧栏和内容区域；每个业务实体对应 `home/content` 下的一个组件目录。
 
-例如，销售订单组件及其接口 `vou/saleorder/*` 对应：
+例如，销售单组件及其接口 `vou/sale-order/*` 对应：
 
 ```text
-src/pages/home/content/vou/saleorder/
+src/pages/vou/sale-order/
 ├─ SaleOrder.vue
 └─ vm.ts
 ```
@@ -172,7 +173,7 @@ VITE_API_BASE_URL=https://api.example.com/
 | 层级 | 含义 | 示例 |
 | --- | --- | --- |
 | `domain` | 业务领域，对应一级动态菜单 | `app`、`vou` |
-| `entity` | 业务实体，对应二级菜单及页面 | `user`、`saleorder` |
+| `entity` | 业务实体，对应二级菜单及页面 | `user`、`sale-order` |
 | `action` | 对实体执行的操作 | `signin`、`query`、`save`、`delete` |
 
 示例：
@@ -180,8 +181,8 @@ VITE_API_BASE_URL=https://api.example.com/
 ```text
 POST /app/user/signin
 POST /app/user/session
-POST /vou/saleorder/query
-POST /vou/saleorder/save
+POST /vou/sale-order/query
+POST /vou/sale-order/save
 ```
 
 ### 请求与响应
@@ -300,7 +301,7 @@ POST /app/user/signout  # 注销并由后端清理会话 Cookie
 | 报表 | 经营、销售、采购、库存和财务报表 |
 | 系统管理 | 用户、角色、菜单、权限和系统配置 |
 
-具体 `domain`、`entity`、字段和动作编码以真实后端菜单及 API 契约为准。本文只固定三级 API 与页面映射规则；已确定的销售订单示例为 `vou/saleorder/*`。
+具体 `domain`、`entity`、字段和动作编码以真实后端菜单及 API 契约为准。本文只固定三级 API 与页面映射规则；销售单使用后端精确实体名 `vou/sale-order/*`。
 
 ## 测试策略
 

@@ -45,3 +45,16 @@ export interface BusinessObjectField<T extends object> {
   format?: (value: unknown, record: Readonly<T>) => string
   rules?: readonly BusinessObjectValidationRule<T>[]
 }
+
+export type BusinessObjectRowState<T extends object> =
+  | boolean
+  | ((row: Readonly<T>) => boolean)
+
+export interface BusinessObjectColumn<T extends object> {
+  key: string
+  label: string
+  value: (row: Readonly<T>) => unknown
+  format?: (value: unknown, row: Readonly<T>) => string
+  align?: 'start' | 'center' | 'end'
+  width?: string
+}

@@ -46,7 +46,9 @@ BOB 是主数据来源，不负责销售、采购、库存、资金收付等交�
 
 ### 4.3 历史数据
 
-- 业务对象和其版本不得物理删除。
+- 业务对象和其版本原则上不得物理删除。
+- 仅当对象只有版本号为 `1` 的 `DRAFT` 版本、从未提交、从未生效、没有有效版本且没有任何外部引用时，允许连同该首版草稿物理删除。
+- 删除首版草稿时，后端必须再次校验对象状态、版本 revision 和引用关系；不满足条件或发生并发更新时必须拒绝删除。
 - 已经发生的业务记录必须保留所引用的 BOB 对象标识和版本标识。
 - 对展示、打印或审计有影响的名称、编码等信息，交易领域应按自身要求保存业务发生时的快照。
 - BOB 对象后续编辑或失效不得改变既有业务记录的历史事实。
@@ -116,6 +118,39 @@ BOB 应区分稳定的“业务对象”和随修改产生的“对象版本”�
 - `submittedBy`、`submittedAt`：提交审计信息；
 - `reviewedBy`、`reviewedAt`、`reviewComment`：审核信息。
 
+### 6.3 客户接口契约
+
+客户列表查询项使用稳定对象和当前版本的组合结构：
+
+```ts
+interface CustomerListItem {
+  objectId: string
+  code: string
+  objectRevision: number
+  effectiveVersionId: string | null
+  currentVersion: {
+    versionId: string
+    version: number
+    status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
+    revision: number
+    summary: { name: string }
+  }
+  updatedAt: string
+}
+```
+
+客户详情在 `currentVersion.data.name` 返回可编辑名称。各动作请求和响应约定如下：
+
+| 动作 | 请求 | 响应 |
+| --- | --- | --- |
+| `get` | `{ objectId, versionId? }` | 客户详情 |
+| `create` | `{ code, data: { name } }` | 新对象及首个草稿详情 |
+| `edit` | `{ objectId, objectRevision, versionId, revision }` | 新草稿详情 |
+| `save` | `{ objectId, objectRevision, versionId, revision, data: { name } }` | 更新后的草稿详情 |
+| `delete` | `{ objectId, objectRevision, versionId, revision }` | `null` |
+
+`objectRevision` 用于保护稳定对象，`revision` 用于保护当前版本。所有写操作必须由后端校验权限、状态和 revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
+
 ## 7. 领域能力
 
 BOB 中的各业务实体统一提供以下领域能力：
@@ -127,6 +162,7 @@ BOB 中的各业务实体统一提供以下领域能力：
 | 新建 | `create` | 创建对象及首个草稿版本 |
 | 发起编辑 | `edit` | 使有效版本失效并创建新草稿版本 |
 | 保存草稿 | `save` | 保存草稿或已驳回版本 |
+| 删除首版草稿 | `delete` | 删除满足 4.3 节全部条件、从未提交的首版草稿及其对象 |
 | 提交审核 | `submit` | 将可提交版本变为待审核 |
 | 审核通过 | `approve` | 将待审核版本变为有效版本 |
 | 审核驳回 | `reject` | 将待审核版本变为已驳回版本 |
@@ -143,7 +179,11 @@ POST /bob/{entity}/{action}
 
 ```text
 POST /bob/customer/query
+POST /bob/customer/create
+POST /bob/customer/get
 POST /bob/customer/edit
+POST /bob/customer/save
+POST /bob/customer/delete
 POST /bob/customer/submit
 POST /bob/customer/approve
 POST /bob/customer/reject
@@ -157,6 +197,7 @@ POST /bob/customer/versions
 - 查看；
 - 新建；
 - 编辑；
+- 删除满足条件的首版草稿；
 - 提交审核；
 - 审核通过；
 - 审核驳回；

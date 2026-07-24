@@ -1,9 +1,10 @@
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import type {
   BusinessObjectColumn,
   BusinessObjectField,
+  BusinessObjectFieldOption,
 } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
 
@@ -14,8 +15,21 @@ export type BobStatus =
   | 'EFFECTIVE'
   | 'INVALID'
 
+export type CustomerType = 'END_USER' | 'DEALER'
+
 export interface CustomerSummary {
   name: string
+  customerType: CustomerType
+  shortName?: string
+  categoryId?: string
+  taxNumber?: string
+  contactName?: string
+  contactPhone?: string
+  email?: string
+  address?: string
+  remark?: string
+  settlementMethodId?: string
+  salespersonEmployeeId: string
 }
 
 export interface CustomerListItem {
@@ -37,7 +51,20 @@ export interface CustomerListItem {
 export interface CustomerForm {
   code: string
   name: string
+  customerType: CustomerType
+  shortName: string
+  categoryId: string
+  taxNumber: string
+  contactName: string
+  contactPhone: string
+  email: string
+  address: string
+  remark: string
+  settlementMethodId: string
+  salespersonEmployeeId: string
 }
+
+export type CustomerDetailInput = Omit<CustomerForm, 'code'>
 
 export interface CustomerObjectView {
   objectId: string
@@ -64,13 +91,11 @@ export interface CustomerMutationResult {
   revision: number
 }
 
-export interface CustomerEditContext {
+export interface CustomerEditContext extends CustomerForm {
   objectId: string
-  code: string
   objectRevision: number
   versionId: string
   revision: number
-  name: string
 }
 
 export interface GetCustomerRequest {
@@ -79,10 +104,7 @@ export interface GetCustomerRequest {
 }
 
 export interface CreateCustomerRequest {
-  data: {
-    code: string
-    name: string
-  }
+  data: CustomerForm
 }
 
 export interface EditCustomerRequest {
@@ -94,14 +116,29 @@ export interface SaveCustomerRequest {
   objectId: string
   versionId: string
   revision: number
-  data: {
-    name: string
-  }
+  data: CustomerDetailInput
 }
 
 export interface DeleteCustomerRequest extends EditCustomerRequest {
   versionId: string
   revision: number
+}
+
+interface ReferenceListItem {
+  objectId: string
+  code: string
+  currentVersion: {
+    summary: {
+      name: string
+    }
+  }
+}
+
+interface ReferenceState {
+  options: Ref<readonly BusinessObjectFieldOption<string>[]>
+  loading: Ref<boolean>
+  errorMessage: Ref<string | null>
+  loaded: boolean
 }
 
 type EditorMode = 'create' | 'edit'
@@ -112,6 +149,110 @@ const statusText: Record<BobStatus, string> = {
   REJECTED: '已驳回',
   EFFECTIVE: '有效',
   INVALID: '已失效',
+}
+
+const customerTypeText: Record<CustomerType, string> = {
+  END_USER: '终端客户',
+  DEALER: '经销商',
+}
+
+const customerTypeOptions: readonly BusinessObjectFieldOption<CustomerType>[] = [
+  { title: '终端客户', value: 'END_USER' },
+  { title: '经销商', value: 'DEALER' },
+]
+
+const phonePattern = /^[+0-9() -]+$/
+const taxNumberPattern = /^[A-Za-z0-9-]+$/
+const emailPattern = /^[^@\s]+@[^@\s]+$/
+
+function emptyCustomerForm(): CustomerForm {
+  return {
+    code: '',
+    name: '',
+    customerType: 'END_USER',
+    shortName: '',
+    categoryId: '',
+    taxNumber: '',
+    contactName: '',
+    contactPhone: '',
+    email: '',
+    address: '',
+    remark: '',
+    settlementMethodId: '',
+    salespersonEmployeeId: '',
+  }
+}
+
+function customerFormFromSummary(
+  code: string,
+  summary: CustomerSummary,
+): CustomerForm {
+  return {
+    code,
+    name: summary.name ?? '',
+    customerType: summary.customerType ?? 'END_USER',
+    shortName: summary.shortName ?? '',
+    categoryId: summary.categoryId ?? '',
+    taxNumber: summary.taxNumber ?? '',
+    contactName: summary.contactName ?? '',
+    contactPhone: summary.contactPhone ?? '',
+    email: summary.email ?? '',
+    address: summary.address ?? '',
+    remark: summary.remark ?? '',
+    settlementMethodId: summary.settlementMethodId ?? '',
+    salespersonEmployeeId: summary.salespersonEmployeeId ?? '',
+  }
+}
+
+function normalizeCustomerForm(form: CustomerForm): CustomerForm {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    customerType: form.customerType,
+    shortName: form.shortName.trim(),
+    categoryId: form.categoryId.trim(),
+    taxNumber: form.taxNumber.trim(),
+    contactName: form.contactName.trim(),
+    contactPhone: form.contactPhone.trim(),
+    email: form.email.trim(),
+    address: form.address.trim(),
+    remark: form.remark.trim(),
+    settlementMethodId: form.settlementMethodId.trim(),
+    salespersonEmployeeId: form.salespersonEmployeeId.trim(),
+  }
+}
+
+function customerDetailInput(form: CustomerForm): CustomerDetailInput {
+  return {
+    name: form.name,
+    customerType: form.customerType,
+    shortName: form.shortName,
+    categoryId: form.categoryId,
+    taxNumber: form.taxNumber,
+    contactName: form.contactName,
+    contactPhone: form.contactPhone,
+    email: form.email,
+    address: form.address,
+    remark: form.remark,
+    settlementMethodId: form.settlementMethodId,
+    salespersonEmployeeId: form.salespersonEmployeeId,
+  }
+}
+
+function stringLength(value: unknown): number {
+  return typeof value === 'string' ? Array.from(value).length : 0
+}
+
+function maxLengthRule(label: string, max: number) {
+  return (value: unknown): true | string =>
+    stringLength(value) <= max || `${label}不能超过 ${max} 个字符。`
+}
+
+function optionalPatternRule(pattern: RegExp, message: string) {
+  return (value: unknown): true | string => {
+    if (typeof value !== 'string' || value.trim() === '') return true
+    return pattern.test(value.trim()) || message
+  }
 }
 
 export function useCustomerViewModel() {
@@ -129,9 +270,28 @@ export function useCustomerViewModel() {
   const keyword = ref('')
   const drawerOpen = ref(false)
   const editorMode = ref<EditorMode>('create')
-  const editorModel = ref<CustomerForm>({ code: '', name: '' })
+  const editorModel = ref<CustomerForm>(emptyCustomerForm())
   const editorResetKey = ref(0)
   const selectedCustomer = ref<CustomerEditContext | null>(null)
+
+  const categoryState: ReferenceState = {
+    options: ref([]),
+    loading: ref(false),
+    errorMessage: ref(null),
+    loaded: false,
+  }
+  const settlementMethodState: ReferenceState = {
+    options: ref([]),
+    loading: ref(false),
+    errorMessage: ref(null),
+    loaded: false,
+  }
+  const salespersonState: ReferenceState = {
+    options: ref([]),
+    loading: ref(false),
+    errorMessage: ref(null),
+    loaded: false,
+  }
 
   const hasRows = computed(() => rows.value.length > 0)
   const canCreate = computed(() => session.can('/bob/customer/create'))
@@ -153,6 +313,98 @@ export function useCustomerViewModel() {
         type: 'text',
         required: true,
       },
+      {
+        key: 'customerType',
+        label: '客户类型',
+        type: 'select',
+        required: true,
+        options: customerTypeOptions,
+      },
+      {
+        key: 'shortName',
+        label: '客户简称',
+        type: 'text',
+        rules: [maxLengthRule('客户简称', 100)],
+      },
+      {
+        key: 'categoryId',
+        label: '客户分类',
+        type: 'select',
+        disabled: referenceDisabled(categoryState, '/bob/category/query'),
+        hint: referenceHint(categoryState, '/bob/category/query', '客户分类'),
+        options: categoryState.options.value,
+      },
+      {
+        key: 'taxNumber',
+        label: '税号',
+        type: 'text',
+        rules: [
+          maxLengthRule('税号', 50),
+          optionalPatternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),
+        ],
+      },
+      {
+        key: 'settlementMethodId',
+        label: '结算方式',
+        type: 'select',
+        disabled: referenceDisabled(
+          settlementMethodState,
+          '/bob/settlement-method/query',
+        ),
+        hint: referenceHint(
+          settlementMethodState,
+          '/bob/settlement-method/query',
+          '结算方式',
+        ),
+        options: settlementMethodState.options.value,
+      },
+      {
+        key: 'salespersonEmployeeId',
+        label: '业务员',
+        type: 'select',
+        required: true,
+        disabled: referenceDisabled(salespersonState, '/bob/employee/query'),
+        hint: referenceHint(salespersonState, '/bob/employee/query', '业务员'),
+        options: salespersonState.options.value,
+      },
+      {
+        key: 'contactName',
+        label: '联系人',
+        type: 'text',
+        rules: [maxLengthRule('联系人', 100)],
+      },
+      {
+        key: 'contactPhone',
+        label: '联系电话',
+        type: 'text',
+        rules: [
+          maxLengthRule('联系电话', 32),
+          optionalPatternRule(phonePattern, '联系电话格式不正确。'),
+        ],
+      },
+      {
+        key: 'email',
+        label: '邮箱',
+        type: 'text',
+        rules: [
+          maxLengthRule('邮箱', 254),
+          optionalPatternRule(emailPattern, '邮箱格式不正确。'),
+        ],
+      },
+      {
+        key: 'address',
+        label: '地址',
+        type: 'textarea',
+        span: 2,
+        rules: [maxLengthRule('地址', 500)],
+      },
+      {
+        key: 'remark',
+        label: '备注',
+        type: 'textarea',
+        span: 2,
+        rules: [maxLengthRule('备注', 1000)],
+      },
     ],
   )
   const columns: readonly BusinessObjectColumn<CustomerListItem>[] = [
@@ -167,6 +419,12 @@ export function useCustomerViewModel() {
       value: (row) => row.currentVersion.summary.name,
     },
     {
+      key: 'customerType',
+      label: '客户类型',
+      value: (row) => row.currentVersion.summary.customerType,
+      format: (value) => getCustomerTypeText(value as CustomerType),
+    },
+    {
       key: 'status',
       label: '状态',
       value: (row) => row.currentVersion.status,
@@ -176,6 +434,34 @@ export function useCustomerViewModel() {
 
   function getStatusText(status?: BobStatus): string {
     return status ? statusText[status] ?? status : '未标记'
+  }
+
+  function getCustomerTypeText(customerType?: CustomerType): string {
+    return customerType
+      ? customerTypeText[customerType] ?? customerType
+      : '未标记'
+  }
+
+  function referenceDisabled(
+    state: ReferenceState,
+    permission: string,
+  ): boolean {
+    return (
+      !session.can(permission) ||
+      state.loading.value ||
+      Boolean(state.errorMessage.value)
+    )
+  }
+
+  function referenceHint(
+    state: ReferenceState,
+    permission: string,
+    label: string,
+  ): string | undefined {
+    if (!session.can(permission)) return `缺少${label}查询权限。`
+    if (state.loading.value) return `正在加载${label}…`
+    if (state.errorMessage.value) return state.errorMessage.value
+    return undefined
   }
 
   function canEdit(row: Readonly<CustomerListItem>): boolean {
@@ -236,6 +522,88 @@ export function useCustomerViewModel() {
     }
   }
 
+  async function loadReferenceOptions(
+    state: ReferenceState,
+    permission: string,
+    entity: 'category' | 'settlement-method' | 'employee',
+    label: string,
+    filters: Record<string, unknown> = {},
+  ): Promise<void> {
+    if (!session.can(permission)) {
+      state.errorMessage.value = `缺少${label}查询权限。`
+      return
+    }
+    if (state.loaded || state.loading.value) return
+
+    state.loading.value = true
+    state.errorMessage.value = null
+    try {
+      const options = new Map<string, BusinessObjectFieldOption<string>>()
+      let nextPage = 1
+      let hasMore = true
+
+      while (hasMore) {
+        const { data } = await apiClient.post<
+          PageResult<ReferenceListItem>,
+          PageRequest
+        >(`bob/${entity}/query`, {
+          page: nextPage,
+          pageSize: 100,
+          filters: {
+            ...filters,
+            status: ['EFFECTIVE'],
+          },
+          sort: [{ field: 'name', order: 'asc' }],
+        })
+
+        for (const item of data.items ?? []) {
+          options.set(item.objectId, {
+            title: `${item.code} · ${item.currentVersion.summary.name}`,
+            value: item.objectId,
+          })
+        }
+
+        const resultPage = typeof data.page === 'number' ? data.page : nextPage
+        const resultPageSize = typeof data.pageSize === 'number'
+          ? data.pageSize
+          : 100
+        hasMore = resultPage * resultPageSize < data.total
+        nextPage = resultPage + 1
+      }
+
+      state.options.value = [...options.values()]
+      state.loaded = true
+    } catch (error) {
+      state.errorMessage.value = `${label}加载失败：${getErrorMessage(error)}`
+    } finally {
+      state.loading.value = false
+    }
+  }
+
+  function ensureReferenceOptions(): void {
+    void Promise.all([
+      loadReferenceOptions(
+        categoryState,
+        '/bob/category/query',
+        'category',
+        '客户分类',
+        { targetEntity: 'customer' },
+      ),
+      loadReferenceOptions(
+        settlementMethodState,
+        '/bob/settlement-method/query',
+        'settlement-method',
+        '结算方式',
+      ),
+      loadReferenceOptions(
+        salespersonState,
+        '/bob/employee/query',
+        'employee',
+        '业务员',
+      ),
+    ])
+  }
+
   async function changePage(nextPage: number): Promise<void> {
     if (nextPage < 1 || nextPage === page.value || loading.value) return
     page.value = nextPage
@@ -251,10 +619,11 @@ export function useCustomerViewModel() {
     if (!canCreate.value) return
     editorMode.value = 'create'
     selectedCustomer.value = null
-    editorModel.value = { code: '', name: '' }
+    editorModel.value = emptyCustomerForm()
     editorErrorMessage.value = null
     editorResetKey.value += 1
     drawerOpen.value = true
+    ensureReferenceOptions()
   }
 
   function closeEditor(): void {
@@ -270,13 +639,14 @@ export function useCustomerViewModel() {
     editorMode.value = 'edit'
     editorErrorMessage.value = null
     selectedCustomer.value = null
-    editorModel.value = {
-      code: row.code,
-      name: row.currentVersion.summary.name,
-    }
+    editorModel.value = customerFormFromSummary(
+      row.code,
+      row.currentVersion.summary,
+    )
     editorResetKey.value += 1
     editorLoading.value = true
     drawerOpen.value = true
+    ensureReferenceOptions()
 
     try {
       const customer = row.currentVersion.status === 'EFFECTIVE'
@@ -305,11 +675,10 @@ export function useCustomerViewModel() {
     )
     return {
       objectId: data.objectId,
-      code: data.code,
       objectRevision: data.objectRevision,
       versionId: data.version.versionId,
       revision: data.version.revision,
-      name: data.data.name,
+      ...customerFormFromSummary(data.code, data.data),
     }
   }
 
@@ -325,11 +694,10 @@ export function useCustomerViewModel() {
     })
     return {
       objectId: data.objectId,
-      code: row.code,
       objectRevision: data.objectRevision,
       versionId: data.versionId,
       revision: data.revision,
-      name: row.currentVersion.summary.name,
+      ...customerFormFromSummary(row.code, row.currentVersion.summary),
     }
   }
 
@@ -338,20 +706,36 @@ export function useCustomerViewModel() {
     editorModel.value = {
       code: customer.code,
       name: customer.name,
+      customerType: customer.customerType,
+      shortName: customer.shortName,
+      categoryId: customer.categoryId,
+      taxNumber: customer.taxNumber,
+      contactName: customer.contactName,
+      contactPhone: customer.contactPhone,
+      email: customer.email,
+      address: customer.address,
+      remark: customer.remark,
+      settlementMethodId: customer.settlementMethodId,
+      salespersonEmployeeId: customer.salespersonEmployeeId,
     }
     editorResetKey.value += 1
   }
 
   async function saveCustomer(form: CustomerForm): Promise<void> {
     if (saving.value) return
+    const normalized = normalizeCustomerForm(form)
+    if (!normalized.salespersonEmployeeId) {
+      editorErrorMessage.value = '请选择业务员。'
+      return
+    }
 
     saving.value = true
     editorErrorMessage.value = null
     try {
       if (editorMode.value === 'create') {
-        await createCustomer(form)
+        await createCustomer(normalized)
       } else {
-        await saveExistingCustomer(form)
+        await saveExistingCustomer(normalized)
       }
       drawerOpen.value = false
       selectedCustomer.value = null
@@ -364,14 +748,10 @@ export function useCustomerViewModel() {
   }
 
   async function createCustomer(form: CustomerForm): Promise<void> {
+    const normalized = normalizeCustomerForm(form)
     await apiClient.post<CustomerMutationResult, CreateCustomerRequest>(
       'bob/customer/create',
-      {
-        data: {
-          code: form.code.trim(),
-          name: form.name.trim(),
-        },
-      },
+      { data: normalized },
     )
   }
 
@@ -381,13 +761,14 @@ export function useCustomerViewModel() {
     const customer = selectedCustomer.value
     if (!customer) throw new Error('未加载可编辑的客户版本。')
 
+    const normalized = normalizeCustomerForm(form)
     await apiClient.post<CustomerMutationResult, SaveCustomerRequest>(
       'bob/customer/save',
       {
         objectId: customer.objectId,
         versionId: customer.versionId,
         revision: customer.revision,
-        data: { name: form.name.trim() },
+        data: customerDetailInput(normalized),
       },
     )
   }
@@ -435,12 +816,22 @@ export function useCustomerViewModel() {
     editorModel,
     editorResetKey,
     selectedCustomer,
+    categoryOptions: categoryState.options,
+    categoryLoading: categoryState.loading,
+    categoryErrorMessage: categoryState.errorMessage,
+    settlementMethodOptions: settlementMethodState.options,
+    settlementMethodLoading: settlementMethodState.loading,
+    settlementMethodErrorMessage: settlementMethodState.errorMessage,
+    salespersonOptions: salespersonState.options,
+    salespersonLoading: salespersonState.loading,
+    salespersonErrorMessage: salespersonState.errorMessage,
     hasRows,
     canCreate,
     editorTitle,
     editorFields,
     columns,
     getStatusText,
+    getCustomerTypeText,
     canEdit,
     canDelete,
     query,

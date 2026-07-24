@@ -5,6 +5,7 @@ import { ApiError } from '@/api/types'
 import {
   useCustomerViewModel,
   type BobStatus,
+  type CustomerForm,
   type CustomerListItem,
   type CustomerMutationResult,
   type CustomerObjectView,
@@ -19,6 +20,31 @@ vi.mock('@/api/client', () => ({
 }))
 
 const mockedApiClient = vi.mocked(apiClient)
+
+function makeCustomerData() {
+  return {
+    name: '华东客户',
+    customerType: 'DEALER' as const,
+    shortName: '华东',
+    categoryId: 'CAT-1',
+    taxNumber: 'TAX-001',
+    contactName: '张三',
+    contactPhone: '13800000000',
+    email: 'sales@example.com',
+    address: '上海市示例路',
+    remark: '重点客户',
+    settlementMethodId: 'SM-1',
+    salespersonEmployeeId: 'EMP-1',
+  }
+}
+
+function makeForm(overrides: Partial<CustomerForm> = {}): CustomerForm {
+  return {
+    code: 'C001',
+    ...makeCustomerData(),
+    ...overrides,
+  }
+}
 
 function makeRow(
   status: BobStatus = 'DRAFT',
@@ -35,7 +61,7 @@ function makeRow(
       version: 1,
       status,
       revision: 5,
-      summary: { name: '华东客户' },
+      summary: makeCustomerData(),
     },
     updatedAt: '2026-07-24T09:40:18Z',
     ...overrides,
@@ -59,7 +85,7 @@ function makeObjectView(
       status,
       revision: 5,
     },
-    data: { name: '华东客户' },
+    data: makeCustomerData(),
     ...overrides,
   }
 }
@@ -83,6 +109,15 @@ function grant(...actions: string[]): void {
   session.permissions = actions.map((action) => `/bob/customer/${action}`)
 }
 
+function grantReferenceQueries(): void {
+  const session = useSessionStore()
+  session.permissions.push(
+    '/bob/category/query',
+    '/bob/settlement-method/query',
+    '/bob/employee/query',
+  )
+}
+
 function emptyPage(page = 1) {
   return {
     data: {
@@ -90,6 +125,25 @@ function emptyPage(page = 1) {
       total: 0,
       page,
       pageSize: 20,
+    },
+  }
+}
+
+function referencePage(
+  objectId: string,
+  code: string,
+  name: string,
+) {
+  return {
+    data: {
+      items: [{
+        objectId,
+        code,
+        currentVersion: { summary: { name } },
+      }],
+      total: 1,
+      page: 1,
+      pageSize: 100,
     },
   }
 }
@@ -124,10 +178,12 @@ describe('useCustomerViewModel', () => {
     expect(vm.columns.map((column) => column.label)).toEqual([
       '客户编码',
       '客户名称',
+      '客户类型',
       '状态',
     ])
     expect(vm.columns[1]?.value(row)).toBe('华东客户')
-    expect(vm.columns[2]?.format?.('EFFECTIVE', row)).toBe('有效')
+    expect(vm.columns[2]?.format?.('DEALER', row)).toBe('经销商')
+    expect(vm.columns[3]?.format?.('EFFECTIVE', row)).toBe('有效')
   })
 
   it('根据状态和精确权限控制新增、编辑和草稿删除', () => {
@@ -162,6 +218,110 @@ describe('useCustomerViewModel', () => {
     expect(vm.canEdit(effective)).toBe(false)
   })
 
+  it('打开编辑器时加载并缓存客户分类、结算方式和业务员选项', async () => {
+    grant('create')
+    grantReferenceQueries()
+    mockedApiClient.post
+      .mockResolvedValueOnce(referencePage('CAT-1', 'CAT001', '重点客户'))
+      .mockResolvedValueOnce(referencePage('SM-1', 'SM001', '月结 30 天'))
+      .mockResolvedValueOnce(referencePage('EMP-1', 'EMP001', '张三'))
+
+    const vm = useCustomerViewModel()
+    vm.openCreate()
+
+    await vi.waitFor(() => {
+      expect(vm.categoryLoading.value).toBe(false)
+      expect(vm.settlementMethodLoading.value).toBe(false)
+      expect(vm.salespersonLoading.value).toBe(false)
+      expect(vm.categoryOptions.value).toHaveLength(1)
+    })
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/category/query', {
+      page: 1,
+      pageSize: 100,
+      filters: {
+        targetEntity: 'customer',
+        status: ['EFFECTIVE'],
+      },
+      sort: [{ field: 'name', order: 'asc' }],
+    })
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      'bob/settlement-method/query',
+      {
+        page: 1,
+        pageSize: 100,
+        filters: { status: ['EFFECTIVE'] },
+        sort: [{ field: 'name', order: 'asc' }],
+      },
+    )
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/employee/query', {
+      page: 1,
+      pageSize: 100,
+      filters: { status: ['EFFECTIVE'] },
+      sort: [{ field: 'name', order: 'asc' }],
+    })
+    expect(vm.categoryOptions.value[0]?.title).toBe('CAT001 · 重点客户')
+    expect(vm.settlementMethodOptions.value[0]?.value).toBe('SM-1')
+    expect(vm.salespersonOptions.value[0]?.value).toBe('EMP-1')
+    expect(
+      vm.editorFields.value.find(
+        (field) => field.key === 'salespersonEmployeeId',
+      ),
+    ).toMatchObject({
+      label: '业务员',
+      required: true,
+    })
+    expect(vm.editorFields.value.map((field) => field.label)).toEqual([
+      '客户编码',
+      '客户名称',
+      '客户类型',
+      '客户简称',
+      '客户分类',
+      '税号',
+      '结算方式',
+      '业务员',
+      '联系人',
+      '联系电话',
+      '邮箱',
+      '地址',
+      '备注',
+    ])
+
+    vm.closeEditor()
+    vm.openCreate()
+    await Promise.resolve()
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(3)
+  })
+
+  it('引用查询不可用时保持客户编辑器可用并禁用对应下拉', async () => {
+    grant('create')
+
+    const vm = useCustomerViewModel()
+    vm.openCreate()
+    await Promise.resolve()
+
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(mockedApiClient.post).not.toHaveBeenCalled()
+    expect(vm.categoryErrorMessage.value).toContain('缺少客户分类查询权限')
+    expect(vm.settlementMethodErrorMessage.value).toContain('缺少结算方式查询权限')
+    expect(vm.salespersonErrorMessage.value).toContain('缺少业务员查询权限')
+    expect(
+      vm.editorFields.value.find((field) => field.key === 'categoryId')?.disabled,
+    ).toBe(true)
+  })
+
+  it('业务员引用不可用时阻止提交空 salespersonEmployeeId', async () => {
+    grant('create')
+    const vm = useCustomerViewModel()
+    vm.openCreate()
+
+    await vm.saveCustomer(makeForm({ salespersonEmployeeId: '' }))
+
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(vm.editorErrorMessage.value).toBe('请选择业务员。')
+    expect(mockedApiClient.post).not.toHaveBeenCalled()
+  })
+
   it('新增客户时提交编码和名称并刷新列表', async () => {
     grant('create')
     mockedApiClient.post
@@ -170,7 +330,13 @@ describe('useCustomerViewModel', () => {
 
     const vm = useCustomerViewModel()
     vm.openCreate()
-    await vm.saveCustomer({ code: ' C001 ', name: ' 华东客户 ' })
+    await vm.saveCustomer(makeForm({
+      code: ' C001 ',
+      name: ' 华东客户 ',
+      shortName: ' 华东 ',
+      contactName: ' 张三 ',
+      address: ' 上海市示例路 ',
+    }))
 
     expect(vm.drawerOpen.value).toBe(false)
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
@@ -180,6 +346,17 @@ describe('useCustomerViewModel', () => {
         data: {
           code: 'C001',
           name: '华东客户',
+          customerType: 'DEALER',
+          shortName: '华东',
+          categoryId: 'CAT-1',
+          taxNumber: 'TAX-001',
+          contactName: '张三',
+          contactPhone: '13800000000',
+          email: 'sales@example.com',
+          address: '上海市示例路',
+          remark: '重点客户',
+          settlementMethodId: 'SM-1',
+          salespersonEmployeeId: 'EMP-1',
         },
       },
     )
@@ -216,12 +393,14 @@ describe('useCustomerViewModel', () => {
       'bob/customer/get',
       { objectId: 'OBJ-1', versionId: 'VER-1' },
     )
-    expect(vm.editorModel.value).toEqual({
-      code: 'C001',
-      name: '华东客户',
-    })
+    expect(vm.editorModel.value).toEqual(makeForm())
 
-    await vm.saveCustomer({ code: 'C001', name: ' 华南客户 ' })
+    await vm.saveCustomer(makeForm({
+      name: ' 华南客户 ',
+      shortName: '',
+      settlementMethodId: '',
+      salespersonEmployeeId: 'EMP-2',
+    }))
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       2,
       'bob/customer/save',
@@ -229,7 +408,20 @@ describe('useCustomerViewModel', () => {
         objectId: 'OBJ-1',
         versionId: 'VER-1',
         revision: 5,
-        data: { name: '华南客户' },
+        data: {
+          name: '华南客户',
+          customerType: 'DEALER',
+          shortName: '',
+          categoryId: 'CAT-1',
+          taxNumber: 'TAX-001',
+          contactName: '张三',
+          contactPhone: '13800000000',
+          email: 'sales@example.com',
+          address: '上海市示例路',
+          remark: '重点客户',
+          settlementMethodId: '',
+          salespersonEmployeeId: 'EMP-2',
+        },
       },
     )
   })
@@ -256,7 +448,7 @@ describe('useCustomerViewModel', () => {
       objectRevision: 4,
       versionId: 'VER-2',
       revision: 1,
-      name: '华东客户',
+      ...makeForm(),
     })
     expect(vm.editorResetKey.value).toBe(2)
     expect(vm.drawerOpen.value).toBe(true)
@@ -307,7 +499,7 @@ describe('useCustomerViewModel', () => {
 
     const vm = useCustomerViewModel()
     vm.openCreate()
-    await vm.saveCustomer({ code: 'C001', name: '华东客户' })
+    await vm.saveCustomer(makeForm())
 
     expect(vm.drawerOpen.value).toBe(true)
     expect(vm.editorErrorMessage.value).toBe(

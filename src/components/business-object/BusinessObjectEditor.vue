@@ -40,6 +40,11 @@ const props = withDefaults(defineProps<Props<T>>(), {
 
 const emit = defineEmits<{
   'update:editing': [value: boolean]
+  'reference-search': [
+    field: Extract<keyof T, string>,
+    keyword: string,
+    record: Readonly<T>,
+  ]
   save: [value: T]
   cancel: []
 }>()
@@ -102,6 +107,8 @@ function getNumberValue(field: BusinessObjectField<T>): number | null {
 
 function setDraftValue(field: BusinessObjectField<T>, value: unknown): void {
   draft.value[field.key] = value
+  const changes = field.onChange?.(value, draft.value as Readonly<T>)
+  if (changes) Object.assign(draft.value, changes)
 }
 
 function resolveFieldState(
@@ -118,6 +125,10 @@ function isFieldDisabled(field: BusinessObjectField<T>): boolean {
   return props.saving || resolveFieldState(field.disabled)
 }
 
+function isFieldVisible(field: BusinessObjectField<T>): boolean {
+  return field.visible === undefined || resolveFieldState(field.visible)
+}
+
 function isEmpty(value: unknown): boolean {
   return (
     value === null ||
@@ -130,10 +141,15 @@ function isEmpty(value: unknown): boolean {
 function getRules(field: BusinessObjectField<T>) {
   return [
     async (value: unknown) =>
-      !field.required || !isEmpty(value) || `请输入${field.label}。`,
+      !isFieldVisible(field) ||
+      !field.required ||
+      !isEmpty(value) ||
+      `请输入${field.label}。`,
     ...(field.rules ?? []).map(
       (rule: BusinessObjectValidationRule<T>) =>
-        async (value: unknown) => rule(value, draft.value as Readonly<T>),
+        async (value: unknown) =>
+          !isFieldVisible(field) ||
+          rule(value, draft.value as Readonly<T>),
     ),
   ]
 }
@@ -143,7 +159,7 @@ function formatValue(field: BusinessObjectField<T>): string {
   if (isEmpty(value)) return props.emptyText
   if (field.format) return field.format(value, record.value)
 
-  if (field.type === 'select') {
+  if (field.type === 'select' || field.type === 'autocomplete') {
     const option = field.options?.find((item) => Object.is(item.value, value))
     return option?.title ?? String(value)
   }
@@ -266,6 +282,7 @@ async function save(): Promise<void> {
       >
         <div
           v-for="field in fields"
+          v-show="isFieldVisible(field)"
           :key="fieldKey(field)"
           class="business-object-editor__field"
           :class="{ 'business-object-editor__field--wide': field.span === 2 }"
@@ -325,8 +342,37 @@ async function save(): Promise<void> {
               variant="outlined"
               @update:model-value="setDraftValue(field, $event)"
             />
+            <v-autocomplete
+              v-else-if="field.type === 'autocomplete'"
+              :clearable="field.clearable"
+              :disabled="isFieldDisabled(field)"
+              :hint="field.hint"
+              item-title="title"
+              item-value="value"
+              :items="field.options ?? []"
+              :label="field.label"
+              :loading="field.loading"
+              :model-value="getDraftValue(field)"
+              :multiple="field.multiple"
+              no-filter
+              :persistent-hint="Boolean(field.hint)"
+              :placeholder="field.placeholder"
+              :required="field.required"
+              :rules="getRules(field)"
+              variant="outlined"
+              @update:model-value="setDraftValue(field, $event)"
+              @update:search="
+                emit(
+                  'reference-search',
+                  field.key,
+                  $event ?? '',
+                  draft as Readonly<T>,
+                )
+              "
+            />
             <v-select
               v-else-if="field.type === 'select'"
+              :clearable="field.clearable"
               :disabled="isFieldDisabled(field)"
               :hint="field.hint"
               item-title="title"
@@ -334,6 +380,7 @@ async function save(): Promise<void> {
               :items="field.options ?? []"
               :label="field.label"
               :model-value="getDraftValue(field)"
+              :multiple="field.multiple"
               :persistent-hint="Boolean(field.hint)"
               :placeholder="field.placeholder"
               :required="field.required"
@@ -376,6 +423,7 @@ async function save(): Promise<void> {
       >
         <div
           v-for="field in fields"
+          v-show="isFieldVisible(field)"
           :key="fieldKey(field)"
           class="business-object-editor__field"
           :class="{ 'business-object-editor__field--wide': field.span === 2 }"

@@ -6,6 +6,8 @@ const requiredE2EEnvNames = [
   'E2E_API_BASE_URL',
   'E2E_USERNAME',
   'E2E_PASSWORD',
+  'E2E_REVIEWER_USERNAME',
+  'E2E_REVIEWER_PASSWORD',
 ] as const
 
 for (const name of requiredE2EEnvNames) {
@@ -29,6 +31,7 @@ const appUrl = 'http://127.0.0.1:5173'
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',

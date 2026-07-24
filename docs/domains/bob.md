@@ -22,7 +22,13 @@ BOB 是主数据来源，不负责销售、采购、库存、资金收付等交�
 | 员工 | `employee` | 与企业存在任职关系的人员 |
 | 产品 | `product` | 可采购、销售、生产或进行库存管理的实物对象 |
 | 服务 | `service` | 可采购或销售的非实物业务对象 |
+| 仓库 | `warehouse` | 存放和管理库存的场所 |
+| 车辆 | `vehicle` | 承担运输任务并关联物流平台供应商的车辆 |
 | 资金账户 | `fund-account` | 用于记录现金、银行存款及其他资金的账户 |
+| 分类 | `category` | 按目标实体组织基础资料的多级分类 |
+| 部门 | `department` | 企业组织部门及其父子层级 |
+| 岗位 | `position` | 企业内部岗位基础资料 |
+| 结算方式 | `settlement-method` | 描述相对天数、月末或指定日结算规则 |
 
 后续新增的基础业务实体，如果同样遵循“审核后才可被其他领域引用”的规则，应归入 BOB。
 
@@ -125,6 +131,7 @@ BOB 应区分稳定的“业务对象”和随修改产生的“对象版本”�
 ```ts
 interface CustomerListItem {
   objectId: string
+  entity: 'customer'
   code: string
   objectRevision: number
   effectiveVersionId: string | null
@@ -133,14 +140,31 @@ interface CustomerListItem {
     version: number
     status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
     revision: number
-    summary: { name: string }
+    summary: CustomerData
   }
   updatedAt: string
+}
+
+interface CustomerData {
+  name: string
+  customerType: 'END_USER' | 'DEALER'
+  shortName?: string
+  categoryId?: string
+  taxNumber?: string
+  contactName?: string
+  contactPhone?: string
+  email?: string
+  address?: string
+  remark?: string
+  settlementMethodId?: string
+  salespersonEmployeeId: string
 }
 ```
 
 客户详情使用对象视图结构，版本元数据位于顶层 `version`，可编辑名称位于顶层
-`data.name`。`create`、`edit` 和 `save` 返回扁平的变更结果：
+`data` 使用 `CustomerData`。客户分类、结算方式和业务员分别引用当前有效的
+`category`、`settlement-method` 和 `employee` 对象；后两者只保存客户主数据
+默认值，不在本领域自动带入交易单据。`create`、`edit` 和 `save` 返回扁平的变更结果：
 
 ```ts
 interface CustomerMutationResult {
@@ -158,14 +182,39 @@ interface CustomerMutationResult {
 | 动作 | 请求 | 响应 |
 | --- | --- | --- |
 | `get` | `{ objectId, versionId? }` | 顶层包含 `version` 和 `data` 的客户对象视图 |
-| `create` | `{ data: { code, name } }` | `CustomerMutationResult` |
+| `create` | `{ data: { code, ...CustomerData } }` | `CustomerMutationResult` |
 | `edit` | `{ objectId, objectRevision }` | 新草稿的 `CustomerMutationResult` |
-| `save` | `{ objectId, versionId, revision, data: { name } }` | `CustomerMutationResult` |
+| `save` | `{ objectId, versionId, revision, data: CustomerData }` | `CustomerMutationResult` |
 | `delete` | `{ objectId, objectRevision, versionId, revision }` | `null` |
 
 `edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`
 使用 `revision` 保护目标版本。所有写操作必须由后端校验权限、状态和
 revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
+除 `name`、`customerType` 和 `salespersonEmployeeId` 外的客户字段均可为空；
+`save` 显式传空字符串用于清空可选字段。`customerType` 新建时默认为
+`END_USER`，`salespersonEmployeeId` 必须引用一个有效员工且不可清空。
+
+### 6.4 其它实体前端契约
+
+除客户外的实体使用与 6.3 节相同的对象、版本、分页和变更结果结构，并由
+前端本地配置声明各自的类型化 `data` 字段。前端已注册
+`supplier`、`employee`、`product`、`service`、`warehouse`、`vehicle`、
+`fund-account`、`category`、`department`、`position` 和
+`settlement-method` 页面，统一支持第 7 节的十一个动作。
+
+引用字段使用目标实体的稳定 `objectId`。编辑器和筛选器只通过目标实体
+`query` 查询 `EFFECTIVE` 对象，显示“编码 · 名称”，不使用本地假数据。
+分类引用额外按 `targetEntity` 限定，车辆物流平台额外限定
+`supplierType=LOGISTICS_PLATFORM`。
+
+客户和供应商的 `salespersonEmployeeId` 均为必填员工引用。创建和保存时必须
+发送该字段；前端缺少员工查询权限或员工列表加载失败时显示明确错误并阻止
+提交空引用。
+
+`settlement-method` 是当前后端工作区中的临时契约：字段为 `name`、
+`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`。
+后端补齐该实体的查询筛选校验前，前端页面能够加载和显示接口错误，但不能
+完成真实列表联调。
 
 ## 7. 领域能力
 

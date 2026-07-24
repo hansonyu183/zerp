@@ -36,14 +36,14 @@ async function openModule(path: string): Promise<void> {
       </div>
       <div class="hero__metric">
         <strong>{{ vm.menuCount }}</strong>
-        <span>可访问业务页面</span>
+        <span>可访问业务菜单</span>
       </div>
     </v-sheet>
 
     <div class="section-title">
       <div>
         <h3>业务工作区</h3>
-        <p>业务页面将根据你的权限和本地 pages 目录自动加载。</p>
+        <p>业务菜单根据你的权限生成，尚未注册的组件会标记为开发中。</p>
       </div>
     </div>
 
@@ -69,7 +69,7 @@ async function openModule(path: string): Promise<void> {
     </v-row>
 
     <v-alert class="mt-4" icon="mdi-shield-check-outline" type="info" variant="tonal">
-      导航由后端会话权限下发，仅显示已经在本地 pages 目录注册的业务页面。
+      导航显示除 APP 域外的全部授权业务；未注册组件会打开“开发中...”占位页。
     </v-alert>
   </v-container>
 </template>

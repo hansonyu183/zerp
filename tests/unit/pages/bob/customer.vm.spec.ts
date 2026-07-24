@@ -5,8 +5,9 @@ import { ApiError } from '@/api/types'
 import {
   useCustomerViewModel,
   type BobStatus,
-  type CustomerDetail,
   type CustomerListItem,
+  type CustomerMutationResult,
+  type CustomerObjectView,
 } from '@/pages/bob/customer/vm'
 import { useSessionStore } from '@/stores/session'
 
@@ -41,23 +42,38 @@ function makeRow(
   }
 }
 
-function makeDetail(
+function makeObjectView(
   status: BobStatus = 'DRAFT',
-  overrides: Partial<CustomerDetail> = {},
-): CustomerDetail {
+  overrides: Partial<CustomerObjectView> = {},
+): CustomerObjectView {
   return {
     objectId: 'OBJ-1',
     entity: 'customer',
     code: 'C001',
     objectRevision: 3,
+    currentVersionId: 'VER-1',
     effectiveVersionId: status === 'EFFECTIVE' ? 'VER-1' : null,
-    currentVersion: {
+    version: {
       versionId: 'VER-1',
       version: 1,
       status,
       revision: 5,
-      data: { name: '华东客户' },
     },
+    data: { name: '华东客户' },
+    ...overrides,
+  }
+}
+
+function makeMutation(
+  overrides: Partial<CustomerMutationResult> = {},
+): CustomerMutationResult {
+  return {
+    objectId: 'OBJ-1',
+    objectRevision: 4,
+    versionId: 'VER-2',
+    version: 2,
+    status: 'DRAFT',
+    revision: 1,
     ...overrides,
   }
 }
@@ -149,7 +165,7 @@ describe('useCustomerViewModel', () => {
   it('新增客户时提交编码和名称并刷新列表', async () => {
     grant('create')
     mockedApiClient.post
-      .mockResolvedValueOnce({ data: makeDetail() })
+      .mockResolvedValueOnce({ data: makeMutation() })
       .mockResolvedValueOnce(emptyPage())
 
     const vm = useCustomerViewModel()
@@ -161,8 +177,10 @@ describe('useCustomerViewModel', () => {
       1,
       'bob/customer/create',
       {
-        code: 'C001',
-        data: { name: '华东客户' },
+        data: {
+          code: 'C001',
+          name: '华东客户',
+        },
       },
     )
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
@@ -179,14 +197,12 @@ describe('useCustomerViewModel', () => {
 
   it('加载草稿详情并携带 revision 保存名称', async () => {
     grant('get', 'save')
-    const detail = makeDetail()
-    const saved = makeDetail('DRAFT', {
+    const detail = makeObjectView()
+    const saved = makeMutation({
       objectRevision: 4,
-      currentVersion: {
-        ...detail.currentVersion,
-        revision: 6,
-        data: { name: '华南客户' },
-      },
+      versionId: 'VER-1',
+      version: 1,
+      revision: 6,
     })
     mockedApiClient.post
       .mockResolvedValueOnce({ data: detail })
@@ -211,7 +227,6 @@ describe('useCustomerViewModel', () => {
       'bob/customer/save',
       {
         objectId: 'OBJ-1',
-        objectRevision: 3,
         versionId: 'VER-1',
         revision: 5,
         data: { name: '华南客户' },
@@ -222,16 +237,8 @@ describe('useCustomerViewModel', () => {
   it('有效客户调用 edit 创建草稿后再进入编辑器', async () => {
     grant('get', 'edit', 'save')
     const effective = makeRow('EFFECTIVE')
-    const draftDetail = makeDetail('DRAFT', {
-      objectRevision: 4,
-      currentVersion: {
-        ...makeDetail().currentVersion,
-        versionId: 'VER-2',
-        version: 2,
-        revision: 1,
-      },
-    })
-    mockedApiClient.post.mockResolvedValueOnce({ data: draftDetail })
+    const mutation = makeMutation()
+    mockedApiClient.post.mockResolvedValueOnce({ data: mutation })
 
     const vm = useCustomerViewModel()
     await vm.openEdit(effective)
@@ -241,11 +248,17 @@ describe('useCustomerViewModel', () => {
       {
         objectId: 'OBJ-1',
         objectRevision: 3,
-        versionId: 'VER-1',
-        revision: 5,
       },
     )
-    expect(vm.selectedDetail.value).toEqual(draftDetail)
+    expect(vm.selectedCustomer.value).toEqual({
+      objectId: 'OBJ-1',
+      code: 'C001',
+      objectRevision: 4,
+      versionId: 'VER-2',
+      revision: 1,
+      name: '华东客户',
+    })
+    expect(vm.editorResetKey.value).toBe(2)
     expect(vm.drawerOpen.value).toBe(true)
   })
 

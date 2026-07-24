@@ -206,6 +206,7 @@ function mountEditor(
     editable: boolean
     loading: boolean
     saving: boolean
+    resetKey: string | number
     errorMessage: string | null
     emptyText: string
   }> = {},
@@ -311,6 +312,29 @@ describe('BusinessObjectEditor', () => {
 
     await wrapper.setProps({ editing: false })
     expect(wrapper.get('[data-field="name"]').text()).toContain('服务端更新')
+  })
+
+  it('resetKey 变化时使用最新外部对象重建草稿', async () => {
+    const wrapper = mountEditor({ editing: true, resetKey: 0 })
+
+    wrapper
+      .getComponent('[data-field="name"] .v-text-field')
+      .vm.$emit('update:modelValue', '本地草稿')
+    await wrapper.setProps({
+      modelValue: {
+        ...model,
+        name: '服务端更新',
+      },
+    })
+
+    expect(
+      wrapper.getComponent('[data-field="name"] .v-text-field').props('modelValue'),
+    ).toBe('本地草稿')
+
+    await wrapper.setProps({ resetKey: 1 })
+    expect(
+      wrapper.getComponent('[data-field="name"] .v-text-field').props('modelValue'),
+    ).toBe('服务端更新')
   })
 
   it('校验必填与异步规则，失败时不发出保存事件', async () => {

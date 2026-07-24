@@ -139,17 +139,33 @@ interface CustomerListItem {
 }
 ```
 
-客户详情在 `currentVersion.data.name` 返回可编辑名称。各动作请求和响应约定如下：
+客户详情使用对象视图结构，版本元数据位于顶层 `version`，可编辑名称位于顶层
+`data.name`。`create`、`edit` 和 `save` 返回扁平的变更结果：
+
+```ts
+interface CustomerMutationResult {
+  objectId: string
+  objectRevision: number
+  versionId: string
+  version: number
+  status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
+  revision: number
+}
+```
+
+各动作请求和响应约定如下：
 
 | 动作 | 请求 | 响应 |
 | --- | --- | --- |
-| `get` | `{ objectId, versionId? }` | 客户详情 |
-| `create` | `{ code, data: { name } }` | 新对象及首个草稿详情 |
-| `edit` | `{ objectId, objectRevision, versionId, revision }` | 新草稿详情 |
-| `save` | `{ objectId, objectRevision, versionId, revision, data: { name } }` | 更新后的草稿详情 |
+| `get` | `{ objectId, versionId? }` | 顶层包含 `version` 和 `data` 的客户对象视图 |
+| `create` | `{ data: { code, name } }` | `CustomerMutationResult` |
+| `edit` | `{ objectId, objectRevision }` | 新草稿的 `CustomerMutationResult` |
+| `save` | `{ objectId, versionId, revision, data: { name } }` | `CustomerMutationResult` |
 | `delete` | `{ objectId, objectRevision, versionId, revision }` | `null` |
 
-`objectRevision` 用于保护稳定对象，`revision` 用于保护当前版本。所有写操作必须由后端校验权限、状态和 revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
+`edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`
+使用 `revision` 保护目标版本。所有写操作必须由后端校验权限、状态和
+revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
 
 ## 7. 领域能力
 

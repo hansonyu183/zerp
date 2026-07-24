@@ -1,13 +1,14 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref, watch } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Customer from '@/pages/bob/customer/Customer.vue'
 import { apiClient } from '@/api/client'
 import type {
   BobStatus,
-  CustomerDetail,
   CustomerListItem,
+  CustomerMutationResult,
+  CustomerObjectView,
 } from '@/pages/bob/customer/vm'
 import { useSessionStore } from '@/stores/session'
 
@@ -38,20 +39,32 @@ function makeRow(status: BobStatus = 'DRAFT'): CustomerListItem {
   }
 }
 
-function makeDetail(status: BobStatus = 'DRAFT'): CustomerDetail {
+function makeObjectView(name = '华东客户'): CustomerObjectView {
   return {
     objectId: 'OBJ-1',
     entity: 'customer',
     code: 'C001',
     objectRevision: 4,
+    currentVersionId: 'VER-1',
     effectiveVersionId: null,
-    currentVersion: {
-      versionId: status === 'DRAFT' ? 'VER-2' : 'VER-1',
-      version: status === 'DRAFT' ? 2 : 1,
-      status,
+    version: {
+      versionId: 'VER-1',
+      version: 1,
+      status: 'DRAFT',
       revision: 1,
-      data: { name: '华东客户' },
     },
+    data: { name },
+  }
+}
+
+function makeMutation(): CustomerMutationResult {
+  return {
+    objectId: 'OBJ-1',
+    objectRevision: 4,
+    versionId: 'VER-2',
+    version: 2,
+    status: 'DRAFT',
+    revision: 1,
   }
 }
 
@@ -129,14 +142,44 @@ const BusinessObjectEditorStub = defineComponent({
   name: 'BusinessObjectEditor',
   props: {
     modelValue: Object,
+    resetKey: [String, Number],
     title: String,
   },
   emits: ['cancel', 'save'],
-  setup(props) {
+  setup(props, { emit }) {
+    const cloneModel = () =>
+      JSON.parse(JSON.stringify(props.modelValue)) as Record<string, unknown>
+    const draft = ref(cloneModel())
+
+    watch(
+      () => props.resetKey,
+      () => {
+        draft.value = cloneModel()
+      },
+    )
+
     return () =>
       h('div', { class: 'editor-stub' }, [
         h('strong', props.title),
-        h('span', { class: 'editor-model' }, JSON.stringify(props.modelValue)),
+        h('span', { class: 'editor-model' }, JSON.stringify(draft.value)),
+        h(
+          'button',
+          {
+            class: 'editor-dirty',
+            onClick: () => {
+              draft.value = { ...draft.value, name: '本地残留' }
+            },
+          },
+          '修改草稿',
+        ),
+        h(
+          'button',
+          {
+            class: 'editor-cancel',
+            onClick: () => emit('cancel'),
+          },
+          '取消编辑',
+        ),
       ])
   },
 })
@@ -185,6 +228,14 @@ const conditionalStub = (name: string) =>
     },
   })
 
+const alwaysMountedStub = (name: string) =>
+  defineComponent({
+    name,
+    setup(_, { slots }) {
+      return () => h('div', slots.default?.())
+    },
+  })
+
 function mountCustomer(
   row: CustomerListItem,
   permissions: string[],
@@ -210,7 +261,7 @@ function mountCustomer(
         VChip: containerStub('VChip'),
         VContainer: containerStub('VContainer'),
         VDialog: conditionalStub('VDialog'),
-        VNavigationDrawer: conditionalStub('VNavigationDrawer'),
+        VNavigationDrawer: alwaysMountedStub('VNavigationDrawer'),
         VSpacer: containerStub('VSpacer'),
       },
     },
@@ -240,7 +291,7 @@ describe('Customer page', () => {
 
   it('草稿直接读取详情后打开编辑抽屉', async () => {
     const wrapper = mountCustomer(makeRow(), ['query', 'get', 'save'])
-    mockedApiClient.post.mockResolvedValueOnce({ data: makeDetail() })
+    mockedApiClient.post.mockResolvedValueOnce({ data: makeObjectView() })
     await flushPromises()
 
     await wrapper.get('.list-edit').trigger('click')
@@ -260,7 +311,7 @@ describe('Customer page', () => {
       makeRow('EFFECTIVE'),
       ['query', 'get', 'edit', 'save'],
     )
-    mockedApiClient.post.mockResolvedValueOnce({ data: makeDetail() })
+    mockedApiClient.post.mockResolvedValueOnce({ data: makeMutation() })
     await flushPromises()
 
     await wrapper.get('.list-edit').trigger('click')
@@ -279,10 +330,30 @@ describe('Customer page', () => {
       {
         objectId: 'OBJ-1',
         objectRevision: 3,
-        versionId: 'VER-1',
-        revision: 5,
       },
     )
+  })
+
+  it('抽屉内容持续挂载时，新编辑会话会丢弃上一份本地草稿', async () => {
+    const wrapper = mountCustomer(
+      makeRow(),
+      ['query', 'create', 'get', 'save'],
+    )
+    await flushPromises()
+
+    await wrapper.get('.list-create').trigger('click')
+    await wrapper.get('.editor-dirty').trigger('click')
+    expect(wrapper.get('.editor-model').text()).toContain('本地残留')
+    await wrapper.get('.editor-cancel').trigger('click')
+
+    mockedApiClient.post.mockResolvedValueOnce({
+      data: makeObjectView('服务端客户'),
+    })
+    await wrapper.get('.list-edit').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.editor-model').text()).toContain('服务端客户')
+    expect(wrapper.get('.editor-model').text()).not.toContain('本地残留')
   })
 
   it('首版草稿确认后调用 delete，缺少权限时不显示删除入口', async () => {

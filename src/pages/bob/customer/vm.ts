@@ -39,21 +39,38 @@ export interface CustomerForm {
   name: string
 }
 
-export interface CustomerDetail {
+export interface CustomerObjectView {
   objectId: string
   entity: 'customer'
   code: string
   objectRevision: number
+  currentVersionId: string
   effectiveVersionId: string | null
-  currentVersion: {
+  version: {
     versionId: string
     version: number
     status: BobStatus
     revision: number
-    data: {
-      name: string
-    }
   }
+  data: CustomerSummary
+}
+
+export interface CustomerMutationResult {
+  objectId: string
+  objectRevision: number
+  versionId: string
+  version: number
+  status: BobStatus
+  revision: number
+}
+
+export interface CustomerEditContext {
+  objectId: string
+  code: string
+  objectRevision: number
+  versionId: string
+  revision: number
+  name: string
 }
 
 export interface GetCustomerRequest {
@@ -62,8 +79,8 @@ export interface GetCustomerRequest {
 }
 
 export interface CreateCustomerRequest {
-  code: string
   data: {
+    code: string
     name: string
   }
 }
@@ -71,17 +88,21 @@ export interface CreateCustomerRequest {
 export interface EditCustomerRequest {
   objectId: string
   objectRevision: number
-  versionId: string
-  revision: number
 }
 
-export interface SaveCustomerRequest extends EditCustomerRequest {
+export interface SaveCustomerRequest {
+  objectId: string
+  versionId: string
+  revision: number
   data: {
     name: string
   }
 }
 
-export type DeleteCustomerRequest = EditCustomerRequest
+export interface DeleteCustomerRequest extends EditCustomerRequest {
+  versionId: string
+  revision: number
+}
 
 type EditorMode = 'create' | 'edit'
 
@@ -109,7 +130,8 @@ export function useCustomerViewModel() {
   const drawerOpen = ref(false)
   const editorMode = ref<EditorMode>('create')
   const editorModel = ref<CustomerForm>({ code: '', name: '' })
-  const selectedDetail = ref<CustomerDetail | null>(null)
+  const editorResetKey = ref(0)
+  const selectedCustomer = ref<CustomerEditContext | null>(null)
 
   const hasRows = computed(() => rows.value.length > 0)
   const canCreate = computed(() => session.can('/bob/customer/create'))
@@ -228,9 +250,10 @@ export function useCustomerViewModel() {
   function openCreate(): void {
     if (!canCreate.value) return
     editorMode.value = 'create'
-    selectedDetail.value = null
+    selectedCustomer.value = null
     editorModel.value = { code: '', name: '' }
     editorErrorMessage.value = null
+    editorResetKey.value += 1
     drawerOpen.value = true
   }
 
@@ -238,7 +261,7 @@ export function useCustomerViewModel() {
     if (saving.value) return
     drawerOpen.value = false
     editorErrorMessage.value = null
-    selectedDetail.value = null
+    selectedCustomer.value = null
   }
 
   async function openEdit(row: CustomerListItem): Promise<void> {
@@ -246,19 +269,20 @@ export function useCustomerViewModel() {
 
     editorMode.value = 'edit'
     editorErrorMessage.value = null
-    selectedDetail.value = null
+    selectedCustomer.value = null
     editorModel.value = {
       code: row.code,
       name: row.currentVersion.summary.name,
     }
+    editorResetKey.value += 1
     editorLoading.value = true
     drawerOpen.value = true
 
     try {
-      const detail = row.currentVersion.status === 'EFFECTIVE'
+      const customer = row.currentVersion.status === 'EFFECTIVE'
         ? await beginEffectiveEdit(row)
         : await getCustomer(row)
-      applyDetail(detail)
+      applyCustomer(customer)
     } catch (error) {
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
@@ -266,38 +290,56 @@ export function useCustomerViewModel() {
     }
   }
 
-  async function getCustomer(row: CustomerListItem): Promise<CustomerDetail> {
-    const { data } = await apiClient.post<CustomerDetail, GetCustomerRequest>(
+  async function getCustomer(
+    row: CustomerListItem,
+  ): Promise<CustomerEditContext> {
+    const { data } = await apiClient.post<
+      CustomerObjectView,
+      GetCustomerRequest
+    >(
       'bob/customer/get',
       {
         objectId: row.objectId,
         versionId: row.currentVersion.versionId,
       },
     )
-    return data
+    return {
+      objectId: data.objectId,
+      code: data.code,
+      objectRevision: data.objectRevision,
+      versionId: data.version.versionId,
+      revision: data.version.revision,
+      name: data.data.name,
+    }
   }
 
   async function beginEffectiveEdit(
     row: CustomerListItem,
-  ): Promise<CustomerDetail> {
-    const { data } = await apiClient.post<CustomerDetail, EditCustomerRequest>(
-      'bob/customer/edit',
-      {
-        objectId: row.objectId,
-        objectRevision: row.objectRevision,
-        versionId: row.currentVersion.versionId,
-        revision: row.currentVersion.revision,
-      },
-    )
-    return data
+  ): Promise<CustomerEditContext> {
+    const { data } = await apiClient.post<
+      CustomerMutationResult,
+      EditCustomerRequest
+    >('bob/customer/edit', {
+      objectId: row.objectId,
+      objectRevision: row.objectRevision,
+    })
+    return {
+      objectId: data.objectId,
+      code: row.code,
+      objectRevision: data.objectRevision,
+      versionId: data.versionId,
+      revision: data.revision,
+      name: row.currentVersion.summary.name,
+    }
   }
 
-  function applyDetail(detail: CustomerDetail): void {
-    selectedDetail.value = detail
+  function applyCustomer(customer: CustomerEditContext): void {
+    selectedCustomer.value = customer
     editorModel.value = {
-      code: detail.code,
-      name: detail.currentVersion.data.name,
+      code: customer.code,
+      name: customer.name,
     }
+    editorResetKey.value += 1
   }
 
   async function saveCustomer(form: CustomerForm): Promise<void> {
@@ -306,11 +348,13 @@ export function useCustomerViewModel() {
     saving.value = true
     editorErrorMessage.value = null
     try {
-      const detail = editorMode.value === 'create'
-        ? await createCustomer(form)
-        : await saveExistingCustomer(form)
-      applyDetail(detail)
+      if (editorMode.value === 'create') {
+        await createCustomer(form)
+      } else {
+        await saveExistingCustomer(form)
+      }
       drawerOpen.value = false
+      selectedCustomer.value = null
       await query()
     } catch (error) {
       editorErrorMessage.value = getErrorMessage(error)
@@ -319,34 +363,33 @@ export function useCustomerViewModel() {
     }
   }
 
-  async function createCustomer(form: CustomerForm): Promise<CustomerDetail> {
-    const { data } = await apiClient.post<CustomerDetail, CreateCustomerRequest>(
+  async function createCustomer(form: CustomerForm): Promise<void> {
+    await apiClient.post<CustomerMutationResult, CreateCustomerRequest>(
       'bob/customer/create',
       {
-        code: form.code.trim(),
-        data: { name: form.name.trim() },
+        data: {
+          code: form.code.trim(),
+          name: form.name.trim(),
+        },
       },
     )
-    return data
   }
 
   async function saveExistingCustomer(
     form: CustomerForm,
-  ): Promise<CustomerDetail> {
-    const detail = selectedDetail.value
-    if (!detail) throw new Error('未加载可编辑的客户版本。')
+  ): Promise<void> {
+    const customer = selectedCustomer.value
+    if (!customer) throw new Error('未加载可编辑的客户版本。')
 
-    const { data } = await apiClient.post<CustomerDetail, SaveCustomerRequest>(
+    await apiClient.post<CustomerMutationResult, SaveCustomerRequest>(
       'bob/customer/save',
       {
-        objectId: detail.objectId,
-        objectRevision: detail.objectRevision,
-        versionId: detail.currentVersion.versionId,
-        revision: detail.currentVersion.revision,
+        objectId: customer.objectId,
+        versionId: customer.versionId,
+        revision: customer.revision,
         data: { name: form.name.trim() },
       },
     )
-    return data
   }
 
   async function deleteCustomer(row: CustomerListItem): Promise<boolean> {
@@ -390,7 +433,8 @@ export function useCustomerViewModel() {
     drawerOpen,
     editorMode,
     editorModel,
-    selectedDetail,
+    editorResetKey,
+    selectedCustomer,
     hasRows,
     canCreate,
     editorTitle,

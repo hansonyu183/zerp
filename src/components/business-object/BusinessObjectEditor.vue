@@ -19,6 +19,7 @@ interface Props<TValue extends object> {
   editable?: boolean
   loading?: boolean
   saving?: boolean
+  resetKey?: string | number
   errorMessage?: string | null
   emptyText?: string
 }
@@ -67,6 +68,15 @@ watch(
     if (!props.editing) draft.value = cloneRecord(value)
   },
   { deep: true },
+)
+
+watch(
+  () => props.resetKey,
+  (value, previousValue) => {
+    if (Object.is(value, previousValue)) return
+    draft.value = cloneRecord(props.modelValue)
+    formRef.value?.resetValidation()
+  },
 )
 
 function cloneRecord(value: T): Record<string, unknown> {

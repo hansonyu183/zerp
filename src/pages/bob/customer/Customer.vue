@@ -95,6 +95,7 @@ async function confirmDelete(): Promise<void> {
         :fields="vm.editorFields"
         :loading="vm.editorLoading"
         :model-value="vm.editorModel"
+        :reset-key="vm.editorResetKey"
         :saving="vm.saving"
         :title="vm.editorTitle"
         @cancel="vm.closeEditor"

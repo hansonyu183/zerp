@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -647,13 +646,6 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	}
 	if downloadRecorder.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("download security headers = %#v", downloadRecorder.Header())
-	}
-	metadata, err := service.ResolveFeedbackAttachments(t.Context(), []string{initiated.FileID}, integrationActorOne)
-	if err != nil || len(metadata) != 1 || metadata[0].OriginalName != "invoice.pdf" {
-		t.Fatalf("feedback attachment metadata=%+v err=%v", metadata, err)
-	}
-	if _, err = service.ResolveFeedbackAttachments(t.Context(), []string{initiated.FileID}, integrationActorTwo); !errors.Is(err, ErrFeedbackAttachmentNotFound) {
-		t.Fatalf("other actor feedback attachment error=%v", err)
 	}
 	if _, err = service.RemoveAttachment(t.Context(), EntityReceipt, AttachmentRemoveInput{
 		DocumentID: created.DocumentID, Revision: initiated.Revision, FileID: initiated.FileID,

@@ -35,7 +35,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
-	appService.SetFeedbackAttachmentResolver(vouService)
 	ledService, err := leddomain.NewService(db, bobService)
 	if err != nil {
 		return nil, nil, err

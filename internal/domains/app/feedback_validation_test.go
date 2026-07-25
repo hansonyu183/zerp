@@ -49,6 +49,31 @@ func TestValidateFeedbackRejectsUnsafeContextAndAttachments(t *testing.T) {
 	}
 }
 
+func TestValidateFeedbackAttachmentInitiate(t *testing.T) {
+	valid := FeedbackAttachmentInitiateInput{
+		FileName: "截图.png", ContentType: "image/png", Size: 1024,
+		SHA256: strings.Repeat("a", 64),
+	}
+	if fileName, err := validateFeedbackAttachmentInitiate(valid); err != nil || fileName != valid.FileName {
+		t.Fatalf("valid attachment name=%q error=%v", fileName, err)
+	}
+	for name, mutate := range map[string]func(*FeedbackAttachmentInitiateInput){
+		"path":       func(input *FeedbackAttachmentInitiateInput) { input.FileName = "../screen.png" },
+		"type":       func(input *FeedbackAttachmentInitiateInput) { input.ContentType = "application/pdf" },
+		"empty":      func(input *FeedbackAttachmentInitiateInput) { input.Size = 0 },
+		"too large":  func(input *FeedbackAttachmentInitiateInput) { input.Size = maxFeedbackAttachmentSize + 1 },
+		"upper hash": func(input *FeedbackAttachmentInitiateInput) { input.SHA256 = strings.Repeat("A", 64) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			input := valid
+			mutate(&input)
+			if _, err := validateFeedbackAttachmentInitiate(input); !errorIsKind(err, ErrorValidation) {
+				t.Fatalf("error=%v, want validation", err)
+			}
+		})
+	}
+}
+
 func TestRedactFeedbackRemovesSensitiveValues(t *testing.T) {
 	input := CreateFeedbackInput{
 		Category: "BUG",

@@ -5,7 +5,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-integration generate migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-vou-attachments compose-up compose-down
+.PHONY: run build test test-unit test-db-prepare test-integration generate migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down
 
 run:
 	go run ./cmd/server
@@ -56,9 +56,11 @@ bootstrap-admin:
 seed-bob:
 	@go run ./cmd/seed-bob
 
-cleanup-vou-attachments:
+cleanup-attachments:
 	@docker compose --env-file $(ENV_FILE) run --rm --no-deps \
 		--entrypoint /usr/local/bin/zerp-cleanup-vou-attachments api
+
+cleanup-vou-attachments: cleanup-attachments
 
 compose-up:
 	docker compose --env-file $(ENV_FILE) up --build -d

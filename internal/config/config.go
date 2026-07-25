@@ -16,28 +16,29 @@ const (
 )
 
 type Config struct {
-	Environment              string
-	HTTPAddress              string
-	DatabaseURL              string
-	CORSAllowedOrigins       []string
-	DatabaseConnectTimeout   time.Duration
-	DatabaseHealthTimeout    time.Duration
-	ReadHeaderTimeout        time.Duration
-	ShutdownTimeout          time.Duration
-	SessionCookieName        string
-	SessionCookieSecure      bool
-	SessionCookieSameSite    string
-	SessionIdleTimeout       time.Duration
-	SessionAbsoluteTimeout   time.Duration
-	SigninLockThreshold      int
-	SigninLockDuration       time.Duration
-	PasswordMinLength        int
-	AttachmentStorageRoot    string
-	AttachmentUploadTTL      time.Duration
-	AttachmentDownloadTTL    time.Duration
-	FeedbackGitHubEnabled    bool
-	FeedbackGitHubRepository string
-	FeedbackGitHubToken      string
+	Environment                 string
+	HTTPAddress                 string
+	DatabaseURL                 string
+	CORSAllowedOrigins          []string
+	DatabaseConnectTimeout      time.Duration
+	DatabaseHealthTimeout       time.Duration
+	ReadHeaderTimeout           time.Duration
+	ShutdownTimeout             time.Duration
+	SessionCookieName           string
+	SessionCookieSecure         bool
+	SessionCookieSameSite       string
+	SessionIdleTimeout          time.Duration
+	SessionAbsoluteTimeout      time.Duration
+	SigninLockThreshold         int
+	SigninLockDuration          time.Duration
+	PasswordMinLength           int
+	AttachmentStorageRoot       string
+	AttachmentUploadTTL         time.Duration
+	AttachmentDownloadTTL       time.Duration
+	FeedbackAttachmentOrphanTTL time.Duration
+	FeedbackGitHubEnabled       bool
+	FeedbackGitHubRepository    string
+	FeedbackGitHubToken         string
 }
 
 func Load() (Config, error) {
@@ -117,6 +118,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.AttachmentDownloadTTL, err = durationOrDefault("ATTACHMENT_DOWNLOAD_TOKEN_TTL", 5*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.FeedbackAttachmentOrphanTTL, err = durationOrDefault("FEEDBACK_ATTACHMENT_ORPHAN_TTL", 24*time.Hour); err != nil {
 		return Config{}, err
 	}
 	if cfg.FeedbackGitHubEnabled, err = boolOrDefault("FEEDBACK_GITHUB_ENABLED", false); err != nil {

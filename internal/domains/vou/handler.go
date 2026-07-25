@@ -320,7 +320,7 @@ func (h *Handler) writeFileError(c *gin.Context, err error) {
 		status = http.StatusConflict
 	}
 	if status == http.StatusInternalServerError {
-		h.logger.Error("vou file endpoint failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", domainErr.Cause)
+		h.logger.Error("vou file endpoint failure", "requestId", response.RequestID(c), "path", c.FullPath(), "error", domainErr.Cause)
 	}
 	c.JSON(status, gin.H{"error": domainErr.Message, "requestId": response.RequestID(c)})
 }

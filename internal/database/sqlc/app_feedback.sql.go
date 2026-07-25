@@ -61,6 +61,25 @@ func (q *Queries) ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedbac
 	return i, err
 }
 
+const countActiveUnsubmittedAppFeedbackFiles = `-- name: CountActiveUnsubmittedAppFeedbackFiles :one
+SELECT count(*)
+FROM app_feedback_files f
+WHERE f.created_by = $1
+  AND (f.status = 'READY' OR (f.status = 'PENDING' AND f.upload_expires_at > now()))
+  AND NOT EXISTS (
+      SELECT 1
+      FROM app_feedback_attachments a
+      WHERE a.source = 'FEEDBACK' AND a.file_id = f.id
+  )
+`
+
+func (q *Queries) CountActiveUnsubmittedAppFeedbackFiles(ctx context.Context, userID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveUnsubmittedAppFeedbackFiles, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRecentAppFeedback = `-- name: CountRecentAppFeedback :one
 SELECT count(*)
 FROM app_feedback
@@ -73,6 +92,38 @@ func (q *Queries) CountRecentAppFeedback(ctx context.Context, userID string) (in
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countRecentAppFeedbackFiles = `-- name: CountRecentAppFeedbackFiles :one
+SELECT count(*)
+FROM app_feedback_files
+WHERE created_by = $1
+  AND created_at >= now() - interval '24 hours'
+`
+
+func (q *Queries) CountRecentAppFeedbackFiles(ctx context.Context, userID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentAppFeedbackFiles, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteAppFeedbackFile = `-- name: DeleteAppFeedbackFile :execrows
+DELETE FROM app_feedback_files
+WHERE id = $1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM app_feedback_attachments a
+      WHERE a.source = 'FEEDBACK' AND a.file_id = app_feedback_files.id
+  )
+`
+
+func (q *Queries) DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAppFeedbackFile, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAppFeedbackByOwner = `-- name: GetAppFeedbackByOwner :one
@@ -152,11 +203,11 @@ func (q *Queries) InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackPa
 const insertAppFeedbackAttachment = `-- name: InsertAppFeedbackAttachment :exec
 INSERT INTO app_feedback_attachments (
     feedback_id, file_id, original_name, content_type, declared_size,
-    sha256_hex, position
+    sha256_hex, position, source
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6,
-    $7
+    $7, $8
 )
 `
 
@@ -168,6 +219,7 @@ type InsertAppFeedbackAttachmentParams struct {
 	DeclaredSize int64  `db:"declared_size" json:"declared_size"`
 	Sha256Hex    string `db:"sha256_hex" json:"sha256_hex"`
 	Position     int16  `db:"position" json:"position"`
+	Source       string `db:"source" json:"source"`
 }
 
 func (q *Queries) InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error {
@@ -179,12 +231,51 @@ func (q *Queries) InsertAppFeedbackAttachment(ctx context.Context, arg InsertApp
 		arg.DeclaredSize,
 		arg.Sha256Hex,
 		arg.Position,
+		arg.Source,
+	)
+	return err
+}
+
+const insertAppFeedbackFile = `-- name: InsertAppFeedbackFile :exec
+INSERT INTO app_feedback_files (
+    id, storage_key, original_name, content_type, declared_size, sha256_hex,
+    upload_token_hash, upload_expires_at, created_by
+) VALUES (
+    $1, $2, $3,
+    $4, $5, $6,
+    $7, $8, $9
+)
+`
+
+type InsertAppFeedbackFileParams struct {
+	ID              string             `db:"id" json:"id"`
+	StorageKey      string             `db:"storage_key" json:"storage_key"`
+	OriginalName    string             `db:"original_name" json:"original_name"`
+	ContentType     string             `db:"content_type" json:"content_type"`
+	DeclaredSize    int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex       string             `db:"sha256_hex" json:"sha256_hex"`
+	UploadTokenHash string             `db:"upload_token_hash" json:"upload_token_hash"`
+	UploadExpiresAt pgtype.Timestamptz `db:"upload_expires_at" json:"upload_expires_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+}
+
+func (q *Queries) InsertAppFeedbackFile(ctx context.Context, arg InsertAppFeedbackFileParams) error {
+	_, err := q.db.Exec(ctx, insertAppFeedbackFile,
+		arg.ID,
+		arg.StorageKey,
+		arg.OriginalName,
+		arg.ContentType,
+		arg.DeclaredSize,
+		arg.Sha256Hex,
+		arg.UploadTokenHash,
+		arg.UploadExpiresAt,
+		arg.CreatedBy,
 	)
 	return err
 }
 
 const listAppFeedbackAttachments = `-- name: ListAppFeedbackAttachments :many
-SELECT feedback_id, file_id, original_name, content_type, declared_size, sha256_hex, position
+SELECT feedback_id, file_id, original_name, content_type, declared_size, sha256_hex, position, source
 FROM app_feedback_attachments
 WHERE feedback_id = $1
 ORDER BY position
@@ -207,6 +298,7 @@ func (q *Queries) ListAppFeedbackAttachments(ctx context.Context, feedbackID str
 			&i.DeclaredSize,
 			&i.Sha256Hex,
 			&i.Position,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -218,6 +310,123 @@ func (q *Queries) ListAppFeedbackAttachments(ctx context.Context, feedbackID str
 	return items, nil
 }
 
+const listReadyAppFeedbackFilesForCreate = `-- name: ListReadyAppFeedbackFilesForCreate :many
+SELECT id, storage_key, original_name, content_type, declared_size, sha256_hex, status, upload_token_hash, upload_expires_at, stored_at, removed_at, created_at, created_by
+FROM app_feedback_files
+WHERE id = ANY($1::varchar(26)[])
+  AND created_by = $2
+  AND status = 'READY'
+FOR UPDATE
+`
+
+type ListReadyAppFeedbackFilesForCreateParams struct {
+	FileIds []string `db:"file_ids" json:"file_ids"`
+	UserID  string   `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) ListReadyAppFeedbackFilesForCreate(ctx context.Context, arg ListReadyAppFeedbackFilesForCreateParams) ([]AppFeedbackFile, error) {
+	rows, err := q.db.Query(ctx, listReadyAppFeedbackFilesForCreate, arg.FileIds, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppFeedbackFile{}
+	for rows.Next() {
+		var i AppFeedbackFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.StorageKey,
+			&i.OriginalName,
+			&i.ContentType,
+			&i.DeclaredSize,
+			&i.Sha256Hex,
+			&i.Status,
+			&i.UploadTokenHash,
+			&i.UploadExpiresAt,
+			&i.StoredAt,
+			&i.RemovedAt,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleAppFeedbackFiles = `-- name: ListStaleAppFeedbackFiles :many
+SELECT id, storage_key, original_name, content_type, declared_size, sha256_hex, status, upload_token_hash, upload_expires_at, stored_at, removed_at, created_at, created_by
+FROM app_feedback_files f
+WHERE (
+    (f.status = 'PENDING' AND f.upload_expires_at < now())
+    OR (
+        f.status = 'READY'
+        AND f.created_at < $1
+        AND NOT EXISTS (
+            SELECT 1
+            FROM app_feedback_attachments a
+            WHERE a.source = 'FEEDBACK' AND a.file_id = f.id
+        )
+    )
+    OR (f.status = 'DELETED' AND f.removed_at < $1)
+)
+ORDER BY f.created_at, f.id
+LIMIT $2
+FOR UPDATE SKIP LOCKED
+`
+
+type ListStaleAppFeedbackFilesParams struct {
+	OrphanBefore pgtype.Timestamptz `db:"orphan_before" json:"orphan_before"`
+	BatchSize    int32              `db:"batch_size" json:"batch_size"`
+}
+
+func (q *Queries) ListStaleAppFeedbackFiles(ctx context.Context, arg ListStaleAppFeedbackFilesParams) ([]AppFeedbackFile, error) {
+	rows, err := q.db.Query(ctx, listStaleAppFeedbackFiles, arg.OrphanBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppFeedbackFile{}
+	for rows.Next() {
+		var i AppFeedbackFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.StorageKey,
+			&i.OriginalName,
+			&i.ContentType,
+			&i.DeclaredSize,
+			&i.Sha256Hex,
+			&i.Status,
+			&i.UploadTokenHash,
+			&i.UploadExpiresAt,
+			&i.StoredAt,
+			&i.RemovedAt,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockAppFeedbackFileRateLimit = `-- name: LockAppFeedbackFileRateLimit :exec
+SELECT pg_advisory_xact_lock(hashtextextended('feedback-file:' || $1::text, 0))
+`
+
+func (q *Queries) LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, lockAppFeedbackFileRateLimit, userID)
+	return err
+}
+
 const lockAppFeedbackRateLimit = `-- name: LockAppFeedbackRateLimit :exec
 SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
 `
@@ -225,6 +434,104 @@ SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
 func (q *Queries) LockAppFeedbackRateLimit(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, lockAppFeedbackRateLimit, userID)
 	return err
+}
+
+const lockPendingAppFeedbackUpload = `-- name: LockPendingAppFeedbackUpload :one
+SELECT id, storage_key, original_name, content_type, declared_size, sha256_hex, status, upload_token_hash, upload_expires_at, stored_at, removed_at, created_at, created_by
+FROM app_feedback_files
+WHERE upload_token_hash = $1
+  AND status = 'PENDING'
+  AND upload_expires_at > now()
+FOR UPDATE
+`
+
+func (q *Queries) LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error) {
+	row := q.db.QueryRow(ctx, lockPendingAppFeedbackUpload, uploadTokenHash)
+	var i AppFeedbackFile
+	err := row.Scan(
+		&i.ID,
+		&i.StorageKey,
+		&i.OriginalName,
+		&i.ContentType,
+		&i.DeclaredSize,
+		&i.Sha256Hex,
+		&i.Status,
+		&i.UploadTokenHash,
+		&i.UploadExpiresAt,
+		&i.StoredAt,
+		&i.RemovedAt,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const lockUnsubmittedAppFeedbackFile = `-- name: LockUnsubmittedAppFeedbackFile :one
+SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.removed_at, f.created_at, f.created_by
+FROM app_feedback_files f
+WHERE f.id = $1
+  AND f.created_by = $2
+  AND f.status IN ('PENDING', 'READY')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM app_feedback_attachments a
+      WHERE a.source = 'FEEDBACK' AND a.file_id = f.id
+  )
+FOR UPDATE
+`
+
+type LockUnsubmittedAppFeedbackFileParams struct {
+	FileID string `db:"file_id" json:"file_id"`
+	UserID string `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) LockUnsubmittedAppFeedbackFile(ctx context.Context, arg LockUnsubmittedAppFeedbackFileParams) (AppFeedbackFile, error) {
+	row := q.db.QueryRow(ctx, lockUnsubmittedAppFeedbackFile, arg.FileID, arg.UserID)
+	var i AppFeedbackFile
+	err := row.Scan(
+		&i.ID,
+		&i.StorageKey,
+		&i.OriginalName,
+		&i.ContentType,
+		&i.DeclaredSize,
+		&i.Sha256Hex,
+		&i.Status,
+		&i.UploadTokenHash,
+		&i.UploadExpiresAt,
+		&i.StoredAt,
+		&i.RemovedAt,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const markAppFeedbackFileDeleted = `-- name: MarkAppFeedbackFileDeleted :execrows
+UPDATE app_feedback_files
+SET status = 'DELETED', removed_at = now()
+WHERE id = $1 AND status IN ('PENDING', 'READY')
+`
+
+func (q *Queries) MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markAppFeedbackFileDeleted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markAppFeedbackFileReady = `-- name: MarkAppFeedbackFileReady :execrows
+UPDATE app_feedback_files
+SET status = 'READY', stored_at = now()
+WHERE id = $1 AND status = 'PENDING'
+`
+
+func (q *Queries) MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markAppFeedbackFileReady, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markAppFeedbackPublished = `-- name: MarkAppFeedbackPublished :execrows

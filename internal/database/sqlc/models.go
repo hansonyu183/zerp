@@ -50,6 +50,23 @@ type AppFeedbackAttachment struct {
 	DeclaredSize int64  `db:"declared_size" json:"declared_size"`
 	Sha256Hex    string `db:"sha256_hex" json:"sha256_hex"`
 	Position     int16  `db:"position" json:"position"`
+	Source       string `db:"source" json:"source"`
+}
+
+type AppFeedbackFile struct {
+	ID              string             `db:"id" json:"id"`
+	StorageKey      string             `db:"storage_key" json:"storage_key"`
+	OriginalName    string             `db:"original_name" json:"original_name"`
+	ContentType     string             `db:"content_type" json:"content_type"`
+	DeclaredSize    int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex       string             `db:"sha256_hex" json:"sha256_hex"`
+	Status          string             `db:"status" json:"status"`
+	UploadTokenHash string             `db:"upload_token_hash" json:"upload_token_hash"`
+	UploadExpiresAt pgtype.Timestamptz `db:"upload_expires_at" json:"upload_expires_at"`
+	StoredAt        pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
+	RemovedAt       pgtype.Timestamptz `db:"removed_at" json:"removed_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
 }
 
 type AppPermission struct {

@@ -42,6 +42,7 @@ function delivery(
     revision: 3,
     parentDocumentId: 'CUSTOMER-ORDER-1',
     businessDate: '2026-07-25',
+    currency: 'CNY',
     amount: '100.00',
     lines: [],
     attachments: [],

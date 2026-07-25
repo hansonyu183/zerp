@@ -291,21 +291,10 @@ export function useIntermediaryWorkflowViewModel() {
   const rootContainerBalance = computed(() =>
     containerBalance(document.value?.balances),
   )
-  const stageBodyRoundTripSafe = computed(
-    () =>
-      !stageChild.value ||
-      (
-        Boolean(stageDetail.value) &&
-        Object.hasOwn(stageDetail.value!.data, 'remark')
-      ),
-  )
   const stageEditable = computed(
     () =>
       !stageChild.value ||
-      (
-        stageChild.value.status === 'DRAFT' &&
-        stageBodyRoundTripSafe.value
-      ),
+      stageChild.value.status === 'DRAFT',
   )
   const workspaceDirty = computed(
     () =>
@@ -564,11 +553,6 @@ export function useIntermediaryWorkflowViewModel() {
 
   function startOrderEditing(): void {
     if (document.value?.workflowStatus !== 'DRAFT') return
-    if (!document.value.currency) {
-      workspaceError.value =
-        '后端 PR #12 当前未返回客户订单币种，重新打开的草稿不能安全编辑。'
-      return
-    }
     orderDraft.value = orderFromDocument(document.value)
     orderEditing.value = true
     preloadOrderReferences()
@@ -1453,7 +1437,6 @@ export function useIntermediaryWorkflowViewModel() {
     stageDetail,
     stageDraft,
     stageEditable,
-    stageBodyRoundTripSafe,
     workspaceDirty,
     expectedContainers,
     signoffExpectedContainers,

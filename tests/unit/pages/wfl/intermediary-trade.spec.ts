@@ -71,6 +71,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         status: 'APPROVED',
         revision: 4,
         businessDate: '2026-07-25',
+        currency: 'CNY',
         amount: '3600.00',
         createdAt: '2026-07-25T00:00:00Z',
         createdBy: 'USER-1',
@@ -81,6 +82,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         data: {
           customer: reference('customer', 'C001'),
           salesperson: reference('employee', 'E001'),
+          remark: '客户订单备注',
         },
         lines: [
           {
@@ -105,6 +107,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         revision: 3,
         parentDocumentId: 'CUSTOMER-ORDER-1',
         businessDate: '2026-07-25',
+        currency: 'CNY',
         amount: '3200.00',
         createdAt: '2026-07-25T03:00:00Z',
         createdBy: 'USER-1',
@@ -113,6 +116,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
               data: {
                 supplier: reference('supplier', 'S001'),
                 purchaser: reference('employee', 'E002'),
+                remark: '采购备注',
               },
               lines: [
                 {
@@ -136,10 +140,11 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         revision: 3,
         parentDocumentId: 'PROCUREMENT-1',
         businessDate: '2026-07-25',
+        currency: 'CNY',
         amount: '0.00',
         createdAt: '2026-07-25T04:00:00Z',
         createdBy: 'USER-1',
-        data: {},
+        data: { remark: '收货备注' },
         lines: [
           {
             lineId: 'RECEIPT-LINE-1',
@@ -158,10 +163,11 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         revision: 3,
         parentDocumentId: 'CUSTOMER-ORDER-1',
         businessDate: '2026-07-25',
+        currency: 'CNY',
         amount: '0.00',
         createdAt: '2026-07-25T05:00:00Z',
         createdBy: 'USER-1',
-        data: {},
+        data: { remark: '送货备注' },
         lines: [
           {
             lineId: 'DELIVERY-LINE-1',
@@ -180,12 +186,14 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         revision: 3,
         parentDocumentId: 'DELIVERY-1',
         businessDate: '2026-07-25',
+        currency: 'CNY',
         amount: '0.00',
         createdAt: '2026-07-25T06:00:00Z',
         createdBy: 'USER-1',
         data: {
           returnedSolventContainers: 1,
           returnedResinContainers: 0,
+          remark: '签收备注',
         },
         lines: [
           {
@@ -227,7 +235,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
   }
 }
 
-describe('WFL 居间贸易 PR #12 契约', () => {
+describe('WFL 居间贸易后端契约', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -290,7 +298,7 @@ describe('WFL 居间贸易 PR #12 契约', () => {
       currency: 'CNY',
       customer: reference('customer', 'C001'),
       salesperson: null,
-      remark: 'PR12',
+      remark: '客户订单备注',
       productLines: [
         {
           key: 'line-1',
@@ -383,12 +391,17 @@ describe('WFL 居间贸易 PR #12 契约', () => {
     )
   })
 
-  it('查询只发送 PR #12 支持的字段', async () => {
+  it('查询只发送后端支持的字段', async () => {
     mockedApi.post.mockResolvedValueOnce({
-      data: { items: [], total: 0, page: 2, pageSize: 20 },
+      data: {
+        items: [processView()],
+        total: 1,
+        page: 2,
+        pageSize: 20,
+      },
     })
 
-    await intermediaryWorkflowApi.query({
+    const result = await intermediaryWorkflowApi.query({
       page: 2,
       pageSize: 20,
       filters: {
@@ -410,6 +423,11 @@ describe('WFL 居间贸易 PR #12 契约', () => {
       },
       { signal: undefined },
     )
+    expect(result.data.items[0]).toMatchObject({
+      documentNo: 'CO-1',
+      currency: 'CNY',
+      amount: '3600.00',
+    })
   })
 
   it('收货和签收先读取来源阶段并发送真实 sourceLineId', async () => {
@@ -429,10 +447,11 @@ describe('WFL 居间贸易 PR #12 契约', () => {
           revision: 3,
           parentDocumentId: 'CUSTOMER-ORDER-1',
           businessDate: '2026-07-25',
+          currency: 'CNY',
           amount: '0.00',
           createdAt: '2026-07-25T00:00:00Z',
           createdBy: 'USER-1',
-          data: {},
+          data: { remark: '' },
           lines: [
             {
               lineId: 'DELIVERY-LINE-1',
@@ -563,7 +582,8 @@ describe('WFL 居间贸易 PR #12 契约', () => {
       'signoff-note',
     ])
     expect(data.balances?.lines[0]).not.toHaveProperty('procurementQuantity')
-    expect(data.data.currency).toBe('')
+    expect(data.data.currency).toBe('CNY')
+    expect(data.data.remark).toBe('客户订单备注')
   })
 
   it('双人控制拦截同一核对人，后端冲突保留 requestId 并提示刷新', async () => {
@@ -608,24 +628,16 @@ describe('WFL 居间贸易 PR #12 契约', () => {
     )
   })
 
-  it('后端未返回阶段备注时将已保存草稿设为只读', () => {
+  it('已保存的阶段草稿按状态决定是否可编辑', () => {
     const vm = useIntermediaryWorkflowViewModel()
     vm.stageChild.value = {
       childId: 'RECEIPT-1',
       status: 'DRAFT',
     } as IntermediaryChildSummary
-    vm.stageDetail.value = {
-      data: { receiptDate: '2026-07-25' },
-    } as never
-
-    expect(vm.stageBodyRoundTripSafe.value).toBe(false)
-    expect(vm.stageEditable.value).toBe(false)
-
-    vm.stageDetail.value = {
-      data: { receiptDate: '2026-07-25', remark: '' },
-    } as never
-    expect(vm.stageBodyRoundTripSafe.value).toBe(true)
     expect(vm.stageEditable.value).toBe(true)
+
+    vm.stageChild.value.status = 'CHECKED'
+    expect(vm.stageEditable.value).toBe(false)
   })
 
   it('反向和删除原因统一限制为 1–1000 字', async () => {

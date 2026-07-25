@@ -173,7 +173,7 @@ export default async function globalSetup(): Promise<void> {
     )
     if (wflPermissions.length === 0) {
       throw new Error(
-        '隔离后端未注册 PR #12 的 /wfl/intermediary-trade 权限目录。',
+        '隔离后端未注册 /wfl/intermediary-trade 权限目录。',
       )
     }
 

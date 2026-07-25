@@ -7,11 +7,13 @@ import {
 } from '@playwright/test'
 import {
   e2eEnv,
-  readWflBootstrapState,
-  wflBootstrapEnabled,
+  redactedCredentials,
+  reviewerCredentials,
+  wflFixtures,
 } from './wfl-runtime'
 
-const enabled = wflBootstrapEnabled()
+const fixtures = wflFixtures()
+const redacted = redactedCredentials()
 let completedDocumentNo = ''
 
 async function signIn(
@@ -61,14 +63,38 @@ async function openOrder(page: Page, documentNo: string): Promise<Locator> {
   await page.getByLabel(`打开 ${documentNo}`).click()
   const workspace = page.locator('.wfl-workspace')
   await expect(workspace).toBeVisible()
+  await expect(workspace.getByRole('progressbar')).toHaveCount(0)
   return workspace
 }
 
 async function openStageTab(
   workspace: Locator,
-  name: '居间采购' | '分批收货' | '分批送货' | '客户签收' | '审计',
+  name:
+    | '客户订单'
+    | '居间采购'
+    | '分批收货'
+    | '分批送货'
+    | '客户签收'
+    | '审计',
 ): Promise<void> {
-  await workspace.getByRole('tab', { name }).click()
+  const tab = workspace.getByRole('tab', { name })
+  await tab.click()
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
+}
+
+async function expectWorkflowStatus(
+  workspace: Locator,
+  value: RegExp,
+): Promise<void> {
+  await expect(
+    workspace.locator('.v-toolbar').getByText(value),
+  ).toBeVisible()
+}
+
+async function waitWorkspaceIdle(workspace: Locator): Promise<void> {
+  await expect(workspace.getByRole('progressbar')).toHaveCount(0, {
+    timeout: 30_000,
+  })
 }
 
 async function runReasonAction(
@@ -84,19 +110,14 @@ async function runReasonAction(
   await dialog.getByLabel('原因').fill(reason)
   await dialog.getByRole('button', { name: '确认操作' }).click()
   await expect(dialog).not.toBeVisible()
+  await waitWorkspaceIdle(workspace)
 }
 
 test.describe('WFL 居间贸易五阶段真实后端', () => {
   test.describe.configure({ mode: 'serial' })
-  test.skip(
-    !enabled,
-    '自动预置和真实 WFL 流程只允许在 E2E_WFL_BOOTSTRAP=true 的隔离后端运行',
-  )
 
   test('双账号完成五阶段、子单附件、空桶与审计', async ({ browser }) => {
     test.setTimeout(480_000)
-    const bootstrap = readWflBootstrapState()
-    const fixtures = bootstrap.fixtures
     const operator = await signedInPage(
       browser,
       e2eEnv('E2E_USERNAME'),
@@ -104,8 +125,8 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     )
     const reviewer = await signedInPage(
       browser,
-      bootstrap.reviewer.username,
-      bootstrap.reviewer.password,
+      reviewerCredentials().username,
+      reviewerCredentials().password,
     )
 
     await operator.goto('/wfl/intermediary-trade')
@@ -154,13 +175,11 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     })
     await expect(orderCheck).toBeEnabled()
     await orderCheck.click()
-    await expect(
-      workspace.getByText(/客户订单已核对 · r\d+/),
-    ).toBeVisible()
+    await expectWorkflowStatus(workspace, /客户订单已核对 · r\d+/)
 
     workspace = await openOrder(reviewer, documentNo)
     await workspace.getByRole('button', { name: '批准', exact: true }).click()
-    await expect(workspace.getByText(/履约中 · r\d+/)).toBeVisible()
+    await expectWorkflowStatus(workspace, /履约中 · r\d+/)
 
     workspace = await openOrder(operator, documentNo)
     await openStageTab(workspace, '居间采购')
@@ -208,7 +227,9 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4\nWFL receipt\n%%EOF'),
     })
-    await expect(dialog.getByText('已上传', { exact: true })).toBeVisible()
+    await expect(
+      dialog.getByText('已上传', { exact: true }),
+    ).toBeVisible({ timeout: 30_000 })
     await dialog.getByRole('button', { name: '关闭' }).click()
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
 
@@ -250,7 +271,7 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '客户签收')
     await workspace.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(workspace.getByText(/已完成 · r\d+/)).toBeVisible()
+    await expectWorkflowStatus(workspace, /已完成 · r\d+/)
 
     await openStageTab(workspace, '审计')
     await workspace.getByRole('button', { name: '刷新' }).click()
@@ -259,11 +280,14 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
   })
 
   test('采购脱敏账号不获得采购正文和数量', async ({ browser }) => {
-    const bootstrap = readWflBootstrapState()
+    test.skip(
+      !redacted,
+      '未配置仅缺少 procurement-get 的专用脱敏账号',
+    )
     const page = await signedInPage(
       browser,
-      bootstrap.redacted.username,
-      bootstrap.redacted.password,
+      redacted!.username,
+      redacted!.password,
     )
     const workspace = await openOrder(page, completedDocumentNo)
     await openStageTab(workspace, '居间采购')
@@ -280,7 +304,6 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
 
   test('按下游顺序完成反向、草稿删除和双人短结', async ({ browser }) => {
     test.setTimeout(480_000)
-    const bootstrap = readWflBootstrapState()
     const operator = await signedInPage(
       browser,
       e2eEnv('E2E_USERNAME'),
@@ -288,8 +311,8 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     )
     const reviewer = await signedInPage(
       browser,
-      bootstrap.reviewer.username,
-      bootstrap.reviewer.password,
+      reviewerCredentials().username,
+      reviewerCredentials().password,
     )
 
     let workspace = await openOrder(operator, completedDocumentNo)
@@ -302,6 +325,7 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await blockedDialog.getByRole('button', { name: '确认操作' }).click()
     await expect(blockedDialog).toBeVisible()
     await blockedDialog.getByRole('button', { name: '取消' }).click()
+    await waitWorkspaceIdle(workspace)
 
     await openStageTab(workspace, '客户签收')
     await runReasonAction(operator, workspace, '反确认', '验证签收反确认')
@@ -316,6 +340,17 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await openStageTab(workspace, '分批收货')
     await runReasonAction(operator, workspace, '反确认', '验证收货反确认')
     await runReasonAction(operator, workspace, '反核对', '验证收货反核对')
+    await workspace.getByLabel(/^打开 GR-/).click()
+    const receiptDialog = operator.getByRole('dialog').filter({
+      hasText: '查看/编辑收货',
+    })
+    await expect(receiptDialog).toBeVisible()
+    const removeReceiptAttachment = receiptDialog.getByLabel(
+      '移除 receipt-e2e.pdf',
+    )
+    await removeReceiptAttachment.click()
+    await expect(removeReceiptAttachment).toHaveCount(0, { timeout: 30_000 })
+    await receiptDialog.getByRole('button', { name: '关闭' }).click()
     await runReasonAction(operator, workspace, '删除', '删除收货草稿')
 
     await openStageTab(workspace, '居间采购')
@@ -324,37 +359,48 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await runReasonAction(operator, workspace, '删除', '删除采购草稿')
 
     await workspace.getByRole('button', { name: '申请短结' }).click()
-    let reasonDialog = operator.getByRole('dialog').filter({
-      hasText: '申请短结',
+    const reasonDialog = operator.getByRole('dialog').filter({
+      has: operator.getByRole('button', { name: '提交申请' }),
     })
     await reasonDialog.getByLabel('原因').fill('客户终止剩余履约')
     await reasonDialog.getByRole('button', { name: '提交申请' }).click()
     await expect(reasonDialog).not.toBeVisible()
+    await waitWorkspaceIdle(workspace)
 
     workspace = await openOrder(reviewer, completedDocumentNo)
     await runReasonAction(reviewer, workspace, '确认短结', '复核并确认短结')
-    await expect(workspace.getByText(/已短结 · r\d+/)).toBeVisible()
+    await expectWorkflowStatus(workspace, /已短结 · r\d+/)
 
     workspace = await openOrder(operator, completedDocumentNo)
     await runReasonAction(operator, workspace, '反确认短结', '验证短结反确认')
     await runReasonAction(operator, workspace, '撤销短结申请', '恢复正常履约')
-    await expect(workspace.getByText(/履约中 · r\d+/)).toBeVisible()
-
-    await openStageTab(workspace, '客户订单')
-    await runReasonAction(operator, workspace, '反批准', '验证客户订单反批准')
-    await runReasonAction(operator, workspace, '反核对', '验证客户订单反核对')
-    await expect(workspace.getByText(/客户订单草稿 · r\d+/)).toBeVisible()
+    await expectWorkflowStatus(workspace, /履约中 · r\d+/)
   })
 
-  test('历史 V1 居间销售单仍是纯 VOU 页面', async ({ browser }) => {
-    const page = await signedInPage(
+  test('全部下游删除后客户订单可反批准和反核对', async ({ browser }) => {
+    const operator = await signedInPage(
       browser,
       e2eEnv('E2E_USERNAME'),
       e2eEnv('E2E_PASSWORD'),
     )
-    await page.goto('/vou/intermediary-sale-order')
-    await expect(page.getByText('VOU · 业务单据')).toBeVisible()
-    await expect(page.getByRole('heading', { name: '居间销售单' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '新建流程' })).toHaveCount(0)
+    const workspace = await openOrder(operator, completedDocumentNo)
+    await openStageTab(workspace, '客户订单')
+    await runReasonAction(operator, workspace, '反批准', '验证客户订单反批准')
+    await runReasonAction(operator, workspace, '反核对', '验证客户订单反核对')
+    await expectWorkflowStatus(workspace, /客户订单草稿 · r\d+/)
   })
+})
+
+test('历史 V1 居间销售单仍是纯 VOU 页面', async ({ browser }) => {
+  const page = await signedInPage(
+    browser,
+    e2eEnv('E2E_USERNAME'),
+    e2eEnv('E2E_PASSWORD'),
+  )
+  await page.goto('/vou/intermediary-sale-order')
+  await expect(page.getByText('VOU · 业务单据')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: '居间销售单' }).last(),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建流程' })).toHaveCount(0)
 })

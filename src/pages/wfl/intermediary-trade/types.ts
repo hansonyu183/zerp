@@ -133,6 +133,7 @@ export interface IntermediaryChildSummary {
     | 'signoff-note'
   parentDocumentId?: string
   businessDate?: string
+  currency: string
   amount?: string
   attachments?: VoucherAttachment[]
 }
@@ -405,7 +406,6 @@ export interface IntermediaryDocumentWire
   extends Omit<WflDocumentSummary<Record<string, unknown>, IntermediaryStageLineWire>, 'lines' | 'stage'> {
   stage: WflStage
   data?: {
-    currency?: string
     remark?: string
     customer?: VoucherReferenceView
     salesperson?: VoucherReferenceView

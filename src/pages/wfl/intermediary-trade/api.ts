@@ -254,6 +254,7 @@ function mapChild(document: IntermediaryDocumentWire): IntermediaryChildSummary 
     entity: document.entity as IntermediaryChildSummary['entity'],
     parentDocumentId: document.parentDocumentId,
     businessDate: document.businessDate,
+    currency: document.currency,
     amount: document.amount,
     attachments: document.attachments,
   }
@@ -272,7 +273,7 @@ function mapProcess(process: IntermediaryProcessWire): IntermediaryWireDocument 
     amount: root.amount,
     data: {
       businessDate: root.businessDate,
-      currency: data.currency ?? '',
+      currency: root.currency,
       remark: data.remark,
       customer: data.customer,
       salesperson: data.salesperson,
@@ -305,7 +306,7 @@ function mapListItem(process: IntermediaryProcessWire): IntermediaryListItem {
     status: process.status,
     businessDate: root.businessDate,
     partyName: root.data?.customer?.name,
-    currency: root.data?.currency ?? '',
+    currency: root.currency,
     amount: root.amount,
     updatedAt: process.updatedAt,
     currentStage: process.currentStage,

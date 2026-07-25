@@ -143,6 +143,7 @@ export interface VouAtomicDocument<
   revision: number
   parentDocumentId?: string
   businessDate: string
+  currency: string
   amount: string
   data?: TData
   lines?: TLine[]

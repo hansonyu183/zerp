@@ -29,6 +29,8 @@ export interface WflBootstrapState {
   }
 }
 
+export type WflFixtures = WflBootstrapState['fixtures']
+
 export function e2eEnv(name: string): string {
   return process.env[name] ?? localEnv[name] ?? ''
 }
@@ -67,4 +69,35 @@ export function reviewerCredentials(): E2ECredentials {
     username: e2eEnv('E2E_REVIEWER_USERNAME'),
     password: e2eEnv('E2E_REVIEWER_PASSWORD'),
   }
+}
+
+export function wflFixtures(): WflFixtures {
+  if (wflBootstrapEnabled()) return readWflBootstrapState().fixtures
+  const fixtures: WflFixtures = {
+    customer: e2eEnv('E2E_VOU_CUSTOMER_KEYWORD'),
+    supplier: e2eEnv('E2E_VOU_SUPPLIER_KEYWORD'),
+    employee: e2eEnv('E2E_VOU_EMPLOYEE_KEYWORD'),
+    solventProduct: e2eEnv('E2E_VOU_PRODUCT_KEYWORD'),
+    resinProduct: e2eEnv('E2E_VOU_RESIN_PRODUCT_KEYWORD'),
+    platform: e2eEnv('E2E_VOU_PLATFORM_KEYWORD'),
+    vehicle: e2eEnv('E2E_VOU_VEHICLE_KEYWORD'),
+    warehouse: e2eEnv('E2E_VOU_WAREHOUSE_KEYWORD'),
+    fundAccount: e2eEnv('E2E_VOU_FUND_ACCOUNT_KEYWORD'),
+  }
+  const missing = Object.entries(fixtures)
+    .filter(([, value]) => !value)
+    .map(([name]) => name)
+  if (missing.length > 0) {
+    throw new Error(
+      `WFL Playwright 缺少真实测试后端基础资料：${missing.join(', ')}`,
+    )
+  }
+  return fixtures
+}
+
+export function redactedCredentials(): E2ECredentials | null {
+  if (wflBootstrapEnabled()) return readWflBootstrapState().redacted
+  const username = e2eEnv('E2E_WFL_REDACTED_USERNAME')
+  const password = e2eEnv('E2E_WFL_REDACTED_PASSWORD')
+  return username && password ? { username, password } : null
 }

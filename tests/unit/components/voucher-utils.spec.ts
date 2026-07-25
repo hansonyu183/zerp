@@ -85,6 +85,7 @@ describe('VOU decimal and settlement helpers', () => {
       status: 'REVIEWED',
       revision: 3,
       businessDate: '2026-07-25',
+      currency: 'CNY',
       reviewedBy: 'USER-2',
     })
   })

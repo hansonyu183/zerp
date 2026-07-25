@@ -23,6 +23,7 @@ export function toVouAtomicDocument(
     status: view.status,
     revision: view.revision,
     businessDate: view.data.businessDate,
+    currency: view.data.currency,
     amount: view.amount,
     data: view.data,
     lines: [

@@ -133,12 +133,24 @@ function forceClose(): void {
 
 <style scoped>
 .wfl-workspace {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   background: rgb(var(--v-theme-background));
 }
+.wfl-workspace > .v-tabs {
+  flex: 0 0 var(--v-tabs-height);
+}
+.wfl-workspace > .v-divider {
+  flex: 0 0 auto;
+}
 .wfl-workspace__content {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   max-width: 1500px;
   margin: 0 auto;
+  overflow-y: auto;
   padding: 20px;
 }
 @media (max-width: 600px) {

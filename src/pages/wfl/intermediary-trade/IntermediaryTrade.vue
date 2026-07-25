@@ -138,6 +138,7 @@ function stageDocuments(
     revision: item.revision,
     parentDocumentId: item.parentDocumentId,
     businessDate: item.businessDate ?? item.createdAt.slice(0, 10),
+    currency: item.currency,
     amount: item.amount ?? '0.00',
     attachments: item.attachments ?? [],
     createdAt: item.createdAt,
@@ -456,15 +457,6 @@ function createSignoff(document: WflDocumentSummary): void {
       <v-card-title>{{ stageTitle() }}</v-card-title>
       <v-card-text>
         <v-alert v-if="vm.stageDialogError" class="mb-4" type="error" variant="tonal">{{ vm.stageDialogError }}</v-alert>
-        <v-alert
-          v-if="vm.stageChild?.status === 'DRAFT' && !vm.stageBodyRoundTripSafe"
-          class="mb-4"
-          type="warning"
-          variant="tonal"
-        >
-          后端 PR #12 当前未返回阶段备注，已保存的草稿只读展示，避免保存时覆盖服务端字段。
-        </v-alert>
-
         <template v-if="vm.stageEditing === 'PROCUREMENT' && vm.stageDraft">
           <div class="intermediary-workspace__form-grid">
             <v-text-field v-model="stageDraftAs<IntermediaryProcurementDraft>().purchaseDate" :disabled="!vm.stageEditable" label="采购日期" type="date" variant="outlined" />

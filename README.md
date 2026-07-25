@@ -181,9 +181,14 @@ VITE_API_BASE_URL=https://api.example.com/
 ```text
 POST /app/user/signin
 POST /app/user/session
+POST /app/feedback/create
 POST /vou/sale-order/query
 POST /vou/sale-order/save
 ```
+
+登录后的顶栏提供全局反馈入口。反馈表单通过 `app/feedback/*` 契约提交分类、标题、
+正文、当前页面路径和可选请求编号；PNG/JPEG 截图使用反馈专用一次性上传地址，
+不得复用 VOU 单据附件或将截图写入浏览器持久存储。
 
 ### 请求与响应
 

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
+import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
@@ -149,6 +150,7 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
       </div>
     </div>
     <v-spacer />
+    <FeedbackDialog />
     <v-btn
       :icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
       :aria-label="isDark ? '切换浅色模式' : '切换深色模式'"

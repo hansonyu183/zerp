@@ -16,8 +16,8 @@ type queryer interface {
 
 func (s *Service) loadDocuments(ctx context.Context, processID string, permissions []string) ([]DocumentSummary, error) {
 	rows, err := s.pool.Query(ctx, `SELECT d.id,d.document_no,d.entity,l.stage,d.status,d.revision,
-		COALESCE(d.parent_document_id,''),d.business_date,d.total_amount_cents,d.created_at,d.created_by,
-		d.reviewed_at,d.reviewed_by,d.approved_at,d.approved_by
+		COALESCE(d.parent_document_id,''),d.business_date,d.currency,d.total_amount_cents,
+		COALESCE(d.remark,''),d.created_at,d.created_by,d.reviewed_at,d.reviewed_by,d.approved_at,d.approved_by
 		FROM wfl_process_documents l JOIN vou_documents d ON d.id=l.document_id
 		WHERE l.process_id=$1 ORDER BY
 		CASE l.stage WHEN 'CUSTOMER_ORDER' THEN 1 WHEN 'PROCUREMENT' THEN 2 WHEN 'RECEIPT' THEN 3
@@ -32,8 +32,9 @@ func (s *Service) loadDocuments(ctx context.Context, processID string, permissio
 		var status string
 		var businessDate time.Time
 		var amount int64
+		var remark string
 		if err = rows.Scan(&item.DocumentID, &item.DocumentNo, &item.Entity, &item.Stage, &status,
-			&item.Revision, &item.ParentDocumentID, &businessDate, &amount, &item.CreatedAt,
+			&item.Revision, &item.ParentDocumentID, &businessDate, &item.Currency, &amount, &remark, &item.CreatedAt,
 			&item.CreatedBy, &item.ReviewedAt, &item.ReviewedBy, &item.ApprovedAt, &item.ApprovedBy); err != nil {
 			return nil, err
 		}
@@ -41,7 +42,7 @@ func (s *Service) loadDocuments(ctx context.Context, processID string, permissio
 		item.BusinessDate = businessDate.Format("2006-01-02")
 		item.Amount = formatFixed(amount, 2)
 		if item.Stage != StageProcurement || hasPermission(permissions, "/wfl/intermediary-trade/procurement-get") {
-			item.Data, item.Lines, err = loadDocumentBody(ctx, s.pool, item)
+			item.Data, item.Lines, err = loadDocumentBody(ctx, s.pool, item, remark)
 			if err != nil {
 				return nil, err
 			}
@@ -78,7 +79,7 @@ func loadAttachments(ctx context.Context, q queryer, documentID string) ([]voudo
 	return result, rows.Err()
 }
 
-func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any, any, error) {
+func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary, remark string) (any, any, error) {
 	data := map[string]any{}
 	lines := []map[string]any{}
 	switch item.Entity {
@@ -104,7 +105,7 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 		data = map[string]any{
 			"customer":    map[string]any{"objectId": customerID, "versionId": customerVersion, "code": customerCode, "name": customerName},
 			"salesperson": map[string]any{"objectId": salespersonID, "versionId": salespersonVersion, "code": salespersonCode, "name": salespersonName},
-			"contactName": contact, "contactPhone": phone, "deliveryAddress": address,
+			"contactName": contact, "contactPhone": phone, "deliveryAddress": address, "remark": remark,
 			"settlementMethod": map[string]any{"objectId": settlementID, "versionId": settlementVersion, "code": settlementCode,
 				"name": settlementName, "ruleType": rule, "monthOffset": monthOffset, "dayOfMonth": dayOfMonth, "dayOffset": dayOffset},
 		}
@@ -157,7 +158,7 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 		data = map[string]any{
 			"supplier":    map[string]any{"objectId": supplierID, "versionId": supplierVersion, "code": supplierCode, "name": supplierName},
 			"purchaser":   map[string]any{"objectId": purchaserID, "versionId": purchaserVersion, "code": purchaserCode, "name": purchaserName},
-			"contactName": contact, "contactPhone": phone,
+			"contactName": contact, "contactPhone": phone, "remark": remark,
 			"settlementMethod": map[string]any{"objectId": settlementID, "versionId": settlementVersion, "code": settlementCode,
 				"name": settlementName, "ruleType": rule, "monthOffset": monthOffset, "dayOfMonth": dayOfMonth, "dayOffset": dayOffset},
 		}
@@ -186,7 +187,7 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 		}
 		return data, lines, rows.Err()
 	case voudomain.EntityGoodsReceipt:
-		return loadSimpleQuantityBody(ctx, q, item.DocumentID, `SELECT id,source_procurement_line_id,
+		return loadSimpleQuantityBody(ctx, q, item.DocumentID, remark, `SELECT id,source_procurement_line_id,
 			quantity_micros,remark FROM vou_goods_receipt_lines WHERE document_id=$1`)
 	case voudomain.EntityDeliveryNote:
 		var platformID, platformVersion, platformCode, platformName string
@@ -202,8 +203,8 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 		}
 		data = map[string]any{"platform": map[string]any{"objectId": platformID, "versionId": platformVersion, "code": platformCode, "name": platformName},
 			"vehicle":                   map[string]any{"objectId": vehicleID, "versionId": vehicleVersion, "code": vehicleCode, "name": vehicleName, "plateNumber": plate},
-			"expectedSolventContainers": solvent, "expectedResinContainers": resin}
-		_, linesAny, err := loadSimpleQuantityBody(ctx, q, item.DocumentID, `SELECT id,source_customer_line_id,
+			"expectedSolventContainers": solvent, "expectedResinContainers": resin, "remark": remark}
+		_, linesAny, err := loadSimpleQuantityBody(ctx, q, item.DocumentID, remark, `SELECT id,source_customer_line_id,
 			quantity_micros,remark FROM vou_delivery_note_lines WHERE document_id=$1`)
 		return data, linesAny, err
 	case voudomain.EntitySignoffNote:
@@ -216,7 +217,7 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 			return nil, nil, err
 		}
 		data = map[string]any{"returnedSolventContainers": solvent, "returnedResinContainers": resin,
-			"containerDifferenceReason": reason}
+			"containerDifferenceReason": reason, "remark": remark}
 		rows, queryErr := q.Query(ctx, `SELECT id,source_delivery_line_id,signed_qty_micros,
 			rejected_qty_micros,loss_qty_micros,remark FROM vou_signoff_note_lines WHERE document_id=$1`, item.DocumentID)
 		if queryErr != nil {
@@ -239,7 +240,7 @@ func loadDocumentBody(ctx context.Context, q queryer, item DocumentSummary) (any
 	return data, lines, nil
 }
 
-func loadSimpleQuantityBody(ctx context.Context, q queryer, documentID, sql string) (any, any, error) {
+func loadSimpleQuantityBody(ctx context.Context, q queryer, documentID, remark, sql string) (any, any, error) {
 	rows, err := q.Query(ctx, sql, documentID)
 	if err != nil {
 		return nil, nil, err
@@ -256,7 +257,7 @@ func loadSimpleQuantityBody(ctx context.Context, q queryer, documentID, sql stri
 		lines = append(lines, map[string]any{"lineId": id, "sourceLineId": source,
 			"quantity": formatFixed(quantity, 6), "remark": remark})
 	}
-	return map[string]any{}, lines, rows.Err()
+	return map[string]any{"remark": remark}, lines, rows.Err()
 }
 
 func loadBalances(ctx context.Context, q queryer, processID string, includeProcurement bool) (Balances, error) {

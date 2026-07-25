@@ -113,7 +113,7 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		t.Fatalf("WFL permissions = %d err=%v", permissionCount, err)
 	}
 	created, err := service.Create(t.Context(), CreateInput{Data: CustomerOrderInput{
-		BusinessDate: "2026-07-25", Currency: "CNY",
+		BusinessDate: "2026-07-25", Currency: "CNY", Remark: "客户订单初始备注",
 		Customer:    ReferenceInput{ObjectID: customer, VersionID: version[customer]},
 		Salesperson: &ReferenceInput{ObjectID: salesperson, VersionID: version[salesperson]},
 		Lines: []CustomerLineInput{{Product: ReferenceInput{ObjectID: product, VersionID: version[product]},
@@ -122,6 +122,49 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertSummary := func(document DocumentSummary, currency, remark string) {
+		t.Helper()
+		if document.Currency != currency {
+			t.Fatalf("%s currency = %q, want %q", document.Stage, document.Currency, currency)
+		}
+		data, ok := document.Data.(map[string]any)
+		if !ok {
+			t.Fatalf("%s data = %#v", document.Stage, document.Data)
+		}
+		if got, exists := data["remark"]; !exists || got != remark {
+			t.Fatalf("%s remark = %#v, want %q", document.Stage, got, remark)
+		}
+	}
+	getProcessDocument := func(documentID string, permissions []string) DocumentSummary {
+		t.Helper()
+		view, getErr := service.Get(t.Context(), GetInput{ProcessID: created.ProcessID}, permissions)
+		if getErr != nil {
+			t.Fatal(getErr)
+		}
+		for _, document := range view.Documents {
+			if document.DocumentID == documentID {
+				return document
+			}
+		}
+		t.Fatalf("document %s not found", documentID)
+		return DocumentSummary{}
+	}
+	assertSummary(getProcessDocument(created.DocumentID, nil), "CNY", "客户订单初始备注")
+	rootSaved, err := service.Save(t.Context(), SaveInput{
+		ProcessID: created.ProcessID, ProcessRevision: created.ProcessRevision,
+		DocumentID: created.DocumentID, DocumentRevision: created.DocumentRevision,
+		Data: CustomerOrderInput{
+			BusinessDate: "2026-07-25", Currency: "USD", Remark: "客户订单更新备注",
+			Customer:    ReferenceInput{ObjectID: customer, VersionID: version[customer]},
+			Salesperson: &ReferenceInput{ObjectID: salesperson, VersionID: version[salesperson]},
+			Lines: []CustomerLineInput{{Product: ReferenceInput{ObjectID: product, VersionID: version[product]},
+				OrderedQuantity: "10", UnitPrice: "12.50"}},
+		},
+	}, actorOne, "wfl-save")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSummary(getProcessDocument(created.DocumentID, nil), "USD", "客户订单更新备注")
 	var customerLine string
 	if err = pool.QueryRow(t.Context(), `SELECT id FROM vou_customer_order_lines WHERE document_id=$1`,
 		created.DocumentID).Scan(&customerLine); err != nil {
@@ -141,24 +184,38 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		}
 		return value.(MutationResult)
 	}
-	root := run("check", 1, created.DocumentID, 1, nil, actorOne)
+	getStage := func(action, documentID string) DocumentSummary {
+		t.Helper()
+		value, actionErr := service.Action(t.Context(), action, ActionInput{
+			ProcessID: created.ProcessID, DocumentID: documentID,
+		}, actorOne, "wfl-"+action)
+		if actionErr != nil {
+			t.Fatalf("%s: %v", action, actionErr)
+		}
+		return value.(DocumentSummary)
+	}
+	root := run("check", rootSaved.ProcessRevision, created.DocumentID, rootSaved.DocumentRevision, nil, actorOne)
 	root = run("approve", root.ProcessRevision, created.DocumentID, root.DocumentRevision, nil, actorTwo)
 	procurement := run("procurement-create", root.ProcessRevision, "", 0, ProcurementInput{
 		Supplier:     ReferenceInput{ObjectID: supplier, VersionID: version[supplier]},
 		Purchaser:    &ReferenceInput{ObjectID: purchaser, VersionID: version[purchaser]},
+		Remark:       "采购机密初始备注",
 		BusinessDate: "2026-07-25", Lines: []ProcurementLineInput{{
 			SourceLineID: customerLine, Quantity: "10", UnitPrice: "8.00"}},
 	}, actorOne)
 	if !strings.HasPrefix(procurement.DocumentNo, "PRO-") || procurement.ParentDocumentID != created.DocumentID {
 		t.Fatalf("procurement identity = %+v", procurement)
 	}
+	assertSummary(getStage("procurement-get", procurement.DocumentID), "USD", "采购机密初始备注")
 	procurement = run("procurement-save", procurement.ProcessRevision, procurement.DocumentID,
 		procurement.DocumentRevision, ProcurementInput{
 			Supplier:     ReferenceInput{ObjectID: supplier, VersionID: version[supplier]},
 			Purchaser:    &ReferenceInput{ObjectID: purchaser, VersionID: version[purchaser]},
+			Remark:       "采购机密更新备注",
 			BusinessDate: "2026-07-25", Lines: []ProcurementLineInput{{
 				SourceLineID: customerLine, Quantity: "10", UnitPrice: "8.00"}},
 		}, actorOne)
+	assertSummary(getStage("procurement-get", procurement.DocumentID), "USD", "采购机密更新备注")
 	procurement = run("procurement-check", procurement.ProcessRevision, procurement.DocumentID, procurement.DocumentRevision, nil, actorOne)
 	procurement = run("procurement-place", procurement.ProcessRevision, procurement.DocumentID, procurement.DocumentRevision, nil, actorTwo)
 	var procurementLine string
@@ -167,19 +224,34 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	receipt := run("receipt-create", procurement.ProcessRevision, "", 0, ReceiptInput{
-		BusinessDate: "2026-07-25", Lines: []QuantityLineInput{{SourceLineID: procurementLine, Quantity: "10"}},
+		BusinessDate: "2026-07-25", Remark: "收货初始备注",
+		Lines: []QuantityLineInput{{SourceLineID: procurementLine, Quantity: "10"}},
 	}, actorOne)
 	if receipt.ParentDocumentID != procurement.DocumentID {
 		t.Fatalf("receipt parent = %s", receipt.ParentDocumentID)
 	}
+	assertSummary(getStage("receipt-get", receipt.DocumentID), "USD", "收货初始备注")
+	receipt = run("receipt-save", receipt.ProcessRevision, receipt.DocumentID, receipt.DocumentRevision, ReceiptInput{
+		BusinessDate: "2026-07-25", Remark: "收货更新备注",
+		Lines: []QuantityLineInput{{SourceLineID: procurementLine, Quantity: "10"}},
+	}, actorOne)
+	assertSummary(getStage("receipt-get", receipt.DocumentID), "USD", "收货更新备注")
 	receipt = run("receipt-check", receipt.ProcessRevision, receipt.DocumentID, receipt.DocumentRevision, nil, actorOne)
 	receipt = run("receipt-confirm", receipt.ProcessRevision, receipt.DocumentID, receipt.DocumentRevision, nil, actorTwo)
 	delivery := run("delivery-create", receipt.ProcessRevision, "", 0, DeliveryInput{
-		BusinessDate: "2026-07-25",
-		Platform:     ReferenceInput{ObjectID: platform, VersionID: version[platform]},
-		Vehicle:      ReferenceInput{ObjectID: vehicle, VersionID: version[vehicle]},
-		Lines:        []QuantityLineInput{{SourceLineID: customerLine, Quantity: "10"}},
+		BusinessDate: "2026-07-25", Remark: "送货初始备注",
+		Platform: ReferenceInput{ObjectID: platform, VersionID: version[platform]},
+		Vehicle:  ReferenceInput{ObjectID: vehicle, VersionID: version[vehicle]},
+		Lines:    []QuantityLineInput{{SourceLineID: customerLine, Quantity: "10"}},
 	}, actorOne)
+	assertSummary(getStage("delivery-get", delivery.DocumentID), "USD", "送货初始备注")
+	delivery = run("delivery-save", delivery.ProcessRevision, delivery.DocumentID, delivery.DocumentRevision, DeliveryInput{
+		BusinessDate: "2026-07-25", Remark: "送货更新备注",
+		Platform: ReferenceInput{ObjectID: platform, VersionID: version[platform]},
+		Vehicle:  ReferenceInput{ObjectID: vehicle, VersionID: version[vehicle]},
+		Lines:    []QuantityLineInput{{SourceLineID: customerLine, Quantity: "10"}},
+	}, actorOne)
+	assertSummary(getStage("delivery-get", delivery.DocumentID), "USD", "送货更新备注")
 	delivery = run("delivery-check", delivery.ProcessRevision, delivery.DocumentID, delivery.DocumentRevision, nil, actorOne)
 	delivery = run("delivery-execute", delivery.ProcessRevision, delivery.DocumentID, delivery.DocumentRevision, nil, actorTwo)
 	var deliveryLine string
@@ -188,13 +260,20 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	signoff := run("signoff-create", delivery.ProcessRevision, "", 0, SignoffInput{
-		BusinessDate: "2026-07-25", ReturnedSolventContainers: 4,
+		BusinessDate: "2026-07-25", ReturnedSolventContainers: 4, Remark: "签收初始备注",
 		ContainerDifferenceReason: "客户少还一桶",
 		Lines:                     []SignoffLineInput{{SourceLineID: deliveryLine, SignedQuantity: "10", RejectedQuantity: "0"}},
 	}, actorOne)
 	if signoff.ParentDocumentID != delivery.DocumentID {
 		t.Fatalf("signoff parent = %s", signoff.ParentDocumentID)
 	}
+	assertSummary(getStage("signoff-get", signoff.DocumentID), "USD", "签收初始备注")
+	signoff = run("signoff-save", signoff.ProcessRevision, signoff.DocumentID, signoff.DocumentRevision, SignoffInput{
+		BusinessDate: "2026-07-25", ReturnedSolventContainers: 4, Remark: "签收更新备注",
+		ContainerDifferenceReason: "客户少还一桶",
+		Lines:                     []SignoffLineInput{{SourceLineID: deliveryLine, SignedQuantity: "10", RejectedQuantity: "0"}},
+	}, actorOne)
+	assertSummary(getStage("signoff-get", signoff.DocumentID), "USD", "签收更新备注")
 	signoff = run("signoff-check", signoff.ProcessRevision, signoff.DocumentID, signoff.DocumentRevision, nil, actorOne)
 	signoff = run("signoff-confirm", signoff.ProcessRevision, signoff.DocumentID, signoff.DocumentRevision, nil, actorTwo)
 	if signoff.WorkflowStatus != StatusCompleted {
@@ -213,6 +292,13 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		if document.Stage == StageProcurement && (document.Data != nil || document.Lines != nil) {
 			t.Fatal("procurement detail leaked without procurement-get permission")
 		}
+	}
+	redactedJSON, err := json.Marshal(redacted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(redactedJSON), "采购机密更新备注") {
+		t.Fatal("procurement remark leaked without procurement-get permission")
 	}
 	var distinctEntities int
 	if err = pool.QueryRow(t.Context(), `SELECT count(DISTINCT entity) FROM vou_documents

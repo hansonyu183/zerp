@@ -207,6 +207,7 @@ type DocumentSummary struct {
 	Revision         int64                      `json:"revision"`
 	ParentDocumentID string                     `json:"parentDocumentId,omitempty"`
 	BusinessDate     string                     `json:"businessDate"`
+	Currency         string                     `json:"currency"`
 	Amount           string                     `json:"amount"`
 	CreatedAt        time.Time                  `json:"createdAt"`
 	CreatedBy        string                     `json:"createdBy"`

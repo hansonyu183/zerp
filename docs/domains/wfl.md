@@ -73,7 +73,9 @@ signoff-create/get/save/delete/check/uncheck/confirm/unconfirm
 创建流程时只传客户订单草稿。响应返回流程 revision、流程状态、阶段单据 ID/单号/revision/语义状态、
 `parentDocumentId` 和累计数量与空桶余额。
 
-采购详情和采购价只对拥有 `procurement-get` 权限的用户返回。附件继续使用 VOU 文件字节流令牌端点。
+流程单据摘要统一返回 `currency`；授权后的单据正文 `data` 统一返回单据级 `remark`，空备注返回空字符串，
+使五类草稿都能按读取值安全回写。采购正文、采购备注和采购价只对拥有 `procurement-get` 权限的用户返回。
+附件继续使用 VOU 文件字节流令牌端点。
 
 ## 5. 审计与验收
 

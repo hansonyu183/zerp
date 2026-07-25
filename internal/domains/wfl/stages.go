@@ -173,7 +173,7 @@ func (s *Service) stageAction(ctx context.Context, stage, action string, input A
 	}
 	var document documentRow
 	if action == "create" {
-		document, err = s.createStage(ctx, tx, process, stage, input.Data, actorID)
+		document, err = s.createStage(ctx, tx, process, stage, input.Data, actorID, "")
 	} else {
 		if !validID(input.DocumentID) || input.DocumentRevision < 1 {
 			return MutationResult{}, validation("invalid stage document", nil)
@@ -268,7 +268,7 @@ func (s *Service) stageAction(ctx context.Context, stage, action string, input A
 	return result, nil
 }
 
-func (s *Service) createStage(ctx context.Context, tx pgx.Tx, process processRow, stage string, raw json.RawMessage, actorID string) (documentRow, error) {
+func (s *Service) createStage(ctx context.Context, tx pgx.Tx, process processRow, stage string, raw json.RawMessage, actorID, replacingDocumentID string) (documentRow, error) {
 	var result documentRow
 	if len(raw) == 0 {
 		return result, validation("stage data is required", nil)
@@ -304,7 +304,7 @@ func (s *Service) createStage(ctx context.Context, tx pgx.Tx, process processRow
 		if err := decode(raw, &data); err != nil {
 			return result, err
 		}
-		return s.insertSignoff(ctx, tx, process, data, actorID)
+		return s.insertSignoff(ctx, tx, process, data, actorID, replacingDocumentID)
 	default:
 		return result, validation("invalid stage", nil)
 	}
@@ -583,7 +583,7 @@ func (s *Service) insertDelivery(ctx context.Context, tx pgx.Tx, process process
 	return documentRow{id: id, entity: voudomain.EntityDeliveryNote, number: no, status: "DRAFT", revision: 1, parent: process.rootID}, nil
 }
 
-func (s *Service) insertSignoff(ctx context.Context, tx pgx.Tx, process processRow, data SignoffInput, actorID string) (documentRow, error) {
+func (s *Service) insertSignoff(ctx context.Context, tx pgx.Tx, process processRow, data SignoffInput, actorID, replacingDocumentID string) (documentRow, error) {
 	var result documentRow
 	date, err := parseDate(data.BusinessDate)
 	if err != nil {
@@ -610,7 +610,7 @@ func (s *Service) insertSignoff(ctx context.Context, tx pgx.Tx, process processR
 	}
 	var existing, deliveryLineCount int64
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_documents WHERE parent_document_id=$1
-		AND entity='signoff-note'`, deliveryID).Scan(&existing); err != nil {
+		AND entity='signoff-note' AND id<>$2`, deliveryID, replacingDocumentID).Scan(&existing); err != nil {
 		return result, err
 	}
 	if existing != 0 {
@@ -699,12 +699,7 @@ func (s *Service) saveStage(ctx context.Context, tx pgx.Tx, process processRow, 
 		process.id, document.id).Scan(&sequence); err != nil {
 		return err
 	}
-	if stage == StageSignoff {
-		if _, err := tx.Exec(ctx, `UPDATE vou_documents SET parent_document_id=NULL WHERE id=$1`, document.id); err != nil {
-			return err
-		}
-	}
-	replacement, err := s.createStage(ctx, tx, process, stage, raw, actorID)
+	replacement, err := s.createStage(ctx, tx, process, stage, raw, actorID, document.id)
 	if err != nil {
 		return err
 	}
@@ -776,12 +771,6 @@ func (s *Service) saveStage(ctx context.Context, tx pgx.Tx, process processRow, 
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM vou_documents WHERE id=$1`, replacement.id); err != nil {
 		return err
-	}
-	if stage == StageSignoff {
-		if _, err = tx.Exec(ctx, `UPDATE vou_documents SET parent_document_id=$1 WHERE id=$2`,
-			document.parent, document.id); err != nil {
-			return err
-		}
 	}
 	return linkStage(ctx, tx, process.id, document.id, sequence, stage)
 }

@@ -1,0 +1,7 @@
+<script setup lang="ts">
+import { ledgerEntityConfigs, LedgerWorkspace } from '@/components/ledger'
+</script>
+
+<template>
+  <LedgerWorkspace :config="ledgerEntityConfigs.container" />
+</template>

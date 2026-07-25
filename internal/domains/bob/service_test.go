@@ -123,6 +123,43 @@ func TestValidateSettlementMethodRules(t *testing.T) {
 	}
 }
 
+func TestValidateProductContainerRules(t *testing.T) {
+	solvent := ContainerTypeSolvent
+	product, _, err := validateCreate(EntityProduct, CreateDetailInput{
+		Code: "P-SOLVENT", Name: "桶装溶剂", Unit: "kg",
+		ContainerType: solvent, QuantityPerContainer: "180.123456",
+	})
+	if err != nil {
+		t.Fatalf("valid container product rejected: %v", err)
+	}
+	if product.ContainerType != ContainerTypeSolvent || product.QuantityPerContainer != "180.123456" {
+		t.Fatalf("container product normalized incorrectly: %+v", product)
+	}
+	for name, input := range map[string]CreateDetailInput{
+		"none with quantity": {
+			Code: "P-NONE", Name: "散装", Unit: "kg",
+			QuantityPerContainer: "1",
+		},
+		"container without quantity": {
+			Code: "P-EMPTY", Name: "桶装", Unit: "kg", ContainerType: solvent,
+		},
+		"too many decimals": {
+			Code: "P-SCALE", Name: "桶装", Unit: "kg",
+			ContainerType: solvent, QuantityPerContainer: "1.0000001",
+		},
+		"zero quantity": {
+			Code: "P-ZERO", Name: "桶装", Unit: "kg",
+			ContainerType: solvent, QuantityPerContainer: "0",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, validationErr := validateCreate(EntityProduct, input); !errorIsKind(validationErr, ErrorValidation) {
+				t.Fatalf("error = %v, want validation", validationErr)
+			}
+		})
+	}
+}
+
 func TestValidateDetailRejectsCrossEntityFields(t *testing.T) {
 	tests := []struct {
 		name   string

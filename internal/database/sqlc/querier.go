@@ -36,6 +36,7 @@ type Querier interface {
 	CopyBobSupplierDetail(ctx context.Context, arg CopyBobSupplierDetailParams) error
 	CopyBobVehicleDetail(ctx context.Context, arg CopyBobVehicleDetailParams) error
 	CopyBobWarehouseDetail(ctx context.Context, arg CopyBobWarehouseDetailParams) error
+	CopyLedOpeningToDraftContainer(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftFund(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftInventory(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftParty(ctx context.Context, generationID string) error
@@ -88,10 +89,12 @@ type Querier interface {
 	DeleteBobVehicleDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobWarehouseDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
+	DeleteLedDraftContainer(ctx context.Context) error
 	DeleteLedDraftFund(ctx context.Context) error
 	DeleteLedDraftInventory(ctx context.Context) error
 	DeleteLedDraftParty(ctx context.Context) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
+	DeleteVouChildAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
@@ -144,12 +147,15 @@ type Querier interface {
 	InsertBobVersion(ctx context.Context, arg InsertBobVersionParams) error
 	InsertBobWarehouseDetail(ctx context.Context, arg InsertBobWarehouseDetailParams) error
 	InsertLedAuditEvent(ctx context.Context, arg InsertLedAuditEventParams) error
+	InsertLedDraftContainer(ctx context.Context, arg InsertLedDraftContainerParams) error
 	InsertLedDraftFund(ctx context.Context, arg InsertLedDraftFundParams) error
 	InsertLedDraftInventory(ctx context.Context, arg InsertLedDraftInventoryParams) error
 	InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPartyParams) error
 	InsertLedFundEntry(ctx context.Context, arg InsertLedFundEntryParams) error
 	InsertLedGeneration(ctx context.Context, arg InsertLedGenerationParams) error
 	InsertLedInventoryEntry(ctx context.Context, arg InsertLedInventoryEntryParams) error
+	InsertLedOpeningContainerEntries(ctx context.Context, arg InsertLedOpeningContainerEntriesParams) error
+	InsertLedOpeningContainerFromDraft(ctx context.Context, generationID string) error
 	InsertLedOpeningFundEntries(ctx context.Context, arg InsertLedOpeningFundEntriesParams) error
 	InsertLedOpeningFundFromDraft(ctx context.Context, generationID string) error
 	InsertLedOpeningInventoryEntries(ctx context.Context, arg InsertLedOpeningInventoryEntriesParams) error
@@ -185,6 +191,7 @@ type Querier interface {
 	ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
+	ListLedDraftContainer(ctx context.Context) ([]LedDraftContainer, error)
 	ListLedDraftFund(ctx context.Context) ([]LedDraftFund, error)
 	ListLedDraftInventory(ctx context.Context) ([]LedDraftInventory, error)
 	ListLedDraftParty(ctx context.Context) ([]LedDraftParty, error)
@@ -194,6 +201,7 @@ type Querier interface {
 	ListLedInventoryBalances(ctx context.Context, arg ListLedInventoryBalancesParams) ([]ListLedInventoryBalancesRow, error)
 	ListLedInventoryEntries(ctx context.Context, arg ListLedInventoryEntriesParams) ([]LedInventoryEntry, error)
 	ListLedInventoryEntriesBySource(ctx context.Context, arg ListLedInventoryEntriesBySourceParams) ([]LedInventoryEntry, error)
+	ListLedOpeningContainer(ctx context.Context, generationID string) ([]LedOpeningContainer, error)
 	ListLedOpeningFund(ctx context.Context, generationID string) ([]LedOpeningFund, error)
 	ListLedOpeningInventory(ctx context.Context, generationID string) ([]LedOpeningInventory, error)
 	ListLedOpeningParty(ctx context.Context, generationID string) ([]LedOpeningParty, error)

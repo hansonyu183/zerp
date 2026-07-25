@@ -47,6 +47,9 @@ DELETE FROM led_draft_fund;
 -- name: DeleteLedDraftParty :exec
 DELETE FROM led_draft_party;
 
+-- name: DeleteLedDraftContainer :exec
+DELETE FROM led_draft_container;
+
 -- name: InsertLedDraftInventory :exec
 INSERT INTO led_draft_inventory (
     id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
@@ -78,6 +81,16 @@ INSERT INTO led_draft_party (
     sqlc.arg(counterparty_name), sqlc.arg(currency), sqlc.arg(amount_cents)
 );
 
+-- name: InsertLedDraftContainer :exec
+INSERT INTO led_draft_container(
+    id, customer_object_id, customer_version_id, customer_code, customer_name,
+    container_type, quantity
+) VALUES (
+    sqlc.arg(id), sqlc.arg(customer_object_id), sqlc.arg(customer_version_id),
+    sqlc.arg(customer_code), sqlc.arg(customer_name), sqlc.arg(container_type),
+    sqlc.arg(quantity)
+);
+
 -- name: ListLedDraftInventory :many
 SELECT * FROM led_draft_inventory ORDER BY warehouse_code, product_code, id;
 
@@ -86,6 +99,9 @@ SELECT * FROM led_draft_fund ORDER BY fund_account_code, id;
 
 -- name: ListLedDraftParty :many
 SELECT * FROM led_draft_party ORDER BY counterparty_entity, counterparty_code, currency, id;
+
+-- name: ListLedDraftContainer :many
+SELECT * FROM led_draft_container ORDER BY customer_code, container_type, id;
 
 -- name: ListLedOpeningInventory :many
 SELECT * FROM led_opening_inventory
@@ -101,6 +117,11 @@ ORDER BY fund_account_code, id;
 SELECT * FROM led_opening_party
 WHERE generation_id = sqlc.arg(generation_id)
 ORDER BY counterparty_entity, counterparty_code, currency, id;
+
+-- name: ListLedOpeningContainer :many
+SELECT * FROM led_opening_container
+WHERE generation_id = sqlc.arg(generation_id)
+ORDER BY customer_code, container_type, id;
 
 -- name: CopyLedOpeningToDraftInventory :exec
 INSERT INTO led_draft_inventory
@@ -119,6 +140,12 @@ INSERT INTO led_draft_party
 SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id,
        counterparty_code, counterparty_name, currency, amount_cents
 FROM led_opening_party WHERE generation_id = sqlc.arg(generation_id);
+
+-- name: CopyLedOpeningToDraftContainer :exec
+INSERT INTO led_draft_container
+SELECT id, customer_object_id, customer_version_id, customer_code, customer_name,
+       container_type, quantity
+FROM led_opening_container WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: InsertLedGeneration :exec
 INSERT INTO led_generations (id, cutover_date, status, activated_by, request_id)
@@ -154,6 +181,15 @@ INSERT INTO led_opening_party (
 SELECT id, sqlc.arg(generation_id), counterparty_entity, counterparty_object_id, counterparty_version_id,
        counterparty_code, counterparty_name, currency, amount_cents
 FROM led_draft_party;
+
+-- name: InsertLedOpeningContainerFromDraft :exec
+INSERT INTO led_opening_container(
+    id,generation_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    container_type,quantity
+)
+SELECT id,sqlc.arg(generation_id),customer_object_id,customer_version_id,customer_code,
+       customer_name,container_type,quantity
+FROM led_draft_container;
 
 -- name: InsertLedOpeningInventoryEntries :exec
 INSERT INTO led_inventory_entries (
@@ -191,6 +227,18 @@ SELECT id, sqlc.arg(generation_id), 'OPENING', 'opening', id, sqlc.arg(cutover_d
        counterparty_entity, counterparty_object_id, counterparty_version_id,
        counterparty_code, counterparty_name, currency, amount_cents
 FROM led_draft_party WHERE amount_cents <> 0;
+
+-- name: InsertLedOpeningContainerEntries :exec
+INSERT INTO led_container_entries(
+    id,generation_id,entry_type,source_entity,source_line_id,effective_date,
+    occurred_at,actor_id,request_id,customer_object_id,customer_version_id,
+    customer_code,customer_name,container_type,quantity_delta
+)
+SELECT id,sqlc.arg(generation_id),'OPENING','opening',id,sqlc.arg(cutover_date),
+       sqlc.arg(occurred_at),sqlc.arg(actor_id),sqlc.arg(request_id),
+       customer_object_id,customer_version_id,customer_code,customer_name,
+       container_type,quantity
+FROM led_draft_container WHERE quantity <> 0;
 
 -- name: ListExecutedVouDocumentsForLed :many
 SELECT * FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id;

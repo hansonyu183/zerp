@@ -267,7 +267,9 @@ func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachment
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
 		Status: document.Status, Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
-		Data: data, Attachments: attachments,
+		WorkflowVersion: int(document.WorkflowVersion), WorkflowStatus: document.Status,
+		RootRevision: document.Revision,
+		Data:         data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,
 		ReviewedAt: optionalTime(document.ReviewedAt), ReviewedBy: document.ReviewedBy,

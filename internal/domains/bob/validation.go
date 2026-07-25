@@ -55,6 +55,10 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		SettlementMethodID: input.SettlementMethodID, SalespersonEmployeeID: input.SalespersonEmployeeID,
 		RuleType:    input.RuleType,
 		MonthOffset: input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
+		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
+	}
+	if entity == EntityProduct && data.ContainerType == "" {
+		data.ContainerType = ContainerTypeNone
 	}
 	data, err := validateDetailData(entity, data)
 	return data, code, err
@@ -72,6 +76,9 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	result.MonthOffset = input.MonthOffset
 	result.DayOfMonth = input.DayOfMonth
 	result.DayOffset = input.DayOffset
+	if input.ContainerType != nil {
+		result.ContainerType = *input.ContainerType
+	}
 	if input.SupplierType != nil {
 		result.SupplierType = *input.SupplierType
 	}
@@ -113,6 +120,7 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	mergeOptional(input.ParentID, &result.ParentID)
 	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
+	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
 	return result
 }
 
@@ -128,6 +136,9 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	}
 	if entity == EntityCustomer {
 		current.CustomerType = CustomerTypeEndUser
+	}
+	if entity == EntityProduct {
+		current.ContainerType = ContainerTypeNone
 	}
 	return validateDetailData(entity, mergeDetailInput(current, input))
 }
@@ -147,7 +158,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityEmployee:
 		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("categoryId", "specification", "model", "barcode", "remark")
+		allow("categoryId", "specification", "model", "barcode", "remark", "quantityPerContainer")
 	case EntityService:
 		allow("categoryId", "description", "remark")
 	case EntityWarehouse:
@@ -182,6 +193,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
 		"salespersonEmployeeId": input.SalespersonEmployeeID.Set,
+		"quantityPerContainer":  input.QuantityPerContainer.Set,
 	}
 	for field, present := range provided {
 		if present && !allowed[field] {
@@ -216,12 +228,14 @@ func normalizeDetail(input *DetailView) {
 		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
 		&input.VehicleType,
+		&input.QuantityPerContainer,
 	} {
 		trim(value)
 	}
 	for _, value := range []*string{
 		&input.Currency, &input.SupplierType, &input.CustomerType, &input.PlateNumber,
 		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType,
+		&input.ContainerType,
 	} {
 		*value = strings.ToUpper(strings.TrimSpace(*value))
 	}
@@ -318,9 +332,12 @@ func validateEntityFields(entity string, input DetailView) error {
 	case EntityEmployee:
 		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("unit", "categoryId", "specification", "model", "barcode", "remark")
+		allow("unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark")
 		if !runeLengthBetween(input.Unit, 1, 32) {
 			return domainError(ErrorValidation, "invalid unit", nil, nil)
+		}
+		if err := validateProductContainer(input); err != nil {
+			return err
 		}
 	case EntityService:
 		allow("unit", "categoryId", "description", "remark")
@@ -394,8 +411,25 @@ func detailFieldValues(input DetailView) map[string]string {
 		"salespersonEmployeeId": input.SalespersonEmployeeID,
 		"ruleType":              input.RuleType,
 		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
-		"dayOffset": numericField(input.DayOffset),
+		"dayOffset":     numericField(input.DayOffset),
+		"containerType": input.ContainerType, "quantityPerContainer": input.QuantityPerContainer,
 	}
+}
+
+func validateProductContainer(input DetailView) error {
+	switch input.ContainerType {
+	case ContainerTypeNone:
+		if input.QuantityPerContainer != "" {
+			return domainError(ErrorValidation, "quantity per container is not allowed for NONE", nil, nil)
+		}
+	case ContainerTypeSolvent, ContainerTypeResin:
+		if _, err := fixedMicros(input.QuantityPerContainer); err != nil {
+			return domainError(ErrorValidation, "invalid quantity per container", nil, err)
+		}
+	default:
+		return domainError(ErrorValidation, "invalid container type", nil, nil)
+	}
+	return nil
 }
 
 func validateSettlementRule(input DetailView) error {

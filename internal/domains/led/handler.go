@@ -28,6 +28,11 @@ type applicationService interface {
 	PartyBalance(context.Context, BalanceInput) (Page[PartyBalanceView], error)
 }
 
+type containerApplicationService interface {
+	QueryContainer(context.Context, QueryInput) (Page[ContainerEntryView], error)
+	ContainerBalance(context.Context, BalanceInput) (Page[ContainerBalanceView], error)
+}
+
 type Handler struct {
 	service    applicationService
 	authorizer authorization.Authorizer
@@ -61,6 +66,8 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityFund, "balance", h.fundBalance},
 		{EntityParty, "query", h.queryParty},
 		{EntityParty, "balance", h.partyBalance},
+		{EntityContainer, "query", h.queryContainer},
+		{EntityContainer, "balance", h.containerBalance},
 	}
 	for _, route := range routes {
 		path := "/led/" + route.entity + "/" + route.action
@@ -178,6 +185,32 @@ func (h *Handler) partyBalance(c *gin.Context) {
 	var input BalanceInput
 	if h.bind(c, &input) {
 		result, err := h.service.PartyBalance(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) queryContainer(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(containerApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "container ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.QueryContainer(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) containerBalance(c *gin.Context) {
+	var input BalanceInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(containerApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "container ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.ContainerBalance(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }

@@ -72,6 +72,18 @@ func (q *Queries) CancelLedReopen(ctx context.Context, arg CancelLedReopenParams
 	return revision, err
 }
 
+const copyLedOpeningToDraftContainer = `-- name: CopyLedOpeningToDraftContainer :exec
+INSERT INTO led_draft_container
+SELECT id, customer_object_id, customer_version_id, customer_code, customer_name,
+       container_type, quantity
+FROM led_opening_container WHERE generation_id = $1
+`
+
+func (q *Queries) CopyLedOpeningToDraftContainer(ctx context.Context, generationID string) error {
+	_, err := q.db.Exec(ctx, copyLedOpeningToDraftContainer, generationID)
+	return err
+}
+
 const copyLedOpeningToDraftFund = `-- name: CopyLedOpeningToDraftFund :exec
 INSERT INTO led_draft_fund
 SELECT id, fund_account_object_id, fund_account_version_id, fund_account_code,
@@ -296,6 +308,15 @@ func (q *Queries) CountLedPartyEntries(ctx context.Context, arg CountLedPartyEnt
 	return count, err
 }
 
+const deleteLedDraftContainer = `-- name: DeleteLedDraftContainer :exec
+DELETE FROM led_draft_container
+`
+
+func (q *Queries) DeleteLedDraftContainer(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteLedDraftContainer)
+	return err
+}
+
 const deleteLedDraftFund = `-- name: DeleteLedDraftFund :exec
 DELETE FROM led_draft_fund
 `
@@ -423,6 +444,40 @@ func (q *Queries) InsertLedAuditEvent(ctx context.Context, arg InsertLedAuditEve
 		arg.Reason,
 		arg.RequestID,
 		arg.Summary,
+	)
+	return err
+}
+
+const insertLedDraftContainer = `-- name: InsertLedDraftContainer :exec
+INSERT INTO led_draft_container(
+    id, customer_object_id, customer_version_id, customer_code, customer_name,
+    container_type, quantity
+) VALUES (
+    $1, $2, $3,
+    $4, $5, $6,
+    $7
+)
+`
+
+type InsertLedDraftContainerParams struct {
+	ID                string `db:"id" json:"id"`
+	CustomerObjectID  string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID string `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode      string `db:"customer_code" json:"customer_code"`
+	CustomerName      string `db:"customer_name" json:"customer_name"`
+	ContainerType     string `db:"container_type" json:"container_type"`
+	Quantity          int64  `db:"quantity" json:"quantity"`
+}
+
+func (q *Queries) InsertLedDraftContainer(ctx context.Context, arg InsertLedDraftContainerParams) error {
+	_, err := q.db.Exec(ctx, insertLedDraftContainer,
+		arg.ID,
+		arg.CustomerObjectID,
+		arg.CustomerVersionID,
+		arg.CustomerCode,
+		arg.CustomerName,
+		arg.ContainerType,
+		arg.Quantity,
 	)
 	return err
 }
@@ -700,6 +755,53 @@ func (q *Queries) InsertLedInventoryEntry(ctx context.Context, arg InsertLedInve
 	return err
 }
 
+const insertLedOpeningContainerEntries = `-- name: InsertLedOpeningContainerEntries :exec
+INSERT INTO led_container_entries(
+    id,generation_id,entry_type,source_entity,source_line_id,effective_date,
+    occurred_at,actor_id,request_id,customer_object_id,customer_version_id,
+    customer_code,customer_name,container_type,quantity_delta
+)
+SELECT id,$1,'OPENING','opening',id,$2,
+       $3,$4,$5,
+       customer_object_id,customer_version_id,customer_code,customer_name,
+       container_type,quantity
+FROM led_draft_container WHERE quantity <> 0
+`
+
+type InsertLedOpeningContainerEntriesParams struct {
+	GenerationID string             `db:"generation_id" json:"generation_id"`
+	CutoverDate  pgtype.Date        `db:"cutover_date" json:"cutover_date"`
+	OccurredAt   pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	ActorID      string             `db:"actor_id" json:"actor_id"`
+	RequestID    string             `db:"request_id" json:"request_id"`
+}
+
+func (q *Queries) InsertLedOpeningContainerEntries(ctx context.Context, arg InsertLedOpeningContainerEntriesParams) error {
+	_, err := q.db.Exec(ctx, insertLedOpeningContainerEntries,
+		arg.GenerationID,
+		arg.CutoverDate,
+		arg.OccurredAt,
+		arg.ActorID,
+		arg.RequestID,
+	)
+	return err
+}
+
+const insertLedOpeningContainerFromDraft = `-- name: InsertLedOpeningContainerFromDraft :exec
+INSERT INTO led_opening_container(
+    id,generation_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    container_type,quantity
+)
+SELECT id,$1,customer_object_id,customer_version_id,customer_code,
+       customer_name,container_type,quantity
+FROM led_draft_container
+`
+
+func (q *Queries) InsertLedOpeningContainerFromDraft(ctx context.Context, generationID string) error {
+	_, err := q.db.Exec(ctx, insertLedOpeningContainerFromDraft, generationID)
+	return err
+}
+
 const insertLedOpeningFundEntries = `-- name: InsertLedOpeningFundEntries :exec
 INSERT INTO led_fund_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
@@ -909,7 +1011,7 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 }
 
 const listExecutedVouDocumentsForLed = `-- name: ListExecutedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id
 `
 
 func (q *Queries) ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
@@ -941,6 +1043,10 @@ func (q *Queries) ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocu
 			&i.ApprovedBy,
 			&i.ExecutedAt,
 			&i.ExecutedBy,
+			&i.WorkflowVersion,
+			&i.CheckedAt,
+			&i.CheckedBy,
+			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -983,6 +1089,38 @@ func (q *Queries) ListLedAuditEvents(ctx context.Context, arg ListLedAuditEvents
 			&i.Reason,
 			&i.RequestID,
 			&i.Summary,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLedDraftContainer = `-- name: ListLedDraftContainer :many
+SELECT id, customer_object_id, customer_version_id, customer_code, customer_name, container_type, quantity FROM led_draft_container ORDER BY customer_code, container_type, id
+`
+
+func (q *Queries) ListLedDraftContainer(ctx context.Context) ([]LedDraftContainer, error) {
+	rows, err := q.db.Query(ctx, listLedDraftContainer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedDraftContainer{}
+	for rows.Next() {
+		var i LedDraftContainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerObjectID,
+			&i.CustomerVersionID,
+			&i.CustomerCode,
+			&i.CustomerName,
+			&i.ContainerType,
+			&i.Quantity,
 		); err != nil {
 			return nil, err
 		}
@@ -1511,6 +1649,41 @@ func (q *Queries) ListLedInventoryEntriesBySource(ctx context.Context, arg ListL
 			&i.ProductName,
 			&i.ProductUnit,
 			&i.QuantityDeltaMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLedOpeningContainer = `-- name: ListLedOpeningContainer :many
+SELECT id, generation_id, customer_object_id, customer_version_id, customer_code, customer_name, container_type, quantity FROM led_opening_container
+WHERE generation_id = $1
+ORDER BY customer_code, container_type, id
+`
+
+func (q *Queries) ListLedOpeningContainer(ctx context.Context, generationID string) ([]LedOpeningContainer, error) {
+	rows, err := q.db.Query(ctx, listLedOpeningContainer, generationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedOpeningContainer{}
+	for rows.Next() {
+		var i LedOpeningContainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.GenerationID,
+			&i.CustomerObjectID,
+			&i.CustomerVersionID,
+			&i.CustomerCode,
+			&i.CustomerName,
+			&i.ContainerType,
+			&i.Quantity,
 		); err != nil {
 			return nil, err
 		}

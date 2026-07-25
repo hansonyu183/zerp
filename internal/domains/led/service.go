@@ -42,6 +42,7 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 		CutoverDate: formatDate(control.CutoverDate),
 		Inventory:   make([]InventoryOpeningView, 0),
 		Fund:        make([]FundOpeningView, 0), Party: make([]PartyOpeningView, 0),
+		Container: make([]ContainerOpeningView, 0),
 	}
 	if control.ActiveGenerationID != nil {
 		view.ActiveGenerationID = *control.ActiveGenerationID
@@ -60,6 +61,10 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 		if loadErr != nil {
 			return OpeningView{}, s.internal("list active party opening", loadErr)
 		}
+		containers, loadErr := s.queries.ListLedOpeningContainer(ctx, *control.ActiveGenerationID)
+		if loadErr != nil {
+			return OpeningView{}, s.internal("list active container opening", loadErr)
+		}
 		for _, row := range inventory {
 			view.Inventory = append(view.Inventory, openingInventoryView(row.ID, row.WarehouseObjectID, row.WarehouseVersionID,
 				row.WarehouseCode, row.WarehouseName, row.ProductObjectID, row.ProductVersionID,
@@ -72,6 +77,10 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 		for _, row := range party {
 			view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
 				row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
+		}
+		for _, row := range containers {
+			view.Container = append(view.Container, containerOpeningView(row.ID, row.CustomerObjectID,
+				row.CustomerVersionID, row.CustomerCode, row.CustomerName, row.ContainerType, row.Quantity))
 		}
 		return view, nil
 	}
@@ -87,6 +96,10 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 	if err != nil {
 		return OpeningView{}, s.internal("list draft party opening", err)
 	}
+	containers, err := s.queries.ListLedDraftContainer(ctx)
+	if err != nil {
+		return OpeningView{}, s.internal("list draft container opening", err)
+	}
 	for _, row := range inventory {
 		view.Inventory = append(view.Inventory, openingInventoryView(row.ID, row.WarehouseObjectID, row.WarehouseVersionID,
 			row.WarehouseCode, row.WarehouseName, row.ProductObjectID, row.ProductVersionID,
@@ -99,6 +112,10 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 	for _, row := range party {
 		view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
 			row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
+	}
+	for _, row := range containers {
+		view.Container = append(view.Container, containerOpeningView(row.ID, row.CustomerObjectID,
+			row.CustomerVersionID, row.CustomerCode, row.CustomerName, row.ContainerType, row.Quantity))
 	}
 	return view, nil
 }
@@ -138,6 +155,10 @@ func (s *Service) SaveOpening(
 	if err != nil {
 		return MutationResult{}, s.internal("list existing party opening", err)
 	}
+	oldContainers, err := q.ListLedDraftContainer(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("list existing container opening", err)
+	}
 	if err = q.DeleteLedDraftInventory(ctx); err != nil {
 		return MutationResult{}, s.writeError("clear inventory opening", err)
 	}
@@ -146,6 +167,9 @@ func (s *Service) SaveOpening(
 	}
 	if err = q.DeleteLedDraftParty(ctx); err != nil {
 		return MutationResult{}, s.writeError("clear party opening", err)
+	}
+	if err = q.DeleteLedDraftContainer(ctx); err != nil {
+		return MutationResult{}, s.writeError("clear container opening", err)
 	}
 
 	oldInventoryByKey := make(map[string]dbsqlc.LedDraftInventory, len(oldInventory))
@@ -240,6 +264,32 @@ func (s *Service) SaveOpening(
 		}
 	}
 
+	oldContainerByKey := make(map[string]dbsqlc.LedDraftContainer, len(oldContainers))
+	for _, row := range oldContainers {
+		oldContainerByKey[row.CustomerObjectID+"/"+row.CustomerVersionID+"/"+row.ContainerType] = row
+	}
+	for _, item := range input.Container {
+		key := item.Customer.ObjectID + "/" + item.Customer.VersionID + "/" + item.ContainerType
+		params := dbsqlc.InsertLedDraftContainerParams{
+			ID: newID(), ContainerType: item.ContainerType, Quantity: item.Quantity,
+		}
+		if old, ok := oldContainerByKey[key]; ok {
+			params.ID = old.ID
+			params.CustomerObjectID, params.CustomerVersionID = old.CustomerObjectID, old.CustomerVersionID
+			params.CustomerCode, params.CustomerName = old.CustomerCode, old.CustomerName
+		} else {
+			customer, resolveErr := s.resolve(ctx, tx, bobdomain.EntityCustomer, item.Customer)
+			if resolveErr != nil {
+				return MutationResult{}, resolveErr
+			}
+			params.CustomerObjectID, params.CustomerVersionID = customer.ObjectID, customer.VersionID
+			params.CustomerCode, params.CustomerName = customer.Code, customer.Data.Name
+		}
+		if err = q.InsertLedDraftContainer(ctx, params); err != nil {
+			return MutationResult{}, s.writeError("insert container opening", err)
+		}
+	}
+
 	revision, err := q.SaveLedDraftControl(ctx, dbsqlc.SaveLedDraftControlParams{
 		CutoverDate: dateValue(cutover), ActorID: &actorID, Revision: input.Revision,
 	})
@@ -249,7 +299,8 @@ func (s *Service) SaveOpening(
 	if err = insertAudit(ctx, q, auditInput{
 		Event: "OPENING_SAVED", From: &control.Status, To: control.Status, Revision: revision,
 		ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"inventoryCount": len(input.Inventory), "fundCount": len(input.Fund), "partyCount": len(input.Party)},
+		Summary: map[string]any{"inventoryCount": len(input.Inventory), "fundCount": len(input.Fund),
+			"partyCount": len(input.Party), "containerCount": len(input.Container)},
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit opening save", err)
 	}
@@ -290,6 +341,9 @@ func (s *Service) Reopen(
 	}
 	if err = q.CopyLedOpeningToDraftParty(ctx, *control.ActiveGenerationID); err != nil {
 		return MutationResult{}, s.writeError("copy party opening", err)
+	}
+	if err = q.CopyLedOpeningToDraftContainer(ctx, *control.ActiveGenerationID); err != nil {
+		return MutationResult{}, s.writeError("copy container opening", err)
 	}
 	revision, err := q.ReopenLedControl(ctx, dbsqlc.ReopenLedControlParams{ActorID: &actorID, Revision: input.Revision})
 	if err != nil {
@@ -407,7 +461,10 @@ func clearDraft(ctx context.Context, q *dbsqlc.Queries) error {
 	if err := q.DeleteLedDraftFund(ctx); err != nil {
 		return err
 	}
-	return q.DeleteLedDraftParty(ctx)
+	if err := q.DeleteLedDraftParty(ctx); err != nil {
+		return err
+	}
+	return q.DeleteLedDraftContainer(ctx)
 }
 
 func openingInventoryView(
@@ -431,6 +488,16 @@ func openingFundView(id, objectID, versionID, code, name, currency string, amoun
 	return FundOpeningView{
 		ID: id, FundAccount: ReferenceView{ObjectID: objectID, VersionID: versionID, Entity: bobdomain.EntityFundAccount, Code: code, Name: name, Currency: currency},
 		BalanceType: balanceType, Amount: formatAbsoluteMoney(amount),
+	}
+}
+
+func containerOpeningView(
+	id, objectID, versionID, code, name, containerType string, quantity int64,
+) ContainerOpeningView {
+	return ContainerOpeningView{
+		ID: id, Customer: ReferenceView{ObjectID: objectID, VersionID: versionID,
+			Entity: bobdomain.EntityCustomer, Code: code, Name: name},
+		ContainerType: containerType, Quantity: quantity,
 	}
 }
 

@@ -14,10 +14,14 @@ const (
 	EntityExpenseReimbursement  = "expense-reimbursement"
 	EntityOtherIncome           = "other-income"
 
-	StatusDraft    = "DRAFT"
-	StatusReviewed = "REVIEWED"
-	StatusApproved = "APPROVED"
-	StatusExecuted = "EXECUTED"
+	StatusDraft               = "DRAFT"
+	StatusReviewed            = "REVIEWED"
+	StatusApproved            = "APPROVED"
+	StatusExecuted            = "EXECUTED"
+	StatusChecked             = "CHECKED"
+	StatusCompleted           = "COMPLETED"
+	StatusShortCloseRequested = "SHORT_CLOSE_REQUESTED"
+	StatusShortClosed         = "SHORT_CLOSED"
 )
 
 var entities = [...]string{
@@ -58,11 +62,13 @@ type ReferenceInput struct {
 }
 
 type ProductLineInput struct {
-	Product           ReferenceInput `json:"product"`
-	OrderedQuantity   string         `json:"orderedQuantity"`
-	UnitPrice         string         `json:"unitPrice"`
-	PurchaseUnitPrice string         `json:"purchaseUnitPrice,omitempty"`
-	Remark            string         `json:"remark,omitempty"`
+	Product              ReferenceInput `json:"product"`
+	OrderedQuantity      string         `json:"orderedQuantity"`
+	UnitPrice            string         `json:"unitPrice"`
+	PurchaseUnitPrice    string         `json:"purchaseUnitPrice,omitempty"`
+	Remark               string         `json:"remark,omitempty"`
+	ContainerType        *string        `json:"containerType,omitempty"`
+	QuantityPerContainer *string        `json:"quantityPerContainer,omitempty"`
 }
 
 type ExpenseLineInput struct {
@@ -93,24 +99,29 @@ type DraftInput struct {
 }
 
 type CreateInput struct {
-	Data DraftInput `json:"data"`
+	WorkflowVersion int        `json:"workflowVersion,omitempty"`
+	Data            DraftInput `json:"data"`
 }
 
 type SaveInput struct {
-	DocumentID string     `json:"documentId"`
-	Revision   int64      `json:"revision"`
-	Data       DraftInput `json:"data"`
+	DocumentID      string     `json:"documentId"`
+	Revision        int64      `json:"revision"`
+	RootRevision    int64      `json:"rootRevision,omitempty"`
+	WorkflowVersion int        `json:"workflowVersion,omitempty"`
+	Data            DraftInput `json:"data"`
 }
 
 type DocumentRevisionInput struct {
-	DocumentID string `json:"documentId"`
-	Revision   int64  `json:"revision"`
+	DocumentID   string `json:"documentId"`
+	Revision     int64  `json:"revision"`
+	RootRevision int64  `json:"rootRevision,omitempty"`
 }
 
 type ReverseInput struct {
-	DocumentID string `json:"documentId"`
-	Revision   int64  `json:"revision"`
-	Reason     string `json:"reason"`
+	DocumentID   string `json:"documentId"`
+	Revision     int64  `json:"revision"`
+	RootRevision int64  `json:"rootRevision,omitempty"`
+	Reason       string `json:"reason"`
 }
 
 type SaleExecutionLineInput struct {
@@ -140,7 +151,8 @@ type ExecuteInput struct {
 }
 
 type GetInput struct {
-	DocumentID string `json:"documentId"`
+	DocumentID  string `json:"documentId"`
+	permissions []string
 }
 
 type QueryFilters struct {
@@ -157,10 +169,11 @@ type SortInput struct {
 }
 
 type QueryInput struct {
-	Page     int          `json:"page"`
-	PageSize int          `json:"pageSize"`
-	Filters  QueryFilters `json:"filters"`
-	Sort     []SortInput  `json:"sort"`
+	Page        int          `json:"page"`
+	PageSize    int          `json:"pageSize"`
+	Filters     QueryFilters `json:"filters"`
+	Sort        []SortInput  `json:"sort"`
+	permissions []string
 }
 
 type HistoryInput struct {
@@ -201,19 +214,21 @@ type ReferenceView struct {
 }
 
 type ProductLineView struct {
-	LineID            string        `json:"lineId"`
-	LineNo            int32         `json:"lineNo"`
-	Product           ReferenceView `json:"product"`
-	OrderedQuantity   string        `json:"orderedQuantity"`
-	UnitPrice         string        `json:"unitPrice"`
-	PurchaseUnitPrice string        `json:"purchaseUnitPrice,omitempty"`
-	LineAmount        string        `json:"lineAmount"`
-	Remark            string        `json:"remark,omitempty"`
-	OutboundQuantity  string        `json:"outboundQuantity,omitempty"`
-	SignedQuantity    string        `json:"signedQuantity,omitempty"`
-	RejectedQuantity  string        `json:"rejectedQuantity,omitempty"`
-	LossQuantity      string        `json:"lossQuantity,omitempty"`
-	InboundQuantity   string        `json:"inboundQuantity,omitempty"`
+	LineID               string        `json:"lineId"`
+	LineNo               int32         `json:"lineNo"`
+	Product              ReferenceView `json:"product"`
+	OrderedQuantity      string        `json:"orderedQuantity"`
+	UnitPrice            string        `json:"unitPrice"`
+	PurchaseUnitPrice    string        `json:"purchaseUnitPrice,omitempty"`
+	LineAmount           string        `json:"lineAmount"`
+	Remark               string        `json:"remark,omitempty"`
+	OutboundQuantity     string        `json:"outboundQuantity,omitempty"`
+	SignedQuantity       string        `json:"signedQuantity,omitempty"`
+	RejectedQuantity     string        `json:"rejectedQuantity,omitempty"`
+	LossQuantity         string        `json:"lossQuantity,omitempty"`
+	InboundQuantity      string        `json:"inboundQuantity,omitempty"`
+	ContainerType        string        `json:"containerType,omitempty"`
+	QuantityPerContainer string        `json:"quantityPerContainer,omitempty"`
 }
 
 type ExpenseLineView struct {
@@ -280,44 +295,61 @@ type DocumentDataView struct {
 }
 
 type DocumentView struct {
-	DocumentID  string           `json:"documentId"`
-	Entity      string           `json:"entity"`
-	DocumentNo  string           `json:"documentNo"`
-	Status      string           `json:"status"`
-	Revision    int64            `json:"revision"`
-	Amount      string           `json:"amount"`
-	Data        DocumentDataView `json:"data"`
-	Attachments []AttachmentView `json:"attachments"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	CreatedBy   string           `json:"createdBy"`
-	UpdatedAt   time.Time        `json:"updatedAt"`
-	UpdatedBy   string           `json:"updatedBy"`
-	ReviewedAt  *time.Time       `json:"reviewedAt,omitempty"`
-	ReviewedBy  *string          `json:"reviewedBy,omitempty"`
-	ApprovedAt  *time.Time       `json:"approvedAt,omitempty"`
-	ApprovedBy  *string          `json:"approvedBy,omitempty"`
-	ExecutedAt  *time.Time       `json:"executedAt,omitempty"`
-	ExecutedBy  *string          `json:"executedBy,omitempty"`
+	DocumentID      string                     `json:"documentId"`
+	Entity          string                     `json:"entity"`
+	DocumentNo      string                     `json:"documentNo"`
+	Status          string                     `json:"status"`
+	Revision        int64                      `json:"revision"`
+	Amount          string                     `json:"amount"`
+	Data            DocumentDataView           `json:"data"`
+	Attachments     []AttachmentView           `json:"attachments"`
+	CreatedAt       time.Time                  `json:"createdAt"`
+	CreatedBy       string                     `json:"createdBy"`
+	UpdatedAt       time.Time                  `json:"updatedAt"`
+	UpdatedBy       string                     `json:"updatedBy"`
+	ReviewedAt      *time.Time                 `json:"reviewedAt,omitempty"`
+	ReviewedBy      *string                    `json:"reviewedBy,omitempty"`
+	ApprovedAt      *time.Time                 `json:"approvedAt,omitempty"`
+	ApprovedBy      *string                    `json:"approvedBy,omitempty"`
+	ExecutedAt      *time.Time                 `json:"executedAt,omitempty"`
+	ExecutedBy      *string                    `json:"executedBy,omitempty"`
+	WorkflowVersion int                        `json:"workflowVersion,omitempty"`
+	WorkflowStatus  string                     `json:"workflowStatus,omitempty"`
+	RootRevision    int64                      `json:"rootRevision,omitempty"`
+	Balances        *IntermediaryBalances      `json:"balances,omitempty"`
+	Children        []IntermediaryChildSummary `json:"children,omitempty"`
+	CheckedAt       *time.Time                 `json:"checkedAt,omitempty"`
+	CheckedBy       *string                    `json:"checkedBy,omitempty"`
+	CompletedAt     *time.Time                 `json:"completedAt,omitempty"`
 }
 
 type MutationResult struct {
-	DocumentID string `json:"documentId"`
-	DocumentNo string `json:"documentNo"`
-	Status     string `json:"status"`
-	Revision   int64  `json:"revision"`
+	DocumentID     string                `json:"documentId"`
+	DocumentNo     string                `json:"documentNo"`
+	Status         string                `json:"status"`
+	Revision       int64                 `json:"revision"`
+	RootRevision   int64                 `json:"rootRevision,omitempty"`
+	WorkflowStatus string                `json:"workflowStatus,omitempty"`
+	ChildID        string                `json:"childId,omitempty"`
+	ChildNo        string                `json:"childNo,omitempty"`
+	ChildRevision  int64                 `json:"childRevision,omitempty"`
+	ChildStatus    string                `json:"childStatus,omitempty"`
+	Balances       *IntermediaryBalances `json:"balances,omitempty"`
 }
 
 type ListItem struct {
-	DocumentID   string    `json:"documentId"`
-	Entity       string    `json:"entity"`
-	DocumentNo   string    `json:"documentNo"`
-	Status       string    `json:"status"`
-	Revision     int64     `json:"revision"`
-	BusinessDate string    `json:"businessDate"`
-	PartyName    string    `json:"partyName,omitempty"`
-	Currency     string    `json:"currency"`
-	Amount       string    `json:"amount"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	DocumentID      string    `json:"documentId"`
+	Entity          string    `json:"entity"`
+	DocumentNo      string    `json:"documentNo"`
+	Status          string    `json:"status"`
+	Revision        int64     `json:"revision"`
+	BusinessDate    string    `json:"businessDate"`
+	PartyName       string    `json:"partyName,omitempty"`
+	Currency        string    `json:"currency"`
+	Amount          string    `json:"amount"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	WorkflowVersion int       `json:"workflowVersion,omitempty"`
+	WorkflowStatus  string    `json:"workflowStatus,omitempty"`
 }
 
 type Page[T any] struct {
@@ -328,22 +360,29 @@ type Page[T any] struct {
 }
 
 type AuditEventView struct {
-	ID         string          `json:"id"`
-	EventType  string          `json:"eventType"`
-	FromStatus *string         `json:"fromStatus"`
-	ToStatus   string          `json:"toStatus"`
-	ActorID    string          `json:"actorId"`
-	OccurredAt time.Time       `json:"occurredAt"`
-	Reason     *string         `json:"reason"`
-	RequestID  string          `json:"requestId"`
-	Summary    json.RawMessage `json:"summary"`
+	ID              string          `json:"id"`
+	EventType       string          `json:"eventType"`
+	FromStatus      *string         `json:"fromStatus"`
+	ToStatus        string          `json:"toStatus"`
+	ActorID         string          `json:"actorId"`
+	OccurredAt      time.Time       `json:"occurredAt"`
+	Reason          *string         `json:"reason"`
+	RequestID       string          `json:"requestId"`
+	Summary         json.RawMessage `json:"summary"`
+	WorkflowVersion int16           `json:"workflowVersion,omitempty"`
+	Stage           string          `json:"stage,omitempty"`
+	ChildID         string          `json:"childId,omitempty"`
+	ChildNo         string          `json:"childNo,omitempty"`
+	ChildStatus     string          `json:"childStatus,omitempty"`
 }
 
 type AttachmentInitiateResult struct {
-	FileID    string    `json:"fileId"`
-	UploadURL string    `json:"uploadUrl"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	Revision  int64     `json:"revision"`
+	FileID        string    `json:"fileId"`
+	UploadURL     string    `json:"uploadUrl"`
+	ExpiresAt     time.Time `json:"expiresAt"`
+	Revision      int64     `json:"revision"`
+	RootRevision  int64     `json:"rootRevision,omitempty"`
+	ChildRevision int64     `json:"childRevision,omitempty"`
 }
 
 type AttachmentDownloadResult struct {

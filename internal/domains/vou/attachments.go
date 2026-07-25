@@ -132,11 +132,19 @@ func (s *Service) Upload(
 		s.storage.Delete(file.StorageKey) //nolint:errcheck
 		return s.writeError("mark attachment ready", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: file.DocumentID, Entity: file.Entity, Event: "ATTACHMENT_UPLOADED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: file.CreatedBy, RequestID: requestID,
-		Summary: map[string]any{"fileId": file.ID, "size": file.DeclaredSize},
-	}); err != nil {
+	if file.ChildID != "" {
+		err = insertV2Audit(ctx, tx, file.DocumentID, file.Stage+"_ATTACHMENT_UPLOADED",
+			stringPtr(StatusDraft), StatusDraft, file.CreatedBy, requestID, file.Stage,
+			file.ChildID, file.ChildNo, StatusDraft, nil,
+			map[string]any{"fileId": file.ID, "size": file.DeclaredSize})
+	} else {
+		err = insertAudit(ctx, q, auditInput{
+			DocumentID: file.DocumentID, Entity: file.Entity, Event: "ATTACHMENT_UPLOADED",
+			From: stringPtr(StatusDraft), To: StatusDraft, ActorID: file.CreatedBy, RequestID: requestID,
+			Summary: map[string]any{"fileId": file.ID, "size": file.DeclaredSize},
+		})
+	}
+	if err != nil {
 		s.storage.Delete(file.StorageKey) //nolint:errcheck
 		return s.writeError("audit attachment upload", err)
 	}
@@ -293,6 +301,9 @@ func (s *Service) CleanupAttachments(ctx context.Context, batchSize int) (int, e
 			return removed, s.writeError("lock expired attachment", lockErr)
 		}
 		if _, err = q.DeleteVouAttachmentByFileID(ctx, row.ID); err == nil {
+			_, err = q.DeleteVouChildAttachmentByFileID(ctx, row.ID)
+		}
+		if err == nil {
 			_, err = q.DeleteVouFile(ctx, row.ID)
 		}
 		if err == nil {

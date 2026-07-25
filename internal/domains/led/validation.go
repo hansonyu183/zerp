@@ -33,12 +33,27 @@ func validateReference(input ReferenceInput) error {
 }
 
 func validateSave(input OpeningSaveInput) (time.Time, error) {
-	if input.Revision < 1 || len(input.Inventory) > 1000 || len(input.Fund) > 1000 || len(input.Party) > 1000 {
+	if input.Revision < 1 || len(input.Inventory) > 1000 || len(input.Fund) > 1000 ||
+		len(input.Party) > 1000 || len(input.Container) > 1000 {
 		return time.Time{}, domainError(ErrorValidation, "invalid opening payload", nil, nil)
 	}
 	cutover, err := time.Parse(dateLayout, strings.TrimSpace(input.CutoverDate))
 	if err != nil {
 		return time.Time{}, domainError(ErrorValidation, "invalid cutoverDate", nil, err)
+	}
+	containerKeys := make(map[string]struct{}, len(input.Container))
+	for _, item := range input.Container {
+		if err = validateReference(item.Customer); err != nil {
+			return time.Time{}, err
+		}
+		if item.ContainerType != "SOLVENT" && item.ContainerType != "RESIN" {
+			return time.Time{}, domainError(ErrorValidation, "invalid containerType", nil, nil)
+		}
+		key := item.Customer.ObjectID + "/" + item.ContainerType
+		if _, exists := containerKeys[key]; exists {
+			return time.Time{}, domainError(ErrorValidation, "duplicate container opening dimension", nil, nil)
+		}
+		containerKeys[key] = struct{}{}
 	}
 	inventoryKeys := make(map[string]struct{}, len(input.Inventory))
 	for _, item := range input.Inventory {
@@ -133,7 +148,7 @@ func validateQuery(entity string, input QueryInput) (validatedQuery, error) {
 				break
 			}
 		}
-		if !allowed {
+		if !allowed && sourceEntity != "intermediary-receipt" && sourceEntity != "intermediary-signoff" {
 			return validatedQuery{}, domainError(ErrorValidation, "invalid sourceEntity", nil, nil)
 		}
 	}
@@ -144,7 +159,11 @@ func validateQuery(entity string, input QueryInput) (validatedQuery, error) {
 		DocumentNo:   strings.TrimSpace(input.Filters.DocumentNo),
 		SortField:    "effectiveDate", Order: "desc",
 	}
-	allowedDirections := map[string]bool{"IN": entity != EntityParty, "OUT": entity != EntityParty, "DEBIT": entity == EntityParty, "CREDIT": entity == EntityParty}
+	allowedDirections := map[string]bool{
+		"IN":    entity == EntityInventory || entity == EntityFund,
+		"OUT":   entity == EntityInventory || entity == EntityFund,
+		"DEBIT": entity == EntityParty, "CREDIT": entity == EntityParty,
+	}
 	seen := map[string]bool{}
 	for _, raw := range input.Filters.Direction {
 		direction := strings.ToUpper(strings.TrimSpace(raw))

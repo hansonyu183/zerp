@@ -32,6 +32,7 @@ APP 负责：
 - CSRF 凭证签发与校验；
 - 计算当前用户的最终 API 权限集合；
 - 记录认证、授权和管理操作审计事件。
+- 接收登录用户反馈，并可靠发布为待人工审核的 GitHub Issue。
 
 APP 不负责：
 
@@ -53,6 +54,8 @@ APP 不负责：
 | 角色权限 | `app_role_permissions` | 角色与权限的多对多关联 |
 | 会话 | `app_sessions` | 服务端会话、到期和注销状态 |
 | 审计事件 | `app_audit_events` | 登录、退出及授权变更的追加式记录 |
+| 用户反馈 | `app_feedback` | 脱敏后的反馈内容、发布队列状态和 GitHub Issue 结果 |
+| 反馈附件快照 | `app_feedback_attachments` | 已有 VOU 附件的非敏感元数据快照，不保存文件内容 |
 
 关系如下：
 
@@ -193,6 +196,8 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `/app/user/signin` 和 `/app/user/session` 是认证入口，不要求已有 API 权限；`signin` 不要求已有 CSRF Token。`session` 只能恢复已有 Cookie 会话并签发或返回当前 CSRF Token。有效会话执行 `signout` 时要求 CSRF 校验和 `/app/user/signout` 精确权限；系统必须保证每个可登录用户的最终权限都包含该权限，避免形成无法安全退出的授权状态。
 
+`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许提交当前主体的反馈和查询本人反馈，不能读取其他用户数据。
+
 会话接口只返回用户资料、CSRF Token 和 API 权限数组。菜单标题、图标、顺序、组件和动态路由由前端本地注册表生成，后端不得通过权限数据指定可执行的前端组件路径。
 
 ## 5. API 契约
@@ -284,7 +289,39 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 两个接口均要求有效会话、CSRF Token 和对应的精确 API 权限。
 
-### 5.5 用户管理
+### 5.5 用户反馈
+
+`POST /app/feedback/create` 请求：
+
+```json
+{
+  "category": "BUG",
+  "title": "销售订单保存失败",
+  "content": "点击保存后提示失败",
+  "pagePath": "/vou/sale-order",
+  "clientVersion": "1.2.3",
+  "relatedRequestId": "01J...",
+  "attachmentIds": ["01J..."]
+}
+```
+
+`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须是当前用户创建且已上传完成的 VOU 附件，提交后只快照文件名、MIME、大小和 SHA-256，不复制文件内容或生成公开下载地址。
+
+后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。成功响应：
+
+```json
+{
+  "feedbackId": "01J...",
+  "status": "PENDING",
+  "submittedAt": "2026-07-25T10:00:00Z"
+}
+```
+
+`POST /app/feedback/get` 请求 `{"feedbackId":"01J..."}`，只允许提交者查询，返回分类、标题、`PENDING | PUBLISHED | FAILED`、公开 Issue URL 和时间。内部 `PROCESSING` 对外仍显示 `PENDING`，他人查询与记录不存在使用相同错误。
+
+反馈由数据库租约队列异步发布到配置的 GitHub 仓库。Issue 必须原子附带 `automation:blocked`，正文不包含用户身份、IP、UA 或凭证；只有人工审核并移除阻塞标签后，自动 Issue 处理任务才能领取。暂时性错误指数退避，最多 10 次；永久 GitHub 4xx 或重试耗尽进入 `FAILED`。
+
+### 5.6 用户管理
 
 | 路径 | 说明 | 关键约束 |
 | --- | --- | --- |
@@ -297,7 +334,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 管理员重置密码和账号恢复仍属于独立安全流程，不得复用普通 `save` 接口直接传递新密码。
 
-### 5.6 角色管理
+### 5.7 角色管理
 
 | 路径 | 说明 | 关键约束 |
 | --- | --- | --- |
@@ -310,7 +347,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 分配某实体的非 `query` 动作时，角色原则上也必须包含该实体的 `query` 权限；否则返回参数校验错误，防止生成无法进入页面的孤立权限。认证入口等非页面接口可列入依赖规则的显式例外。
 
-### 5.7 权限目录
+### 5.8 权限目录
 
 | 路径 | 说明 | 关键约束 |
 | --- | --- | --- |
@@ -350,6 +387,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 停用用户并撤销其会话；
 - 修改密码并撤销旧会话；
 - 创建、轮换或撤销会话与写入对应关键审计事件。
+- 创建反馈、附件元数据快照及滚动窗口限流判断。
 
 授权关联变更成功提交后，权限缓存才能失效。若缓存失效失败，必须采用版本号校验或默认回源数据库，不能继续把旧权限作为有效授权。
 
@@ -360,7 +398,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 密码使用当前认可的自适应强哈希算法，并在配置中固定参数和升级策略；
 - 登录接口实施速率限制、失败计数和必要的临时锁定；
 - Cookie 会话令牌、CSRF Token、密码和密码摘要禁止进入响应日志；
-- 除认证入口的明确例外外，所有业务 `POST` 请求同时校验会话、CSRF 和精确 API 权限；
+- 除认证入口和反馈自助接口的明确例外外，所有业务 `POST` 请求同时校验会话、CSRF 和精确 API 权限；
 - 管理员不能停用最后一个可执行核心授权管理的有效账号，具体防锁死规则在初始化方案中固定；
 - 审计记录至少包含事件类型、操作者、目标、结果、时间、`requestId` 和必要的变更摘要；
 - 审计摘要不得包含密码、令牌、Cookie 或完整敏感数据；
@@ -380,6 +418,8 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 8. `query` 权限依赖校验；
 9. 所有管理接口均不返回或记录敏感字段；
 10. 未登录、无权限、参数错误、数据冲突和内部异常映射到稳定业务错误类别。
+11. 普通登录用户无需角色反馈权限即可提交和查询本人反馈，且不能查询他人反馈；
+12. 反馈限流、附件归属、敏感信息清洗、发布租约、重试终态和 `automation:blocked` 标签可验证。
 
 ## 10. 待决事项
 

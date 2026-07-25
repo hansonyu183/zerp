@@ -19,12 +19,19 @@ import (
 
 type handlerServiceStub struct {
 	applicationService
-	signinResult    SessionResult
-	authorizeResult Principal
-	authorizeError  error
-	authorizedPath  string
-	profileResult   ProfileView
-	changedPassword ChangePasswordInput
+	signinResult          SessionResult
+	authorizeResult       Principal
+	authorizeError        error
+	authorizedPath        string
+	sessionAuthorizedPath string
+	profileResult         ProfileView
+	changedPassword       ChangePasswordInput
+	createdFeedback       CreateFeedbackInput
+}
+
+func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
+	stub.sessionAuthorizedPath = path
+	return stub.authorizeResult, stub.authorizeError
 }
 
 func (stub *handlerServiceStub) Signin(context.Context, string, string, string) (SessionResult, error) {
@@ -49,6 +56,11 @@ func (stub *handlerServiceStub) ChangePassword(_ context.Context, _ Principal, i
 	return nil
 }
 
+func (stub *handlerServiceStub) CreateFeedback(_ context.Context, input CreateFeedbackInput, _ string) (FeedbackCreatedView, error) {
+	stub.createdFeedback = input
+	return FeedbackCreatedView{FeedbackID: "01JAPPFEEDBACK00000000000", Status: FeedbackStatusPending}, nil
+}
+
 func testRouter(stub *handlerServiceStub) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -65,6 +77,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
+		"/app/feedback/create", "/app/feedback/get",
 	}
 	found := make(map[string]bool, len(expected))
 	for _, path := range expected {
@@ -84,6 +97,35 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	}
 	if len(router.Routes()) != len(expected) {
 		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected))
+	}
+}
+
+func TestFeedbackUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
+	request := httptest.NewRequest(http.MethodPost, "/app/feedback/create", strings.NewReader(
+		`{"category":"BUG","title":"页面异常","content":"保存失败"}`,
+	))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if stub.sessionAuthorizedPath != "/app/feedback/create" {
+		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
+	}
+	if stub.authorizedPath != "" {
+		t.Fatalf("permission authorizer was called for feedback path %q", stub.authorizedPath)
+	}
+	if stub.createdFeedback.Title != "页面异常" {
+		t.Fatalf("feedback input = %#v", stub.createdFeedback)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Code != response.CodeOK {
+		t.Fatalf("code = %d, want 0", envelope.Code)
 	}
 }
 

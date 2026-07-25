@@ -115,3 +115,15 @@ func TestRecoveryUsesBusinessEnvelope(t *testing.T) {
 		t.Fatalf("requestId = %q, want %q", envelope.RequestID, "test-request-id")
 	}
 }
+
+func TestProductionServerRequiresFeedbackPublisher(t *testing.T) {
+	cfg := testConfig()
+	cfg.Environment = config.EnvironmentProduction
+	if err := validateFeedbackRuntimeConfig(cfg); err == nil {
+		t.Fatal("production runtime accepted disabled feedback publisher")
+	}
+	cfg.FeedbackGitHubEnabled = true
+	if err := validateFeedbackRuntimeConfig(cfg); err != nil {
+		t.Fatalf("production runtime rejected enabled feedback publisher: %v", err)
+	}
+}

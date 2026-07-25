@@ -18,6 +18,7 @@ type Querier interface {
 	BobDraftAuditIsDeletable(ctx context.Context, arg BobDraftAuditIsDeletableParams) (*bool, error)
 	BobObjectHasExternalReferences(ctx context.Context, arg BobObjectHasExternalReferencesParams) (bool, error)
 	CancelLedReopen(ctx context.Context, arg CancelLedReopenParams) (int64, error)
+	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
 	ClearVouIntermediarySaleOrderExecution(ctx context.Context, documentID string) (int64, error)
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearVouPurchaseOrderExecution(ctx context.Context, documentID string) (int64, error)
@@ -60,6 +61,7 @@ type Querier interface {
 	CountLedPartyEntries(ctx context.Context, arg CountLedPartyEntriesParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
+	CountRecentAppFeedback(ctx context.Context, userID string) (int64, error)
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
@@ -93,6 +95,7 @@ type Querier interface {
 	DeleteVouProductLines(ctx context.Context, documentID string) error
 	ExecuteVouDocument(ctx context.Context, arg ExecuteVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
+	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
 	GetAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
@@ -115,6 +118,8 @@ type Querier interface {
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
+	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
+	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
 	InsertAppRole(ctx context.Context, arg InsertAppRoleParams) error
 	InsertAppRolePermission(ctx context.Context, arg InsertAppRolePermissionParams) error
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
@@ -165,6 +170,7 @@ type Querier interface {
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
+	ListAppFeedbackAttachments(ctx context.Context, feedbackID string) ([]AppFeedbackAttachment, error)
 	ListAppPermissionPathsByIDs(ctx context.Context, ids []string) ([]string, error)
 	ListAppPermissions(ctx context.Context, arg ListAppPermissionsParams) ([]AppPermission, error)
 	ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]AppRole, error)
@@ -194,7 +200,9 @@ type Querier interface {
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
+	ListVouFeedbackAttachmentMetadata(ctx context.Context, arg ListVouFeedbackAttachmentMetadataParams) ([]ListVouFeedbackAttachmentMetadataRow, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
+	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobVersion(ctx context.Context, arg LockBobVersionParams) (LockBobVersionRow, error)
 	LockEffectiveBobReference(ctx context.Context, arg LockEffectiveBobReferenceParams) (string, error)
@@ -205,6 +213,7 @@ type Querier interface {
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
 	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
+	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
@@ -212,6 +221,7 @@ type Querier interface {
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	ReopenLedControl(ctx context.Context, arg ReopenLedControlParams) (int64, error)
+	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
 	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)

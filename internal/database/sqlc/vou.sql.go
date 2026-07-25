@@ -177,7 +177,7 @@ const countVouDocuments = `-- name: CountVouDocuments :one
 SELECT count(*)
 FROM vou_documents d
 WHERE d.entity = $1
-  AND (cardinality($2::text[]) = 0 OR d.status = ANY($2::text[]))
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
   AND ($4::date IS NULL OR d.business_date <= $4::date)
   AND (
@@ -1573,7 +1573,7 @@ LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
 WHERE d.entity = $1
-  AND (cardinality($2::text[]) = 0 OR d.status = ANY($2::text[]))
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
   AND ($4::date IS NULL OR d.business_date <= $4::date)
   AND (

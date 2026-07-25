@@ -16,21 +16,23 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		entityCounts[item.entity]++
 		statusCounts[item.status]++
 	}
-	for _, entity := range []string{
-		bob.EntityCustomer,
-		bob.EntitySupplier,
-		bob.EntityEmployee,
-		bob.EntityProduct,
-		bob.EntityService,
-		bob.EntityWarehouse,
-		bob.EntityVehicle,
-		bob.EntityFundAccount,
-		bob.EntityCategory,
-		bob.EntityDepartment,
-		bob.EntityPosition,
-	} {
-		if entityCounts[entity] != 2 {
-			t.Errorf("%s sample count = %d, want 2", entity, entityCounts[entity])
+	expectedEntityCounts := map[string]int{
+		bob.EntityCustomer:         2,
+		bob.EntitySupplier:         3,
+		bob.EntityEmployee:         2,
+		bob.EntityProduct:          2,
+		bob.EntityService:          2,
+		bob.EntityWarehouse:        2,
+		bob.EntityVehicle:          2,
+		bob.EntityFundAccount:      2,
+		bob.EntityCategory:         2,
+		bob.EntityDepartment:       2,
+		bob.EntityPosition:         2,
+		bob.EntitySettlementMethod: 1,
+	}
+	for entity, expected := range expectedEntityCounts {
+		if entityCounts[entity] != expected {
+			t.Errorf("%s sample count = %d, want %d", entity, entityCounts[entity], expected)
 		}
 	}
 	for _, status := range []string{bob.StatusEffective, bob.StatusDraft, bob.StatusPending, bob.StatusRejected} {
@@ -51,7 +53,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 22 || store.submitCalls != 17 || store.approveCalls != 12 || store.rejectCalls != 2 {
+	if store.createCalls != 24 || store.submitCalls != 19 || store.approveCalls != 14 || store.rejectCalls != 2 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -68,7 +70,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 22 || store.submitCalls != 17 || store.approveCalls != 12 || store.rejectCalls != 2 {
+	if store.createCalls != 24 || store.submitCalls != 19 || store.approveCalls != 14 || store.rejectCalls != 2 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -109,6 +111,23 @@ func TestSeedRejectsOccupiedDemoCode(t *testing.T) {
 	_, err := (&Seeder{service: store, lookup: store}).Seed(t.Context())
 	if err == nil {
 		t.Fatal("seed succeeded with occupied demo code")
+	}
+}
+
+func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
+	input := bob.CreateDetailInput{
+		Name: "演示资料", Description: "说明", Remark: "备注",
+		DepartmentID: "department", SettlementMethodID: "settlement",
+	}
+	customer := detailInput(bob.EntityCustomer, input)
+	if !customer.SettlementMethodID.Set || !customer.Remark.Set ||
+		customer.DepartmentID.Set || customer.Description.Set {
+		t.Fatalf("customer detail input over-posted fields: %+v", customer)
+	}
+	settlement := detailInput(bob.EntitySettlementMethod, input)
+	if !settlement.Description.Set || settlement.Remark.Set ||
+		settlement.SettlementMethodID.Set || settlement.DepartmentID.Set {
+		t.Fatalf("settlement detail input over-posted fields: %+v", settlement)
 	}
 }
 
@@ -238,7 +257,12 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			BankBranch:            input.Data.BankBranch,
 			AccountNumber:         input.Data.AccountNumber,
 			ParentID:              input.Data.ParentID,
+			SettlementMethodID:    input.Data.SettlementMethodID,
 			SalespersonEmployeeID: input.Data.SalespersonEmployeeID,
+			RuleType:              input.Data.RuleType,
+			MonthOffset:           input.Data.MonthOffset,
+			DayOfMonth:            input.Data.DayOfMonth,
+			DayOffset:             input.Data.DayOffset,
 		},
 	}
 	recordKey := key(entity, input.Data.Code)
@@ -324,7 +348,12 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	applyOptional(input.Data.BankBranch, &view.Data.BankBranch)
 	applyOptional(input.Data.AccountNumber, &view.Data.AccountNumber)
 	applyOptional(input.Data.ParentID, &view.Data.ParentID)
+	applyOptional(input.Data.SettlementMethodID, &view.Data.SettlementMethodID)
 	applyOptional(input.Data.SalespersonEmployeeID, &view.Data.SalespersonEmployeeID)
+	view.Data.RuleType = input.Data.RuleType
+	view.Data.MonthOffset = input.Data.MonthOffset
+	view.Data.DayOfMonth = input.Data.DayOfMonth
+	view.Data.DayOffset = input.Data.DayOffset
 	view.Version.Revision++
 	s.byKey[recordKey] = view
 	return mutation(view), nil

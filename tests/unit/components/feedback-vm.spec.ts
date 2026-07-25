@@ -45,6 +45,7 @@ async function mountHarness(path = '/vou/sale-order') {
   const wrapper = mount(Harness, { global: { plugins: [router] } })
   return {
     wrapper,
+    router,
     vm: (wrapper.vm as unknown as {
       vm: ReturnType<typeof useFeedbackViewModel>
     }).vm,
@@ -207,6 +208,28 @@ describe('feedback view model', () => {
     vm.title = '客户页面建议'
     vm.content = '希望增加批量操作'
     vm.closeDialog()
+    vm.openDialog()
+
+    expect(vm.title).toBe('客户页面建议')
+    expect(vm.content).toBe('希望增加批量操作')
+    expect(vm.pagePath).toBe('/bob/customer')
+
+    wrapper.unmount()
+  })
+
+  it('跨页面恢复草稿时保留草稿最初关联的页面', async () => {
+    const { wrapper, router, vm } = await mountHarness('/vou/sale-order')
+    vm.openDialog()
+    vm.closeDialog()
+
+    await router.push('/bob/customer')
+    vm.openDialog()
+    expect(vm.pagePath).toBe('/bob/customer')
+
+    vm.title = '客户页面建议'
+    vm.content = '希望增加批量操作'
+    vm.closeDialog()
+    await router.push('/vou/receipt')
     vm.openDialog()
 
     expect(vm.title).toBe('客户页面建议')

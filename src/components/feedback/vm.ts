@@ -81,9 +81,19 @@ export function useFeedbackViewModel() {
       attachments.value.every((attachment) => attachment.status !== 'uploading'),
   )
 
+  function hasDraft(): boolean {
+    return (
+      category.value !== 'BUG' ||
+      title.value !== '' ||
+      content.value !== '' ||
+      relatedRequestId.value !== '' ||
+      attachments.value.length > 0
+    )
+  }
+
   function openDialog(): void {
     if (created.value) created.value = null
-    pagePath.value = route.path
+    if (!hasDraft()) pagePath.value = route.path
     errorMessage.value = ''
     attachmentError.value = ''
     opened.value = true

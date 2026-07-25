@@ -1000,15 +1000,18 @@ func countPendingAttachments(ctx context.Context, tx pgx.Tx, documentID string) 
 func updateDocumentStatus(ctx context.Context, tx pgx.Tx, document documentRow, status, actorID string) (int64, error) {
 	var revision int64
 	var err error
-	switch status {
-	case "REVIEWED":
+	switch {
+	case document.status == "DRAFT" && status == "REVIEWED":
 		err = tx.QueryRow(ctx, `UPDATE vou_documents SET status='REVIEWED',reviewed_at=now(),reviewed_by=$1,
 		revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND revision=$3 RETURNING revision`, actorID, document.id, document.revision).Scan(&revision)
-	case "DRAFT":
+	case document.status == "REVIEWED" && status == "DRAFT":
 		err = tx.QueryRow(ctx, `UPDATE vou_documents SET status='DRAFT',reviewed_at=NULL,reviewed_by=NULL,
 		revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND revision=$3 RETURNING revision`, actorID, document.id, document.revision).Scan(&revision)
-	case "APPROVED":
+	case document.status == "REVIEWED" && status == "APPROVED":
 		err = tx.QueryRow(ctx, `UPDATE vou_documents SET status='APPROVED',approved_at=now(),approved_by=$1,
+		revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND revision=$3 RETURNING revision`, actorID, document.id, document.revision).Scan(&revision)
+	case document.status == "APPROVED" && status == "REVIEWED":
+		err = tx.QueryRow(ctx, `UPDATE vou_documents SET status='REVIEWED',approved_at=NULL,approved_by=NULL,
 		revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND revision=$3 RETURNING revision`, actorID, document.id, document.revision).Scan(&revision)
 	}
 	return revision, err

@@ -203,6 +203,26 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	}
 	root := run("check", rootSaved.ProcessRevision, created.DocumentID, rootSaved.DocumentRevision, nil, actorOne)
 	root = run("approve", root.ProcessRevision, created.DocumentID, root.DocumentRevision, nil, actorTwo)
+	unapprovedAny, err := service.Action(t.Context(), "unapprove", ActionInput{
+		ProcessID: created.ProcessID, ProcessRevision: root.ProcessRevision, Reason: "批准后退回重新核对",
+	}, actorOne, "wfl-unapprove")
+	if err != nil {
+		t.Fatalf("unapprove root without children: %v", err)
+	}
+	root = unapprovedAny.(MutationResult)
+	if root.WorkflowStatus != StatusChecked || root.DocumentStatus != StatusChecked {
+		t.Fatalf("status after root unapprove = %+v", root)
+	}
+	var reviewed, approved bool
+	if err = pool.QueryRow(t.Context(), `SELECT reviewed_at IS NOT NULL AND reviewed_by IS NOT NULL,
+		approved_at IS NOT NULL OR approved_by IS NOT NULL FROM vou_documents WHERE id=$1`,
+		created.DocumentID).Scan(&reviewed, &approved); err != nil {
+		t.Fatal(err)
+	}
+	if !reviewed || approved {
+		t.Fatalf("root audit fields after unapprove: reviewed=%t approved=%t", reviewed, approved)
+	}
+	root = run("approve", root.ProcessRevision, created.DocumentID, root.DocumentRevision, nil, actorTwo)
 	procurement := run("procurement-create", root.ProcessRevision, "", 0, ProcurementInput{
 		Supplier:     ReferenceInput{ObjectID: supplier, VersionID: version[supplier]},
 		Purchaser:    &ReferenceInput{ObjectID: purchaser, VersionID: version[purchaser]},

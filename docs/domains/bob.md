@@ -194,13 +194,14 @@ revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除�
 `save` 显式传空字符串用于清空可选字段。`customerType` 新建时默认为
 `END_USER`，`salespersonEmployeeId` 必须引用一个有效员工且不可清空。
 
-### 6.4 其它实体前端契约
+### 6.4 统一实体前端契约
 
-除客户外的实体使用与 6.3 节相同的对象、版本、分页和变更结果结构，并由
-前端本地配置声明各自的类型化 `data` 字段。前端已注册
-`supplier`、`employee`、`product`、`service`、`warehouse`、`vehicle`、
+全部实体使用与 6.3 节相同的对象、版本、分页和变更结果结构，并由前端本地
+配置声明各自的类型化 `data` 字段。前端已注册 `customer`、`supplier`、
+`employee`、`product`、`service`、`warehouse`、`vehicle`、
 `fund-account`、`category`、`department`、`position` 和
-`settlement-method` 页面，统一支持第 7 节的十一个动作。
+`settlement-method` 页面，统一使用共享 BOB 页面和 ViewModel，支持第 7 节
+的十一个动作。
 
 引用字段使用目标实体的稳定 `objectId`。编辑器和筛选器只通过目标实体
 `query` 查询 `EFFECTIVE` 对象，显示“编码 · 名称”，不使用本地假数据。

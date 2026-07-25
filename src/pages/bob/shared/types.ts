@@ -12,6 +12,7 @@ export type BobStatus =
   | 'INVALID'
 
 export type BobEntity =
+  | 'customer'
   | 'supplier'
   | 'employee'
   | 'product'

@@ -7,7 +7,10 @@ import {
   useLedgerViewModel,
   type LedgerReference,
 } from '@/components/ledger'
-import { useOpeningViewModel } from '@/pages/led/opening/vm'
+import {
+  openingEventLabel,
+  useOpeningViewModel,
+} from '@/pages/led/opening/vm'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
@@ -152,6 +155,14 @@ describe('LED opening view model', () => {
       '/led/opening/cancel-reopen',
       '/led/opening/audit-history',
     ]
+  })
+
+  it('translates the exact backend opening audit event names', () => {
+    expect(openingEventLabel('OPENING_SAVED')).toBe('保存期初')
+    expect(openingEventLabel('ACTIVATED')).toBe('启用账簿')
+    expect(openingEventLabel('REOPENED')).toBe('重开账簿')
+    expect(openingEventLabel('REOPEN_CANCELLED')).toBe('取消重开')
+    expect(openingEventLabel('FUTURE_EVENT')).toBe('FUTURE_EVENT')
   })
 
   it('builds the complete opening payload with object and version references', async () => {

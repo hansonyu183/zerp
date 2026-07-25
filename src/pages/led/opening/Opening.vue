@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { LedgerReferenceAutocomplete } from '@/components/ledger'
-import { useOpeningViewModel } from './vm'
+import { openingEventLabel, useOpeningViewModel } from './vm'
 
 const vm = useOpeningViewModel()
 const tab = ref<'opening' | 'audit'>('opening')
@@ -10,13 +10,6 @@ const statusText: Record<string, string> = {
   DRAFT: '草稿',
   ACTIVE: '已启用',
   REOPENING: '重开维护中',
-}
-
-const eventText: Record<string, string> = {
-  SAVE: '保存期初',
-  ACTIVATE: '启用账簿',
-  REOPEN: '重开账簿',
-  CANCEL_REOPEN: '取消重开',
 }
 
 function changeTab(value: unknown): void {
@@ -531,7 +524,7 @@ void vm.load()
                 <tbody>
                   <tr v-for="item in vm.auditItems.value" :key="item.id">
                     <td>{{ formatTime(item.occurredAt) }}</td>
-                    <td>{{ eventText[item.eventType] ?? item.eventType }}</td>
+                    <td>{{ openingEventLabel(item.eventType) }}</td>
                     <td>
                       {{ item.fromStatus ? `${statusText[item.fromStatus] ?? item.fromStatus} → ` : '' }}
                       {{ statusText[item.toStatus] ?? item.toStatus }}

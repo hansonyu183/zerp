@@ -21,6 +21,17 @@ import type {
 
 let draftKeySequence = 0
 
+const openingEventText: Readonly<Record<string, string>> = {
+  OPENING_SAVED: '保存期初',
+  ACTIVATED: '启用账簿',
+  REOPENED: '重开账簿',
+  REOPEN_CANCELLED: '取消重开',
+}
+
+export function openingEventLabel(eventType: string): string {
+  return openingEventText[eventType] ?? eventType
+}
+
 function draftKey(prefix: string): string {
   draftKeySequence += 1
   return `${prefix}-${draftKeySequence}`

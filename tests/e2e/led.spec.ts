@@ -13,6 +13,13 @@ async function signIn(page: Page): Promise<void> {
   await expect(page).not.toHaveURL(/\/signin/)
 }
 
+function contentHeading(page: Page, name: string) {
+  return page.locator('.page-content').getByRole('heading', {
+    name,
+    exact: true,
+  })
+}
+
 test.describe('LED 真实后端只读流程', () => {
   test.skip(
     !ledReadonlyEnabled,
@@ -25,9 +32,7 @@ test.describe('LED 真实后端只读流程', () => {
 
   test('加载期初状态和生命周期审计', async ({ page }) => {
     await page.goto('/led/opening')
-    await expect(
-      page.getByRole('heading', { name: '期初与启用' }),
-    ).toBeVisible()
+    await expect(contentHeading(page, '期初与启用')).toBeVisible()
     await expect(page.getByText(/版本 \d+/)).toBeVisible()
     const auditTab = page.getByRole('tab', { name: '生命周期审计' })
     if (await auditTab.isVisible()) {
@@ -44,17 +49,13 @@ test.describe('LED 真实后端只读流程', () => {
     { entity: 'container', title: '空桶台账' },
   ]) {
     test(`${ledger.title}查询流水和余额`, async ({ page }) => {
-      await page.goto(`/led/${ledger.entity}`)
-      await expect(
-        page.getByRole('heading', { name: ledger.title }),
-      ).toBeVisible()
-
       const entryResponse = page.waitForResponse(
         (response) =>
           response.url().endsWith(`/led/${ledger.entity}/query`) &&
           response.request().method() === 'POST',
       )
-      await page.getByRole('button', { name: '查询', exact: true }).click()
+      await page.goto(`/led/${ledger.entity}`)
+      await expect(contentHeading(page, ledger.title)).toBeVisible()
       const entryPayload = await (await entryResponse).json() as {
         code: number | string
       }

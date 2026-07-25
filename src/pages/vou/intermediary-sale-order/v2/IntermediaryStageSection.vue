@@ -8,6 +8,7 @@ const props = defineProps<{
   title: string
   items: readonly IntermediaryChildSummary[]
   canCreate: boolean
+  canOpen: boolean
   currentUserId: string
   canAction: (action: IntermediaryAction) => boolean
 }>()
@@ -98,6 +99,7 @@ function statusText(value: string): string {
               <td>{{ new Date(child.updatedAt).toLocaleString('zh-CN') }}</td>
               <td class="text-end text-no-wrap">
                 <v-btn
+                  v-if="canOpen"
                   :aria-label="`打开 ${child.childNo}`"
                   icon="mdi-eye-outline"
                   variant="text"
@@ -148,7 +150,7 @@ function statusText(value: string): string {
                   反{{ finalLabel }}
                 </v-btn>
                 <v-btn
-                  v-if="stage === 'delivery' && child.status === 'EXECUTED' && canAction('signoffCreate')"
+                  v-if="stage === 'delivery' && child.status === 'EXECUTED' && canAction('signoffCreate') && canAction('deliveryGet')"
                   color="secondary"
                   size="small"
                   variant="tonal"

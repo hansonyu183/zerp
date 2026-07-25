@@ -461,7 +461,7 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   async function openDocument(row: IntermediaryListItem): Promise<void> {
-    if (isLegacy(row)) return
+    if (isLegacy(row) || !can('get')) return
     workspaceOpen.value = true
     await loadDocument(row.documentId)
   }
@@ -689,6 +689,14 @@ export function useIntermediaryWorkflowViewModel() {
     sourceDelivery?: IntermediaryChildSummary,
   ): Promise<void> {
     if (!document.value) return
+    const prefix = childPrefix(stage)
+    if (child && !can(`${prefix}Get` as IntermediaryAction)) return
+    if (
+      sourceDelivery &&
+      (!can('signoffCreate') || !can('deliveryGet'))
+    ) {
+      return
+    }
     stageEditing.value = stage
     stageChild.value = child ?? null
     stageDetail.value = null
@@ -999,7 +1007,9 @@ export function useIntermediaryWorkflowViewModel() {
       const nextChild = document.value?.children.find(
         (item) => item.childId === childID,
       )
-      if (nextChild) {
+      const getAction =
+        `${childPrefix(stageEditing.value)}Get` as IntermediaryAction
+      if (nextChild && can(getAction)) {
         await openStage(stageEditing.value, nextChild)
       } else {
         stageDialogOpen.value = false
@@ -1346,11 +1356,6 @@ export function useIntermediaryWorkflowViewModel() {
   function referenceFilters(key: string): Record<string, unknown> {
     if (key === 'supplier') return { supplierType: 'GENERAL' }
     if (key === 'platform') return { supplierType: 'LOGISTICS_PLATFORM' }
-    if (key === 'vehicle') {
-      const platform = (stageDraft.value as IntermediaryDeliveryDraft | null)
-        ?.platform
-      return platform ? { platformObjectId: platform.objectId } : {}
-    }
     return {}
   }
 
@@ -1391,11 +1396,20 @@ export function useIntermediaryWorkflowViewModel() {
         sort: [{ field: 'name', order: 'asc' }],
       })
       if (sequence !== state.sequence) return
+      const selectedPlatform =
+        key === 'vehicle'
+          ? (stageDraft.value as IntermediaryDeliveryDraft | null)?.platform
+          : null
       state.options = (data.items ?? [])
         .filter(
           (item) =>
             item.currentVersion.status === 'EFFECTIVE' &&
-            item.effectiveVersionId === item.currentVersion.versionId,
+            item.effectiveVersionId === item.currentVersion.versionId &&
+            (
+              !selectedPlatform ||
+              item.currentVersion.summary.platformObjectId ===
+                selectedPlatform.objectId
+            ),
         )
         .map((item) => ({
           objectId: item.objectId,

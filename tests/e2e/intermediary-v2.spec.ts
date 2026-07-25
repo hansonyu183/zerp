@@ -82,7 +82,9 @@ async function selectReference(
 async function openOrder(page: Page, documentNo: string): Promise<Locator> {
   await page.goto('/vou/intermediary-sale-order')
   await page.getByText('筛选条件', { exact: true }).click()
-  await page.getByLabel('单号或往来方关键字').fill(documentNo)
+  await page
+    .getByRole('textbox', { name: '单号或往来方关键字', exact: true })
+    .fill(documentNo)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await page.getByLabel(`打开 ${documentNo}`).click()
   const workspace = page.locator('.intermediary-workspace')
@@ -149,15 +151,22 @@ test.describe('居间订单 V2 五阶段真实后端', () => {
     await orderRows.nth(1).locator('input').nth(1).fill('440')
     await orderRows.nth(1).locator('input').nth(2).fill('20.00')
     await workspace.getByRole('button', { name: '创建草稿' }).click()
-    const documentNo = (
-      await workspace.locator('.v-toolbar-title').innerText()
-    ).trim()
-    expect(documentNo).toMatch(/^ISO-\d{8}-\d{6}$/)
-    await workspace.getByRole('button', { name: '核对', exact: true }).click()
+    const documentTitle = workspace.locator('.v-toolbar-title')
+    await expect(documentTitle).toHaveText(/^ISO-\d{8}-\d{6}$/)
+    const documentNo = (await documentTitle.innerText()).trim()
+    const orderCheck = workspace.getByRole('button', {
+      name: '核对',
+      exact: true,
+    })
+    await expect(orderCheck).toBeEnabled()
+    await orderCheck.click()
+    await expect(
+      workspace.getByText(/客户订单已核对 · r\d+/),
+    ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
     await workspace.getByRole('button', { name: '批准', exact: true }).click()
-    await expect(workspace.getByText('履约中', { exact: true })).toBeVisible()
+    await expect(workspace.getByText(/履约中 · r\d+/)).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
     await openStageTab(workspace, '居间采购')
@@ -179,6 +188,12 @@ test.describe('居间订单 V2 五阶段真实后端', () => {
     await procurementRows.nth(1).locator('input').nth(0).fill('440')
     await procurementRows.nth(1).locator('input').nth(1).fill('16.00')
     await dialog.getByRole('button', { name: '保存草稿' }).click()
+    await expect(
+      procurementRows.nth(0).locator('input').nth(1),
+    ).toHaveValue(/^8(?:\.0+)?$/)
+    await expect(
+      procurementRows.nth(1).locator('input').nth(1),
+    ).toHaveValue(/^16(?:\.0+)?$/)
     await dialog.getByRole('button', { name: '关闭' }).click()
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
 
@@ -241,7 +256,7 @@ test.describe('居间订单 V2 五阶段真实后端', () => {
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '客户签收')
     await workspace.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+    await expect(workspace.getByText(/已完成 · r\d+/)).toBeVisible()
 
     await openStageTab(workspace, '审计')
     await workspace.getByRole('button', { name: '加载审计' }).click()

@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import {
   calculateContainerBalanceAfter,
@@ -13,6 +13,7 @@ import {
 import { useIntermediaryWorkflowViewModel } from '@/pages/vou/intermediary-sale-order/v2/vm'
 import type {
   IntermediaryChildSummary,
+  IntermediaryDeliveryDraft,
   IntermediaryWorkflowDocument,
 } from '@/pages/vou/intermediary-sale-order/v2/types'
 import { useSessionStore } from '@/stores/session'
@@ -39,6 +40,10 @@ describe('intermediary workflow V2 PR #11 contract', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('集中注册子单删除和四阶段附件的精确路径', () => {
@@ -130,6 +135,48 @@ describe('intermediary workflow V2 PR #11 contract', () => {
         rootRevision: 7,
         childId: 'D-1',
         childRevision: 2,
+      },
+      { signal: undefined },
+    )
+  })
+
+  it('反向动作和短结请求保留原因及 revision', async () => {
+    mockedApi.post
+      .mockResolvedValueOnce({ data: { documentId: 'ISO-1' } })
+      .mockResolvedValueOnce({ data: { documentId: 'ISO-1' } })
+
+    await intermediaryWorkflowApi.mutate('receiptUnconfirm', {
+      documentId: 'ISO-1',
+      rootRevision: 8,
+      childId: 'R-1',
+      childRevision: 4,
+      reason: '数量需要更正',
+    })
+    await intermediaryWorkflowApi.mutate('shortCloseRequest', {
+      documentId: 'ISO-1',
+      rootRevision: 9,
+      reason: '客户终止剩余履约',
+    })
+
+    expect(mockedApi.post).toHaveBeenNthCalledWith(
+      1,
+      'vou/intermediary-sale-order/receipt-unconfirm',
+      {
+        documentId: 'ISO-1',
+        rootRevision: 8,
+        childId: 'R-1',
+        childRevision: 4,
+        reason: '数量需要更正',
+      },
+      { signal: undefined },
+    )
+    expect(mockedApi.post).toHaveBeenNthCalledWith(
+      2,
+      'vou/intermediary-sale-order/short-close-request',
+      {
+        documentId: 'ISO-1',
+        rootRevision: 9,
+        reason: '客户终止剩余履约',
       },
       { signal: undefined },
     )
@@ -287,5 +334,130 @@ describe('intermediary workflow V2 PR #11 contract', () => {
     expect(request.filters).not.toHaveProperty('workflowVersion')
     expect(request.filters).not.toHaveProperty('pendingStage')
     expect(request.filters).not.toHaveProperty('workflowStatus')
+  })
+
+  it('缺少主单或子单详情权限时不发起读取请求', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/vou/intermediary-sale-order/query']
+    const vm = useIntermediaryWorkflowViewModel()
+    const row = {
+      documentId: 'ISO-1',
+      workflowVersion: 2,
+    } as never
+    const receipt = {
+      childId: 'R-1',
+      stage: 'RECEIPT',
+    } as IntermediaryChildSummary
+    vm.document.value = {
+      documentId: 'ISO-1',
+    } as IntermediaryWorkflowDocument
+
+    await vm.openDocument(row)
+    await vm.openStage('RECEIPT', receipt)
+
+    expect(vm.workspaceOpen.value).toBe(false)
+    expect(vm.stageDialogOpen.value).toBe(false)
+    expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('创建签收缺少送货详情权限时不读取来源子单', async () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/vou/intermediary-sale-order/signoff-create',
+    ]
+    const vm = useIntermediaryWorkflowViewModel()
+    const delivery = {
+      childId: 'D-1',
+      stage: 'DELIVERY',
+      status: 'EXECUTED',
+    } as IntermediaryChildSummary
+    vm.document.value = {
+      documentId: 'ISO-1',
+    } as IntermediaryWorkflowDocument
+
+    await vm.openStage('SIGNOFF', undefined, delivery)
+
+    expect(vm.stageDialogOpen.value).toBe(false)
+    expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('车辆查询只发送后端支持的过滤条件并在前端按物流平台筛选', async () => {
+    vi.useFakeTimers()
+    const session = useSessionStore()
+    session.permissions = ['/bob/vehicle/query']
+    const vm = useIntermediaryWorkflowViewModel()
+    const platform = reference('supplier', 'PLATFORM-1')
+    vm.stageDraft.value = {
+      deliveryDate: '2026-07-25',
+      platform,
+      vehicle: null,
+      lines: [],
+      remark: '',
+    } satisfies IntermediaryDeliveryDraft
+    mockedApi.post.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            objectId: 'vehicle-1',
+            entity: 'vehicle',
+            code: 'VEH-1',
+            objectRevision: 1,
+            effectiveVersionId: 'vehicle-v1',
+            currentVersion: {
+              versionId: 'vehicle-v1',
+              version: 1,
+              status: 'EFFECTIVE',
+              revision: 1,
+              summary: {
+                name: '同平台车辆',
+                platformObjectId: platform.objectId,
+              },
+            },
+          },
+          {
+            objectId: 'vehicle-2',
+            entity: 'vehicle',
+            code: 'VEH-2',
+            objectRevision: 1,
+            effectiveVersionId: 'vehicle-v2',
+            currentVersion: {
+              versionId: 'vehicle-v2',
+              version: 1,
+              status: 'EFFECTIVE',
+              revision: 1,
+              summary: {
+                name: '其他平台车辆',
+                platformObjectId: 'supplier-2',
+              },
+            },
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+
+    vm.searchReference('vehicle', 'VEH')
+    await vi.runAllTimersAsync()
+
+    expect(mockedApi.post).toHaveBeenCalledWith(
+      'bob/vehicle/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          status: ['EFFECTIVE'],
+          keyword: 'VEH',
+        },
+        sort: [{ field: 'name', order: 'asc' }],
+      },
+    )
+    expect(vm.referenceOptions('vehicle')).toEqual([
+      expect.objectContaining({
+        code: 'VEH-1',
+        platformObjectId: platform.objectId,
+      }),
+    ])
   })
 })

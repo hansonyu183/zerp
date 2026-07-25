@@ -75,6 +75,7 @@ function selectOrderReference(
 }
 
 function openRow(row: IntermediaryListItem): void {
+  if (!vm.can('get')) return
   if (vm.isLegacy(row)) {
     emit('open-legacy', vm.legacyRow(row))
   } else {
@@ -195,6 +196,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
               <td>{{ new Date(row.updatedAt).toLocaleString('zh-CN') }}</td>
               <td class="text-end">
                 <v-btn
+                  v-if="vm.can('get')"
                   :aria-label="`打开 ${row.documentNo}`"
                   icon="mdi-open-in-new"
                   variant="text"
@@ -255,19 +257,20 @@ function selectFilterCustomer(value: VoucherReference | null): void {
                   </v-btn>
                 </template>
                 <template v-else-if="vm.document">
-                  <v-btn v-if="vm.document.workflowStatus === 'DRAFT' && vm.can('save')" variant="tonal" @click="vm.startOrderEditing">编辑</v-btn>
-                  <v-btn v-if="vm.document.workflowStatus === 'DRAFT' && vm.can('check')" color="primary" @click="vm.runRootAction('check')">核对</v-btn>
-                  <v-btn v-if="vm.document.workflowStatus === 'CHECKED' && vm.can('uncheck')" variant="text" @click="vm.openReverse('uncheck')">反核对</v-btn>
+                  <v-btn v-if="vm.document.workflowStatus === 'DRAFT' && vm.can('save')" :disabled="Boolean(vm.actionLoading)" variant="tonal" @click="vm.startOrderEditing">编辑</v-btn>
+                  <v-btn v-if="vm.document.workflowStatus === 'DRAFT' && vm.can('check')" color="primary" :disabled="Boolean(vm.actionLoading)" :loading="vm.actionLoading === 'check'" @click="vm.runRootAction('check')">核对</v-btn>
+                  <v-btn v-if="vm.document.workflowStatus === 'CHECKED' && vm.can('uncheck')" :disabled="Boolean(vm.actionLoading)" variant="text" @click="vm.openReverse('uncheck')">反核对</v-btn>
                   <v-btn
                     v-if="vm.document.workflowStatus === 'CHECKED' && vm.can('approve')"
                     color="primary"
-                    :disabled="!vm.canFinalize('approve', vm.document.checkedBy)"
+                    :disabled="Boolean(vm.actionLoading) || !vm.canFinalize('approve', vm.document.checkedBy)"
+                    :loading="vm.actionLoading === 'approve'"
                     :title="vm.document.checkedBy === vm.currentUserId ? '批准人与核对人不能是同一用户' : undefined"
                     @click="vm.runRootAction('approve')"
                   >
                     批准
                   </v-btn>
-                  <v-btn v-if="vm.document.workflowStatus === 'APPROVED' && vm.can('unapprove')" variant="text" @click="vm.openReverse('unapprove')">反批准</v-btn>
+                  <v-btn v-if="vm.document.workflowStatus === 'APPROVED' && vm.can('unapprove')" :disabled="Boolean(vm.actionLoading)" variant="text" @click="vm.openReverse('unapprove')">反批准</v-btn>
                 </template>
               </div>
             </v-card-title>
@@ -320,6 +323,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
             title="居间采购"
             :items="vm.procurement ? [vm.procurement] : []"
             :can-create="Boolean(vm.document?.workflowStatus === 'APPROVED' && !vm.procurement && vm.can('procurementCreate'))"
+            :can-open="vm.can('procurementGet')"
             :can-action="vm.can"
             :current-user-id="vm.currentUserId"
             @create="vm.openStage('PROCUREMENT')"
@@ -335,6 +339,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
             title="分批收货"
             :items="vm.receipts"
             :can-create="vm.canCreateReceipt && vm.can('receiptCreate')"
+            :can-open="vm.can('receiptGet')"
             :can-action="vm.can"
             :current-user-id="vm.currentUserId"
             @create="vm.openStage('RECEIPT')"
@@ -350,6 +355,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
             title="分批送货"
             :items="vm.deliveries"
             :can-create="vm.canCreateDelivery && vm.can('deliveryCreate')"
+            :can-open="vm.can('deliveryGet')"
             :can-action="vm.can"
             :current-user-id="vm.currentUserId"
             @create="vm.openStage('DELIVERY')"
@@ -366,6 +372,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
             title="客户签收"
             :items="vm.signoffs"
             :can-create="false"
+            :can-open="vm.can('signoffGet')"
             :can-action="vm.can"
             :current-user-id="vm.currentUserId"
             @open="vm.openStage('SIGNOFF', $event)"
@@ -433,6 +440,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
         <v-btn
           v-if="vm.document.workflowStatus === 'APPROVED' && vm.can('shortCloseRequest')"
           color="warning"
+          :disabled="Boolean(vm.actionLoading)"
           prepend-icon="mdi-archive-arrow-down-outline"
           variant="tonal"
           @click="openShortClose"
@@ -441,6 +449,7 @@ function selectFilterCustomer(value: VoucherReference | null): void {
         </v-btn>
         <v-btn
           v-if="vm.document.workflowStatus === 'SHORT_CLOSE_REQUESTED' && vm.can('shortCloseCancel')"
+          :disabled="Boolean(vm.actionLoading)"
           variant="text"
           @click="vm.openReverse('shortCloseCancel')"
         >
@@ -449,12 +458,15 @@ function selectFilterCustomer(value: VoucherReference | null): void {
         <v-btn
           v-if="vm.document.workflowStatus === 'SHORT_CLOSE_REQUESTED' && vm.can('shortCloseConfirm')"
           color="warning"
+          :disabled="Boolean(vm.actionLoading)"
+          :loading="vm.actionLoading === 'shortCloseConfirm'"
           @click="vm.runRootAction('shortCloseConfirm')"
         >
           确认短结
         </v-btn>
         <v-btn
           v-if="vm.document.workflowStatus === 'SHORT_CLOSED' && vm.can('shortCloseUnconfirm')"
+          :disabled="Boolean(vm.actionLoading)"
           variant="text"
           @click="vm.openReverse('shortCloseUnconfirm')"
         >

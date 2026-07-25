@@ -153,8 +153,9 @@ describe('shared BOB entity configuration and view model', () => {
     vi.useRealTimers()
   })
 
-  it('定义除客户外的十一类实体和完整状态筛选', () => {
+  it('定义全部十二类实体和完整状态筛选', () => {
     const entities = [
+      'customer',
       'supplier',
       'employee',
       'product',

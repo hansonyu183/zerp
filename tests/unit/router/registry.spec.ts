@@ -229,6 +229,32 @@ describe('permission menu registry', () => {
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
   })
 
+  it('将独立 WFL 居间贸易注册在 VOU 与 LED 之间', () => {
+    expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(true)
+    expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
+
+    const menus = buildMenus([
+      '/led/opening/get',
+      '/wfl/intermediary-trade/query',
+      '/vou/sale-order/query',
+    ])
+
+    expect(menus.map((item) => item.domain)).toEqual(['vou', 'wfl', 'led'])
+    expect(menus[1]).toMatchObject({
+      domain: 'wfl',
+      title: '业务流程',
+      order: 30,
+      children: [
+        {
+          entity: 'intermediary-trade',
+          title: '居间贸易',
+          order: 10,
+          actions: ['query'],
+        },
+      ],
+    })
+  })
+
   it('注册 LED 五类账簿页面并保持业务顺序', () => {
     const entities = ['opening', 'inventory', 'fund', 'party', 'container']
     const router = createTestRouter()

@@ -2,8 +2,10 @@
 import { computed, reactive } from 'vue'
 import {
   calculateDueDate,
+  toVouAtomicDocument,
   VoucherAttachmentPanel,
   VoucherAuditHistory,
+  VoucherDocumentHeader,
   VoucherExecutionDialog,
   VoucherExpenseLinesEditor,
   VoucherLifecycleActions,
@@ -32,6 +34,20 @@ const vm = reactive(props.model)
 const workspaceTitle = computed(
   () => `${vm.documentView ? '查看' : '新建'}${vm.config.title}`,
 )
+const atomicDocument = computed(() =>
+  vm.documentView ? toVouAtomicDocument(vm.documentView) : null,
+)
+const atomicStatusLabel = computed(() => {
+  const status = atomicDocument.value?.status
+  return status
+    ? {
+        DRAFT: '草稿',
+        REVIEWED: '已审核',
+        APPROVED: '已批准',
+        EXECUTED: '已执行',
+      }[status]
+    : ''
+})
 const partyEnabled = computed(() => vm.config.partyMode !== 'none')
 const partyLabel = computed(() => {
   if (vm.config.partyMode === 'customer') return '客户'
@@ -179,6 +195,15 @@ function changeCounterpartyType(value: string): void {
     <template #document>
       <v-card rounded="lg" variant="flat">
         <v-card-text>
+          <VoucherDocumentHeader
+            v-if="atomicDocument"
+            :document-no="atomicDocument.documentNo"
+            :entity-label="vm.config.title"
+            :revision="atomicDocument.revision"
+            :status="atomicDocument.status"
+            :status-label="atomicStatusLabel"
+          />
+          <v-divider v-if="atomicDocument" class="my-5" />
           <div class="voucher-form__grid">
             <v-text-field
               v-model="vm.form.businessDate"

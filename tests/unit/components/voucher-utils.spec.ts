@@ -6,6 +6,7 @@ import {
   isQuantity,
   parseFixed,
   sumMoney,
+  toVouAtomicDocument,
 } from '@/components/voucher'
 
 describe('VOU decimal and settlement helpers', () => {
@@ -54,5 +55,37 @@ describe('VOU decimal and settlement helpers', () => {
       monthOffset: 1,
       dayOfMonth: 31,
     })).toBe('2026-02-28')
+  })
+
+  it('adapts an existing VOU response to the atomic document contract', () => {
+    const atomic = toVouAtomicDocument({
+      documentId: 'SO-1',
+      entity: 'sale-order',
+      documentNo: 'SO-20260725-000001',
+      status: 'REVIEWED',
+      revision: 3,
+      amount: '25.00',
+      data: {
+        businessDate: '2026-07-25',
+        currency: 'CNY',
+        productLines: [],
+      },
+      attachments: [],
+      createdAt: '2026-07-25T00:00:00Z',
+      createdBy: 'USER-1',
+      updatedAt: '2026-07-25T01:00:00Z',
+      updatedBy: 'USER-2',
+      reviewedAt: '2026-07-25T01:00:00Z',
+      reviewedBy: 'USER-2',
+    })
+
+    expect(atomic).toMatchObject({
+      documentId: 'SO-1',
+      entity: 'sale-order',
+      status: 'REVIEWED',
+      revision: 3,
+      businessDate: '2026-07-25',
+      reviewedBy: 'USER-2',
+    })
   })
 })

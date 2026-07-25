@@ -4,9 +4,12 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test'
-import { loadEnv } from 'vite'
+import {
+  e2eEnv,
+  readWflBootstrapState,
+  wflBootstrapEnabled,
+} from './wfl-runtime'
 
-const localE2EEnv = loadEnv('e2e', process.cwd(), '')
 const requiredVouFixtureNames = [
   'E2E_VOU_CUSTOMER_KEYWORD',
   'E2E_VOU_SUPPLIER_KEYWORD',
@@ -19,37 +22,47 @@ const requiredVouFixtureNames = [
   'E2E_VOU_CURRENCY',
 ] as const
 
-for (const name of requiredVouFixtureNames) {
-  if (process.env[name] === undefined && localE2EEnv[name] !== undefined) {
-    process.env[name] = localE2EEnv[name]
-  }
-}
-
 const missingVouFixtureNames = requiredVouFixtureNames.filter(
-  (name) => !process.env[name],
+  (name) => !e2eEnv(name),
 )
 
-if (missingVouFixtureNames.length > 0) {
+if (!wflBootstrapEnabled() && missingVouFixtureNames.length > 0) {
   throw new Error(
     `VOU Playwright 用例缺少真实测试后端资料：${missingVouFixtureNames.join(', ')}`,
   )
 }
 
 const credentials = {
-  username: process.env.E2E_USERNAME!,
-  password: process.env.E2E_PASSWORD!,
+  username: e2eEnv('E2E_USERNAME'),
+  password: e2eEnv('E2E_PASSWORD'),
 }
 
-const fixture = {
-  customer: process.env.E2E_VOU_CUSTOMER_KEYWORD!,
-  supplier: process.env.E2E_VOU_SUPPLIER_KEYWORD!,
-  employee: process.env.E2E_VOU_EMPLOYEE_KEYWORD!,
-  warehouse: process.env.E2E_VOU_WAREHOUSE_KEYWORD!,
-  product: process.env.E2E_VOU_PRODUCT_KEYWORD!,
-  platform: process.env.E2E_VOU_PLATFORM_KEYWORD!,
-  vehicle: process.env.E2E_VOU_VEHICLE_KEYWORD!,
-  fundAccount: process.env.E2E_VOU_FUND_ACCOUNT_KEYWORD!,
-  currency: process.env.E2E_VOU_CURRENCY!,
+function vouFixture() {
+  if (wflBootstrapEnabled()) {
+    const state = readWflBootstrapState()
+    return {
+      customer: state.fixtures.customer,
+      supplier: state.fixtures.supplier,
+      employee: state.fixtures.employee,
+      warehouse: state.fixtures.warehouse,
+      product: state.fixtures.solventProduct,
+      platform: state.fixtures.platform,
+      vehicle: state.fixtures.vehicle,
+      fundAccount: state.fixtures.fundAccount,
+      currency: 'CNY',
+    }
+  }
+  return {
+    customer: e2eEnv('E2E_VOU_CUSTOMER_KEYWORD'),
+    supplier: e2eEnv('E2E_VOU_SUPPLIER_KEYWORD'),
+    employee: e2eEnv('E2E_VOU_EMPLOYEE_KEYWORD'),
+    warehouse: e2eEnv('E2E_VOU_WAREHOUSE_KEYWORD'),
+    product: e2eEnv('E2E_VOU_PRODUCT_KEYWORD'),
+    platform: e2eEnv('E2E_VOU_PLATFORM_KEYWORD'),
+    vehicle: e2eEnv('E2E_VOU_VEHICLE_KEYWORD'),
+    fundAccount: e2eEnv('E2E_VOU_FUND_ACCOUNT_KEYWORD'),
+    currency: e2eEnv('E2E_VOU_CURRENCY'),
+  }
 }
 
 async function signIn(page: Page): Promise<void> {
@@ -103,6 +116,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   isMobile,
 }) => {
   test.setTimeout(180_000)
+  const fixture = vouFixture()
   await signIn(page)
   await page.goto('/vou/receipt')
   await page.getByRole('button', { name: '新建单据' }).click()
@@ -155,6 +169,7 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   isMobile,
 }) => {
   test.setTimeout(180_000)
+  const fixture = vouFixture()
   await signIn(page)
   await page.goto('/vou/sale-order')
   await page.getByRole('button', { name: '新建单据' }).click()

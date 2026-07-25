@@ -138,6 +138,7 @@ export interface BobEntityConfig {
   detailKeys: readonly string[]
   requiredKeys: readonly string[]
   uppercaseKeys?: readonly string[]
+  persistedKeys?: readonly string[]
   fields: (
     context: BobFieldContext,
   ) => readonly BusinessObjectField<BobForm>[]

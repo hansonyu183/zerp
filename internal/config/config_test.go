@@ -83,6 +83,18 @@ func TestLoadRequiresFeedbackTokenWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestLoadRequiresFeedbackPublishingInProduction(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("APP_ENV", EnvironmentProduction)
+	t.Setenv("ATTACHMENT_STORAGE_ROOT", "/var/lib/zerp/attachments")
+	t.Setenv("FEEDBACK_GITHUB_ENABLED", "false")
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() accepted disabled feedback publishing in production")
+	}
+}
+
 func TestLoadRequiresDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 

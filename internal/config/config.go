@@ -122,6 +122,9 @@ func Load() (Config, error) {
 	if cfg.FeedbackGitHubEnabled, err = boolOrDefault("FEEDBACK_GITHUB_ENABLED", false); err != nil {
 		return Config{}, err
 	}
+	if cfg.Environment == EnvironmentProduction && !cfg.FeedbackGitHubEnabled {
+		return Config{}, errors.New("FEEDBACK_GITHUB_ENABLED must be true in production")
+	}
 	if !validGitHubRepository(cfg.FeedbackGitHubRepository) {
 		return Config{}, errors.New("FEEDBACK_GITHUB_REPOSITORY must use owner/repository format")
 	}

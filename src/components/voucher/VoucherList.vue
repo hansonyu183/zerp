@@ -100,106 +100,113 @@ function changeStatuses(value: unknown): void {
 
 <template>
   <section class="voucher-list">
-    <v-card class="voucher-list__filters mb-4" rounded="lg" variant="flat">
-      <v-card-text>
-        <div class="voucher-list__filter-grid">
-          <v-text-field
-            clearable
-            hide-details
-            label="单号或往来方关键字"
-            :model-value="keyword"
-            prepend-inner-icon="mdi-magnify"
-            variant="outlined"
-            @keyup.enter="emit('query')"
-            @update:model-value="emit('update:keyword', $event ?? '')"
-          />
-          <v-select
-            chips
-            clearable
-            hide-details
-            item-title="title"
-            item-value="value"
-            :items="statusOptions"
-            label="状态"
-            :model-value="statuses"
-            multiple
-            variant="outlined"
-            @update:model-value="changeStatuses"
-          />
-          <v-text-field
-            hide-details
-            label="业务日期起"
-            :model-value="dateFrom"
-            type="date"
-            variant="outlined"
-            @update:model-value="emit('update:dateFrom', $event ?? '')"
-          />
-          <v-text-field
-            hide-details
-            label="业务日期止"
-            :model-value="dateTo"
-            type="date"
-            variant="outlined"
-            @update:model-value="emit('update:dateTo', $event ?? '')"
-          />
-          <VoucherReferenceAutocomplete
-            v-if="partyEnabled"
-            :error-message="partyError"
-            :label="partyLabel"
-            :loading="partyLoading"
-            :model-value="party"
-            :options="partyOptions"
-            @search="emit('party-search', $event)"
-            @update:model-value="emit('update:party', $event)"
-          />
-          <v-select
-            hide-details
-            item-title="title"
-            item-value="value"
-            :items="sortOptions"
-            label="排序字段"
-            :model-value="sort.field"
-            variant="outlined"
-            @update:model-value="changeSort($event)"
-          />
-          <v-btn-toggle
-            color="primary"
-            mandatory
-            :model-value="sort.order"
-            variant="outlined"
-            @update:model-value="emit('update:sort', { ...sort, order: $event })"
-          >
-            <v-btn value="desc">降序</v-btn>
-            <v-btn value="asc">升序</v-btn>
-          </v-btn-toggle>
-        </div>
-        <div class="voucher-list__filter-actions">
-          <v-btn :disabled="!queryable" variant="text" @click="emit('reset')">重置</v-btn>
-          <v-btn
-            color="primary"
-            :disabled="!queryable"
-            :loading="loading"
-            prepend-icon="mdi-magnify"
-            @click="emit('query')"
-          >
-            查询
-          </v-btn>
-          <v-btn
-            v-if="creatable"
-            color="primary"
-            :disabled="loading"
-            prepend-icon="mdi-plus"
-            variant="tonal"
-            @click="emit('create')"
-          >
-            新建单据
-          </v-btn>
-        </div>
-      </v-card-text>
-    </v-card>
+    <v-expansion-panels class="mb-4" variant="accordion">
+      <v-expansion-panel>
+        <v-expansion-panel-title>筛选条件</v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <div class="voucher-list__filter-grid">
+            <v-text-field
+              clearable
+              hide-details
+              label="单号或往来方关键字"
+              :model-value="keyword"
+              prepend-inner-icon="mdi-magnify"
+              variant="outlined"
+              @keyup.enter="emit('query')"
+              @update:model-value="emit('update:keyword', $event ?? '')"
+            />
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="statusOptions"
+              label="状态"
+              :model-value="statuses"
+              multiple
+              variant="outlined"
+              @update:model-value="changeStatuses"
+            />
+            <v-text-field
+              hide-details
+              label="业务日期起"
+              :model-value="dateFrom"
+              type="date"
+              variant="outlined"
+              @update:model-value="emit('update:dateFrom', $event ?? '')"
+            />
+            <v-text-field
+              hide-details
+              label="业务日期止"
+              :model-value="dateTo"
+              type="date"
+              variant="outlined"
+              @update:model-value="emit('update:dateTo', $event ?? '')"
+            />
+            <VoucherReferenceAutocomplete
+              v-if="partyEnabled"
+              :error-message="partyError"
+              :label="partyLabel"
+              :loading="partyLoading"
+              :model-value="party"
+              :options="partyOptions"
+              @search="emit('party-search', $event)"
+              @update:model-value="emit('update:party', $event)"
+            />
+            <v-select
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="sortOptions"
+              label="排序字段"
+              :model-value="sort.field"
+              variant="outlined"
+              @update:model-value="changeSort($event)"
+            />
+            <v-btn-toggle
+              color="primary"
+              mandatory
+              :model-value="sort.order"
+              variant="outlined"
+              @update:model-value="emit('update:sort', { ...sort, order: $event })"
+            >
+              <v-btn value="desc">降序</v-btn>
+              <v-btn value="asc">升序</v-btn>
+            </v-btn-toggle>
+          </div>
+          <div class="voucher-list__filter-actions">
+            <v-btn :disabled="!queryable" variant="text" @click="emit('reset')">重置</v-btn>
+            <v-btn
+              color="primary"
+              :disabled="!queryable"
+              :loading="loading"
+              prepend-icon="mdi-magnify"
+              @click="emit('query')"
+            >
+              查询
+            </v-btn>
+          </div>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
+      <v-card-title class="voucher-list__toolbar">
+        <span>单据列表</span>
+        <v-spacer />
+        <v-btn
+          v-if="creatable"
+          color="primary"
+          :disabled="loading"
+          prepend-icon="mdi-plus"
+          variant="tonal"
+          @click="emit('create')"
+        >
+          新建单据
+        </v-btn>
+      </v-card-title>
       <div class="voucher-list__table-wrap">
         <v-table class="voucher-list__table">
           <thead>
@@ -266,7 +273,6 @@ function changeStatuses(value: unknown): void {
 </template>
 
 <style scoped>
-.voucher-list__filters { border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
 .voucher-list__filter-grid {
   display: grid;
   grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(160px, 1fr));
@@ -278,6 +284,11 @@ function changeStatuses(value: unknown): void {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+.voucher-list__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .voucher-list__table-wrap { overflow-x: auto; }
 .voucher-list__table { min-width: 980px; }

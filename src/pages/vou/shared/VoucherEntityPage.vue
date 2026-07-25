@@ -16,7 +16,17 @@ import {
 } from '@/components/voucher'
 import type { VoucherEntityViewModel } from './vm'
 
-const props = defineProps<{ model: VoucherEntityViewModel }>()
+const props = withDefaults(
+  defineProps<{
+    model: VoucherEntityViewModel
+    autoQuery?: boolean
+    showList?: boolean
+  }>(),
+  {
+    autoQuery: true,
+    showList: true,
+  },
+)
 const vm = reactive(props.model)
 
 const workspaceTitle = computed(
@@ -29,7 +39,9 @@ const partyLabel = computed(() => {
   return '往来方'
 })
 
-void vm.query()
+if (props.autoQuery) {
+  void vm.query()
+}
 
 function updateReference(
   key: keyof VoucherDraftForm,
@@ -60,7 +72,7 @@ function changeCounterpartyType(value: string): void {
 </script>
 
 <template>
-  <v-container fluid class="voucher-page pa-4 pa-md-7">
+  <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
     <div class="voucher-page__heading">
       <div>
         <div class="voucher-page__eyebrow">VOU · 业务单据</div>

@@ -63,6 +63,13 @@ const emailPattern = /^[^@\s]+@[^@\s]+$/
 const taxNumberPattern = /^[A-Za-z0-9-]+$/
 const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/
 const decimalPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/
+const quantityPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/
+
+const containerTypeOptions: readonly BusinessObjectFieldOption[] = [
+  { title: '无桶包装', value: 'NONE' },
+  { title: '溶剂桶', value: 'SOLVENT' },
+  { title: '树脂桶', value: 'RESIN' },
+]
 
 function lengthOf(value: unknown): number {
   return typeof value === 'string' ? Array.from(value).length : 0
@@ -476,12 +483,17 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
       specification: '',
       model: '',
       barcode: '',
+      containerType: 'NONE',
+      quantityPerContainer: '',
       remark: '',
     }),
     detailKeys: [
-      'name', 'unit', 'categoryId', 'specification', 'model', 'barcode', 'remark',
+      'name', 'unit', 'categoryId', 'specification', 'model', 'barcode',
+      'containerType', 'quantityPerContainer',
+      'remark',
     ],
     requiredKeys: ['code', 'name', 'unit'],
+    persistedKeys: ['containerType', 'quantityPerContainer'],
     uppercaseKeys: ['code', 'barcode'],
     references: {
       categoryId: {
@@ -497,6 +509,36 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
       text('specification', '规格', 200),
       text('model', '型号', 200),
       text('barcode', '条码', 64),
+      {
+        key: 'containerType',
+        label: '包装类型',
+        type: 'select',
+        required: true,
+        options: containerTypeOptions,
+        onChange: (value: unknown) =>
+          value === 'NONE' ? { quantityPerContainer: '' } : undefined,
+      } satisfies BusinessObjectField<BobForm>,
+      {
+        key: 'quantityPerContainer',
+        label: '每桶产品量',
+        type: 'text',
+        required: true,
+        visible: (record: Readonly<BobForm>) =>
+          record.containerType === 'SOLVENT' ||
+          record.containerType === 'RESIN',
+        rules: [
+          patternRule(
+            quantityPattern,
+            '每桶产品量必须为大于零且最多六位小数的数量。',
+          ),
+          (value: unknown, record: Readonly<BobForm>) =>
+            record.containerType === 'NONE' ||
+            (typeof value === 'string' &&
+              quantityPattern.test(value.trim()) &&
+              Number(value) > 0) ||
+            '每桶产品量必须大于零。',
+        ],
+      } satisfies BusinessObjectField<BobForm>,
       textarea('remark', '备注'),
     ],
     columns: baseColumns('产品编码', '产品名称', [

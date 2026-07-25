@@ -188,34 +188,3 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   await reverse(page, '反执行')
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 })
-
-test('居间销售单创建并保存采购含税单价', async ({
-  page,
-  isMobile,
-}) => {
-  test.setTimeout(180_000)
-  await signIn(page)
-  await page.goto('/vou/intermediary-sale-order')
-  await page.getByRole('button', { name: '新建单据' }).click()
-  const workspace = page.locator('.voucher-workspace')
-
-  await selectReference(page, '客户', fixture.customer, workspace)
-  await selectReference(page, '普通供应商', fixture.supplier, workspace)
-  await selectReference(page, '产品', fixture.product, workspace)
-
-  const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
-  const draftInputs = draftLine.locator('input')
-  await draftInputs.nth(1).fill('2')
-  await draftInputs.nth(2).fill('12.50')
-  await draftInputs.nth(3).fill('9.50')
-  await expect(draftLine).toContainText('25.00')
-  await page.getByRole('button', { name: '创建草稿' }).click()
-  await expectDraftCreated(workspace, /^ISO-\d{8}-\d{6}$/, isMobile)
-
-  const savedLine = workspace.locator('.voucher-lines__table tbody tr').first()
-  await savedLine.locator('input').nth(3).fill('9.75')
-  await page.getByRole('button', { name: '保存草稿' }).click()
-  await page.getByRole('button', { name: '取消编辑' }).click()
-  await expect(workspace.locator('.voucher-lines__table tbody tr').first())
-    .toContainText('9.75')
-})

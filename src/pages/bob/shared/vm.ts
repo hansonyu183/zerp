@@ -581,15 +581,20 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     saving.value = true
     editorErrorMessage.value = null
     try {
+      let mutation: BobMutationResult
       if (editorMode.value === 'create') {
-        await apiClient.post<BobMutationResult, { data: Record<string, unknown> }>(
+        const result = await apiClient.post<
+          BobMutationResult,
+          { data: Record<string, unknown> }
+        >(
           `bob/${config.entity}/create`,
           { data: createData(form) },
         )
+        mutation = result.data
       } else {
         const context = editContext.value
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
-        await apiClient.post<
+        const result = await apiClient.post<
           BobMutationResult,
           VersionRevisionRequest & { data: Record<string, unknown> }
         >(`bob/${config.entity}/save`, {
@@ -598,6 +603,23 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           revision: context.revision,
           data: saveData(form),
         })
+        mutation = result.data
+      }
+      if ((config.persistedKeys?.length ?? 0) > 0) {
+        const persisted = await getObject(
+          { objectId: mutation.objectId },
+          mutation.versionId,
+        )
+        const normalized = normalizeForm(form)
+        const missing = config.persistedKeys?.find(
+          (key) => (persisted.data[key] ?? '') !== (normalized[key] ?? ''),
+        )
+        if (missing) {
+          const label = editorFields.value.find(
+            (field) => field.key === missing,
+          )?.label ?? missing
+          throw new Error(`后端尚未保存${label}，请确认 V2 契约已经部署。`)
+        }
       }
       drawerOpen.value = false
       editContext.value = null

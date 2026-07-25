@@ -165,6 +165,7 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await orderRows.nth(1).locator('input').nth(1).fill('440')
     await orderRows.nth(1).locator('input').nth(2).fill('20.00')
     await workspace.getByRole('button', { name: '创建草稿' }).click()
+    await waitWorkspaceIdle(workspace)
     const documentTitle = workspace.locator('.v-toolbar-title')
     await expect(documentTitle).toHaveText(/^CO-\d{8}-\d{6}$/)
     const documentNo = (await documentTitle.innerText()).trim()

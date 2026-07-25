@@ -148,7 +148,13 @@ function updateSaleLine(index: number, key: string, value: string): void {
 }
 
 function submit(): void {
-  emit('submit', structuredClone(form.value))
+  emit('submit', {
+    ...form.value,
+    platform: form.value.platform ? { ...form.value.platform } : null,
+    vehicle: form.value.vehicle ? { ...form.value.vehicle } : null,
+    saleLines: form.value.saleLines.map((line) => ({ ...line })),
+    purchaseLines: form.value.purchaseLines.map((line) => ({ ...line })),
+  })
 }
 </script>
 

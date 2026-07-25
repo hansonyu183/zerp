@@ -9,6 +9,7 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 - [APP（应用访问与权限管理）](./docs/domains/app.md)
 - [BOB（基础业务对象）](./docs/domains/bob.md)
 - [VOU（业务单据）](./docs/domains/vou.md)
+- [WFL（业务流程）](./docs/domains/wfl.md)
 
 ## 技术栈
 
@@ -172,7 +173,7 @@ VITE_API_BASE_URL=https://api.example.com/
 
 | 层级 | 含义 | 示例 |
 | --- | --- | --- |
-| `domain` | 业务领域，对应一级动态菜单 | `app`、`vou` |
+| `domain` | 业务领域，对应一级动态菜单 | `app`、`vou`、`wfl` |
 | `entity` | 业务实体，对应二级菜单及页面 | `user`、`sale-order` |
 | `action` | 对实体执行的操作 | `signin`、`query`、`save`、`delete` |
 
@@ -184,6 +185,7 @@ POST /app/user/session
 POST /app/feedback/create
 POST /vou/sale-order/query
 POST /vou/sale-order/save
+POST /wfl/intermediary-trade/get
 ```
 
 登录后的顶栏提供全局反馈入口。反馈表单通过 `app/feedback/*` 契约提交分类、标题、

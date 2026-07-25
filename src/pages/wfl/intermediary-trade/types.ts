@@ -1,9 +1,16 @@
 import type {
   VoucherAttachment,
-  VoucherListItem,
   VoucherReference,
   VoucherReferenceView,
 } from '@/components/voucher'
+import type {
+  WflAuditEvent,
+  WflDocumentSummary,
+  WflPage,
+  WflProcessListRow,
+  WflProcessStatus,
+  WflStage,
+} from '@/components/wfl'
 
 export type IntermediaryWorkflowStatus =
   | 'DRAFT'
@@ -119,6 +126,16 @@ export interface IntermediaryChildSummary {
   checkedBy?: string
   finalAt?: string
   finalBy?: string
+  entity?:
+    | 'procurement-order'
+    | 'goods-receipt'
+    | 'delivery-note'
+    | 'signoff-note'
+  parentDocumentId?: string
+  businessDate?: string
+  currency: string
+  amount?: string
+  attachments?: VoucherAttachment[]
 }
 
 export interface IntermediarySettlementSnapshot {
@@ -134,11 +151,13 @@ export interface IntermediarySettlementSnapshot {
 }
 
 export interface IntermediaryWorkflowDocument {
-  workflowVersion: 2
+  processId: string
+  rootDocumentId: string
   documentId: string
   documentNo: string
   workflowStatus: IntermediaryWorkflowStatus
   rootRevision: number
+  documentRevision: number
   businessDate: string
   currency: string
   amount: string
@@ -161,14 +180,11 @@ export interface IntermediaryWorkflowDocument {
   updatedAt: string
 }
 
-export interface IntermediaryListItem
-  extends Omit<VoucherListItem, 'status'> {
-  status: string
-  workflowVersion?: 1 | 2
-  workflowStatus?: string
-}
+export interface IntermediaryListItem extends WflProcessListRow {}
 
 export interface IntermediaryStageMutationRequest<T = never> {
+  processId?: string
+  processRevision?: number
   documentId: string
   rootRevision: number
   childId?: string
@@ -316,24 +332,15 @@ export interface IntermediaryChildDetail {
   attachments: VoucherAttachment[]
 }
 
-export interface IntermediaryAuditEvent {
-  id: string
-  eventType: string
-  fromStatus?: string
-  toStatus: string
-  actorId: string
-  occurredAt: string
-  reason?: string
-  requestId: string
-  summary?: unknown
-  workflowVersion?: number
-  stage?: IntermediaryStage
+export interface IntermediaryAuditEvent extends WflAuditEvent {
   childId?: string
   childNo?: string
   childStatus?: string
 }
 
 export interface IntermediaryWireDocument {
+  processId: string
+  rootDocumentId: string
   documentId: string
   documentNo: string
   status: string
@@ -355,7 +362,6 @@ export interface IntermediaryWireDocument {
   updatedAt: string
   approvedAt?: string
   approvedBy?: string
-  workflowVersion: number
   workflowStatus?: string
   rootRevision?: number
   balances?: IntermediaryBalances
@@ -363,4 +369,103 @@ export interface IntermediaryWireDocument {
   checkedAt?: string
   checkedBy?: string
   completedAt?: string
+}
+
+export interface IntermediaryReferenceWire extends VoucherReferenceView {
+  ruleType?: 'RELATIVE_DAYS' | 'MONTH_END' | 'FIXED_DAY'
+  monthOffset?: number
+  dayOfMonth?: number
+  dayOffset?: number
+}
+
+export interface IntermediaryCustomerLineWire {
+  lineId: string
+  lineNo: number
+  product: VoucherReferenceView
+  orderedQuantity: string
+  unitPrice: string
+  lineAmount: string
+  containerType: IntermediaryContainerType
+  quantityPerContainer?: string
+  remark?: string
+}
+
+export interface IntermediaryStageLineWire {
+  lineId: string
+  sourceLineId: string
+  quantity?: string
+  unitPrice?: string
+  lineAmount?: string
+  signedQuantity?: string
+  rejectedQuantity?: string
+  lossQuantity?: string
+  remark?: string
+}
+
+export interface IntermediaryDocumentWire
+  extends Omit<WflDocumentSummary<Record<string, unknown>, IntermediaryStageLineWire>, 'lines' | 'stage'> {
+  stage: WflStage
+  data?: {
+    remark?: string
+    customer?: VoucherReferenceView
+    salesperson?: VoucherReferenceView
+    supplier?: VoucherReferenceView
+    purchaser?: VoucherReferenceView
+    platform?: VoucherReferenceView
+    vehicle?: VoucherReferenceView
+    contactName?: string
+    contactPhone?: string
+    deliveryAddress?: string
+    settlementMethod?: IntermediarySettlementSnapshot
+    returnedSolventContainers?: number
+    returnedResinContainers?: number
+    expectedSolventContainers?: number
+    expectedResinContainers?: number
+    containerDifferenceReason?: string
+  }
+  lines?: IntermediaryCustomerLineWire[] | IntermediaryStageLineWire[]
+}
+
+export interface IntermediaryLineBalanceWire {
+  customerLineId: string
+  orderedQuantity: string
+  procurementQuantity?: string
+  receivedQuantity: string
+  deliveredQuantity: string
+  signedQuantity: string
+  rejectedQuantity: string
+  lossQuantity: string
+  availableToDeliverQuantity: string
+  remainingToSignQuantity: string
+}
+
+export interface IntermediaryBalancesWire {
+  lines: IntermediaryLineBalanceWire[]
+  solventContainers: number
+  resinContainers: number
+  hasUnfinishedDocuments: boolean
+}
+
+export interface IntermediaryProcessWire {
+  processId: string
+  processType: 'INTERMEDIARY_TRADE'
+  definitionVersion: 1
+  status: WflProcessStatus
+  revision: number
+  rootDocumentId: string
+  rootDocumentNo: string
+  currentStage: WflStage | ''
+  documents: IntermediaryDocumentWire[]
+  balances: IntermediaryBalancesWire
+  createdAt: string
+  createdBy: string
+  updatedAt: string
+  updatedBy: string
+}
+
+export type IntermediaryProcessPage = WflPage<IntermediaryProcessWire>
+export type IntermediaryAuditWire = WflAuditEvent
+
+export interface IntermediaryProcessRow extends WflProcessListRow {
+  rootDocumentId: string
 }

@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
+import {
+  e2eEnv,
+  reviewerCredentials,
+  type E2ECredentials,
+} from './wfl-runtime'
 
-const submitter = {
-  username: process.env.E2E_USERNAME!,
-  password: process.env.E2E_PASSWORD!,
-}
-const reviewer = {
-  username: process.env.E2E_REVIEWER_USERNAME!,
-  password: process.env.E2E_REVIEWER_PASSWORD!,
+const submitter: E2ECredentials = {
+  username: e2eEnv('E2E_USERNAME'),
+  password: e2eEnv('E2E_PASSWORD'),
 }
 
 async function signIn(
@@ -53,6 +54,7 @@ function customerRow(page: Page, code: string) {
 
 test('使用双账号完成客户驳回、重提、通过和历史核验', async ({ page }) => {
   test.setTimeout(120_000)
+  const reviewer = reviewerCredentials()
   const code = `E2E-CUS-${Date.now().toString(36).toUpperCase()}`
 
   await signIn(page, submitter)

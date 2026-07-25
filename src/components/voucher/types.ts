@@ -122,6 +122,44 @@ export interface VoucherAttachment {
   createdBy: string
 }
 
+export type WflManagedVoucherEntity =
+  | 'customer-order'
+  | 'procurement-order'
+  | 'goods-receipt'
+  | 'delivery-note'
+  | 'signoff-note'
+
+export type VouAtomicEntity = VoucherEntity | WflManagedVoucherEntity
+
+export interface VouAtomicDocument<
+  TData = unknown,
+  TLine = unknown,
+  TStatus extends string = string,
+> {
+  documentId: string
+  documentNo: string
+  entity: VouAtomicEntity
+  status: TStatus
+  revision: number
+  parentDocumentId?: string
+  businessDate: string
+  currency: string
+  amount: string
+  data?: TData
+  lines?: TLine[]
+  attachments: VoucherAttachment[]
+  createdAt: string
+  createdBy: string
+  updatedAt?: string
+  updatedBy?: string
+  reviewedAt?: string
+  reviewedBy?: string
+  approvedAt?: string
+  approvedBy?: string
+  executedAt?: string
+  executedBy?: string
+}
+
 export interface VoucherDocumentData {
   businessDate: string
   currency: string

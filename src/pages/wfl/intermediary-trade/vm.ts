@@ -6,11 +6,15 @@ import {
   ref,
 } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import {
+  ApiError,
+  getErrorMessage,
+  type PageRequest,
+  type PageResult,
+} from '@/api/types'
 import { isMoney, isQuantity, parseFixed } from '@/components/voucher/decimal'
 import type {
   VoucherAttachment,
-  VoucherListItem,
   VoucherReference,
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
@@ -20,7 +24,7 @@ import {
   calculateLoss,
 } from './calculations'
 import {
-  intermediaryActionPaths,
+  intermediaryActionPath,
   intermediaryWorkflowApi,
   type IntermediaryAction,
   type IntermediaryChildPrefix,
@@ -112,19 +116,18 @@ function childPrefix(stage: IntermediaryChildStage): IntermediaryChildPrefix {
 }
 
 function toDocument(value: IntermediaryWireDocument): IntermediaryWorkflowDocument {
-  if (
-    value.workflowVersion !== 2 ||
-    !value.data.customer ||
-    !value.data.salesperson
-  ) {
-    throw new Error('该单据不是可读取的居间订单 V2。')
+  if (!value.data.customer || !value.data.salesperson) {
+    throw new Error('流程根单缺少客户或业务员快照。')
   }
   return {
-    workflowVersion: 2,
+    processId: value.processId,
+    rootDocumentId: value.rootDocumentId,
     documentId: value.documentId,
     documentNo: value.documentNo,
-    workflowStatus: value.status as IntermediaryWorkflowDocument['workflowStatus'],
+    workflowStatus:
+      value.workflowStatus as IntermediaryWorkflowDocument['workflowStatus'],
     rootRevision: value.rootRevision || value.revision,
+    documentRevision: value.revision,
     businessDate: value.data.businessDate,
     currency: value.data.currency,
     amount: value.amount,
@@ -203,6 +206,13 @@ function remaining(totalValue: string, usedValue: string): string {
   return formatQuantity(total - used)
 }
 
+function workflowErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error)
+  return error instanceof ApiError && error.code === 3001
+    ? `${message} 请重新加载流程后重试。`
+    : message
+}
+
 export function useIntermediaryWorkflowViewModel() {
   const session = useSessionStore()
   const loading = ref(false)
@@ -213,8 +223,7 @@ export function useIntermediaryWorkflowViewModel() {
   const pageSize = ref(20)
   const filters = reactive({
     keyword: '',
-    dateFrom: '',
-    dateTo: '',
+    statuses: [] as string[],
   })
   const selectedParty = ref<VoucherReference | null>(null)
   const queryController = ref<AbortController | null>(null)
@@ -245,8 +254,6 @@ export function useIntermediaryWorkflowViewModel() {
   const shortCloseDialogOpen = ref(false)
   const shortCloseReason = ref('')
 
-  const rootAttachmentLoading = ref(false)
-  const rootAttachmentError = ref<string | null>(null)
   const childAttachmentLoading = ref(false)
   const childAttachmentError = ref<string | null>(null)
 
@@ -285,7 +292,17 @@ export function useIntermediaryWorkflowViewModel() {
     containerBalance(document.value?.balances),
   )
   const stageEditable = computed(
-    () => !stageChild.value || stageChild.value.status === 'DRAFT',
+    () =>
+      !stageChild.value ||
+      stageChild.value.status === 'DRAFT',
+  )
+  const workspaceDirty = computed(
+    () =>
+      orderDirty.value ||
+      (
+        stageDialogOpen.value &&
+        JSON.stringify(stageDraft.value) !== stageSnapshot.value
+      ),
   )
   const expectedContainers = computed(() => {
     if (stageEditing.value !== 'DELIVERY' || !stageDraft.value || !document.value) {
@@ -332,7 +349,7 @@ export function useIntermediaryWorkflowViewModel() {
   })
   const canCreateReceipt = computed(() => {
     if (document.value?.workflowStatus !== 'APPROVED') return false
-    if (!can('procurementGet')) return true
+    if (!can('procurement-get')) return false
     if (procurement.value?.status !== 'ORDERED') return false
     return document.value.balances.lines.some((line) => {
       const ordered = parseFixed(line.procurementQuantity ?? '', 6, true)
@@ -361,25 +378,17 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   function can(action: IntermediaryAction): boolean {
-    return session.can(`/${intermediaryActionPaths[action]}`)
+    return session.can(`/${intermediaryActionPath(action)}`)
   }
 
   function canFinalize(action: IntermediaryAction, checkedBy?: string): boolean {
     return can(action) && Boolean(checkedBy) && checkedBy !== currentUserId.value
   }
 
-  function isLegacy(row: IntermediaryListItem): boolean {
-    return row.workflowVersion !== 2
-  }
-
   function queryFilters(): Record<string, unknown> {
     return {
       ...(filters.keyword.trim() ? { keyword: filters.keyword.trim() } : {}),
-      ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
-      ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
-      ...(selectedParty.value
-        ? { partyObjectId: selectedParty.value.objectId }
-        : {}),
+      ...(filters.statuses.length ? { statuses: filters.statuses } : {}),
     }
   }
 
@@ -398,7 +407,6 @@ export function useIntermediaryWorkflowViewModel() {
         page: page.value,
         pageSize: pageSize.value,
         filters: queryFilters(),
-        sort: [{ field: 'updatedAt', order: 'desc' }],
       }
       const { data } = await intermediaryWorkflowApi.query(
         request,
@@ -430,8 +438,7 @@ export function useIntermediaryWorkflowViewModel() {
 
   async function resetFilters(): Promise<void> {
     filters.keyword = ''
-    filters.dateFrom = ''
-    filters.dateTo = ''
+    filters.statuses = []
     selectedParty.value = null
     await search()
   }
@@ -461,13 +468,13 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   async function openDocument(row: IntermediaryListItem): Promise<void> {
-    if (isLegacy(row) || !can('get')) return
+    if (!can('get')) return
     workspaceOpen.value = true
-    await loadDocument(row.documentId)
+    await loadDocument(row.processId)
   }
 
-  async function loadDocument(documentId?: string): Promise<void> {
-    const target = documentId ?? document.value?.documentId
+  async function loadDocument(processId?: string): Promise<void> {
+    const target = processId ?? document.value?.processId
     if (!target || workspaceLoading.value) return
     workspaceLoading.value = true
     workspaceError.value = null
@@ -478,7 +485,7 @@ export function useIntermediaryWorkflowViewModel() {
       orderEditing.value = false
       orderDirty.value = false
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
     } finally {
       workspaceLoading.value = false
     }
@@ -526,8 +533,10 @@ export function useIntermediaryWorkflowViewModel() {
     try {
       const result = document.value
         ? await intermediaryWorkflowApi.save({
+            processId: document.value.processId,
+            processRevision: document.value.rootRevision,
             documentId: document.value.documentId,
-            rootRevision: document.value.rootRevision,
+            documentRevision: document.value.documentRevision,
             data: clone(orderDraft.value),
           })
         : await intermediaryWorkflowApi.create(clone(orderDraft.value))
@@ -535,7 +544,7 @@ export function useIntermediaryWorkflowViewModel() {
       await query()
       return true
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
@@ -564,14 +573,18 @@ export function useIntermediaryWorkflowViewModel() {
     workspaceError.value = null
     try {
       await intermediaryWorkflowApi.mutate(action, {
-        documentId: document.value.documentId,
+        processId: document.value.processId,
+        processRevision: document.value.rootRevision,
+        documentId: document.value.processId,
         rootRevision: document.value.rootRevision,
+        childId: document.value.rootDocumentId,
+        childRevision: document.value.documentRevision,
       })
       await loadDocument()
       await query()
       return true
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
@@ -586,8 +599,8 @@ export function useIntermediaryWorkflowViewModel() {
     const { data } = await intermediaryWorkflowApi.getChild(
       childPrefix(stage),
       {
-        documentId: document.value.documentId,
-        ...(child ? { childId: child.childId } : {}),
+        processId: document.value.processId,
+        documentId: child?.childId ?? '',
       },
     )
     return data
@@ -690,10 +703,10 @@ export function useIntermediaryWorkflowViewModel() {
   ): Promise<void> {
     if (!document.value) return
     const prefix = childPrefix(stage)
-    if (child && !can(`${prefix}Get` as IntermediaryAction)) return
+    if (child && !can(`${prefix}-get` as IntermediaryAction)) return
     if (
       sourceDelivery &&
-      (!can('signoffCreate') || !can('deliveryGet'))
+      (!can('signoff-create') || !can('delivery-get'))
     ) {
       return
     }
@@ -721,7 +734,7 @@ export function useIntermediaryWorkflowViewModel() {
               item.stage === 'DELIVERY' &&
               item.childId === signoffData.deliveryChildId,
           )
-          if (source && can('deliveryGet')) {
+          if (source && can('delivery-get')) {
             sourceDeliveryDetail.value = await getChild('DELIVERY', source)
           }
         }
@@ -960,7 +973,9 @@ export function useIntermediaryWorkflowViewModel() {
     stageDialogError.value = null
     const child = stageChild.value
     const common = {
-      documentId: document.value.documentId,
+      processId: document.value.processId,
+      processRevision: document.value.rootRevision,
+      documentId: document.value.processId,
       rootRevision: document.value.rootRevision,
       ...(child
         ? { childId: child.childId, childRevision: child.revision }
@@ -970,7 +985,7 @@ export function useIntermediaryWorkflowViewModel() {
       let result
       if (stageEditing.value === 'PROCUREMENT') {
         result = await intermediaryWorkflowApi.saveProcurement(
-          child ? 'procurementSave' : 'procurementCreate',
+          child ? 'procurement-save' : 'procurement-create',
           {
             ...common,
             data: clone(stageDraft.value as IntermediaryProcurementDraft),
@@ -978,7 +993,7 @@ export function useIntermediaryWorkflowViewModel() {
         )
       } else if (stageEditing.value === 'RECEIPT') {
         result = await intermediaryWorkflowApi.saveReceipt(
-          child ? 'receiptSave' : 'receiptCreate',
+          child ? 'receipt-save' : 'receipt-create',
           {
             ...common,
             data: clone(stageDraft.value as IntermediaryReceiptDraft),
@@ -986,7 +1001,7 @@ export function useIntermediaryWorkflowViewModel() {
         )
       } else if (stageEditing.value === 'DELIVERY') {
         result = await intermediaryWorkflowApi.saveDelivery(
-          child ? 'deliverySave' : 'deliveryCreate',
+          child ? 'delivery-save' : 'delivery-create',
           {
             ...common,
             data: clone(stageDraft.value as IntermediaryDeliveryDraft),
@@ -994,7 +1009,7 @@ export function useIntermediaryWorkflowViewModel() {
         )
       } else {
         result = await intermediaryWorkflowApi.saveSignoff(
-          child ? 'signoffSave' : 'signoffCreate',
+          child ? 'signoff-save' : 'signoff-create',
           {
             ...common,
             data: clone(stageDraft.value as IntermediarySignoffDraft),
@@ -1008,7 +1023,7 @@ export function useIntermediaryWorkflowViewModel() {
         (item) => item.childId === childID,
       )
       const getAction =
-        `${childPrefix(stageEditing.value)}Get` as IntermediaryAction
+        `${childPrefix(stageEditing.value)}-get` as IntermediaryAction
       if (nextChild && can(getAction)) {
         await openStage(stageEditing.value, nextChild)
       } else {
@@ -1016,7 +1031,7 @@ export function useIntermediaryWorkflowViewModel() {
       }
       return true
     } catch (error) {
-      stageDialogError.value = getErrorMessage(error)
+      stageDialogError.value = workflowErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
@@ -1030,10 +1045,10 @@ export function useIntermediaryWorkflowViewModel() {
     if (!document.value || !can(action) || actionLoading.value) return false
     if (
       [
-        'procurementPlace',
-        'receiptConfirm',
-        'deliveryExecute',
-        'signoffConfirm',
+        'procurement-place',
+        'receipt-confirm',
+        'delivery-execute',
+        'signoff-confirm',
       ].includes(action) &&
       !canFinalize(action, child.checkedBy)
     ) {
@@ -1043,7 +1058,9 @@ export function useIntermediaryWorkflowViewModel() {
     workspaceError.value = null
     try {
       await intermediaryWorkflowApi.mutate(action, {
-        documentId: document.value.documentId,
+        processId: document.value.processId,
+        processRevision: document.value.rootRevision,
+        documentId: document.value.processId,
         rootRevision: document.value.rootRevision,
         childId: child.childId,
         childRevision: child.revision,
@@ -1052,7 +1069,7 @@ export function useIntermediaryWorkflowViewModel() {
       await query()
       return true
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
@@ -1079,7 +1096,9 @@ export function useIntermediaryWorkflowViewModel() {
     try {
       const child = reverseChild.value
       await intermediaryWorkflowApi.mutate(reverseAction.value, {
-        documentId: document.value.documentId,
+        processId: document.value.processId,
+        processRevision: document.value.rootRevision,
+        documentId: document.value.processId,
         rootRevision: document.value.rootRevision,
         ...(child
           ? { childId: child.childId, childRevision: child.revision }
@@ -1091,7 +1110,7 @@ export function useIntermediaryWorkflowViewModel() {
       await loadDocument()
       await query()
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
     } finally {
       actionLoading.value = null
     }
@@ -1103,10 +1122,12 @@ export function useIntermediaryWorkflowViewModel() {
       workspaceError.value = '短结原因必须为 1–1000 字。'
       return
     }
-    actionLoading.value = 'shortCloseRequest'
+    actionLoading.value = 'short-close-request'
     try {
-      await intermediaryWorkflowApi.mutate('shortCloseRequest', {
-        documentId: document.value.documentId,
+      await intermediaryWorkflowApi.mutate('short-close-request', {
+        processId: document.value.processId,
+        processRevision: document.value.rootRevision,
+        documentId: document.value.processId,
         rootRevision: document.value.rootRevision,
         reason,
       })
@@ -1114,7 +1135,7 @@ export function useIntermediaryWorkflowViewModel() {
       await loadDocument()
       await query()
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = workflowErrorMessage(error)
     } finally {
       actionLoading.value = null
     }
@@ -1125,89 +1146,6 @@ export function useIntermediaryWorkflowViewModel() {
     return [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')
-  }
-
-  async function uploadRootAttachments(files: File[]): Promise<void> {
-    if (
-      !document.value ||
-      document.value.workflowStatus !== 'DRAFT' ||
-      !can('attachmentInitiate')
-    ) {
-      return
-    }
-    rootAttachmentLoading.value = true
-    rootAttachmentError.value = null
-    try {
-      for (const file of files) {
-        const initiated = await intermediaryWorkflowApi.initiateRootAttachment({
-          documentId: document.value.documentId,
-          revision: document.value.rootRevision,
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
-          sha256: await sha256(file),
-        })
-        document.value.rootRevision =
-          initiated.data.rootRevision || initiated.data.revision
-        try {
-          await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
-        } catch (error) {
-          await loadDocument()
-          throw error
-        }
-        await loadDocument()
-      }
-      await loadAudit(1)
-    } catch (error) {
-      rootAttachmentError.value = getErrorMessage(error)
-    } finally {
-      rootAttachmentLoading.value = false
-    }
-  }
-
-  async function downloadRootAttachment(
-    attachment: VoucherAttachment,
-  ): Promise<void> {
-    if (!document.value || !can('attachmentDownload')) return
-    rootAttachmentLoading.value = true
-    rootAttachmentError.value = null
-    try {
-      const { data } = await intermediaryWorkflowApi.getRootAttachmentDownload({
-        documentId: document.value.documentId,
-        fileId: attachment.fileId,
-      })
-      await downloadBlob(data.downloadUrl, attachment.fileName)
-    } catch (error) {
-      rootAttachmentError.value = getErrorMessage(error)
-    } finally {
-      rootAttachmentLoading.value = false
-    }
-  }
-
-  async function removeRootAttachment(
-    attachment: VoucherAttachment,
-  ): Promise<void> {
-    if (
-      !document.value ||
-      document.value.workflowStatus !== 'DRAFT' ||
-      !can('attachmentRemove')
-    ) {
-      return
-    }
-    rootAttachmentLoading.value = true
-    rootAttachmentError.value = null
-    try {
-      await intermediaryWorkflowApi.removeRootAttachment({
-        documentId: document.value.documentId,
-        revision: document.value.rootRevision,
-        fileId: attachment.fileId,
-      })
-      await Promise.all([loadDocument(), loadAudit(1)])
-    } catch (error) {
-      rootAttachmentError.value = getErrorMessage(error)
-    } finally {
-      rootAttachmentLoading.value = false
-    }
   }
 
   async function reloadStageDetail(): Promise<void> {
@@ -1230,7 +1168,7 @@ export function useIntermediaryWorkflowViewModel() {
       return
     }
     const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}AttachmentInitiate` as IntermediaryAction
+    const action = `${prefix}-attachment-initiate` as IntermediaryAction
     if (!can(action)) return
     childAttachmentLoading.value = true
     childAttachmentError.value = null
@@ -1238,17 +1176,17 @@ export function useIntermediaryWorkflowViewModel() {
       for (const file of files) {
         const initiated =
           await intermediaryWorkflowApi.initiateChildAttachment(prefix, {
-            documentId: document.value.documentId,
-            rootRevision: document.value.rootRevision,
-            childId: stageChild.value.childId,
-            childRevision: stageChild.value.revision,
+            processId: document.value.processId,
+            processRevision: document.value.rootRevision,
+            documentId: stageChild.value.childId,
+            documentRevision: stageChild.value.revision,
             fileName: file.name,
             contentType: file.type,
             size: file.size,
             sha256: await sha256(file),
           })
-        document.value.rootRevision = initiated.data.rootRevision
-        stageChild.value.revision = initiated.data.childRevision
+        document.value.rootRevision = initiated.data.processRevision
+        stageChild.value.revision = initiated.data.documentRevision
         try {
           await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
         } catch (error) {
@@ -1261,7 +1199,7 @@ export function useIntermediaryWorkflowViewModel() {
       }
       await loadAudit(1)
     } catch (error) {
-      childAttachmentError.value = getErrorMessage(error)
+      childAttachmentError.value = workflowErrorMessage(error)
     } finally {
       childAttachmentLoading.value = false
     }
@@ -1272,20 +1210,20 @@ export function useIntermediaryWorkflowViewModel() {
   ): Promise<void> {
     if (!document.value || !stageChild.value) return
     const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}AttachmentDownload` as IntermediaryAction
+    const action = `${prefix}-attachment-download` as IntermediaryAction
     if (!can(action)) return
     childAttachmentLoading.value = true
     childAttachmentError.value = null
     try {
       const { data } =
         await intermediaryWorkflowApi.getChildAttachmentDownload(prefix, {
-          documentId: document.value.documentId,
-          childId: stageChild.value.childId,
+          processId: document.value.processId,
+          documentId: stageChild.value.childId,
           fileId: attachment.fileId,
         })
       await downloadBlob(data.downloadUrl, attachment.fileName)
     } catch (error) {
-      childAttachmentError.value = getErrorMessage(error)
+      childAttachmentError.value = workflowErrorMessage(error)
     } finally {
       childAttachmentLoading.value = false
     }
@@ -1302,22 +1240,22 @@ export function useIntermediaryWorkflowViewModel() {
       return
     }
     const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}AttachmentRemove` as IntermediaryAction
+    const action = `${prefix}-attachment-remove` as IntermediaryAction
     if (!can(action)) return
     childAttachmentLoading.value = true
     childAttachmentError.value = null
     try {
       await intermediaryWorkflowApi.removeChildAttachment(prefix, {
-        documentId: document.value.documentId,
-        rootRevision: document.value.rootRevision,
-        childId: stageChild.value.childId,
-        childRevision: stageChild.value.revision,
+        processId: document.value.processId,
+        processRevision: document.value.rootRevision,
+        documentId: stageChild.value.childId,
+        documentRevision: stageChild.value.revision,
         fileId: attachment.fileId,
       })
       await Promise.all([loadDocument(), loadAudit(1)])
       await reloadStageDetail()
     } catch (error) {
-      childAttachmentError.value = getErrorMessage(error)
+      childAttachmentError.value = workflowErrorMessage(error)
     } finally {
       childAttachmentLoading.value = false
     }
@@ -1433,13 +1371,13 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   async function loadAudit(nextPage = auditPage.value): Promise<void> {
-    if (!document.value || !can('auditHistory')) return
+    if (!document.value || !can('audit-history')) return
     auditPage.value = nextPage
     auditLoading.value = true
     auditError.value = null
     try {
       const { data } = await intermediaryWorkflowApi.audit({
-        documentId: document.value.documentId,
+        processId: document.value.processId,
         page: nextPage,
         pageSize: auditPageSize.value,
       })
@@ -1455,16 +1393,7 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   function closeWorkspace(): void {
-    if (rootAttachmentLoading.value || childAttachmentLoading.value) return
-    const stageDirty =
-      stageDialogOpen.value &&
-      JSON.stringify(stageDraft.value) !== stageSnapshot.value
-    if (
-      (orderDirty.value || stageDirty) &&
-      !window.confirm('存在未保存修改，确认关闭？')
-    ) {
-      return
-    }
+    if (childAttachmentLoading.value) return
     workspaceOpen.value = false
     stageDialogOpen.value = false
   }
@@ -1474,21 +1403,6 @@ export function useIntermediaryWorkflowViewModel() {
     if (dirty && !window.confirm('子单存在未保存修改，确认关闭？')) return
     stageDialogOpen.value = false
     stageSnapshot.value = ''
-  }
-
-  function legacyRow(row: IntermediaryListItem): VoucherListItem {
-    return {
-      documentId: row.documentId,
-      entity: 'intermediary-sale-order',
-      documentNo: row.documentNo,
-      status: row.status as VoucherListItem['status'],
-      revision: row.revision,
-      businessDate: row.businessDate,
-      partyName: row.partyName,
-      currency: row.currency,
-      amount: row.amount,
-      updatedAt: row.updatedAt,
-    }
   }
 
   if (getCurrentScope()) {
@@ -1523,6 +1437,7 @@ export function useIntermediaryWorkflowViewModel() {
     stageDetail,
     stageDraft,
     stageEditable,
+    workspaceDirty,
     expectedContainers,
     signoffExpectedContainers,
     signoffBalanceAfter,
@@ -1538,8 +1453,6 @@ export function useIntermediaryWorkflowViewModel() {
     reverseReason,
     shortCloseDialogOpen,
     shortCloseReason,
-    rootAttachmentLoading,
-    rootAttachmentError,
     childAttachmentLoading,
     childAttachmentError,
     auditEvents,
@@ -1553,7 +1466,6 @@ export function useIntermediaryWorkflowViewModel() {
     currentUserId,
     can,
     canFinalize,
-    isLegacy,
     query,
     search,
     resetFilters,
@@ -1573,9 +1485,6 @@ export function useIntermediaryWorkflowViewModel() {
     requestShortClose,
     deliveredQuantity,
     signoffLoss,
-    uploadRootAttachments,
-    downloadRootAttachment,
-    removeRootAttachment,
     uploadChildAttachments,
     downloadChildAttachment,
     removeChildAttachment,
@@ -1586,7 +1495,6 @@ export function useIntermediaryWorkflowViewModel() {
     loadAudit,
     closeWorkspace,
     closeStageDialog,
-    legacyRow,
   }
 }
 

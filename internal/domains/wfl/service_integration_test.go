@@ -122,6 +122,13 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	page, err := service.Query(t.Context(), QueryInput{})
+	if err != nil {
+		t.Fatalf("query with omitted statuses: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ProcessID != created.ProcessID {
+		t.Fatalf("query with omitted statuses = %+v, want created process", page)
+	}
 	assertSummary := func(document DocumentSummary, currency, remark string) {
 		t.Helper()
 		if document.Currency != currency {

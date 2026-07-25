@@ -409,7 +409,7 @@ func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView
 	}
 	rows, err := s.pool.Query(ctx, `SELECT p.id FROM wfl_process_instances p JOIN vou_documents d
 		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
-		AND (cardinality($2::text[])=0 OR p.status=ANY($2::text[]))
+		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))
 		ORDER BY p.updated_at DESC,p.id DESC LIMIT $3 OFFSET $4`,
 		strings.TrimSpace(input.Keyword), input.Statuses, input.PageSize, (input.Page-1)*input.PageSize)
 	if err != nil {
@@ -436,7 +436,7 @@ func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView
 	var total int64
 	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_process_instances p JOIN vou_documents d
 		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
-		AND (cardinality($2::text[])=0 OR p.status=ANY($2::text[]))`,
+		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))`,
 		strings.TrimSpace(input.Keyword), input.Statuses).Scan(&total)
 	return Page[ProcessView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, err
 }

@@ -12,6 +12,11 @@ interface PostOptions {
   signal?: AbortSignal
 }
 
+interface FileRequestOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
 }
@@ -144,6 +149,138 @@ export class ApiClient {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abortFromCaller)
     }
+  }
+
+  async uploadAttachment(
+    uploadUrl: string,
+    file: File,
+    options: FileRequestOptions = {},
+  ): Promise<void> {
+    const url = this.resolveFileUrl(uploadUrl, '/files/attachments/upload/')
+    const response = await this.fileRequest(
+      url,
+      {
+        method: 'PUT',
+        credentials: 'include',
+        headers: new Headers({ 'Content-Type': file.type }),
+        body: file,
+      },
+      options,
+    )
+
+    if (response.status !== 204) {
+      await this.throwFileResponseError(response)
+    }
+  }
+
+  async fetchAttachment(
+    downloadUrl: string,
+    options: FileRequestOptions = {},
+  ): Promise<Blob> {
+    const url = this.resolveFileUrl(
+      downloadUrl,
+      '/files/attachments/download/',
+    )
+    const response = await this.fileRequest(
+      url,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: new Headers({ Accept: 'application/octet-stream' }),
+      },
+      options,
+    )
+
+    if (response.status !== 200) {
+      await this.throwFileResponseError(response)
+    }
+    return response.blob()
+  }
+
+  private resolveFileUrl(value: string, requiredPrefix: string): URL {
+    if (!this.baseUrl) {
+      throw new ApiError(
+        'configuration',
+        '未配置真实后端 API，请设置 VITE_API_BASE_URL。',
+      )
+    }
+
+    const base = new URL(normalizeBaseUrl(this.baseUrl))
+    const resolved = new URL(value, base)
+    if (
+      resolved.origin !== base.origin ||
+      !resolved.pathname.startsWith(requiredPrefix)
+    ) {
+      throw new ApiError('configuration', '附件地址不符合后端文件端点约定。')
+    }
+    return resolved
+  }
+
+  private async fileRequest(
+    url: URL,
+    init: RequestInit,
+    options: FileRequestOptions,
+  ): Promise<Response> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 60_000)
+    const abortFromCaller = () => controller.abort(options.signal?.reason)
+
+    if (options.signal?.aborted) {
+      abortFromCaller()
+    } else {
+      options.signal?.addEventListener('abort', abortFromCaller, { once: true })
+    }
+
+    try {
+      return await this.fetcher(url, { ...init, signal: controller.signal })
+    } catch (error) {
+      if (timedOut) {
+        throw new ApiError('timeout', '附件请求超时，请稍后重试。', {
+          cause: error,
+        })
+      }
+      if (options.signal?.aborted) {
+        throw new ApiError('aborted', '附件请求已取消。', { cause: error })
+      }
+      throw new ApiError('network', '无法连接附件服务。', { cause: error })
+    } finally {
+      clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortFromCaller)
+    }
+  }
+
+  private async throwFileResponseError(response: Response): Promise<never> {
+    let message = `附件服务返回了 HTTP ${response.status}。`
+    let requestId = response.headers.get('X-Request-ID') ?? undefined
+    try {
+      const payload = await response.json() as {
+        error?: unknown
+        requestId?: unknown
+      }
+      if (typeof payload.error === 'string' && payload.error) {
+        message = payload.error
+      }
+      if (typeof payload.requestId === 'string' && payload.requestId) {
+        requestId = payload.requestId
+      }
+    } catch {
+      // Technical file endpoints may return an empty/non-JSON proxy response.
+    }
+
+    if (response.status === 400 || response.status === 409) {
+      throw new ApiError('business', message, {
+        code: response.status,
+        requestId,
+      })
+    }
+    throw new ApiError('protocol', message, {
+      code: response.status,
+      requestId,
+    })
   }
 }
 

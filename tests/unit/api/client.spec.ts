@@ -65,4 +65,73 @@ describe('ApiClient', () => {
       kind: 'configuration',
     })
   })
+
+  it('通过受限技术端点上传和下载附件', async () => {
+    let uploadedType: string | null = null
+    let uploaded = false
+    mockServer.use(
+      http.put(
+        'https://api.test/files/attachments/upload/token-1',
+        async ({ request }) => {
+          uploadedType = request.headers.get('Content-Type')
+          await request.arrayBuffer()
+          uploaded = true
+          return new HttpResponse(null, { status: 204 })
+        },
+      ),
+      http.get(
+        'https://api.test/files/attachments/download/token-2',
+        () => new HttpResponse('pdf-content', {
+          status: 200,
+          headers: { 'Content-Type': 'application/pdf' },
+        }),
+      ),
+    )
+
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    await client.uploadAttachment(
+      '/files/attachments/upload/token-1',
+      new File(['png-content'], 'sample.png', { type: 'image/png' }),
+    )
+    const downloaded = await client.fetchAttachment(
+      '/files/attachments/download/token-2',
+    )
+
+    expect(uploadedType).toBe('image/png')
+    expect(uploaded).toBe(true)
+    expect(await downloaded.text()).toBe('pdf-content')
+  })
+
+  it('拒绝跨源或错误前缀的附件令牌地址', async () => {
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    const file = new File(['x'], 'x.png', { type: 'image/png' })
+
+    await expect(
+      client.uploadAttachment('https://evil.test/files/attachments/upload/x', file),
+    ).rejects.toMatchObject<ApiError>({ kind: 'configuration' })
+    await expect(
+      client.fetchAttachment('/files/attachments/upload/x'),
+    ).rejects.toMatchObject<ApiError>({ kind: 'configuration' })
+  })
+
+  it('保留文件端点业务错误中的 requestId', async () => {
+    mockServer.use(
+      http.put(
+        'https://api.test/files/attachments/upload/expired',
+        () => HttpResponse.json(
+          { error: 'upload token is invalid or expired', requestId: 'file-req' },
+          { status: 400 },
+        ),
+      ),
+    )
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+
+    await expect(client.uploadAttachment(
+      '/files/attachments/upload/expired',
+      new File(['x'], 'x.png', { type: 'image/png' }),
+    )).rejects.toMatchObject<ApiError>({
+      kind: 'business',
+      requestId: 'file-req',
+    })
+  })
 })

@@ -3,7 +3,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -15,7 +18,6 @@ import (
 	"time"
 
 	"github.com/hansonyu183/zerp-back/internal/config"
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -53,7 +55,7 @@ func appIntegrationPool(t *testing.T) *pgxpool.Pool {
 func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
-		TRUNCATE app_feedback_attachments, app_feedback, app_audit_events, app_sessions,
+		TRUNCATE app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_roles, app_role_permissions, app_roles, app_users;
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
 	`)
@@ -62,14 +64,18 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-func appIntegrationConfig() config.Config {
+func appIntegrationConfig(t *testing.T) config.Config {
+	t.Helper()
 	return config.Config{
-		SessionIdleTimeout:     30 * time.Minute,
-		SessionAbsoluteTimeout: 12 * time.Hour,
-		SigninLockThreshold:    2,
-		SigninLockDuration:     15 * time.Minute,
-		PasswordMinLength:      12,
-		FeedbackGitHubEnabled:  true,
+		SessionIdleTimeout:          30 * time.Minute,
+		SessionAbsoluteTimeout:      12 * time.Hour,
+		SigninLockThreshold:         2,
+		SigninLockDuration:          15 * time.Minute,
+		PasswordMinLength:           12,
+		FeedbackGitHubEnabled:       true,
+		AttachmentStorageRoot:       t.TempDir(),
+		AttachmentUploadTTL:         15 * time.Minute,
+		FeedbackAttachmentOrphanTTL: 24 * time.Hour,
 	}
 }
 
@@ -77,7 +83,7 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 	t.Helper()
 	pool := appIntegrationPool(t)
 	resetAPPIntegrationData(t, pool)
-	service := NewService(pool, appIntegrationConfig(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service := NewService(pool, appIntegrationConfig(t), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	admin, err := service.BootstrapAdmin(t.Context(), "admin", "系统管理员", integrationAdminPassword)
 	if err != nil {
 		t.Fatalf("bootstrap admin: %v", err)
@@ -109,21 +115,6 @@ func permissionIDsByPath(t *testing.T, pool *pgxpool.Pool, paths ...string) []st
 		result = append(result, id)
 	}
 	return result
-}
-
-type integrationFeedbackAttachments struct{}
-
-func (integrationFeedbackAttachments) ResolveFeedbackAttachments(
-	_ context.Context, ids []string, _ string,
-) ([]voudomain.FeedbackAttachmentMetadata, error) {
-	result := make([]voudomain.FeedbackAttachmentMetadata, 0, len(ids))
-	for _, id := range ids {
-		result = append(result, voudomain.FeedbackAttachmentMetadata{
-			ID: id, OriginalName: "截图.png", ContentType: "image/png",
-			DeclaredSize: 128, SHA256Hex: strings.Repeat("a", 64),
-		})
-	}
-	return result, nil
 }
 
 type integrationIssueClient struct {
@@ -376,7 +367,6 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 
 func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	service.SetFeedbackAttachmentResolver(integrationFeedbackAttachments{})
 	role, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "feedback-user", Name: "反馈用户",
 		PermissionIDs: permissionIDsByPath(t, pool, signoutPath),
@@ -408,18 +398,35 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("permission authorization error = %v, want forbidden", err)
 	}
-	attachmentID := "01J00000000000000000000000"
+	png := append([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, []byte("feedback screenshot")...)
+	digest := sha256.Sum256(png)
+	initiated, err := service.InitiateFeedbackAttachment(t.Context(), FeedbackAttachmentInitiateInput{
+		FileName: "截图.png", ContentType: "image/png", Size: int64(len(png)),
+		SHA256: hex.EncodeToString(digest[:]),
+	}, principal.User.ID)
+	if err != nil {
+		t.Fatalf("initiate feedback attachment: %v", err)
+	}
+	uploadToken := strings.TrimPrefix(initiated.UploadURL, "/files/feedback/attachments/upload/")
+	if err = service.UploadFeedbackAttachment(
+		t.Context(), uploadToken, bytes.NewReader(png), int64(len(png)), "image/png",
+	); err != nil {
+		t.Fatalf("upload feedback attachment: %v", err)
+	}
 	created, err := service.CreateFeedback(t.Context(), CreateFeedbackInput{
 		Category: FeedbackCategoryBug, Title: "保存失败",
 		Content:  "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
 		PagePath: "/vou/sale-order", ClientVersion: "1.0.0",
-		AttachmentIDs: []string{attachmentID},
+		AttachmentIDs: []string{initiated.FileID},
 	}, principal.User.ID)
 	if err != nil {
 		t.Fatalf("create feedback: %v", err)
 	}
 	if created.Status != FeedbackStatusPending || !validID(created.FeedbackID) {
 		t.Fatalf("created feedback = %#v", created)
+	}
+	if err = service.RemoveFeedbackAttachment(t.Context(), initiated.FileID, principal.User.ID); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("remove submitted feedback attachment error = %v, want conflict", err)
 	}
 	view, err := service.GetFeedback(t.Context(), created.FeedbackID, principal.User.ID)
 	if err != nil || view.Status != FeedbackStatusPending || view.IssueURL != nil {
@@ -447,6 +454,85 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	}
 	if len(client.labels) < 1 || client.labels[0] != "automation:blocked" {
 		t.Fatalf("published labels = %#v", client.labels)
+	}
+}
+
+func TestFeedbackAttachmentLimitsRemovalAndCleanupIntegration(t *testing.T) {
+	service, pool, admin := appIntegrationService(t)
+	content := append([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, []byte("cleanup")...)
+	digest := sha256.Sum256(content)
+	initiate := func(name string) FeedbackAttachmentInitiateResult {
+		t.Helper()
+		result, err := service.InitiateFeedbackAttachment(t.Context(), FeedbackAttachmentInitiateInput{
+			FileName: name, ContentType: "image/png", Size: int64(len(content)),
+			SHA256: hex.EncodeToString(digest[:]),
+		}, admin.ID)
+		if err != nil {
+			t.Fatalf("initiate %s: %v", name, err)
+		}
+		return result
+	}
+	first := initiate("first.png")
+	second := initiate("second.png")
+	third := initiate("third.png")
+	if _, err := service.InitiateFeedbackAttachment(t.Context(), FeedbackAttachmentInitiateInput{
+		FileName: "fourth.png", ContentType: "image/png", Size: int64(len(content)),
+		SHA256: hex.EncodeToString(digest[:]),
+	}, admin.ID); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("fourth active attachment error=%v, want conflict", err)
+	}
+	if err := service.RemoveFeedbackAttachment(t.Context(), first.FileID, admin.ID); err != nil {
+		t.Fatalf("remove pending attachment: %v", err)
+	}
+	fourth := initiate("fourth.png")
+	secondToken := strings.TrimPrefix(second.UploadURL, "/files/feedback/attachments/upload/")
+	if err := service.UploadFeedbackAttachment(
+		t.Context(), secondToken, bytes.NewReader(content), int64(len(content)), "image/jpeg",
+	); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("wrong upload content type error=%v, want validation", err)
+	}
+	if err := service.UploadFeedbackAttachment(
+		t.Context(), secondToken, bytes.NewReader(content), int64(len(content)), "image/png",
+	); err != nil {
+		t.Fatalf("upload after rejected headers: %v", err)
+	}
+	if err := service.RemoveFeedbackAttachment(t.Context(), second.FileID, admin.ID); err != nil {
+		t.Fatalf("remove ready attachment: %v", err)
+	}
+	if err := service.RemoveFeedbackAttachment(t.Context(), third.FileID, "01J00000000000000000000001"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("other owner removal error=%v, want conflict", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE app_feedback_files
+		SET upload_expires_at = now() - interval '1 hour'
+		WHERE id = $1
+	`, third.FileID); err != nil {
+		t.Fatalf("expire pending feedback attachment: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE app_feedback_files
+		SET status = 'READY', stored_at = now(), created_at = now() - interval '25 hours'
+		WHERE id = $1
+	`, fourth.FileID); err != nil {
+		t.Fatalf("age ready feedback attachment: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE app_feedback_files
+		SET removed_at = now() - interval '25 hours'
+		WHERE id = ANY($1::text[])
+	`, []string{first.FileID, second.FileID}); err != nil {
+		t.Fatalf("age deleted feedback attachments: %v", err)
+	}
+	removed, err := service.CleanupFeedbackAttachments(t.Context(), 10)
+	if err != nil || removed != 4 {
+		t.Fatalf("cleanup removed=%d error=%v, want 4", removed, err)
+	}
+	var remaining int
+	if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM app_feedback_files").Scan(&remaining); err != nil {
+		t.Fatalf("count remaining feedback files: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining feedback files=%d, want 0", remaining)
 	}
 }
 

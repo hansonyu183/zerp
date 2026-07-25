@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,9 @@ type applicationService interface {
 	GetPermission(context.Context, string) (PermissionView, error)
 	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
 	GetFeedback(context.Context, string, string) (FeedbackView, error)
+	InitiateFeedbackAttachment(context.Context, FeedbackAttachmentInitiateInput, string) (FeedbackAttachmentInitiateResult, error)
+	UploadFeedbackAttachment(context.Context, string, io.Reader, int64, string) error
+	RemoveFeedbackAttachment(context.Context, string, string) error
 }
 
 type Handler struct {
@@ -82,8 +86,12 @@ func (h *Handler) Register(router *gin.Engine) {
 
 	feedback := appGroup.Group("/feedback")
 	feedback.Use(h.authorizeSession())
+	feedback.POST("/attachment-initiate", h.initiateFeedbackAttachment)
+	feedback.POST("/attachment-remove", h.removeFeedbackAttachment)
 	feedback.POST("/create", h.createFeedback)
 	feedback.POST("/get", h.getFeedback)
+
+	router.PUT("/files/feedback/attachments/upload/:token", h.uploadFeedbackAttachment)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {

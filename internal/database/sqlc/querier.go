@@ -39,6 +39,7 @@ type Querier interface {
 	CopyLedOpeningToDraftFund(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftInventory(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftParty(ctx context.Context, generationID string) error
+	CountActiveUnsubmittedAppFeedbackFiles(ctx context.Context, userID string) (int64, error)
 	CountAllAppUsers(ctx context.Context) (int64, error)
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
 	CountAppRoles(ctx context.Context, arg CountAppRolesParams) (int64, error)
@@ -62,11 +63,13 @@ type Querier interface {
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountRecentAppFeedback(ctx context.Context, userID string) (int64, error)
+	CountRecentAppFeedbackFiles(ctx context.Context, userID string) (int64, error)
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
+	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserRoles(ctx context.Context, userID string) error
 	DeleteBobAuditEventsForDraft(ctx context.Context, arg DeleteBobAuditEventsForDraftParams) (int64, error)
@@ -120,6 +123,7 @@ type Querier interface {
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
 	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
+	InsertAppFeedbackFile(ctx context.Context, arg InsertAppFeedbackFileParams) error
 	InsertAppRole(ctx context.Context, arg InsertAppRoleParams) error
 	InsertAppRolePermission(ctx context.Context, arg InsertAppRolePermissionParams) error
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
@@ -196,12 +200,14 @@ type Querier interface {
 	ListLedPartyBalances(ctx context.Context, arg ListLedPartyBalancesParams) ([]ListLedPartyBalancesRow, error)
 	ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPartyEntriesBySourceParams) ([]LedPartyEntry, error)
+	ListReadyAppFeedbackFilesForCreate(ctx context.Context, arg ListReadyAppFeedbackFilesForCreateParams) ([]AppFeedbackFile, error)
+	ListStaleAppFeedbackFiles(ctx context.Context, arg ListStaleAppFeedbackFilesParams) ([]AppFeedbackFile, error)
 	ListVouAttachments(ctx context.Context, documentID string) ([]ListVouAttachmentsRow, error)
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
-	ListVouFeedbackAttachmentMetadata(ctx context.Context, arg ListVouFeedbackAttachmentMetadataParams) ([]ListVouFeedbackAttachmentMetadataRow, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
+	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
 	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobVersion(ctx context.Context, arg LockBobVersionParams) (LockBobVersionRow, error)
@@ -210,9 +216,13 @@ type Querier interface {
 	LockEffectiveLogisticsPlatform(ctx context.Context, platformObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLedControl(ctx context.Context) (LedControl, error)
+	LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
+	LockUnsubmittedAppFeedbackFile(ctx context.Context, arg LockUnsubmittedAppFeedbackFileParams) (AppFeedbackFile, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
 	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
+	MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error)
+	MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)

@@ -31,9 +31,11 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("DatabaseConnectTimeout = %s, want 5s", cfg.DatabaseConnectTimeout)
 	}
 	if cfg.AttachmentStorageRoot != "./var/attachments" ||
-		cfg.AttachmentUploadTTL != 15*time.Minute || cfg.AttachmentDownloadTTL != 5*time.Minute {
-		t.Fatalf("attachment defaults = root:%q upload:%s download:%s",
-			cfg.AttachmentStorageRoot, cfg.AttachmentUploadTTL, cfg.AttachmentDownloadTTL)
+		cfg.AttachmentUploadTTL != 15*time.Minute || cfg.AttachmentDownloadTTL != 5*time.Minute ||
+		cfg.FeedbackAttachmentOrphanTTL != 24*time.Hour {
+		t.Fatalf("attachment defaults = root:%q upload:%s download:%s feedbackOrphan:%s",
+			cfg.AttachmentStorageRoot, cfg.AttachmentUploadTTL, cfg.AttachmentDownloadTTL,
+			cfg.FeedbackAttachmentOrphanTTL)
 	}
 	if cfg.FeedbackGitHubEnabled || cfg.FeedbackGitHubRepository != "hansonyu183/zerp-back" {
 		t.Fatalf("feedback defaults = enabled:%t repository:%q",

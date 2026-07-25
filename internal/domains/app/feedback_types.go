@@ -27,6 +27,23 @@ type GetFeedbackInput struct {
 	FeedbackID string `json:"feedbackId"`
 }
 
+type FeedbackAttachmentInitiateInput struct {
+	FileName    string `json:"fileName"`
+	ContentType string `json:"contentType"`
+	Size        int64  `json:"size"`
+	SHA256      string `json:"sha256"`
+}
+
+type FeedbackAttachmentInitiateResult struct {
+	FileID    string    `json:"fileId"`
+	UploadURL string    `json:"uploadUrl"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type FeedbackAttachmentRemoveInput struct {
+	FileID string `json:"fileId"`
+}
+
 type FeedbackCreatedView struct {
 	FeedbackID  string    `json:"feedbackId"`
 	Status      string    `json:"status"`

@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,6 +17,28 @@ var (
 	headerSecretPattern     = regexp.MustCompile(`(?im)\b(authorization|cookie|set-cookie|x-csrf-token)\s*:\s*[^\r\n]+`)
 	assignmentSecretPattern = regexp.MustCompile(`(?i)\b(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s,;]+`)
 )
+
+const maxFeedbackAttachmentSize int64 = 10 * 1024 * 1024
+
+var feedbackSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+func validateFeedbackAttachmentInitiate(input FeedbackAttachmentInitiateInput) (string, error) {
+	fileName := strings.TrimSpace(input.FileName)
+	if !runeLengthBetween(fileName, 1, 255) || containsFeedbackControl(fileName, false) ||
+		filepath.Base(fileName) != fileName || strings.ContainsAny(fileName, `/\`) {
+		return "", domainError(ErrorValidation, "invalid attachment file name", nil)
+	}
+	if input.ContentType != "image/png" && input.ContentType != "image/jpeg" {
+		return "", domainError(ErrorValidation, "attachment must be PNG or JPEG", nil)
+	}
+	if input.Size < 1 || input.Size > maxFeedbackAttachmentSize {
+		return "", domainError(ErrorValidation, "attachment size must be between 1 byte and 10 MiB", nil)
+	}
+	if !feedbackSHA256Pattern.MatchString(input.SHA256) {
+		return "", domainError(ErrorValidation, "invalid attachment sha256", nil)
+	}
+	return fileName, nil
+}
 
 type validatedFeedback struct {
 	Category         string

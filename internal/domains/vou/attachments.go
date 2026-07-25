@@ -15,49 +15,6 @@ import (
 
 const maxAttachmentsPerDocument = 10
 
-var ErrFeedbackAttachmentNotFound = errors.New("feedback attachment not found")
-
-type FeedbackAttachmentMetadata struct {
-	ID           string
-	OriginalName string
-	ContentType  string
-	DeclaredSize int64
-	SHA256Hex    string
-}
-
-func (s *Service) ResolveFeedbackAttachments(
-	ctx context.Context,
-	fileIDs []string,
-	actorID string,
-) ([]FeedbackAttachmentMetadata, error) {
-	if len(fileIDs) == 0 {
-		return []FeedbackAttachmentMetadata{}, nil
-	}
-	rows, err := s.queries.ListVouFeedbackAttachmentMetadata(ctx, dbsqlc.ListVouFeedbackAttachmentMetadataParams{
-		FileIds: fileIDs,
-		ActorID: actorID,
-	})
-	if err != nil {
-		return nil, s.internal("resolve feedback attachments", err)
-	}
-	byID := make(map[string]FeedbackAttachmentMetadata, len(rows))
-	for _, row := range rows {
-		byID[row.ID] = FeedbackAttachmentMetadata{
-			ID: row.ID, OriginalName: row.OriginalName, ContentType: row.ContentType,
-			DeclaredSize: row.DeclaredSize, SHA256Hex: row.Sha256Hex,
-		}
-	}
-	result := make([]FeedbackAttachmentMetadata, 0, len(fileIDs))
-	for _, id := range fileIDs {
-		metadata, exists := byID[id]
-		if !exists {
-			return nil, ErrFeedbackAttachmentNotFound
-		}
-		result = append(result, metadata)
-	}
-	return result, nil
-}
-
 type DownloadFile struct {
 	Reader      *os.File
 	FileName    string
@@ -362,7 +319,7 @@ func (s *Service) CleanupAttachments(ctx context.Context, batchSize int) (int, e
 	for _, key := range keys {
 		known[key] = struct{}{}
 	}
-	orphaned, err := s.storage.RemoveOrphans(known)
+	orphaned, err := s.storage.RemoveOrphans(known, "feedback")
 	if err != nil {
 		return removed, s.internal("cleanup orphaned attachment files", err)
 	}

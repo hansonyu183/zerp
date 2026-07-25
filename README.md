@@ -78,7 +78,8 @@ make run
 | `make migrate-down` | 回滚一个数据库迁移版本 |
 | `make bootstrap-admin` | 在空用户库中创建首个超级管理员（密码取自 `APP_BOOTSTRAP_PASSWORD`） |
 | `make seed-bob` | 向开发或测试库幂等写入 BOB 演示数据 |
-| `make cleanup-vou-attachments` | 在 Compose API 的同一持久卷中清理过期上传、下载令牌和无数据库引用的附件文件 |
+| `make cleanup-attachments` | 在 Compose API 的同一持久卷中清理 VOU 附件及未提交的过期反馈截图 |
+| `make cleanup-vou-attachments` | `cleanup-attachments` 的兼容别名 |
 | `make compose-up` | 构建并启动 API、PostgreSQL 与 pgAdmin |
 | `make compose-down` | 停止容器 |
 
@@ -116,9 +117,10 @@ make ENV_FILE=.env.test compose-up
 | `APP_SIGNIN_LOCK_THRESHOLD` | 否 | `5` | 连续登录失败后的锁定阈值 |
 | `APP_SIGNIN_LOCK_DURATION` | 否 | `15m` | 登录临时锁定时长 |
 | `APP_PASSWORD_MIN_LENGTH` | 否 | `12` | 新用户密码最小长度，允许范围为 8–128 |
-| `ATTACHMENT_STORAGE_ROOT` | 生产是 | 开发/测试为 `./var/attachments` | VOU 本地附件持久目录；生产必须是绝对路径 |
+| `ATTACHMENT_STORAGE_ROOT` | 生产是 | 开发/测试为 `./var/attachments` | VOU 与反馈截图的私有附件持久目录；生产必须是绝对路径 |
 | `ATTACHMENT_UPLOAD_TOKEN_TTL` | 否 | `15m` | 一次性附件上传令牌有效期 |
 | `ATTACHMENT_DOWNLOAD_TOKEN_TTL` | 否 | `5m` | 一次性附件下载令牌有效期 |
+| `FEEDBACK_ATTACHMENT_ORPHAN_TTL` | 否 | `24h` | 已上传但未提交反馈的截图保留时长 |
 | `FEEDBACK_GITHUB_ENABLED` | 生产是 | `false` | 是否启用 APP 用户反馈与 GitHub Issue 发布；生产必须为 `true` |
 | `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp-back` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
 | `FEEDBACK_GITHUB_TOKEN` | 启用时是 | 无 | 仅具目标仓库 Issues 读写权限的细粒度令牌；不得写入仓库或日志 |

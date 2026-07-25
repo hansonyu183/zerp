@@ -55,7 +55,8 @@ APP 不负责：
 | 会话 | `app_sessions` | 服务端会话、到期和注销状态 |
 | 审计事件 | `app_audit_events` | 登录、退出及授权变更的追加式记录 |
 | 用户反馈 | `app_feedback` | 脱敏后的反馈内容、发布队列状态和 GitHub Issue 结果 |
-| 反馈附件快照 | `app_feedback_attachments` | 已有 VOU 附件的非敏感元数据快照，不保存文件内容 |
+| 反馈截图文件 | `app_feedback_files` | 反馈专用私有截图、上传状态、归属和过期时间 |
+| 反馈附件快照 | `app_feedback_attachments` | 已提交附件的非敏感元数据快照；保留历史 VOU 来源标记 |
 
 关系如下：
 
@@ -196,7 +197,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `/app/user/signin` 和 `/app/user/session` 是认证入口，不要求已有 API 权限；`signin` 不要求已有 CSRF Token。`session` 只能恢复已有 Cookie 会话并签发或返回当前 CSRF Token。有效会话执行 `signout` 时要求 CSRF 校验和 `/app/user/signout` 精确权限；系统必须保证每个可登录用户的最终权限都包含该权限，避免形成无法安全退出的授权状态。
 
-`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许提交当前主体的反馈和查询本人反馈，不能读取其他用户数据。
+`/app/feedback/attachment-initiate`、`/app/feedback/attachment-remove`、`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许操作当前主体的未提交附件、提交反馈和查询本人反馈，不能读取其他用户数据。
 
 会话接口只返回用户资料、CSRF Token 和 API 权限数组。菜单标题、图标、顺序、组件和动态路由由前端本地注册表生成，后端不得通过权限数据指定可执行的前端组件路径。
 
@@ -291,6 +292,23 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.5 用户反馈
 
+`POST /app/feedback/attachment-initiate` 使用有效会话和 CSRF 创建反馈专用上传：
+
+```json
+{
+  "fileName": "screen.png",
+  "contentType": "image/png",
+  "size": 128000,
+  "sha256": "64位小写十六进制摘要"
+}
+```
+
+成功返回 `fileId`、15 分钟有效的一次性 `uploadUrl` 和 `expiresAt`。客户端以声明的
+`Content-Type`、`Content-Length` 对 `uploadUrl` 执行 `PUT`，上传成功返回 204。
+只允许 PNG、JPEG，每张 1 字节至 10 MiB；后端同时校验长度、SHA-256 和文件魔数。
+每个用户最多保留 3 个未提交文件，滚动 24 小时最多初始化 60 次。
+`POST /app/feedback/attachment-remove` 请求 `{"fileId":"01J..."}`，只能删除当前用户尚未提交的文件。
+
 `POST /app/feedback/create` 请求：
 
 ```json
@@ -305,7 +323,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 }
 ```
 
-`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须是当前用户创建且已上传完成的 VOU 附件，提交后只快照文件名、MIME、大小和 SHA-256，不复制文件内容或生成公开下载地址。
+`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须来自上述反馈专用流程、归属当前用户且状态为 `READY`；VOU 附件 ID 不再接受。提交后保存文件和文件名、MIME、大小、SHA-256 快照，但不生成公开地址，也不把截图内容或地址写入 GitHub Issue。已上传但 24 小时内未提交的文件由清理任务删除；已提交截图私有长期保留，当前不提供 HTTP 查看或下载接口。
 
 后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。成功响应：
 

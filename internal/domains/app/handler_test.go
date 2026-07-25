@@ -77,6 +77,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
+		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",
 		"/app/feedback/create", "/app/feedback/get",
 	}
 	found := make(map[string]bool, len(expected))
@@ -95,8 +96,17 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	if len(router.Routes()) != len(expected) {
-		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected))
+	uploadRegistered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPut && route.Path == "/files/feedback/attachments/upload/:token" {
+			uploadRegistered = true
+		}
+	}
+	if !uploadRegistered {
+		t.Error("feedback attachment upload route is not registered")
+	}
+	if len(router.Routes()) != len(expected)+1 {
+		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected)+1)
 	}
 }
 

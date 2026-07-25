@@ -6,7 +6,6 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -45,20 +44,6 @@ func (s *Service) CreateFeedback(
 	if err != nil {
 		return FeedbackCreatedView{}, err
 	}
-	var attachments []voudomain.FeedbackAttachmentMetadata
-	if len(validated.AttachmentIDs) > 0 {
-		if s.feedbackAttachments == nil {
-			return FeedbackCreatedView{}, s.internal("resolve feedback attachments", errors.New("feedback attachment resolver is unavailable"))
-		}
-		attachments, err = s.feedbackAttachments.ResolveFeedbackAttachments(ctx, validated.AttachmentIDs, actorID)
-		if errors.Is(err, voudomain.ErrFeedbackAttachmentNotFound) {
-			return FeedbackCreatedView{}, domainError(ErrorValidation, "attachment not found", nil)
-		}
-		if err != nil {
-			return FeedbackCreatedView{}, s.internal("resolve feedback attachments", err)
-		}
-	}
-
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return FeedbackCreatedView{}, s.internal("begin feedback submission", err)
@@ -75,6 +60,19 @@ func (s *Service) CreateFeedback(
 	if count >= maxFeedbackPerRollingDay {
 		return FeedbackCreatedView{}, domainError(ErrorValidation, "feedback daily limit reached", nil)
 	}
+	attachments, err := q.ListReadyAppFeedbackFilesForCreate(ctx, dbsqlc.ListReadyAppFeedbackFilesForCreateParams{
+		FileIds: validated.AttachmentIDs, UserID: actorID,
+	})
+	if err != nil {
+		return FeedbackCreatedView{}, s.internal("resolve feedback attachments", err)
+	}
+	attachmentsByID := make(map[string]dbsqlc.AppFeedbackFile, len(attachments))
+	for _, attachment := range attachments {
+		attachmentsByID[attachment.ID] = attachment
+	}
+	if len(attachmentsByID) != len(validated.AttachmentIDs) {
+		return FeedbackCreatedView{}, domainError(ErrorValidation, "attachment not found or not ready", nil)
+	}
 	feedbackID := newID()
 	if err = q.InsertAppFeedback(ctx, dbsqlc.InsertAppFeedbackParams{
 		ID: feedbackID, UserID: actorID, Category: validated.Category, Title: validated.Title,
@@ -83,11 +81,12 @@ func (s *Service) CreateFeedback(
 	}); err != nil {
 		return FeedbackCreatedView{}, s.writeError("insert feedback", err)
 	}
-	for index, attachment := range attachments {
+	for index, attachmentID := range validated.AttachmentIDs {
+		attachment := attachmentsByID[attachmentID]
 		if err = q.InsertAppFeedbackAttachment(ctx, dbsqlc.InsertAppFeedbackAttachmentParams{
 			FeedbackID: feedbackID, FileID: attachment.ID, OriginalName: redactFeedback(attachment.OriginalName),
 			ContentType: attachment.ContentType, DeclaredSize: attachment.DeclaredSize,
-			Sha256Hex: attachment.SHA256Hex, Position: int16(index + 1),
+			Sha256Hex: attachment.Sha256Hex, Position: int16(index + 1), Source: "FEEDBACK",
 		}); err != nil {
 			return FeedbackCreatedView{}, s.writeError("insert feedback attachment", err)
 		}

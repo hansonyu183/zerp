@@ -324,6 +324,12 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			if queryErr != nil || page.Total != 1 || len(page.Items) != 1 {
 				t.Fatalf("query page=%+v err=%v", page, queryErr)
 			}
+			unfiltered, queryErr := service.Query(t.Context(), test.entity, QueryInput{
+				Page: 1, PageSize: 20, Filters: QueryFilters{},
+			})
+			if queryErr != nil || unfiltered.Total != 1 || len(unfiltered.Items) != 1 {
+				t.Fatalf("unfiltered query page=%+v err=%v", unfiltered, queryErr)
+			}
 			if test.entity == EntitySaleOrder {
 				unexecuted, reverseErr := service.Unexecute(t.Context(), test.entity, ReverseInput{
 					DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "修正执行结果",

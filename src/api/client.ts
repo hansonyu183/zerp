@@ -156,7 +156,34 @@ export class ApiClient {
     file: File,
     options: FileRequestOptions = {},
   ): Promise<void> {
-    const url = this.resolveFileUrl(uploadUrl, '/files/attachments/upload/')
+    await this.uploadFile(
+      uploadUrl,
+      '/files/attachments/upload/',
+      file,
+      options,
+    )
+  }
+
+  async uploadFeedbackAttachment(
+    uploadUrl: string,
+    file: File,
+    options: FileRequestOptions = {},
+  ): Promise<void> {
+    await this.uploadFile(
+      uploadUrl,
+      '/files/feedback/attachments/upload/',
+      file,
+      options,
+    )
+  }
+
+  private async uploadFile(
+    uploadUrl: string,
+    requiredPrefix: string,
+    file: File,
+    options: FileRequestOptions,
+  ): Promise<void> {
+    const url = this.resolveFileUrl(uploadUrl, requiredPrefix)
     const response = await this.fileRequest(
       url,
       {

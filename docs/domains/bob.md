@@ -57,7 +57,7 @@ BOB 不负责：
 | `customer` | `name`、`customerType`、`shortName`、`categoryId`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId` |
 | `supplier` | `name`、`supplierType`、`shortName`、`categoryId`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId` |
 | `employee` | `name`、`categoryId`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark` |
-| `product` | `name`、`unit`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
+| `product` | `name`、`unit`、`containerType`、`quantityPerContainer`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
 | `service` | `name`、`unit`、`categoryId`、`description`、`remark` |
 | `warehouse` | `name`、`categoryId`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark` |
 | `vehicle` | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`categoryId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark` |
@@ -68,6 +68,8 @@ BOB 不负责：
 | `settlement-method` | `name`、`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset`、`description` |
 
 `customerType` 只能为 `END_USER` 或 `DEALER`，创建缺省为 `END_USER`；`supplierType` 只能为 `GENERAL` 或 `LOGISTICS_PLATFORM`，创建缺省为 `GENERAL`。保存时省略类型字段表示保持当前值。
+
+产品的 `containerType` 只能为 `NONE`、`SOLVENT` 或 `RESIN`，创建缺省为 `NONE`。`NONE` 不允许填写 `quantityPerContainer`；桶装产品必须填写大于零且最多六位小数的每桶产品量。两个字段随产品版本保存，供交易领域在制单时快照。
 
 客户和供应商的 `settlementMethodId` 引用当前有效的结算方式，可选维护。结算方式的 `ruleType` 为 `RELATIVE_DAYS`、`MONTH_END` 或 `FIXED_DAY`，并由月份偏移、月内日期和天数偏移共同表达结算日期规则。
 

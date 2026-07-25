@@ -42,5 +42,5 @@ func (a appAuthorizer) Authorize(ctx context.Context, request *http.Request, pat
 			return authorization.Principal{}, authorization.NewError(authorization.ErrorInternal, "authorization failed", err)
 		}
 	}
-	return authorization.Principal{ActorID: principal.User.ID}, nil
+	return authorization.Principal{ActorID: principal.User.ID, Permissions: principal.Permissions}, nil
 }

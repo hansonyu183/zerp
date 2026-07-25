@@ -7,7 +7,8 @@ import (
 )
 
 type Principal struct {
-	ActorID string
+	ActorID     string
+	Permissions []string
 }
 
 type ErrorKind int

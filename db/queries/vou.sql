@@ -100,6 +100,11 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_object_id = sqlc.arg(party_object_id) OR x.supplier_object_id = sqlc.arg(party_object_id)))
+      OR EXISTS (SELECT 1 FROM vou_intermediary_v2_details x WHERE x.document_id = d.id
+          AND x.customer_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
+          JOIN vou_intermediary_procurements x ON x.child_id = c.id
+          WHERE c.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
@@ -113,6 +118,12 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_intermediary_v2_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
+          JOIN vou_intermediary_procurements x ON x.child_id = c.id
+          WHERE c.document_id = d.id
+            AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
@@ -123,12 +134,13 @@ WHERE d.entity = sqlc.arg(entity)
 
 -- name: ListVouDocuments :many
 SELECT d.*,
-       COALESCE(so.customer_name, po.supplier_name, iso.customer_name, r.counterparty_name,
+       COALESCE(so.customer_name, po.supplier_name, iso.customer_name, iso2.customer_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_intermediary_sale_order_details iso ON iso.document_id = d.id
+LEFT JOIN vou_intermediary_v2_details iso2 ON iso2.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
@@ -142,6 +154,10 @@ WHERE d.entity = sqlc.arg(entity)
       OR so.customer_object_id = sqlc.arg(party_object_id)
       OR po.supplier_object_id = sqlc.arg(party_object_id)
       OR iso.customer_object_id = sqlc.arg(party_object_id) OR iso.supplier_object_id = sqlc.arg(party_object_id)
+      OR iso2.customer_object_id = sqlc.arg(party_object_id)
+      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
+          JOIN vou_intermediary_procurements x ON x.child_id = c.id
+          WHERE c.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR r.counterparty_object_id = sqlc.arg(party_object_id)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
@@ -152,6 +168,11 @@ WHERE d.entity = sqlc.arg(entity)
       OR so.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR so.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR po.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR po.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR iso.customer_name ILIKE '%' || sqlc.arg(keyword) || '%' OR iso.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR iso2.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR iso2.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
+          JOIN vou_intermediary_procurements x ON x.child_id = c.id
+          WHERE c.document_id = d.id
+            AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR r.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR r.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -617,13 +638,25 @@ WHERE a.document_id = sqlc.arg(document_id)
 ORDER BY a.created_at, f.id;
 
 -- name: LockPendingVouUpload :one
-SELECT f.*, a.document_id, d.entity, d.status AS document_status
+SELECT f.*, links.document_id, links.entity, links.document_status,
+       links.child_id, links.child_no, links.stage
 FROM vou_files f
-JOIN vou_document_attachments a ON a.file_id = f.id
-JOIN vou_documents d ON d.id = a.document_id
+JOIN LATERAL (
+    SELECT a.document_id, d.entity, d.status AS document_status,
+           ''::varchar AS child_id, ''::varchar AS child_no, ''::varchar AS stage
+    FROM vou_document_attachments a JOIN vou_documents d ON d.id=a.document_id
+    WHERE a.file_id=f.id
+    UNION ALL
+    SELECT c.document_id, d.entity, c.status AS document_status,
+           c.id AS child_id, c.child_no, c.stage
+    FROM vou_intermediary_child_attachments a
+    JOIN vou_intermediary_children c ON c.id=a.child_id
+    JOIN vou_documents d ON d.id=c.document_id
+    WHERE a.file_id=f.id
+) links ON true
 WHERE f.upload_token_hash = sqlc.arg(upload_token_hash)
   AND f.status = 'PENDING' AND f.upload_expires_at > now()
-FOR UPDATE OF f, d;
+FOR UPDATE OF f;
 
 -- name: MarkVouFileReady :execrows
 UPDATE vou_files
@@ -663,6 +696,9 @@ WHERE document_id = sqlc.arg(document_id) AND file_id = sqlc.arg(file_id);
 
 -- name: DeleteVouAttachmentByFileID :execrows
 DELETE FROM vou_document_attachments WHERE file_id = sqlc.arg(file_id);
+
+-- name: DeleteVouChildAttachmentByFileID :execrows
+DELETE FROM vou_intermediary_child_attachments WHERE file_id = sqlc.arg(file_id);
 
 -- name: DeleteVouFile :execrows
 DELETE FROM vou_files WHERE id = sqlc.arg(id);

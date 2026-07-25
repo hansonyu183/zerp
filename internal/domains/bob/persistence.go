@@ -38,10 +38,15 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			HireDate: data.HireDate, Remark: nilIfEmpty(data.Remark),
 		})
 	case EntityProduct:
+		quantity, err := optionalContainerMicros(data)
+		if err != nil {
+			return err
+		}
 		return q.InsertBobProductDetail(ctx, dbsqlc.InsertBobProductDetailParams{
 			VersionID: versionID, Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark),
+			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
 		})
 	case EntityService:
 		return q.InsertBobServiceDetail(ctx, dbsqlc.InsertBobServiceDetailParams{
@@ -128,10 +133,15 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 		})
 	case EntityProduct:
+		quantity, parseErr := optionalContainerMicros(data)
+		if parseErr != nil {
+			return parseErr
+		}
 		rows, err = q.UpdateBobProductDetail(ctx, dbsqlc.UpdateBobProductDetailParams{
 			Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
+			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
 		})
 	case EntityService:
 		rows, err = q.UpdateBobServiceDetail(ctx, dbsqlc.UpdateBobServiceDetailParams{
@@ -257,6 +267,17 @@ func nilIfEmpty(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+func optionalContainerMicros(data DetailView) (*int64, error) {
+	if data.ContainerType == ContainerTypeNone {
+		return nil, nil
+	}
+	value, err := fixedMicros(data.QuantityPerContainer)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 type auditInput struct {

@@ -37,7 +37,7 @@ func detailFields(entity string) []string {
 	case EntityEmployee:
 		return []string{"name", "categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
-		return []string{"name", "unit", "categoryId", "specification", "model", "barcode", "remark"}
+		return []string{"name", "unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark"}
 	case EntityService:
 		return []string{"name", "unit", "categoryId", "description", "remark"}
 	case EntityWarehouse:
@@ -123,6 +123,10 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		SettlementMethodVersionID: row.SettlementMethodVersionID,
 		RuleType:                  row.SettlementRuleType,
 		MonthOffset:               row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
+		ContainerType: row.ContainerType,
+	}
+	if row.ContainerType == ContainerTypeSolvent || row.ContainerType == ContainerTypeResin {
+		result.QuantityPerContainer = formatMicros(row.QuantityPerContainerMicros)
 	}
 	if row.SettlementRuleType == SettlementRuleFixedDay {
 		day := row.SettlementDayOfMonth

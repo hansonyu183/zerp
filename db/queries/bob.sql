@@ -48,9 +48,11 @@ INSERT INTO bob_employee_versions (
 
 -- name: InsertBobProductDetail :exec
 INSERT INTO bob_product_versions (
-    version_id, name, unit, category_id, specification, model, barcode, remark
+    version_id, name, unit, container_type, quantity_per_container_micros,
+    category_id, specification, model, barcode, remark
 ) VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.narg(category_id),
+    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(container_type),
+    sqlc.narg(quantity_per_container_micros), sqlc.narg(category_id),
     sqlc.narg(specification), sqlc.narg(model), sqlc.narg(barcode), sqlc.narg(remark)
 );
 
@@ -149,9 +151,11 @@ FROM bob_employee_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobProductDetail :exec
 INSERT INTO bob_product_versions (
-    version_id, name, unit, category_id, specification, model, barcode, remark
+    version_id, name, unit, container_type, quantity_per_container_micros,
+    category_id, specification, model, barcode, remark
 )
-SELECT sqlc.arg(new_version_id), d.name, d.unit, d.category_id, d.specification,
+SELECT sqlc.arg(new_version_id), d.name, d.unit, d.container_type, d.quantity_per_container_micros,
+       d.category_id, d.specification,
        d.model, d.barcode, d.remark
 FROM bob_product_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
@@ -240,7 +244,9 @@ WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobProductDetail :execrows
 UPDATE bob_product_versions
-SET name = sqlc.arg(name), unit = sqlc.arg(unit), category_id = sqlc.narg(category_id),
+SET name = sqlc.arg(name), unit = sqlc.arg(unit), container_type = sqlc.arg(container_type),
+    quantity_per_container_micros = sqlc.narg(quantity_per_container_micros),
+    category_id = sqlc.narg(category_id),
     specification = sqlc.narg(specification), model = sqlc.narg(model),
     barcode = sqlc.narg(barcode), remark = sqlc.narg(remark)
 WHERE version_id = sqlc.arg(version_id);

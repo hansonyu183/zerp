@@ -9,6 +9,7 @@ opening
 inventory
 fund
 party
+container
 ```
 
 LED 提供库存、资金、往来流水与指定日期余额，不提供会计科目、复式记账、税额、成本计价、汇率折算、账龄、逐单核销、库存调拨或日常手工调整。
@@ -25,6 +26,7 @@ LED 提供库存、资金、往来流水与指定日期余额，不提供会计�
 - 库存方向为 `IN`、`OUT`，资金方向为 `IN`、`OUT`，往来方向为 `DEBIT`、`CREDIT`。
 - 库存余额按仓库和商品聚合；资金余额按资金账户和币种聚合；往来余额按往来方和币种聚合。
 - 往来净额大于零为 `RECEIVABLE`，小于零为 `PAYABLE`，等于零为 `ZERO`。
+- 空桶按客户和 `SOLVENT/RESIN` 聚合；正数为客户欠桶，负数为客户多还形成的抵扣余额。
 
 单据入账映射如下：
 
@@ -103,6 +105,8 @@ POST /led/fund/query
 POST /led/fund/balance
 POST /led/party/query
 POST /led/party/balance
+POST /led/container/query
+POST /led/container/balance
 ```
 
 `opening/save` 请求结构：
@@ -133,6 +137,13 @@ POST /led/party/balance
       "balanceType": "RECEIVABLE",
       "amount": "500.00"
     }
+  ],
+  "container": [
+    {
+      "customer": {"objectId": "01...", "versionId": "01..."},
+      "containerType": "SOLVENT",
+      "quantity": 10
+    }
   ]
 }
 ```
@@ -150,6 +161,8 @@ POST /led/party/balance
 - 单据抬头总额仍为销售总额；
 - 数据库列允许为空以兼容存量数据，但新建、保存、审核、批准和执行均要求非空；
 - 启用重放遇到启用日后缺失采购单价的 EXECUTED 居间单据时整体失败并返回待修复单据。
+
+`workflowVersion=2` 的居间订单不使用根单执行事件。收货确认按实收数量和采购价贷记供应商，签收确认按签收数量和销售价借记客户，并写入空桶增量；反确认追加相反的不可变流水。来源单据为阶段子单，重开账簿时同时重放已确认的 V2 收货和签收。任何订阅失败均回滚 VOU 状态、审计和全部 LED 流水。
 
 ## 7. 验收
 

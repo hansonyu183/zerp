@@ -29,6 +29,9 @@ const (
 	SettlementRuleRelativeDays    = "RELATIVE_DAYS"
 	SettlementRuleMonthEnd        = "MONTH_END"
 	SettlementRuleFixedDay        = "FIXED_DAY"
+	ContainerTypeNone             = "NONE"
+	ContainerTypeSolvent          = "SOLVENT"
+	ContainerTypeResin            = "RESIN"
 
 	StatusDraft     = "DRAFT"
 	StatusPending   = "PENDING"
@@ -115,6 +118,8 @@ type DetailInput struct {
 	MonthOffset           int32          `json:"monthOffset,omitempty"`
 	DayOfMonth            *int32         `json:"dayOfMonth,omitempty"`
 	DayOffset             int32          `json:"dayOffset,omitempty"`
+	ContainerType         *string        `json:"containerType,omitempty"`
+	QuantityPerContainer  OptionalString `json:"quantityPerContainer,omitempty"`
 }
 
 type CreateDetailInput struct {
@@ -159,6 +164,8 @@ type CreateDetailInput struct {
 	MonthOffset           int32   `json:"monthOffset,omitempty"`
 	DayOfMonth            *int32  `json:"dayOfMonth,omitempty"`
 	DayOffset             int32   `json:"dayOffset,omitempty"`
+	ContainerType         string  `json:"containerType,omitempty"`
+	QuantityPerContainer  string  `json:"quantityPerContainer,omitempty"`
 }
 
 // OptionalString distinguishes an omitted field from an explicit null or
@@ -327,6 +334,8 @@ type DetailView struct {
 	MonthOffset               int32  `json:"monthOffset,omitempty"`
 	DayOfMonth                *int32 `json:"dayOfMonth,omitempty"`
 	DayOffset                 int32  `json:"dayOffset,omitempty"`
+	ContainerType             string `json:"containerType,omitempty"`
+	QuantityPerContainer      string `json:"quantityPerContainer,omitempty"`
 }
 
 type MutationResult struct {

@@ -143,3 +143,38 @@ attachment-initiate attachment-download attachment-remove
 - 居间销售采购单价只允许用于居间商品行，缺失时不能完成正向流转；
 - 附件大小、类型、哈希、令牌、路径和权限规则可验证；
 - 迁移、sqlc 生成、单元测试、数据库集成测试、vet、build、race、Compose 健康检查全部通过。
+
+## 8. 居间销售 V2 长流程
+
+新建居间销售单显式传 `workflowVersion: 2` 时使用 V2；省略或传 `1` 继续使用本文件前述 V1 四状态流程。两种流程数据隔离，历史单据不迁移，V2 不能调用 `review/unreview/execute/unexecute`。
+
+V2 根单为客户订单，状态为 `DRAFT -> CHECKED -> APPROVED`，完成后自动进入 `COMPLETED`。数量不足时使用 `SHORT_CLOSE_REQUESTED -> SHORT_CLOSED`；申请和确认必须由不同人员完成。采购、收货、送货、签收分别使用：
+
+```text
+采购 DRAFT -> CHECKED -> ORDERED
+收货 DRAFT -> CHECKED -> CONFIRMED
+送货 DRAFT -> CHECKED -> EXECUTED
+签收 DRAFT -> CHECKED -> CONFIRMED
+```
+
+最终动作不得由本阶段核对人执行。所有反向动作逐级执行并要求 1–1000 字原因；存在下游依赖、短结尚未撤销或反向后数量时间线为负时拒绝。子单草稿可在无附件时物理删除，收货、送货和签收编号不复用；单一采购草稿重建时仍使用 `-P01`。
+
+V2 根单商品行保存销售数量、销售价和产品包装快照。创建时包装默认来自产品有效版本，草稿允许覆盖 `containerType` 和 `quantityPerContainer`，但仍必须满足 BOB 的组合约束。采购子单保存单一普通供应商、采购员、采购日期、采购数量和采购价；收货、送货和签收允许分批。
+
+可送数量为 `确认收货 - 执行送货 + 确认拒收`。送货执行在根单锁内按业务日期重新计算时间线；签收必须满足 `签收 + 拒收 + 损耗 = 送货`，损耗由服务端计算。采购、收货、送货和签收日期不得早于其上游日期。
+
+每张送货单按行计算 `ceil(送货量 / 每桶产品量)`，按 `SOLVENT/RESIN` 汇总应收桶数。签收登记两类实收桶数，少收时原因必填；客户空桶余额增量为应收减实收，正数表示客户欠桶，负数表示多还形成的抵扣余额。
+
+V2 使用下列新增动作，均为独立 APP 权限：
+
+```text
+check uncheck approve unapprove
+short-close-request short-close-cancel short-close-confirm short-close-unconfirm
+procurement-create/get/save/delete/check/uncheck/place/unplace
+receipt-create/get/save/delete/check/uncheck/confirm/unconfirm
+delivery-create/get/save/delete/check/uncheck/execute/unexecute
+signoff-create/get/save/delete/check/uncheck/confirm/unconfirm
+{procurement|receipt|delivery|signoff}-attachment-initiate/download/remove
+```
+
+子单写请求携带 `documentId`、`rootRevision`、`childId` 和 `childRevision`（创建时省略子单字段）；所有子单写入均递增根 revision。采购详情和价格仅通过采购阶段接口返回，根单查询和详情按 `procurement-get` 权限动态脱敏。

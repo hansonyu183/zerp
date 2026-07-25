@@ -14,6 +14,7 @@ const (
 	EntityInventory = "inventory"
 	EntityFund      = "fund"
 	EntityParty     = "party"
+	EntityContainer = "container"
 )
 
 type ReferenceInput struct {
@@ -51,12 +52,19 @@ type PartyOpeningInput struct {
 	Amount           string         `json:"amount"`
 }
 
+type ContainerOpeningInput struct {
+	Customer      ReferenceInput `json:"customer"`
+	ContainerType string         `json:"containerType"`
+	Quantity      int64          `json:"quantity"`
+}
+
 type OpeningSaveInput struct {
 	Revision    int64                   `json:"revision"`
 	CutoverDate string                  `json:"cutoverDate"`
 	Inventory   []InventoryOpeningInput `json:"inventory"`
 	Fund        []FundOpeningInput      `json:"fund"`
 	Party       []PartyOpeningInput     `json:"party"`
+	Container   []ContainerOpeningInput `json:"container"`
 }
 
 type RevisionInput struct {
@@ -91,6 +99,13 @@ type PartyOpeningView struct {
 	Amount           string        `json:"amount"`
 }
 
+type ContainerOpeningView struct {
+	ID            string        `json:"id"`
+	Customer      ReferenceView `json:"customer"`
+	ContainerType string        `json:"containerType"`
+	Quantity      int64         `json:"quantity"`
+}
+
 type OpeningView struct {
 	Status             string                 `json:"status"`
 	Revision           int64                  `json:"revision"`
@@ -99,6 +114,7 @@ type OpeningView struct {
 	Inventory          []InventoryOpeningView `json:"inventory"`
 	Fund               []FundOpeningView      `json:"fund"`
 	Party              []PartyOpeningView     `json:"party"`
+	Container          []ContainerOpeningView `json:"container"`
 }
 
 type MutationResult struct {
@@ -196,6 +212,23 @@ type PartyEntryView struct {
 	Reason           string        `json:"reason,omitempty"`
 }
 
+type ContainerEntryView struct {
+	ID               string        `json:"id"`
+	EntryType        string        `json:"entryType"`
+	SourceEntity     string        `json:"sourceEntity"`
+	SourceDocumentID string        `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo string        `json:"sourceDocumentNo,omitempty"`
+	RootDocumentID   string        `json:"rootDocumentId,omitempty"`
+	RootDocumentNo   string        `json:"rootDocumentNo,omitempty"`
+	SourceRevision   int64         `json:"sourceRevision,omitempty"`
+	EffectiveDate    string        `json:"effectiveDate"`
+	OccurredAt       time.Time     `json:"occurredAt"`
+	Customer         ReferenceView `json:"customer"`
+	ContainerType    string        `json:"containerType"`
+	Quantity         int64         `json:"quantity"`
+	Reason           string        `json:"reason,omitempty"`
+}
+
 type InventoryBalanceView struct {
 	Warehouse ReferenceView `json:"warehouse"`
 	Product   ReferenceView `json:"product"`
@@ -215,6 +248,12 @@ type PartyBalanceView struct {
 	Currency         string        `json:"currency"`
 	BalanceType      string        `json:"balanceType"`
 	Amount           string        `json:"amount"`
+}
+
+type ContainerBalanceView struct {
+	Customer      ReferenceView `json:"customer"`
+	ContainerType string        `json:"containerType"`
+	Quantity      int64         `json:"quantity"`
 }
 
 type HistoryInput struct {

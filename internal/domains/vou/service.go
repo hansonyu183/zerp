@@ -86,6 +86,12 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder && input.WorkflowVersion == 2 {
+		return s.CreateIntermediaryV2(ctx, input, actorID, requestID)
+	}
+	if input.WorkflowVersion != 0 && input.WorkflowVersion != 1 {
+		return MutationResult{}, domainError(ErrorValidation, "invalid workflow version", nil, nil)
+	}
 	draft, err := validateDraft(entity, input.Data)
 	if err != nil {
 		return MutationResult{}, err
@@ -141,6 +147,15 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		version, versionErr := s.documentWorkflowVersion(ctx, input.DocumentID)
+		if versionErr == nil && version == 2 {
+			return s.SaveIntermediaryV2(ctx, input, actorID, requestID)
+		}
+		if versionErr != nil && !errors.Is(versionErr, pgx.ErrNoRows) {
+			return MutationResult{}, s.internal("read workflow version", versionErr)
+		}
+	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -198,6 +213,11 @@ func (s *Service) Save(
 func (s *Service) Review(
 	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		if version, _ := s.documentWorkflowVersion(ctx, input.DocumentID); version == 2 {
+			return MutationResult{}, domainError(ErrorConflict, "V2 intermediary uses check", nil, nil)
+		}
+	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -242,6 +262,15 @@ func (s *Service) Review(
 func (s *Service) Approve(
 	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		if version, _ := s.documentWorkflowVersion(ctx, input.DocumentID); version == 2 {
+			revision := input.RootRevision
+			if revision == 0 {
+				revision = input.Revision
+			}
+			return s.ApproveIntermediaryV2(ctx, input.DocumentID, revision, actorID, requestID)
+		}
+	}
 	return s.forwardTransition(ctx, entity, input, actorID, requestID, StatusReviewed, StatusApproved)
 }
 
@@ -254,6 +283,15 @@ func (s *Service) Unreview(
 func (s *Service) Unapprove(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		if version, _ := s.documentWorkflowVersion(ctx, input.DocumentID); version == 2 {
+			revision := input.RootRevision
+			if revision == 0 {
+				revision = input.Revision
+			}
+			return s.UnapproveIntermediaryV2(ctx, input.DocumentID, revision, input.Reason, actorID, requestID)
+		}
+	}
 	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusApproved, StatusReviewed)
 }
 
@@ -358,6 +396,11 @@ func (s *Service) reverseTransition(
 func (s *Service) Execute(
 	ctx context.Context, entity string, input ExecuteInput, actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		if version, _ := s.documentWorkflowVersion(ctx, input.DocumentID); version == 2 {
+			return MutationResult{}, domainError(ErrorConflict, "V2 intermediary has no root execute action", nil, nil)
+		}
+	}
 	if !validEntity(entity) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -430,6 +473,11 @@ func (s *Service) Execute(
 func (s *Service) Unexecute(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediarySaleOrder {
+		if version, _ := s.documentWorkflowVersion(ctx, input.DocumentID); version == 2 {
+			return MutationResult{}, domainError(ErrorConflict, "V2 intermediary has no root unexecute action", nil, nil)
+		}
+	}
 	reason, err := validateReverse(input)
 	if err != nil {
 		return MutationResult{}, err
@@ -521,7 +569,8 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 			DocumentID: row.ID, Entity: row.Entity, DocumentNo: row.DocumentNo,
 			Status: row.Status, Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
 			PartyName: row.PartyName, Currency: row.Currency, Amount: formatMoney(row.TotalAmountCents),
-			UpdatedAt: row.UpdatedAt.Time,
+			UpdatedAt: row.UpdatedAt.Time, WorkflowVersion: int(row.WorkflowVersion),
+			WorkflowStatus: row.Status,
 		})
 	}
 	return Page[ListItem]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
@@ -537,6 +586,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Docum
 	}
 	if err != nil {
 		return DocumentView{}, s.internal("get document", err)
+	}
+	if document.WorkflowVersion == 2 {
+		return s.getIntermediaryV2(ctx, document, input.permissions)
 	}
 	data, err := s.loadData(ctx, s.queries, document)
 	if err != nil {
@@ -574,7 +626,9 @@ func (s *Service) AuditHistory(ctx context.Context, entity string, input History
 		items = append(items, AuditEventView{
 			ID: row.ID, EventType: row.EventType, FromStatus: row.FromStatus, ToStatus: row.ToStatus,
 			ActorID: row.ActorID, OccurredAt: row.OccurredAt.Time, Reason: row.Reason,
-			RequestID: row.RequestID, Summary: row.Summary,
+			RequestID: row.RequestID, Summary: row.Summary, WorkflowVersion: row.WorkflowVersion,
+			Stage: deref(row.Stage), ChildID: deref(row.ChildID), ChildNo: deref(row.ChildNo),
+			ChildStatus: deref(row.ChildStatus),
 		})
 	}
 	return Page[AuditEventView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -1375,6 +1429,13 @@ func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnaps
 
 func int32Ptr(value int32) *int32 { return &value }
 func newID() string               { return ulid.Make().String() }
+
+func (s *Service) documentWorkflowVersion(ctx context.Context, documentID string) (int16, error) {
+	var version int16
+	err := s.pool.QueryRow(ctx, `SELECT workflow_version FROM vou_documents
+		WHERE id=$1 AND entity='intermediary-sale-order'`, documentID).Scan(&version)
+	return version, err
+}
 
 func oneRow(rows int64, err error) error {
 	if err != nil {

@@ -74,6 +74,7 @@ type sample struct {
 	parentCode              string
 	managerEmployeeCode     string
 	salespersonEmployeeCode string
+	settlementMethodCode    string
 }
 
 var samples = [...]sample{
@@ -102,12 +103,16 @@ var samples = [...]sample{
 	{entity: bob.EntityEmployee, data: bob.CreateDetailInput{
 		Code: "DEMO-EMP-002", Name: "李娜（已驳回）", Phone: "13800000005",
 	}, status: bob.StatusRejected, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001"},
+	{entity: bob.EntitySettlementMethod, data: bob.CreateDetailInput{
+		Code: "DEMO-SM-001", Name: "当月 15 日结算", RuleType: bob.SettlementRuleFixedDay,
+		MonthOffset: 0, DayOfMonth: int32Pointer(15), DayOffset: 0, Description: "VOU 演示结算方式",
+	}, status: bob.StatusEffective},
 	{entity: bob.EntityCustomer, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-001", Name: "星河零售有限公司", CustomerType: stringPointer(bob.CustomerTypeDealer),
 		ShortName: "星河零售", TaxNumber: "91310000DEMO000001", ContactName: "王经理",
 		ContactPhone: "+86 13800000001", Email: "sales@example.com",
 		Address: "上海市浦东新区示例路1号", Remark: "演示经销商客户",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001"},
+	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: "DEMO-SM-001"},
 	{entity: bob.EntityCustomer, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-002", Name: "新客户（草稿）", CustomerType: stringPointer(bob.CustomerTypeEndUser),
 		ContactName: "陈先生", ContactPhone: "13800000002",
@@ -117,6 +122,11 @@ var samples = [...]sample{
 		ShortName: "自营物流", ContactName: "调度中心", ContactPhone: "021-60000001",
 		Address: "上海市闵行区物流路1号", Remark: "演示物流平台供应商",
 	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001"},
+	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
+		Code: "DEMO-SUP-003", Name: "通用零部件供应商", SupplierType: stringPointer(bob.SupplierTypeGeneral),
+		ShortName: "通用供应商", ContactName: "采购对接人", ContactPhone: "13800000006",
+		Address: "江苏省苏州市工业园区示例路3号", Remark: "VOU 演示普通供应商",
+	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: "DEMO-SM-001"},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-002", Name: "待审核供应商", TaxNumber: "91310000DEMO000002",
 		ContactName: "赵经理", ContactPhone: "13800000003",
@@ -223,6 +233,11 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	}
 	if item.data.SalespersonEmployeeID, err = resolve(
 		bob.EntityEmployee, item.salespersonEmployeeCode, "salesperson employee",
+	); err != nil {
+		return 0, err
+	}
+	if item.data.SettlementMethodID, err = resolve(
+		bob.EntitySettlementMethod, item.settlementMethodCode, "settlement method",
 	); err != nil {
 		return 0, err
 	}
@@ -364,7 +379,12 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.BankBranch == item.data.BankBranch &&
 		view.Data.AccountNumber == item.data.AccountNumber &&
 		view.Data.ParentID == item.data.ParentID &&
-		view.Data.SalespersonEmployeeID == item.data.SalespersonEmployeeID
+		view.Data.SalespersonEmployeeID == item.data.SalespersonEmployeeID &&
+		view.Data.SettlementMethodID == item.data.SettlementMethodID &&
+		view.Data.RuleType == item.data.RuleType &&
+		view.Data.MonthOffset == item.data.MonthOffset &&
+		equalInt32Pointer(view.Data.DayOfMonth, item.data.DayOfMonth) &&
+		view.Data.DayOffset == item.data.DayOffset
 }
 
 func matchesLegacyShape(item sample, view bob.ObjectView) bool {
@@ -425,7 +445,7 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view bob.Ob
 	}
 	saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
 		ObjectID: current.ObjectID, VersionID: current.VersionID, Revision: current.Revision,
-		Data: detailInput(item.data),
+		Data: detailInput(item.entity, item.data),
 	}, submitterID, requestID(item.data.Code, "upgrade-save"))
 	if err != nil {
 		return bob.MutationResult{}, fmt.Errorf("save upgraded demo data: %w", err)
@@ -433,31 +453,92 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view bob.Ob
 	return saved, nil
 }
 
-func detailInput(input bob.CreateDetailInput) bob.DetailInput {
-	return bob.DetailInput{
+func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
+	result := bob.DetailInput{
 		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
 		SupplierType: input.SupplierType, PlateNumber: input.PlateNumber,
 		CustomerType: input.CustomerType, VehicleType: input.VehicleType,
 		PlatformObjectID: input.PlatformObjectID, TargetEntity: stringPointer(input.TargetEntity),
-		ShortName: bob.Optional(input.ShortName), CategoryID: bob.Optional(input.CategoryID),
-		TaxNumber: bob.Optional(input.TaxNumber), ContactName: bob.Optional(input.ContactName),
-		ContactPhone: bob.Optional(input.ContactPhone), Email: bob.Optional(input.Email),
-		Address: bob.Optional(input.Address), Remark: bob.Optional(input.Remark),
-		DepartmentID: bob.Optional(input.DepartmentID), PositionID: bob.Optional(input.PositionID),
-		Phone: bob.Optional(input.Phone), HireDate: bob.Optional(input.HireDate),
-		Specification: bob.Optional(input.Specification), Model: bob.Optional(input.Model),
-		Barcode: bob.Optional(input.Barcode), Description: bob.Optional(input.Description),
-		ManagerEmployeeID: bob.Optional(input.ManagerEmployeeID), VIN: bob.Optional(input.VIN),
-		EngineNumber: bob.Optional(input.EngineNumber), LoadCapacityKG: bob.Optional(input.LoadCapacityKG),
-		AccountName: bob.Optional(input.AccountName), BankName: bob.Optional(input.BankName),
-		BankBranch: bob.Optional(input.BankBranch), AccountNumber: bob.Optional(input.AccountNumber),
-		ParentID:              bob.Optional(input.ParentID),
-		SalespersonEmployeeID: bob.Optional(input.SalespersonEmployeeID),
+		RuleType: input.RuleType, MonthOffset: input.MonthOffset,
+		DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 	}
+	switch entity {
+	case bob.EntityCustomer, bob.EntitySupplier:
+		result.ShortName = bob.Optional(input.ShortName)
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.TaxNumber = bob.Optional(input.TaxNumber)
+		result.ContactName = bob.Optional(input.ContactName)
+		result.ContactPhone = bob.Optional(input.ContactPhone)
+		result.Email = bob.Optional(input.Email)
+		result.Address = bob.Optional(input.Address)
+		result.Remark = bob.Optional(input.Remark)
+		result.SettlementMethodID = bob.Optional(input.SettlementMethodID)
+		result.SalespersonEmployeeID = bob.Optional(input.SalespersonEmployeeID)
+	case bob.EntityEmployee:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.DepartmentID = bob.Optional(input.DepartmentID)
+		result.PositionID = bob.Optional(input.PositionID)
+		result.Phone = bob.Optional(input.Phone)
+		result.Email = bob.Optional(input.Email)
+		result.HireDate = bob.Optional(input.HireDate)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityProduct:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.Specification = bob.Optional(input.Specification)
+		result.Model = bob.Optional(input.Model)
+		result.Barcode = bob.Optional(input.Barcode)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityService:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.Description = bob.Optional(input.Description)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityWarehouse:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.Address = bob.Optional(input.Address)
+		result.ContactName = bob.Optional(input.ContactName)
+		result.ContactPhone = bob.Optional(input.ContactPhone)
+		result.ManagerEmployeeID = bob.Optional(input.ManagerEmployeeID)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityVehicle:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.VIN = bob.Optional(input.VIN)
+		result.EngineNumber = bob.Optional(input.EngineNumber)
+		result.LoadCapacityKG = bob.Optional(input.LoadCapacityKG)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityFundAccount:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.AccountName = bob.Optional(input.AccountName)
+		result.BankName = bob.Optional(input.BankName)
+		result.BankBranch = bob.Optional(input.BankBranch)
+		result.AccountNumber = bob.Optional(input.AccountNumber)
+		result.Remark = bob.Optional(input.Remark)
+	case bob.EntityCategory:
+		result.ParentID = bob.Optional(input.ParentID)
+		result.Description = bob.Optional(input.Description)
+	case bob.EntityDepartment:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.ParentID = bob.Optional(input.ParentID)
+		result.Description = bob.Optional(input.Description)
+	case bob.EntityPosition:
+		result.CategoryID = bob.Optional(input.CategoryID)
+		result.Description = bob.Optional(input.Description)
+	case bob.EntitySettlementMethod:
+		result.Description = bob.Optional(input.Description)
+	}
+	return result
 }
 
 func stringPointer(value string) *string {
 	return &value
+}
+
+func int32Pointer(value int32) *int32 {
+	return &value
+}
+
+func equalInt32Pointer(left, right *int32) bool {
+	return (left == nil && right == nil) ||
+		(left != nil && right != nil && *left == *right)
 }
 
 func deref(value *string) string {

@@ -616,6 +616,14 @@ JOIN vou_files f ON f.id = a.file_id
 WHERE a.document_id = sqlc.arg(document_id)
 ORDER BY a.created_at, f.id;
 
+-- name: ListVouFeedbackAttachmentMetadata :many
+SELECT id, original_name, content_type, declared_size, sha256_hex
+FROM vou_files
+WHERE id = ANY(sqlc.arg(file_ids)::text[])
+  AND created_by = sqlc.arg(actor_id)
+  AND status = 'READY'
+ORDER BY id;
+
 -- name: LockPendingVouUpload :one
 SELECT f.*, a.document_id, d.entity, d.status AS document_status
 FROM vou_files f

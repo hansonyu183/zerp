@@ -1731,6 +1731,54 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 	return items, nil
 }
 
+const listVouFeedbackAttachmentMetadata = `-- name: ListVouFeedbackAttachmentMetadata :many
+SELECT id, original_name, content_type, declared_size, sha256_hex
+FROM vou_files
+WHERE id = ANY($1::text[])
+  AND created_by = $2
+  AND status = 'READY'
+ORDER BY id
+`
+
+type ListVouFeedbackAttachmentMetadataParams struct {
+	FileIds []string `db:"file_ids" json:"file_ids"`
+	ActorID string   `db:"actor_id" json:"actor_id"`
+}
+
+type ListVouFeedbackAttachmentMetadataRow struct {
+	ID           string `db:"id" json:"id"`
+	OriginalName string `db:"original_name" json:"original_name"`
+	ContentType  string `db:"content_type" json:"content_type"`
+	DeclaredSize int64  `db:"declared_size" json:"declared_size"`
+	Sha256Hex    string `db:"sha256_hex" json:"sha256_hex"`
+}
+
+func (q *Queries) ListVouFeedbackAttachmentMetadata(ctx context.Context, arg ListVouFeedbackAttachmentMetadataParams) ([]ListVouFeedbackAttachmentMetadataRow, error) {
+	rows, err := q.db.Query(ctx, listVouFeedbackAttachmentMetadata, arg.FileIds, arg.ActorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouFeedbackAttachmentMetadataRow{}
+	for rows.Next() {
+		var i ListVouFeedbackAttachmentMetadataRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OriginalName,
+			&i.ContentType,
+			&i.DeclaredSize,
+			&i.Sha256Hex,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVouProductLines = `-- name: ListVouProductLines :many
 SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `

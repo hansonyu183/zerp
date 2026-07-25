@@ -17,6 +17,7 @@ type applicationService interface {
 	Signin(context.Context, string, string, string) (SessionResult, error)
 	RestoreSession(context.Context, string) (SessionResult, error)
 	Authorize(context.Context, string, string, string, string) (Principal, error)
+	AuthorizeSession(context.Context, string, string, string, string) (Principal, error)
 	Signout(context.Context, Principal, string) error
 	GetProfile(context.Context, string) (ProfileView, error)
 	ChangePassword(context.Context, Principal, ChangePasswordInput, string) error
@@ -32,6 +33,8 @@ type applicationService interface {
 	SetRoleStatus(context.Context, string, int64, string, string, string) (RoleView, error)
 	QueryPermissions(context.Context, PageRequest) (Page[PermissionView], error)
 	GetPermission(context.Context, string) (PermissionView, error)
+	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
+	GetFeedback(context.Context, string, string) (FeedbackView, error)
 }
 
 type Handler struct {
@@ -76,12 +79,37 @@ func (h *Handler) Register(router *gin.Engine) {
 	permission.Use(h.authorize())
 	permission.POST("/query", h.queryPermissions)
 	permission.POST("/get", h.getPermission)
+
+	feedback := appGroup.Group("/feedback")
+	feedback.Use(h.authorizeSession())
+	feedback.POST("/create", h.createFeedback)
+	feedback.POST("/get", h.getFeedback)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
 		principal, err := h.service.Authorize(c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"), c.Request.URL.Path, response.RequestID(c))
+		if err != nil {
+			if errorIsKind(err, ErrorUnauthenticated) {
+				h.clearSessionCookie(c)
+			}
+			h.writeError(c, err)
+			c.Abort()
+			return
+		}
+		c.Set(principalContextKey, principal)
+		c.Next()
+	}
+}
+
+func (h *Handler) authorizeSession() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
+		principal, err := h.service.AuthorizeSession(
+			c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"),
+			c.Request.URL.Path, response.RequestID(c),
+		)
 		if err != nil {
 			if errorIsKind(err, ErrorUnauthenticated) {
 				h.clearSessionCookie(c)

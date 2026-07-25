@@ -35,6 +35,10 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("attachment defaults = root:%q upload:%s download:%s",
 			cfg.AttachmentStorageRoot, cfg.AttachmentUploadTTL, cfg.AttachmentDownloadTTL)
 	}
+	if cfg.FeedbackGitHubEnabled || cfg.FeedbackGitHubRepository != "hansonyu183/zerp-back" {
+		t.Fatalf("feedback defaults = enabled:%t repository:%q",
+			cfg.FeedbackGitHubEnabled, cfg.FeedbackGitHubRepository)
+	}
 	wantOrigins := []string{"https://erp.example.com", "https://preview.example.com"}
 	if !reflect.DeepEqual(cfg.CORSAllowedOrigins, wantOrigins) {
 		t.Fatalf("CORSAllowedOrigins = %#v, want %#v", cfg.CORSAllowedOrigins, wantOrigins)
@@ -44,6 +48,8 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadRequiresAbsoluteAttachmentRootInProduction(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("APP_ENV", EnvironmentProduction)
+	t.Setenv("FEEDBACK_GITHUB_ENABLED", "true")
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "test-token")
 	t.Setenv("ATTACHMENT_STORAGE_ROOT", "")
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() accepted missing production attachment root")
@@ -55,6 +61,37 @@ func TestLoadRequiresAbsoluteAttachmentRootInProduction(t *testing.T) {
 	t.Setenv("ATTACHMENT_STORAGE_ROOT", "/var/lib/zerp/attachments")
 	if _, err := Load(); err != nil {
 		t.Fatalf("Load() rejected absolute production attachment root: %v", err)
+	}
+}
+
+func TestLoadRequiresFeedbackTokenWhenEnabled(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("APP_ENV", EnvironmentDevelopment)
+	t.Setenv("FEEDBACK_GITHUB_ENABLED", "true")
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() accepted enabled feedback publishing without a token")
+	}
+
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "test-token")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() rejected valid feedback configuration: %v", err)
+	}
+	if !cfg.FeedbackGitHubEnabled {
+		t.Fatal("FeedbackGitHubEnabled = false, want true")
+	}
+}
+
+func TestLoadRequiresFeedbackPublishingInProduction(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("APP_ENV", EnvironmentProduction)
+	t.Setenv("ATTACHMENT_STORAGE_ROOT", "/var/lib/zerp/attachments")
+	t.Setenv("FEEDBACK_GITHUB_ENABLED", "false")
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() accepted disabled feedback publishing in production")
 	}
 }
 

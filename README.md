@@ -119,6 +119,9 @@ make ENV_FILE=.env.test compose-up
 | `ATTACHMENT_STORAGE_ROOT` | 生产是 | 开发/测试为 `./var/attachments` | VOU 本地附件持久目录；生产必须是绝对路径 |
 | `ATTACHMENT_UPLOAD_TOKEN_TTL` | 否 | `15m` | 一次性附件上传令牌有效期 |
 | `ATTACHMENT_DOWNLOAD_TOKEN_TTL` | 否 | `5m` | 一次性附件下载令牌有效期 |
+| `FEEDBACK_GITHUB_ENABLED` | 生产是 | `false` | 是否启用 APP 用户反馈与 GitHub Issue 发布；生产必须为 `true` |
+| `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp-back` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
+| `FEEDBACK_GITHUB_TOKEN` | 启用时是 | 无 | 仅具目标仓库 Issues 读写权限的细粒度令牌；不得写入仓库或日志 |
 
 `make test` 会启动并等待 Compose 的 `db` 服务，幂等创建 `TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、LED 数据库测试。测试库会保留供后续运行复用；安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或实际连接库名不匹配的配置。
 
@@ -416,6 +419,7 @@ Docker Compose 是本地开发和测试环境的标准运行方式，统一编�
 - 数据库迁移作为明确的部署步骤执行；
 - 发布前通过构建、单元测试、数据库集成测试和真实测试后端上的关键端到端流程。
 - 使用本地附件存储时生产 API 只能运行单实例，附件目录必须挂载持久卷，并与数据库共同备份和恢复。
+- 用户反馈发布必须使用最小权限 GitHub 令牌；新 Issue 默认带 `automation:blocked`，人工审核后才能交给自动化处理。
 
 ## 安全要求
 

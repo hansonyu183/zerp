@@ -228,4 +228,22 @@ describe('permission menu registry', () => {
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
   })
+
+  it('注册 LED 五类账簿页面并保持业务顺序', () => {
+    const entities = ['opening', 'inventory', 'fund', 'party', 'container']
+    const router = createTestRouter()
+    const menus = buildMenus([
+      '/led/opening/get',
+      ...entities.slice(1).map((entity) => `/led/${entity}/query`),
+    ])
+
+    expect(menus[0]?.domain).toBe('led')
+    expect(menus[0]?.title).toBe('业务账簿')
+    expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+    expect(registerMenuRoutes(router, menus)).toBe(entities.length)
+    for (const entity of entities) {
+      expect(hasRegisteredPage('led', entity)).toBe(true)
+      expect(router.resolve(`/led/${entity}`).meta.developing).toBe(false)
+    }
+  })
 })

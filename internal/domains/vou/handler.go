@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp-back/internal/api/authorization"
@@ -34,16 +33,6 @@ type applicationService interface {
 	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (MutationResult, error)
 	Upload(context.Context, string, io.Reader, int64, string, string) error
 	OpenDownload(context.Context, string) (DownloadFile, error)
-}
-
-type intermediaryV2ApplicationService interface {
-	IntermediaryV2Action(context.Context, string, IntermediaryActionInput, string, string) (any, error)
-}
-
-type intermediaryAttachmentApplicationService interface {
-	InitiateIntermediaryAttachment(context.Context, string, IntermediaryAttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
-	DownloadIntermediaryAttachment(context.Context, string, IntermediaryAttachmentDownloadInput, string) (AttachmentDownloadResult, error)
-	RemoveIntermediaryAttachment(context.Context, string, IntermediaryAttachmentRemoveInput, string, string) (MutationResult, error)
 }
 
 type Handler struct {
@@ -74,21 +63,6 @@ var actionRoutes = [...]actionRoute{
 	{action: "attachment-remove", handle: (*Handler).attachmentRemove},
 }
 
-var intermediaryV2Actions = [...]string{
-	"check", "uncheck", "short-close-request", "short-close-cancel",
-	"short-close-confirm", "short-close-unconfirm",
-	"procurement-create", "procurement-get", "procurement-save", "procurement-delete",
-	"procurement-check", "procurement-uncheck", "procurement-place", "procurement-unplace",
-	"receipt-create", "receipt-get", "receipt-save", "receipt-delete",
-	"receipt-check", "receipt-uncheck", "receipt-confirm", "receipt-unconfirm",
-	"delivery-create", "delivery-get", "delivery-save", "delivery-delete",
-	"delivery-check", "delivery-uncheck", "delivery-execute", "delivery-unexecute",
-	"signoff-create", "signoff-get", "signoff-save", "signoff-delete",
-	"signoff-check", "signoff-uncheck", "signoff-confirm", "signoff-unconfirm",
-}
-
-var intermediaryAttachmentStages = [...]string{"procurement", "receipt", "delivery", "signoff"}
-
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
 	if authorizer == nil {
 		authorizer = authorization.FailClosed{}
@@ -110,25 +84,6 @@ func (h *Handler) Register(router *gin.Engine) {
 			path := "/vou/" + entity + "/" + action
 			entityGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
 				handle(h, c, entity)
-			})
-		}
-	}
-	intermediary := group.Group("/" + EntityIntermediarySaleOrder)
-	for _, action := range intermediaryV2Actions {
-		registeredAction := action
-		path := "/vou/" + EntityIntermediarySaleOrder + "/" + registeredAction
-		intermediary.POST("/"+registeredAction, h.authorize(path), func(c *gin.Context) {
-			h.intermediaryV2Action(c, registeredAction)
-		})
-	}
-	for _, stage := range intermediaryAttachmentStages {
-		registeredStage := stage
-		for _, operation := range []string{"initiate", "download", "remove"} {
-			registeredOperation := operation
-			action := registeredStage + "-attachment-" + registeredOperation
-			path := "/vou/" + EntityIntermediarySaleOrder + "/" + action
-			intermediary.POST("/"+action, h.authorize(path), func(c *gin.Context) {
-				h.intermediaryAttachment(c, strings.ToUpper(registeredStage), registeredOperation)
 			})
 		}
 	}
@@ -169,51 +124,6 @@ func (h *Handler) get(c *gin.Context, entity string) {
 		input.permissions = h.principal(c).Permissions
 		result, err := h.service.Get(c.Request.Context(), entity, input)
 		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) intermediaryV2Action(c *gin.Context, action string) {
-	var input IntermediaryActionInput
-	if h.bind(c, &input) {
-		service, ok := h.service.(intermediaryV2ApplicationService)
-		if !ok {
-			h.result(c, nil, domainError(ErrorInternal, "V2 intermediary service is unavailable", nil, nil))
-			return
-		}
-		result, err := service.IntermediaryV2Action(c.Request.Context(), action, input,
-			h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) intermediaryAttachment(c *gin.Context, stage, operation string) {
-	service, ok := h.service.(intermediaryAttachmentApplicationService)
-	if !ok {
-		h.result(c, nil, domainError(ErrorInternal, "V2 attachment service is unavailable", nil, nil))
-		return
-	}
-	switch operation {
-	case "initiate":
-		var input IntermediaryAttachmentInitiateInput
-		if h.bind(c, &input) {
-			result, err := service.InitiateIntermediaryAttachment(c.Request.Context(), stage,
-				input, h.actorID(c), response.RequestID(c))
-			h.result(c, result, err)
-		}
-	case "download":
-		var input IntermediaryAttachmentDownloadInput
-		if h.bind(c, &input) {
-			result, err := service.DownloadIntermediaryAttachment(c.Request.Context(), stage,
-				input, h.actorID(c))
-			h.result(c, result, err)
-		}
-	case "remove":
-		var input IntermediaryAttachmentRemoveInput
-		if h.bind(c, &input) {
-			result, err := service.RemoveIntermediaryAttachment(c.Request.Context(), stage,
-				input, h.actorID(c), response.RequestID(c))
-			h.result(c, result, err)
-		}
 	}
 }
 

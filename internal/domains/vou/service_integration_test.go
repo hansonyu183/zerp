@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -61,13 +60,12 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE vou_audit_events, vou_download_tokens, vou_document_attachments,
-			vou_intermediary_child_attachments, vou_files,
-			vou_intermediary_signoff_lines, vou_intermediary_signoffs,
-			vou_intermediary_delivery_lines, vou_intermediary_deliveries,
-			vou_intermediary_receipt_lines, vou_intermediary_receipts,
-			vou_intermediary_procurement_lines, vou_intermediary_procurements,
-			vou_intermediary_child_counters, vou_intermediary_children,
-			vou_intermediary_v2_lines, vou_intermediary_v2_details,
+			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_signoff_note_lines, vou_signoff_note_details,
+			vou_delivery_note_lines, vou_delivery_note_details,
+			vou_goods_receipt_lines, vou_goods_receipt_details,
+			vou_procurement_order_lines, vou_procurement_order_details,
+			vou_customer_order_lines, vou_customer_order_details,
 			vou_expense_lines, vou_product_lines, vou_other_income_details,
 			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_intermediary_sale_order_details, vou_purchase_order_details,
@@ -708,184 +706,9 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	const intermediaryV2PermissionCount = 50
-	wantPermissions := len(entities)*len(actionRoutes) + intermediaryV2PermissionCount
+	wantPermissions := len(entities) * len(actionRoutes)
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
-	}
-}
-
-func TestIntermediaryV2LongWorkflowIntegration(t *testing.T) {
-	pool := vouIntegrationPool(t)
-	truncateVOU(t, pool)
-	t.Cleanup(func() { truncateVOU(t, pool) })
-	refs := prepareReferences(t, pool)
-	service := newIntegrationService(t, pool)
-	containerType, quantityPerContainer := "SOLVENT", "2"
-	created, err := service.Create(t.Context(), EntityIntermediarySaleOrder, CreateInput{
-		WorkflowVersion: 2,
-		Data: DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-			Salesperson: &refs.employee,
-			ProductLines: []ProductLineInput{{
-				Product: refs.product, OrderedQuantity: "4", UnitPrice: "10.00",
-				ContainerType: &containerType, QuantityPerContainer: &quantityPerContainer,
-			}},
-		},
-	}, integrationActorOne, "v2-create")
-	if err != nil {
-		t.Fatalf("create V2 root: %v", err)
-	}
-	checkedAny, err := service.IntermediaryV2Action(t.Context(), "check", IntermediaryActionInput{
-		DocumentID: created.DocumentID, RootRevision: created.RootRevision,
-	}, integrationActorOne, "v2-check")
-	if err != nil {
-		t.Fatalf("check V2 root: %v", err)
-	}
-	checked := checkedAny.(MutationResult)
-	approved, err := service.Approve(t.Context(), EntityIntermediarySaleOrder, DocumentRevisionInput{
-		DocumentID: created.DocumentID, RootRevision: checked.RootRevision,
-	}, integrationActorTwo, "v2-approve")
-	if err != nil {
-		t.Fatalf("approve V2 root: %v", err)
-	}
-	view, err := service.Get(t.Context(), EntityIntermediarySaleOrder, GetInput{
-		DocumentID: created.DocumentID,
-		permissions: []string{
-			"/vou/intermediary-sale-order/procurement-get",
-		},
-	})
-	if err != nil {
-		t.Fatalf("get V2 root: %v", err)
-	}
-	if view.WorkflowVersion != 2 || len(view.Data.ProductLines) != 1 {
-		t.Fatalf("unexpected V2 root view: %#v", view)
-	}
-	rootLineID := view.Data.ProductLines[0].LineID
-	run := func(action string, rootRevision int64, childID string, childRevision int64, data any, actor, reason string) MutationResult {
-		t.Helper()
-		var raw json.RawMessage
-		if data != nil {
-			raw, err = json.Marshal(data)
-			if err != nil {
-				t.Fatalf("marshal %s: %v", action, err)
-			}
-		}
-		result, actionErr := service.IntermediaryV2Action(t.Context(), action, IntermediaryActionInput{
-			DocumentID: created.DocumentID, RootRevision: rootRevision,
-			ChildID: childID, ChildRevision: childRevision, Data: raw, Reason: reason,
-		}, actor, "v2-"+action)
-		if actionErr != nil {
-			t.Fatalf("%s: %v", action, actionErr)
-		}
-		return result.(MutationResult)
-	}
-	procurement := run("procurement-create", approved.RootRevision, "", 0,
-		IntermediaryProcurementInput{
-			Supplier: refs.supplier, Purchaser: &refs.employee, PurchaseDate: "2026-07-24",
-			Lines: []IntermediaryProcurementLineInput{{
-				RootLineID: rootLineID, Quantity: "4", UnitPrice: "8.00",
-			}},
-		}, integrationActorOne, "")
-	content := []byte("%PDF-1.7\nV2 procurement attachment")
-	sum := sha256.Sum256(content)
-	initiated, err := service.InitiateIntermediaryAttachment(t.Context(), stageProcurement,
-		IntermediaryAttachmentInitiateInput{
-			DocumentID: created.DocumentID, RootRevision: procurement.RootRevision,
-			ChildID: procurement.ChildID, ChildRevision: procurement.ChildRevision,
-			FileName: "procurement.pdf", ContentType: "application/pdf",
-			Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]),
-		}, integrationActorOne, "v2-procurement-attachment-initiate")
-	if err != nil {
-		t.Fatalf("initiate V2 procurement attachment: %v", err)
-	}
-	router := newVOUTestRouter(service, authorization.Func(
-		func(context.Context, *http.Request, string, string) (authorization.Principal, error) {
-			return authorization.Principal{ActorID: integrationActorOne}, nil
-		},
-	))
-	uploadRequest := httptest.NewRequest(http.MethodPut, initiated.UploadURL, bytes.NewReader(content))
-	uploadRequest.Header.Set("Content-Type", "application/pdf")
-	uploadRecorder := httptest.NewRecorder()
-	router.ServeHTTP(uploadRecorder, uploadRequest)
-	if uploadRecorder.Code != http.StatusNoContent {
-		t.Fatalf("V2 attachment upload status=%d body=%s",
-			uploadRecorder.Code, uploadRecorder.Body.String())
-	}
-	download, err := service.DownloadIntermediaryAttachment(t.Context(), stageProcurement,
-		IntermediaryAttachmentDownloadInput{
-			DocumentID: created.DocumentID, ChildID: procurement.ChildID, FileID: initiated.FileID,
-		}, integrationActorOne)
-	if err != nil {
-		t.Fatalf("create V2 attachment download: %v", err)
-	}
-	downloadRequest := httptest.NewRequest(http.MethodGet, download.DownloadURL, nil)
-	downloadRecorder := httptest.NewRecorder()
-	router.ServeHTTP(downloadRecorder, downloadRequest)
-	if downloadRecorder.Code != http.StatusOK || !bytes.Equal(downloadRecorder.Body.Bytes(), content) {
-		t.Fatalf("V2 attachment download status=%d", downloadRecorder.Code)
-	}
-	removed, err := service.RemoveIntermediaryAttachment(t.Context(), stageProcurement,
-		IntermediaryAttachmentRemoveInput{
-			DocumentID: created.DocumentID, RootRevision: initiated.RootRevision,
-			ChildID: procurement.ChildID, ChildRevision: initiated.ChildRevision, FileID: initiated.FileID,
-		}, integrationActorOne, "v2-procurement-attachment-remove")
-	if err != nil {
-		t.Fatalf("remove V2 procurement attachment: %v", err)
-	}
-	procurement.RootRevision, procurement.ChildRevision =
-		removed.RootRevision, removed.ChildRevision
-	procurement = run("procurement-check", procurement.RootRevision, procurement.ChildID,
-		procurement.ChildRevision, nil, integrationActorOne, "")
-	procurement = run("procurement-place", procurement.RootRevision, procurement.ChildID,
-		procurement.ChildRevision, nil, integrationActorTwo, "")
-	receipt := run("receipt-create", procurement.RootRevision, "", 0,
-		IntermediaryReceiptInput{
-			ReceiptDate: "2026-07-25",
-			Lines:       []IntermediaryLineQuantityInput{{RootLineID: rootLineID, Quantity: "4"}},
-		}, integrationActorOne, "")
-	receipt = run("receipt-check", receipt.RootRevision, receipt.ChildID,
-		receipt.ChildRevision, nil, integrationActorOne, "")
-	receipt = run("receipt-confirm", receipt.RootRevision, receipt.ChildID,
-		receipt.ChildRevision, nil, integrationActorTwo, "")
-	delivery := run("delivery-create", receipt.RootRevision, "", 0,
-		IntermediaryDeliveryInput{
-			DeliveryDate: "2026-07-25", Platform: refs.platform, Vehicle: refs.vehicle,
-			Lines: []IntermediaryLineQuantityInput{{RootLineID: rootLineID, Quantity: "4"}},
-		}, integrationActorOne, "")
-	delivery = run("delivery-check", delivery.RootRevision, delivery.ChildID,
-		delivery.ChildRevision, nil, integrationActorOne, "")
-	delivery = run("delivery-execute", delivery.RootRevision, delivery.ChildID,
-		delivery.ChildRevision, nil, integrationActorTwo, "")
-	signoff := run("signoff-create", delivery.RootRevision, "", 0,
-		IntermediarySignoffInput{
-			DeliveryChildID: delivery.ChildID, SignoffDate: "2026-07-26",
-			Lines: []IntermediarySignoffLineInput{{
-				RootLineID: rootLineID, SignedQuantity: "4", RejectedQuantity: "0",
-			}},
-			ReturnedSolventContainers: 1, ContainerDifferenceReason: "客户暂欠一只溶剂桶",
-		}, integrationActorOne, "")
-	signoff = run("signoff-check", signoff.RootRevision, signoff.ChildID,
-		signoff.ChildRevision, nil, integrationActorOne, "")
-	signoff = run("signoff-confirm", signoff.RootRevision, signoff.ChildID,
-		signoff.ChildRevision, nil, integrationActorTwo, "")
-	if signoff.WorkflowStatus != StatusCompleted {
-		t.Fatalf("workflow status = %s, want %s", signoff.WorkflowStatus, StatusCompleted)
-	}
-	history, err := service.AuditHistory(t.Context(), EntityIntermediarySaleOrder, HistoryInput{
-		DocumentID: created.DocumentID, Page: 1, PageSize: 100,
-	})
-	if err != nil {
-		t.Fatalf("get V2 audit history: %v", err)
-	}
-	foundSignoff := false
-	for _, event := range history.Items {
-		if event.Stage == stageSignoff && event.ChildID == signoff.ChildID {
-			foundSignoff = true
-		}
-	}
-	if !foundSignoff {
-		t.Fatal("V2 signoff audit metadata is missing")
 	}
 }
 

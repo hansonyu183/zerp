@@ -71,7 +71,7 @@ make run
 | `make build` | 编译全部 Go 包 |
 | `make test` | 自动准备独立测试库并执行单元测试和数据库集成测试 |
 | `make test-unit` | 执行不依赖数据库的单元测试 |
-| `make test-integration` | 创建或复用独立测试库、应用全部迁移并执行 APP、BOB、VOU、LED 数据库契约测试 |
+| `make test-integration` | 创建或复用独立测试库、应用全部迁移并执行 APP、BOB、VOU、WFL、LED 数据库契约测试 |
 | `make generate` | 根据 SQL 重新生成 sqlc 代码 |
 | `make migrate-status` | 查看数据库迁移状态 |
 | `make migrate-up` | 升级数据库到最新迁移 |
@@ -125,7 +125,7 @@ make ENV_FILE=.env.test compose-up
 | `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp-back` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
 | `FEEDBACK_GITHUB_TOKEN` | 启用时是 | 无 | 仅具目标仓库 Issues 读写权限的细粒度令牌；不得写入仓库或日志 |
 
-`make test` 会启动并等待 Compose 的 `db` 服务，幂等创建 `TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、LED 数据库测试。测试库会保留供后续运行复用；安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或实际连接库名不匹配的配置。
+`make test` 会启动并等待 Compose 的 `db` 服务，幂等创建 `TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、WFL、LED 数据库测试。测试库会保留供后续运行复用；安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或实际连接库名不匹配的配置。
 
 本机直接运行服务且未配置 CORS Origin 时，不允许任何跨域浏览器请求；同源请求和不携带 `Origin` 的服务间请求不受影响。Docker Compose 为本地开发默认允许 `http://localhost:5173`、`http://127.0.0.1:4173` 和 `http://localhost:4173`，生产环境必须显式配置实际前端 Origin。
 
@@ -184,6 +184,7 @@ unset APP_BOOTSTRAP_PASSWORD
 | 应用访问与权限 | `app` | 用户认证、Cookie 会话、CSRF、角色与 API 权限 | [APP 后端业务域](docs/domains/app.md) |
 | 基础业务对象 | `bob` | 客户、供应商、物流平台、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位、结算方式及其版本审核 | [BOB 后端业务域](docs/domains/bob.md) |
 | 业务单据 | `vou` | 销售、采购、居间销售、收付款、费用报销、其它收入及附件与审计 | [VOU 后端单据域](docs/domains/vou.md) |
+| 业务流程 | `wfl` | 以独立 VOU 原子单据编排居间贸易长流程 | [WFL 后端流程域](docs/domains/wfl.md) |
 | 业务账簿 | `led` | 统一期初、库存、资金、往来流水与余额 | [LED 后端账簿域](docs/domains/led.md) |
 
 Cloudflare Pages、本地 Vite、Cookie、CSRF 和请求封装见 [前端 API 配置说明](docs/frontend-api-configuration.md)。
@@ -359,11 +360,12 @@ POST /app/user/signout  # 注销并清理会话 Cookie
 
 ## 首期业务范围
 
-首期实现已经完成领域定界的 APP、BOB、VOU 与 LED：
+首期实现已经完成领域定界的 APP、BOB、VOU、WFL 与 LED：
 
 - APP 建立登录会话、恢复会话、退出登录、用户、角色和精确 API 路径权限能力；
 - BOB 建立客户、供应商、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位和结算方式的对象版本及审核能力；
 - VOU 建立七类单据、人员与结算规则快照、审核/批准/执行及反向流转、附件和审计能力；
+- WFL 使用客户订单、采购单、收货单、送货单和签收单五类独立 VOU 原子单据编排居间贸易长流程；
 - LED 订阅 VOU 执行与反执行事务事件，生成库存、资金和往来流水，提供统一期初、严格负库存校验、余额查询及可重开启用流程；
 - 库存、核销、总账和报表领域在业务规则明确并形成独立领域文档后接入。
 

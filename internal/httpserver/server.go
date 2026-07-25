@@ -13,6 +13,7 @@ import (
 	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp-back/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
+	wfldomain "github.com/hansonyu183/zerp-back/internal/domains/wfl"
 	"github.com/hansonyu183/zerp-back/internal/integrations/githubissues"
 	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,6 +35,11 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err != nil {
 		return nil, nil, err
 	}
+	wflService, err := wfldomain.NewService(db, bobService, eventBus, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	wflService.SetAttachmentService(vouService)
 	appService := appdomain.NewService(db, cfg, logger)
 	ledService, err := leddomain.NewService(db, bobService)
 	if err != nil {
@@ -55,6 +61,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		authorizer := appAuthorizer{service: appService, cfg: cfg}
 		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
+		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)
 		leddomain.NewHandler(ledService, authorizer, logger).Register(router)
 	})
 	return router, publisher, nil

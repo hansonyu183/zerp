@@ -35,13 +35,13 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 			return err
 		}
 	}
-	for _, stage := range []string{"RECEIPT", "SIGNOFF"} {
-		if err := bus.Subscribe(voudomain.IntermediaryStageTopic(stage, "CONFIRMED"),
-			"led-intermediary-v2-posting", s.HandleIntermediaryStage); err != nil {
+	for _, entity := range []string{voudomain.EntityGoodsReceipt, voudomain.EntitySignoffNote} {
+		if err := bus.Subscribe(voudomain.ManagedDocumentFinalizedTopic(entity),
+			"led-wfl-posting", s.HandleManagedDocument); err != nil {
 			return err
 		}
-		if err := bus.Subscribe(voudomain.IntermediaryStageTopic(stage, "UNCONFIRMED"),
-			"led-intermediary-v2-reversal", s.HandleIntermediaryStage); err != nil {
+		if err := bus.Subscribe(voudomain.ManagedDocumentReversedTopic(entity),
+			"led-wfl-reversal", s.HandleManagedDocument); err != nil {
 			return err
 		}
 	}
@@ -161,28 +161,23 @@ func (s *Service) Activate(
 			return MutationResult{}, err
 		}
 	}
-	stageRows, err := tx.Query(ctx, `
-		SELECT c.stage,c.document_id,d.document_no,d.revision,c.id,c.child_no,c.revision,
-		       COALESCE(c.final_by,c.updated_by),c.final_at
-		FROM vou_intermediary_children c
-		JOIN vou_documents d ON d.id=c.document_id
-		WHERE (c.stage='RECEIPT' AND c.status='CONFIRMED')
-		   OR (c.stage='SIGNOFF' AND c.status='CONFIRMED')
-		ORDER BY c.final_at,c.id`)
+	stageRows, err := tx.Query(ctx, `SELECT d.entity,d.id,d.document_no,d.revision,
+		COALESCE(d.approved_by,d.updated_by),d.approved_at
+		FROM vou_documents d WHERE d.control_domain='WFL' AND d.status='APPROVED'
+		AND d.entity IN ('goods-receipt','signoff-note') ORDER BY d.approved_at,d.id`)
 	if err != nil {
-		return MutationResult{}, s.internal("list V2 intermediary stages", err)
+		return MutationResult{}, s.internal("list WFL documents", err)
 	}
 	for stageRows.Next() {
-		var event voudomain.IntermediaryStageEvent
+		var event voudomain.ManagedDocumentEvent
 		var occurredAt pgtype.Timestamptz
-		if err = stageRows.Scan(&event.Stage, &event.DocumentID, &event.DocumentNo,
-			&event.RootRevision, &event.ChildID, &event.ChildNo, &event.ChildRevision,
-			&event.ActorID, &occurredAt); err != nil {
+		if err = stageRows.Scan(&event.Entity, &event.DocumentID, &event.DocumentNo,
+			&event.Revision, &event.ActorID, &occurredAt); err != nil {
 			stageRows.Close()
 			return MutationResult{}, err
 		}
-		event.Action, event.RequestID = "CONFIRMED", "led-rebuild/"+requestID
-		if err = s.postV2Stage(ctx, tx, generationID, control.CutoverDate.Time, event, false); err != nil {
+		event.Action, event.RequestID = "FINALIZED", "led-rebuild/"+requestID
+		if err = s.postManagedDocument(ctx, tx, generationID, control.CutoverDate.Time, event, false); err != nil {
 			stageRows.Close()
 			return MutationResult{}, err
 		}

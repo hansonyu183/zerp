@@ -13,6 +13,11 @@ const (
 	EntityPayment               = "payment"
 	EntityExpenseReimbursement  = "expense-reimbursement"
 	EntityOtherIncome           = "other-income"
+	EntityCustomerOrder         = "customer-order"
+	EntityProcurementOrder      = "procurement-order"
+	EntityGoodsReceipt          = "goods-receipt"
+	EntityDeliveryNote          = "delivery-note"
+	EntitySignoffNote           = "signoff-note"
 
 	StatusDraft               = "DRAFT"
 	StatusReviewed            = "REVIEWED"
@@ -99,29 +104,24 @@ type DraftInput struct {
 }
 
 type CreateInput struct {
-	WorkflowVersion int        `json:"workflowVersion,omitempty"`
-	Data            DraftInput `json:"data"`
+	Data DraftInput `json:"data"`
 }
 
 type SaveInput struct {
-	DocumentID      string     `json:"documentId"`
-	Revision        int64      `json:"revision"`
-	RootRevision    int64      `json:"rootRevision,omitempty"`
-	WorkflowVersion int        `json:"workflowVersion,omitempty"`
-	Data            DraftInput `json:"data"`
+	DocumentID string     `json:"documentId"`
+	Revision   int64      `json:"revision"`
+	Data       DraftInput `json:"data"`
 }
 
 type DocumentRevisionInput struct {
-	DocumentID   string `json:"documentId"`
-	Revision     int64  `json:"revision"`
-	RootRevision int64  `json:"rootRevision,omitempty"`
+	DocumentID string `json:"documentId"`
+	Revision   int64  `json:"revision"`
 }
 
 type ReverseInput struct {
-	DocumentID   string `json:"documentId"`
-	Revision     int64  `json:"revision"`
-	RootRevision int64  `json:"rootRevision,omitempty"`
-	Reason       string `json:"reason"`
+	DocumentID string `json:"documentId"`
+	Revision   int64  `json:"revision"`
+	Reason     string `json:"reason"`
 }
 
 type SaleExecutionLineInput struct {
@@ -295,61 +295,44 @@ type DocumentDataView struct {
 }
 
 type DocumentView struct {
-	DocumentID      string                     `json:"documentId"`
-	Entity          string                     `json:"entity"`
-	DocumentNo      string                     `json:"documentNo"`
-	Status          string                     `json:"status"`
-	Revision        int64                      `json:"revision"`
-	Amount          string                     `json:"amount"`
-	Data            DocumentDataView           `json:"data"`
-	Attachments     []AttachmentView           `json:"attachments"`
-	CreatedAt       time.Time                  `json:"createdAt"`
-	CreatedBy       string                     `json:"createdBy"`
-	UpdatedAt       time.Time                  `json:"updatedAt"`
-	UpdatedBy       string                     `json:"updatedBy"`
-	ReviewedAt      *time.Time                 `json:"reviewedAt,omitempty"`
-	ReviewedBy      *string                    `json:"reviewedBy,omitempty"`
-	ApprovedAt      *time.Time                 `json:"approvedAt,omitempty"`
-	ApprovedBy      *string                    `json:"approvedBy,omitempty"`
-	ExecutedAt      *time.Time                 `json:"executedAt,omitempty"`
-	ExecutedBy      *string                    `json:"executedBy,omitempty"`
-	WorkflowVersion int                        `json:"workflowVersion,omitempty"`
-	WorkflowStatus  string                     `json:"workflowStatus,omitempty"`
-	RootRevision    int64                      `json:"rootRevision,omitempty"`
-	Balances        *IntermediaryBalances      `json:"balances,omitempty"`
-	Children        []IntermediaryChildSummary `json:"children,omitempty"`
-	CheckedAt       *time.Time                 `json:"checkedAt,omitempty"`
-	CheckedBy       *string                    `json:"checkedBy,omitempty"`
-	CompletedAt     *time.Time                 `json:"completedAt,omitempty"`
+	DocumentID  string           `json:"documentId"`
+	Entity      string           `json:"entity"`
+	DocumentNo  string           `json:"documentNo"`
+	Status      string           `json:"status"`
+	Revision    int64            `json:"revision"`
+	Amount      string           `json:"amount"`
+	Data        DocumentDataView `json:"data"`
+	Attachments []AttachmentView `json:"attachments"`
+	CreatedAt   time.Time        `json:"createdAt"`
+	CreatedBy   string           `json:"createdBy"`
+	UpdatedAt   time.Time        `json:"updatedAt"`
+	UpdatedBy   string           `json:"updatedBy"`
+	ReviewedAt  *time.Time       `json:"reviewedAt,omitempty"`
+	ReviewedBy  *string          `json:"reviewedBy,omitempty"`
+	ApprovedAt  *time.Time       `json:"approvedAt,omitempty"`
+	ApprovedBy  *string          `json:"approvedBy,omitempty"`
+	ExecutedAt  *time.Time       `json:"executedAt,omitempty"`
+	ExecutedBy  *string          `json:"executedBy,omitempty"`
 }
 
 type MutationResult struct {
-	DocumentID     string                `json:"documentId"`
-	DocumentNo     string                `json:"documentNo"`
-	Status         string                `json:"status"`
-	Revision       int64                 `json:"revision"`
-	RootRevision   int64                 `json:"rootRevision,omitempty"`
-	WorkflowStatus string                `json:"workflowStatus,omitempty"`
-	ChildID        string                `json:"childId,omitempty"`
-	ChildNo        string                `json:"childNo,omitempty"`
-	ChildRevision  int64                 `json:"childRevision,omitempty"`
-	ChildStatus    string                `json:"childStatus,omitempty"`
-	Balances       *IntermediaryBalances `json:"balances,omitempty"`
+	DocumentID string `json:"documentId"`
+	DocumentNo string `json:"documentNo"`
+	Status     string `json:"status"`
+	Revision   int64  `json:"revision"`
 }
 
 type ListItem struct {
-	DocumentID      string    `json:"documentId"`
-	Entity          string    `json:"entity"`
-	DocumentNo      string    `json:"documentNo"`
-	Status          string    `json:"status"`
-	Revision        int64     `json:"revision"`
-	BusinessDate    string    `json:"businessDate"`
-	PartyName       string    `json:"partyName,omitempty"`
-	Currency        string    `json:"currency"`
-	Amount          string    `json:"amount"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	WorkflowVersion int       `json:"workflowVersion,omitempty"`
-	WorkflowStatus  string    `json:"workflowStatus,omitempty"`
+	DocumentID   string    `json:"documentId"`
+	Entity       string    `json:"entity"`
+	DocumentNo   string    `json:"documentNo"`
+	Status       string    `json:"status"`
+	Revision     int64     `json:"revision"`
+	BusinessDate string    `json:"businessDate"`
+	PartyName    string    `json:"partyName,omitempty"`
+	Currency     string    `json:"currency"`
+	Amount       string    `json:"amount"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 type Page[T any] struct {
@@ -360,29 +343,22 @@ type Page[T any] struct {
 }
 
 type AuditEventView struct {
-	ID              string          `json:"id"`
-	EventType       string          `json:"eventType"`
-	FromStatus      *string         `json:"fromStatus"`
-	ToStatus        string          `json:"toStatus"`
-	ActorID         string          `json:"actorId"`
-	OccurredAt      time.Time       `json:"occurredAt"`
-	Reason          *string         `json:"reason"`
-	RequestID       string          `json:"requestId"`
-	Summary         json.RawMessage `json:"summary"`
-	WorkflowVersion int16           `json:"workflowVersion,omitempty"`
-	Stage           string          `json:"stage,omitempty"`
-	ChildID         string          `json:"childId,omitempty"`
-	ChildNo         string          `json:"childNo,omitempty"`
-	ChildStatus     string          `json:"childStatus,omitempty"`
+	ID         string          `json:"id"`
+	EventType  string          `json:"eventType"`
+	FromStatus *string         `json:"fromStatus"`
+	ToStatus   string          `json:"toStatus"`
+	ActorID    string          `json:"actorId"`
+	OccurredAt time.Time       `json:"occurredAt"`
+	Reason     *string         `json:"reason"`
+	RequestID  string          `json:"requestId"`
+	Summary    json.RawMessage `json:"summary"`
 }
 
 type AttachmentInitiateResult struct {
-	FileID        string    `json:"fileId"`
-	UploadURL     string    `json:"uploadUrl"`
-	ExpiresAt     time.Time `json:"expiresAt"`
-	Revision      int64     `json:"revision"`
-	RootRevision  int64     `json:"rootRevision,omitempty"`
-	ChildRevision int64     `json:"childRevision,omitempty"`
+	FileID    string    `json:"fileId"`
+	UploadURL string    `json:"uploadUrl"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Revision  int64     `json:"revision"`
 }
 
 type AttachmentDownloadResult struct {

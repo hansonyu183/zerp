@@ -36,7 +36,7 @@ test-db-prepare:
 
 test-integration: test-db-prepare
 	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL)" \
-		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/bob ./internal/domains/vou ./internal/domains/led ./internal/seed/bobseed -run 'Integration|Database' -count=1 -v
+		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed -run 'Integration|Database' -count=1 -v
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml

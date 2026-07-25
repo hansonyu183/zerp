@@ -86,14 +86,6 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
 		}
 	}
-	for _, action := range intermediaryV2Actions {
-		wanted["/vou/"+EntityIntermediarySaleOrder+"/"+action] = http.MethodPost
-	}
-	for _, stage := range intermediaryAttachmentStages {
-		for _, operation := range []string{"initiate", "download", "remove"} {
-			wanted["/vou/"+EntityIntermediarySaleOrder+"/"+stage+"-attachment-"+operation] = http.MethodPost
-		}
-	}
 	wanted["/files/attachments/upload/:token"] = http.MethodPut
 	wanted["/files/attachments/download/:token"] = http.MethodGet
 	for _, route := range router.Routes() {
@@ -104,8 +96,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+len(intermediaryV2Actions)+
-		len(intermediaryAttachmentStages)*3+2; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+2; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

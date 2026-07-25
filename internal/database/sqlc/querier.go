@@ -94,7 +94,6 @@ type Querier interface {
 	DeleteLedDraftInventory(ctx context.Context) error
 	DeleteLedDraftParty(ctx context.Context) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
-	DeleteVouChildAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)

@@ -80,7 +80,13 @@ func validEntity(entity string) bool {
 			return true
 		}
 	}
-	return false
+	switch entity {
+	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
+		EntityDeliveryNote, EntitySignoffNote:
+		return true
+	default:
+		return false
+	}
 }
 
 func validID(value string) bool {

@@ -186,11 +186,6 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_object_id = $5 OR x.supplier_object_id = $5))
-      OR EXISTS (SELECT 1 FROM vou_intermediary_v2_details x WHERE x.document_id = d.id
-          AND x.customer_object_id = $5)
-      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
-          JOIN vou_intermediary_procurements x ON x.child_id = c.id
-          WHERE c.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
@@ -204,12 +199,6 @@ WHERE d.entity = $1
           AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_name ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
-      OR EXISTS (SELECT 1 FROM vou_intermediary_v2_details x WHERE x.document_id = d.id
-          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
-      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
-          JOIN vou_intermediary_procurements x ON x.child_id = c.id
-          WHERE c.document_id = d.id
-            AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
@@ -257,18 +246,6 @@ DELETE FROM vou_document_attachments WHERE file_id = $1
 
 func (q *Queries) DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteVouAttachmentByFileID, fileID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteVouChildAttachmentByFileID = `-- name: DeleteVouChildAttachmentByFileID :execrows
-DELETE FROM vou_intermediary_child_attachments WHERE file_id = $1
-`
-
-func (q *Queries) DeleteVouChildAttachmentByFileID(ctx context.Context, fileID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteVouChildAttachmentByFileID, fileID)
 	if err != nil {
 		return 0, err
 	}
@@ -405,7 +382,7 @@ func (q *Queries) GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAtta
 }
 
 const getVouDocument = `-- name: GetVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at, parent_document_id, control_domain
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 `
@@ -442,6 +419,8 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 		&i.CheckedAt,
 		&i.CheckedBy,
 		&i.CompletedAt,
+		&i.ParentDocumentID,
+		&i.ControlDomain,
 	)
 	return i, err
 }
@@ -1593,14 +1572,13 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 }
 
 const listVouDocuments = `-- name: ListVouDocuments :many
-SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.workflow_version, d.checked_at, d.checked_by, d.completed_at,
-       COALESCE(so.customer_name, po.supplier_name, iso.customer_name, iso2.customer_name, r.counterparty_name,
+SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.workflow_version, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.control_domain,
+       COALESCE(so.customer_name, po.supplier_name, iso.customer_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_intermediary_sale_order_details iso ON iso.document_id = d.id
-LEFT JOIN vou_intermediary_v2_details iso2 ON iso2.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
@@ -1614,10 +1592,6 @@ WHERE d.entity = $1
       OR so.customer_object_id = $5
       OR po.supplier_object_id = $5
       OR iso.customer_object_id = $5 OR iso.supplier_object_id = $5
-      OR iso2.customer_object_id = $5
-      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
-          JOIN vou_intermediary_procurements x ON x.child_id = c.id
-          WHERE c.document_id = d.id AND x.supplier_object_id = $5)
       OR r.counterparty_object_id = $5
       OR p.counterparty_object_id = $5
       OR oi.counterparty_object_id = $5
@@ -1628,11 +1602,6 @@ WHERE d.entity = $1
       OR so.customer_code ILIKE '%' || $6 || '%' OR so.customer_name ILIKE '%' || $6 || '%'
       OR po.supplier_code ILIKE '%' || $6 || '%' OR po.supplier_name ILIKE '%' || $6 || '%'
       OR iso.customer_name ILIKE '%' || $6 || '%' OR iso.supplier_name ILIKE '%' || $6 || '%'
-      OR iso2.customer_code ILIKE '%' || $6 || '%' OR iso2.customer_name ILIKE '%' || $6 || '%'
-      OR EXISTS (SELECT 1 FROM vou_intermediary_children c
-          JOIN vou_intermediary_procurements x ON x.child_id = c.id
-          WHERE c.document_id = d.id
-            AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'
       OR p.counterparty_code ILIKE '%' || $6 || '%' OR p.counterparty_name ILIKE '%' || $6 || '%'
       OR oi.source_name ILIKE '%' || $6 || '%' OR oi.counterparty_name ILIKE '%' || $6 || '%'
@@ -1689,6 +1658,8 @@ type ListVouDocumentsRow struct {
 	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
 	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
 	CompletedAt      pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
+	ControlDomain    string             `db:"control_domain" json:"control_domain"`
 	PartyName        string             `db:"party_name" json:"party_name"`
 }
 
@@ -1736,6 +1707,8 @@ func (q *Queries) ListVouDocuments(ctx context.Context, arg ListVouDocumentsPara
 			&i.CheckedAt,
 			&i.CheckedBy,
 			&i.CompletedAt,
+			&i.ParentDocumentID,
+			&i.ControlDomain,
 			&i.PartyName,
 		); err != nil {
 			return nil, err
@@ -1848,13 +1821,6 @@ JOIN LATERAL (
            ''::varchar AS child_id, ''::varchar AS child_no, ''::varchar AS stage
     FROM vou_document_attachments a JOIN vou_documents d ON d.id=a.document_id
     WHERE a.file_id=f.id
-    UNION ALL
-    SELECT c.document_id, d.entity, c.status AS document_status,
-           c.id AS child_id, c.child_no, c.stage
-    FROM vou_intermediary_child_attachments a
-    JOIN vou_intermediary_children c ON c.id=a.child_id
-    JOIN vou_documents d ON d.id=c.document_id
-    WHERE a.file_id=f.id
 ) links ON true
 WHERE f.upload_token_hash = $1
   AND f.status = 'PENDING' AND f.upload_expires_at > now()
@@ -1962,7 +1928,7 @@ func (q *Queries) LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAt
 }
 
 const lockVouDocument = `-- name: LockVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at, parent_document_id, control_domain
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 FOR UPDATE
@@ -2000,6 +1966,8 @@ func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams
 		&i.CheckedAt,
 		&i.CheckedBy,
 		&i.CompletedAt,
+		&i.ParentDocumentID,
+		&i.ControlDomain,
 	)
 	return i, err
 }

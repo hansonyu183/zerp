@@ -4,7 +4,6 @@ package led
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -54,13 +53,12 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			led_opening_party, led_opening_fund, led_opening_inventory,
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
 			vou_audit_events, vou_download_tokens, vou_document_attachments,
-			vou_intermediary_child_attachments, vou_files,
-			vou_intermediary_signoff_lines, vou_intermediary_signoffs,
-			vou_intermediary_delivery_lines, vou_intermediary_deliveries,
-			vou_intermediary_receipt_lines, vou_intermediary_receipts,
-			vou_intermediary_procurement_lines, vou_intermediary_procurements,
-			vou_intermediary_child_counters, vou_intermediary_children,
-			vou_intermediary_v2_lines, vou_intermediary_v2_details,
+			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_signoff_note_lines, vou_signoff_note_details,
+			vou_delivery_note_lines, vou_delivery_note_details,
+			vou_goods_receipt_lines, vou_goods_receipt_details,
+			vou_procurement_order_lines, vou_procurement_order_details,
+			vou_customer_order_lines, vou_customer_order_details,
 			vou_expense_lines, vou_product_lines, vou_other_income_details,
 			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_intermediary_sale_order_details, vou_purchase_order_details,
@@ -439,135 +437,6 @@ func TestLEDFundPartyIntermediaryAndReopenIntegration(t *testing.T) {
 	}
 	if oldStatus != "ARCHIVED" || newStatus != "ACTIVE" {
 		t.Fatalf("generation statuses = %s/%s", oldStatus, newStatus)
-	}
-}
-
-func TestLEDIntermediaryV2PostingAndReversalIntegration(t *testing.T) {
-	pool := ledIntegrationPool(t)
-	truncateLedgerAndVOU(t, pool)
-	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
-	refs := prepareLEDReferences(t, pool)
-	ledger, vouchers := newIntegratedServices(t, pool)
-	activateEmptyLedger(t, ledger)
-	containerType, quantityPerContainer := bobdomain.ContainerTypeSolvent, "2"
-	created, err := vouchers.Create(t.Context(), voudomain.EntityIntermediarySaleOrder,
-		voudomain.CreateInput{
-			WorkflowVersion: 2,
-			Data: voudomain.DraftInput{
-				BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-				Salesperson: &refs.employee,
-				ProductLines: []voudomain.ProductLineInput{{
-					Product: refs.product, OrderedQuantity: "4", UnitPrice: "10.00",
-					ContainerType: &containerType, QuantityPerContainer: &quantityPerContainer,
-				}},
-			},
-		}, integrationActorOne, "led-v2-create")
-	if err != nil {
-		t.Fatalf("create V2 order: %v", err)
-	}
-	action := func(name string, rootRevision int64, childID string, childRevision int64,
-		data any, actor, reason string,
-	) voudomain.MutationResult {
-		t.Helper()
-		var raw json.RawMessage
-		if data != nil {
-			raw, err = json.Marshal(data)
-			if err != nil {
-				t.Fatalf("marshal %s: %v", name, err)
-			}
-		}
-		value, actionErr := vouchers.IntermediaryV2Action(t.Context(), name,
-			voudomain.IntermediaryActionInput{
-				DocumentID: created.DocumentID, RootRevision: rootRevision,
-				ChildID: childID, ChildRevision: childRevision, Data: raw, Reason: reason,
-			}, actor, "led-v2-"+name)
-		if actionErr != nil {
-			t.Fatalf("%s: %v", name, actionErr)
-		}
-		return value.(voudomain.MutationResult)
-	}
-	checked := action("check", created.RootRevision, "", 0, nil, integrationActorOne, "")
-	approved, err := vouchers.Approve(t.Context(), voudomain.EntityIntermediarySaleOrder,
-		voudomain.DocumentRevisionInput{
-			DocumentID: created.DocumentID, RootRevision: checked.RootRevision,
-		}, integrationActorTwo, "led-v2-approve")
-	if err != nil {
-		t.Fatalf("approve V2 order: %v", err)
-	}
-	view, err := vouchers.Get(t.Context(), voudomain.EntityIntermediarySaleOrder,
-		voudomain.GetInput{DocumentID: created.DocumentID})
-	if err != nil {
-		t.Fatalf("get V2 order: %v", err)
-	}
-	rootLineID := view.Data.ProductLines[0].LineID
-	procurement := action("procurement-create", approved.RootRevision, "", 0,
-		voudomain.IntermediaryProcurementInput{
-			Supplier: refs.supplier, Purchaser: &refs.employee, PurchaseDate: "2026-07-24",
-			Lines: []voudomain.IntermediaryProcurementLineInput{{
-				RootLineID: rootLineID, Quantity: "4", UnitPrice: "8.00",
-			}},
-		}, integrationActorOne, "")
-	procurement = action("procurement-check", procurement.RootRevision, procurement.ChildID,
-		procurement.ChildRevision, nil, integrationActorOne, "")
-	procurement = action("procurement-place", procurement.RootRevision, procurement.ChildID,
-		procurement.ChildRevision, nil, integrationActorTwo, "")
-	receipt := action("receipt-create", procurement.RootRevision, "", 0,
-		voudomain.IntermediaryReceiptInput{
-			ReceiptDate: "2026-07-25",
-			Lines:       []voudomain.IntermediaryLineQuantityInput{{RootLineID: rootLineID, Quantity: "4"}},
-		}, integrationActorOne, "")
-	receipt = action("receipt-check", receipt.RootRevision, receipt.ChildID,
-		receipt.ChildRevision, nil, integrationActorOne, "")
-	receipt = action("receipt-confirm", receipt.RootRevision, receipt.ChildID,
-		receipt.ChildRevision, nil, integrationActorTwo, "")
-	delivery := action("delivery-create", receipt.RootRevision, "", 0,
-		voudomain.IntermediaryDeliveryInput{
-			DeliveryDate: "2026-07-25", Platform: refs.platform, Vehicle: refs.vehicle,
-			Lines: []voudomain.IntermediaryLineQuantityInput{{RootLineID: rootLineID, Quantity: "4"}},
-		}, integrationActorOne, "")
-	delivery = action("delivery-check", delivery.RootRevision, delivery.ChildID,
-		delivery.ChildRevision, nil, integrationActorOne, "")
-	delivery = action("delivery-execute", delivery.RootRevision, delivery.ChildID,
-		delivery.ChildRevision, nil, integrationActorTwo, "")
-	signoff := action("signoff-create", delivery.RootRevision, "", 0,
-		voudomain.IntermediarySignoffInput{
-			DeliveryChildID: delivery.ChildID, SignoffDate: "2026-07-26",
-			Lines: []voudomain.IntermediarySignoffLineInput{{
-				RootLineID: rootLineID, SignedQuantity: "4", RejectedQuantity: "0",
-			}},
-			ReturnedSolventContainers: 1, ContainerDifferenceReason: "暂欠一只桶",
-		}, integrationActorOne, "")
-	signoff = action("signoff-check", signoff.RootRevision, signoff.ChildID,
-		signoff.ChildRevision, nil, integrationActorOne, "")
-	signoff = action("signoff-confirm", signoff.RootRevision, signoff.ChildID,
-		signoff.ChildRevision, nil, integrationActorTwo, "")
-	var supplierDelta, customerDelta, containerDelta int64
-	if err = pool.QueryRow(t.Context(), `
-		SELECT
-		  COALESCE(sum(amount_delta_cents) FILTER (WHERE counterparty_entity='supplier'),0),
-		  COALESCE(sum(amount_delta_cents) FILTER (WHERE counterparty_entity='customer'),0)
-		FROM led_party_entries WHERE source_document_id IN ($1,$2)`,
-		receipt.ChildID, signoff.ChildID).Scan(&supplierDelta, &customerDelta); err != nil {
-		t.Fatalf("read V2 party entries: %v", err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta),0)
-		FROM led_container_entries WHERE source_document_id=$1`, signoff.ChildID).Scan(&containerDelta); err != nil {
-		t.Fatalf("read V2 container entries: %v", err)
-	}
-	if supplierDelta != -3200 || customerDelta != 4000 || containerDelta != 1 {
-		t.Fatalf("V2 deltas supplier/customer/container = %d/%d/%d", supplierDelta, customerDelta, containerDelta)
-	}
-	reversed := action("signoff-unconfirm", signoff.RootRevision, signoff.ChildID,
-		signoff.ChildRevision, nil, integrationActorOne, "撤销签收测试")
-	if reversed.WorkflowStatus != voudomain.StatusApproved {
-		t.Fatalf("reversed workflow status = %s", reversed.WorkflowStatus)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta),0)
-		FROM led_container_entries WHERE source_document_id=$1`, signoff.ChildID).Scan(&containerDelta); err != nil {
-		t.Fatalf("read reversed container entries: %v", err)
-	}
-	if containerDelta != 0 {
-		t.Fatalf("container balance after reversal = %d", containerDelta)
 	}
 }
 

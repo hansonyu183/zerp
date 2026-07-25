@@ -1011,7 +1011,7 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 }
 
 const listExecutedVouDocumentsForLed = `-- name: ListExecutedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, workflow_version, checked_at, checked_by, completed_at, parent_document_id, control_domain FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id
 `
 
 func (q *Queries) ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
@@ -1047,6 +1047,8 @@ func (q *Queries) ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocu
 			&i.CheckedAt,
 			&i.CheckedBy,
 			&i.CompletedAt,
+			&i.ParentDocumentID,
+			&i.ControlDomain,
 		); err != nil {
 			return nil, err
 		}

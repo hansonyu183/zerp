@@ -1,0 +1,70 @@
+name: Real backend E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-backend-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: e2e
+    env:
+      E2E_API_BASE_URL: ${{ secrets.E2E_API_BASE_URL }}
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_REVIEWER_USERNAME: ${{ secrets.E2E_REVIEWER_USERNAME }}
+      E2E_REVIEWER_PASSWORD: ${{ secrets.E2E_REVIEWER_PASSWORD }}
+      E2E_WFL_REDACTED_USERNAME: ${{ secrets.E2E_WFL_REDACTED_USERNAME }}
+      E2E_WFL_REDACTED_PASSWORD: ${{ secrets.E2E_WFL_REDACTED_PASSWORD }}
+      E2E_VOU_CUSTOMER_KEYWORD: ${{ secrets.E2E_VOU_CUSTOMER_KEYWORD }}
+      E2E_VOU_SUPPLIER_KEYWORD: ${{ secrets.E2E_VOU_SUPPLIER_KEYWORD }}
+      E2E_VOU_EMPLOYEE_KEYWORD: ${{ secrets.E2E_VOU_EMPLOYEE_KEYWORD }}
+      E2E_VOU_WAREHOUSE_KEYWORD: ${{ secrets.E2E_VOU_WAREHOUSE_KEYWORD }}
+      E2E_VOU_PRODUCT_KEYWORD: ${{ secrets.E2E_VOU_PRODUCT_KEYWORD }}
+      E2E_VOU_RESIN_PRODUCT_KEYWORD: ${{ secrets.E2E_VOU_RESIN_PRODUCT_KEYWORD }}
+      E2E_VOU_PLATFORM_KEYWORD: ${{ secrets.E2E_VOU_PLATFORM_KEYWORD }}
+      E2E_VOU_VEHICLE_KEYWORD: ${{ secrets.E2E_VOU_VEHICLE_KEYWORD }}
+      E2E_VOU_FUND_ACCOUNT_KEYWORD: ${{ secrets.E2E_VOU_FUND_ACCOUNT_KEYWORD }}
+      E2E_VOU_CURRENCY: ${{ secrets.E2E_VOU_CURRENCY }}
+      E2E_WFL_BOOTSTRAP: 'true'
+      E2E_LED_READONLY: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run real backend tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

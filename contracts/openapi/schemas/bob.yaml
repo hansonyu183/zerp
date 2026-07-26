@@ -1,0 +1,59 @@
+Entity:
+  type: string
+  enum:
+    - customer
+    - supplier
+    - employee
+    - product
+    - service
+    - warehouse
+    - vehicle
+    - fund-account
+    - category
+    - department
+    - position
+    - settlement-method
+
+ObjectRequest:
+  type: object
+  required: [objectId]
+  additionalProperties: false
+  properties:
+    objectId:
+      type: string
+
+ObjectRevisionRequest:
+  type: object
+  required: [objectId, objectRevision]
+  additionalProperties: false
+  properties:
+    objectId:
+      type: string
+    objectRevision:
+      type: integer
+      format: int64
+
+VersionRevisionRequest:
+  type: object
+  required: [objectId, versionId, versionRevision]
+  additionalProperties: false
+  properties:
+    objectId:
+      type: string
+    versionId:
+      type: string
+    versionRevision:
+      type: integer
+      format: int64
+
+ReviewRequest:
+  allOf:
+    - $ref: "#/VersionRevisionRequest"
+    - type: object
+      properties:
+        reason:
+          type: string
+
+MutationRequest:
+  type: object
+  additionalProperties: true

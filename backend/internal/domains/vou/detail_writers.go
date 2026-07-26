@@ -3,7 +3,7 @@ package vou
 import (
 	"context"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 )
 
 func (s *Service) writeSaleDetail(

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hansonyu183/zerp-back/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
 func Recovery(logger *slog.Logger) gin.HandlerFunc {

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
-	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

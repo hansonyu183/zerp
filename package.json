@@ -1,0 +1,28 @@
+{
+  "name": "zerp-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @zerp/frontend dev",
+    "build:web": "pnpm --filter @zerp/frontend build",
+    "check:web": "pnpm --filter @zerp/frontend check",
+    "test:web": "pnpm --filter @zerp/frontend test:unit",
+    "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
+    "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.yaml --ext yaml",
+    "generate:go": "oapi-codegen --config backend/oapi-codegen.yaml contracts/openapi/dist/openapi.yaml",
+    "generate:ts": "openapi-typescript contracts/openapi/dist/openapi.yaml --output frontend/src/api/generated/schema.ts",
+    "generate:api": "pnpm contracts:lint && pnpm contracts:bundle && pnpm generate:go && pnpm generate:ts",
+    "format": "prettier --write \"*.json\" \"*.yaml\" \"*.md\" \".github/**/*.yml\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"*.json\" \"*.yaml\" \"*.md\" \".github/**/*.yml\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"scripts/**/*.mjs\""
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.12.3",
+    "concurrently": "^9.2.1",
+    "openapi-typescript": "^7.10.1",
+    "prettier": "^3.9.6"
+  }
+}

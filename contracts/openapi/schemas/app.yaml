@@ -1,0 +1,90 @@
+SignInRequest:
+  type: object
+  required: [username, password]
+  additionalProperties: false
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 64
+    password:
+      type: string
+      minLength: 1
+      maxLength: 1024
+
+ChangePasswordRequest:
+  type: object
+  required: [currentPassword, newPassword]
+  additionalProperties: false
+  properties:
+    currentPassword:
+      type: string
+    newPassword:
+      type: string
+
+SaveProfileRequest:
+  type: object
+  required: [displayName, revision]
+  additionalProperties: false
+  properties:
+    displayName:
+      type: string
+      minLength: 1
+      maxLength: 128
+    revision:
+      type: integer
+      format: int64
+
+SessionData:
+  type: object
+  required: [user, permissions, csrfToken]
+  additionalProperties: false
+  properties:
+    user:
+      $ref: "#/ProfileView"
+    permissions:
+      type: array
+      items:
+        type: string
+    csrfToken:
+      type: string
+
+ProfileView:
+  type: object
+  required: [id, username, displayName, status, revision]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+    username:
+      type: string
+    displayName:
+      type: string
+    status:
+      type: string
+    revision:
+      type: integer
+      format: int64
+
+FeedbackAttachmentRequest:
+  type: object
+  required: [fileName, contentType, size]
+  additionalProperties: false
+  properties:
+    fileName:
+      type: string
+    contentType:
+      type: string
+    size:
+      type: integer
+      format: int64
+
+FeedbackCreateRequest:
+  type: object
+  required: [title, description]
+  additionalProperties: true
+  properties:
+    title:
+      type: string
+    description:
+      type: string

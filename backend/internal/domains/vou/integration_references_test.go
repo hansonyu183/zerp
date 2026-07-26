@@ -5,7 +5,7 @@ package vou
 import (
 	"testing"
 
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {

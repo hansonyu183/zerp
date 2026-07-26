@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hansonyu183/zerp-back/internal/api/authorization"
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 )
 
 type handlerStub struct{}

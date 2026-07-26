@@ -1,0 +1,39 @@
+Entity:
+  type: string
+  enum:
+    - sale-order
+    - purchase-order
+    - intermediary-sale-order
+    - receipt
+    - payment
+    - expense-reimbursement
+    - other-income
+
+DocumentRequest:
+  type: object
+  required: [documentId]
+  additionalProperties: false
+  properties:
+    documentId:
+      type: string
+
+DocumentRevisionRequest:
+  type: object
+  required: [documentId, revision]
+  additionalProperties: false
+  properties:
+    documentId:
+      type: string
+    revision:
+      type: integer
+      format: int64
+    reason:
+      type: string
+
+MutationRequest:
+  type: object
+  additionalProperties: true
+
+AttachmentRequest:
+  type: object
+  additionalProperties: true

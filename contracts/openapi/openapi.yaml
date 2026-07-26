@@ -1,0 +1,417 @@
+openapi: 3.0.3
+info:
+  title: ZERP API
+  version: 1.0.0
+  description: ZERP 前后端唯一 HTTP 线协议。业务错误使用 HTTP 200 响应包络表达。
+servers:
+  - url: /api
+    description: 同源 Web 网关
+tags:
+  - name: app
+  - name: bob
+  - name: vou
+  - name: wfl
+  - name: led
+  - name: files
+  - name: operations
+paths:
+  /app/user/signin:
+    post:
+      tags: [app]
+      operationId: appUserSignin
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/SignIn"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /app/user/session:
+    post:
+      tags: [app]
+      operationId: appUserSession
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/Empty"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /app/user/signout:
+    post:
+      tags: [app]
+      operationId: appUserSignout
+      security:
+        - cookieAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/Empty"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /app/user/profile:
+    post:
+      tags: [app]
+      operationId: appUserProfile
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /app/user/change-password:
+    post:
+      tags: [app]
+      operationId: appUserChangePassword
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        $ref: "#/components/requestBodies/ChangePassword"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /app/{entity}/{action}:
+    post:
+      tags: [app]
+      operationId: appAction
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/AppEntity"
+        - $ref: "#/components/parameters/AppAction"
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /bob/{entity}/query:
+    post:
+      tags: [bob]
+      operationId: bobQuery
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/BobEntity"
+      requestBody:
+        $ref: "#/components/requestBodies/Page"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /bob/{entity}/{action}:
+    post:
+      tags: [bob]
+      operationId: bobAction
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/BobEntity"
+        - $ref: "#/components/parameters/BobAction"
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /vou/{entity}/query:
+    post:
+      tags: [vou]
+      operationId: vouQuery
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/VouEntity"
+      requestBody:
+        $ref: "#/components/requestBodies/Page"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /vou/{entity}/{action}:
+    post:
+      tags: [vou]
+      operationId: vouAction
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/VouEntity"
+        - $ref: "#/components/parameters/VouAction"
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /wfl/intermediary-trade/{action}:
+    post:
+      tags: [wfl]
+      operationId: wflIntermediaryTradeAction
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/WflAction"
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /led/{entity}/{action}:
+    post:
+      tags: [led]
+      operationId: ledAction
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/LedEntity"
+        - $ref: "#/components/parameters/LedAction"
+      requestBody:
+        $ref: "#/components/requestBodies/Generic"
+      responses:
+        "200":
+          $ref: "#/components/responses/Business"
+  /files/feedback/attachments/upload/{token}:
+    put:
+      tags: [files]
+      operationId: uploadFeedbackAttachment
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/FileToken"
+      requestBody:
+        $ref: "#/components/requestBodies/Binary"
+      responses:
+        "204":
+          description: Uploaded
+        "400":
+          $ref: "#/components/responses/TechnicalError"
+  /files/attachments/upload/{token}:
+    put:
+      tags: [files]
+      operationId: uploadAttachment
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/FileToken"
+      requestBody:
+        $ref: "#/components/requestBodies/Binary"
+      responses:
+        "204":
+          description: Uploaded
+        "400":
+          $ref: "#/components/responses/TechnicalError"
+        "409":
+          $ref: "#/components/responses/TechnicalError"
+  /files/attachments/download/{token}:
+    get:
+      tags: [files]
+      operationId: downloadAttachment
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/FileToken"
+      responses:
+        "200":
+          description: Attachment bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/TechnicalError"
+  /healthz:
+    get:
+      tags: [operations]
+      operationId: health
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Health"
+  /readyz:
+    get:
+      tags: [operations]
+      operationId: readiness
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Health"
+        "503":
+          $ref: "#/components/responses/Health"
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: zerp_session
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  parameters:
+    AppEntity:
+      name: entity
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [user, role, permission, feedback]
+    AppAction:
+      name: action
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - query
+          - get
+          - create
+          - save
+          - enable
+          - disable
+          - attachment-initiate
+          - attachment-remove
+    BobEntity:
+      name: entity
+      in: path
+      required: true
+      schema:
+        $ref: "./schemas/bob.yaml#/Entity"
+    BobAction:
+      name: action
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - get
+          - create
+          - edit
+          - save
+          - delete
+          - submit
+          - approve
+          - reject
+          - versions
+          - audit-history
+    VouEntity:
+      name: entity
+      in: path
+      required: true
+      schema:
+        $ref: "./schemas/vou.yaml#/Entity"
+    VouAction:
+      name: action
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - get
+          - create
+          - save
+          - review
+          - unreview
+          - approve
+          - unapprove
+          - execute
+          - unexecute
+          - audit-history
+          - attachment-initiate
+          - attachment-download
+          - attachment-remove
+    WflAction:
+      name: action
+      in: path
+      required: true
+      schema:
+        $ref: "./schemas/wfl.yaml#/Action"
+    LedEntity:
+      name: entity
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [opening, inventory, fund, party, container]
+    LedAction:
+      name: action
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - get
+          - save
+          - activate
+          - reopen
+          - cancel-reopen
+          - audit-history
+          - query
+          - balance
+    FileToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBodies:
+    Empty:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/common.yaml#/EmptyObject"
+    Generic:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/common.yaml#/GenericObject"
+    Page:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/common.yaml#/PageRequest"
+    SignIn:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/app.yaml#/SignInRequest"
+    ChangePassword:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/app.yaml#/ChangePasswordRequest"
+    Binary:
+      required: true
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+  responses:
+    Business:
+      description: 统一业务响应；业务错误仍使用 HTTP 200。
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/common.yaml#/BusinessEnvelope"
+    TechnicalError:
+      description: 技术文件端点错误
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/common.yaml#/TechnicalError"
+    Health:
+      description: 服务健康状态
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            additionalProperties: false
+            properties:
+              status:
+                type: string

@@ -40,7 +40,8 @@ if (missingE2EEnvNames.length > 0) {
   )
 }
 
-const appUrl = 'http://127.0.0.1:5173'
+const appUrl = process.env.E2E_APP_BASE_URL ?? 'http://127.0.0.1:5173'
+const externalWebServer = Boolean(process.env.E2E_APP_BASE_URL)
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -65,14 +66,16 @@ export default defineConfig({
       use: { ...devices['Pixel 7'] },
     },
   ],
-  webServer: {
-    command: 'pnpm dev --host 127.0.0.1 --port 5173 --strictPort',
-    url: appUrl,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env: {
-      ...process.env,
-      VITE_API_BASE_URL: process.env.E2E_API_BASE_URL!,
-    },
-  },
+  webServer: externalWebServer
+    ? undefined
+    : {
+        command: 'pnpm dev --host 127.0.0.1 --port 5173 --strictPort',
+        url: appUrl,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          VITE_API_BASE_URL: '/api/',
+        },
+      },
 })

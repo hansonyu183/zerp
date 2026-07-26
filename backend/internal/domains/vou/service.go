@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
-	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"

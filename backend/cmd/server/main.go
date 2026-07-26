@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
-	"github.com/hansonyu183/zerp-back/internal/database"
-	"github.com/hansonyu183/zerp-back/internal/httpserver"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/database"
+	"github.com/hansonyu183/zerp/backend/internal/httpserver"
 )
 
 func newHTTPServer(cfg config.Config, handler http.Handler) *http.Server {

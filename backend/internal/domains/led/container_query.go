@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
-	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 )
 

@@ -1,0 +1,79 @@
+BusinessEnvelope:
+  type: object
+  required: [code, message, data, requestId]
+  additionalProperties: false
+  properties:
+    code:
+      type: integer
+      format: int32
+    message:
+      type: string
+    data:
+      nullable: true
+    requestId:
+      type: string
+
+EmptyObject:
+  type: object
+  additionalProperties: false
+
+GenericObject:
+  type: object
+  additionalProperties: true
+
+IdRequest:
+  type: object
+  required: [id]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+
+RevisionRequest:
+  type: object
+  required: [id, revision]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+    revision:
+      type: integer
+      format: int64
+
+PageRequest:
+  type: object
+  required: [page, pageSize]
+  additionalProperties: false
+  properties:
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 200
+    filters:
+      type: object
+      additionalProperties: true
+    sort:
+      type: array
+      items:
+        type: object
+        required: [field, order]
+        additionalProperties: false
+        properties:
+          field:
+            type: string
+          order:
+            type: string
+            enum: [asc, desc]
+
+TechnicalError:
+  type: object
+  required: [error, requestId]
+  additionalProperties: false
+  properties:
+    error:
+      type: string
+    requestId:
+      type: string

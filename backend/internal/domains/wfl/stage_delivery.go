@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 )
 

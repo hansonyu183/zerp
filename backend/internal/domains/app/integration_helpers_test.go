@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -126,7 +126,7 @@ type integrationExistingIssueClient struct {
 }
 
 func (*integrationExistingIssueClient) FindByMarker(context.Context, string) (FeedbackIssue, bool, error) {
-	return FeedbackIssue{Number: 18, URL: "https://github.com/hansonyu183/zerp-back/issues/18"}, true, nil
+	return FeedbackIssue{Number: 18, URL: "https://github.com/hansonyu183/zerp/issues/18"}, true, nil
 }
 
 func (client *integrationExistingIssueClient) Create(
@@ -169,5 +169,5 @@ func (client *integrationIssueClient) Create(
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	client.title, client.body, client.labels = title, body, slices.Clone(labels)
-	return FeedbackIssue{Number: 17, URL: "https://github.com/hansonyu183/zerp-back/issues/17"}, nil
+	return FeedbackIssue{Number: 17, URL: "https://github.com/hansonyu183/zerp/issues/17"}, nil
 }

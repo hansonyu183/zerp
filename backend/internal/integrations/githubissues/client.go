@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	appdomain "github.com/hansonyu183/zerp-back/internal/domains/app"
+	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 )
 
 const (
@@ -116,7 +116,7 @@ func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload, r
 	request.Header.Set("Accept", "application/vnd.github+json")
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	request.Header.Set("User-Agent", "zerp-back-feedback")
+	request.Header.Set("User-Agent", "zerp-feedback")
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hansonyu183/zerp-back/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {

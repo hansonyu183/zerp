@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
-	"github.com/hansonyu183/zerp-back/internal/database"
-	"github.com/hansonyu183/zerp-back/internal/seed/bobseed"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/database"
+	"github.com/hansonyu183/zerp/backend/internal/seed/bobseed"
 )
 
 func main() {

@@ -53,7 +53,7 @@ func Load() (Config, error) {
 		SessionCookieName:        valueOrDefault("APP_SESSION_COOKIE_NAME", "zerp_session"),
 		SessionCookieSameSite:    strings.ToLower(valueOrDefault("APP_SESSION_COOKIE_SAME_SITE", "lax")),
 		AttachmentStorageRoot:    strings.TrimSpace(os.Getenv("ATTACHMENT_STORAGE_ROOT")),
-		FeedbackGitHubRepository: valueOrDefault("FEEDBACK_GITHUB_REPOSITORY", "hansonyu183/zerp-back"),
+		FeedbackGitHubRepository: valueOrDefault("FEEDBACK_GITHUB_REPOSITORY", "hansonyu183/zerp"),
 		FeedbackGitHubToken:      strings.TrimSpace(os.Getenv("FEEDBACK_GITHUB_TOKEN")),
 	}
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/config"
 )
 
 func TestNewHTTPServerAppliesTimeouts(t *testing.T) {

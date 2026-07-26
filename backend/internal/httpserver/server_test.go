@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hansonyu183/zerp-back/internal/api/response"
-	"github.com/hansonyu183/zerp-back/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/config"
 )
 
 type pingerStub struct {

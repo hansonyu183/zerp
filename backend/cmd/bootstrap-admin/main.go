@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
-	"github.com/hansonyu183/zerp-back/internal/database"
-	appdomain "github.com/hansonyu183/zerp-back/internal/domains/app"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/database"
+	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 )
 
 func main() {

@@ -7,9 +7,9 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hansonyu183/zerp-back/internal/api/requestbody"
-	"github.com/hansonyu183/zerp-back/internal/api/response"
-	"github.com/hansonyu183/zerp-back/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/config"
 )
 
 const principalContextKey = "appPrincipal"

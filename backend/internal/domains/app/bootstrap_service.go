@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 )
 
 // BootstrapAdmin creates the first user and a superadmin role. It refuses to run

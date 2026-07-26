@@ -1,0 +1,7 @@
+OpeningSaveRequest:
+  type: object
+  additionalProperties: true
+
+LedgerQueryRequest:
+  type: object
+  additionalProperties: true

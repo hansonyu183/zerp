@@ -1,0 +1,9 @@
+package: generated
+generate:
+  models: true
+  gin-server: true
+  strict-server: true
+  embedded-spec: true
+output: internal/api/generated/server.gen.go
+output-options:
+  skip-prune: false

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hansonyu183/zerp-back/internal/platform/fixeddecimal"
+	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 )
 
 func parseFixed(value string, scale int, allowZero bool) (int64, error) {

@@ -69,7 +69,7 @@ func TestLoadDefaults(t *testing.T) {
 			cfg.AttachmentStorageRoot, cfg.AttachmentUploadTTL, cfg.AttachmentDownloadTTL,
 			cfg.FeedbackAttachmentOrphanTTL)
 	}
-	if cfg.FeedbackGitHubEnabled || cfg.FeedbackGitHubRepository != "hansonyu183/zerp-back" {
+	if cfg.FeedbackGitHubEnabled || cfg.FeedbackGitHubRepository != "hansonyu183/zerp" {
 		t.Fatalf("feedback defaults = enabled:%t repository:%q",
 			cfg.FeedbackGitHubEnabled, cfg.FeedbackGitHubRepository)
 	}

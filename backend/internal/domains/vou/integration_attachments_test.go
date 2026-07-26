@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hansonyu183/zerp-back/internal/api/authorization"
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 )
 
 func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {

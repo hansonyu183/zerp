@@ -3,8 +3,8 @@ package led
 import (
 	"context"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 func (s *Service) QueryInventory(ctx context.Context, input QueryInput) (Page[InventoryEntryView], error) {

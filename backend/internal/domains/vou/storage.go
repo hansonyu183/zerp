@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 
-	"github.com/hansonyu183/zerp-back/internal/platform/attachmentstore"
+	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 )
 
 type localStorage = attachmentstore.Store

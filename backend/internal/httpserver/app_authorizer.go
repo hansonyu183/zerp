@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/hansonyu183/zerp-back/internal/api/authorization"
-	"github.com/hansonyu183/zerp-back/internal/config"
-	appdomain "github.com/hansonyu183/zerp-back/internal/domains/app"
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 )
 
 type appAuthorizationService interface {

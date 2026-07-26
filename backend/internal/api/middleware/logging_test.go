@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hansonyu183/zerp-back/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
 func TestRequestLoggerIncludesBusinessCode(t *testing.T) {

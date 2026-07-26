@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 )
 

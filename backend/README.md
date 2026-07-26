@@ -140,7 +140,7 @@ make ENV_FILE=.env.test compose-up
 | `ATTACHMENT_DOWNLOAD_TOKEN_TTL` | 否 | `5m` | 一次性附件下载令牌有效期 |
 | `FEEDBACK_ATTACHMENT_ORPHAN_TTL` | 否 | `24h` | 已上传但未提交反馈的截图保留时长 |
 | `FEEDBACK_GITHUB_ENABLED` | 生产是 | `false` | 是否启用 APP 用户反馈与 GitHub Issue 发布；生产必须为 `true` |
-| `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp-back` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
+| `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
 | `FEEDBACK_GITHUB_TOKEN` | 启用时是 | 无 | 仅具目标仓库 Issues 读写权限的细粒度令牌；不得写入仓库或日志 |
 
 `make test` 会启动并等待 Compose 的 `db` 服务，幂等创建 `TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、WFL、LED 数据库测试。测试库会保留供后续运行复用；安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或实际连接库名不匹配的配置。

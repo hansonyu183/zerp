@@ -1,4 +1,4 @@
-module github.com/hansonyu183/zerp-back
+module github.com/hansonyu183/zerp/backend
 
 go 1.26.5
 

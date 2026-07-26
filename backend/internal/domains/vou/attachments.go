@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

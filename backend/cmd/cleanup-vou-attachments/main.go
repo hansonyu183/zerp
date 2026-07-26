@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
-	"github.com/hansonyu183/zerp-back/internal/database"
-	appdomain "github.com/hansonyu183/zerp-back/internal/domains/app"
-	bobdomain "github.com/hansonyu183/zerp-back/internal/domains/bob"
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
-	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/database"
+	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
 
 func main() {

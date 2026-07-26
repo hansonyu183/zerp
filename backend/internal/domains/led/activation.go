@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
-	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

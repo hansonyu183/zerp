@@ -1,5 +1,5 @@
 {
-  "name": "zerp",
+  "name": "@zerp/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,8 +12,8 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write eslint.config.mjs package.json vite.config.ts vitest.config.ts \"scripts/**/*.mjs\" \"README.md\" \"docs/**/*.md\" \".github/**/*.yml\"",
-    "format:check": "prettier --check eslint.config.mjs package.json vite.config.ts vitest.config.ts \"scripts/**/*.mjs\" \"README.md\" \"docs/**/*.md\" \".github/**/*.yml\"",
+    "format": "prettier --write eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
+    "format:check": "prettier --check eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
     "docs:check": "node scripts/check-docs.mjs",
     "check:whitespace": "git diff --check",
     "check": "pnpm lint && pnpm format:check && pnpm docs:check && pnpm check:whitespace && pnpm test:coverage && pnpm build",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
+    "openapi-fetch": "^0.15.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0",

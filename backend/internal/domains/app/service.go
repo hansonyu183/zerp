@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hansonyu183/zerp-back/internal/config"
-	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
-	"github.com/hansonyu183/zerp-back/internal/platform/attachmentstore"
+	"github.com/hansonyu183/zerp/backend/internal/config"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

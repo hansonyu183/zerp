@@ -1,0 +1,37 @@
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.e2e.example
+!frontend/.env.production
+
+# JavaScript
+node_modules/
+coverage/
+dist/
+test-results/
+playwright-report/
+blob-report/
+*.tsbuildinfo
+.vite/
+
+# Go
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+backend/tmp/
+backend/go.work
+backend/go.work.sum
+
+# Runtime data
+backend/var/
+*.log
+*.pid
+
+# Editors and OS
+.idea/
+.DS_Store
+Thumbs.db

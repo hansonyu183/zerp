@@ -1,0 +1,13 @@
+root = ".."
+tmp_dir = "backend/tmp"
+
+[build]
+cmd = "go -C backend build -o tmp/zerp-server ./cmd/server"
+bin = "backend/tmp/zerp-server"
+include_ext = ["go", "sql", "yaml"]
+exclude_dir = ["frontend", "contracts/openapi/dist", "backend/tmp", "backend/var"]
+delay = 500
+stop_on_error = true
+
+[log]
+time = true

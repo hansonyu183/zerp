@@ -93,7 +93,7 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	}
 	view, err = service.GetFeedback(t.Context(), created.FeedbackID, principal.User.ID)
 	if err != nil || view.Status != FeedbackStatusPublished || view.IssueURL == nil ||
-		*view.IssueURL != "https://github.com/hansonyu183/zerp-back/issues/17" {
+		*view.IssueURL != "https://github.com/hansonyu183/zerp/issues/17" {
 		t.Fatalf("published feedback = %#v, error = %v", view, err)
 	}
 	if !strings.Contains(client.body, "截图.png") ||

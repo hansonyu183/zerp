@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp-back/internal/database/sqlc"
@@ -143,151 +142,24 @@ func (s *Service) SaveOpening(
 	if control.Revision != input.Revision || (control.Status != StatusDraft && control.Status != StatusReopening) {
 		return MutationResult{}, domainError(ErrorConflict, "ledger opening changed", nil, nil)
 	}
-	oldInventory, err := q.ListLedDraftInventory(ctx)
+	snapshot, err := s.loadOpeningDraft(ctx, q)
 	if err != nil {
-		return MutationResult{}, s.internal("list existing inventory opening", err)
+		return MutationResult{}, err
 	}
-	oldFund, err := q.ListLedDraftFund(ctx)
-	if err != nil {
-		return MutationResult{}, s.internal("list existing fund opening", err)
+	if err = s.clearOpeningDraft(ctx, q); err != nil {
+		return MutationResult{}, err
 	}
-	oldParty, err := q.ListLedDraftParty(ctx)
-	if err != nil {
-		return MutationResult{}, s.internal("list existing party opening", err)
+	if err = s.replaceInventoryOpening(ctx, tx, q, snapshot.Inventory, input.Inventory); err != nil {
+		return MutationResult{}, err
 	}
-	oldContainers, err := q.ListLedDraftContainer(ctx)
-	if err != nil {
-		return MutationResult{}, s.internal("list existing container opening", err)
+	if err = s.replaceFundOpening(ctx, tx, q, snapshot.Fund, input.Fund); err != nil {
+		return MutationResult{}, err
 	}
-	if err = q.DeleteLedDraftInventory(ctx); err != nil {
-		return MutationResult{}, s.writeError("clear inventory opening", err)
+	if err = s.replacePartyOpening(ctx, tx, q, snapshot.Party, input.Party); err != nil {
+		return MutationResult{}, err
 	}
-	if err = q.DeleteLedDraftFund(ctx); err != nil {
-		return MutationResult{}, s.writeError("clear fund opening", err)
-	}
-	if err = q.DeleteLedDraftParty(ctx); err != nil {
-		return MutationResult{}, s.writeError("clear party opening", err)
-	}
-	if err = q.DeleteLedDraftContainer(ctx); err != nil {
-		return MutationResult{}, s.writeError("clear container opening", err)
-	}
-
-	oldInventoryByKey := make(map[string]dbsqlc.LedDraftInventory, len(oldInventory))
-	for _, row := range oldInventory {
-		oldInventoryByKey[row.WarehouseObjectID+"/"+row.WarehouseVersionID+"/"+row.ProductObjectID+"/"+row.ProductVersionID] = row
-	}
-	for _, item := range input.Inventory {
-		quantity, _ := parsePositiveFixed(item.Quantity, 6, true)
-		key := item.Warehouse.ObjectID + "/" + item.Warehouse.VersionID + "/" + item.Product.ObjectID + "/" + item.Product.VersionID
-		params := dbsqlc.InsertLedDraftInventoryParams{ID: newID(), QuantityMicros: quantity}
-		if old, ok := oldInventoryByKey[key]; ok {
-			params.ID = old.ID
-			params.WarehouseObjectID, params.WarehouseVersionID = old.WarehouseObjectID, old.WarehouseVersionID
-			params.WarehouseCode, params.WarehouseName = old.WarehouseCode, old.WarehouseName
-			params.ProductObjectID, params.ProductVersionID = old.ProductObjectID, old.ProductVersionID
-			params.ProductCode, params.ProductName, params.ProductUnit = old.ProductCode, old.ProductName, old.ProductUnit
-		} else {
-			warehouse, resolveErr := s.resolve(ctx, tx, bobdomain.EntityWarehouse, item.Warehouse)
-			if resolveErr != nil {
-				return MutationResult{}, resolveErr
-			}
-			product, resolveErr := s.resolve(ctx, tx, bobdomain.EntityProduct, item.Product)
-			if resolveErr != nil {
-				return MutationResult{}, resolveErr
-			}
-			params.WarehouseObjectID, params.WarehouseVersionID = warehouse.ObjectID, warehouse.VersionID
-			params.WarehouseCode, params.WarehouseName = warehouse.Code, warehouse.Data.Name
-			params.ProductObjectID, params.ProductVersionID = product.ObjectID, product.VersionID
-			params.ProductCode, params.ProductName, params.ProductUnit = product.Code, product.Data.Name, product.Data.Unit
-		}
-		if err = q.InsertLedDraftInventory(ctx, params); err != nil {
-			return MutationResult{}, s.writeError("insert inventory opening", err)
-		}
-	}
-
-	oldFundByKey := make(map[string]dbsqlc.LedDraftFund, len(oldFund))
-	for _, row := range oldFund {
-		oldFundByKey[row.FundAccountObjectID+"/"+row.FundAccountVersionID] = row
-	}
-	for _, item := range input.Fund {
-		amount, _ := parsePositiveFixed(item.Amount, 2, true)
-		if item.BalanceType == "OVERDRAFT" {
-			amount = -amount
-		}
-		key := item.FundAccount.ObjectID + "/" + item.FundAccount.VersionID
-		params := dbsqlc.InsertLedDraftFundParams{ID: newID(), AmountCents: amount}
-		if old, ok := oldFundByKey[key]; ok {
-			params.ID = old.ID
-			params.FundAccountObjectID, params.FundAccountVersionID = old.FundAccountObjectID, old.FundAccountVersionID
-			params.FundAccountCode, params.FundAccountName, params.Currency = old.FundAccountCode, old.FundAccountName, old.Currency
-		} else {
-			account, resolveErr := s.resolve(ctx, tx, bobdomain.EntityFundAccount, item.FundAccount)
-			if resolveErr != nil {
-				return MutationResult{}, resolveErr
-			}
-			params.FundAccountObjectID, params.FundAccountVersionID = account.ObjectID, account.VersionID
-			params.FundAccountCode, params.FundAccountName, params.Currency = account.Code, account.Data.Name, account.Data.Currency
-		}
-		if err = q.InsertLedDraftFund(ctx, params); err != nil {
-			return MutationResult{}, s.writeError("insert fund opening", err)
-		}
-	}
-
-	oldPartyByKey := make(map[string]dbsqlc.LedDraftParty, len(oldParty))
-	for _, row := range oldParty {
-		oldPartyByKey[row.CounterpartyEntity+"/"+row.CounterpartyObjectID+"/"+row.CounterpartyVersionID+"/"+row.Currency] = row
-	}
-	for _, item := range input.Party {
-		currency := strings.ToUpper(strings.TrimSpace(item.Currency))
-		amount, _ := parsePositiveFixed(item.Amount, 2, true)
-		if item.BalanceType == "PAYABLE" {
-			amount = -amount
-		}
-		key := item.CounterpartyType + "/" + item.Counterparty.ObjectID + "/" + item.Counterparty.VersionID + "/" + currency
-		params := dbsqlc.InsertLedDraftPartyParams{
-			ID: newID(), CounterpartyEntity: item.CounterpartyType, Currency: currency, AmountCents: amount,
-		}
-		if old, ok := oldPartyByKey[key]; ok {
-			params.ID = old.ID
-			params.CounterpartyObjectID, params.CounterpartyVersionID = old.CounterpartyObjectID, old.CounterpartyVersionID
-			params.CounterpartyCode, params.CounterpartyName = old.CounterpartyCode, old.CounterpartyName
-		} else {
-			party, resolveErr := s.resolve(ctx, tx, item.CounterpartyType, item.Counterparty)
-			if resolveErr != nil {
-				return MutationResult{}, resolveErr
-			}
-			params.CounterpartyObjectID, params.CounterpartyVersionID = party.ObjectID, party.VersionID
-			params.CounterpartyCode, params.CounterpartyName = party.Code, party.Data.Name
-		}
-		if err = q.InsertLedDraftParty(ctx, params); err != nil {
-			return MutationResult{}, s.writeError("insert party opening", err)
-		}
-	}
-
-	oldContainerByKey := make(map[string]dbsqlc.LedDraftContainer, len(oldContainers))
-	for _, row := range oldContainers {
-		oldContainerByKey[row.CustomerObjectID+"/"+row.CustomerVersionID+"/"+row.ContainerType] = row
-	}
-	for _, item := range input.Container {
-		key := item.Customer.ObjectID + "/" + item.Customer.VersionID + "/" + item.ContainerType
-		params := dbsqlc.InsertLedDraftContainerParams{
-			ID: newID(), ContainerType: item.ContainerType, Quantity: item.Quantity,
-		}
-		if old, ok := oldContainerByKey[key]; ok {
-			params.ID = old.ID
-			params.CustomerObjectID, params.CustomerVersionID = old.CustomerObjectID, old.CustomerVersionID
-			params.CustomerCode, params.CustomerName = old.CustomerCode, old.CustomerName
-		} else {
-			customer, resolveErr := s.resolve(ctx, tx, bobdomain.EntityCustomer, item.Customer)
-			if resolveErr != nil {
-				return MutationResult{}, resolveErr
-			}
-			params.CustomerObjectID, params.CustomerVersionID = customer.ObjectID, customer.VersionID
-			params.CustomerCode, params.CustomerName = customer.Code, customer.Data.Name
-		}
-		if err = q.InsertLedDraftContainer(ctx, params); err != nil {
-			return MutationResult{}, s.writeError("insert container opening", err)
-		}
+	if err = s.replaceContainerOpening(ctx, tx, q, snapshot.Container, input.Container); err != nil {
+		return MutationResult{}, err
 	}
 
 	revision, err := q.SaveLedDraftControl(ctx, dbsqlc.SaveLedDraftControlParams{

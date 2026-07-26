@@ -73,147 +73,26 @@ func (s *Service) Activate(
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
-	missingPrices := make([]string, 0)
-	for _, document := range documents {
-		if document.Entity != voudomain.EntityIntermediarySaleOrder ||
-			document.BusinessDate.Time.Before(control.CutoverDate.Time) {
-			continue
-		}
-		lines, lineErr := q.ListVouProductLines(ctx, document.ID)
-		if lineErr != nil {
-			return MutationResult{}, s.internal("preflight intermediary prices", lineErr)
-		}
-		for _, line := range lines {
-			if line.PurchaseUnitPriceCents == nil {
-				missingPrices = append(missingPrices, document.DocumentNo)
-				break
-			}
-		}
-	}
-	if len(missingPrices) > 0 {
-		return MutationResult{}, domainError(
-			ErrorConflict, "executed intermediary documents are missing purchaseUnitPrice",
-			map[string]any{"documentNos": missingPrices}, nil,
-		)
-	}
-
-	generationID := newID()
-	if err = q.InsertLedGeneration(ctx, dbsqlc.InsertLedGenerationParams{
-		ID: generationID, CutoverDate: control.CutoverDate, ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("insert ledger generation", err)
-	}
-	if err = q.InsertLedOpeningInventoryFromDraft(ctx, generationID); err != nil {
-		return MutationResult{}, s.writeError("copy inventory opening", err)
-	}
-	if err = q.InsertLedOpeningFundFromDraft(ctx, generationID); err != nil {
-		return MutationResult{}, s.writeError("copy fund opening", err)
-	}
-	if err = q.InsertLedOpeningPartyFromDraft(ctx, generationID); err != nil {
-		return MutationResult{}, s.writeError("copy party opening", err)
-	}
-	if err = q.InsertLedOpeningContainerFromDraft(ctx, generationID); err != nil {
-		return MutationResult{}, s.writeError("copy container opening", err)
-	}
-	openingTime := time.Date(
-		control.CutoverDate.Time.Year(), control.CutoverDate.Time.Month(), control.CutoverDate.Time.Day(),
-		0, 0, 0, 0, time.UTC,
-	)
-	openingOccurredAt := pgtype.Timestamptz{Time: openingTime, Valid: true}
-	if err = q.InsertLedOpeningInventoryEntries(ctx, dbsqlc.InsertLedOpeningInventoryEntriesParams{
-		GenerationID: generationID, CutoverDate: control.CutoverDate, OccurredAt: openingOccurredAt,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("post inventory opening", err)
-	}
-	if err = q.InsertLedOpeningFundEntries(ctx, dbsqlc.InsertLedOpeningFundEntriesParams{
-		GenerationID: generationID, CutoverDate: control.CutoverDate, OccurredAt: openingOccurredAt,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("post fund opening", err)
-	}
-	if err = q.InsertLedOpeningPartyEntries(ctx, dbsqlc.InsertLedOpeningPartyEntriesParams{
-		GenerationID: generationID, CutoverDate: control.CutoverDate, OccurredAt: openingOccurredAt,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("post party opening", err)
-	}
-	if err = q.InsertLedOpeningContainerEntries(ctx, dbsqlc.InsertLedOpeningContainerEntriesParams{
-		GenerationID: generationID, CutoverDate: control.CutoverDate, OccurredAt: openingOccurredAt,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("post container opening", err)
-	}
-	for _, document := range documents {
-		postedBy := actorID
-		if document.ExecutedBy != nil {
-			postedBy = *document.ExecutedBy
-		}
-		occurredAt := document.ExecutedAt
-		if !occurredAt.Valid {
-			occurredAt = document.UpdatedAt
-		}
-		if err = s.postDocument(ctx, tx, q, postingContext{
-			GenerationID: generationID, CutoverDate: control.CutoverDate.Time, Document: document,
-			EntryType: "POSTING", SourceRevision: document.Revision, OccurredAt: occurredAt,
-			ActorID: postedBy, RequestID: "led-rebuild/" + requestID, Live: false,
-		}); err != nil {
-			return MutationResult{}, err
-		}
-	}
-	stageRows, err := tx.Query(ctx, `SELECT d.entity,d.id,d.document_no,d.revision,
-		COALESCE(d.approved_by,d.updated_by),d.approved_at
-		FROM vou_documents d WHERE d.control_domain='WFL' AND d.status='APPROVED'
-		AND d.entity IN ('goods-receipt','signoff-note') ORDER BY d.approved_at,d.id`)
-	if err != nil {
-		return MutationResult{}, s.internal("list WFL documents", err)
-	}
-	for stageRows.Next() {
-		var event voudomain.ManagedDocumentEvent
-		var occurredAt pgtype.Timestamptz
-		if err = stageRows.Scan(&event.Entity, &event.DocumentID, &event.DocumentNo,
-			&event.Revision, &event.ActorID, &occurredAt); err != nil {
-			stageRows.Close()
-			return MutationResult{}, err
-		}
-		event.Action, event.RequestID = "FINALIZED", "led-rebuild/"+requestID
-		if err = s.postManagedDocument(ctx, tx, generationID, control.CutoverDate.Time, event, false); err != nil {
-			stageRows.Close()
-			return MutationResult{}, err
-		}
-	}
-	if err = stageRows.Err(); err != nil {
-		stageRows.Close()
+	if err = s.preflightActivation(ctx, q, documents, control.CutoverDate.Time); err != nil {
 		return MutationResult{}, err
 	}
-	stageRows.Close()
-	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
+	generationID := newID()
+	if err = s.createOpeningGeneration(ctx, q, generationID, control.CutoverDate, actorID, requestID); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.replayVouDocuments(
+		ctx, tx, q, generationID, control.CutoverDate.Time, documents, actorID, requestID,
+	); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.replayManagedDocuments(ctx, tx, generationID, control.CutoverDate.Time, requestID); err != nil {
+		return MutationResult{}, err
+	}
+	revision, err := s.finalizeActivation(
+		ctx, q, control, input.Revision, generationID, actorID, requestID, len(documents),
+	)
 	if err != nil {
-		return MutationResult{}, s.internal("validate rebuilt inventory", err)
-	}
-	if negative {
-		return MutationResult{}, domainError(ErrorConflict, "inventory timeline would become negative", nil, nil)
-	}
-	if control.ActiveGenerationID != nil {
-		if err = q.ArchiveActiveLedGeneration(ctx, *control.ActiveGenerationID); err != nil {
-			return MutationResult{}, s.writeError("archive ledger generation", err)
-		}
-	}
-	revision, err := q.ActivateLedControl(ctx, dbsqlc.ActivateLedControlParams{
-		CutoverDate: control.CutoverDate, GenerationID: &generationID, ActorID: &actorID, Revision: input.Revision,
-	})
-	if err != nil {
-		return MutationResult{}, s.writeError("activate ledger control", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		Event: "ACTIVATED", From: &control.Status, To: StatusActive, GenerationID: &generationID,
-		Revision: revision, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"documentCount": len(documents), "cutoverDate": formatDate(control.CutoverDate)},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit activation", err)
-	}
-	if err = clearDraft(ctx, q); err != nil {
-		return MutationResult{}, s.writeError("clear activated draft", err)
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit ledger activation", err)
@@ -282,100 +161,12 @@ func (s *Service) HandleDocumentUnexecuted(ctx context.Context, tx pgx.Tx, raw t
 	if !exists {
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
-	inventory, err := q.ListLedInventoryEntriesBySource(ctx, dbsqlc.ListLedInventoryEntriesBySourceParams{
-		GenerationID: generationID, SourceDocumentID: event.DocumentID,
-	})
-	if err != nil {
-		return err
-	}
-	fund, err := q.ListLedFundEntriesBySource(ctx, dbsqlc.ListLedFundEntriesBySourceParams{
-		GenerationID: generationID, SourceDocumentID: event.DocumentID,
-	})
-	if err != nil {
-		return err
-	}
-	party, err := q.ListLedPartyEntriesBySource(ctx, dbsqlc.ListLedPartyEntriesBySourceParams{
-		GenerationID: generationID, SourceDocumentID: event.DocumentID,
-	})
-	if err != nil {
-		return err
-	}
-	maxRevision := int64(0)
-	for _, row := range inventory {
-		if row.SourceRevision > maxRevision {
-			maxRevision = row.SourceRevision
-		}
-	}
-	for _, row := range fund {
-		if row.SourceRevision > maxRevision {
-			maxRevision = row.SourceRevision
-		}
-	}
-	for _, row := range party {
-		if row.SourceRevision > maxRevision {
-			maxRevision = row.SourceRevision
-		}
-	}
 	var occurredAt pgtype.Timestamptz
 	if err = tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&occurredAt); err != nil {
 		return err
 	}
-	for _, row := range inventory {
-		if row.SourceRevision != maxRevision {
-			continue
-		}
-		if err = lockInventoryDimension(ctx, tx, row.WarehouseObjectID, row.ProductObjectID); err != nil {
-			return err
-		}
-		if err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
-			ID: newID(), GenerationID: generationID, EntryType: "REVERSAL",
-			SourceEntity: row.SourceEntity, SourceDocumentID: row.SourceDocumentID,
-			SourceDocumentNo: row.SourceDocumentNo, SourceLineID: row.SourceLineID,
-			SourceRevision: event.Revision, EffectiveDate: row.EffectiveDate, OccurredAt: occurredAt,
-			ActorID: event.ActorID, RequestID: event.RequestID, Reason: &event.Reason,
-			WarehouseObjectID: row.WarehouseObjectID, WarehouseVersionID: row.WarehouseVersionID,
-			WarehouseCode: row.WarehouseCode, WarehouseName: row.WarehouseName,
-			ProductObjectID: row.ProductObjectID, ProductVersionID: row.ProductVersionID,
-			ProductCode: row.ProductCode, ProductName: row.ProductName, ProductUnit: row.ProductUnit,
-			QuantityDeltaMicros: -row.QuantityDeltaMicros,
-		}); err != nil {
-			return err
-		}
-	}
-	for _, row := range fund {
-		if row.SourceRevision != maxRevision {
-			continue
-		}
-		if err = q.InsertLedFundEntry(ctx, dbsqlc.InsertLedFundEntryParams{
-			ID: newID(), GenerationID: generationID, EntryType: "REVERSAL",
-			SourceEntity: row.SourceEntity, SourceDocumentID: row.SourceDocumentID,
-			SourceDocumentNo: row.SourceDocumentNo, SourceLineID: row.SourceLineID,
-			SourceRevision: event.Revision, EffectiveDate: row.EffectiveDate, OccurredAt: occurredAt,
-			ActorID: event.ActorID, RequestID: event.RequestID, Reason: &event.Reason,
-			FundAccountObjectID: row.FundAccountObjectID, FundAccountVersionID: row.FundAccountVersionID,
-			FundAccountCode: row.FundAccountCode, FundAccountName: row.FundAccountName,
-			Currency: row.Currency, AmountDeltaCents: -row.AmountDeltaCents,
-		}); err != nil {
-			return err
-		}
-	}
-	for _, row := range party {
-		if row.SourceRevision != maxRevision {
-			continue
-		}
-		if err = q.InsertLedPartyEntry(ctx, dbsqlc.InsertLedPartyEntryParams{
-			ID: newID(), GenerationID: generationID, EntryType: "REVERSAL",
-			SourceEntity: row.SourceEntity, SourceDocumentID: row.SourceDocumentID,
-			SourceDocumentNo: row.SourceDocumentNo, SourceLineID: row.SourceLineID,
-			SourceRevision: event.Revision, EffectiveDate: row.EffectiveDate, OccurredAt: occurredAt,
-			ActorID: event.ActorID, RequestID: event.RequestID, Reason: &event.Reason,
-			CounterpartyEntity: row.CounterpartyEntity, CounterpartyObjectID: row.CounterpartyObjectID,
-			CounterpartyVersionID: row.CounterpartyVersionID, CounterpartyCode: row.CounterpartyCode,
-			CounterpartyName: row.CounterpartyName, Currency: row.Currency,
-			AmountDeltaCents: -row.AmountDeltaCents,
-		}); err != nil {
-			return err
-		}
+	if err = s.reverseDocumentEntries(ctx, tx, q, generationID, event, occurredAt); err != nil {
+		return err
 	}
 	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
 	if err != nil {
@@ -399,213 +190,27 @@ type postingContext struct {
 func (s *Service) postDocument(
 	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, posting postingContext,
 ) error {
-	doc := posting.Document
 	if !posting.OccurredAt.Valid {
 		posting.OccurredAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 	}
-	requireDate := func(date pgtype.Date) (bool, error) {
-		if !date.Valid {
-			return false, domainError(ErrorConflict, "executed document is missing an effective date", map[string]any{"documentNo": doc.DocumentNo}, nil)
-		}
-		before := date.Time.Before(posting.CutoverDate)
-		if posting.Live && before {
-			return false, domainError(ErrorConflict, "document effect predates ledger cutover", map[string]any{"documentNo": doc.DocumentNo}, nil)
-		}
-		return !before, nil
-	}
-	switch doc.Entity {
+	switch posting.Document.Entity {
 	case voudomain.EntitySaleOrder:
-		detail, err := q.GetVouSaleOrderDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read sale ledger detail", err)
-		}
-		includeInventory, err := requireDate(detail.OutboundDate)
-		if err != nil {
-			return err
-		}
-		includeParty, err := requireDate(doc.BusinessDate)
-		if err != nil {
-			return err
-		}
-		lines, err := q.ListVouProductLines(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read sale ledger lines", err)
-		}
-		for _, line := range lines {
-			if includeInventory {
-				if line.OutboundQtyMicros == nil || detail.WarehouseObjectID == nil || detail.WarehouseVersionID == nil ||
-					detail.WarehouseCode == nil || detail.WarehouseName == nil {
-					return domainError(ErrorConflict, "executed sale is missing inventory data", map[string]any{"documentNo": doc.DocumentNo}, nil)
-				}
-				if err = lockInventoryDimension(ctx, tx, *detail.WarehouseObjectID, line.ProductObjectID); err != nil {
-					return s.internal("lock sale inventory", err)
-				}
-				if err = q.InsertLedInventoryEntry(ctx, inventoryParams(posting, doc, line, detail.OutboundDate,
-					*detail.WarehouseObjectID, *detail.WarehouseVersionID, *detail.WarehouseCode, *detail.WarehouseName,
-					-*line.OutboundQtyMicros)); err != nil {
-					return s.writeError("post sale inventory", err)
-				}
-			}
-			if includeParty && line.SignedQtyMicros != nil && *line.SignedQtyMicros > 0 {
-				amount, amountErr := lineAmountCents(*line.SignedQtyMicros, line.UnitPriceCents)
-				if amountErr != nil {
-					return domainError(ErrorConflict, "invalid sale ledger amount", map[string]any{"documentNo": doc.DocumentNo}, amountErr)
-				}
-				if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
-					detail.CustomerObjectID, detail.CustomerVersionID, detail.CustomerCode, detail.CustomerName, "customer", amount)); err != nil {
-					return s.writeError("post sale receivable", err)
-				}
-			}
-		}
+		return s.postSale(ctx, tx, q, posting)
 	case voudomain.EntityPurchaseOrder:
-		detail, err := q.GetVouPurchaseOrderDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read purchase ledger detail", err)
-		}
-		includeInventory, err := requireDate(detail.InboundDate)
-		if err != nil {
-			return err
-		}
-		includeParty, err := requireDate(doc.BusinessDate)
-		if err != nil {
-			return err
-		}
-		lines, err := q.ListVouProductLines(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read purchase ledger lines", err)
-		}
-		for _, line := range lines {
-			if line.InboundQtyMicros == nil {
-				return domainError(ErrorConflict, "executed purchase is missing inbound quantity", map[string]any{"documentNo": doc.DocumentNo}, nil)
-			}
-			if includeInventory {
-				if detail.WarehouseObjectID == nil || detail.WarehouseVersionID == nil ||
-					detail.WarehouseCode == nil || detail.WarehouseName == nil {
-					return domainError(ErrorConflict, "executed purchase is missing warehouse data", map[string]any{"documentNo": doc.DocumentNo}, nil)
-				}
-				if err = lockInventoryDimension(ctx, tx, *detail.WarehouseObjectID, line.ProductObjectID); err != nil {
-					return s.internal("lock purchase inventory", err)
-				}
-				if err = q.InsertLedInventoryEntry(ctx, inventoryParams(posting, doc, line, detail.InboundDate,
-					*detail.WarehouseObjectID, *detail.WarehouseVersionID, *detail.WarehouseCode, *detail.WarehouseName,
-					*line.InboundQtyMicros)); err != nil {
-					return s.writeError("post purchase inventory", err)
-				}
-			}
-			if includeParty {
-				amount, amountErr := lineAmountCents(*line.InboundQtyMicros, line.UnitPriceCents)
-				if amountErr != nil {
-					return domainError(ErrorConflict, "invalid purchase ledger amount", map[string]any{"documentNo": doc.DocumentNo}, amountErr)
-				}
-				if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
-					detail.SupplierObjectID, detail.SupplierVersionID, detail.SupplierCode, detail.SupplierName, "supplier", -amount)); err != nil {
-					return s.writeError("post purchase payable", err)
-				}
-			}
-		}
+		return s.postPurchase(ctx, tx, q, posting)
 	case voudomain.EntityIntermediarySaleOrder:
-		detail, err := q.GetVouIntermediarySaleOrderDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read intermediary ledger detail", err)
-		}
-		include, err := requireDate(doc.BusinessDate)
-		if err != nil || !include {
-			return err
-		}
-		lines, err := q.ListVouProductLines(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read intermediary ledger lines", err)
-		}
-		for _, line := range lines {
-			if line.SignedQtyMicros == nil || *line.SignedQtyMicros == 0 {
-				continue
-			}
-			if line.PurchaseUnitPriceCents == nil {
-				return domainError(ErrorConflict, "intermediary purchaseUnitPrice is missing", map[string]any{"documentNo": doc.DocumentNo}, nil)
-			}
-			saleAmount, amountErr := lineAmountCents(*line.SignedQtyMicros, line.UnitPriceCents)
-			if amountErr != nil {
-				return domainError(ErrorConflict, "invalid intermediary sale amount", nil, amountErr)
-			}
-			purchaseAmount, amountErr := lineAmountCents(*line.SignedQtyMicros, *line.PurchaseUnitPriceCents)
-			if amountErr != nil {
-				return domainError(ErrorConflict, "invalid intermediary purchase amount", nil, amountErr)
-			}
-			if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
-				detail.CustomerObjectID, detail.CustomerVersionID, detail.CustomerCode, detail.CustomerName, "customer", saleAmount)); err != nil {
-				return s.writeError("post intermediary receivable", err)
-			}
-			if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
-				detail.SupplierObjectID, detail.SupplierVersionID, detail.SupplierCode, detail.SupplierName, "supplier", -purchaseAmount)); err != nil {
-				return s.writeError("post intermediary payable", err)
-			}
-		}
+		return s.postIntermediarySale(ctx, q, posting)
 	case voudomain.EntityReceipt:
-		include, err := requireDate(doc.BusinessDate)
-		if err != nil || !include {
-			return err
-		}
-		detail, err := q.GetVouReceiptDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read receipt ledger detail", err)
-		}
-		if err = q.InsertLedFundEntry(ctx, fundParams(posting, doc, detail.FundAccountObjectID,
-			detail.FundAccountVersionID, detail.FundAccountCode, detail.FundAccountName, doc.TotalAmountCents)); err != nil {
-			return s.writeError("post receipt fund", err)
-		}
-		if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, "", doc.BusinessDate,
-			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
-			detail.CounterpartyName, detail.CounterpartyEntity, -doc.TotalAmountCents)); err != nil {
-			return s.writeError("post receipt party", err)
-		}
+		return s.postReceipt(ctx, q, posting)
 	case voudomain.EntityPayment:
-		include, err := requireDate(doc.BusinessDate)
-		if err != nil || !include {
-			return err
-		}
-		detail, err := q.GetVouPaymentDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read payment ledger detail", err)
-		}
-		if err = q.InsertLedFundEntry(ctx, fundParams(posting, doc, detail.FundAccountObjectID,
-			detail.FundAccountVersionID, detail.FundAccountCode, detail.FundAccountName, -doc.TotalAmountCents)); err != nil {
-			return s.writeError("post payment fund", err)
-		}
-		if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, "", doc.BusinessDate,
-			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
-			detail.CounterpartyName, detail.CounterpartyEntity, doc.TotalAmountCents)); err != nil {
-			return s.writeError("post payment party", err)
-		}
+		return s.postPayment(ctx, q, posting)
 	case voudomain.EntityExpenseReimbursement:
-		include, err := requireDate(doc.BusinessDate)
-		if err != nil || !include {
-			return err
-		}
-		detail, err := q.GetVouExpenseReimbursementDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read expense ledger detail", err)
-		}
-		if err = q.InsertLedFundEntry(ctx, fundParams(posting, doc, detail.FundAccountObjectID,
-			detail.FundAccountVersionID, detail.FundAccountCode, detail.FundAccountName, -doc.TotalAmountCents)); err != nil {
-			return s.writeError("post expense fund", err)
-		}
+		return s.postExpense(ctx, q, posting)
 	case voudomain.EntityOtherIncome:
-		include, err := requireDate(doc.BusinessDate)
-		if err != nil || !include {
-			return err
-		}
-		detail, err := q.GetVouOtherIncomeDetail(ctx, doc.ID)
-		if err != nil {
-			return s.internal("read other income ledger detail", err)
-		}
-		if err = q.InsertLedFundEntry(ctx, fundParams(posting, doc, detail.FundAccountObjectID,
-			detail.FundAccountVersionID, detail.FundAccountCode, detail.FundAccountName, doc.TotalAmountCents)); err != nil {
-			return s.writeError("post other income fund", err)
-		}
+		return s.postOtherIncome(ctx, q, posting)
 	default:
 		return domainError(ErrorValidation, "unsupported VOU entity", nil, nil)
 	}
-	return nil
 }
 
 func inventoryParams(

@@ -103,13 +103,6 @@ function stageTitle(): string {
   return `${vm.stageChild ? '查看/编辑' : '新建'}${stageName(vm.stageEditing)}`
 }
 
-function stageCanSave(): boolean {
-  const prefix = vm.stageEditing.toLowerCase()
-  const action =
-    `${prefix}-${vm.stageChild ? 'save' : 'create'}` as IntermediaryAction
-  return vm.stageEditable && vm.can(action)
-}
-
 function childAttachmentCan(
   operation: 'Initiate' | 'Download' | 'Remove',
 ): boolean {
@@ -232,9 +225,13 @@ function createSignoff(document: WflDocumentSummary): void {
     :title="vm.document?.documentNo ?? '新建居间客户订单'"
     @close="vm.closeWorkspace"
     @reload="vm.loadDocument()"
-    @update:active-tab="vm.activeStep = Number($event)"
+    @update:active-tab="vm.changeActiveStep(Number($event))"
   >
-      <v-window v-model="vm.activeStep" class="intermediary-workspace__window">
+      <v-window
+        class="intermediary-workspace__window"
+        :model-value="vm.activeStep"
+        @update:model-value="vm.changeActiveStep(Number($event))"
+      >
         <v-window-item :value="1">
           <v-card rounded="lg" variant="flat">
             <v-card-title class="intermediary-workspace__section-title">
@@ -618,7 +615,7 @@ function createSignoff(document: WflDocumentSummary): void {
       <v-card-actions>
         <v-spacer />
         <v-btn :disabled="Boolean(vm.actionLoading) || vm.childAttachmentLoading" variant="text" @click="vm.closeStageDialog">关闭</v-btn>
-        <v-btn v-if="stageCanSave()" color="primary" :loading="Boolean(vm.actionLoading)" @click="vm.saveStage">保存草稿</v-btn>
+        <v-btn v-if="vm.canSaveStage()" color="primary" :loading="Boolean(vm.actionLoading)" @click="vm.saveStage">保存草稿</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

@@ -12,9 +12,14 @@ import {
   wflFixtures,
 } from './wfl-runtime'
 
-const fixtures = wflFixtures()
-const redacted = redactedCredentials()
+let fixtures: ReturnType<typeof wflFixtures>
+let redacted: ReturnType<typeof redactedCredentials>
 let completedDocumentNo = ''
+
+test.beforeAll(() => {
+  fixtures = wflFixtures()
+  redacted = redactedCredentials()
+})
 
 async function signIn(
   page: Page,

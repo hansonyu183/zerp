@@ -1,7 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { shallowMount } from '@vue/test-utils'
+import { defineComponent, h, type Component } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/types'
 import { apiClient } from '@/api/client'
+import IntermediaryTrade from '@/pages/wfl/intermediary-trade/IntermediaryTrade.vue'
 import {
   calculateContainerBalanceAfter,
   calculateExpectedContainers,
@@ -33,6 +36,52 @@ vi.mock('@/api/client', () => ({
 }))
 
 const mockedApi = vi.mocked(apiClient)
+
+const passthroughStub = (name: string, tag = 'div') =>
+  defineComponent({
+    name,
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
+      return () => h(tag, attrs, slots.default?.())
+    },
+  })
+
+const VBtnStub = defineComponent({
+  name: 'VBtn',
+  inheritAttrs: false,
+  props: {
+    disabled: Boolean,
+  },
+  emits: ['click'],
+  setup(props, { attrs, emit, slots }) {
+    return () =>
+      h(
+        'button',
+        {
+          ...attrs,
+          disabled: props.disabled,
+          onClick: () => emit('click'),
+        },
+        slots.default?.(),
+      )
+  },
+})
+
+const VTextFieldStub = defineComponent({
+  name: 'VTextField',
+  inheritAttrs: false,
+  props: {
+    disabled: Boolean,
+  },
+  setup(props, { attrs }) {
+    return () =>
+      h('input', {
+        ...attrs,
+        'aria-label': attrs.label,
+        disabled: props.disabled,
+      })
+  },
+})
 
 const reference = (entity: string, code: string) => ({
   objectId: `${entity}-1`,
@@ -803,14 +852,23 @@ describe('WFL 居间贸易后端契约', () => {
     }
 
     session.permissions = ['/wfl/intermediary-trade/receipt-save']
+    expect(vm.stageSaveVisible.value).toBe(true)
+    expect(vm.stageEditable.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
     expect(vm.canSaveStage()).toBe(false)
     await expect(vm.saveStage()).resolves.toBe(false)
-    expect(vm.stageDialogError.value).toBe('保存收货单需要采购详情权限。')
+    expect(vm.stageDialogError.value).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
 
     session.permissions = [
       '/wfl/intermediary-trade/receipt-save',
       '/wfl/intermediary-trade/procurement-get',
     ]
+    expect(vm.stageEditable.value).toBe(true)
+    expect(vm.stageSaveBlockedReason.value).toBeNull()
     expect(vm.canSaveStage()).toBe(true)
 
     vm.stageEditing.value = 'SIGNOFF'
@@ -828,9 +886,16 @@ describe('WFL 居间贸易后端契约', () => {
       remark: '',
     }
     session.permissions = ['/wfl/intermediary-trade/signoff-save']
+    expect(vm.stageSaveVisible.value).toBe(true)
+    expect(vm.stageEditable.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBe(
+      '保存签收单需要送货详情权限。当前表单仅供查看。',
+    )
     expect(vm.canSaveStage()).toBe(false)
     await expect(vm.saveStage()).resolves.toBe(false)
-    expect(vm.stageDialogError.value).toBe('保存签收单需要送货详情权限。')
+    expect(vm.stageDialogError.value).toBe(
+      '保存签收单需要送货详情权限。当前表单仅供查看。',
+    )
 
     session.permissions = [
       '/wfl/intermediary-trade/signoff-save',
@@ -838,6 +903,68 @@ describe('WFL 居间贸易后端契约', () => {
     ]
     expect(vm.canSaveStage()).toBe(true)
     expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('缺少来源详情权限时将阶段表单设为只读并保留禁用的保存按钮', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-get',
+      '/wfl/intermediary-trade/receipt-save',
+    ]
+    const vm = useIntermediaryWorkflowViewModel()
+    vi.spyOn(vm, 'query').mockResolvedValue()
+    vm.stageDialogOpen.value = true
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageChild.value = {
+      childId: 'RECEIPT-1',
+      childNo: 'GR-1',
+      stage: 'RECEIPT',
+      status: 'DRAFT',
+      revision: 1,
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
+
+    const wrapper = shallowMount(IntermediaryTrade as Component, {
+      props: { model: vm },
+      global: {
+        stubs: {
+          VAlert: passthroughStub('VAlert', 'aside'),
+          VBtn: VBtnStub,
+          VCard: passthroughStub('VCard', 'section'),
+          VCardActions: passthroughStub('VCardActions'),
+          VCardText: passthroughStub('VCardText'),
+          VCardTitle: passthroughStub('VCardTitle', 'h2'),
+          VContainer: passthroughStub('VContainer'),
+          VDialog: passthroughStub('VDialog'),
+          VFooter: passthroughStub('VFooter'),
+          VSpacer: passthroughStub('VSpacer'),
+          VTable: passthroughStub('VTable', 'table'),
+          VTextField: VTextFieldStub,
+          VTextarea: VTextFieldStub,
+          VWindow: passthroughStub('VWindow'),
+          VWindowItem: passthroughStub('VWindowItem'),
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
+    expect(
+      wrapper.get('input[aria-label="收货日期"]').attributes('disabled'),
+    ).toBeDefined()
+    const saveButton = wrapper
+      .findAll('button')
+      .find((item) => item.text().includes('保存草稿'))
+    expect(saveButton).toBeDefined()
+    expect(saveButton?.attributes('disabled')).toBeDefined()
+    expect(saveButton?.attributes('title')).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
   })
 
   it('反向和删除原因统一限制为 1–1000 字', async () => {

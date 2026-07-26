@@ -454,6 +454,14 @@ function createSignoff(document: WflDocumentSummary): void {
       <v-card-title>{{ stageTitle() }}</v-card-title>
       <v-card-text>
         <v-alert v-if="vm.stageDialogError" class="mb-4" type="error" variant="tonal">{{ vm.stageDialogError }}</v-alert>
+        <v-alert
+          v-if="vm.stageSaveBlockedReason"
+          class="mb-4"
+          type="warning"
+          variant="tonal"
+        >
+          {{ vm.stageSaveBlockedReason }}
+        </v-alert>
         <template v-if="vm.stageEditing === 'PROCUREMENT' && vm.stageDraft">
           <div class="intermediary-workspace__form-grid">
             <v-text-field v-model="stageDraftAs<IntermediaryProcurementDraft>().purchaseDate" :disabled="!vm.stageEditable" label="采购日期" type="date" variant="outlined" />
@@ -615,7 +623,16 @@ function createSignoff(document: WflDocumentSummary): void {
       <v-card-actions>
         <v-spacer />
         <v-btn :disabled="Boolean(vm.actionLoading) || vm.childAttachmentLoading" variant="text" @click="vm.closeStageDialog">关闭</v-btn>
-        <v-btn v-if="vm.canSaveStage()" color="primary" :loading="Boolean(vm.actionLoading)" @click="vm.saveStage">保存草稿</v-btn>
+        <v-btn
+          v-if="vm.stageSaveVisible"
+          color="primary"
+          :disabled="!vm.canSaveStage()"
+          :loading="Boolean(vm.actionLoading)"
+          :title="vm.stageSaveBlockedReason ?? undefined"
+          @click="vm.saveStage"
+        >
+          保存草稿
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

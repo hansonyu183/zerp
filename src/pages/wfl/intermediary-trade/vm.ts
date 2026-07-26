@@ -292,10 +292,29 @@ export function useIntermediaryWorkflowViewModel() {
   const rootContainerBalance = computed(() =>
     containerBalance(document.value?.balances),
   )
-  const stageEditable = computed(
+  const stageStateEditable = computed(
     () =>
       !stageChild.value ||
       stageChild.value.status === 'DRAFT',
+  )
+  const stageSaveVisible = computed(
+    () =>
+      Boolean(stageDraft.value) &&
+      stageStateEditable.value &&
+      can(stageSaveAction()),
+  )
+  const stageSaveBlockedReason = computed(() => {
+    if (!stageSaveVisible.value) return null
+    if (stageEditing.value === 'RECEIPT' && !can('procurement-get')) {
+      return '保存收货单需要采购详情权限。当前表单仅供查看。'
+    }
+    if (stageEditing.value === 'SIGNOFF' && !can('delivery-get')) {
+      return '保存签收单需要送货详情权限。当前表单仅供查看。'
+    }
+    return null
+  })
+  const stageEditable = computed(
+    () => stageStateEditable.value && !stageSaveBlockedReason.value,
   )
   const workspaceDirty = computed(
     () =>
@@ -392,12 +411,7 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   function canSaveStage(): boolean {
-    if (!stageDraft.value || !stageEditable.value || !can(stageSaveAction())) {
-      return false
-    }
-    if (stageEditing.value === 'RECEIPT') return can('procurement-get')
-    if (stageEditing.value === 'SIGNOFF') return can('delivery-get')
-    return true
+    return stageSaveVisible.value && stageEditable.value
   }
 
   function resetAudit(): void {
@@ -995,11 +1009,8 @@ export function useIntermediaryWorkflowViewModel() {
   async function saveStage(): Promise<boolean> {
     if (!canSaveStage()) {
       stageDialogError.value =
-        stageEditing.value === 'RECEIPT' && !can('procurement-get')
-          ? '保存收货单需要采购详情权限。'
-          : stageEditing.value === 'SIGNOFF' && !can('delivery-get')
-            ? '保存签收单需要送货详情权限。'
-            : '当前账号没有保存本阶段草稿的权限。'
+        stageSaveBlockedReason.value ??
+        '当前账号没有保存本阶段草稿的权限。'
       return false
     }
     const validation = validateStage()
@@ -1499,6 +1510,8 @@ export function useIntermediaryWorkflowViewModel() {
     stageDetail,
     stageDraft,
     stageEditable,
+    stageSaveVisible,
+    stageSaveBlockedReason,
     workspaceDirty,
     expectedContainers,
     signoffExpectedContainers,

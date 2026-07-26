@@ -6,11 +6,11 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 
 ## 领域文档
 
-- [APP（应用访问与权限管理）](./docs/domains/app.md)
-- [BOB（基础业务对象）](./docs/domains/bob.md)
-- [VOU（业务单据）](./docs/domains/vou.md)
-- [WFL（业务流程）](./docs/domains/wfl.md)
-- [LED（业务账簿）](./docs/domains/led.md)
+- [APP（应用访问与权限管理）](../docs/domains/app.md)
+- [BOB（基础业务对象）](../docs/domains/bob.md)
+- [VOU（业务单据）](../docs/domains/vou.md)
+- [WFL（业务流程）](../docs/domains/wfl.md)
+- [LED（业务账簿）](../docs/domains/led.md)
 
 ## 技术栈
 
@@ -400,4 +400,4 @@ VITE_API_BASE_URL=https://api.example.com/
 
 ## License
 
-许可证信息见 [LICENSE](./LICENSE)。
+许可证信息见 [LICENSE](../LICENSE)。

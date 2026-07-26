@@ -1,6 +1,25 @@
+import createClient, { type Client } from 'openapi-fetch'
+import type { components, paths } from '@/api/generated/schema'
 import { ApiError, type ApiResponse, type ApiResult } from '@/api/types'
 
 const API_PATH_PATTERN = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/
+
+type ContractPostPath = {
+  [Path in keyof paths]: paths[Path] extends { post: unknown } ? Path : never
+}[keyof paths] &
+  string
+export type BobApiEntity = components['schemas']['BobEntity']
+export type VouApiEntity = components['schemas']['VouEntity']
+type ConcretePostPath<Path extends string> =
+  Path extends `/bob/{entity}/${infer Action}`
+    ? `bob/${BobApiEntity}/${Action}`
+    : Path extends `/vou/{entity}/${infer Action}`
+      ? `vou/${VouApiEntity}/${Action}`
+      : Path extends `/${infer Concrete}`
+        ? Concrete
+        : never
+
+export type ApiPostPath = ConcretePostPath<ContractPostPath>
 
 interface ApiClientOptions {
   baseUrl?: string
@@ -15,6 +34,12 @@ interface PostOptions {
 interface FileRequestOptions {
   signal?: AbortSignal
   timeoutMs?: number
+}
+
+interface ContractPostResult {
+  data?: unknown
+  error?: unknown
+  response: Response
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -37,12 +62,19 @@ export class ApiClient {
   private readonly baseUrl?: string
   private readonly timeoutMs: number
   private readonly fetcher: typeof fetch
+  private readonly contractClient?: Client<paths>
   private csrfToken: string | null = null
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl?.trim()
     this.timeoutMs = options.timeoutMs ?? 15_000
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
+    if (this.baseUrl) {
+      this.contractClient = createClient<paths>({
+        baseUrl: normalizeBaseUrl(this.baseUrl),
+        fetch: (request) => this.fetcher(request),
+      })
+    }
   }
 
   setCsrfToken(token: string | null): void {
@@ -50,11 +82,11 @@ export class ApiClient {
   }
 
   async post<TResponse, TRequest = Record<string, never>>(
-    path: string,
+    path: ApiPostPath,
     body: TRequest,
     options: PostOptions = {},
   ): Promise<ApiResult<TResponse>> {
-    if (!this.baseUrl) {
+    if (!this.baseUrl || !this.contractClient) {
       throw new ApiError(
         'configuration',
         '未配置真实后端 API，请设置 VITE_API_BASE_URL。',
@@ -91,16 +123,29 @@ export class ApiClient {
 
       if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
 
-      const response = await this.fetcher(
-        new URL(normalizedPath, normalizeBaseUrl(this.baseUrl)),
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal,
+      const contractRequest = this.resolveContractPost(normalizedPath)
+      const post = this.contractClient.POST as unknown as (
+        path: ContractPostPath,
+        options: {
+          body: unknown
+          credentials: RequestCredentials
+          headers: Headers
+          params?: { path: { entity: string } }
+          parseAs: 'text'
+          signal: AbortSignal
         },
-      )
+      ) => Promise<ContractPostResult>
+      const result = await post(contractRequest.path, {
+        body,
+        credentials: 'include',
+        headers,
+        ...(contractRequest.entity
+          ? { params: { path: { entity: contractRequest.entity } } }
+          : {}),
+        parseAs: 'text',
+        signal: controller.signal,
+      })
+      const { response } = result
 
       if (response.status !== 200) {
         throw new ApiError(
@@ -111,7 +156,11 @@ export class ApiClient {
 
       let payload: unknown
       try {
-        payload = await response.json()
+        const rawPayload = result.data ?? result.error
+        if (typeof rawPayload !== 'string') {
+          throw new TypeError('OpenAPI client did not return a text payload')
+        }
+        payload = JSON.parse(rawPayload)
       } catch (error) {
         throw new ApiError('protocol', '后端响应不是有效的 JSON。', {
           cause: error,
@@ -137,7 +186,9 @@ export class ApiClient {
       if (error instanceof ApiError) throw error
 
       if (timedOut) {
-        throw new ApiError('timeout', '请求超时，请稍后重试。', { cause: error })
+        throw new ApiError('timeout', '请求超时，请稍后重试。', {
+          cause: error,
+        })
       }
 
       if (options.signal?.aborted) {
@@ -149,6 +200,23 @@ export class ApiClient {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abortFromCaller)
     }
+  }
+
+  private resolveContractPost(path: string): {
+    path: ContractPostPath
+    entity?: string
+  } {
+    const segments = path.split('/')
+    if (
+      segments.length === 3 &&
+      (segments[0] === 'bob' || segments[0] === 'vou')
+    ) {
+      return {
+        path: `/${segments[0]}/{entity}/${segments[2]}` as ContractPostPath,
+        entity: segments[1],
+      }
+    }
+    return { path: `/${path}` as ContractPostPath }
   }
 
   async uploadAttachment(
@@ -204,10 +272,7 @@ export class ApiClient {
     downloadUrl: string,
     options: FileRequestOptions = {},
   ): Promise<Blob> {
-    const url = this.resolveFileUrl(
-      downloadUrl,
-      '/files/attachments/download/',
-    )
+    const url = this.resolveFileUrl(downloadUrl, '/files/attachments/download/')
     const response = await this.fileRequest(
       url,
       {
@@ -232,7 +297,10 @@ export class ApiClient {
       )
     }
 
-    const base = new URL(normalizeBaseUrl(this.baseUrl))
+    const normalizedBaseUrl = normalizeBaseUrl(this.baseUrl)
+    const base = normalizedBaseUrl.startsWith('/')
+      ? new URL(normalizedBaseUrl, window.location.origin)
+      : new URL(normalizedBaseUrl)
     const resolved = new URL(value, base)
     if (
       resolved.origin !== base.origin ||
@@ -284,7 +352,7 @@ export class ApiClient {
     let message = `附件服务返回了 HTTP ${response.status}。`
     let requestId = response.headers.get('X-Request-ID') ?? undefined
     try {
-      const payload = await response.json() as {
+      const payload = (await response.json()) as {
         error?: unknown
         requestId?: unknown
       }

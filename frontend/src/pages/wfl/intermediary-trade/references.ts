@@ -1,15 +1,6 @@
-import {
-  getCurrentScope,
-  onScopeDispose,
-  reactive,
-  type Ref,
-} from 'vue'
-import { apiClient } from '@/api/client'
-import {
-  getErrorMessage,
-  type PageRequest,
-  type PageResult,
-} from '@/api/types'
+import { getCurrentScope, onScopeDispose, reactive, type Ref } from 'vue'
+import { apiClient, type BobApiEntity } from '@/api/client'
+import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import type {
   IntermediaryDeliveryDraft,
@@ -74,7 +65,7 @@ export function useIntermediaryReferences(
     return referenceState(key).error
   }
 
-  function referenceEntity(key: string): string {
+  function referenceEntity(key: string): BobApiEntity {
     if (key === 'customer' || key === 'filterCustomer') return 'customer'
     if (key === 'supplier' || key === 'platform') return 'supplier'
     if (key === 'product') return 'product'
@@ -93,10 +84,13 @@ export function useIntermediaryReferences(
     if (timer) clearTimeout(timer)
     referenceTimers.set(
       key,
-      setTimeout(() => {
-        referenceTimers.delete(key)
-        void loadReference(key, keyword)
-      }, keyword ? 250 : 0),
+      setTimeout(
+        () => {
+          referenceTimers.delete(key)
+          void loadReference(key, keyword)
+        },
+        keyword ? 250 : 0,
+      ),
     )
   }
 
@@ -134,11 +128,9 @@ export function useIntermediaryReferences(
           (item) =>
             item.currentVersion.status === 'EFFECTIVE' &&
             item.effectiveVersionId === item.currentVersion.versionId &&
-            (
-              !selectedPlatform ||
+            (!selectedPlatform ||
               item.currentVersion.summary.platformObjectId ===
-                selectedPlatform.objectId
-            ),
+                selectedPlatform.objectId),
         )
         .map((item) => ({
           objectId: item.objectId,

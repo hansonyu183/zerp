@@ -39,18 +39,18 @@ make dev-down
 
 ## 常用命令
 
-| 命令 | 作用 |
-| --- | --- |
-| `make bootstrap` | 安装 pnpm 与 Go 依赖 |
-| `make dev` | 启动数据库、迁移、API 与前端热更新 |
-| `make generate` | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
-| `make generate-check` | 验证生成物已提交且无漂移 |
-| `make check` | 运行前端与后端质量门禁 |
-| `make test` | 运行前后端测试 |
-| `make e2e` | 启动隔离全栈并运行真实 API Playwright |
-| `make build` | 构建前端、后端及容器镜像 |
-| `make compose-up` | 启动生产形态 Compose |
-| `make compose-down` | 停止生产形态 Compose |
+| 命令                  | 作用                                   |
+| --------------------- | -------------------------------------- |
+| `make bootstrap`      | 安装 pnpm 与 Go 依赖                   |
+| `make dev`            | 启动数据库、迁移、API 与前端热更新     |
+| `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
+| `make generate-check` | 验证生成物已提交且无漂移               |
+| `make check`          | 运行前端与后端质量门禁                 |
+| `make test`           | 运行前后端测试                         |
+| `make e2e`            | 启动隔离全栈并运行真实 API Playwright  |
+| `make build`          | 构建前端、后端及容器镜像               |
+| `make compose-up`     | 启动生产形态 Compose                   |
+| `make compose-down`   | 停止生产形态 Compose                   |
 
 ## 契约工作流
 

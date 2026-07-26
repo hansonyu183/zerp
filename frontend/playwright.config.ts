@@ -3,9 +3,11 @@ import { loadEnv } from 'vite'
 
 const localE2EEnv = loadEnv('e2e', process.cwd(), '')
 const wflBootstrap =
-  (process.env.E2E_WFL_BOOTSTRAP ??
+  (
+    process.env.E2E_WFL_BOOTSTRAP ??
     localE2EEnv.E2E_WFL_BOOTSTRAP ??
-    '').toLowerCase() === 'true'
+    ''
+  ).toLowerCase() === 'true'
 const requiredE2EEnvNames = [
   'E2E_API_BASE_URL',
   'E2E_USERNAME',

@@ -64,9 +64,10 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:9.16
+    profiles: ["admin"]
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?set PGADMIN_DEFAULT_EMAIL in .env}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.invalid}
       PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_password
       PGADMIN_DISABLE_POSTFIX: "1"
       PGADMIN_LISTEN_PORT: "5050"
@@ -91,9 +92,9 @@ services:
 
 secrets:
   pgadmin_password:
-    file: ${PGADMIN_PASSWORD_FILE:?set PGADMIN_PASSWORD_FILE in .env}
+    file: ${PGADMIN_PASSWORD_FILE:-.pgadmin-password}
   postgres_pgpass:
-    file: ${PGADMIN_PGPASS_FILE:?set PGADMIN_PGPASS_FILE in .env}
+    file: ${PGADMIN_PGPASS_FILE:-.pgadmin-pgpass}
 
 volumes:
   postgres-data:

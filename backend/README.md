@@ -164,7 +164,7 @@ unset APP_BOOTSTRAP_PASSWORD
 
 ## 本机隔离 E2E 后端
 
-BOB、VOU 和 WFL 的真实 Playwright 会创建、审批、反批准并修改业务数据，禁止连接生产或日常联调数据库运行。仓库提供独立的 `zerp-back-e2e` Compose 项目：API 仅监听 `127.0.0.1:18080`，PostgreSQL 仅监听 `127.0.0.1:55433`，数据库、附件卷、Cookie 名称和主 Compose 项目完全隔离，用户反馈 GitHub 发布固定关闭。
+BOB、VOU 和 WFL 的真实 Playwright 会创建、审批、反批准并修改业务数据，禁止连接生产或日常联调数据库运行。后端兼容命令使用独立的 `zerp-api-e2e` Compose 项目：API 仅监听 `127.0.0.1:18081`，PostgreSQL 仅监听 `127.0.0.1:55435`，数据库、附件卷、Cookie 名称和主 Compose 项目完全隔离，用户反馈 GitHub 发布固定关闭。完整前后端 E2E 以仓库根目录 `make e2e` 为准。
 
 首次使用：
 
@@ -193,12 +193,12 @@ make e2e-env-rotate
 make e2e-reset
 ```
 
-重置命令固定校验 `APP_ENV=test`、`zerp_e2e` 数据库、专用端口和 Cookie 名称，并且只删除 `zerp-back-e2e` 项目的卷。启动流程会应用全部迁移，在空库创建 `e2e-admin`，并幂等写入 BOB 演示资料。
+重置命令固定校验 `APP_ENV=test`、`zerp_e2e` 数据库、专用端口和 Cookie 名称，并且只删除 `zerp-api-e2e` 项目的卷。启动流程会应用全部迁移，在空库创建 `e2e-admin`，并幂等写入 BOB 演示资料。
 
 前端 `.env.e2e.local` 使用：
 
 ```dotenv
-E2E_API_BASE_URL=http://127.0.0.1:18080
+E2E_API_BASE_URL=http://127.0.0.1:18081
 E2E_USERNAME=e2e-admin
 E2E_PASSWORD=<读取后端 .env.e2e.local 的 APP_BOOTSTRAP_PASSWORD>
 E2E_WFL_BOOTSTRAP=true
@@ -243,11 +243,11 @@ E2E_WFL_BOOTSTRAP=true
 
 | 领域 | 标识 | 范围 | 文档 |
 | --- | --- | --- | --- |
-| 应用访问与权限 | `app` | 用户认证、Cookie 会话、CSRF、角色与 API 权限 | [APP 后端业务域](docs/domains/app.md) |
-| 基础业务对象 | `bob` | 客户、供应商、物流平台、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位、结算方式及其版本审核 | [BOB 后端业务域](docs/domains/bob.md) |
-| 业务单据 | `vou` | 销售、采购、居间销售、收付款、费用报销、其它收入及附件与审计 | [VOU 后端单据域](docs/domains/vou.md) |
-| 业务流程 | `wfl` | 以独立 VOU 原子单据编排居间贸易长流程 | [WFL 后端流程域](docs/domains/wfl.md) |
-| 业务账簿 | `led` | 统一期初、库存、资金、往来流水与余额 | [LED 后端账簿域](docs/domains/led.md) |
+| 应用访问与权限 | `app` | 用户认证、Cookie 会话、CSRF、角色与 API 权限 | [APP 全栈业务域](../docs/domains/app.md) |
+| 基础业务对象 | `bob` | 客户、供应商、物流平台、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位、结算方式及其版本审核 | [BOB 全栈业务域](../docs/domains/bob.md) |
+| 业务单据 | `vou` | 销售、采购、居间销售、收付款、费用报销、其它收入及附件与审计 | [VOU 全栈单据域](../docs/domains/vou.md) |
+| 业务流程 | `wfl` | 以独立 VOU 原子单据编排居间贸易长流程 | [WFL 全栈流程域](../docs/domains/wfl.md) |
+| 业务账簿 | `led` | 统一期初、库存、资金、往来流水与余额 | [LED 全栈账簿域](../docs/domains/led.md) |
 
 Cloudflare Pages、本地 Vite、Cookie、CSRF 和请求封装见 [前端 API 配置说明](docs/frontend-api-configuration.md)。
 

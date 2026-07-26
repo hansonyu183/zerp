@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
+	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -17,6 +20,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/integrations/githubissues"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
+	oapigin "github.com/oapi-codegen/gin-middleware"
 )
 
 type databasePinger interface {
@@ -91,6 +95,23 @@ func newRouter(
 		middleware.Recovery(logger),
 		middleware.CORS(cfg.CORSAllowedOrigins),
 	)
+	swagger, err := generated.GetSpec()
+	if err != nil {
+		panic("load embedded OpenAPI contract: " + err.Error())
+	}
+	swagger.Servers = nil
+	router.Use(oapigin.OapiRequestValidatorWithOptions(swagger, &oapigin.Options{
+		Options: openapi3filter.Options{
+			AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error {
+				// Authentication and authorization remain in the domain middleware.
+				// This hook only lets request-shape validation evaluate secured operations.
+				return nil
+			},
+		},
+		ErrorHandler: func(c *gin.Context, _ string, _ int) {
+			response.BusinessError(c, response.CodeValidation, "invalid request", nil)
+		},
+	}))
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

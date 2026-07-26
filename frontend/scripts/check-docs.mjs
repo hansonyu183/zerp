@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-const root = process.cwd()
+const frontendRoot = path.resolve(import.meta.dirname, '..')
+const root = path.resolve(frontendRoot, '..')
 const failures = []
 
 function markdownFiles(directory) {
@@ -13,7 +14,7 @@ function markdownFiles(directory) {
   })
 }
 
-const readmePath = path.join(root, 'README.md')
+const readmePath = path.join(frontendRoot, 'README.md')
 const documentationFiles = [
   readmePath,
   ...markdownFiles(path.join(root, 'docs')),
@@ -39,7 +40,7 @@ for (const file of documentationFiles) {
 }
 
 const registrySource = fs.readFileSync(
-  path.join(root, 'src/router/registry.ts'),
+  path.join(frontendRoot, 'src/router/registry.ts'),
   'utf8',
 )
 const domains = new Set(['app'])
@@ -53,8 +54,9 @@ for (const domain of [...domains].sort()) {
   if (!fs.existsSync(path.join(root, relativeDoc))) {
     failures.push(`注册领域 ${domain} 缺少 ${relativeDoc}`)
   }
-  if (!readme.includes(`./${relativeDoc}`)) {
-    failures.push(`README 领域索引缺少 ${domain}：./${relativeDoc}`)
+  const readmeLink = `../${relativeDoc}`
+  if (!readme.includes(readmeLink)) {
+    failures.push(`README 领域索引缺少 ${domain}：${readmeLink}`)
   }
 }
 

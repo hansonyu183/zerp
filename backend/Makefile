@@ -1,10 +1,12 @@
 ENV_FILE ?= .env.local
-QUALITY_IMAGE_TAG ?= zerp-back:quality
+QUALITY_IMAGE_TAG ?= zerp-api:quality
 ACTIONLINT_VERSION ?= v1.7.12
 STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
 override E2E_ENV_FILE := .env.e2e.local
-override E2E_PROJECT := zerp-back-e2e
+override E2E_PROJECT := zerp-api-e2e
+TEST_PROJECT ?= zerp-api-test
+TEST_COMPOSE = docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
 E2E_CLEAN_ENV = env \
 	-u APP_ENV \
 	-u API_PORT \
@@ -63,8 +65,8 @@ test-db-prepare:
 		*) echo "TEST_POSTGRES_DB must end with _test" >&2; exit 1 ;; \
 	esac
 	@test "$(TEST_POSTGRES_DB)" != "$(POSTGRES_DB)" || (echo "TEST_POSTGRES_DB must differ from POSTGRES_DB" && exit 1)
-	@docker compose --env-file $(ENV_FILE) up -d --wait db
-	@docker compose --env-file $(ENV_FILE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
+	@$(TEST_COMPOSE) up -d --wait db
+	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
 		'createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB" 2>/dev/null || psql -U "$$POSTGRES_USER" -d "$$TEST_POSTGRES_DB" -Atqc "SELECT 1" >/dev/null'
 	@go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL)" up
 
@@ -103,7 +105,7 @@ quality-format:
 	git diff --cached --check
 
 quality-actionlint:
-	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
+	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) ../.github/workflows/*.yml
 
 quality-compose:
 	docker compose --env-file $(ENV_FILE) config --quiet
@@ -119,7 +121,7 @@ quality-race:
 	go test -race ./...
 
 quality-staticcheck:
-	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) $$(go list ./... | grep -v '/internal/api/generated$$')
 
 quality-vuln:
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
@@ -168,13 +170,13 @@ e2e-guard:
 	@set -a; . ./$(E2E_ENV_FILE); set +a; \
 		test "$$APP_ENV" = "test" || (echo "E2E APP_ENV must be test" >&2; exit 1); \
 		test "$$POSTGRES_DB" = "zerp_e2e" || (echo "E2E POSTGRES_DB must be zerp_e2e" >&2; exit 1); \
-		test "$$POSTGRES_PORT" = "55433" || (echo "E2E POSTGRES_PORT must be 55433" >&2; exit 1); \
-		test "$$API_PORT" = "18080" || (echo "E2E API_PORT must be 18080" >&2; exit 1); \
+		test "$$POSTGRES_PORT" = "55435" || (echo "E2E POSTGRES_PORT must be 55435" >&2; exit 1); \
+		test "$$API_PORT" = "18081" || (echo "E2E API_PORT must be 18081" >&2; exit 1); \
 		test "$$APP_SESSION_COOKIE_NAME" = "zerp_e2e_session" || (echo "E2E cookie name must be zerp_e2e_session" >&2; exit 1); \
 		test "$$FEEDBACK_GITHUB_ENABLED" = "false" || (echo "E2E feedback publishing must be disabled" >&2; exit 1); \
 		case "$$DATABASE_URL" in \
-			postgres://zerp_e2e:*@127.0.0.1:55433/zerp_e2e?sslmode=disable) ;; \
-			*) echo "E2E DATABASE_URL must target 127.0.0.1:55433/zerp_e2e" >&2; exit 1 ;; \
+			postgres://zerp_e2e:*@127.0.0.1:55435/zerp_e2e?sslmode=disable) ;; \
+			*) echo "E2E DATABASE_URL must target 127.0.0.1:55435/zerp_e2e" >&2; exit 1 ;; \
 		esac
 
 e2e-up: e2e-guard
@@ -189,7 +191,7 @@ e2e-up: e2e-guard
 		fi
 	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) seed-bob
 	@$(E2E_COMPOSE) up --build -d --wait api
-	@echo "E2E API ready at http://127.0.0.1:18080"
+	@echo "E2E API ready at http://127.0.0.1:18081"
 
 e2e-down: e2e-guard
 	@$(E2E_COMPOSE) down

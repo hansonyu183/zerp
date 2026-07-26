@@ -8,7 +8,7 @@ export interface LedgerReferenceInput {
 }
 
 export interface LedgerReference extends LedgerReferenceInput {
-  entity: string
+  entity: BobApiEntity
   code: string
   name: string
   unit?: string
@@ -36,7 +36,7 @@ export interface LedgerOption {
 }
 
 export interface LedgerReferenceSource {
-  entity: string
+  entity: BobApiEntity
   filters?: Record<string, unknown>
 }
 
@@ -76,3 +76,4 @@ export interface LedgerReferenceSearch {
   search: (keyword: string) => void
   dispose: () => void
 }
+import type { BobApiEntity } from '@/api/client'

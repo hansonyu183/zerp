@@ -9,6 +9,10 @@ test -f backend/.env.local || {
   exit 1
 }
 
+set -a
+. backend/.env.local
+set +a
+
 docker compose --env-file backend/.env.local \
   -f compose.yaml -f compose.dev.yaml up -d --wait db
 make -C backend ENV_FILE=.env.local migrate-up

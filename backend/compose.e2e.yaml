@@ -1,4 +1,4 @@
-name: zerp-back-e2e
+name: zerp-api-e2e
 
 services:
   db:

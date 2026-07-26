@@ -11,6 +11,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-server ./cmd/server
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-cleanup-vou-attachments ./cmd/cleanup-vou-attachments
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-bootstrap-admin ./cmd/bootstrap-admin
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-bob ./cmd/seed-bob
 RUN go -C tools build -trimpath -ldflags="-s -w" -o /out/goose github.com/pressly/goose/v3/cmd/goose
 
 FROM alpine:3.23
@@ -23,6 +25,8 @@ RUN apk add --no-cache ca-certificates \
 
 COPY --from=build /out/zerp-server /usr/local/bin/zerp-server
 COPY --from=build /out/zerp-cleanup-vou-attachments /usr/local/bin/zerp-cleanup-vou-attachments
+COPY --from=build /out/zerp-bootstrap-admin /usr/local/bin/zerp-bootstrap-admin
+COPY --from=build /out/zerp-seed-bob /usr/local/bin/zerp-seed-bob
 COPY --from=build /out/goose /usr/local/bin/goose
 COPY db/migrations /app/migrations
 

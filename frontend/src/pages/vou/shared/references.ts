@@ -1,15 +1,6 @@
-import {
-  getCurrentScope,
-  onScopeDispose,
-  reactive,
-  type Ref,
-} from 'vue'
-import { apiClient } from '@/api/client'
-import {
-  getErrorMessage,
-  type PageRequest,
-  type PageResult,
-} from '@/api/types'
+import { getCurrentScope, onScopeDispose, reactive, type Ref } from 'vue'
+import { apiClient, type BobApiEntity } from '@/api/client'
+import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import type {
   VoucherDraftForm,
   VoucherEntityConfig,
@@ -70,7 +61,7 @@ export function useVoucherReferences(
   }
 
   function referenceDefinition(key: string): {
-    entities: string[]
+    entities: BobApiEntity[]
     filters?: Record<string, unknown>
   } {
     if (key === 'customer') return { entities: ['customer'] }
@@ -147,56 +138,66 @@ export function useVoucherReferences(
     state.loading = true
     state.errorMessage = null
     try {
-      const pages = await Promise.all(definition.entities.map(async (entity) => {
-        const { data } = await apiClient.post<
-          PageResult<ReferenceListItem>,
-          PageRequest
-        >(`bob/${entity}/query`, {
-          page: 1,
-          pageSize: 20,
-          filters: {
-            status: ['EFFECTIVE'],
-            ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-            ...(definition.filters ?? {}),
-            ...(entity === 'supplier' &&
-              (key === 'counterparty' || key === 'party')
-              ? { supplierType: 'GENERAL' }
-              : {}),
-          },
-          sort: [{ field: 'name', order: 'asc' }],
-        }, { signal: controller.signal })
-        return (data.items ?? []).flatMap((item): VoucherReference[] => {
-          if (
-            item.currentVersion.status !== 'EFFECTIVE' ||
-            !item.effectiveVersionId ||
-            item.effectiveVersionId !== item.currentVersion.versionId ||
-            !item.currentVersion.summary.name
-          ) {
-            return []
-          }
-          const summary = item.currentVersion.summary
-          return [{
-            objectId: item.objectId,
-            versionId: item.effectiveVersionId,
-            entity,
-            code: item.code,
-            name: String(summary.name),
-            ...(typeof summary.unit === 'string' ? { unit: summary.unit } : {}),
-            ...(typeof summary.currency === 'string'
-              ? { currency: summary.currency }
-              : {}),
-            ...(typeof summary.plateNumber === 'string'
-              ? { plateNumber: summary.plateNumber }
-              : {}),
-            ...(typeof summary.supplierType === 'string'
-              ? { supplierType: summary.supplierType }
-              : {}),
-            ...(typeof summary.platformObjectId === 'string'
-              ? { platformObjectId: summary.platformObjectId }
-              : {}),
-          }]
-        })
-      }))
+      const pages = await Promise.all(
+        definition.entities.map(async (entity) => {
+          const { data } = await apiClient.post<
+            PageResult<ReferenceListItem>,
+            PageRequest
+          >(
+            `bob/${entity}/query`,
+            {
+              page: 1,
+              pageSize: 20,
+              filters: {
+                status: ['EFFECTIVE'],
+                ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+                ...(definition.filters ?? {}),
+                ...(entity === 'supplier' &&
+                (key === 'counterparty' || key === 'party')
+                  ? { supplierType: 'GENERAL' }
+                  : {}),
+              },
+              sort: [{ field: 'name', order: 'asc' }],
+            },
+            { signal: controller.signal },
+          )
+          return (data.items ?? []).flatMap((item): VoucherReference[] => {
+            if (
+              item.currentVersion.status !== 'EFFECTIVE' ||
+              !item.effectiveVersionId ||
+              item.effectiveVersionId !== item.currentVersion.versionId ||
+              !item.currentVersion.summary.name
+            ) {
+              return []
+            }
+            const summary = item.currentVersion.summary
+            return [
+              {
+                objectId: item.objectId,
+                versionId: item.effectiveVersionId,
+                entity,
+                code: item.code,
+                name: String(summary.name),
+                ...(typeof summary.unit === 'string'
+                  ? { unit: summary.unit }
+                  : {}),
+                ...(typeof summary.currency === 'string'
+                  ? { currency: summary.currency }
+                  : {}),
+                ...(typeof summary.plateNumber === 'string'
+                  ? { plateNumber: summary.plateNumber }
+                  : {}),
+                ...(typeof summary.supplierType === 'string'
+                  ? { supplierType: summary.supplierType }
+                  : {}),
+                ...(typeof summary.platformObjectId === 'string'
+                  ? { platformObjectId: summary.platformObjectId }
+                  : {}),
+              },
+            ]
+          })
+        }),
+      )
       if (sequence !== state.sequence) return
       state.options = [...selectedReferences(), ...pages.flat()].filter(
         (item, index, all) =>

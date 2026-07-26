@@ -8,12 +8,20 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
+	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 )
 
 type pingerStub struct {
@@ -90,12 +98,14 @@ func TestCORSAllowsOnlyConfiguredOrigin(t *testing.T) {
 }
 
 func TestRecoveryUsesBusinessEnvelope(t *testing.T) {
-	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
-	router.POST("/test/panic/action", func(*gin.Context) {
-		panic("test panic")
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		router.POST("/app/user/session", func(*gin.Context) {
+			panic("test panic")
+		})
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/test/panic/action", nil)
+	request := httptest.NewRequest(http.MethodPost, "/app/user/session", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Request-ID", "test-request-id")
 	responseRecorder := httptest.NewRecorder()
 	router.ServeHTTP(responseRecorder, request)
@@ -113,6 +123,104 @@ func TestRecoveryUsesBusinessEnvelope(t *testing.T) {
 	}
 	if envelope.RequestID != "test-request-id" {
 		t.Fatalf("requestId = %q, want %q", envelope.RequestID, "test-request-id")
+	}
+}
+
+func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
+		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
+		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
+		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
+		leddomain.NewHandler(nil, nil, testLogger()).Register(router)
+	})
+	swagger, err := generated.GetSpec()
+	if err != nil {
+		t.Fatalf("load OpenAPI contract: %v", err)
+	}
+	ginParameter := regexp.MustCompile(`:([^/]+)`)
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		contractPath := ginParameter.ReplaceAllString(route.Path, `{$1}`)
+		segments := strings.Split(contractPath, "/")
+		if len(segments) > 3 && (segments[1] == "bob" || segments[1] == "vou") {
+			segments[2] = "{entity}"
+			contractPath = strings.Join(segments, "/")
+		}
+		registered[route.Method+" "+contractPath] = true
+		pathItem := swagger.Paths.Value(contractPath)
+		if pathItem == nil {
+			t.Errorf("%s %s is missing from OpenAPI", route.Method, contractPath)
+			continue
+		}
+		if pathItem.GetOperation(strings.ToUpper(route.Method)) == nil {
+			t.Errorf("%s %s has no matching OpenAPI operation", route.Method, contractPath)
+		}
+	}
+	for contractPath, pathItem := range swagger.Paths.Map() {
+		for method := range pathItem.Operations() {
+			key := strings.ToUpper(method) + " " + contractPath
+			if !registered[key] {
+				t.Errorf("OpenAPI operation %s is not registered by Gin", key)
+			}
+		}
+	}
+}
+
+func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
+	swagger, err := generated.GetSpec()
+	if err != nil {
+		t.Fatalf("load OpenAPI contract: %v", err)
+	}
+	public := map[string]bool{
+		"POST /app/user/signin":  true,
+		"POST /app/user/session": true,
+	}
+	for contractPath, pathItem := range swagger.Paths.Map() {
+		if !strings.HasPrefix(contractPath, "/app/") &&
+			!strings.HasPrefix(contractPath, "/bob/") &&
+			!strings.HasPrefix(contractPath, "/vou/") &&
+			!strings.HasPrefix(contractPath, "/wfl/") &&
+			!strings.HasPrefix(contractPath, "/led/") {
+			continue
+		}
+		for method, operation := range pathItem.Operations() {
+			key := strings.ToUpper(method) + " " + contractPath
+			if public[key] {
+				if operation.Security == nil || len(*operation.Security) != 0 {
+					t.Errorf("%s must explicitly be public", key)
+				}
+				continue
+			}
+			if operation.Security == nil || len(*operation.Security) == 0 {
+				t.Errorf("%s must require session and CSRF security", key)
+			}
+		}
+	}
+}
+
+func TestOpenAPIValidatorRejectsInvalidBusinessRequest(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/user/signin",
+		strings.NewReader(`{"username":"user","password":"secret","unexpected":true}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusOK)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeValidation {
+		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
 	}
 }
 

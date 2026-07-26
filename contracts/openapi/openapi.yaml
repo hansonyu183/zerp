@@ -1,417 +1,3161 @@
-openapi: 3.0.3
-info:
-  title: ZERP API
-  version: 1.0.0
-  description: ZERP 前后端唯一 HTTP 线协议。业务错误使用 HTTP 200 响应包络表达。
-servers:
-  - url: /api
-    description: 同源 Web 网关
-tags:
-  - name: app
-  - name: bob
-  - name: vou
-  - name: wfl
-  - name: led
-  - name: files
-  - name: operations
-paths:
-  /app/user/signin:
-    post:
-      tags: [app]
-      operationId: appUserSignin
-      security: []
-      requestBody:
-        $ref: "#/components/requestBodies/SignIn"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /app/user/session:
-    post:
-      tags: [app]
-      operationId: appUserSession
-      security: []
-      requestBody:
-        $ref: "#/components/requestBodies/Empty"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /app/user/signout:
-    post:
-      tags: [app]
-      operationId: appUserSignout
-      security:
-        - cookieAuth: []
-      requestBody:
-        $ref: "#/components/requestBodies/Empty"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /app/user/profile:
-    post:
-      tags: [app]
-      operationId: appUserProfile
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /app/user/change-password:
-    post:
-      tags: [app]
-      operationId: appUserChangePassword
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      requestBody:
-        $ref: "#/components/requestBodies/ChangePassword"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /app/{entity}/{action}:
-    post:
-      tags: [app]
-      operationId: appAction
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/AppEntity"
-        - $ref: "#/components/parameters/AppAction"
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /bob/{entity}/query:
-    post:
-      tags: [bob]
-      operationId: bobQuery
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/BobEntity"
-      requestBody:
-        $ref: "#/components/requestBodies/Page"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /bob/{entity}/{action}:
-    post:
-      tags: [bob]
-      operationId: bobAction
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/BobEntity"
-        - $ref: "#/components/parameters/BobAction"
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /vou/{entity}/query:
-    post:
-      tags: [vou]
-      operationId: vouQuery
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/VouEntity"
-      requestBody:
-        $ref: "#/components/requestBodies/Page"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /vou/{entity}/{action}:
-    post:
-      tags: [vou]
-      operationId: vouAction
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/VouEntity"
-        - $ref: "#/components/parameters/VouAction"
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /wfl/intermediary-trade/{action}:
-    post:
-      tags: [wfl]
-      operationId: wflIntermediaryTradeAction
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/WflAction"
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /led/{entity}/{action}:
-    post:
-      tags: [led]
-      operationId: ledAction
-      security:
-        - cookieAuth: []
-          csrfToken: []
-      parameters:
-        - $ref: "#/components/parameters/LedEntity"
-        - $ref: "#/components/parameters/LedAction"
-      requestBody:
-        $ref: "#/components/requestBodies/Generic"
-      responses:
-        "200":
-          $ref: "#/components/responses/Business"
-  /files/feedback/attachments/upload/{token}:
-    put:
-      tags: [files]
-      operationId: uploadFeedbackAttachment
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/FileToken"
-      requestBody:
-        $ref: "#/components/requestBodies/Binary"
-      responses:
-        "204":
-          description: Uploaded
-        "400":
-          $ref: "#/components/responses/TechnicalError"
-  /files/attachments/upload/{token}:
-    put:
-      tags: [files]
-      operationId: uploadAttachment
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/FileToken"
-      requestBody:
-        $ref: "#/components/requestBodies/Binary"
-      responses:
-        "204":
-          description: Uploaded
-        "400":
-          $ref: "#/components/responses/TechnicalError"
-        "409":
-          $ref: "#/components/responses/TechnicalError"
-  /files/attachments/download/{token}:
-    get:
-      tags: [files]
-      operationId: downloadAttachment
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/FileToken"
-      responses:
-        "200":
-          description: Attachment bytes
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        "400":
-          $ref: "#/components/responses/TechnicalError"
-  /healthz:
-    get:
-      tags: [operations]
-      operationId: health
-      security: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Health"
-  /readyz:
-    get:
-      tags: [operations]
-      operationId: readiness
-      security: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Health"
-        "503":
-          $ref: "#/components/responses/Health"
-components:
-  securitySchemes:
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: zerp_session
-    csrfToken:
-      type: apiKey
-      in: header
-      name: X-CSRF-Token
-  parameters:
-    AppEntity:
-      name: entity
-      in: path
-      required: true
-      schema:
-        type: string
-        enum: [user, role, permission, feedback]
-    AppAction:
-      name: action
-      in: path
-      required: true
-      schema:
-        type: string
-        enum:
-          - query
-          - get
-          - create
-          - save
-          - enable
-          - disable
-          - attachment-initiate
-          - attachment-remove
-    BobEntity:
-      name: entity
-      in: path
-      required: true
-      schema:
-        $ref: "./schemas/bob.yaml#/Entity"
-    BobAction:
-      name: action
-      in: path
-      required: true
-      schema:
-        type: string
-        enum:
-          - get
-          - create
-          - edit
-          - save
-          - delete
-          - submit
-          - approve
-          - reject
-          - versions
-          - audit-history
-    VouEntity:
-      name: entity
-      in: path
-      required: true
-      schema:
-        $ref: "./schemas/vou.yaml#/Entity"
-    VouAction:
-      name: action
-      in: path
-      required: true
-      schema:
-        type: string
-        enum:
-          - get
-          - create
-          - save
-          - review
-          - unreview
-          - approve
-          - unapprove
-          - execute
-          - unexecute
-          - audit-history
-          - attachment-initiate
-          - attachment-download
-          - attachment-remove
-    WflAction:
-      name: action
-      in: path
-      required: true
-      schema:
-        $ref: "./schemas/wfl.yaml#/Action"
-    LedEntity:
-      name: entity
-      in: path
-      required: true
-      schema:
-        type: string
-        enum: [opening, inventory, fund, party, container]
-    LedAction:
-      name: action
-      in: path
-      required: true
-      schema:
-        type: string
-        enum:
-          - get
-          - save
-          - activate
-          - reopen
-          - cancel-reopen
-          - audit-history
-          - query
-          - balance
-    FileToken:
-      name: token
-      in: path
-      required: true
-      schema:
-        type: string
-  requestBodies:
-    Empty:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/common.yaml#/EmptyObject"
-    Generic:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/common.yaml#/GenericObject"
-    Page:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/common.yaml#/PageRequest"
-    SignIn:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/app.yaml#/SignInRequest"
-    ChangePassword:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/app.yaml#/ChangePasswordRequest"
-    Binary:
-      required: true
-      content:
-        application/octet-stream:
-          schema:
-            type: string
-            format: binary
-  responses:
-    Business:
-      description: 统一业务响应；业务错误仍使用 HTTP 200。
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/common.yaml#/BusinessEnvelope"
-    TechnicalError:
-      description: 技术文件端点错误
-      content:
-        application/json:
-          schema:
-            $ref: "./schemas/common.yaml#/TechnicalError"
-    Health:
-      description: 服务健康状态
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [status]
-            additionalProperties: false
-            properties:
-              status:
-                type: string
+{
+  'openapi': '3.0.3',
+  'info':
+    {
+      'title': 'ZERP API',
+      'version': '1.0.0',
+      'description': 'ZERP 前后端唯一 HTTP 线协议。业务错误使用 HTTP 200 响应包络表达。',
+      'license': { 'name': 'MIT', 'url': 'https://opensource.org/license/mit' },
+    },
+  'servers': [{ 'url': '/api', 'description': '同源 Web 网关' }],
+  'tags':
+    [
+      { 'name': 'app', 'description': '访问、会话、权限和反馈' },
+      { 'name': 'bob', 'description': '基础业务对象' },
+      { 'name': 'vou', 'description': '业务单据' },
+      { 'name': 'wfl', 'description': '业务流程' },
+      { 'name': 'led', 'description': '业务账簿' },
+      { 'name': 'files', 'description': '二进制附件端点' },
+      { 'name': 'operations', 'description': '运行状态端点' },
+    ],
+  'paths':
+    {
+      '/app/user/signin':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '用户登录',
+              'operationId': 'appUserSignin',
+              'security': [],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/SignInRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/session':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '恢复当前会话',
+              'operationId': 'appUserSession',
+              'security': [],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/signout':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '退出当前会话',
+              'operationId': 'appUserSignout',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/query':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '查询用户',
+              'operationId': 'appUserquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/profile':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取或保存当前用户资料',
+              'operationId': 'appUserprofile',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/ProfileRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/change-password':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '修改当前用户密码',
+              'operationId': 'appUserchangepassword',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/ChangePasswordRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取用户',
+              'operationId': 'appUserget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/IdRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/create':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '创建用户',
+              'operationId': 'appUsercreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/CreateUserRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/save':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '保存用户',
+              'operationId': 'appUsersave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/SaveUserRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/enable':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '启用用户',
+              'operationId': 'appUserenable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/common.yaml#/RevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/disable':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '停用用户',
+              'operationId': 'appUserdisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/common.yaml#/RevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/query':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '查询角色',
+              'operationId': 'appRoleQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取角色',
+              'operationId': 'appRoleGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/IdRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/create':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '创建角色',
+              'operationId': 'appRoleCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/CreateRoleRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/save':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '保存角色',
+              'operationId': 'appRoleSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/app.yaml#/SaveRoleRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/enable':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '启用角色',
+              'operationId': 'appRoleEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/common.yaml#/RevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/role/disable':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '停用角色',
+              'operationId': 'appRoleDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/common.yaml#/RevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/permission/query':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '查询权限',
+              'operationId': 'appPermissionQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/permission/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取权限',
+              'operationId': 'appPermissionGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/IdRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/feedback/attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '初始化反馈附件',
+              'operationId': 'appFeedbackattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/FeedbackAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/feedback/attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '移除反馈附件',
+              'operationId': 'appFeedbackattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/FeedbackAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/feedback/create':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '提交用户反馈',
+              'operationId': 'appFeedbackcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/FeedbackCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/feedback/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取用户反馈',
+              'operationId': 'appFeedbackget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/FeedbackGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询基础业务对象',
+              'operationId': 'bobquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取基础业务对象',
+              'operationId': 'bobget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '创建基础业务对象草稿',
+              'operationId': 'bobcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/edit':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '发起基础业务对象编辑',
+              'operationId': 'bobedit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobEditRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存基础业务对象草稿',
+              'operationId': 'bobsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/delete':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '删除基础业务对象首版草稿',
+              'operationId': 'bobdelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/submit':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '提交基础业务对象审核',
+              'operationId': 'bobsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/approve':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '批准基础业务对象',
+              'operationId': 'bobapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/reject':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '驳回基础业务对象',
+              'operationId': 'bobreject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/versions':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询基础业务对象版本',
+              'operationId': 'bobversions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/audit-history':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询基础业务对象审核历史',
+              'operationId': 'bobaudithistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/query':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '查询业务单据',
+              'operationId': 'vouquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/get':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '读取业务单据',
+              'operationId': 'vouget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/create':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '创建业务单据',
+              'operationId': 'voucreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/save':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '保存业务单据',
+              'operationId': 'vousave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/review':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '复核业务单据',
+              'operationId': 'voureview',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouDocumentRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/unreview':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '取消复核业务单据',
+              'operationId': 'vouunreview',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/approve':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '批准业务单据',
+              'operationId': 'vouapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouDocumentRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/unapprove':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '取消批准业务单据',
+              'operationId': 'vouunapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/execute':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '执行业务单据',
+              'operationId': 'vouexecute',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouExecuteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/unexecute':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '反执行业务单据',
+              'operationId': 'vouunexecute',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/audit-history':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '查询业务单据审计历史',
+              'operationId': 'vouaudithistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '初始化业务单据附件',
+              'operationId': 'vouattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/attachment-download':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '申请业务单据附件下载',
+              'operationId': 'vouattachmentdownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '移除业务单据附件',
+              'operationId': 'vouattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/query':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询居间贸易流程',
+              'operationId': 'wflIntermediaryTradequery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取居间贸易流程',
+              'operationId': 'wflIntermediaryTradeget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '创建居间贸易流程',
+              'operationId': 'wflIntermediaryTradecreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存居间贸易客户订单',
+              'operationId': 'wflIntermediaryTradesave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询居间贸易审计历史',
+              'operationId': 'wflIntermediaryTradeaudithistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 check',
+              'operationId': 'wflIntermediaryTradecheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 uncheck',
+              'operationId': 'wflIntermediaryTradeuncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 approve',
+              'operationId': 'wflIntermediaryTradeapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 unapprove',
+              'operationId': 'wflIntermediaryTradeunapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/short-close-request':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 short-close-request',
+              'operationId': 'wflIntermediaryTradeshortcloserequest',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/short-close-cancel':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 short-close-cancel',
+              'operationId': 'wflIntermediaryTradeshortclosecancel',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/short-close-confirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 short-close-confirm',
+              'operationId': 'wflIntermediaryTradeshortcloseconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/short-close-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 short-close-unconfirm',
+              'operationId': 'wflIntermediaryTradeshortcloseunconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-create',
+              'operationId': 'wflIntermediaryTradeprocurementcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-get',
+              'operationId': 'wflIntermediaryTradeprocurementget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-save',
+              'operationId': 'wflIntermediaryTradeprocurementsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-delete',
+              'operationId': 'wflIntermediaryTradeprocurementdelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-check',
+              'operationId': 'wflIntermediaryTradeprocurementcheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-uncheck',
+              'operationId': 'wflIntermediaryTradeprocurementuncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-place':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-place',
+              'operationId': 'wflIntermediaryTradeprocurementplace',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-unplace':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement-unplace',
+              'operationId': 'wflIntermediaryTradeprocurementunplace',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-create',
+              'operationId': 'wflIntermediaryTradereceiptcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-get',
+              'operationId': 'wflIntermediaryTradereceiptget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-save',
+              'operationId': 'wflIntermediaryTradereceiptsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-delete',
+              'operationId': 'wflIntermediaryTradereceiptdelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-check',
+              'operationId': 'wflIntermediaryTradereceiptcheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-uncheck',
+              'operationId': 'wflIntermediaryTradereceiptuncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-confirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-confirm',
+              'operationId': 'wflIntermediaryTradereceiptconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt-unconfirm',
+              'operationId': 'wflIntermediaryTradereceiptunconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-create',
+              'operationId': 'wflIntermediaryTradedeliverycreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-get',
+              'operationId': 'wflIntermediaryTradedeliveryget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-save',
+              'operationId': 'wflIntermediaryTradedeliverysave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-delete',
+              'operationId': 'wflIntermediaryTradedeliverydelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-check',
+              'operationId': 'wflIntermediaryTradedeliverycheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-uncheck',
+              'operationId': 'wflIntermediaryTradedeliveryuncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-execute':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-execute',
+              'operationId': 'wflIntermediaryTradedeliveryexecute',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-unexecute':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery-unexecute',
+              'operationId': 'wflIntermediaryTradedeliveryunexecute',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-create',
+              'operationId': 'wflIntermediaryTradesignoffcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-get',
+              'operationId': 'wflIntermediaryTradesignoffget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-save',
+              'operationId': 'wflIntermediaryTradesignoffsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-delete',
+              'operationId': 'wflIntermediaryTradesignoffdelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-check',
+              'operationId': 'wflIntermediaryTradesignoffcheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-uncheck',
+              'operationId': 'wflIntermediaryTradesignoffuncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-confirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-confirm',
+              'operationId': 'wflIntermediaryTradesignoffconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff-unconfirm',
+              'operationId': 'wflIntermediaryTradesignoffunconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement 附件 initiate',
+              'operationId': 'wflIntermediaryTradeprocurementattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement 附件 download',
+              'operationId': 'wflIntermediaryTradeprocurementattachmentdownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/procurement-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 procurement 附件 remove',
+              'operationId': 'wflIntermediaryTradeprocurementattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt 附件 initiate',
+              'operationId': 'wflIntermediaryTradereceiptattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt 附件 download',
+              'operationId': 'wflIntermediaryTradereceiptattachmentdownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/receipt-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 receipt 附件 remove',
+              'operationId': 'wflIntermediaryTradereceiptattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery 附件 initiate',
+              'operationId': 'wflIntermediaryTradedeliveryattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery 附件 download',
+              'operationId': 'wflIntermediaryTradedeliveryattachmentdownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/delivery-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 delivery 附件 remove',
+              'operationId': 'wflIntermediaryTradedeliveryattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff 附件 initiate',
+              'operationId': 'wflIntermediaryTradesignoffattachmentinitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff 附件 download',
+              'operationId': 'wflIntermediaryTradesignoffattachmentdownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/intermediary-trade/signoff-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '居间贸易 signoff 附件 remove',
+              'operationId': 'wflIntermediaryTradesignoffattachmentremove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/get':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '读取账簿期初',
+              'operationId': 'ledopeningget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/save':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '保存账簿期初',
+              'operationId': 'ledopeningsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedOpeningSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/activate':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '启用账簿',
+              'operationId': 'ledopeningactivate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/reopen':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '申请重开账簿',
+              'operationId': 'ledopeningreopen',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedReopenRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/cancel-reopen':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '取消重开账簿',
+              'operationId': 'ledopeningcancelreopen',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/opening/audit-history':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询账簿期初审计历史',
+              'operationId': 'ledopeningaudithistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/inventory/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询库存流水',
+              'operationId': 'ledinventoryquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/inventory/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询库存余额',
+              'operationId': 'ledinventorybalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/fund/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询资金流水',
+              'operationId': 'ledfundquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/fund/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询资金余额',
+              'operationId': 'ledfundbalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/party/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询往来流水',
+              'operationId': 'ledpartyquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/party/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询往来余额',
+              'operationId': 'ledpartybalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/container/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询容器流水',
+              'operationId': 'ledcontainerquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/container/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询容器余额',
+              'operationId': 'ledcontainerbalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/files/feedback/attachments/upload/{token}':
+        {
+          'put':
+            {
+              'tags': ['files'],
+              'summary': '上传用户反馈附件',
+              'operationId': 'uploadFeedbackAttachment',
+              'security': [],
+              'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      '*/*':
+                        { 'schema': { 'type': 'string', 'format': 'binary' } },
+                    },
+                },
+              'responses':
+                {
+                  '204': { 'description': 'Uploaded' },
+                  '400': { '$ref': '#/components/responses/TechnicalError' },
+                },
+            },
+        },
+      '/files/attachments/upload/{token}':
+        {
+          'put':
+            {
+              'tags': ['files'],
+              'summary': '上传业务附件',
+              'operationId': 'uploadAttachment',
+              'security': [],
+              'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      '*/*':
+                        { 'schema': { 'type': 'string', 'format': 'binary' } },
+                    },
+                },
+              'responses':
+                {
+                  '204': { 'description': 'Uploaded' },
+                  '400': { '$ref': '#/components/responses/TechnicalError' },
+                  '409': { '$ref': '#/components/responses/TechnicalError' },
+                },
+            },
+        },
+      '/files/attachments/download/{token}':
+        {
+          'get':
+            {
+              'tags': ['files'],
+              'summary': '下载业务附件',
+              'operationId': 'downloadAttachment',
+              'security': [],
+              'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': 'Attachment bytes',
+                      'content':
+                        {
+                          'application/octet-stream':
+                            {
+                              'schema':
+                                { 'type': 'string', 'format': 'binary' },
+                            },
+                        },
+                    },
+                  '400': { '$ref': '#/components/responses/TechnicalError' },
+                },
+            },
+        },
+      '/healthz':
+        {
+          'get':
+            {
+              'tags': ['operations'],
+              'summary': '进程健康检查',
+              'operationId': 'health',
+              'security': [],
+              'responses':
+                { '200': { '$ref': '#/components/responses/Health' } },
+            },
+        },
+      '/readyz':
+        {
+          'get':
+            {
+              'tags': ['operations'],
+              'summary': '数据库就绪检查',
+              'operationId': 'readiness',
+              'security': [],
+              'responses':
+                {
+                  '200': { '$ref': '#/components/responses/Health' },
+                  '503': { '$ref': '#/components/responses/Health' },
+                },
+            },
+        },
+    },
+  'components':
+    {
+      'securitySchemes':
+        {
+          'cookieAuth':
+            {
+              'type': 'apiKey',
+              'in': 'cookie',
+              'name': 'zerp_session',
+              'description': 'HttpOnly 会话 Cookie；实际名称可由运行配置覆盖。',
+            },
+          'csrfToken':
+            {
+              'type': 'apiKey',
+              'in': 'header',
+              'name': 'X-CSRF-Token',
+              'description': '会话响应返回的 CSRF Token。',
+            },
+        },
+      'parameters':
+        {
+          'BobEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/bob.yaml#/BobEntity' },
+            },
+          'VouEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/vou.yaml#/VouEntity' },
+            },
+          'FileToken':
+            {
+              'name': 'token',
+              'in': 'path',
+              'required': true,
+              'schema': { 'type': 'string', 'minLength': 1 },
+            },
+        },
+      'responses':
+        {
+          'Business':
+            {
+              'description': '统一业务响应；业务错误仍使用 HTTP 200。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/common.yaml#/BusinessEnvelope' },
+                    },
+                },
+            },
+          'TechnicalError':
+            {
+              'description': '技术文件端点错误。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/common.yaml#/TechnicalError' },
+                    },
+                },
+            },
+          'Health':
+            {
+              'description': '服务健康状态。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/common.yaml#/HealthResponse' },
+                    },
+                },
+            },
+        },
+    },
+}

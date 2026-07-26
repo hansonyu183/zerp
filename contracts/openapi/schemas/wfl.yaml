@@ -1,64 +1,166 @@
-Action:
-  type: string
-  enum:
-    - query
-    - get
-    - create
-    - save
-    - audit-history
-    - check
-    - uncheck
-    - approve
-    - unapprove
-    - short-close-request
-    - short-close-cancel
-    - short-close-confirm
-    - short-close-unconfirm
-    - procurement-create
-    - procurement-get
-    - procurement-save
-    - procurement-delete
-    - procurement-check
-    - procurement-uncheck
-    - procurement-place
-    - procurement-unplace
-    - receipt-create
-    - receipt-get
-    - receipt-save
-    - receipt-delete
-    - receipt-check
-    - receipt-uncheck
-    - receipt-confirm
-    - receipt-unconfirm
-    - delivery-create
-    - delivery-get
-    - delivery-save
-    - delivery-delete
-    - delivery-check
-    - delivery-uncheck
-    - delivery-execute
-    - delivery-unexecute
-    - signoff-create
-    - signoff-get
-    - signoff-save
-    - signoff-delete
-    - signoff-check
-    - signoff-uncheck
-    - signoff-confirm
-    - signoff-unconfirm
-    - procurement-attachment-initiate
-    - procurement-attachment-download
-    - procurement-attachment-remove
-    - receipt-attachment-initiate
-    - receipt-attachment-download
-    - receipt-attachment-remove
-    - delivery-attachment-initiate
-    - delivery-attachment-download
-    - delivery-attachment-remove
-    - signoff-attachment-initiate
-    - signoff-attachment-download
-    - signoff-attachment-remove
-
-MutationRequest:
-  type: object
-  additionalProperties: true
+{
+  'WflQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'keyword': { 'type': 'string' },
+          'statuses': { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
+  'WflGetRequest':
+    {
+      'type': 'object',
+      'required': ['processId'],
+      'additionalProperties': false,
+      'properties': { 'processId': { 'type': 'string' } },
+    },
+  'WflStageGetRequest':
+    {
+      'type': 'object',
+      'required': ['processId', 'documentId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'documentId': { 'type': 'string' },
+        },
+    },
+  'WflCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': true,
+              'properties': {},
+            },
+        },
+    },
+  'WflSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'processId',
+          'processRevision',
+          'documentId',
+          'documentRevision',
+          'data',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processRevision': { 'type': 'integer', 'format': 'int64' },
+          'documentId': { 'type': 'string' },
+          'documentRevision': { 'type': 'integer', 'format': 'int64' },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': true,
+              'properties': {},
+            },
+        },
+    },
+  'WflHistoryRequest':
+    {
+      'type': 'object',
+      'required': ['processId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+  'WflActionRequest':
+    {
+      'type': 'object',
+      'required': ['processId', 'processRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processRevision': { 'type': 'integer', 'format': 'int64' },
+          'documentId': { 'type': 'string' },
+          'documentRevision': { 'type': 'integer', 'format': 'int64' },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': true,
+              'properties': {},
+            },
+          'reason': { 'type': 'string' },
+        },
+    },
+  'WflAttachmentInitiateRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'processId',
+          'processRevision',
+          'documentId',
+          'documentRevision',
+          'fileName',
+          'contentType',
+          'size',
+          'sha256',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processRevision': { 'type': 'integer', 'format': 'int64' },
+          'documentId': { 'type': 'string' },
+          'documentRevision': { 'type': 'integer', 'format': 'int64' },
+          'fileName': { 'type': 'string' },
+          'contentType': { 'type': 'string' },
+          'size': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'sha256': { 'type': 'string' },
+        },
+    },
+  'WflAttachmentDownloadRequest':
+    {
+      'type': 'object',
+      'required': ['processId', 'documentId', 'fileId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'documentId': { 'type': 'string' },
+          'fileId': { 'type': 'string' },
+        },
+    },
+  'WflAttachmentRemoveRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'processId',
+          'processRevision',
+          'documentId',
+          'documentRevision',
+          'fileId',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processRevision': { 'type': 'integer', 'format': 'int64' },
+          'documentId': { 'type': 'string' },
+          'documentRevision': { 'type': 'integer', 'format': 'int64' },
+          'fileId': { 'type': 'string' },
+        },
+    },
+}

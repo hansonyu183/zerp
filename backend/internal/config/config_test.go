@@ -82,6 +82,7 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadRequiresAbsoluteAttachmentRootInProduction(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("APP_ENV", EnvironmentProduction)
+	t.Setenv("APP_SESSION_COOKIE_SECURE", "true")
 	t.Setenv("FEEDBACK_GITHUB_ENABLED", "true")
 	t.Setenv("FEEDBACK_GITHUB_TOKEN", "test-token")
 	t.Setenv("ATTACHMENT_STORAGE_ROOT", "")

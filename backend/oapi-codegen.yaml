@@ -4,6 +4,6 @@ generate:
   gin-server: true
   strict-server: true
   embedded-spec: true
-output: internal/api/generated/server.gen.go
+output: ../internal/api/generated/server.gen.go
 output-options:
   skip-prune: false

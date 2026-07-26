@@ -26,12 +26,12 @@ chmod 600 "${temporary}"
 {
   printf '%s\n' \
     'APP_ENV=test' \
-    'API_PORT=18080' \
-    'POSTGRES_PORT=55433' \
+    'API_PORT=18081' \
+    'POSTGRES_PORT=55435' \
     'POSTGRES_DB=zerp_e2e' \
     'POSTGRES_USER=zerp_e2e'
   printf 'POSTGRES_PASSWORD=%s\n' "${postgres_password}"
-  printf 'DATABASE_URL=postgres://zerp_e2e:%s@127.0.0.1:55433/zerp_e2e?sslmode=disable\n' "${postgres_password}"
+  printf 'DATABASE_URL=postgres://zerp_e2e:%s@127.0.0.1:55435/zerp_e2e?sslmode=disable\n' "${postgres_password}"
   printf '%s\n' \
     'CORS_ALLOWED_ORIGINS=http://127.0.0.1:5173' \
     'APP_SESSION_COOKIE_NAME=zerp_e2e_session' \

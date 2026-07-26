@@ -30,11 +30,13 @@ generate-check:
 check:
 	pnpm format:check
 	pnpm check:web
-	$(MAKE) -C backend quality
+	$(COMPOSE) -f compose.yaml config --quiet
+	docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
+	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) quality
 
 test:
 	pnpm test:web
-	$(MAKE) -C backend test
+	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) test
 
 e2e:
 	./scripts/e2e.sh

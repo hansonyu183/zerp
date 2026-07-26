@@ -1,4 +1,4 @@
-import { apiClient } from '@/api/client'
+import { apiClient, type ApiPostPath } from '@/api/client'
 import type { ApiResult, PageRequest, PageResult } from '@/api/types'
 import type {
   WflAction,
@@ -105,7 +105,9 @@ export const intermediaryActions = [
   'signoff-attachment-remove',
 ] as const satisfies readonly IntermediaryAction[]
 
-export function intermediaryActionPath(action: IntermediaryAction): string {
+export function intermediaryActionPath(
+  action: IntermediaryAction,
+): ApiPostPath {
   return `${base}/${action}`
 }
 
@@ -134,10 +136,10 @@ export const intermediaryTradeApiAdapter: WflApiAdapter<
       signal,
     ),
   mutate: <TData>(action: WflAction, input: WflActionInput<TData>) =>
-    post<
-      WflMutationResult<IntermediaryBalancesWire>,
-      WflActionInput<TData>
-    >(action, input),
+    post<WflMutationResult<IntermediaryBalancesWire>, WflActionInput<TData>>(
+      action,
+      input,
+    ),
   history: (processId, page, pageSize, signal) =>
     post<
       PageResult<IntermediaryAuditEvent>,
@@ -147,15 +149,18 @@ export const intermediaryTradeApiAdapter: WflApiAdapter<
     action: WflAttachmentInitiateAction,
     input: WflAttachmentInitiateInput,
   ) =>
-    post<{
-      processId: string
-      processRevision: number
-      documentId: string
-      documentRevision: number
-      fileId: string
-      uploadUrl: string
-      expiresAt: string
-    }, WflAttachmentInitiateInput>(action, input),
+    post<
+      {
+        processId: string
+        processRevision: number
+        documentId: string
+        documentRevision: number
+        fileId: string
+        uploadUrl: string
+        expiresAt: string
+      },
+      WflAttachmentInitiateInput
+    >(action, input),
   downloadAttachment: (
     action: WflAttachmentDownloadAction,
     input: WflAttachmentDownloadInput,
@@ -168,13 +173,16 @@ export const intermediaryTradeApiAdapter: WflApiAdapter<
     action: WflAttachmentRemoveAction,
     input: WflAttachmentRemoveInput,
   ) =>
-    post<{
-      processId: string
-      processRevision: number
-      documentId: string
-      documentRevision: number
-      documentStatus: string
-    }, WflAttachmentRemoveInput>(action, input),
+    post<
+      {
+        processId: string
+        processRevision: number
+        documentId: string
+        documentRevision: number
+        documentStatus: string
+      },
+      WflAttachmentRemoveInput
+    >(action, input),
 }
 
 function referenceInput(value: { objectId: string; versionId: string }) {
@@ -227,7 +235,9 @@ function mapBalances(value: IntermediaryBalancesWire): IntermediaryBalances {
   }
 }
 
-function rootDocument(process: IntermediaryProcessWire): IntermediaryDocumentWire {
+function rootDocument(
+  process: IntermediaryProcessWire,
+): IntermediaryDocumentWire {
   const root = process.documents.find(
     (document) => document.stage === 'CUSTOMER_ORDER',
   )
@@ -235,7 +245,9 @@ function rootDocument(process: IntermediaryProcessWire): IntermediaryDocumentWir
   return root
 }
 
-function mapChild(document: IntermediaryDocumentWire): IntermediaryChildSummary {
+function mapChild(
+  document: IntermediaryDocumentWire,
+): IntermediaryChildSummary {
   return {
     childId: document.documentId,
     childNo: document.documentNo,
@@ -245,8 +257,7 @@ function mapChild(document: IntermediaryDocumentWire): IntermediaryChildSummary 
     createdAt: document.createdAt,
     createdBy: document.createdBy,
     updatedAt: document.approvedAt ?? document.reviewedAt ?? document.createdAt,
-    updatedBy:
-      document.approvedBy ?? document.reviewedBy ?? document.createdBy,
+    updatedBy: document.approvedBy ?? document.reviewedBy ?? document.createdBy,
     checkedAt: document.reviewedAt,
     checkedBy: document.reviewedBy,
     finalAt: document.approvedAt,
@@ -260,7 +271,9 @@ function mapChild(document: IntermediaryDocumentWire): IntermediaryChildSummary 
   }
 }
 
-function mapProcess(process: IntermediaryProcessWire): IntermediaryWireDocument {
+function mapProcess(
+  process: IntermediaryProcessWire,
+): IntermediaryWireDocument {
   const root = rootDocument(process)
   const data = root.data ?? {}
   return {
@@ -371,16 +384,18 @@ function customerLineByStageSource(
     const procurement = process.documents.find(
       (document) => document.stage === 'PROCUREMENT',
     )
-    const line = (procurement?.lines as IntermediaryStageLineWire[] | undefined)
-      ?.find((candidate) => candidate.lineId === sourceLineId)
+    const line = (
+      procurement?.lines as IntermediaryStageLineWire[] | undefined
+    )?.find((candidate) => candidate.lineId === sourceLineId)
     return line?.sourceLineId ?? sourceLineId
   }
   const deliveries = process.documents.filter(
     (document) => document.stage === 'DELIVERY',
   )
   for (const delivery of deliveries) {
-    const line = (delivery.lines as IntermediaryStageLineWire[] | undefined)
-      ?.find((candidate) => candidate.lineId === sourceLineId)
+    const line = (
+      delivery.lines as IntermediaryStageLineWire[] | undefined
+    )?.find((candidate) => candidate.lineId === sourceLineId)
     if (line) return line.sourceLineId
   }
   return sourceLineId
@@ -462,17 +477,17 @@ function mapStageDetail(
   }
 }
 
-async function processWire(processId: string): Promise<IntermediaryProcessWire> {
-  return (await post<IntermediaryProcessWire, { processId: string }>(
-    'get',
-    { processId },
-  )).data
+async function processWire(
+  processId: string,
+): Promise<IntermediaryProcessWire> {
+  return (
+    await post<IntermediaryProcessWire, { processId: string }>('get', {
+      processId,
+    })
+  ).data
 }
 
-async function receiptData(
-  processId: string,
-  draft: IntermediaryReceiptDraft,
-) {
+async function receiptData(processId: string, draft: IntermediaryReceiptDraft) {
   const process = await processWire(processId)
   const procurementSummary = process.documents.find(
     (document) => document.stage === 'PROCUREMENT',
@@ -506,10 +521,7 @@ async function receiptData(
   }
 }
 
-async function signoffData(
-  processId: string,
-  draft: IntermediarySignoffDraft,
-) {
+async function signoffData(processId: string, draft: IntermediarySignoffDraft) {
   const delivery = (
     await post<
       IntermediaryDocumentWire,
@@ -614,14 +626,10 @@ export const intermediaryWorkflowApi = {
     request: { processId: string; documentId: string },
   ) => {
     const [stageResult, processResult] = await Promise.all([
-      post<IntermediaryDocumentWire, typeof request>(
-        `${prefix}-get`,
-        request,
-      ),
-      post<IntermediaryProcessWire, { processId: string }>(
-        'get',
-        { processId: request.processId },
-      ),
+      post<IntermediaryDocumentWire, typeof request>(`${prefix}-get`, request),
+      post<IntermediaryProcessWire, { processId: string }>('get', {
+        processId: request.processId,
+      }),
     ])
     return {
       ...stageResult,

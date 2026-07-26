@@ -72,6 +72,7 @@ make run
 | `make test` | 自动准备独立测试库并执行单元测试和数据库集成测试 |
 | `make test-unit` | 执行不依赖数据库的单元测试 |
 | `make test-integration` | 创建或复用独立测试库、应用全部迁移并执行 APP、BOB、VOU、WFL、LED 数据库契约测试 |
+| `make quality` | 执行与 CI 一致的全部生成、格式、静态分析、测试、安全及镜像门禁 |
 | `make generate` | 根据 SQL 重新生成 sqlc 代码 |
 | `make migrate-status` | 查看数据库迁移状态 |
 | `make migrate-up` | 升级数据库到最新迁移 |
@@ -82,6 +83,17 @@ make run
 | `make cleanup-vou-attachments` | `cleanup-attachments` 的兼容别名 |
 | `make compose-up` | 构建并启动 API、PostgreSQL 与 pgAdmin |
 | `make compose-down` | 停止容器 |
+
+`make quality` 是提交前的统一质量入口，要求当前 `ENV_FILE` 可供测试和 Compose 解析。它依次检查 sqlc
+生成结果、Go 格式、根模块与 `tools` 模块元数据、GitHub Actions、Compose 配置、单元与数据库集成测试、
+vet、build、race、staticcheck、govulncheck 和容器镜像构建。CI 调用同一组 `quality-*` 子目标并保留逐项
+失败信息；需要单独复现时可直接运行对应子目标，例如：
+
+```bash
+make quality-actionlint
+make ENV_FILE=.env.local quality-compose
+make quality-vuln
+```
 
 ## 配置
 
@@ -94,6 +106,9 @@ make ENV_FILE=.env.test compose-up
 | 变量 | 必填 | 默认值 | 用途 |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | 是 | 无 | PostgreSQL 连接串 |
+| `POSTGRES_DB` | Compose 启动时是 | `zerp` | Compose PostgreSQL 主数据库名，也是测试库隔离校验的生产库参照 |
+| `POSTGRES_USER` | Compose 启动时是 | `zerp` | Compose PostgreSQL 用户名 |
+| `POSTGRES_PASSWORD` | Compose 启动时是 | 无 | Compose PostgreSQL 本地密码；只写入被 Git 忽略的环境文件 |
 | `TEST_POSTGRES_DB` | 测试时是 | 无 | 独立测试数据库名；必须以 `_test` 结尾且不得与 `POSTGRES_DB` 相同 |
 | `TEST_DATABASE_URL` | 测试时是 | 无 | 独立测试数据库连接串；实际连接库必须与 `TEST_POSTGRES_DB` 一致 |
 | `API_PORT` | 否 | `8080` | Compose 暴露到宿主机的 API 端口 |
@@ -414,7 +429,8 @@ POST /app/user/signout  # 注销并清理会话 Cookie
 - VOU 建立七类单据、人员与结算规则快照、审核/批准/执行及反向流转、附件和审计能力；
 - WFL 使用客户订单、采购单、收货单、送货单和签收单五类独立 VOU 原子单据编排居间贸易长流程；
 - LED 订阅 VOU 执行与反执行事务事件，生成库存、资金和往来流水，提供统一期初、严格负库存校验、余额查询及可重开启用流程；
-- 库存、核销、总账和报表领域在业务规则明确并形成独立领域文档后接入。
+- LED 已提供库存流水和余额；库存调拨、盘点、日常调整等库存业务操作，以及核销、总账和报表领域，
+  在业务规则明确并形成独立领域文档后接入。
 
 新增领域、实体和动作编码必须先进入领域文档与后端路由权限目录，不能只在前端注册菜单或临时扩展接口。
 

@@ -8,16 +8,35 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
-	t.Setenv("APP_ENV", "")
-	t.Setenv("HTTP_ADDRESS", "")
 	t.Setenv("CORS_ALLOWED_ORIGINS", " https://erp.example.com,https://erp.example.com, https://preview.example.com ")
-	t.Setenv("DATABASE_CONNECT_TIMEOUT", "")
-	t.Setenv("DATABASE_HEALTH_TIMEOUT", "")
-	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "")
-	t.Setenv("HTTP_READ_TIMEOUT", "")
-	t.Setenv("HTTP_WRITE_TIMEOUT", "")
-	t.Setenv("HTTP_IDLE_TIMEOUT", "")
-	t.Setenv("SHUTDOWN_TIMEOUT", "")
+	for _, key := range []string{
+		"APP_ENV",
+		"HTTP_ADDRESS",
+		"DATABASE_CONNECT_TIMEOUT",
+		"DATABASE_HEALTH_TIMEOUT",
+		"HTTP_READ_HEADER_TIMEOUT",
+		"HTTP_READ_TIMEOUT",
+		"HTTP_WRITE_TIMEOUT",
+		"HTTP_IDLE_TIMEOUT",
+		"SHUTDOWN_TIMEOUT",
+		"APP_SESSION_COOKIE_NAME",
+		"APP_SESSION_COOKIE_SECURE",
+		"APP_SESSION_COOKIE_SAME_SITE",
+		"APP_SESSION_IDLE_TIMEOUT",
+		"APP_SESSION_ABSOLUTE_TIMEOUT",
+		"APP_SIGNIN_LOCK_THRESHOLD",
+		"APP_SIGNIN_LOCK_DURATION",
+		"APP_PASSWORD_MIN_LENGTH",
+		"ATTACHMENT_STORAGE_ROOT",
+		"ATTACHMENT_UPLOAD_TOKEN_TTL",
+		"ATTACHMENT_DOWNLOAD_TOKEN_TTL",
+		"FEEDBACK_ATTACHMENT_ORPHAN_TTL",
+		"FEEDBACK_GITHUB_ENABLED",
+		"FEEDBACK_GITHUB_REPOSITORY",
+		"FEEDBACK_GITHUB_TOKEN",
+	} {
+		t.Setenv(key, "")
+	}
 
 	cfg, err := Load()
 	if err != nil {

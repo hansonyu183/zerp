@@ -150,7 +150,86 @@ POST /led/container/balance
 
 `activate`、`cancel-reopen` 携带 `revision`；`reopen` 还要求不超过 1000 字的 `reason`。期初查询返回状态、revision、启用日、当前 generation 和全部期初草稿或 active 快照。
 
-流水查询使用统一分页结构，`pageSize` 为 `1–100`。过滤字段为日期范围、对象 ID、来源实体、单号和方向；排序白名单为 `effectiveDate`、`occurredAt`、`documentNo`。余额查询必须传 `asOfDate`，并按对应业务对象维度分页。
+`opening/get` 使用空对象。生命周期请求及成功响应：
+
+```json
+{
+  "revision": 2,
+  "reason": "修正上线期初"
+}
+```
+
+`reason` 只用于 `reopen`，去除首尾空白后为 1–1000 个 Unicode 字符。`activate` 和
+`cancel-reopen` 只传 `revision`。成功 `data` 为：
+
+```json
+{
+  "status": "ACTIVE",
+  "revision": 3,
+  "generationId": "01J..."
+}
+```
+
+流水查询使用统一分页结构，`pageSize` 为 `1–100`，`dateFrom`、`dateTo` 必填：
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "filters": {
+    "dateFrom": "2026-07-01",
+    "dateTo": "2026-07-31",
+    "objectId": "01J...",
+    "sourceEntity": "sale-order",
+    "documentNo": "SO-20260726",
+    "direction": ["OUT"]
+  },
+  "sort": [{"field": "effectiveDate", "order": "desc"}]
+}
+```
+
+- `objectId` 按实体匹配仓库/商品、资金账户、往来方或客户任一相关对象；
+- `sourceEntity` 可为 `opening`、七类普通 VOU 实体、`intermediary-receipt` 或
+  `intermediary-signoff`；
+- inventory/fund 的 `direction` 只允许 `IN`、`OUT`，party 只允许 `DEBIT`、`CREDIT`，
+  container 不接受方向过滤；
+- `documentNo` 最多 200 个 Unicode 字符；
+- `sort` 最多一项，字段白名单为 `effectiveDate`、`occurredAt`、`documentNo`，方向严格为
+  `asc` 或 `desc`；省略时使用 `effectiveDate desc`。
+
+查询成功返回 `{items,total,page,pageSize}`。各实体 item 的稳定字段：
+
+| 实体 | 公共来源字段之外的字段 |
+| --- | --- |
+| inventory | `direction`、`quantity`、`warehouse`、`product` |
+| fund | `direction`、`amount`、`fundAccount`、`currency` |
+| party | `direction`、`amount`、`counterpartyType`、`counterparty`、`currency` |
+| container | `customer`、`containerType`、有符号整数 `quantity`，以及可选根流程单号 |
+
+公共来源字段为 `id`、`entryType`、`sourceEntity`、来源单据/行/revision、`effectiveDate`、
+`occurredAt` 和可选 `reason`。金额、普通数量仍以十进制字符串返回；空桶数量为整数。
+
+余额查询必须传 `asOfDate`：
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "filters": {
+    "asOfDate": "2026-07-31",
+    "objectId": "01J..."
+  }
+}
+```
+
+余额同样返回统一分页结构。inventory 按 `warehouse + product` 返回 `quantity`；fund 按
+`fundAccount + currency` 返回 `balanceType + amount`；party 按
+`counterpartyType + counterparty + currency` 返回 `balanceType + amount`；container 按
+`customer + containerType` 返回整数 `quantity`。
+
+`opening/audit-history` 请求为 `{"page":1,"pageSize":20}`；两个分页字段均必填且为正数，
+`pageSize` 最大 100。响应返回生命周期事件、前后状态、generation、revision、操作者、原因、
+requestId 和摘要。
 
 ## 6. VOU 居间销售扩展
 

@@ -54,34 +54,31 @@ jobs:
           chmod 600 /tmp/zerp-pgadmin-password /tmp/zerp-pgpass
 
       - name: Verify generated code
-        run: |
-          make ENV_FILE=.env.ci generate
-          git diff --exit-code
+        run: make ENV_FILE=.env.ci quality-generated
 
       - name: Verify formatting and module metadata
-        shell: bash
-        run: |
-          test -z "$(gofmt -l $(git ls-files '*.go'))"
-          go mod tidy -diff
-          go mod verify
-          git diff --check
+        run: make ENV_FILE=.env.ci quality-format
+
+      - name: Validate GitHub Actions
+        run: make ENV_FILE=.env.ci quality-actionlint
+
+      - name: Validate Docker Compose
+        run: make ENV_FILE=.env.ci quality-compose
 
       - name: Run tests
-        run: make ENV_FILE=.env.ci test
+        run: make ENV_FILE=.env.ci quality-test
 
       - name: Run vet and build
-        run: |
-          go vet ./...
-          go build ./...
+        run: make ENV_FILE=.env.ci quality-vet-build
 
       - name: Run race detector
-        run: go test -race ./...
+        run: make ENV_FILE=.env.ci quality-race
 
       - name: Run staticcheck
-        run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+        run: make ENV_FILE=.env.ci quality-staticcheck
 
       - name: Scan reachable vulnerabilities
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+        run: make ENV_FILE=.env.ci quality-vuln
 
       - name: Build container image
-        run: docker build --tag zerp-back:ci .
+        run: make ENV_FILE=.env.ci QUALITY_IMAGE_TAG=zerp-back:ci quality-image

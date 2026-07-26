@@ -69,6 +69,55 @@ audit-history
 attachment-initiate attachment-download attachment-remove
 ```
 
+### 2.3 通用请求与写入响应
+
+BOB 引用结构固定为：
+
+```json
+{
+  "objectId": "01J...",
+  "versionId": "01J..."
+}
+```
+
+`create` 只接收 `data`，`save` 在相同 `data` 外要求当前单据 ID 和 revision：
+
+```json
+{
+  "documentId": "01J...",
+  "revision": 3,
+  "data": {
+    "businessDate": "2026-07-26",
+    "currency": "CNY"
+  }
+}
+```
+
+动作请求按下表固定，未列出的字段会被拒绝：
+
+| 动作 | 请求字段 |
+| --- | --- |
+| `query` | `page`、`pageSize`、`filters`、最多一项 `sort` |
+| `get` | `documentId` |
+| `create` | `data` |
+| `save` | `documentId`、`revision`、`data` |
+| `review`、`approve` | `documentId`、`revision` |
+| `unreview`、`unapprove`、`unexecute` | `documentId`、`revision`、`reason` |
+| `execute` | `documentId`、`revision`，并按实体携带第 3.7 节执行字段 |
+| `audit-history` | `documentId`、`page`、`pageSize` |
+| 附件动作 | 见第 5 节 |
+
+创建、保存和生命周期动作成功时，`data` 使用同一结构：
+
+```json
+{
+  "documentId": "01J...",
+  "documentNo": "SO-20260726-000001",
+  "status": "DRAFT",
+  "revision": 1
+}
+```
+
 ## 3. 单据字段
 
 ### 3.1 销售单
@@ -107,11 +156,180 @@ attachment-initiate attachment-download attachment-remove
 
 新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`review`、`approve` 和 `execute` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
 
+### 3.7 草稿与执行载荷
+
+贸易单据草稿使用统一 `data` 结构。销售单示例：
+
+```json
+{
+  "data": {
+    "businessDate": "2026-07-26",
+    "currency": "CNY",
+    "customer": {"objectId": "01J...", "versionId": "01J..."},
+    "salesperson": {"objectId": "01J...", "versionId": "01J..."},
+    "warehouse": {"objectId": "01J...", "versionId": "01J..."},
+    "remark": "客户要求分批送货",
+    "productLines": [
+      {
+        "product": {"objectId": "01J...", "versionId": "01J..."},
+        "orderedQuantity": "10.000000",
+        "unitPrice": "25.50",
+        "remark": "首批"
+      }
+    ]
+  }
+}
+```
+
+各实体在通用字段之外使用：
+
+| 实体 | 草稿专用字段 |
+| --- | --- |
+| `sale-order` | `customer`、可省略并从客户带入的 `salesperson`、`warehouse`、`productLines` |
+| `purchase-order` | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines` |
+| `intermediary-sale-order` | `customer`、`supplier`、`salesperson`、`purchaser`、`productLines`；每行还要求 `purchaseUnitPrice` |
+| `receipt`、`payment` | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount` |
+| `expense-reimbursement` | `employee`、`fundAccount`、`expenseLines` |
+| `other-income` | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount` |
+
+销售和居间销售执行请求：
+
+```json
+{
+  "documentId": "01J...",
+  "revision": 4,
+  "outboundDate": "2026-07-27",
+  "signoffDate": "2026-07-28",
+  "platform": {"objectId": "01J...", "versionId": "01J..."},
+  "vehicle": {"objectId": "01J...", "versionId": "01J..."},
+  "differenceReason": "客户少收一件",
+  "saleLines": [
+    {
+      "lineId": "01J...",
+      "outboundQuantity": "10.000000",
+      "signedQuantity": "9.000000",
+      "rejectedQuantity": "1.000000",
+      "lossQuantity": "0.000000"
+    }
+  ]
+}
+```
+
+采购执行改用 `inboundDate` 和非空 `purchaseLines`：
+
+```json
+{
+  "documentId": "01J...",
+  "revision": 4,
+  "inboundDate": "2026-07-27",
+  "purchaseLines": [
+    {"lineId": "01J...", "inboundQuantity": "10.000000"}
+  ]
+}
+```
+
+收付款、费用报销和其它收入执行只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
+`reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
+
 ## 4. 查询与响应
 
 `query` 支持分页、单号或往来方关键字、状态、业务日期起止和客户/供应商对象 ID。排序字段白名单为 `updatedAt`、`documentNo`、`businessDate`、`status`、`amount`。
 
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "filters": {
+    "keyword": "SO-20260726",
+    "status": ["DRAFT", "REVIEWED"],
+    "dateFrom": "2026-07-01",
+    "dateTo": "2026-07-31",
+    "partyObjectId": "01J..."
+  },
+  "sort": [{"field": "updatedAt", "order": "desc"}]
+}
+```
+
+`page` 和 `pageSize` 均必须为正数，`pageSize` 最大 100，`sort` 最多一项；省略排序时按
+`updatedAt desc`。查询成功返回统一分页结构，单项至少包含 `documentId`、`entity`、`documentNo`、
+`status`、`revision`、`businessDate`、`currency`、`amount` 和 `updatedAt`。
+
+```json
+{
+  "items": [
+    {
+      "documentId": "01J...",
+      "entity": "sale-order",
+      "documentNo": "SO-20260726-000001",
+      "status": "DRAFT",
+      "revision": 2,
+      "businessDate": "2026-07-26",
+      "partyName": "示例客户",
+      "currency": "CNY",
+      "amount": "255.00",
+      "updatedAt": "2026-07-26T08:00:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 20
+}
+```
+
 `get` 返回抬头、明细、人员、仓库、联系人、结算规则等 BOB 快照、执行结果、审计字段和附件摘要。金额、数量仍以规范化十进制字符串返回；联系人和结算快照是只读字段，响应中不包含 `dueDate`。
+
+```json
+{"documentId": "01J..."}
+```
+
+成功 `data` 示例：
+
+```json
+{
+  "documentId": "01J...",
+  "entity": "sale-order",
+  "documentNo": "SO-20260726-000001",
+  "status": "DRAFT",
+  "revision": 2,
+  "amount": "255.00",
+  "data": {
+    "businessDate": "2026-07-26",
+    "currency": "CNY",
+    "remark": "客户要求分批送货",
+    "customer": {
+      "objectId": "01J...",
+      "versionId": "01J...",
+      "entity": "customer",
+      "code": "CUS-001",
+      "name": "示例客户"
+    },
+    "productLines": [
+      {
+        "lineId": "01J...",
+        "lineNo": 1,
+        "product": {
+          "objectId": "01J...",
+          "versionId": "01J...",
+          "entity": "product",
+          "code": "PRD-001",
+          "name": "示例商品",
+          "unit": "件"
+        },
+        "orderedQuantity": "10.000000",
+        "unitPrice": "25.50",
+        "lineAmount": "255.00"
+      }
+    ]
+  },
+  "attachments": [],
+  "createdAt": "2026-07-26T08:00:00Z",
+  "createdBy": "01J...",
+  "updatedAt": "2026-07-26T08:05:00Z",
+  "updatedBy": "01J..."
+}
+```
+
+`audit-history` 使用 `{"documentId":"01J...","page":1,"pageSize":20}`，`pageSize` 最大 100。
 
 ## 5. 附件
 
@@ -122,6 +340,26 @@ attachment-initiate attachment-download attachment-remove
 - 文件保存在配置的本地根目录，使用随机键和原子重命名；用户文件名只能作为下载元数据，不能参与磁盘路径。
 - 下载强制 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。
 - 生产运行限定单 API 实例，并把数据库和附件持久卷作为同一备份恢复边界。
+
+发起上传：
+
+```json
+{
+  "documentId": "01J...",
+  "revision": 2,
+  "fileName": "contract.pdf",
+  "contentType": "application/pdf",
+  "size": 102400,
+  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+}
+```
+
+成功返回 `fileId`、一次性 `uploadUrl`、`expiresAt` 和递增后的 `revision`。客户端随后对技术端点执行
+`PUT uploadUrl`，请求头中的 MIME 和长度必须与发起请求一致。
+
+下载令牌请求为 `{"documentId":"01J...","fileId":"01J..."}`，成功返回一次性 `downloadUrl` 和
+`expiresAt`；移除附件请求还要求当前 `revision`。发起和移除只允许草稿，文件名不得包含路径，
+`sha256` 必须为 64 位十六进制字符串。
 
 ## 6. 事务与审计
 

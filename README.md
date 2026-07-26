@@ -8,7 +8,7 @@ ZERP Backend 是供企业内部使用的 ERP 后端服务，面向基础资料�
 
 | 技术 | 基线版本 | 用途 |
 | --- | --- | --- |
-| [Go](https://go.dev/) | 1.26 | 服务端开发语言 |
+| [Go](https://go.dev/) | 1.26.5 | 服务端开发语言 |
 | [Gin](https://gin-gonic.com/) | 1.12 | HTTP 路由、中间件和请求处理 |
 | [PostgreSQL](https://www.postgresql.org/) | 18 | 业务数据、权限数据和会话数据存储 |
 | [pgx](https://github.com/jackc/pgx) | 5.10 | PostgreSQL 驱动和连接池 |
@@ -20,7 +20,7 @@ ZERP Backend 是供企业内部使用的 ERP 后端服务，面向基础资料�
 
 ## 环境要求
 
-- Go 1.26+
+- Go 1.26.5+
 - Docker 与 Docker Compose v2
 - GNU Make
 

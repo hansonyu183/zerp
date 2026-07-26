@@ -1,6 +1,6 @@
 module github.com/hansonyu183/zerp-back/tools
 
-go 1.26.0
+go 1.26.5
 
 require (
 	cel.dev/expr v0.25.1 // indirect

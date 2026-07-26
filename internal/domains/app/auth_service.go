@@ -72,6 +72,10 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	if !slices.Contains(permissions, signoutPath) {
 		return SessionResult{}, domainError(ErrorForbidden, "account has no safe signout permission", nil)
 	}
+	avatarURL, err := qtx.GetAppUserAvatarURL(ctx, user.ID)
+	if err != nil {
+		return SessionResult{}, s.internal("load signin profile", err)
+	}
 	if err = qtx.ResetSigninFailures(ctx, user.ID); err != nil {
 		return SessionResult{}, s.internal("reset signin failures", err)
 	}
@@ -88,7 +92,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 		return SessionResult{}, s.internal("commit signin", err)
 	}
 	return SessionResult{
-		Data:         SessionData{User: userSummary(user), CSRFToken: csrfToken, Permissions: permissions},
+		Data:         SessionData{User: userSummary(user, avatarURL), CSRFToken: csrfToken, Permissions: permissions},
 		SessionToken: sessionToken, ExpiresAt: absoluteEnds,
 	}, nil
 }
@@ -160,7 +164,10 @@ func (s *Service) loadPrincipal(ctx context.Context, rawToken string) (Principal
 		return Principal{}, domainError(ErrorUnauthenticated, "session expired", nil)
 	}
 	return Principal{
-		SessionID: session.ID, User: UserSummary{ID: session.UserID, Username: session.Username, DisplayName: session.DisplayName},
+		SessionID: session.ID, User: UserSummary{
+			ID: session.UserID, Username: session.Username,
+			DisplayName: session.DisplayName, AvatarURL: session.AvatarUrl,
+		},
 		CSRFHash: session.CsrfTokenHash, Permissions: permissions,
 		IdleExpires: session.IdleExpiresAt.Time, AbsoluteEnds: session.AbsoluteExpiresAt.Time,
 	}, nil
@@ -193,10 +200,76 @@ func (s *Service) GetProfile(ctx context.Context, userID string) (ProfileView, e
 	if err != nil {
 		return ProfileView{}, s.internal("get current user profile", err)
 	}
-	return ProfileView{
-		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
-		PasswordChangedAt: user.PasswordChangedAt.Time, Revision: user.Revision,
-	}, nil
+	avatarURL, err := s.queries.GetAppUserAvatarURL(ctx, userID)
+	if err != nil {
+		return ProfileView{}, s.internal("get current user avatar", err)
+	}
+	return profileView(user, avatarURL), nil
+}
+
+func (s *Service) SaveProfile(
+	ctx context.Context,
+	userID string,
+	input SaveProfileInput,
+	requestID string,
+) (ProfileView, error) {
+	if !validID(userID) {
+		return ProfileView{}, domainError(ErrorUnauthenticated, "session expired", nil)
+	}
+	input, err := validateSaveProfile(input)
+	if err != nil {
+		return ProfileView{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ProfileView{}, s.internal("begin profile save", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	locked, err := qtx.GetAppUserByIDForUpdate(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && locked.Status != StatusEnabled) {
+		return ProfileView{}, domainError(ErrorUnauthenticated, "session expired", nil)
+	}
+	if err != nil {
+		return ProfileView{}, s.internal("lock profile user", err)
+	}
+	currentAvatarURL, err := qtx.GetAppUserAvatarURL(ctx, userID)
+	if err != nil {
+		return ProfileView{}, s.internal("get locked user avatar", err)
+	}
+	displayNameChanged := locked.DisplayName != input.DisplayName
+	avatarChanged := !optionalStringEqual(currentAvatarURL, input.AvatarURL)
+	if !displayNameChanged && !avatarChanged {
+		return profileView(locked, currentAvatarURL), nil
+	}
+	updated, err := qtx.UpdateCurrentAppUserProfile(ctx, dbsqlc.UpdateCurrentAppUserProfileParams{
+		ID: userID, DisplayName: input.DisplayName, ActorID: &userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProfileView{}, domainError(ErrorUnauthenticated, "session expired", nil)
+	}
+	if err != nil {
+		return ProfileView{}, s.writeError("update current user profile", err)
+	}
+	if input.AvatarURL == nil {
+		if err = qtx.DeleteAppUserProfileAvatar(ctx, userID); err != nil {
+			return ProfileView{}, s.writeError("clear current user avatar", err)
+		}
+	} else if err = qtx.UpsertAppUserProfileAvatar(ctx, dbsqlc.UpsertAppUserProfileAvatarParams{
+		UserID: userID, AvatarUrl: *input.AvatarURL, ActorID: &userID,
+	}); err != nil {
+		return ProfileView{}, s.writeError("save current user avatar", err)
+	}
+	if err = s.audit(
+		ctx, qtx, "USER_PROFILE_SAVE", &userID, "user", &userID, "SUCCESS", requestID,
+		map[string]any{"displayNameChanged": displayNameChanged, "avatarChanged": avatarChanged},
+	); err != nil {
+		return ProfileView{}, s.internal("audit profile save", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return ProfileView{}, s.internal("commit profile save", err)
+	}
+	return profileView(updated, input.AvatarURL), nil
 }
 
 func (s *Service) ChangePassword(ctx context.Context, principal Principal, input ChangePasswordInput, requestID string) error {

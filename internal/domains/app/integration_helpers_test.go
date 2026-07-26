@@ -52,6 +52,7 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
 		TRUNCATE app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
+			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users;
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
 	`)

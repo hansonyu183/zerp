@@ -133,6 +133,14 @@ type AppUser struct {
 	Revision          int64              `db:"revision" json:"revision"`
 }
 
+type AppUserProfile struct {
+	UserID    string             `db:"user_id" json:"user_id"`
+	AvatarUrl string             `db:"avatar_url" json:"avatar_url"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy *string            `db:"updated_by" json:"updated_by"`
+}
+
 type AppUserRole struct {
 	UserID    string             `db:"user_id" json:"user_id"`
 	RoleID    string             `db:"role_id" json:"role_id"`

@@ -7,8 +7,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func userSummary(user dbsqlc.AppUser) UserSummary {
-	return UserSummary{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName}
+func userSummary(user dbsqlc.AppUser, avatarURL *string) UserSummary {
+	return UserSummary{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, AvatarURL: avatarURL}
+}
+
+func profileView(user dbsqlc.AppUser, avatarURL *string) ProfileView {
+	return ProfileView{
+		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, AvatarURL: avatarURL,
+		PasswordChangedAt: user.PasswordChangedAt.Time, Revision: user.Revision,
+	}
 }
 
 func userView(user dbsqlc.AppUser) UserView {

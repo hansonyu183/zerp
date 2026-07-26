@@ -48,6 +48,7 @@ APP 不负责：
 | 实体 | 建议表名 | 说明 |
 | --- | --- | --- |
 | 用户 | `app_users` | 可登录的身份主体，保存账号状态和密码摘要 |
+| 用户资料 | `app_user_profiles` | 用户的一对一扩展资料，当前保存私有配置的 HTTPS 头像地址 |
 | 角色 | `app_roles` | 可复用的权限集合 |
 | 权限 | `app_permissions` | 后端可调用 API 的目录项，路径是业务唯一标识 |
 | 用户角色 | `app_user_roles` | 用户与角色的多对多关联 |
@@ -62,6 +63,8 @@ APP 不负责：
 
 ```text
 User ──< UserRole >── Role ──< RolePermission >── Permission
+  │
+  ├──── UserProfile
   │
   └──< Session
 ```
@@ -263,19 +266,35 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.4 当前用户自助接口
 
-`POST /app/user/profile` 使用空对象请求体，返回当前会话用户的非敏感资料：
+`POST /app/user/profile` 使用空对象请求体时返回当前会话用户的非敏感资料：
 
 ```json
 {
   "id": "01J...",
   "username": "alice",
   "displayName": "Alice",
+  "avatarUrl": "https://images.example.com/alice.png",
   "passwordChangedAt": "2026-07-22T10:00:00Z",
   "revision": 2
 }
 ```
 
-该接口只读取当前登录用户，不接受目标用户 ID，不返回角色、密码摘要、失败登录计数或会话信息。
+携带资料字段时，同一路径保存当前用户资料：
+
+```json
+{
+  "displayName": "Alice",
+  "avatarUrl": "https://images.example.com/alice.png"
+}
+```
+
+`displayName` 去除首尾空白后必须为 1–128 个 Unicode 字符。`avatarUrl` 省略、为 `null`
+或为空字符串时清除头像；非空时必须是不含用户凭证和 Fragment 的 HTTPS 绝对地址，最长 500 个字符。
+保存不接受用户 ID、角色、状态、密码或客户端 `revision`，不会撤销现有会话；成功响应与空对象读取结构一致。
+无实际变化时幂等返回且不增加 `revision`。实际修改在同一事务内更新显示名称、头像和审计事件，
+审计只记录字段是否变化，不记录头像地址。
+
+该接口只读取或修改当前登录用户，不返回角色、密码摘要、失败登录计数或会话信息。
 
 `POST /app/user/change-password` 请求：
 

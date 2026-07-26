@@ -72,6 +72,7 @@ type Querier interface {
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
+	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
 	DeleteAppUserRoles(ctx context.Context, userID string) error
 	DeleteBobAuditEventsForDraft(ctx context.Context, arg DeleteBobAuditEventsForDraftParams) (int64, error)
 	DeleteBobCategoryDetail(ctx context.Context, versionID string) (int64, error)
@@ -105,6 +106,7 @@ type Querier interface {
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
 	GetAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
 	GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error)
+	GetAppUserAvatarURL(ctx context.Context, userID string) (*string, error)
 	GetAppUserByID(ctx context.Context, id string) (AppUser, error)
 	GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUser, error)
 	GetAppUserByUsername(ctx context.Context, username string) (AppUser, error)
@@ -277,6 +279,7 @@ type Querier interface {
 	UpdateBobSupplierDetail(ctx context.Context, arg UpdateBobSupplierDetailParams) (int64, error)
 	UpdateBobVehicleDetail(ctx context.Context, arg UpdateBobVehicleDetailParams) (int64, error)
 	UpdateBobWarehouseDetail(ctx context.Context, arg UpdateBobWarehouseDetailParams) (int64, error)
+	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)
 	UpdateVouIntermediarySaleOrderDetail(ctx context.Context, arg UpdateVouIntermediarySaleOrderDetailParams) (int64, error)
@@ -285,6 +288,7 @@ type Querier interface {
 	UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error)
 	UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error)
 	UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error)
+	UpsertAppUserProfileAvatar(ctx context.Context, arg UpsertAppUserProfileAvatarParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -19,7 +19,10 @@ import {
   intermediaryTradeDefinition,
   stageDefinition,
 } from '@/pages/wfl/intermediary-trade/definition'
-import { useIntermediaryWorkflowViewModel } from '@/pages/wfl/intermediary-trade/vm'
+import {
+  useIntermediaryWorkflowViewModel,
+  type IntermediaryWorkflowViewModel,
+} from '@/pages/wfl/intermediary-trade/vm'
 import type {
   IntermediaryChildSummary,
   IntermediaryWorkflowDocument,
@@ -82,6 +85,31 @@ const VTextFieldStub = defineComponent({
       })
   },
 })
+
+function mountIntermediaryTrade(vm: IntermediaryWorkflowViewModel) {
+  return shallowMount(IntermediaryTrade as Component, {
+    props: { model: vm },
+    global: {
+      stubs: {
+        VAlert: passthroughStub('VAlert', 'aside'),
+        VBtn: VBtnStub,
+        VCard: passthroughStub('VCard', 'section'),
+        VCardActions: passthroughStub('VCardActions'),
+        VCardText: passthroughStub('VCardText'),
+        VCardTitle: passthroughStub('VCardTitle', 'h2'),
+        VContainer: passthroughStub('VContainer'),
+        VDialog: passthroughStub('VDialog'),
+        VFooter: passthroughStub('VFooter'),
+        VSpacer: passthroughStub('VSpacer'),
+        VTable: passthroughStub('VTable', 'table'),
+        VTextField: VTextFieldStub,
+        VTextarea: VTextFieldStub,
+        VWindow: passthroughStub('VWindow'),
+        VWindowItem: passthroughStub('VWindowItem'),
+      },
+    },
+  })
+}
 
 const reference = (entity: string, code: string) => ({
   objectId: `${entity}-1`,
@@ -685,12 +713,23 @@ describe('WFL 居间贸易后端契约', () => {
     )
   })
 
-  it('已保存的阶段草稿按状态决定是否可编辑', () => {
+  it('已保存的阶段草稿同时按状态和保存权限决定是否可编辑', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-save',
+      '/wfl/intermediary-trade/procurement-get',
+    ]
     const vm = useIntermediaryWorkflowViewModel()
+    vm.stageEditing.value = 'RECEIPT'
     vm.stageChild.value = {
       childId: 'RECEIPT-1',
       status: 'DRAFT',
     } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
     expect(vm.stageEditable.value).toBe(true)
 
     vm.stageChild.value.status = 'CHECKED'
@@ -928,28 +967,7 @@ describe('WFL 居间贸易后端契约', () => {
       remark: '',
     }
 
-    const wrapper = shallowMount(IntermediaryTrade as Component, {
-      props: { model: vm },
-      global: {
-        stubs: {
-          VAlert: passthroughStub('VAlert', 'aside'),
-          VBtn: VBtnStub,
-          VCard: passthroughStub('VCard', 'section'),
-          VCardActions: passthroughStub('VCardActions'),
-          VCardText: passthroughStub('VCardText'),
-          VCardTitle: passthroughStub('VCardTitle', 'h2'),
-          VContainer: passthroughStub('VContainer'),
-          VDialog: passthroughStub('VDialog'),
-          VFooter: passthroughStub('VFooter'),
-          VSpacer: passthroughStub('VSpacer'),
-          VTable: passthroughStub('VTable', 'table'),
-          VTextField: VTextFieldStub,
-          VTextarea: VTextFieldStub,
-          VWindow: passthroughStub('VWindow'),
-          VWindowItem: passthroughStub('VWindowItem'),
-        },
-      },
-    })
+    const wrapper = mountIntermediaryTrade(vm)
 
     expect(wrapper.text()).toContain(
       '保存收货单需要采购详情权限。当前表单仅供查看。',
@@ -965,6 +983,39 @@ describe('WFL 居间贸易后端契约', () => {
     expect(saveButton?.attributes('title')).toBe(
       '保存收货单需要采购详情权限。当前表单仅供查看。',
     )
+  })
+
+  it('只有阶段查看权限时表单只读且不显示保存按钮', () => {
+    const session = useSessionStore()
+    session.permissions = ['/wfl/intermediary-trade/receipt-get']
+    const vm = useIntermediaryWorkflowViewModel()
+    vi.spyOn(vm, 'query').mockResolvedValue()
+    vm.stageDialogOpen.value = true
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageChild.value = {
+      childId: 'RECEIPT-1',
+      childNo: 'GR-1',
+      stage: 'RECEIPT',
+      status: 'DRAFT',
+      revision: 1,
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
+
+    const wrapper = mountIntermediaryTrade(vm)
+
+    expect(vm.stageSaveVisible.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBeNull()
+    expect(vm.stageEditable.value).toBe(false)
+    expect(
+      wrapper.get('input[aria-label="收货日期"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.findAll('button').some((item) => item.text().includes('保存草稿')),
+    ).toBe(false)
   })
 
   it('反向和删除原因统一限制为 1–1000 字', async () => {

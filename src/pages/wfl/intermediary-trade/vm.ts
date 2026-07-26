@@ -314,7 +314,7 @@ export function useIntermediaryWorkflowViewModel() {
     return null
   })
   const stageEditable = computed(
-    () => stageStateEditable.value && !stageSaveBlockedReason.value,
+    () => stageSaveVisible.value && !stageSaveBlockedReason.value,
   )
   const workspaceDirty = computed(
     () =>

@@ -23,6 +23,9 @@ type Config struct {
 	DatabaseConnectTimeout      time.Duration
 	DatabaseHealthTimeout       time.Duration
 	ReadHeaderTimeout           time.Duration
+	ReadTimeout                 time.Duration
+	WriteTimeout                time.Duration
+	IdleTimeout                 time.Duration
 	ShutdownTimeout             time.Duration
 	SessionCookieName           string
 	SessionCookieSecure         bool
@@ -82,6 +85,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.ReadHeaderTimeout, err = durationOrDefault("HTTP_READ_HEADER_TIMEOUT", 5*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.ReadTimeout, err = durationOrDefault("HTTP_READ_TIMEOUT", 2*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.WriteTimeout, err = durationOrDefault("HTTP_WRITE_TIMEOUT", 2*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdleTimeout, err = durationOrDefault("HTTP_IDLE_TIMEOUT", time.Minute); err != nil {
 		return Config{}, err
 	}
 	if cfg.ShutdownTimeout, err = durationOrDefault("SHUTDOWN_TIMEOUT", 10*time.Second); err != nil {

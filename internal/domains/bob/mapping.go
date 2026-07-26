@@ -72,13 +72,6 @@ func queryItem(row dbsqlc.BobVersionView) QueryItem {
 	}
 }
 
-func versionSummary(row dbsqlc.BobVersionView) VersionSummary {
-	return VersionSummary{
-		VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status, Revision: row.VersionRevision,
-		Summary: detailView(row),
-	}
-}
-
 func versionHistoryItem(row dbsqlc.BobVersionView) VersionHistoryItem {
 	return VersionHistoryItem{
 		VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status, Revision: row.VersionRevision,

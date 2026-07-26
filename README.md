@@ -8,7 +8,7 @@ ZERP Backend 是供企业内部使用的 ERP 后端服务，面向基础资料�
 
 | 技术 | 基线版本 | 用途 |
 | --- | --- | --- |
-| [Go](https://go.dev/) | 1.26 | 服务端开发语言 |
+| [Go](https://go.dev/) | 1.26.5 | 服务端开发语言 |
 | [Gin](https://gin-gonic.com/) | 1.12 | HTTP 路由、中间件和请求处理 |
 | [PostgreSQL](https://www.postgresql.org/) | 18 | 业务数据、权限数据和会话数据存储 |
 | [pgx](https://github.com/jackc/pgx) | 5.10 | PostgreSQL 驱动和连接池 |
@@ -20,7 +20,7 @@ ZERP Backend 是供企业内部使用的 ERP 后端服务，面向基础资料�
 
 ## 环境要求
 
-- Go 1.26+
+- Go 1.26.5+
 - Docker 与 Docker Compose v2
 - GNU Make
 
@@ -108,6 +108,9 @@ make ENV_FILE=.env.test compose-up
 | `DATABASE_CONNECT_TIMEOUT` | 否 | `5s` | 首次连接数据库超时 |
 | `DATABASE_HEALTH_TIMEOUT` | 否 | `2s` | 数据库就绪检查超时 |
 | `HTTP_READ_HEADER_TIMEOUT` | 否 | `5s` | HTTP 请求头读取超时 |
+| `HTTP_READ_TIMEOUT` | 否 | `2m` | HTTP 请求（含附件上传）完整读取超时 |
+| `HTTP_WRITE_TIMEOUT` | 否 | `2m` | HTTP 响应（含附件下载）完整写入超时 |
+| `HTTP_IDLE_TIMEOUT` | 否 | `60s` | HTTP Keep-Alive 空闲连接超时 |
 | `SHUTDOWN_TIMEOUT` | 否 | `10s` | 优雅关闭等待时间 |
 | `APP_SESSION_COOKIE_NAME` | 否 | `zerp_session` | 服务端会话 Cookie 名称 |
 | `APP_SESSION_COOKIE_SECURE` | 否 | `true` | 是否仅通过 HTTPS 发送会话 Cookie；生产环境必须为 `true`，仅 development/test 纯 HTTP 本地调试可设为 `false` |

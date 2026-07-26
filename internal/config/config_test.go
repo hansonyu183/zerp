@@ -14,6 +14,9 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("DATABASE_CONNECT_TIMEOUT", "")
 	t.Setenv("DATABASE_HEALTH_TIMEOUT", "")
 	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "")
+	t.Setenv("HTTP_READ_TIMEOUT", "")
+	t.Setenv("HTTP_WRITE_TIMEOUT", "")
+	t.Setenv("HTTP_IDLE_TIMEOUT", "")
 	t.Setenv("SHUTDOWN_TIMEOUT", "")
 
 	cfg, err := Load()
@@ -29,6 +32,16 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.DatabaseConnectTimeout != 5*time.Second {
 		t.Fatalf("DatabaseConnectTimeout = %s, want 5s", cfg.DatabaseConnectTimeout)
+	}
+	if cfg.ReadHeaderTimeout != 5*time.Second || cfg.ReadTimeout != 2*time.Minute ||
+		cfg.WriteTimeout != 2*time.Minute || cfg.IdleTimeout != time.Minute {
+		t.Fatalf(
+			"HTTP timeouts = header:%s read:%s write:%s idle:%s",
+			cfg.ReadHeaderTimeout,
+			cfg.ReadTimeout,
+			cfg.WriteTimeout,
+			cfg.IdleTimeout,
+		)
 	}
 	if cfg.AttachmentStorageRoot != "./var/attachments" ||
 		cfg.AttachmentUploadTTL != 15*time.Minute || cfg.AttachmentDownloadTTL != 5*time.Minute ||
@@ -106,11 +119,21 @@ func TestLoadRequiresDatabaseURL(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidDuration(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://example")
-	t.Setenv("SHUTDOWN_TIMEOUT", "later")
+	for _, key := range []string{
+		"HTTP_READ_HEADER_TIMEOUT",
+		"HTTP_READ_TIMEOUT",
+		"HTTP_WRITE_TIMEOUT",
+		"HTTP_IDLE_TIMEOUT",
+		"SHUTDOWN_TIMEOUT",
+	} {
+		t.Run(key, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://example")
+			t.Setenv(key, "later")
 
-	if _, err := Load(); err == nil {
-		t.Fatal("Load() error = nil, want an error")
+			if _, err := Load(); err == nil {
+				t.Fatalf("Load() accepted invalid %s", key)
+			}
+		})
 	}
 }
 

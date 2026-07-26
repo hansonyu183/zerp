@@ -14,6 +14,17 @@ import (
 	"github.com/hansonyu183/zerp-back/internal/httpserver"
 )
 
+func newHTTPServer(cfg config.Config, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              cfg.HTTPAddress,
+		Handler:           handler,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+	}
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -36,11 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	httpServer := &http.Server{
-		Addr:              cfg.HTTPAddress,
-		Handler:           router,
-		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
-	}
+	httpServer := newHTTPServer(cfg, router)
 
 	serverErrors := make(chan error, 1)
 	go func() {

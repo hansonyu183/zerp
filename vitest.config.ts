@@ -35,6 +35,12 @@ export default defineConfig({
           branches: 54,
           functions: 62,
         },
+        'src/pages/bob/shared/history.ts': {
+          lines: 100,
+          statements: 95,
+          branches: 78,
+          functions: 100,
+        },
         'src/pages/led/opening/vm.ts': {
           lines: 68,
           statements: 60,
@@ -47,11 +53,23 @@ export default defineConfig({
           branches: 53,
           functions: 58,
         },
+        'src/pages/vou/shared/artifacts.ts': {
+          lines: 100,
+          statements: 100,
+          branches: 82,
+          functions: 100,
+        },
         'src/pages/wfl/intermediary-trade/vm.ts': {
           lines: 33,
           statements: 31,
           branches: 22,
           functions: 30,
+        },
+        'src/pages/wfl/intermediary-trade/validation.ts': {
+          lines: 100,
+          statements: 100,
+          branches: 90,
+          functions: 100,
         },
       },
     },

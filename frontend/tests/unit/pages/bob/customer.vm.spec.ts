@@ -124,9 +124,9 @@ describe('customer shared BOB configuration and view model', () => {
       'salespersonEmployeeId',
     ])
     expect(customerConfig.columns.map((column) => column.label)).toEqual([
-      '客户编码',
-      '客户名称',
-      '客户类型',
+      '编码',
+      '名称',
+      '类型',
       '简称',
       '状态',
     ])

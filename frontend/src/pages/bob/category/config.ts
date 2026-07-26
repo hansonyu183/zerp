@@ -40,10 +40,10 @@ export const categoryConfig = defineBobEntityConfig({
     reference('parentId', '父分类', context),
     textarea('description', '说明'),
   ],
-  columns: baseColumns('分类编码', '分类名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'targetEntity',
-      label: '适用实体',
+      label: '实体',
       value: (row) => row.currentVersion.summary.targetEntity,
       format: (value) =>
         targetEntityOptions.find((item) => item.value === value)?.title ??

@@ -91,13 +91,13 @@ const lastPage = computed(() =>
         <v-table class="wfl-list__table">
           <thead>
             <tr>
-              <th>客户订单号</th>
-              <th>业务日期</th>
+              <th>订单号</th>
+              <th>日期</th>
               <th>客户</th>
-              <th>流程状态</th>
-              <th>当前阶段</th>
+              <th>状态</th>
+              <th>阶段</th>
               <th class="text-end">金额</th>
-              <th>更新时间</th>
+              <th>更新</th>
               <th />
             </tr>
           </thead>

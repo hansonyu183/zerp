@@ -125,9 +125,9 @@ function removeLine(index: number): void {
             <th>#</th>
             <th class="voucher-lines__reference">产品</th>
             <th>数量</th>
-            <th>含税单价</th>
-            <th v-if="purchasePriceRequired">采购含税单价</th>
-            <th>行金额</th>
+            <th>售价</th>
+            <th v-if="purchasePriceRequired">采购价</th>
+            <th>金额</th>
             <th>备注</th>
             <th v-if="editable" />
           </tr>

@@ -169,6 +169,21 @@ function mountList(
 }
 
 describe('VoucherList', () => {
+  it('使用适合窄屏的短列名', () => {
+    const wrapper = mountList()
+
+    expect(wrapper.findAll('th').map((heading) => heading.text())).toEqual([
+      '单号',
+      '日期',
+      '往来方',
+      '状态',
+      '币种',
+      '金额',
+      '更新',
+      '操作',
+    ])
+  })
+
   it('默认收起筛选条件并允许反复展开和收起', async () => {
     const wrapper = mountList()
     const toggle = wrapper.get('[data-test="filter-toggle"]')

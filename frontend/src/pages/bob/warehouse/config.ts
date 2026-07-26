@@ -45,7 +45,7 @@ export const warehouseConfig = defineBobEntityConfig({
     }),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('仓库编码', '仓库名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'address',
       label: '地址',

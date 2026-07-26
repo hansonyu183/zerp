@@ -89,11 +89,11 @@ function col(
 }
 
 const commonEntryColumns: readonly LedgerColumn[] = [
-  col('effectiveDate', '生效日期', (row) => text(row, 'effectiveDate')),
-  col('occurredAt', '入账时间', (row) => time(row, 'occurredAt')),
+  col('effectiveDate', '日期', (row) => text(row, 'effectiveDate')),
+  col('occurredAt', '入账', (row) => time(row, 'occurredAt')),
   col('entryType', '类型', (row) =>
     translated(row, 'entryType', entryTypeText)),
-  col('sourceDocumentNo', '来源单号', (row) =>
+  col('sourceDocumentNo', '单号', (row) =>
     text(row, 'sourceDocumentNo')),
 ]
 
@@ -142,7 +142,7 @@ export const ledgerEntityConfigs: Readonly<
     directions: inOut,
     entryColumns: [
       ...commonEntryColumns,
-      col('fundAccount', '资金账户', (row) => reference(row, 'fundAccount')),
+      col('fundAccount', '账户', (row) => reference(row, 'fundAccount')),
       col('direction', '方向', (row) =>
         translated(row, 'direction', directionText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
@@ -150,9 +150,9 @@ export const ledgerEntityConfigs: Readonly<
       ...endingEntryColumns,
     ],
     balanceColumns: [
-      col('fundAccount', '资金账户', (row) => reference(row, 'fundAccount')),
+      col('fundAccount', '账户', (row) => reference(row, 'fundAccount')),
       col('currency', '币种', (row) => text(row, 'currency')),
-      col('balanceType', '余额类型', (row) =>
+      col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
     ],
@@ -181,7 +181,7 @@ export const ledgerEntityConfigs: Readonly<
     balanceColumns: [
       col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
       col('currency', '币种', (row) => text(row, 'currency')),
-      col('balanceType', '余额类型', (row) =>
+      col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
     ],
@@ -194,20 +194,20 @@ export const ledgerEntityConfigs: Readonly<
     directions: [],
     entryColumns: [
       ...commonEntryColumns,
-      col('rootDocumentNo', '根单号', (row) => text(row, 'rootDocumentNo')),
+      col('rootDocumentNo', '根单', (row) => text(row, 'rootDocumentNo')),
       col('customer', '客户', (row) => reference(row, 'customer')),
-      col('containerType', '空桶类型', (row) =>
+      col('containerType', '桶型', (row) =>
         translated(row, 'containerType', containerTypeText)),
-      col('quantity', '数量增量', (row) => text(row, 'quantity'), {
+      col('quantity', '增量', (row) => text(row, 'quantity'), {
         align: 'end',
       }),
       ...endingEntryColumns,
     ],
     balanceColumns: [
       col('customer', '客户', (row) => reference(row, 'customer')),
-      col('containerType', '空桶类型', (row) =>
+      col('containerType', '桶型', (row) =>
         translated(row, 'containerType', containerTypeText)),
-      col('quantity', '客户欠桶', (row) => text(row, 'quantity'), {
+      col('quantity', '欠桶', (row) => text(row, 'quantity'), {
         align: 'end',
       }),
     ],

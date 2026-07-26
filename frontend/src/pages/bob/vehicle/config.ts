@@ -61,15 +61,15 @@ export const vehicleConfig = defineBobEntityConfig({
     }),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('车辆编码', '车辆名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'plateNumber',
-      label: '车牌号',
+      label: '车牌',
       value: (row) => row.currentVersion.summary.plateNumber,
     },
     {
       key: 'vehicleType',
-      label: '车辆类型',
+      label: '类型',
       value: (row) => row.currentVersion.summary.vehicleType,
     },
   ]),

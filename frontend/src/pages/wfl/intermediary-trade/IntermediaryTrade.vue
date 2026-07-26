@@ -489,7 +489,7 @@ function createSignoff(document: WflDocumentSummary): void {
           </div>
           <div class="intermediary-trade__table-wrap">
             <v-table>
-              <thead><tr><th>产品</th><th>客户订购量</th><th>采购数量</th><th>采购含税单价</th><th>备注</th></tr></thead>
+              <thead><tr><th>产品</th><th>订购</th><th>采购</th><th>采购价</th><th>备注</th></tr></thead>
               <tbody>
                 <tr v-for="line in stageDraftAs<IntermediaryProcurementDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
@@ -507,7 +507,7 @@ function createSignoff(document: WflDocumentSummary): void {
           <v-text-field v-model="stageDraftAs<IntermediaryReceiptDraft>().receiptDate" :disabled="!vm.stageEditable" label="收货日期" type="date" variant="outlined" />
           <div class="intermediary-trade__table-wrap">
             <v-table>
-              <thead><tr><th>产品</th><th>本次实收数量</th><th>备注</th></tr></thead>
+              <thead><tr><th>产品</th><th>实收</th><th>备注</th></tr></thead>
               <tbody>
                 <tr v-for="line in stageDraftAs<IntermediaryReceiptDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
@@ -547,7 +547,7 @@ function createSignoff(document: WflDocumentSummary): void {
           </div>
           <div class="intermediary-trade__table-wrap">
             <v-table>
-              <thead><tr><th>产品</th><th>当前可送</th><th>本次送货</th><th>备注</th></tr></thead>
+              <thead><tr><th>产品</th><th>可送</th><th>送货</th><th>备注</th></tr></thead>
               <tbody>
                 <tr v-for="line in stageDraftAs<IntermediaryDeliveryDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
@@ -567,7 +567,7 @@ function createSignoff(document: WflDocumentSummary): void {
           <v-text-field v-model="stageDraftAs<IntermediarySignoffDraft>().signoffDate" :disabled="!vm.stageEditable" label="签收日期" type="date" variant="outlined" />
           <div class="intermediary-trade__table-wrap">
             <v-table>
-              <thead><tr><th>产品</th><th>送货数</th><th>签收数</th><th>拒收数</th><th>损耗数（自动）</th><th>备注</th></tr></thead>
+              <thead><tr><th>产品</th><th>送货</th><th>签收</th><th>拒收</th><th>损耗（自动）</th><th>备注</th></tr></thead>
               <tbody>
                 <tr v-for="(line, index) in stageDraftAs<IntermediarySignoffDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>

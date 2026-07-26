@@ -72,8 +72,8 @@ const statusOptions = [
 ]
 const sortOptions = [
   { title: '最近更新', value: 'updatedAt' },
-  { title: '单据号', value: 'documentNo' },
-  { title: '业务日期', value: 'businessDate' },
+  { title: '单号', value: 'documentNo' },
+  { title: '日期', value: 'businessDate' },
   { title: '状态', value: 'status' },
   { title: '金额', value: 'amount' },
 ]
@@ -212,9 +212,9 @@ function changeStatuses(value: unknown): void {
         <v-table class="voucher-list__table">
           <thead>
             <tr>
-              <th>单据号</th><th>业务日期</th><th>往来方</th>
+              <th>单号</th><th>日期</th><th>往来方</th>
               <th>状态</th><th>币种</th><th class="text-end">金额</th>
-              <th>更新时间</th><th class="text-end">操作</th>
+              <th>更新</th><th class="text-end">操作</th>
             </tr>
           </thead>
           <tbody>

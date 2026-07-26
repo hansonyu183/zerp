@@ -75,10 +75,10 @@ export const customerConfig = defineBobEntityConfig({
     textarea('address', '地址', 500),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('客户编码', '客户名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'customerType',
-      label: '客户类型',
+      label: '类型',
       value: (row) => row.currentVersion.summary.customerType,
       format: (value) =>
         customerTypeOptions.find((item) => item.value === value)?.title ??

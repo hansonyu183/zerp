@@ -345,7 +345,7 @@ Playwright 必须连接独立的真实测试后端，使用专用测试账号和
 
 测试 API 地址、账号和数据初始化方式通过 CI 密钥或受控测试环境提供，不得提交到 Git。
 普通 Pull Request 只执行快速质量门禁；真实后端 E2E 通过 GitHub
-`e2e` Environment 中的受控密钥手动触发，并保存失败时的 Playwright 诊断产物。
+`e2e` Environment 中的受控密钥手动触发；CI 不保存或上传可能包含凭证或认证状态的 Playwright 产物。
 
 ## Cloudflare Pages 部署
 

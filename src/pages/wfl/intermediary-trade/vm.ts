@@ -263,6 +263,7 @@ export function useIntermediaryWorkflowViewModel() {
   const auditPage = ref(1)
   const auditPageSize = ref(20)
   const auditTotal = ref(0)
+  const auditController = ref<AbortController | null>(null)
 
   const referenceStates = reactive<Record<string, ReferenceState>>({})
   const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -291,10 +292,29 @@ export function useIntermediaryWorkflowViewModel() {
   const rootContainerBalance = computed(() =>
     containerBalance(document.value?.balances),
   )
-  const stageEditable = computed(
+  const stageStateEditable = computed(
     () =>
       !stageChild.value ||
       stageChild.value.status === 'DRAFT',
+  )
+  const stageSaveVisible = computed(
+    () =>
+      Boolean(stageDraft.value) &&
+      stageStateEditable.value &&
+      can(stageSaveAction()),
+  )
+  const stageSaveBlockedReason = computed(() => {
+    if (!stageSaveVisible.value) return null
+    if (stageEditing.value === 'RECEIPT' && !can('procurement-get')) {
+      return '保存收货单需要采购详情权限。当前表单仅供查看。'
+    }
+    if (stageEditing.value === 'SIGNOFF' && !can('delivery-get')) {
+      return '保存签收单需要送货详情权限。当前表单仅供查看。'
+    }
+    return null
+  })
+  const stageEditable = computed(
+    () => stageSaveVisible.value && !stageSaveBlockedReason.value,
   )
   const workspaceDirty = computed(
     () =>
@@ -385,6 +405,25 @@ export function useIntermediaryWorkflowViewModel() {
     return can(action) && Boolean(checkedBy) && checkedBy !== currentUserId.value
   }
 
+  function stageSaveAction(): IntermediaryAction {
+    const operation = stageChild.value ? 'save' : 'create'
+    return `${stageEditing.value.toLowerCase()}-${operation}` as IntermediaryAction
+  }
+
+  function canSaveStage(): boolean {
+    return stageSaveVisible.value && stageEditable.value
+  }
+
+  function resetAudit(): void {
+    auditController.value?.abort()
+    auditController.value = null
+    auditEvents.value = []
+    auditLoading.value = false
+    auditError.value = null
+    auditPage.value = 1
+    auditTotal.value = 0
+  }
+
   function queryFilters(): Record<string, unknown> {
     return {
       ...(filters.keyword.trim() ? { keyword: filters.keyword.trim() } : {}),
@@ -457,6 +496,7 @@ export function useIntermediaryWorkflowViewModel() {
 
   function openCreate(): void {
     if (!canCreate.value) return
+    resetAudit()
     document.value = null
     orderDraft.value = emptyOrder()
     orderEditing.value = true
@@ -476,6 +516,10 @@ export function useIntermediaryWorkflowViewModel() {
   async function loadDocument(processId?: string): Promise<void> {
     const target = processId ?? document.value?.processId
     if (!target || workspaceLoading.value) return
+    if (target !== document.value?.processId) {
+      activeStep.value = 1
+      resetAudit()
+    }
     workspaceLoading.value = true
     workspaceError.value = null
     try {
@@ -963,6 +1007,12 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   async function saveStage(): Promise<boolean> {
+    if (!canSaveStage()) {
+      stageDialogError.value =
+        stageSaveBlockedReason.value ??
+        '当前账号没有保存本阶段草稿的权限。'
+      return false
+    }
     const validation = validateStage()
     if (validation) {
       stageDialogError.value = validation
@@ -1156,7 +1206,6 @@ export function useIntermediaryWorkflowViewModel() {
     if (!current) return
     stageChild.value = current
     stageDetail.value = await getChild(stageEditing.value, current)
-    stageSnapshot.value = JSON.stringify(stageDraft.value)
   }
 
   async function uploadChildAttachments(files: File[]): Promise<void> {
@@ -1372,30 +1421,53 @@ export function useIntermediaryWorkflowViewModel() {
 
   async function loadAudit(nextPage = auditPage.value): Promise<void> {
     if (!document.value || !can('audit-history')) return
+    auditController.value?.abort()
+    const controller = new AbortController()
+    const processId = document.value.processId
+    auditController.value = controller
     auditPage.value = nextPage
     auditLoading.value = true
     auditError.value = null
     try {
-      const { data } = await intermediaryWorkflowApi.audit({
-        processId: document.value.processId,
-        page: nextPage,
-        pageSize: auditPageSize.value,
-      })
+      const { data } = await intermediaryWorkflowApi.audit(
+        {
+          processId,
+          page: nextPage,
+          pageSize: auditPageSize.value,
+        },
+        controller.signal,
+      )
+      if (
+        controller.signal.aborted ||
+        document.value?.processId !== processId
+      ) {
+        return
+      }
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total
       auditPage.value = data.page
       auditPageSize.value = data.pageSize
     } catch (error) {
-      auditError.value = getErrorMessage(error)
+      if (!controller.signal.aborted) auditError.value = getErrorMessage(error)
     } finally {
-      auditLoading.value = false
+      if (auditController.value === controller) {
+        auditController.value = null
+        auditLoading.value = false
+      }
     }
+  }
+
+  function changeActiveStep(next: number): void {
+    activeStep.value = next
+    if (next === 6) void loadAudit(1)
   }
 
   function closeWorkspace(): void {
     if (childAttachmentLoading.value) return
     workspaceOpen.value = false
     stageDialogOpen.value = false
+    activeStep.value = 1
+    resetAudit()
   }
 
   function closeStageDialog(): void {
@@ -1408,6 +1480,7 @@ export function useIntermediaryWorkflowViewModel() {
   if (getCurrentScope()) {
     onScopeDispose(() => {
       queryController.value?.abort()
+      auditController.value?.abort()
       for (const timer of referenceTimers.values()) clearTimeout(timer)
     })
   }
@@ -1437,6 +1510,8 @@ export function useIntermediaryWorkflowViewModel() {
     stageDetail,
     stageDraft,
     stageEditable,
+    stageSaveVisible,
+    stageSaveBlockedReason,
     workspaceDirty,
     expectedContainers,
     signoffExpectedContainers,
@@ -1466,6 +1541,7 @@ export function useIntermediaryWorkflowViewModel() {
     currentUserId,
     can,
     canFinalize,
+    canSaveStage,
     query,
     search,
     resetFilters,
@@ -1493,6 +1569,7 @@ export function useIntermediaryWorkflowViewModel() {
     referenceLoading,
     referenceError,
     loadAudit,
+    changeActiveStep,
     closeWorkspace,
     closeStageDialog,
   }

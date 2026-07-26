@@ -12,9 +12,14 @@ import {
   wflFixtures,
 } from './wfl-runtime'
 
-const fixtures = wflFixtures()
-const redacted = redactedCredentials()
+let fixtures: ReturnType<typeof wflFixtures>
+let redacted: ReturnType<typeof redactedCredentials>
 let completedDocumentNo = ''
+
+test.beforeAll(() => {
+  fixtures = wflFixtures()
+  redacted = redactedCredentials()
+})
 
 async function signIn(
   page: Page,
@@ -210,10 +215,16 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toHaveValue(/^16(?:\.0+)?$/)
     await dialog.getByRole('button', { name: '关闭' }).click()
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反核对', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '居间采购')
     await workspace.getByRole('button', { name: '下单', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反下单', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
     await openStageTab(workspace, '分批收货')
@@ -233,10 +244,16 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toBeVisible({ timeout: 30_000 })
     await dialog.getByRole('button', { name: '关闭' }).click()
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反核对', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '分批收货')
     await workspace.getByRole('button', { name: '确认', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反确认', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
     await openStageTab(workspace, '分批送货')
@@ -255,10 +272,16 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await dialog.getByRole('button', { name: '保存草稿' }).click()
     await dialog.getByRole('button', { name: '关闭' }).click()
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反核对', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '分批送货')
     await workspace.getByRole('button', { name: '执行', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反执行', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
     await openStageTab(workspace, '分批送货')
@@ -268,6 +291,9 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await dialog.getByRole('button', { name: '关闭' }).click()
     await openStageTab(workspace, '客户签收')
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
+    await expect(
+      workspace.getByRole('button', { name: '反核对', exact: true }),
+    ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
     await openStageTab(workspace, '客户签收')

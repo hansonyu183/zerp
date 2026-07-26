@@ -1,7 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { shallowMount } from '@vue/test-utils'
+import { defineComponent, h, type Component } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/types'
 import { apiClient } from '@/api/client'
+import IntermediaryTrade from '@/pages/wfl/intermediary-trade/IntermediaryTrade.vue'
 import {
   calculateContainerBalanceAfter,
   calculateExpectedContainers,
@@ -16,7 +19,10 @@ import {
   intermediaryTradeDefinition,
   stageDefinition,
 } from '@/pages/wfl/intermediary-trade/definition'
-import { useIntermediaryWorkflowViewModel } from '@/pages/wfl/intermediary-trade/vm'
+import {
+  useIntermediaryWorkflowViewModel,
+  type IntermediaryWorkflowViewModel,
+} from '@/pages/wfl/intermediary-trade/vm'
 import type {
   IntermediaryChildSummary,
   IntermediaryWorkflowDocument,
@@ -33,6 +39,77 @@ vi.mock('@/api/client', () => ({
 }))
 
 const mockedApi = vi.mocked(apiClient)
+
+const passthroughStub = (name: string, tag = 'div') =>
+  defineComponent({
+    name,
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
+      return () => h(tag, attrs, slots.default?.())
+    },
+  })
+
+const VBtnStub = defineComponent({
+  name: 'VBtn',
+  inheritAttrs: false,
+  props: {
+    disabled: Boolean,
+  },
+  emits: ['click'],
+  setup(props, { attrs, emit, slots }) {
+    return () =>
+      h(
+        'button',
+        {
+          ...attrs,
+          disabled: props.disabled,
+          onClick: () => emit('click'),
+        },
+        slots.default?.(),
+      )
+  },
+})
+
+const VTextFieldStub = defineComponent({
+  name: 'VTextField',
+  inheritAttrs: false,
+  props: {
+    disabled: Boolean,
+  },
+  setup(props, { attrs }) {
+    return () =>
+      h('input', {
+        ...attrs,
+        'aria-label': attrs.label,
+        disabled: props.disabled,
+      })
+  },
+})
+
+function mountIntermediaryTrade(vm: IntermediaryWorkflowViewModel) {
+  return shallowMount(IntermediaryTrade as Component, {
+    props: { model: vm },
+    global: {
+      stubs: {
+        VAlert: passthroughStub('VAlert', 'aside'),
+        VBtn: VBtnStub,
+        VCard: passthroughStub('VCard', 'section'),
+        VCardActions: passthroughStub('VCardActions'),
+        VCardText: passthroughStub('VCardText'),
+        VCardTitle: passthroughStub('VCardTitle', 'h2'),
+        VContainer: passthroughStub('VContainer'),
+        VDialog: passthroughStub('VDialog'),
+        VFooter: passthroughStub('VFooter'),
+        VSpacer: passthroughStub('VSpacer'),
+        VTable: passthroughStub('VTable', 'table'),
+        VTextField: VTextFieldStub,
+        VTextarea: VTextFieldStub,
+        VWindow: passthroughStub('VWindow'),
+        VWindowItem: passthroughStub('VWindowItem'),
+      },
+    },
+  })
+}
 
 const reference = (entity: string, code: string) => ({
   objectId: `${entity}-1`,
@@ -233,6 +310,14 @@ function processView(options: { procurementVisible?: boolean } = {}) {
     updatedAt: '2026-07-25T03:00:00Z',
     updatedBy: 'USER-2',
   }
+}
+
+function draftReceiptProcessView(processId = 'PROCESS-1') {
+  const value = structuredClone(processView({ procurementVisible: true }))
+  value.processId = processId
+  const receipt = value.documents.find((item) => item.stage === 'RECEIPT')
+  if (receipt) receipt.status = 'DRAFT'
+  return value
 }
 
 describe('WFL 居间贸易后端契约', () => {
@@ -628,16 +713,309 @@ describe('WFL 居间贸易后端契约', () => {
     )
   })
 
-  it('已保存的阶段草稿按状态决定是否可编辑', () => {
+  it('已保存的阶段草稿同时按状态和保存权限决定是否可编辑', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-save',
+      '/wfl/intermediary-trade/procurement-get',
+    ]
+    const vm = useIntermediaryWorkflowViewModel()
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageChild.value = {
+      childId: 'RECEIPT-1',
+      status: 'DRAFT',
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
+    expect(vm.stageEditable.value).toBe(true)
+
+    vm.stageChild.value.status = 'CHECKED'
+    expect(vm.stageEditable.value).toBe(false)
+  })
+
+  it('附件刷新保留未保存子单草稿和 dirty 状态', async () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-get',
+      '/wfl/intermediary-trade/receipt-attachment-remove',
+    ]
+    mockedApi.post.mockImplementation((path, body) => {
+      if (path === 'wfl/intermediary-trade/get') {
+        const processId = (body as { processId: string }).processId
+        return Promise.resolve({ data: draftReceiptProcessView(processId) })
+      }
+      if (path === 'wfl/intermediary-trade/receipt-get') {
+        return Promise.resolve({
+          data: draftReceiptProcessView().documents.find(
+            (item) => item.stage === 'RECEIPT',
+          ),
+        })
+      }
+      if (path === 'wfl/intermediary-trade/receipt-attachment-remove') {
+        return Promise.resolve({
+          data: {
+            processId: 'PROCESS-1',
+            processRevision: 8,
+            documentId: 'RECEIPT-1',
+            documentRevision: 4,
+            documentStatus: 'DRAFT',
+          },
+        })
+      }
+      return Promise.reject(new Error(`unexpected request: ${path}`))
+    })
+
+    const vm = useIntermediaryWorkflowViewModel()
+    await vm.loadDocument('PROCESS-1')
+    const receipt = vm.document.value?.children.find(
+      (item) => item.stage === 'RECEIPT',
+    )
+    expect(receipt).toBeDefined()
+    await vm.openStage('RECEIPT', receipt)
+    vm.stageDraft.value!.remark = '尚未保存的收货备注'
+    expect(vm.workspaceDirty.value).toBe(true)
+
+    await vm.removeChildAttachment({
+      fileId: 'FILE-1',
+      fileName: 'receipt.pdf',
+      contentType: 'application/pdf',
+      size: 10,
+      sha256: 'a'.repeat(64),
+      status: 'READY',
+      createdAt: '2026-07-25T00:00:00Z',
+      createdBy: 'USER-1',
+    })
+
+    expect(vm.stageDraft.value?.remark).toBe('尚未保存的收货备注')
+    expect(vm.workspaceDirty.value).toBe(true)
+  })
+
+  it('切换流程会清空审计且忽略上一流程的迟到响应', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/wfl/intermediary-trade/audit-history']
+    let resolveAuditA!: (value: {
+      data: {
+        items: Array<Record<string, string>>
+        total: number
+        page: number
+        pageSize: number
+      }
+    }) => void
+    const auditA = new Promise<{
+      data: {
+        items: Array<Record<string, string>>
+        total: number
+        page: number
+        pageSize: number
+      }
+    }>((resolve) => {
+      resolveAuditA = resolve
+    })
+    mockedApi.post.mockImplementation((path, body) => {
+      if (path === 'wfl/intermediary-trade/get') {
+        const processId = (body as { processId: string }).processId
+        return Promise.resolve({ data: draftReceiptProcessView(processId) })
+      }
+      if (path === 'wfl/intermediary-trade/audit-history') {
+        const processId = (body as { processId: string }).processId
+        if (processId === 'PROCESS-A') return auditA
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: 'AUDIT-B',
+                eventType: 'PROCESS_B_EVENT',
+                toStatus: 'APPROVED',
+                actorId: 'USER-2',
+                occurredAt: '2026-07-25T00:00:00Z',
+                requestId: 'REQUEST-B',
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          },
+        })
+      }
+      return Promise.reject(new Error(`unexpected request: ${path}`))
+    })
+
+    const vm = useIntermediaryWorkflowViewModel()
+    await vm.loadDocument('PROCESS-A')
+    vm.changeActiveStep(6)
+    await vm.loadDocument('PROCESS-B')
+    expect(vm.auditEvents.value).toEqual([])
+
+    vm.changeActiveStep(6)
+    await vi.waitFor(() => {
+      expect(vm.auditEvents.value.map((item) => item.id)).toEqual(['AUDIT-B'])
+    })
+    resolveAuditA({
+      data: {
+        items: [
+          {
+            id: 'AUDIT-A',
+            eventType: 'PROCESS_A_EVENT',
+            toStatus: 'APPROVED',
+            actorId: 'USER-1',
+            occurredAt: '2026-07-25T00:00:00Z',
+            requestId: 'REQUEST-A',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(vm.auditEvents.value.map((item) => item.id)).toEqual(['AUDIT-B'])
+  })
+
+  it('收货和签收保存同时要求来源阶段详情权限', async () => {
+    const session = useSessionStore()
     const vm = useIntermediaryWorkflowViewModel()
     vm.stageChild.value = {
       childId: 'RECEIPT-1',
       status: 'DRAFT',
     } as IntermediaryChildSummary
-    expect(vm.stageEditable.value).toBe(true)
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
 
-    vm.stageChild.value.status = 'CHECKED'
+    session.permissions = ['/wfl/intermediary-trade/receipt-save']
+    expect(vm.stageSaveVisible.value).toBe(true)
     expect(vm.stageEditable.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
+    expect(vm.canSaveStage()).toBe(false)
+    await expect(vm.saveStage()).resolves.toBe(false)
+    expect(vm.stageDialogError.value).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
+
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-save',
+      '/wfl/intermediary-trade/procurement-get',
+    ]
+    expect(vm.stageEditable.value).toBe(true)
+    expect(vm.stageSaveBlockedReason.value).toBeNull()
+    expect(vm.canSaveStage()).toBe(true)
+
+    vm.stageEditing.value = 'SIGNOFF'
+    vm.stageChild.value = {
+      childId: 'SIGNOFF-1',
+      status: 'DRAFT',
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      deliveryChildId: 'DELIVERY-1',
+      signoffDate: '2026-07-25',
+      lines: [],
+      returnedSolventContainers: 0,
+      returnedResinContainers: 0,
+      containerDifferenceReason: '',
+      remark: '',
+    }
+    session.permissions = ['/wfl/intermediary-trade/signoff-save']
+    expect(vm.stageSaveVisible.value).toBe(true)
+    expect(vm.stageEditable.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBe(
+      '保存签收单需要送货详情权限。当前表单仅供查看。',
+    )
+    expect(vm.canSaveStage()).toBe(false)
+    await expect(vm.saveStage()).resolves.toBe(false)
+    expect(vm.stageDialogError.value).toBe(
+      '保存签收单需要送货详情权限。当前表单仅供查看。',
+    )
+
+    session.permissions = [
+      '/wfl/intermediary-trade/signoff-save',
+      '/wfl/intermediary-trade/delivery-get',
+    ]
+    expect(vm.canSaveStage()).toBe(true)
+    expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('缺少来源详情权限时将阶段表单设为只读并保留禁用的保存按钮', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/wfl/intermediary-trade/receipt-get',
+      '/wfl/intermediary-trade/receipt-save',
+    ]
+    const vm = useIntermediaryWorkflowViewModel()
+    vi.spyOn(vm, 'query').mockResolvedValue()
+    vm.stageDialogOpen.value = true
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageChild.value = {
+      childId: 'RECEIPT-1',
+      childNo: 'GR-1',
+      stage: 'RECEIPT',
+      status: 'DRAFT',
+      revision: 1,
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
+
+    const wrapper = mountIntermediaryTrade(vm)
+
+    expect(wrapper.text()).toContain(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
+    expect(
+      wrapper.get('input[aria-label="收货日期"]').attributes('disabled'),
+    ).toBeDefined()
+    const saveButton = wrapper
+      .findAll('button')
+      .find((item) => item.text().includes('保存草稿'))
+    expect(saveButton).toBeDefined()
+    expect(saveButton?.attributes('disabled')).toBeDefined()
+    expect(saveButton?.attributes('title')).toBe(
+      '保存收货单需要采购详情权限。当前表单仅供查看。',
+    )
+  })
+
+  it('只有阶段查看权限时表单只读且不显示保存按钮', () => {
+    const session = useSessionStore()
+    session.permissions = ['/wfl/intermediary-trade/receipt-get']
+    const vm = useIntermediaryWorkflowViewModel()
+    vi.spyOn(vm, 'query').mockResolvedValue()
+    vm.stageDialogOpen.value = true
+    vm.stageEditing.value = 'RECEIPT'
+    vm.stageChild.value = {
+      childId: 'RECEIPT-1',
+      childNo: 'GR-1',
+      stage: 'RECEIPT',
+      status: 'DRAFT',
+      revision: 1,
+    } as IntermediaryChildSummary
+    vm.stageDraft.value = {
+      receiptDate: '2026-07-25',
+      lines: [],
+      remark: '',
+    }
+
+    const wrapper = mountIntermediaryTrade(vm)
+
+    expect(vm.stageSaveVisible.value).toBe(false)
+    expect(vm.stageSaveBlockedReason.value).toBeNull()
+    expect(vm.stageEditable.value).toBe(false)
+    expect(
+      wrapper.get('input[aria-label="收货日期"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.findAll('button').some((item) => item.text().includes('保存草稿')),
+    ).toBe(false)
   })
 
   it('反向和删除原因统一限制为 1–1000 字', async () => {

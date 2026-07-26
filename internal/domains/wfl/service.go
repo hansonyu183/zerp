@@ -15,7 +15,6 @@ import (
 	voudomain "github.com/hansonyu183/zerp-back/internal/domains/vou"
 	"github.com/hansonyu183/zerp-back/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
@@ -682,10 +681,7 @@ func formatFixed(value int64, scale int) string {
 		whole, fraction := value/1_000_000, value%1_000_000
 		result := fmt.Sprintf("%d.%06d", whole, fraction)
 		result = strings.TrimRight(result, "0")
-		if strings.HasSuffix(result, ".") {
-			result = strings.TrimSuffix(result, ".")
-		}
-		return result
+		return strings.TrimSuffix(result, ".")
 	}
 	return fmt.Sprintf("%d.%02d", value/100, value%100)
 }
@@ -726,12 +722,4 @@ func currentStage(view ProcessView) string {
 		}
 	}
 	return StageDelivery
-}
-
-func optionalTime(value pgtype.Timestamptz) *time.Time {
-	if !value.Valid {
-		return nil
-	}
-	result := value.Time
-	return &result
 }

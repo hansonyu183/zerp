@@ -108,6 +108,9 @@ make ENV_FILE=.env.test compose-up
 | `DATABASE_CONNECT_TIMEOUT` | 否 | `5s` | 首次连接数据库超时 |
 | `DATABASE_HEALTH_TIMEOUT` | 否 | `2s` | 数据库就绪检查超时 |
 | `HTTP_READ_HEADER_TIMEOUT` | 否 | `5s` | HTTP 请求头读取超时 |
+| `HTTP_READ_TIMEOUT` | 否 | `2m` | HTTP 请求（含附件上传）完整读取超时 |
+| `HTTP_WRITE_TIMEOUT` | 否 | `2m` | HTTP 响应（含附件下载）完整写入超时 |
+| `HTTP_IDLE_TIMEOUT` | 否 | `60s` | HTTP Keep-Alive 空闲连接超时 |
 | `SHUTDOWN_TIMEOUT` | 否 | `10s` | 优雅关闭等待时间 |
 | `APP_SESSION_COOKIE_NAME` | 否 | `zerp_session` | 服务端会话 Cookie 名称 |
 | `APP_SESSION_COOKIE_SECURE` | 否 | `true` | 是否仅通过 HTTPS 发送会话 Cookie；生产环境必须为 `true`，仅 development/test 纯 HTTP 本地调试可设为 `false` |

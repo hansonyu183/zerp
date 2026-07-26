@@ -9,15 +9,15 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 
 ## 实体与页面
 
-| 实体 | 页面 |
-| --- | --- |
-| `sale-order` | 销售单 |
-| `purchase-order` | 采购单 |
-| `intermediary-sale-order` | 居间销售单 |
-| `receipt` | 往来款收款单 |
-| `payment` | 往来款付款单 |
-| `expense-reimbursement` | 费用报销单 |
-| `other-income` | 其它收入单 |
+| 实体                      | 页面         |
+| ------------------------- | ------------ |
+| `sale-order`              | 销售单       |
+| `purchase-order`          | 采购单       |
+| `intermediary-sale-order` | 居间销售单   |
+| `receipt`                 | 往来款收款单 |
+| `payment`                 | 往来款付款单 |
+| `expense-reimbursement`   | 费用报销单   |
+| `other-income`            | 其它收入单   |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 
@@ -44,4 +44,4 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 
 ## 测试后端资料
 
-Playwright 不拦截 VOU 或 BOB 请求。真实测试库需要预置有效客户、供应商、员工、仓库、产品、物流平台、属于该平台的车辆和资金账户；关键字通过 `.env.e2e` 中的 `E2E_VOU_*` 变量提供。客户必须配置结算方式，资金账户币种必须与 `E2E_VOU_CURRENCY` 一致。
+Playwright 不拦截 VOU 或 BOB 请求。真实测试库需要预置有效客户、供应商、员工、仓库、产品、物流平台、属于该平台的车辆和资金账户；本地关键字通过 Git 忽略的 `.env.e2e.local` 中 `E2E_VOU_*` 变量提供。客户必须配置结算方式，资金账户币种必须与 `E2E_VOU_CURRENCY` 一致。

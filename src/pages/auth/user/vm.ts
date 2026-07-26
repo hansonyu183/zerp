@@ -12,6 +12,11 @@ export function useSignInViewModel() {
   const password = ref('')
   const errorMessage = ref<string | null>(null)
   const submitting = ref(false)
+  const successMessage = computed(() =>
+    route.query.passwordChanged === '1'
+      ? '密码已更新，请重新登录。'
+      : null,
+  )
 
   const canSubmit = computed(
     () => username.value.trim().length > 0 && password.value.length > 0,
@@ -46,6 +51,7 @@ export function useSignInViewModel() {
     username,
     password,
     errorMessage,
+    successMessage,
     submitting,
     canSubmit,
     submit,

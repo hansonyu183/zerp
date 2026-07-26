@@ -13,6 +13,7 @@ const theme = useTheme()
 const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
 const profileDialog = ref(false)
 const passwordDialog = ref(false)
+const loadingProfile = ref(false)
 const savingProfile = ref(false)
 const savingPassword = ref(false)
 const accountError = ref('')
@@ -29,9 +30,45 @@ const displayName = computed(
 const initials = computed(() => displayName.value.trim().slice(0, 1).toUpperCase() || 'U')
 const isDark = computed(() => theme.global.name.value === 'zerpDark')
 const pageTitle = computed(() => String(route.meta.title || '工作台'))
+const profileValidationError = computed(() => {
+  const displayNameValue = profile.displayName.trim()
+  const avatarUrlValue = profile.avatarUrl.trim()
+  if (!displayNameValue) return '请输入显示名称。'
+  if ([...displayNameValue].length > 128) return '显示名称不能超过 128 个字符。'
+  if (!avatarUrlValue) return ''
+  if ([...avatarUrlValue].length > 500) return '头像地址不能超过 500 个字符。'
+  if (!/^https:\/\/[^/\\]/i.test(avatarUrlValue)) {
+    return '头像地址必须是 HTTPS 绝对地址。'
+  }
+
+  try {
+    const avatarUrl = new URL(avatarUrlValue)
+    if (
+      avatarUrl.protocol !== 'https:' ||
+      !avatarUrl.hostname ||
+      avatarUrl.username ||
+      avatarUrl.password ||
+      avatarUrl.hash
+    ) {
+      return '头像地址不能包含用户凭证或片段。'
+    }
+    return ''
+  } catch {
+    return '请输入有效的头像地址。'
+  }
+})
+const canSaveProfile = computed(
+  () =>
+    !loadingProfile.value &&
+    !savingProfile.value &&
+    profileValidationError.value === '',
+)
 const passwordValidationError = computed(() => {
   if (!passwords.currentPassword) return '请输入当前密码。'
-  if (passwords.newPassword.length < 8) return '新密码至少需要 8 个字符。'
+  if (!passwords.newPassword) return '请输入新密码。'
+  if (passwords.currentPassword === passwords.newPassword) {
+    return '新密码不能与当前密码相同。'
+  }
   if (passwords.newPassword !== passwords.confirmPassword) return '两次输入的新密码不一致。'
 
   return ''
@@ -58,10 +95,20 @@ function toggleTheme(): void {
 const savedTheme = localStorage.getItem('zerp-theme')
 if (savedTheme === 'zerpDark' || savedTheme === 'zerpLight') theme.change(savedTheme)
 
-function openProfile(): void {
+async function openProfile(): Promise<void> {
   accountError.value = ''
   accountSuccess.value = ''
   profileDialog.value = true
+  loadingProfile.value = true
+  try {
+    const current = await session.getProfile()
+    profile.displayName = current.displayName
+    profile.avatarUrl = current.avatarUrl || ''
+  } catch {
+    accountError.value = session.errorMessage || '个人资料加载失败。'
+  } finally {
+    loadingProfile.value = false
+  }
 }
 
 function openPassword(): void {
@@ -76,11 +123,16 @@ function openPassword(): void {
 async function saveProfile(): Promise<void> {
   accountError.value = ''
   accountSuccess.value = ''
+  if (!canSaveProfile.value) {
+    accountError.value = profileValidationError.value
+    return
+  }
+
   savingProfile.value = true
   try {
     await session.updateProfile({
       displayName: profile.displayName.trim(),
-      avatarUrl: profile.avatarUrl.trim() || undefined,
+      avatarUrl: profile.avatarUrl.trim() || null,
     })
     accountSuccess.value = '个人资料已更新。'
     profileDialog.value = false
@@ -105,8 +157,11 @@ async function savePassword(): Promise<void> {
       currentPassword: passwords.currentPassword,
       newPassword: passwords.newPassword,
     })
-    accountSuccess.value = '密码已更新。'
     passwordDialog.value = false
+    await router.replace({
+      name: 'signin',
+      query: { passwordChanged: '1' },
+    })
   } catch {
     accountError.value = session.errorMessage || '密码更新失败。'
   } finally {
@@ -245,15 +300,32 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
             <v-img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="头像预览" />
             <span v-else class="text-h5">{{ initials }}</span>
           </v-avatar>
-          <span>支持填写可公开访问的图片地址。</span>
+          <span>支持填写可公开访问的 HTTPS 图片地址。</span>
         </div>
-        <v-text-field v-model="profile.displayName" label="显示名称" variant="outlined" />
-        <v-text-field v-model="profile.avatarUrl" label="头像地址" variant="outlined" />
+        <v-text-field
+          v-model="profile.displayName"
+          :disabled="loadingProfile"
+          label="显示名称"
+          variant="outlined"
+        />
+        <v-text-field
+          v-model="profile.avatarUrl"
+          :disabled="loadingProfile"
+          label="头像地址"
+          variant="outlined"
+        />
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
         <v-btn variant="text" @click="profileDialog = false">取消</v-btn>
-        <v-btn color="primary" :loading="savingProfile" @click="saveProfile">保存</v-btn>
+        <v-btn
+          color="primary"
+          :disabled="!canSaveProfile"
+          :loading="loadingProfile || savingProfile"
+          @click="saveProfile"
+        >
+          保存
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

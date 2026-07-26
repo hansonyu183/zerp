@@ -13,6 +13,16 @@ async function signIn(page: Page): Promise<void> {
   await expect(page.locator('.account-button')).toBeVisible()
 }
 
+async function openProfile(page: Page) {
+  await page.locator('.account-button').click()
+  await page.getByText('名称与头像', { exact: true }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('显示名称')).toBeEnabled()
+  return dialog
+}
+
 async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await page.goto('/home/dashboard')
   if (isMobile) await page.getByLabel('切换导航').click()
@@ -28,6 +38,41 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
 
 test('使用真实后端会话登录并进入系统', async ({ page }) => {
   await signIn(page)
+})
+
+test('使用真实后端读取、保存并恢复个人资料', async ({ page }) => {
+  await signIn(page)
+  let originalDisplayName = ''
+  let originalAvatarUrl = ''
+
+  try {
+    let dialog = await openProfile(page)
+    originalDisplayName = await dialog.getByLabel('显示名称').inputValue()
+    originalAvatarUrl = await dialog.getByLabel('头像地址').inputValue()
+    const updatedDisplayName = `E2E 资料 ${Date.now()}`
+
+    await dialog.getByLabel('显示名称').fill(updatedDisplayName)
+    await dialog.getByLabel('头像地址').fill('')
+    await dialog.getByRole('button', { name: '保存' }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('.account-button')).toContainText(updatedDisplayName)
+
+    dialog = await openProfile(page)
+    await expect(dialog.getByLabel('显示名称')).toHaveValue(updatedDisplayName)
+    await expect(dialog.getByLabel('头像地址')).toHaveValue('')
+  } finally {
+    if (originalDisplayName && !page.url().includes('/signin')) {
+      let dialog = page.getByRole('dialog')
+      if (!await dialog.isVisible()) dialog = await openProfile(page)
+      await dialog.getByLabel('显示名称').fill(originalDisplayName)
+      await dialog.getByLabel('头像地址').fill(originalAvatarUrl)
+      await dialog.getByRole('button', { name: '保存' }).click()
+      await expect(dialog).not.toBeVisible()
+      await expect(page.locator('.account-button')).toContainText(
+        originalDisplayName,
+      )
+    }
+  }
 })
 
 test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({

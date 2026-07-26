@@ -10,20 +10,21 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 - [BOB（基础业务对象）](./docs/domains/bob.md)
 - [VOU（业务单据）](./docs/domains/vou.md)
 - [WFL（业务流程）](./docs/domains/wfl.md)
+- [LED（业务账簿）](./docs/domains/led.md)
 
 ## 技术栈
 
-| 技术 | 基线版本 | 用途 |
-| --- | --- | --- |
-| [Vue](https://vuejs.org/) | 3 | 前端框架，使用 Composition API 和 TypeScript |
-| [Vite](https://vite.dev/) | 8 | 开发服务器与生产构建 |
-| [Vuetify](https://vuetifyjs.com/) | 4 | UI 组件与主题系统 |
-| [Vue Router](https://router.vuejs.org/) | 5 | SPA 路由和访问控制 |
-| [Pinia](https://pinia.vuejs.org/) | 3 | 全局共享状态 |
-| [Vitest](https://vitest.dev/) | 最新稳定版 | 单元测试和组件测试 |
-| [Vue Test Utils](https://test-utils.vuejs.org/) | 最新稳定版 | Vue 组件测试 |
-| [MSW](https://mswjs.io/) | 最新稳定版 | 测试环境中的 API 模拟 |
-| [Playwright](https://playwright.dev/) | 最新稳定版 | 连接真实测试后端的端到端测试 |
+| 技术                                            | 基线版本   | 用途                                         |
+| ----------------------------------------------- | ---------- | -------------------------------------------- |
+| [Vue](https://vuejs.org/)                       | 3          | 前端框架，使用 Composition API 和 TypeScript |
+| [Vite](https://vite.dev/)                       | 8          | 开发服务器与生产构建                         |
+| [Vuetify](https://vuetifyjs.com/)               | 4          | UI 组件与主题系统                            |
+| [Vue Router](https://router.vuejs.org/)         | 5          | SPA 路由和访问控制                           |
+| [Pinia](https://pinia.vuejs.org/)               | 3          | 全局共享状态                                 |
+| [Vitest](https://vitest.dev/)                   | 最新稳定版 | 单元测试和组件测试                           |
+| [Vue Test Utils](https://test-utils.vuejs.org/) | 最新稳定版 | Vue 组件测试                                 |
+| [MSW](https://mswjs.io/)                        | 最新稳定版 | 测试环境中的 API 模拟                        |
+| [Playwright](https://playwright.dev/)           | 最新稳定版 | 连接真实测试后端的端到端测试                 |
 
 具体补丁版本以 `package.json` 和 `pnpm-lock.yaml` 为准。升级主版本前必须检查迁移指南并完成回归测试。
 
@@ -46,12 +47,14 @@ pnpm dev          # 启动本地开发服务器
 pnpm build        # 类型检查并生成生产构建
 pnpm preview      # 本地预览生产构建
 pnpm lint         # 检查 TypeScript、Vue 和架构约束
-pnpm format:check # 检查工程质量配置格式
+pnpm format:check # 检查源码配置和 Markdown 格式
+pnpm docs:check   # 检查文档链接、领域覆盖和 README 索引
 pnpm test:coverage # 单元测试、组件测试和覆盖率门槛
 pnpm test:unit    # 单元测试和组件测试
 pnpm test:e2e     # 连接真实测试后端执行端到端测试
 pnpm test         # 执行完整测试集
 pnpm check        # 执行提交前快速质量门禁
+pnpm audit --prod # 审计生产依赖
 ```
 
 ## 推荐目录结构
@@ -62,22 +65,19 @@ src/
 │  ├─ client.ts                 # 原生 fetch 统一客户端
 │  └─ types.ts                  # 通用请求、响应和错误类型
 ├─ assets/                      # 字体、图片和全局样式
-├─ components/                  # 跨页面复用的展示组件
-├─ layouts/                     # 应用框架和页面布局
+├─ components/                  # 跨页面复用的展示与业务组件
+├─ layouts/
+│  └─ AppLayout.vue             # 登录后的顶栏、侧栏和 router-view
 ├─ pages/
-│  ├─ signin/                   # 根页面：登录
-│  │  ├─ SignIn.vue
-│  │  └─ vm.ts
-│  ├─ home/                     # 根页面：登录后的应用主页
-│  │  ├─ Home.vue               # 顶栏、侧栏与内容加载出口
-│  │  ├─ vm.ts
-│  │  └─ content/               # 业务内容组件，不是独立根页面
-│  │     └─ {domain}/
-│  │        └─ {entity}/
-│  │           ├─ {Entity}.vue  # 模板、Vuetify 组件和页面样式
-│  │           └─ vm.ts         # 页面状态、业务动作和 API 调用
-│  └─ notfound/                 # 根页面：404
-│     └─ NotFound.vue
+│  ├─ auth/user/                # 登录页面及 ViewModel
+│  ├─ home/dashboard/           # 登录后的仪表盘
+│  ├─ {domain}/{entity}/        # BOB、VOU、WFL、LED 业务页面
+│  │  ├─ {Entity}.vue           # 模板、Vuetify 组件和页面样式
+│  │  ├─ vm.ts                  # 页面状态、动作和模块编排
+│  │  └─ *.ts                   # 可选的验证、附件、历史、引用等模块
+│  └─ system/
+│     ├─ developing/            # 未注册实体占位页
+│     └─ notfound/              # 404 页面
 ├─ plugins/                     # Vuetify 等插件初始化
 ├─ router/
 │  ├─ index.ts                  # Router 实例和守卫
@@ -94,7 +94,7 @@ tests/
 
 ## 页面与业务内容开发约定
 
-`pages` 下只保留 `signin`、`home` 和 `notfound` 三个根页面。登录后的业务界面共用 `home` 的顶栏、侧栏和内容区域；每个业务实体对应 `home/content` 下的一个组件目录。
+登录页是独立公开路由。登录后的仪表盘和业务页面作为 `AppLayout` 子路由，共用顶栏、侧栏和 `<router-view>` 内容出口。每个业务实体直接对应 `src/pages/{domain}/{entity}` 目录。
 
 例如，销售单组件及其接口 `vou/sale-order/*` 对应：
 
@@ -104,7 +104,7 @@ src/pages/vou/sale-order/
 └─ vm.ts
 ```
 
-`home` 根据当前路由、会话权限数组和前端本地页面注册表，从 `content/{domain}/{entity}` 加载匹配的实体组件。业务组件不得自行创建应用框架，也不得重复实现顶栏和侧栏。
+路由层根据会话权限数组和前端本地页面注册表，将业务组件注册为 `AppLayout` 子路由。业务组件不得自行创建应用框架，也不得重复实现顶栏和侧栏。
 
 ### `{Entity}.vue`
 
@@ -135,12 +135,14 @@ const vm = reactive(useSaleOrderViewModel())
 ### `vm.ts`
 
 - 导出命名清晰的组合式 ViewModel，例如 `useSaleOrderViewModel()`。
-- 管理当前页面的 `ref`、`reactive`、`computed`、校验状态和加载状态。
+- 管理当前页面的响应式状态、加载状态、用户动作和子模块编排。
 - 通过 `src/api/client.ts` 调用真实后端 API。
 - 将后端错误转换为页面级、字段级或全局提示所需的状态。
 - 页面卸载后不得继续写入已失效状态；需要时使用 `AbortController` 取消请求。
 
-页面内临时状态保留在 `vm.ts`。只有以下状态进入 Pinia：
+复杂页面可以把纯验证、表单转换、附件、历史、引用搜索等逻辑拆到同目录或共享目录中的命名模块。拆分模块不得绕过 `vm.ts` 直接形成第二套页面状态源；关键业务模块必须有直接单元测试和独立覆盖率门槛。
+
+页面内临时状态保留在页面 ViewModel 及其模块中。只有以下状态进入 Pinia：
 
 - 当前用户和会话状态；
 - 动态菜单与动作权限；
@@ -169,17 +171,17 @@ VITE_API_BASE_URL=https://api.example.com/
 
 ### URL 规范
 
-所有 API 使用 `POST + application/json`，路径固定为三级：
+所有业务动作 API 使用 `POST + application/json`，路径固定为三级：
 
 ```text
 /{domain}/{entity}/{action}
 ```
 
-| 层级 | 含义 | 示例 |
-| --- | --- | --- |
-| `domain` | 业务领域，对应一级动态菜单 | `app`、`vou`、`wfl` |
-| `entity` | 业务实体，对应二级菜单及页面 | `user`、`sale-order` |
-| `action` | 对实体执行的操作 | `signin`、`query`、`save`、`delete` |
+| 层级     | 含义                         | 示例                                |
+| -------- | ---------------------------- | ----------------------------------- |
+| `domain` | 业务领域，对应一级动态菜单   | `app`、`bob`、`vou`、`wfl`、`led`   |
+| `entity` | 业务实体，对应二级菜单及页面 | `user`、`sale-order`                |
+| `action` | 对实体执行的操作             | `signin`、`query`、`save`、`delete` |
 
 示例：
 
@@ -187,10 +189,14 @@ VITE_API_BASE_URL=https://api.example.com/
 POST /app/user/signin
 POST /app/user/session
 POST /app/feedback/create
+POST /bob/customer/query
 POST /vou/sale-order/query
 POST /vou/sale-order/save
 POST /wfl/intermediary-trade/get
+POST /led/inventory/balance
 ```
+
+后端签发的一次性附件技术 URL 不属于业务动作 API。它们只能交给 `ApiClient` 的受限文件方法，以后端指定的 `PUT` 上传或 `GET` 下载，不得由页面自行请求任意 URL。
 
 登录后的顶栏提供全局反馈入口。反馈表单通过 `app/feedback/*` 契约提交分类、标题、
 正文、当前页面路径和可选请求编号；PNG/JPEG 截图使用反馈专用一次性上传地址，
@@ -207,9 +213,7 @@ POST /wfl/intermediary-trade/get
   "filters": {
     "status": "open"
   },
-  "sort": [
-    { "field": "createdAt", "order": "desc" }
-  ]
+  "sort": [{ "field": "createdAt", "order": "desc" }]
 }
 ```
 
@@ -274,7 +278,7 @@ POST /app/user/signout  # 注销并由后端清理会话 Cookie
 登录或恢复会话后，后端返回完整的 API 权限数组，前端结合本地页面注册表生成两级动态菜单：
 
 - 权限路径格式为 `/{domain}/{entity}/{action}`；
-- `app` 领域不进入 Home 动态菜单；
+- `app` 领域不进入业务动态菜单；
 - 其余领域中拥有任一有效动作权限的实体都进入菜单；
 - 没有可访问实体的领域不显示；
 - 页面路由使用 `/${domain}/${entity}`；
@@ -295,22 +299,22 @@ POST /app/user/signout  # 注销并由后端清理会话 Cookie
 },
 ```
 
-未在本地注册的实体仍生成菜单和动态路由，但统一加载“开发中...”占位组件；已注册实体加载注册表中的业务组件。`app` 领域不生成菜单或业务路由。所有业务路由都渲染在 `home` 的 content 出口内，不新增第四种根页面。
+未在本地注册的实体仍生成菜单和动态路由，但统一加载“开发中...”占位组件；已注册实体加载注册表中的业务组件。`app` 领域不生成菜单或业务路由。所有业务路由都渲染在 `AppLayout` 的 `<router-view>` 中。
 
 前端通过 `can('/bob/customer/create')` 精确判断动作权限。前端权限仅用于菜单、按钮和交互控制，不是安全边界；真实后端必须对每次实体操作重新校验会话及动作权限。
 
 ## 首期业务模块
 
-| 模块 | 主要范围 |
-| --- | --- |
-| 仪表盘 | 待办事项、核心指标和业务概览 |
+| 模块     | 主要范围                               |
+| -------- | -------------------------------------- |
+| 仪表盘   | 待办事项、核心指标和业务概览           |
 | 基础资料 | 客户、供应商、商品、仓库、组织等主数据 |
-| 销售 | 销售订单、出库、退货及相关查询 |
-| 采购 | 采购订单、入库、退货及相关查询 |
-| 库存 | 库存余额、调拨、盘点和流水 |
-| 财务 | 应收、应付、收付款和业务对账 |
-| 报表 | 经营、销售、采购、库存和财务报表 |
-| 系统管理 | 用户、角色、菜单、权限和系统配置 |
+| 销售     | 销售订单、出库、退货及相关查询         |
+| 采购     | 采购订单、入库、退货及相关查询         |
+| 库存     | 库存余额、调拨、盘点和流水             |
+| 财务     | 应收、应付、收付款和业务对账           |
+| 报表     | 经营、销售、采购、库存和财务报表       |
+| 系统管理 | 用户、角色、菜单、权限和系统配置       |
 
 具体 `domain`、`entity`、字段和动作编码以真实后端菜单及 API 契约为准。本文只固定三级 API 与页面映射规则；销售单使用后端精确实体名 `vou/sale-order/*`。
 
@@ -322,7 +326,7 @@ POST /app/user/signout  # 注销并由后端清理会话 Cookie
 
 - `api/client.ts` 对响应包络、业务码、超时、网络错误、非 JSON 响应和 CSRF 的处理；
 - 列表分页、过滤和排序协议；
-- `vm.ts` 的加载、保存、校验、并发保护和错误状态；
+- ViewModel 及其验证、附件、历史、引用等拆分模块的加载、保存、并发保护和错误状态；
 - Pinia 会话恢复、菜单和权限状态；
 - 动态菜单过滤、本地页面解析和未知实体处理；
 - 页面组件是否只通过 ViewModel 执行业务逻辑。
@@ -347,16 +351,25 @@ Playwright 必须连接独立的真实测试后端，使用专用测试账号和
 普通 Pull Request 只执行快速质量门禁；真实后端 E2E 通过 GitHub
 `e2e` Environment 中的受控密钥手动触发；CI 不保存或上传可能包含凭证或认证状态的 Playwright 产物。
 
+托管 E2E 至少需要 `E2E_API_BASE_URL`、`E2E_USERNAME` 和
+`E2E_PASSWORD`。工作流固定启用 `E2E_WFL_BOOTSTRAP=true` 和
+`E2E_LED_READONLY=1`，因此目标必须是可按测试运行重置、已启用账簿且允许只读 LED
+查询的隔离后端。其余复核账号、脱敏账号和 `E2E_VOU_*` 基础资料通过同一
+Environment 的受控 Secret 提供；完整变量表见 `.env.example`。
+
+`pnpm check` 是本地快速门禁，包含 lint、格式、文档一致性、空白、覆盖率和构建。
+GitHub `Quality` 还会执行 `pnpm audit --prod`，因此提交前应同时运行生产依赖审计。
+
 ## Cloudflare Pages 部署
 
 在 Cloudflare Pages 中连接 Git 仓库并使用以下配置：
 
-| 配置项 | 值 |
-| --- | --- |
-| Framework preset | Vue |
-| Build command | `pnpm build` |
-| Build output directory | `dist` |
-| Root directory | `/` |
+| 配置项                 | 值           |
+| ---------------------- | ------------ |
+| Framework preset       | Vue          |
+| Build command          | `pnpm build` |
+| Build output directory | `dist`       |
+| Root directory         | `/`          |
 
 分别为 Preview 和 Production 环境设置其真实 API 地址：
 

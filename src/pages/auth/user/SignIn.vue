@@ -14,6 +14,14 @@ const vm = reactive(useSignInViewModel())
         <p class="subtitle">登录企业资源管理系统</p>
 
         <v-alert
+          v-if="vm.successMessage"
+          class="mb-5"
+          type="success"
+          variant="tonal"
+          :text="vm.successMessage"
+        />
+
+        <v-alert
           v-if="vm.errorMessage"
           class="mb-5"
           type="error"

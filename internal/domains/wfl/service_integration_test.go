@@ -5,6 +5,7 @@ package wfl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +20,26 @@ import (
 
 type referenceStub struct {
 	values map[string]bobdomain.EffectiveReference
+}
+
+type errorRow struct {
+	err error
+}
+
+func (r errorRow) Scan(...any) error {
+	return r.err
+}
+
+type failingContainerQueryer struct {
+	queryer
+	err error
+}
+
+func (q failingContainerQueryer) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "FROM led_container_entries") {
+		return errorRow{err: q.err}
+	}
+	return q.queryer.QueryRow(ctx, sql, args...)
 }
 
 func (r referenceStub) ResolveEffectiveReference(_ context.Context, _ pgx.Tx, entity, objectID, versionID string) (bobdomain.EffectiveReference, error) {
@@ -129,6 +150,13 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ProcessID != created.ProcessID {
 		t.Fatalf("query with omitted statuses = %+v, want created process", page)
 	}
+	injectedBalanceError := errors.New("injected container balance failure")
+	if _, err = loadBalances(t.Context(), failingContainerQueryer{
+		queryer: pool,
+		err:     injectedBalanceError,
+	}, created.ProcessID, true); !errors.Is(err, injectedBalanceError) {
+		t.Fatalf("loadBalances() error = %v, want injected container balance failure", err)
+	}
 	assertSummary := func(document DocumentSummary, currency, remark string) {
 		t.Helper()
 		if document.Currency != currency {
@@ -223,6 +251,28 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 		t.Fatalf("root audit fields after unapprove: reviewed=%t approved=%t", reviewed, approved)
 	}
 	root = run("approve", root.ProcessRevision, created.DocumentID, root.DocumentRevision, nil, actorTwo)
+	assertValidation := func(action string, revision int64, data any) {
+		t.Helper()
+		raw, marshalErr := json.Marshal(data)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		_, actionErr := service.Action(t.Context(), action, ActionInput{
+			ProcessID: created.ProcessID, ProcessRevision: revision, Data: raw,
+		}, actorOne, "wfl-"+action+"-invalid-reference")
+		var domainErr *DomainError
+		if !errors.As(actionErr, &domainErr) || domainErr.Kind != ErrorValidation {
+			t.Fatalf("%s error = %v, want validation error", action, actionErr)
+		}
+	}
+	assertValidation("procurement-create", root.ProcessRevision, ProcurementInput{
+		Supplier:     ReferenceInput{ObjectID: platform, VersionID: version[platform]},
+		Purchaser:    &ReferenceInput{ObjectID: purchaser, VersionID: version[purchaser]},
+		BusinessDate: "2026-07-25",
+		Lines: []ProcurementLineInput{{
+			SourceLineID: customerLine, Quantity: "10", UnitPrice: "8.00",
+		}},
+	})
 	procurement := run("procurement-create", root.ProcessRevision, "", 0, ProcurementInput{
 		Supplier:     ReferenceInput{ObjectID: supplier, VersionID: version[supplier]},
 		Purchaser:    &ReferenceInput{ObjectID: purchaser, VersionID: version[purchaser]},
@@ -265,6 +315,12 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	assertSummary(getStage("receipt-get", receipt.DocumentID), "USD", "收货更新备注")
 	receipt = run("receipt-check", receipt.ProcessRevision, receipt.DocumentID, receipt.DocumentRevision, nil, actorOne)
 	receipt = run("receipt-confirm", receipt.ProcessRevision, receipt.DocumentID, receipt.DocumentRevision, nil, actorTwo)
+	assertValidation("delivery-create", receipt.ProcessRevision, DeliveryInput{
+		BusinessDate: "2026-07-25",
+		Platform:     ReferenceInput{ObjectID: supplier, VersionID: version[supplier]},
+		Vehicle:      ReferenceInput{ObjectID: vehicle, VersionID: version[vehicle]},
+		Lines:        []QuantityLineInput{{SourceLineID: customerLine, Quantity: "10"}},
+	})
 	delivery := run("delivery-create", receipt.ProcessRevision, "", 0, DeliveryInput{
 		BusinessDate: "2026-07-25", Remark: "送货初始备注",
 		Platform: ReferenceInput{ObjectID: platform, VersionID: version[platform]},

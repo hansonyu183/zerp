@@ -398,20 +398,15 @@ func (s *Service) resolveCustomerOrder(ctx context.Context, tx pgx.Tx, input Cus
 }
 
 func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView], error) {
-	if input.Page < 1 {
-		input.Page = 1
-	}
-	if input.PageSize < 1 {
-		input.PageSize = 20
-	}
-	if input.PageSize > 100 {
-		return Page[ProcessView]{}, validation("pageSize exceeds 100", nil)
+	query, err := validateQuery(input)
+	if err != nil {
+		return Page[ProcessView]{}, err
 	}
 	rows, err := s.pool.Query(ctx, `SELECT p.id FROM wfl_process_instances p JOIN vou_documents d
 		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
 		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))
 		ORDER BY p.updated_at DESC,p.id DESC LIMIT $3 OFFSET $4`,
-		strings.TrimSpace(input.Keyword), input.Statuses, input.PageSize, (input.Page-1)*input.PageSize)
+		query.keyword, query.statuses, query.pageSize, query.offset)
 	if err != nil {
 		return Page[ProcessView]{}, internal("query processes", err)
 	}
@@ -437,8 +432,8 @@ func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView
 	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_process_instances p JOIN vou_documents d
 		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
 		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))`,
-		strings.TrimSpace(input.Keyword), input.Statuses).Scan(&total)
-	return Page[ProcessView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, err
+		query.keyword, query.statuses).Scan(&total)
+	return Page[ProcessView]{Items: items, Total: total, Page: query.page, PageSize: query.pageSize}, err
 }
 
 func (s *Service) Get(ctx context.Context, input GetInput, permissions []string) (ProcessView, error) {
@@ -539,6 +534,9 @@ func internal(message string, err error) error {
 	return &DomainError{Kind: ErrorInternal, Message: message, Cause: err}
 }
 func referenceError(name string, err error) error {
+	if err == nil {
+		return validation("invalid "+name+" reference", nil)
+	}
 	return validation("invalid "+name+" reference", map[string]any{"cause": err.Error()})
 }
 func stringPtr(value string) *string { return &value }
@@ -561,6 +559,57 @@ func optionalRemark(value string) (*string, error) {
 	}
 	return optional(value), nil
 }
+
+type validatedQuery struct {
+	page, pageSize int
+	keyword        string
+	statuses       []string
+	offset         int64
+}
+
+func validateQuery(input QueryInput) (validatedQuery, error) {
+	page, pageSize := input.Page, input.PageSize
+	if page == 0 {
+		page = 1
+	}
+	if pageSize == 0 {
+		pageSize = 20
+	}
+	if page < 1 || pageSize < 1 || pageSize > 100 {
+		return validatedQuery{}, validation("invalid pagination", nil)
+	}
+	pageIndex := int64(page - 1)
+	if pageIndex > int64(1<<31-1)/int64(pageSize) {
+		return validatedQuery{}, validation("invalid pagination", nil)
+	}
+	keyword := strings.TrimSpace(input.Keyword)
+	if utf8.RuneCountInString(keyword) > 200 {
+		return validatedQuery{}, validation("invalid keyword", nil)
+	}
+	allowed := map[string]bool{
+		StatusDraft:          true,
+		StatusChecked:        true,
+		StatusApproved:       true,
+		StatusCompleted:      true,
+		StatusShortRequested: true,
+		StatusShortClosed:    true,
+	}
+	statuses := make([]string, 0, len(input.Statuses))
+	seen := make(map[string]bool, len(input.Statuses))
+	for _, raw := range input.Statuses {
+		status := strings.ToUpper(strings.TrimSpace(raw))
+		if !allowed[status] || seen[status] {
+			return validatedQuery{}, validation("invalid status filter", nil)
+		}
+		seen[status] = true
+		statuses = append(statuses, status)
+	}
+	return validatedQuery{
+		page: page, pageSize: pageSize, keyword: keyword, statuses: statuses,
+		offset: pageIndex * int64(pageSize),
+	}, nil
+}
+
 func parseDate(value string) (time.Time, error) {
 	date, err := time.Parse("2006-01-02", strings.TrimSpace(value))
 	if err != nil {

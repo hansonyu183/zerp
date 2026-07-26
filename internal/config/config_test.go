@@ -141,3 +141,25 @@ func TestLoadValidatesCookieSameSite(t *testing.T) {
 		t.Fatalf("SessionCookieSameSite = %q, want none", cfg.SessionCookieSameSite)
 	}
 }
+
+func TestLoadRequiresSecureCookieInProduction(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("APP_ENV", EnvironmentProduction)
+	t.Setenv("ATTACHMENT_STORAGE_ROOT", "/var/lib/zerp/attachments")
+	t.Setenv("APP_SESSION_COOKIE_SECURE", "false")
+	t.Setenv("APP_SESSION_COOKIE_SAME_SITE", "lax")
+	t.Setenv("FEEDBACK_GITHUB_ENABLED", "false")
+	t.Setenv("FEEDBACK_GITHUB_TOKEN", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() accepted an insecure production session cookie")
+	}
+
+	t.Setenv("APP_ENV", EnvironmentDevelopment)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() rejected an insecure development session cookie: %v", err)
+	}
+	if cfg.SessionCookieSecure {
+		t.Fatal("SessionCookieSecure = true, want false for explicit development override")
+	}
+}

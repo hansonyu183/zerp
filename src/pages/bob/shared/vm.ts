@@ -1,35 +1,18 @@
-import {
-  computed,
-  getCurrentScope,
-  onScopeDispose,
-  reactive,
-  ref,
-} from 'vue'
+import { computed, ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
-import type { BusinessObjectFieldOption } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
+import { useBobHistory } from './history'
+import { useBobReferences } from './references'
 import type {
   BobActionAvailability,
-  BobAuditEvent,
   BobEditContext,
   BobEntityConfig,
-  BobFilterField,
   BobForm,
   BobListItem,
   BobMutationResult,
   BobObjectView,
-  BobReferenceConfig,
-  BobVersionHistoryItem,
-  ReferenceQueryItem,
 } from './types'
-
-interface ReferenceState {
-  options: BusinessObjectFieldOption<string>[]
-  loading: boolean
-  errorMessage: string | null
-  requestSequence: number
-}
 
 interface VersionRevisionRequest {
   objectId: string
@@ -39,21 +22,6 @@ interface VersionRevisionRequest {
 
 interface ReviewRequest extends VersionRevisionRequest {
   comment: string | null
-}
-
-interface HistoryRequest {
-  objectId: string
-  page: number
-  pageSize: number
-}
-
-function createReferenceState(): ReferenceState {
-  return {
-    options: [],
-    loading: false,
-    errorMessage: null,
-    requestSequence: 0,
-  }
 }
 
 function hasValue(value: unknown): boolean {
@@ -94,36 +62,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const editContext = ref<BobEditContext | null>(null)
   const currentView = ref<BobObjectView | null>(null)
 
-  const versionsOpen = ref(false)
-  const versionsLoading = ref(false)
-  const versions = ref<BobVersionHistoryItem[]>([])
-  const versionsPage = ref(1)
-  const versionsPageSize = ref(20)
-  const versionsTotal = ref(0)
-  const historyObject = ref<BobListItem | null>(null)
-
-  const auditOpen = ref(false)
-  const auditLoading = ref(false)
-  const auditEvents = ref<BobAuditEvent[]>([])
-  const auditPage = ref(1)
-  const auditPageSize = ref(20)
-  const auditTotal = ref(0)
-
-  const referenceStates = reactive<Record<string, ReferenceState>>({})
-  const searchTimers = new Map<string, ReturnType<typeof setTimeout>>()
-
-  function referenceState(key: string): ReferenceState {
-    if (!referenceStates[key]) referenceStates[key] = createReferenceState()
-    return referenceStates[key]
-  }
-
-  for (const key of Object.keys(config.references ?? {})) {
-    referenceState(`editor:${key}`)
-  }
-  for (const field of config.filters) {
-    if (field.reference) referenceState(`filter:${field.key}`)
-  }
-
   const canCreate = computed(
     () => session.can(`/bob/${config.entity}/create`),
   )
@@ -132,38 +70,16 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     if (editorMode.value === 'edit') return `编辑${config.title}`
     return `${config.title}详情`
   })
-  const referenceOptions = computed(() =>
-    Object.fromEntries(
-      Object.keys(config.references ?? {}).map((key) => [
-        key,
-        referenceState(`editor:${key}`).options,
-      ]),
-    ),
-  )
-  const referenceLoading = computed(() =>
-    Object.fromEntries(
-      Object.keys(config.references ?? {}).map((key) => [
-        key,
-        referenceState(`editor:${key}`).loading,
-      ]),
-    ),
-  )
-  const referenceErrors = computed(() =>
-    Object.fromEntries(
-      Object.keys(config.references ?? {}).map((key) => [
-        key,
-        referenceState(`editor:${key}`).errorMessage,
-      ]),
-    ),
-  )
-  const editorFields = computed(() =>
-    config.fields({
-      mode: editorMode.value,
-      referenceOptions: referenceOptions.value,
-      referenceLoading: referenceLoading.value,
-      referenceErrors: referenceErrors.value,
-    }),
-  )
+  const {
+    editorFields,
+    hydrateReferences,
+    preloadEditorReferences,
+    searchEditorReference,
+    searchFilterReference,
+    filterReferenceOptions,
+    filterReferenceLoading,
+    filterReferenceError,
+  } = useBobReferences(config, editorMode, filters)
 
   function permission(action: string): string {
     return `/bob/${config.entity}/${action}`
@@ -203,6 +119,31 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   function hasAnyAction(row: Readonly<BobListItem>): boolean {
     return Object.values(actionAvailability(row)).some(Boolean)
   }
+
+  const {
+    versionsOpen,
+    versionsLoading,
+    versions,
+    versionsPage,
+    versionsPageSize,
+    versionsTotal,
+    historyObject,
+    auditOpen,
+    auditLoading,
+    auditEvents,
+    auditPage,
+    auditPageSize,
+    auditTotal,
+    openVersions,
+    changeVersionsPage,
+    openAudit,
+    changeAuditPage,
+  } = useBobHistory(
+    config,
+    errorMessage,
+    (row) => actionAvailability(row).versions,
+    (row) => actionAvailability(row).audit,
+  )
 
   function buildQueryFilters(): Record<string, unknown> {
     const result: Record<string, unknown> = {}
@@ -323,160 +264,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       ...(versionId ? { versionId } : {}),
     })
     return data
-  }
-
-  async function hydrateReferences(form: Readonly<BobForm>): Promise<void> {
-    await Promise.all(
-      Object.entries(config.references ?? {}).map(async ([key, reference]) => {
-        const value = form[key]
-        if (typeof value !== 'string' || !value) return
-        const state = referenceState(`editor:${key}`)
-        if (state.options.some((option) => option.value === value)) return
-
-        const getPermission = `/bob/${reference.entity}/get`
-        if (!session.can(getPermission)) {
-          state.options = [...state.options, { title: value, value }]
-          return
-        }
-        try {
-          const { data } = await apiClient.post<
-            BobObjectView,
-            { objectId: string }
-          >(`bob/${reference.entity}/get`, { objectId: value })
-          state.options = [
-            ...state.options.filter((option) => option.value !== value),
-            { title: `${data.code} · ${data.data.name}`, value },
-          ]
-        } catch {
-          state.options = [...state.options, { title: value, value }]
-        }
-      }),
-    )
-  }
-
-  function resolveReferenceFilters(
-    reference: BobReferenceConfig,
-    form: Readonly<BobForm>,
-  ): Record<string, unknown> {
-    const filters = typeof reference.filters === 'function'
-      ? reference.filters(form)
-      : reference.filters ?? {}
-    return Object.fromEntries(
-      Object.entries(filters).filter(([, value]) => hasValue(value)),
-    )
-  }
-
-  async function loadReference(
-    stateKey: string,
-    reference: BobReferenceConfig,
-    keywordValue: string,
-    form: Readonly<BobForm>,
-  ): Promise<void> {
-    const state = referenceState(stateKey)
-    const queryPermission = `/bob/${reference.entity}/query`
-    if (!session.can(queryPermission)) {
-      state.errorMessage = `缺少${reference.label}查询权限。`
-      return
-    }
-
-    const sequence = state.requestSequence + 1
-    state.requestSequence = sequence
-    state.loading = true
-    state.errorMessage = null
-    try {
-      const keywordFilter = keywordValue.trim()
-      const { data } = await apiClient.post<
-        PageResult<ReferenceQueryItem>,
-        PageRequest
-      >(`bob/${reference.entity}/query`, {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          ...resolveReferenceFilters(reference, form),
-          ...(keywordFilter ? { keyword: keywordFilter } : {}),
-          status: ['EFFECTIVE'],
-        },
-        sort: [{ field: 'name', order: 'asc' }],
-      })
-      if (state.requestSequence !== sequence) return
-      const selected = state.options.filter((option) =>
-        Object.values(form).includes(option.value))
-      state.options = [
-        ...selected,
-        ...(data.items ?? []).map((item) => ({
-          title: `${item.code} · ${item.currentVersion.summary.name}`,
-          value: item.objectId,
-        })),
-      ].filter((option, index, all) =>
-        all.findIndex((candidate) => candidate.value === option.value) === index
-      )
-    } catch (error) {
-      if (state.requestSequence === sequence) {
-        state.errorMessage = `${reference.label}加载失败：${getErrorMessage(error)}`
-      }
-    } finally {
-      if (state.requestSequence === sequence) state.loading = false
-    }
-  }
-
-  function scheduleReference(
-    stateKey: string,
-    reference: BobReferenceConfig,
-    keywordValue: string,
-    form: Readonly<BobForm>,
-  ): void {
-    const previous = searchTimers.get(stateKey)
-    if (previous) clearTimeout(previous)
-    searchTimers.set(
-      stateKey,
-      setTimeout(() => {
-        searchTimers.delete(stateKey)
-        void loadReference(stateKey, reference, keywordValue, form)
-      }, 300),
-    )
-  }
-
-  function searchEditorReference(
-    key: string,
-    keywordValue: string,
-    form: Readonly<BobForm>,
-  ): void {
-    const reference = config.references?.[key]
-    if (!reference) return
-    scheduleReference(`editor:${key}`, reference, keywordValue, form)
-  }
-
-  function filterField(key: string): BobFilterField | undefined {
-    return config.filters.find((field) => field.key === key)
-  }
-
-  function searchFilterReference(key: string, keywordValue: string): void {
-    const field = filterField(key)
-    if (!field?.reference) return
-    scheduleReference(
-      `filter:${key}`,
-      field.reference,
-      keywordValue,
-      filters.value as BobForm,
-    )
-  }
-
-  function filterReferenceOptions(key: string) {
-    return referenceState(`filter:${key}`).options
-  }
-
-  function filterReferenceLoading(key: string): boolean {
-    return referenceState(`filter:${key}`).loading
-  }
-
-  function filterReferenceError(key: string): string | null {
-    return referenceState(`filter:${key}`).errorMessage
-  }
-
-  function preloadEditorReferences(form: Readonly<BobForm>): void {
-    for (const [key, reference] of Object.entries(config.references ?? {})) {
-      void loadReference(`editor:${key}`, reference, '', form)
-    }
   }
 
   function openCreate(): void {
@@ -719,91 +506,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     } finally {
       actionLoading.value = null
     }
-  }
-
-  async function loadVersions(): Promise<void> {
-    const row = historyObject.value
-    if (!row) return
-    versionsLoading.value = true
-    try {
-      const { data } = await apiClient.post<
-        PageResult<BobVersionHistoryItem>,
-        HistoryRequest
-      >(`bob/${config.entity}/versions`, {
-        objectId: row.objectId,
-        page: versionsPage.value,
-        pageSize: versionsPageSize.value,
-      })
-      versions.value = data.items ?? []
-      versionsTotal.value = data.total
-      versionsPage.value = data.page
-      versionsPageSize.value = data.pageSize
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      versionsLoading.value = false
-    }
-  }
-
-  async function openVersions(row: BobListItem): Promise<void> {
-    if (!actionAvailability(row).versions) return
-    historyObject.value = row
-    versions.value = []
-    versionsPage.value = 1
-    versionsOpen.value = true
-    await loadVersions()
-  }
-
-  async function changeVersionsPage(nextPage: number): Promise<void> {
-    if (nextPage < 1 || nextPage === versionsPage.value) return
-    versionsPage.value = nextPage
-    await loadVersions()
-  }
-
-  async function loadAudit(): Promise<void> {
-    const row = historyObject.value
-    if (!row) return
-    auditLoading.value = true
-    try {
-      const { data } = await apiClient.post<
-        PageResult<BobAuditEvent>,
-        HistoryRequest
-      >(`bob/${config.entity}/audit-history`, {
-        objectId: row.objectId,
-        page: auditPage.value,
-        pageSize: auditPageSize.value,
-      })
-      auditEvents.value = data.items ?? []
-      auditTotal.value = data.total
-      auditPage.value = data.page
-      auditPageSize.value = data.pageSize
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      auditLoading.value = false
-    }
-  }
-
-  async function openAudit(row: BobListItem): Promise<void> {
-    if (!actionAvailability(row).audit) return
-    historyObject.value = row
-    auditEvents.value = []
-    auditPage.value = 1
-    auditOpen.value = true
-    await loadAudit()
-  }
-
-  async function changeAuditPage(nextPage: number): Promise<void> {
-    if (nextPage < 1 || nextPage === auditPage.value) return
-    auditPage.value = nextPage
-    await loadAudit()
-  }
-
-  if (getCurrentScope()) {
-    onScopeDispose(() => {
-      for (const timer of searchTimers.values()) clearTimeout(timer)
-      searchTimers.clear()
-    })
   }
 
   return {

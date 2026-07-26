@@ -1,5 +1,5 @@
-import { getBobEntityConfig } from '../shared/config'
 import { useBobEntityViewModel } from '../shared/vm'
+import { customerConfig } from './config'
 
-export const customerConfig = getBobEntityConfig('customer')
+export { customerConfig } from './config'
 export const useCustomerViewModel = () => useBobEntityViewModel(customerConfig)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatLocalDateTime } from '@/utils/date'
 import type { WflProcessListRow } from './types'
 
 const props = defineProps<{
@@ -110,7 +111,7 @@ const lastPage = computed(() =>
               <td class="text-end">
                 {{ row.amount }}<template v-if="row.currency"> {{ row.currency }}</template>
               </td>
-              <td>{{ new Date(row.updatedAt).toLocaleString('zh-CN') }}</td>
+              <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end">
                 <v-btn
                   v-if="canOpen"

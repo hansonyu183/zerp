@@ -408,4 +408,51 @@ describe('shared VOU entity view model', () => {
       unapprove: false,
     })
   })
+
+  it('keeps list and workspace navigation behavior stable', async () => {
+    const config = voucherEntityConfigs.receipt
+    useSessionStore().permissions = [
+      '/vou/receipt/query',
+      '/vou/receipt/get',
+      '/vou/receipt/save',
+    ]
+    const vm = useVoucherEntityViewModel(config)
+    populate(config, vm.form.value)
+    const view = documentView(config, vm.form.value)
+    const row = {
+      documentId: view.documentId,
+      entity: config.entity,
+      documentNo: view.documentNo,
+      status: 'DRAFT' as const,
+      revision: view.revision,
+      businessDate: vm.form.value.businessDate,
+      currency: vm.form.value.currency,
+      amount: view.amount,
+      updatedAt: view.updatedAt,
+    }
+    mockedPost.mockImplementation(async (path) => {
+      if (path.endsWith('/get')) return { data: view }
+      return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+    })
+
+    expect(vm.canEdit(row)).toBe(true)
+    await vm.search()
+    await vm.changePage(2)
+    vm.filters.keyword = ' receipt '
+    vm.selectedParty.value = reference('customer')
+    await vm.resetFilters()
+    expect(vm.filters.keyword).toBe('')
+    expect(vm.selectedParty.value).toBeNull()
+
+    await vm.openDocument(row, true)
+    vm.startEditing()
+    vm.form.value.fundAccount = reference('fund-account')
+    vm.markReferenceChanged('fundAccount')
+    expect(vm.form.value.currency).toBe('CNY')
+    vm.cancelEditing()
+    await vm.reloadDocument()
+    vm.closeWorkspace()
+    expect(vm.workspaceOpen.value).toBe(false)
+    expect(vm.documentView.value).toBeNull()
+  })
 })

@@ -17,185 +17,28 @@ import {
   isQuantity,
   sumMoney,
   type VoucherActionAvailability,
-  type VoucherAttachment,
-  type VoucherAuditEvent,
   type VoucherDocumentView,
   type VoucherDraftForm,
   type VoucherEntityConfig,
   type VoucherExecutionForm,
   type VoucherListItem,
   type VoucherMutationResult,
-  type VoucherProductLineDraft,
   type VoucherQueryFilters,
   type VoucherReference,
-  type VoucherReferenceInput,
-  type VoucherReferenceView,
   type VoucherSort,
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
-
-interface ReferenceListItem {
-  objectId: string
-  code: string
-  effectiveVersionId: string | null
-  currentVersion: {
-    versionId: string
-    status: string
-    summary: Record<string, unknown> & { name?: string }
-  }
-}
-
-interface ReferenceState {
-  options: VoucherReference[]
-  loading: boolean
-  errorMessage: string | null
-  sequence: number
-}
-
-interface DraftPayload {
-  businessDate: string
-  currency: string
-  remark?: string
-  customer?: VoucherReferenceInput
-  supplier?: VoucherReferenceInput
-  counterpartyType?: string
-  counterparty?: VoucherReferenceInput
-  employee?: VoucherReferenceInput
-  salesperson?: VoucherReferenceInput
-  purchaser?: VoucherReferenceInput
-  handler?: VoucherReferenceInput
-  warehouse?: VoucherReferenceInput
-  fundAccount?: VoucherReferenceInput
-  sourceName?: string
-  amount?: string
-  productLines?: Array<{
-    product: VoucherReferenceInput
-    orderedQuantity: string
-    unitPrice: string
-    purchaseUnitPrice?: string
-    remark?: string
-  }>
-  expenseLines?: Array<{
-    category: string
-    description: string
-    amount: string
-    remark?: string
-  }>
-}
+import { useVoucherArtifacts } from './artifacts'
+import {
+  emptyForm,
+  formFromDocument,
+  inputReference,
+  snapshot,
+  type DraftPayload,
+} from './form'
+import { useVoucherReferences } from './references'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
-
-function localDate(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60_000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
-}
-
-function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
-  return {
-    businessDate: localDate(),
-    currency: config.usesFundAccount ? '' : 'CNY',
-    remark: '',
-    customer: null,
-    supplier: null,
-    counterpartyType: config.partyMode === 'counterparty' ? 'customer' : '',
-    counterparty: null,
-    employee: null,
-    salesperson: null,
-    purchaser: null,
-    handler: null,
-    warehouse: null,
-    fundAccount: null,
-    sourceName: '',
-    amount: '',
-    productLines: config.lineKind === 'product'
-      ? [{
-        key: crypto.randomUUID(),
-        product: null,
-        orderedQuantity: '',
-        unitPrice: '',
-        purchaseUnitPrice: '',
-        remark: '',
-      }]
-      : [],
-    expenseLines: config.lineKind === 'expense'
-      ? [{
-        key: crypto.randomUUID(),
-        category: '',
-        description: '',
-        amount: '',
-        remark: '',
-      }]
-      : [],
-  }
-}
-
-function inputReference(
-  reference: VoucherReference | VoucherReferenceView | null | undefined,
-): VoucherReferenceInput | undefined {
-  return reference
-    ? { objectId: reference.objectId, versionId: reference.versionId }
-    : undefined
-}
-
-function formReference(
-  reference: VoucherReferenceView | undefined,
-): VoucherReference | null {
-  return reference ? { ...reference } : null
-}
-
-function formFromDocument(document: VoucherDocumentView): VoucherDraftForm {
-  const data = document.data
-  return {
-    businessDate: data.businessDate,
-    currency: data.currency,
-    remark: data.remark ?? '',
-    customer: formReference(data.customer),
-    supplier: formReference(data.supplier),
-    counterpartyType: data.counterparty?.entity === 'supplier'
-      ? 'supplier'
-      : data.counterparty ? 'customer' : '',
-    counterparty: formReference(data.counterparty),
-    employee: formReference(data.employee),
-    salesperson: formReference(data.salesperson),
-    purchaser: formReference(data.purchaser),
-    handler: formReference(data.handler),
-    warehouse: formReference(data.warehouse),
-    fundAccount: formReference(data.fundAccount),
-    sourceName: data.sourceName ?? '',
-    amount: document.amount,
-    productLines: (data.productLines ?? []).map((line) => ({
-      key: line.lineId,
-      lineId: line.lineId,
-      product: formReference(line.product),
-      orderedQuantity: line.orderedQuantity,
-      unitPrice: line.unitPrice,
-      purchaseUnitPrice: line.purchaseUnitPrice ?? '',
-      remark: line.remark ?? '',
-    })),
-    expenseLines: (data.expenseLines ?? []).map((line) => ({
-      key: line.lineId,
-      lineId: line.lineId,
-      category: line.category,
-      description: line.description,
-      amount: line.amount,
-      remark: line.remark ?? '',
-    })),
-  }
-}
-
-function snapshot(value: VoucherDraftForm): string {
-  return JSON.stringify(value)
-}
-
-function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = fileName
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
 
 export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const session = useSessionStore()
@@ -230,18 +73,14 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   const executionOpen = ref(false)
   const executionError = ref<string | null>(null)
-  const attachmentLoading = ref(false)
-  const attachmentError = ref<string | null>(null)
-  const auditEvents = ref<VoucherAuditEvent[]>([])
-  const auditPage = ref(1)
-  const auditPageSize = ref(20)
-  const auditTotal = ref(0)
-  const auditLoading = ref(false)
-  const auditError = ref<string | null>(null)
 
-  const references = reactive<Record<string, ReferenceState>>({})
-  const searchTimers = new Map<string, ReturnType<typeof setTimeout>>()
-  const referenceControllers = new Map<string, AbortController>()
+  const {
+    referenceOptions,
+    referenceLoading,
+    referenceError,
+    searchReference,
+    clearReferenceSearches,
+  } = useVoucherReferences(config, form)
 
   const dirty = computed(
     () => editing.value && snapshot(form.value) !== initialForm.value,
@@ -268,6 +107,25 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         status === 'DRAFT' && session.can(permission('attachment-remove')),
     }
   })
+  const {
+    attachmentLoading,
+    attachmentError,
+    auditEvents,
+    auditPage,
+    auditPageSize,
+    auditTotal,
+    auditLoading,
+    auditError,
+    uploadAttachments,
+    downloadAttachment,
+    removeAttachment,
+    loadAudit,
+  } = useVoucherArtifacts(
+    config,
+    documentView,
+    actionAvailability,
+    loadDocument,
+  )
   const busy = computed(
     () => workspaceLoading.value || saving.value ||
       Boolean(actionLoading.value) || attachmentLoading.value,
@@ -275,30 +133,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function permission(action: string): string {
     return `/vou/${config.entity}/${action}`
-  }
-
-  function referenceState(key: string): ReferenceState {
-    if (!references[key]) {
-      references[key] = {
-        options: [],
-        loading: false,
-        errorMessage: null,
-        sequence: 0,
-      }
-    }
-    return references[key]
-  }
-
-  function referenceOptions(key: string): readonly VoucherReference[] {
-    return referenceState(key).options
-  }
-
-  function referenceLoading(key: string): boolean {
-    return referenceState(key).loading
-  }
-
-  function referenceError(key: string): string | null {
-    return referenceState(key).errorMessage
   }
 
   function canView(): boolean {
@@ -458,10 +292,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     workspaceError.value = null
     executionOpen.value = false
     personnelDirty.clear()
-    for (const timer of searchTimers.values()) clearTimeout(timer)
-    searchTimers.clear()
-    for (const controller of referenceControllers.values()) controller.abort()
-    referenceControllers.clear()
+    clearReferenceSearches()
   }
 
   function markReferenceChanged(key: keyof VoucherDraftForm): void {
@@ -721,268 +552,10 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     }
   }
 
-  async function sha256(file: File): Promise<string> {
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-    return [...new Uint8Array(digest)]
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('')
-  }
-
-  async function uploadAttachments(files: File[]): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.attachmentInitiate) return
-    attachmentLoading.value = true
-    attachmentError.value = null
-    try {
-      for (const file of files) {
-        const hash = await sha256(file)
-        const initiated = await apiClient.post<
-          { fileId: string; uploadUrl: string; expiresAt: string; revision: number },
-          Record<string, unknown>
-        >(`vou/${config.entity}/attachment-initiate`, {
-          documentId: current.documentId,
-          revision: documentView.value!.revision,
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
-          sha256: hash,
-        })
-        documentView.value!.revision = initiated.data.revision
-        try {
-          await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
-        } catch (error) {
-          await loadDocument(current.documentId)
-          throw error
-        }
-        await loadDocument(current.documentId)
-      }
-      await loadAudit(1)
-    } catch (error) {
-      attachmentError.value = getErrorMessage(error)
-    } finally {
-      attachmentLoading.value = false
-    }
-  }
-
-  async function downloadAttachment(attachment: VoucherAttachment): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.attachmentDownload) return
-    attachmentLoading.value = true
-    attachmentError.value = null
-    try {
-      const { data } = await apiClient.post<
-        { downloadUrl: string; expiresAt: string },
-        Record<string, unknown>
-      >(`vou/${config.entity}/attachment-download`, {
-        documentId: current.documentId,
-        fileId: attachment.fileId,
-      })
-      const blob = await apiClient.fetchAttachment(data.downloadUrl)
-      downloadBlob(blob, attachment.fileName)
-    } catch (error) {
-      attachmentError.value = getErrorMessage(error)
-    } finally {
-      attachmentLoading.value = false
-    }
-  }
-
-  async function removeAttachment(attachment: VoucherAttachment): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.attachmentRemove) return
-    attachmentLoading.value = true
-    attachmentError.value = null
-    try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/attachment-remove`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          fileId: attachment.fileId,
-        },
-      )
-      await Promise.all([loadDocument(current.documentId), loadAudit(1)])
-    } catch (error) {
-      attachmentError.value = getErrorMessage(error)
-    } finally {
-      attachmentLoading.value = false
-    }
-  }
-
-  async function loadAudit(nextPage = auditPage.value): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.audit) return
-    auditLoading.value = true
-    auditError.value = null
-    try {
-      const { data } = await apiClient.post<
-        PageResult<VoucherAuditEvent>,
-        Record<string, unknown>
-      >(`vou/${config.entity}/audit-history`, {
-        documentId: current.documentId,
-        page: nextPage,
-        pageSize: auditPageSize.value,
-      })
-      auditEvents.value = data.items ?? []
-      auditTotal.value = data.total ?? 0
-      auditPage.value = data.page ?? nextPage
-      auditPageSize.value = data.pageSize ?? auditPageSize.value
-    } catch (error) {
-      auditError.value = getErrorMessage(error)
-    } finally {
-      auditLoading.value = false
-    }
-  }
-
-  function referenceDefinition(key: string): {
-    entities: string[]
-    filters?: Record<string, unknown>
-  } {
-    if (key === 'customer') return { entities: ['customer'] }
-    if (key === 'supplier') return {
-      entities: ['supplier'],
-      filters: { supplierType: 'GENERAL' },
-    }
-    if (key === 'counterparty' || key === 'party') {
-      if (key === 'counterparty') {
-        return { entities: [form.value.counterpartyType || 'customer'] }
-      }
-      if (config.partyMode === 'customer') return { entities: ['customer'] }
-      if (config.partyMode === 'supplier') return { entities: ['supplier'] }
-      if (config.partyMode === 'none') return { entities: [] }
-      return { entities: ['customer', 'supplier'] }
-    }
-    if (['employee', 'salesperson', 'purchaser', 'handler'].includes(key)) {
-      return { entities: ['employee'] }
-    }
-    if (key === 'warehouse') return { entities: ['warehouse'] }
-    if (key === 'fundAccount') return { entities: ['fund-account'] }
-    if (key === 'product') return { entities: ['product'] }
-    if (key === 'platform') return {
-      entities: ['supplier'],
-      filters: { supplierType: 'LOGISTICS_PLATFORM' },
-    }
-    if (key === 'vehicle') return { entities: ['vehicle'] }
-    return { entities: [] }
-  }
-
-  function selectedReferences(): VoucherReference[] {
-    const values = Object.values(form.value)
-    const result: VoucherReference[] = []
-    for (const value of values) {
-      if (value && typeof value === 'object' && 'objectId' in value) {
-        result.push(value as VoucherReference)
-      } else if (Array.isArray(value)) {
-        for (const item of value as VoucherProductLineDraft[]) {
-          if (item.product) result.push(item.product)
-        }
-      }
-    }
-    return result
-  }
-
-  function searchReference(key: string, keyword: string): void {
-    const previous = searchTimers.get(key)
-    if (previous) clearTimeout(previous)
-    searchTimers.set(
-      key,
-      setTimeout(() => void loadReference(key, keyword), 250),
-    )
-  }
-
-  async function loadReference(key: string, keyword: string): Promise<void> {
-    const definition = referenceDefinition(key)
-    const state = referenceState(key)
-    if (definition.entities.length === 0) return
-    const missingPermission = definition.entities.find(
-      (entity) => !session.can(`/bob/${entity}/query`),
-    )
-    if (missingPermission) {
-      state.errorMessage = `缺少 ${missingPermission} 查询权限。`
-      return
-    }
-    const sequence = ++state.sequence
-    referenceControllers.get(key)?.abort()
-    const controller = new AbortController()
-    referenceControllers.set(key, controller)
-    state.loading = true
-    state.errorMessage = null
-    try {
-      const pages = await Promise.all(definition.entities.map(async (entity) => {
-        const { data } = await apiClient.post<
-          PageResult<ReferenceListItem>,
-          PageRequest
-        >(`bob/${entity}/query`, {
-          page: 1,
-          pageSize: 20,
-          filters: {
-            status: ['EFFECTIVE'],
-            ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-            ...(definition.filters ?? {}),
-            ...(entity === 'supplier' &&
-              (key === 'counterparty' || key === 'party')
-              ? { supplierType: 'GENERAL' }
-              : {}),
-          },
-          sort: [{ field: 'name', order: 'asc' }],
-        }, { signal: controller.signal })
-        return (data.items ?? []).flatMap((item): VoucherReference[] => {
-          if (
-            item.currentVersion.status !== 'EFFECTIVE' ||
-            !item.effectiveVersionId ||
-            item.effectiveVersionId !== item.currentVersion.versionId ||
-            !item.currentVersion.summary.name
-          ) {
-            return []
-          }
-          const summary = item.currentVersion.summary
-          return [{
-            objectId: item.objectId,
-            versionId: item.effectiveVersionId,
-            entity,
-            code: item.code,
-            name: String(summary.name),
-            ...(typeof summary.unit === 'string' ? { unit: summary.unit } : {}),
-            ...(typeof summary.currency === 'string'
-              ? { currency: summary.currency }
-              : {}),
-            ...(typeof summary.plateNumber === 'string'
-              ? { plateNumber: summary.plateNumber }
-              : {}),
-            ...(typeof summary.supplierType === 'string'
-              ? { supplierType: summary.supplierType }
-              : {}),
-            ...(typeof summary.platformObjectId === 'string'
-              ? { platformObjectId: summary.platformObjectId }
-              : {}),
-          }]
-        })
-      }))
-      if (sequence !== state.sequence) return
-      const selected = selectedReferences()
-      state.options = [...selected, ...pages.flat()].filter(
-        (item, index, all) =>
-          all.findIndex(
-            (candidate) =>
-              candidate.objectId === item.objectId &&
-              candidate.versionId === item.versionId,
-          ) === index,
-      )
-    } catch (error) {
-      if (sequence === state.sequence) state.errorMessage = getErrorMessage(error)
-    } finally {
-      if (sequence === state.sequence) state.loading = false
-      if (referenceControllers.get(key) === controller) {
-        referenceControllers.delete(key)
-      }
-    }
-  }
-
   if (getCurrentScope()) {
     onScopeDispose(() => {
       querySequence += 1
       queryController?.abort()
-      for (const timer of searchTimers.values()) clearTimeout(timer)
-      for (const controller of referenceControllers.values()) controller.abort()
     })
   }
 

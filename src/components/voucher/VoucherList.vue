@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatLocalDateTime } from '@/utils/date'
 import type {
   VoucherListItem,
   VoucherReference,
@@ -226,7 +227,7 @@ function changeStatuses(value: unknown): void {
               </td>
               <td>{{ row.currency }}</td>
               <td class="text-end">{{ row.amount }}</td>
-              <td>{{ new Date(row.updatedAt).toLocaleString('zh-CN') }}</td>
+              <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end text-no-wrap">
                 <v-btn
                   v-if="canView(row)"

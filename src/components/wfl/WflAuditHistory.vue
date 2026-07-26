@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMediumDateTime } from '@/utils/date'
 import type { WflAuditEvent } from './types'
 
 withDefaults(
@@ -21,12 +22,6 @@ const emit = defineEmits<{
   reload: []
 }>()
 
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value))
-}
 </script>
 
 <template>
@@ -56,7 +51,7 @@ function formatTime(value: string): string {
         <v-card variant="outlined">
           <v-card-title class="text-body-1">{{ event.eventType }}</v-card-title>
           <v-card-subtitle>
-            {{ formatTime(event.occurredAt) }} · {{ event.actorId }}
+            {{ formatMediumDateTime(event.occurredAt) }} · {{ event.actorId }}
           </v-card-subtitle>
           <v-card-text>
             <div v-if="event.documentNo">

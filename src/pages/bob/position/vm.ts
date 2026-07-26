@@ -1,5 +1,5 @@
-import { getBobEntityConfig } from '../shared/config'
 import { useBobEntityViewModel } from '../shared/vm'
+import { positionConfig } from './config'
 
-export const positionConfig = getBobEntityConfig('position')
+export { positionConfig } from './config'
 export const usePositionViewModel = () => useBobEntityViewModel(positionConfig)

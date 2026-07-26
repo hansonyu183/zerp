@@ -37,286 +37,230 @@ const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
 const developingPage: PageLoader =
   () => import('@/pages/system/developing/Developing.vue')
 
-export const pageRegistrations: readonly PageRegistration[] = [
-  {
-    domain: 'bob',
+type DomainId = 'bob' | 'vou' | 'wfl' | 'led'
+type DomainRegistration = Pick<
+  PageRegistration,
+  'domainTitle' | 'domainIcon' | 'domainOrder'
+>
+type EntityRegistration = Omit<
+  PageRegistration,
+  'domain' | keyof DomainRegistration
+>
+
+const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
+  bob: {
     domainTitle: '基础业务对象',
     domainIcon: 'mdi-database-outline',
     domainOrder: 10,
+  },
+  vou: {
+    domainTitle: '业务单据',
+    domainIcon: 'mdi-file-document-multiple-outline',
+    domainOrder: 20,
+  },
+  wfl: {
+    domainTitle: '业务流程',
+    domainIcon: 'mdi-transit-connection-variant',
+    domainOrder: 30,
+  },
+  led: {
+    domainTitle: '业务账簿',
+    domainIcon: 'mdi-book-open-page-variant-outline',
+    domainOrder: 40,
+  },
+}
+
+function registerPage(
+  domain: DomainId,
+  registration: EntityRegistration,
+): PageRegistration {
+  return {
+    domain,
+    ...domainRegistrations[domain],
+    ...registration,
+  }
+}
+
+export const pageRegistrations: readonly PageRegistration[] = [
+  registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',
     icon: 'mdi-account-group',
     order: 10,
     component: () => import('@/pages/bob/customer/Customer.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'supplier',
     entityTitle: '供应商',
     icon: 'mdi-truck-delivery-outline',
     order: 20,
     component: () => import('@/pages/bob/supplier/Supplier.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'employee',
     entityTitle: '员工',
     icon: 'mdi-badge-account-horizontal-outline',
     order: 30,
     component: () => import('@/pages/bob/employee/Employee.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'product',
     entityTitle: '产品',
     icon: 'mdi-package-variant-closed',
     order: 40,
     component: () => import('@/pages/bob/product/Product.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'service',
     entityTitle: '服务',
     icon: 'mdi-hand-heart-outline',
     order: 50,
     component: () => import('@/pages/bob/service/Service.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'warehouse',
     entityTitle: '仓库',
     icon: 'mdi-warehouse',
     order: 60,
     component: () => import('@/pages/bob/warehouse/Warehouse.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'vehicle',
     entityTitle: '车辆',
     icon: 'mdi-truck-outline',
     order: 70,
     component: () => import('@/pages/bob/vehicle/Vehicle.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'fund-account',
     entityTitle: '资金账户',
     icon: 'mdi-bank-outline',
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'category',
     entityTitle: '分类',
     icon: 'mdi-shape-outline',
     order: 90,
     component: () => import('@/pages/bob/category/Category.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'department',
     entityTitle: '部门',
     icon: 'mdi-office-building-outline',
     order: 100,
     component: () => import('@/pages/bob/department/Department.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'position',
     entityTitle: '岗位',
     icon: 'mdi-briefcase-account-outline',
     order: 110,
     component: () => import('@/pages/bob/position/Position.vue'),
-  },
-  {
-    domain: 'bob',
-    domainTitle: '基础业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
+  }),
+  registerPage('bob', {
     entity: 'settlement-method',
     entityTitle: '结算方式',
     icon: 'mdi-calendar-clock-outline',
     order: 120,
     component: () =>
       import('@/pages/bob/settlement-method/SettlementMethod.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'sale-order',
     entityTitle: '销售单',
     icon: 'mdi-cart-arrow-down',
     order: 10,
     component: () => import('@/pages/vou/sale-order/SaleOrder.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'purchase-order',
     entityTitle: '采购单',
     icon: 'mdi-cart-arrow-up',
     order: 20,
     component: () => import('@/pages/vou/purchase-order/PurchaseOrder.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'intermediary-sale-order',
     entityTitle: '居间销售单',
     icon: 'mdi-swap-horizontal-bold',
     order: 30,
     component: () =>
       import('@/pages/vou/intermediary-sale-order/IntermediarySaleOrder.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'receipt',
     entityTitle: '往来款收款单',
     icon: 'mdi-cash-plus',
     order: 40,
     component: () => import('@/pages/vou/receipt/Receipt.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'payment',
     entityTitle: '往来款付款单',
     icon: 'mdi-cash-minus',
     order: 50,
     component: () => import('@/pages/vou/payment/Payment.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'expense-reimbursement',
     entityTitle: '费用报销单',
     icon: 'mdi-receipt-text-outline',
     order: 60,
     component: () =>
       import('@/pages/vou/expense-reimbursement/ExpenseReimbursement.vue'),
-  },
-  {
-    domain: 'vou',
-    domainTitle: '业务单据',
-    domainIcon: 'mdi-file-document-multiple-outline',
-    domainOrder: 20,
+  }),
+  registerPage('vou', {
     entity: 'other-income',
     entityTitle: '其它收入单',
     icon: 'mdi-cash-multiple',
     order: 70,
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
-  },
-  {
-    domain: 'wfl',
-    domainTitle: '业务流程',
-    domainIcon: 'mdi-transit-connection-variant',
-    domainOrder: 30,
+  }),
+  registerPage('wfl', {
     entity: 'intermediary-trade',
     entityTitle: '居间贸易',
     icon: 'mdi-swap-horizontal-bold',
     order: 10,
     component: () =>
       import('@/pages/wfl/intermediary-trade/IntermediaryTrade.vue'),
-  },
-  {
-    domain: 'led',
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+  }),
+  registerPage('led', {
     entity: 'opening',
     entityTitle: '期初与启用',
     icon: 'mdi-book-cog-outline',
     order: 10,
     component: () => import('@/pages/led/opening/Opening.vue'),
-  },
-  {
-    domain: 'led',
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+  }),
+  registerPage('led', {
     entity: 'inventory',
     entityTitle: '库存台账',
     icon: 'mdi-warehouse',
     order: 20,
     component: () => import('@/pages/led/inventory/Inventory.vue'),
-  },
-  {
-    domain: 'led',
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+  }),
+  registerPage('led', {
     entity: 'fund',
     entityTitle: '资金台账',
     icon: 'mdi-bank-outline',
     order: 30,
     component: () => import('@/pages/led/fund/Fund.vue'),
-  },
-  {
-    domain: 'led',
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+  }),
+  registerPage('led', {
     entity: 'party',
     entityTitle: '往来台账',
     icon: 'mdi-account-cash-outline',
     order: 40,
     component: () => import('@/pages/led/party/Party.vue'),
-  },
-  {
-    domain: 'led',
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+  }),
+  registerPage('led', {
     entity: 'container',
     entityTitle: '空桶台账',
     icon: 'mdi-barrel',
     order: 50,
     component: () => import('@/pages/led/container/Container.vue'),
-  },
+  }),
 ]
 
 export const pageRegistry: Readonly<Record<string, PageRegistration>> =

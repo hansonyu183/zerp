@@ -102,6 +102,9 @@ func Load() (Config, error) {
 	if cfg.SessionCookieSecure, err = boolOrDefault("APP_SESSION_COOKIE_SECURE", true); err != nil {
 		return Config{}, err
 	}
+	if cfg.Environment == EnvironmentProduction && !cfg.SessionCookieSecure {
+		return Config{}, errors.New("APP_SESSION_COOKIE_SECURE must be true in production")
+	}
 	if cfg.SessionCookieSameSite != "lax" && cfg.SessionCookieSameSite != "strict" && cfg.SessionCookieSameSite != "none" {
 		return Config{}, errors.New("APP_SESSION_COOKIE_SAME_SITE must be one of lax, strict, or none")
 	}

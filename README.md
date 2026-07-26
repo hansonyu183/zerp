@@ -110,7 +110,7 @@ make ENV_FILE=.env.test compose-up
 | `HTTP_READ_HEADER_TIMEOUT` | 否 | `5s` | HTTP 请求头读取超时 |
 | `SHUTDOWN_TIMEOUT` | 否 | `10s` | 优雅关闭等待时间 |
 | `APP_SESSION_COOKIE_NAME` | 否 | `zerp_session` | 服务端会话 Cookie 名称 |
-| `APP_SESSION_COOKIE_SECURE` | 否 | `true` | 是否仅通过 HTTPS 发送会话 Cookie；纯 HTTP 本地调试可设为 `false` |
+| `APP_SESSION_COOKIE_SECURE` | 否 | `true` | 是否仅通过 HTTPS 发送会话 Cookie；生产环境必须为 `true`，仅 development/test 纯 HTTP 本地调试可设为 `false` |
 | `APP_SESSION_COOKIE_SAME_SITE` | 否 | `lax` | Cookie SameSite：`lax`、`strict` 或 `none`；`none` 强制要求 Secure |
 | `APP_SESSION_IDLE_TIMEOUT` | 否 | `30m` | 会话空闲有效期 |
 | `APP_SESSION_ABSOLUTE_TIMEOUT` | 否 | `12h` | 会话绝对有效期 |

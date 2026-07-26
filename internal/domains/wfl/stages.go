@@ -325,8 +325,11 @@ func (s *Service) insertProcurement(ctx context.Context, tx pgx.Tx, process proc
 		return result, validation("procurement date precedes customer order", nil)
 	}
 	supplier, err := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntitySupplier, data.Supplier.ObjectID, data.Supplier.VersionID)
-	if err != nil || supplier.Data.SupplierType != bobdomain.SupplierTypeGeneral {
+	if err != nil {
 		return result, referenceError("supplier", err)
+	}
+	if supplier.Data.SupplierType != bobdomain.SupplierTypeGeneral {
+		return result, referenceError("supplier", nil)
 	}
 	var purchaser bobdomain.EffectiveReference
 	if data.Purchaser != nil {
@@ -507,8 +510,11 @@ func (s *Service) insertDelivery(ctx context.Context, tx pgx.Tx, process process
 		return result, validation("delivery date precedes customer order", nil)
 	}
 	platform, err := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntitySupplier, data.Platform.ObjectID, data.Platform.VersionID)
-	if err != nil || platform.Data.SupplierType != bobdomain.SupplierTypeLogisticsPlatform {
+	if err != nil {
 		return result, referenceError("logistics platform", err)
+	}
+	if platform.Data.SupplierType != bobdomain.SupplierTypeLogisticsPlatform {
+		return result, referenceError("logistics platform", nil)
 	}
 	vehicle, err := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntityVehicle, data.Vehicle.ObjectID, data.Vehicle.VersionID)
 	if err != nil || vehicle.Data.PlatformObjectID != platform.ObjectID {

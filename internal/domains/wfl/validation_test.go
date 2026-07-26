@@ -1,6 +1,11 @@
 package wfl
 
-import "testing"
+import (
+	"errors"
+	"math"
+	"strings"
+	"testing"
+)
 
 func TestFixedDecimalAndLineAmount(t *testing.T) {
 	value, err := fixedDecimal("12.345678", 6, false)
@@ -33,5 +38,38 @@ func TestSemanticStatusesAndReasons(t *testing.T) {
 	}
 	if _, err := requiredReason("修正数量"); err != nil {
 		t.Fatalf("valid reason: %v", err)
+	}
+}
+
+func TestValidateQuery(t *testing.T) {
+	query, err := validateQuery(QueryInput{
+		Keyword:  "  PRO-001  ",
+		Statuses: []string{" draft ", "checked"},
+	})
+	if err != nil {
+		t.Fatalf("validateQuery() error = %v", err)
+	}
+	if query.page != 1 || query.pageSize != 20 || query.offset != 0 ||
+		query.keyword != "PRO-001" || len(query.statuses) != 2 ||
+		query.statuses[0] != StatusDraft || query.statuses[1] != StatusChecked {
+		t.Fatalf("validated query = %+v", query)
+	}
+
+	cases := map[string]QueryInput{
+		"negative page":     {Page: -1},
+		"oversized page":    {Page: math.MaxInt, PageSize: 100},
+		"oversized size":    {PageSize: 101},
+		"oversized keyword": {Keyword: strings.Repeat("界", 201)},
+		"unknown status":    {Statuses: []string{"UNKNOWN"}},
+		"duplicate status":  {Statuses: []string{"draft", "DRAFT"}},
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, queryErr := validateQuery(input)
+			var domainErr *DomainError
+			if !errors.As(queryErr, &domainErr) || domainErr.Kind != ErrorValidation {
+				t.Fatalf("validateQuery() error = %v, want validation error", queryErr)
+			}
+		})
 	}
 }

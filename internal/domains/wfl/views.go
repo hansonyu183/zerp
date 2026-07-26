@@ -309,12 +309,14 @@ func loadBalances(ctx context.Context, q queryer, processID string, includeProcu
 		Scan(&result.HasUnfinishedDocuments); err != nil {
 		return Balances{}, err
 	}
-	_ = q.QueryRow(ctx, `SELECT
+	if err = q.QueryRow(ctx, `SELECT
 		COALESCE(sum(quantity_delta) FILTER(WHERE container_type='SOLVENT'),0),
 		COALESCE(sum(quantity_delta) FILTER(WHERE container_type='RESIN'),0)
 		FROM led_container_entries e JOIN led_control c ON c.active_generation_id=e.generation_id
 		WHERE c.singleton AND e.customer_object_id=$1`, customerID).
-		Scan(&result.SolventContainers, &result.ResinContainers)
+		Scan(&result.SolventContainers, &result.ResinContainers); err != nil {
+		return Balances{}, err
+	}
 	return result, nil
 }
 

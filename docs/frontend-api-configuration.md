@@ -16,27 +16,25 @@ VITE_API_BASE_URL=https://zerp-api.bytesucceed.com
 
 修改环境变量后必须重新部署前端。Vite 的 `VITE_*` 变量在构建时写入静态资源，仅修改 Pages 变量而不重新构建不会生效。
 
-当前生产前端 Origin 为：
+生产前端的自定义 Origin 示例为：
 
 ```text
 https://zerp.bytesucceed.com
 ```
 
-后端已精确允许该 Origin。Origin 不包含路径，也不能带结尾 `/`。
+部署时必须把该精确 Origin 写入后端 `CORS_ALLOWED_ORIGINS`。Origin 不包含路径，也不能带结尾 `/`。
+Cloudflare Pages 的原始域名和预览域名不会因为同属 `pages.dev` 自动获得授权；确需联调时逐个加入完整
+Origin，并在联调结束后移除。
 
-切换期间后端也暂时允许原始 Pages 域名 `https://zerp-4gu.pages.dev`。稳定运行后可以从白名单移除该兼容 Origin。
-
-Cloudflare Pages 的其他预览部署域名不在生产白名单内。需要联调预览部署时，应向后端提供完整的预览 Origin，不能假设 `*.pages.dev` 会被统一放行。
-
-自定义前端域名和 API 都位于 `https://*.bytesucceed.com`，因此属于同站部署。当前后端的 `SameSite=Lax` 会话 Cookie 可以用于正式前端，不需要为了生产环境改成第三方 Cookie。
+自定义前端域名和 API 都位于 `https://*.bytesucceed.com` 时属于同站部署，可以使用
+`SameSite=Lax` 会话 Cookie，不需要为了生产环境改成第三方 Cookie。
 
 ## 2. 本地开发配置
 
-后端当前允许以下本地 Origin：
+仓库 `.env.example` 和主 Compose 默认允许以下本地 Origin：
 
 ```text
 http://localhost:5173
-http://127.0.0.1:5173
 http://localhost:4173
 http://127.0.0.1:4173
 ```
@@ -44,13 +42,7 @@ http://127.0.0.1:4173
 推荐开发者统一在端口 `5173` 启动 Vite：
 
 ```bash
-npm run dev -- --host localhost --port 5173
-```
-
-本地直连后端时配置：
-
-```env
-VITE_API_BASE_URL=https://zerp-api.bytesucceed.com
+pnpm dev -- --host localhost --port 5173
 ```
 
 协议、主机或端口任一不同都会产生不同的 Origin。例如以下地址当前不会被放行：
@@ -60,11 +52,12 @@ http://localhost:5174
 http://192.168.1.10:5173
 ```
 
-如必须使用其他地址，需要提前把完整 Origin 加入后端白名单。
+如必须使用其他地址，需要把完整 Origin 加入本地后端的 `CORS_ALLOWED_ORIGINS`。这些默认值只描述仓库
+配置，不代表任何生产环境当前允许的 Origin。
 
 ### 推荐：使用 Vite 开发代理
 
-涉及登录 Cookie 时，推荐让浏览器请求本地同源 `/api`，再由 Vite 转发到正式 API。若本地页面直接跨站请求远端 API，后端必须使用 `SameSite=None; Secure`，且浏览器的第三方 Cookie 策略仍可能阻止会话；开发代理更稳定。前端开发环境配置：
+涉及登录 Cookie 时，让浏览器请求本地同源 `/api`，再由 Vite 转发到本机 API。前端开发环境配置：
 
 ```env
 VITE_API_BASE_URL=/api
@@ -82,9 +75,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'https://zerp-api.bytesucceed.com',
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
@@ -93,6 +85,28 @@ export default defineConfig({
 ```
 
 `strictPort: true` 可以避免 `5173` 被占用后 Vite 自动切换到未加入 CORS 白名单的其他端口。
+
+本机后端使用纯 HTTP 时，在被 Git 忽略的 `.env.local` 中设置：
+
+```env
+APP_SESSION_COOKIE_SECURE=false
+APP_SESSION_COOKIE_SAME_SITE=lax
+```
+
+`SameSite=None` 只用于前端与 API 真正跨站且必须携带 Cookie 的 HTTPS 场景，并强制要求
+`APP_SESSION_COOKIE_SECURE=true`。同站生产部署和本机代理不应为了“保险”改成 `None`。
+
+### 隔离 E2E
+
+BOB、VOU、WFL 的 Playwright 流程会创建和流转真实业务数据，禁止连接生产或日常联调数据库。先在后端
+仓库执行 `make e2e-env-init && make e2e-up`，再让前端测试使用：
+
+```env
+E2E_API_BASE_URL=http://127.0.0.1:18080
+```
+
+隔离后端的数据库、附件、Cookie 和端口均独立；重置与账号配置见后端 README 的“本机隔离 E2E 后端”。
+生产 API 地址只供正式构建和经授权的只读探针使用，不作为本地破坏性业务测试目标。
 
 ## 3. 请求封装
 
@@ -277,15 +291,16 @@ GET https://zerp-api.bytesucceed.com/readyz
 
 健康检查成功不代表业务 API 已部署，也不代表当前用户具有业务权限。
 
-## 7. 当前联调状态
+## 7. 联调验证清单
 
-截至 2026-07-22：
+部署状态会随发布变化，不在仓库文档中保存“当前已部署”快照。每次联调按目标环境重新验证：
 
-- HTTPS、`/healthz` 和 `/readyz` 正常；
-- 线上 APP 已部署，数据库迁移已执行到 `00003_app_self_service.sql`，初始超级管理员已创建；
-- `zerp.bytesucceed.com`、原始 Pages 域名，以及 `localhost`/`127.0.0.1` 的 `5173`、`4173` Origin 均已放行；
-- 生产会话 Cookie 使用 `Secure; SameSite=None`，登录、恢复会话、CSRF、权限、资料查询和退出链路已通过外部探针验证；
-- 前端使用 `VITE_API_BASE_URL=https://zerp-api.bytesucceed.com`，认证及自助接口统一使用 `/app/user/*`；
-- 线上 BOB 路由尚未实现；
+1. `GET /healthz` 和 `GET /readyz` 均成功；
+2. 使用目标前端的精确 `Origin` 发起预检，确认 `Access-Control-Allow-Origin` 不使用通配符且允许凭证；
+3. 登录响应写入 `HttpOnly` Cookie，生产必须带 `Secure`，`SameSite` 与实际站点拓扑一致；
+4. 刷新后通过 `/app/user/session` 恢复用户、权限和新的 CSRF Token；
+5. 受保护请求携带 `X-CSRF-Token`，未登录、无权限和参数错误分别映射到稳定业务码；
+6. 使用真实已注册路径验证目标领域，而不是只以健康检查判断业务版本已部署；
+7. 注销后原会话不能继续访问受保护接口。
 
-后端 APP 登录链路已经具备联调条件。浏览器若禁用第三方 Cookie，本地页面直连远端 API 仍可能被浏览器策略阻止，此时使用第 2 节的 Vite 同源代理方案。
+记录验证环境、版本或提交、时间和 `requestId`，但不得记录密码、Cookie 或 CSRF Token。

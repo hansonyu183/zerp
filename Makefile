@@ -1,4 +1,8 @@
 ENV_FILE ?= .env.local
+QUALITY_IMAGE_TAG ?= zerp-back:quality
+ACTIONLINT_VERSION ?= v1.7.12
+STATICCHECK_VERSION ?= v0.7.0
+GOVULNCHECK_VERSION ?= v1.6.0
 override E2E_ENV_FILE := .env.e2e.local
 override E2E_PROJECT := zerp-back-e2e
 E2E_CLEAN_ENV = env \
@@ -35,7 +39,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-integration generate migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-integration generate quality quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
 
 run:
 	go run ./cmd/server
@@ -70,6 +74,58 @@ test-integration: test-db-prepare
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml
+
+quality:
+	@$(MAKE) quality-generated
+	@$(MAKE) quality-format
+	@$(MAKE) quality-actionlint
+	@$(MAKE) quality-compose
+	@$(MAKE) quality-test
+	@$(MAKE) quality-vet-build
+	@$(MAKE) quality-race
+	@$(MAKE) quality-staticcheck
+	@$(MAKE) quality-vuln
+	@$(MAKE) quality-image
+
+quality-generated:
+	@before="$$(find internal/database/sqlc -type f -name '*.go' -print | LC_ALL=C sort | while IFS= read -r file; do printf '%s ' "$$file"; git hash-object "$$file"; done)"; \
+		$(MAKE) generate; \
+		after="$$(find internal/database/sqlc -type f -name '*.go' -print | LC_ALL=C sort | while IFS= read -r file; do printf '%s ' "$$file"; git hash-object "$$file"; done)"; \
+		test "$$before" = "$$after" || { echo "sqlc generated files changed; review and stage them before rerunning quality" >&2; exit 1; }
+
+quality-format:
+	@test -z "$$(gofmt -l $$(git ls-files '*.go'))" || { gofmt -l $$(git ls-files '*.go'); exit 1; }
+	go mod tidy -diff
+	go -C tools mod tidy -diff
+	go mod verify
+	go -C tools mod verify
+	git diff --check
+	git diff --cached --check
+
+quality-actionlint:
+	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
+
+quality-compose:
+	docker compose --env-file $(ENV_FILE) config --quiet
+
+quality-test:
+	@$(MAKE) test
+
+quality-vet-build:
+	go vet ./...
+	go build ./...
+
+quality-race:
+	go test -race ./...
+
+quality-staticcheck:
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+
+quality-vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
+quality-image:
+	docker build --tag $(QUALITY_IMAGE_TAG) .
 
 migrate-status:
 	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" status

@@ -22,5 +22,8 @@
 
 - [APP：应用访问与权限](docs/domains/app.md)
 - [BOB：基础业务对象](docs/domains/bob.md)
+- [VOU：业务单据](docs/domains/vou.md)
+- [WFL：业务流程](docs/domains/wfl.md)
+- [LED：业务账簿](docs/domains/led.md)
 
 新增业务域时，先补充 `docs/domains/<domain>.md`，再实现对应路由、权限、迁移和领域代码。

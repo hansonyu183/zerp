@@ -57,25 +57,142 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 
 ## 4. API
 
-业务入口为 `POST /wfl/intermediary-trade/{action}`：
+业务入口为 `POST /wfl/intermediary-trade/{action}`。基础动作：
 
-```text
-query get create save check uncheck approve unapprove audit-history
-short-close-request short-close-cancel short-close-confirm short-close-unconfirm
-procurement-create/get/save/delete/check/uncheck/place/unplace
-receipt-create/get/save/delete/check/uncheck/confirm/unconfirm
-delivery-create/get/save/delete/check/uncheck/execute/unexecute
-signoff-create/get/save/delete/check/uncheck/confirm/unconfirm
-{procurement|receipt|delivery|signoff}-attachment-initiate/download/remove
+| 动作 | 必填请求字段 | 说明 |
+| --- | --- | --- |
+| `query` | 无 | 可选 `page`、`pageSize`、`keyword`、`statuses`；分页默认 1/20、最大 100 |
+| `get` | `processId` | 返回完整流程、授权后的单据正文和余额 |
+| `create` | `data` | `data` 为客户订单草稿 |
+| `save` | `processId`、`processRevision`、`documentId`、`documentRevision`、`data` | 只保存根客户订单草稿 |
+| `audit-history` | `processId` | 可选 `page`、`pageSize`，默认 1/20、最大 100 |
+
+根流程动作：
+
+| 动作 | 必填请求字段 | `reason` |
+| --- | --- | --- |
+| `check`、`approve`、`short-close-confirm` | `processId`、`processRevision` | 不使用 |
+| `uncheck`、`unapprove` | `processId`、`processRevision` | 必填 |
+| `short-close-request`、`short-close-cancel`、`short-close-unconfirm` | `processId`、`processRevision` | 必填 |
+
+阶段动作矩阵：
+
+| 阶段 | 查看 | 创建/保存/删除 | 核对/反核对 | 最终动作/反向动作 |
+| --- | --- | --- | --- | --- |
+| 采购 | `procurement-get` | `procurement-create`、`procurement-save`、`procurement-delete` | `procurement-check`、`procurement-uncheck` | `procurement-place`、`procurement-unplace` |
+| 收货 | `receipt-get` | `receipt-create`、`receipt-save`、`receipt-delete` | `receipt-check`、`receipt-uncheck` | `receipt-confirm`、`receipt-unconfirm` |
+| 送货 | `delivery-get` | `delivery-create`、`delivery-save`、`delivery-delete` | `delivery-check`、`delivery-uncheck` | `delivery-execute`、`delivery-unexecute` |
+| 签收 | `signoff-get` | `signoff-create`、`signoff-save`、`signoff-delete` | `signoff-check`、`signoff-uncheck` | `signoff-confirm`、`signoff-unconfirm` |
+
+阶段动作字段规则：
+
+- `*-get`：`processId`、`documentId`；
+- `*-create`：`processId`、`processRevision`、对应阶段 `data`；
+- `*-save`：在 create 字段上增加 `documentId`、`documentRevision`；
+- `*-delete`、`*-uncheck` 和全部最终反向动作：`processId`、`processRevision`、`documentId`、
+  `documentRevision`、1–1000 字的 `reason`；
+- `*-check` 和正向最终动作：相同 ID/revision 字段，不使用 `data` 或 `reason`。
+
+查询示例：
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "keyword": "CO-20260726",
+  "statuses": ["DRAFT", "APPROVED"]
+}
 ```
 
-公共写请求携带 `processId`、`processRevision`、`documentId`、`documentRevision`、可选 `data` 和 `reason`；
-创建流程时只传客户订单草稿。响应返回流程 revision、流程状态、阶段单据 ID/单号/revision/语义状态、
-`parentDocumentId` 和累计数量与空桶余额。
+状态只允许 `DRAFT`、`CHECKED`、`APPROVED`、`COMPLETED`、`SHORT_CLOSE_REQUESTED`、
+`SHORT_CLOSED`，同一状态不能重复。创建流程时只传客户订单草稿：
+
+```json
+{
+  "data": {
+    "businessDate": "2026-07-26",
+    "currency": "CNY",
+    "customer": {"objectId": "01J...", "versionId": "01J..."},
+    "salesperson": {"objectId": "01J...", "versionId": "01J..."},
+    "remark": "居间订单",
+    "lines": [
+      {
+        "product": {"objectId": "01J...", "versionId": "01J..."},
+        "orderedQuantity": "10.000000",
+        "unitPrice": "30.00",
+        "remark": "树脂"
+      }
+    ]
+  }
+}
+```
+
+阶段 create/save 的 `data` 按阶段固定。采购：
+
+```json
+{
+  "supplier": {"objectId": "01J...", "versionId": "01J..."},
+  "purchaser": {"objectId": "01J...", "versionId": "01J..."},
+  "businessDate": "2026-07-27",
+  "lines": [
+    {"sourceLineId": "01J...", "quantity": "10.000000", "unitPrice": "20.00", "remark": "采购"}
+  ],
+  "remark": "向供应商下单"
+}
+```
+
+收货只使用 `businessDate`、`lines[{sourceLineId,quantity,remark}]` 和 `remark`。送货在相同行结构外
+要求 `platform`、`vehicle`。签收数据为：
+
+```json
+{
+  "businessDate": "2026-07-29",
+  "lines": [
+    {
+      "sourceLineId": "01J...",
+      "signedQuantity": "9.000000",
+      "rejectedQuantity": "1.000000",
+      "remark": "拒收一件"
+    }
+  ],
+  "returnedSolventContainers": 0,
+  "returnedResinContainers": 8,
+  "containerDifferenceReason": "客户少还一桶",
+  "remark": "签收完成"
+}
+```
+
+公共写入成功返回流程 revision、流程状态和本次单据信息：
+
+```json
+{
+  "processId": "01J...",
+  "processRevision": 6,
+  "workflowStatus": "APPROVED",
+  "documentId": "01J...",
+  "documentNo": "PRO-20260727-000001",
+  "documentRevision": 2,
+  "documentStatus": "CHECKED",
+  "parentDocumentId": "01J...",
+  "balances": {
+    "lines": [],
+    "solventContainers": 0,
+    "resinContainers": 0,
+    "hasUnfinishedDocuments": true
+  }
+}
+```
 
 流程单据摘要统一返回 `currency`；授权后的单据正文 `data` 统一返回单据级 `remark`，空备注返回空字符串，
 使五类草稿都能按读取值安全回写。采购正文、采购备注和采购价只对拥有 `procurement-get` 权限的用户返回。
-附件继续使用 VOU 文件字节流令牌端点。
+附件继续使用 VOU 文件字节流令牌端点。每个采购、收货、送货和签收阶段都提供
+`{stage}-attachment-initiate`、`{stage}-attachment-download`、`{stage}-attachment-remove`：
+
+- initiate 要求流程与单据 ID/revision，以及 `fileName`、`contentType`、`size`、`sha256`；
+- download 要求 `processId`、`documentId`、`fileId`；
+- remove 要求流程与单据 ID/revision 以及 `fileId`；
+- initiate 返回流程/单据 revision、`fileId`、`uploadUrl`、`expiresAt`；download 返回
+  `downloadUrl`、`expiresAt`；remove 返回更新后的单据 revision 和状态。
 
 ## 5. 审计与验收
 

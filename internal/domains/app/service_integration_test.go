@@ -739,6 +739,24 @@ func TestManagementContractsIntegration(t *testing.T) {
 	if _, err := service.SetUserStatus(t.Context(), admin.ID, admin.Revision, StatusDisabled, admin.ID, "disable-last-admin"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("disable last admin error = %v", err)
 	}
+	catalogPermissionIDs := permissionIDsByPath(
+		t, pool,
+		signoutPath,
+		"/vou/sale-order/query", "/vou/sale-order/get",
+		"/wfl/intermediary-trade/query", "/wfl/intermediary-trade/get",
+	)
+	slices.Sort(catalogPermissionIDs)
+	catalogRole, catalogErr := service.CreateRole(t.Context(), CreateRoleInput{
+		Code: "vou-wfl-reader", Name: "VOU WFL 查看",
+		PermissionIDs: catalogPermissionIDs,
+	}, admin.ID, "create-role-with-seeded-permissions")
+	if catalogErr != nil {
+		t.Fatalf("create role with VOU/WFL seeded permissions: %v", catalogErr)
+	}
+	slices.Sort(catalogRole.PermissionIDs)
+	if !slices.Equal(catalogRole.PermissionIDs, catalogPermissionIDs) {
+		t.Fatalf("catalog role permissions = %v, want %v", catalogRole.PermissionIDs, catalogPermissionIDs)
+	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "missing-query", Name: "缺少查询权限",
 		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/app/user/get"),

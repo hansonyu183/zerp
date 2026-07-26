@@ -1,14 +1,10 @@
-# BOB 后端业务域
+# BOB 基础业务对象领域
 
 ## 1. 文档目的
 
-本文定义 ZERP 后端 **BOB（Business Object Base）** 领域的业务模型、状态机、数据约束、事务边界和 API 契约，作为客户、供应商、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位和结算方式等基础业务对象的统一实现规范。
+本文定义 ZERP **BOB（Business Object Base）** 领域的业务模型、状态机、数据约束、事务边界和前后端职责，作为客户、供应商、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位和结算方式等基础业务对象的统一实现规范。HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
-BOB 使用固定领域标识 `bob`。所有外部业务接口遵循：
-
-```text
-POST /bob/{entity}/{action}
-```
+BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的生命周期、引用、并发、审核和交互语义。
 
 当前实体标识为：
 
@@ -269,7 +265,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 驳回不创建新版本。用户可在原 `REJECTED` 版本上保存修正；保存增加版本 `revision`，但 `version_no` 不变。再次提交时覆盖该版本的“最近一次提交”字段，同时所有历史提交、审核过程保留在 `bob_audit_events` 中。
 
-## 5. 领域动作与 API
+## 5. 领域动作
 
 十二类实体提供相同的十一个动作，共定义 132 条业务 API：
 
@@ -289,7 +285,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 每条路径都是独立 APP 权限。后端通过路由元数据绑定权限标识，禁止 Handler 自行用字符串前缀或角色名称判断权限。`category`、`department`、`position` 的 33 条权限只登记到权限目录；`settlement-method` 的 11 条权限登记后授予超级管理员，不自动授予普通角色。
 
-## 6. 请求与响应契约
+## 6. 动作语义与约束
 
 ### 6.1 查询
 
@@ -537,7 +533,7 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 ## 10. 权限与审计
 
 - 所有接口先由 APP 中间件校验会话、CSRF 和完整 API 路径权限；
-- `query` 是前端实体菜单准入权限，但不自动授予 `get`、`versions` 或其他动作；
+- 每个动作独立授权；菜单准入不依赖 `query`，缺少某动作权限时前端不得发起对应请求；
 - `delete` 是独立的高风险精确权限，不随 `create`、`edit` 或 `save` 自动授予；
 - `approve` 与 `reject` 只授予审核角色，且仍需执行提交人与审核人分离校验；
 - 后端从会话取得操作者，拒绝客户端传入 `createdBy`、`submittedBy` 或 `reviewedBy`；
@@ -605,84 +601,22 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 - 是否需要多级审核及委托审核；
 - 历史版本和审计记录的保留、归档和脱敏策略。
 
-## 前端职责与交互约束
+## 14. 前端职责与交互约束
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
-#### 6.3 客户接口契约
+### 14.1 客户交互语义
 
-客户列表查询项使用稳定对象和当前版本的组合结构：
+列表、详情、写入结果和字段类型直接使用 OpenAPI 生成类型。前端不得维护 `CustomerData`、变更结果或请求体的手写副本。
 
-```ts
-interface CustomerListItem {
-  objectId: string
-  entity: 'customer'
-  code: string
-  objectRevision: number
-  effectiveVersionId: string | null
-  currentVersion: {
-    versionId: string
-    version: number
-    status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
-    revision: number
-    summary: CustomerData
-  }
-  updatedAt: string
-}
+客户分类、结算方式和业务员分别引用当前有效的 `category`、`settlement-method` 和 `employee` 对象；后两者只保存客户主数据默认值，不在本领域自动带入交易单据。所有写操作由后端校验权限、生命周期和 revision；删除还必须满足 4.3 节的首版草稿条件。
 
-interface CustomerData {
-  name: string
-  customerType: 'END_USER' | 'DEALER'
-  shortName?: string
-  categoryId?: string
-  taxNumber?: string
-  contactName?: string
-  contactPhone?: string
-  email?: string
-  address?: string
-  remark?: string
-  settlementMethodId?: string
-  salespersonEmployeeId: string
-}
-```
+除名称、客户类型和业务员外的客户字段可以清空；省略字段与显式清空的语义按 2.1 节执行。客户类型新建时默认为 `END_USER`，业务员必须引用有效员工且不可清空。
 
-客户详情使用对象视图结构，版本元数据位于顶层 `version`，可编辑名称位于顶层
-`data` 使用 `CustomerData`。客户分类、结算方式和业务员分别引用当前有效的
-`category`、`settlement-method` 和 `employee` 对象；后两者只保存客户主数据
-默认值，不在本领域自动带入交易单据。`create`、`edit` 和 `save` 返回扁平的变更结果：
+### 14.2 统一实体交互
 
-```ts
-interface CustomerMutationResult {
-  objectId: string
-  objectRevision: number
-  versionId: string
-  version: number
-  status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
-  revision: number
-}
-```
-
-各动作请求和响应约定如下：
-
-| 动作     | 请求                                                    | 响应                                        |
-| -------- | ------------------------------------------------------- | ------------------------------------------- |
-| `get`    | `{ objectId, versionId? }`                              | 顶层包含 `version` 和 `data` 的客户对象视图 |
-| `create` | `{ data: { code, ...CustomerData } }`                   | `CustomerMutationResult`                    |
-| `edit`   | `{ objectId, objectRevision }`                          | 新草稿的 `CustomerMutationResult`           |
-| `save`   | `{ objectId, versionId, revision, data: CustomerData }` | `CustomerMutationResult`                    |
-| `delete` | `{ objectId, objectRevision, versionId, revision }`     | `null`                                      |
-
-`edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`
-使用 `revision` 保护目标版本。所有写操作必须由后端校验权限、状态和
-revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除条件。
-除 `name`、`customerType` 和 `salespersonEmployeeId` 外的客户字段均可为空；
-`save` 显式传空字符串用于清空可选字段。`customerType` 新建时默认为
-`END_USER`，`salespersonEmployeeId` 必须引用一个有效员工且不可清空。
-
-#### 6.4 统一实体前端契约
-
-全部实体使用与 6.3 节相同的对象、版本、分页和变更结果结构，并由前端本地
-配置声明各自的类型化 `data` 字段。前端已注册 `customer`、`supplier`、
+全部实体使用 OpenAPI 定义的统一对象、版本、分页和变更结果结构，并由前端本地
+配置声明各自的展示与编辑字段。前端已注册 `customer`、`supplier`、
 `employee`、`product`、`service`、`warehouse`、`vehicle`、
 `fund-account`、`category`、`department`、`position` 和
 `settlement-method` 页面，统一使用共享 BOB 页面和 ViewModel，支持第 7 节
@@ -701,46 +635,7 @@ revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除�
 `monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`，与其他 BOB
 实体使用相同的查询、版本、审核和审计能力。
 
-### 7. 领域能力
-
-BOB 中的各业务实体统一提供以下领域能力：
-
-| 能力         | 动作标识        | 说明                                                |
-| ------------ | --------------- | --------------------------------------------------- |
-| 查询         | `query`         | 按条件分页查询对象或版本                            |
-| 查看         | `get`           | 查看对象详情及指定版本                              |
-| 新建         | `create`        | 创建对象及首个草稿版本                              |
-| 发起编辑     | `edit`          | 使有效版本失效并创建新草稿版本                      |
-| 保存草稿     | `save`          | 保存草稿或已驳回版本                                |
-| 删除首版草稿 | `delete`        | 删除满足 4.3 节全部条件、从未提交的首版草稿及其对象 |
-| 提交审核     | `submit`        | 将可提交版本变为待审核                              |
-| 审核通过     | `approve`       | 将待审核版本变为有效版本                            |
-| 审核驳回     | `reject`        | 将待审核版本变为已驳回版本                          |
-| 查看版本     | `versions`      | 查询对象的全部历史版本                              |
-| 查看审核记录 | `audit-history` | 查询提交、审核及状态变化记录                        |
-
-接口路径遵循项目统一约定：
-
-```text
-POST /bob/{entity}/{action}
-```
-
-例如：
-
-```text
-POST /bob/customer/query
-POST /bob/customer/create
-POST /bob/customer/get
-POST /bob/customer/edit
-POST /bob/customer/save
-POST /bob/customer/delete
-POST /bob/customer/submit
-POST /bob/customer/approve
-POST /bob/customer/reject
-POST /bob/customer/versions
-```
-
-### 8. 权限
+### 14.3 权限
 
 每个 BOB 实体至少支持以下操作权限：
 
@@ -755,21 +650,10 @@ POST /bob/customer/versions
 
 前端权限只控制菜单、按钮和交互可见性，所有状态流转和操作权限必须由后端再次校验。
 
-### 9. 与其他领域的关系
+### 14.4 与其他领域的关系
 
 - BOB 向其他领域提供有效基础对象的查询和引用能力。
 - 交易领域创建新业务记录时，只能选择 `EFFECTIVE` 版本。
 - BOB 不负责决定交易领域如何处理已经引用了失效版本的历史单据。
 - 其他领域不得绕过 BOB 的审核状态自行将对象视为有效。
 - 领域间使用对象标识和版本标识关联，不依赖可变的名称或编码建立关系。
-
-### 10. 待补充事项
-
-以下内容需要在业务规则进一步明确后补入本文档：
-
-- 各实体的字段、编码规则和唯一性约束；
-- 客户与供应商是否共享统一的“业务伙伴”主体；
-- 员工与登录用户、组织和岗位之间的关系；
-- 产品与服务的分类、单位、价格和税务属性；
-- 资金账户的账户类型、币种及数据可见范围；
-- 各实体的具体审核角色和数据权限范围。

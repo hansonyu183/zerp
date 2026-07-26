@@ -15,7 +15,7 @@
     "format": "prettier --write eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
     "format:check": "prettier --check eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
     "check:deployment-config": "node scripts/check-deployment-config.mjs",
-    "docs:check": "node scripts/check-docs.mjs",
+    "docs:check": "pnpm --dir .. docs:check",
     "check:whitespace": "git diff --check",
     "check": "pnpm lint && pnpm format:check && pnpm docs:check && pnpm check:deployment-config && pnpm check:whitespace && pnpm test:coverage && pnpm build",
     "test": "pnpm test:unit && pnpm test:e2e",

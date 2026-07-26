@@ -1,25 +1,10 @@
-# APP 后端业务域
+# APP 访问、会话与权限领域
 
 ## 1. 文档目的
 
-本文定义 ZERP 后端 **APP（Application）** 领域的业务边界、数据模型、接口契约和安全约束，作为数据库迁移、Go 领域服务、HTTP Handler、权限中间件和测试的实现依据。
+本文定义 ZERP **APP（Application）** 领域的业务边界、数据模型、状态与安全规则，以及前后端职责。HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
-APP 使用固定领域标识 `app`。所有业务接口遵循：
-
-```text
-POST /app/{entity}/{action}
-```
-
-本文中的响应均使用项目统一业务包络：
-
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {},
-  "requestId": "01J..."
-}
-```
+APP 使用固定领域标识 `app`。本文记录 OpenAPI 无法独立表达的认证、授权、事务、失效和交互语义，不维护第二套线协议。
 
 ## 2. 领域职责与边界
 
@@ -204,18 +189,11 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 会话接口只返回用户资料、CSRF Token 和 API 权限数组。菜单标题、图标、顺序、组件和动态路由由前端本地注册表生成，后端不得通过权限数据指定可执行的前端组件路径。
 
-## 5. API 契约
+## 5. 动作语义
 
 ### 5.1 登录 `POST /app/user/signin`
 
-请求：
-
-```json
-{
-  "username": "alice",
-  "password": "本次登录密码"
-}
-```
+请求和响应字段直接使用 OpenAPI 生成类型。
 
 成功处理必须：
 
@@ -225,24 +203,6 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 4. 创建新会话并设置 Cookie；
 5. 计算当前权限数组；
 6. 记录成功审计事件。
-
-成功响应 `data`：
-
-```json
-{
-  "user": {
-    "id": "01J...",
-    "username": "alice",
-    "displayName": "Alice"
-  },
-  "csrfToken": "仅返回给当前客户端的凭证",
-  "permissions": [
-    "/app/user/signout",
-    "/bob/customer/get",
-    "/bob/customer/query"
-  ]
-}
-```
 
 Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Path` 和明确的有效期。跨域部署时必须联合验证 Cookie、CORS 和 HTTPS 配置。
 
@@ -266,27 +226,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.4 当前用户自助接口
 
-`POST /app/user/profile` 使用空对象请求体时返回当前会话用户的非敏感资料：
-
-```json
-{
-  "id": "01J...",
-  "username": "alice",
-  "displayName": "Alice",
-  "avatarUrl": "https://images.example.com/alice.png",
-  "passwordChangedAt": "2026-07-22T10:00:00Z",
-  "revision": 2
-}
-```
-
-携带资料字段时，同一路径保存当前用户资料：
-
-```json
-{
-  "displayName": "Alice",
-  "avatarUrl": "https://images.example.com/alice.png"
-}
-```
+`POST /app/user/profile` 使用空对象读取当前会话用户的非敏感资料，携带 OpenAPI 定义的资料字段时保存当前用户资料。
 
 `displayName` 去除首尾空白后必须为 1–128 个 Unicode 字符。`avatarUrl` 省略、为 `null`
 或为空字符串时清除头像；非空时必须是不含用户凭证和 Fragment 的 HTTPS 绝对地址，最长 500 个字符。
@@ -296,14 +236,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 该接口只读取或修改当前登录用户，不返回角色、密码摘要、失败登录计数或会话信息。
 
-`POST /app/user/change-password` 请求：
-
-```json
-{
-  "currentPassword": "当前密码",
-  "newPassword": "符合当前密码策略的新密码"
-}
-```
+`POST /app/user/change-password` 使用 OpenAPI 定义的当前密码和新密码字段。
 
 后端必须重新校验当前密码，新密码不得与当前密码相同。修改密码、撤销该用户全部会话及成功审计事件必须在同一事务中完成；成功后清除当前 Cookie，客户端必须重新登录。该接口不接受用户 ID、密码摘要、`revision` 或任何管理员代改目标。
 
@@ -311,16 +244,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.5 用户反馈
 
-`POST /app/feedback/attachment-initiate` 使用有效会话和 CSRF 创建反馈专用上传：
-
-```json
-{
-  "fileName": "screen.png",
-  "contentType": "image/png",
-  "size": 128000,
-  "sha256": "64位小写十六进制摘要"
-}
-```
+`POST /app/feedback/attachment-initiate` 使用有效会话和 CSRF 创建反馈专用上传。
 
 成功返回 `fileId`、15 分钟有效的一次性 `uploadUrl` 和 `expiresAt`。客户端以声明的
 `Content-Type`、`Content-Length` 对 `uploadUrl` 执行 `PUT`，上传成功返回 204。
@@ -328,31 +252,9 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 每个用户最多保留 3 个未提交文件，滚动 24 小时最多初始化 60 次。
 `POST /app/feedback/attachment-remove` 请求 `{"fileId":"01J..."}`，只能删除当前用户尚未提交的文件。
 
-`POST /app/feedback/create` 请求：
-
-```json
-{
-  "category": "BUG",
-  "title": "销售订单保存失败",
-  "content": "点击保存后提示失败",
-  "pagePath": "/vou/sale-order",
-  "clientVersion": "1.2.3",
-  "relatedRequestId": "01J...",
-  "attachmentIds": ["01J..."]
-}
-```
-
 `category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须来自上述反馈专用流程、归属当前用户且状态为 `READY`；VOU 附件 ID 不再接受。提交后保存文件和文件名、MIME、大小、SHA-256 快照，但不生成公开地址，也不把截图内容或地址写入 GitHub Issue。已上传但 24 小时内未提交的文件由清理任务删除；已提交截图私有长期保留，当前不提供 HTTP 查看或下载接口。
 
-后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。成功响应：
-
-```json
-{
-  "feedbackId": "01J...",
-  "status": "PENDING",
-  "submittedAt": "2026-07-25T10:00:00Z"
-}
-```
+后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。
 
 `POST /app/feedback/get` 请求 `{"feedbackId":"01J..."}`，只允许提交者查询，返回分类、标题、`PENDING | PUBLISHED | FAILED`、公开 Issue URL 和时间。内部 `PROCESSING` 对外仍显示 `PENDING`，他人查询与记录不存在使用相同错误。
 
@@ -382,7 +284,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 | `/app/role/enable`  | 启用角色           | 携带 `revision`                 |
 | `/app/role/disable` | 停用角色           | 携带 `revision`，授权立即失效   |
 
-分配某实体的非 `query` 动作时，角色原则上也必须包含该实体的 `query` 权限；否则返回参数校验错误，防止生成无法进入页面的孤立权限。认证入口等非页面接口可列入依赖规则的显式例外。
+每条权限独立授权。菜单不依赖 `query` 权限，因此不得自动补授或强制依赖同实体的 `query`；页面是否能完成查询由其实际动作权限决定。
 
 ### 5.8 权限目录
 
@@ -393,20 +295,9 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 权限创建、同步、停用属于部署或高权限管理能力，只有在路由注册机制和审计要求确定后才开放 API；普通管理员不能创建指向不存在路由的权限。
 
-## 6. 管理接口通用结构
+## 6. 管理接口通用规则
 
-分页查询沿用项目统一结构：
-
-```json
-{
-  "page": 1,
-  "pageSize": 20,
-  "filters": {
-    "status": "ENABLED"
-  },
-  "sort": [{ "field": "createdAt", "order": "desc" }]
-}
-```
+分页、过滤和排序字段使用 OpenAPI 生成类型。
 
 并发写请求必须携带目标当前 `revision`。更新 SQL 同时匹配 `id` 和 `revision`，成功后将 `revision` 加一；未更新任何行时重新判断“不存在”或“数据冲突”，禁止后写静默覆盖先写。
 
@@ -450,7 +341,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 5. `superadmin` 无逐项关联仍获得全部启用权限，新增和停用权限能即时反映在展开后的登录权限数组；
 6. 用户角色和角色权限批量替换的事务回滚；
 7. 并发修改相同用户或角色时只允许一个版本成功；
-8. `query` 权限依赖校验；
+8. 权限独立授权，菜单准入不依赖 `query`，页面动作仍按精确路径控制；
 9. 所有管理接口均不返回或记录敏感字段；
 10. 未登录、无权限、参数错误、数据冲突和内部异常映射到稳定业务错误类别。
 11. 普通登录用户无需角色反馈权限即可提交和查询本人反馈，且不能查询他人反馈；
@@ -477,13 +368,13 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 权限路由目录的构建期生成、启动期校验或部署期同步方案；
 - 审计数据保留期限和查询权限。
 
-## 前端职责与交互约束
+## 11. 前端职责与交互约束
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
-### 8. 动态菜单
+### 11.1 动态菜单
 
-#### 8.1 生成原则
+#### 11.1.1 生成原则
 
 动态菜单以当前用户的 API 权限数组为准，本地页面注册表用于提供已实现页面的标题、图标、顺序和组件加载器。
 
@@ -505,7 +396,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 注册为 AppLayout 子路由并在业务菜单中显示
 ```
 
-#### 8.2 菜单准入权限
+#### 11.1.2 菜单准入权限
 
 除 `app` 领域外，只要用户拥有某个实体的任一格式正确的 API 权限，该实体就进入动态菜单：
 
@@ -530,7 +421,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 菜单不再要求 `query` 权限，也不以本地是否已经注册业务组件作为显示条件。实体的完整动作权限仍随菜单路由保存，页面内按钮继续按精确权限判断。
 
-#### 8.3 本地页面注册表
+#### 11.1.3 本地页面注册表
 
 权限数组只描述“允许调用哪些 API”，不包含可由后端任意指定的前端组件路径。页面标题、图标、顺序和组件加载器由前端本地注册表维护，例如：
 
@@ -555,7 +446,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 页面内按钮根据完整的动作权限判断是否显示或可用。
 - 用户直接访问无权限路由时，前端显示无权限结果；后端仍必须拒绝相关 API 调用。
 
-#### 8.4 权限判断
+#### 11.1.4 权限判断
 
 前端提供统一判断函数：
 
@@ -566,7 +457,7 @@ can('/bob/customer/approve')
 
 禁止页面自行使用字符串模糊匹配、前缀匹配或角色名称判断权限。
 
-### 9. 角色管理
+### 11.2 角色管理
 
 角色至少包含：
 
@@ -577,20 +468,9 @@ can('/bob/customer/approve')
 - 权限集合；
 - 创建和修改审计信息。
 
-主要领域能力：
+角色页面按 OpenAPI 暴露的查询、详情、创建、保存、启用和停用动作工作。创建和保存同时维护角色资料及完整权限集合；后端校验权限有效性并使用 revision 防止并发覆盖。
 
-```text
-POST /app/role/query
-POST /app/role/get
-POST /app/role/create
-POST /app/role/save
-POST /app/role/enable
-POST /app/role/disable
-```
-
-`create` 和 `save` 同时维护角色资料及完整权限集合。后端必须校验权限是否存在且有效，`save` 使用角色当前 `revision` 防止并发覆盖。
-
-### 10. 用户管理
+### 11.3 用户管理
 
 用户至少包含：
 
@@ -601,25 +481,9 @@ POST /app/role/disable
 - 角色集合；
 - 创建和修改审计信息。
 
-主要领域能力：
+用户页面按 OpenAPI 暴露的管理和自助动作工作。停用用户后，该用户已有会话应立即失效，或在下一次请求时被后端拒绝。
 
-```text
-POST /app/user/query
-POST /app/user/get
-POST /app/user/create
-POST /app/user/save
-POST /app/user/enable
-POST /app/user/disable
-POST /app/user/signin
-POST /app/user/session
-POST /app/user/signout
-POST /app/user/profile
-POST /app/user/change-password
-```
-
-停用用户后，该用户已有会话应立即失效，或在下一次请求时被后端拒绝。
-
-### 11. 权限管理
+### 11.4 权限管理
 
 权限由系统已发布的 API 能力产生，至少包含：
 
@@ -630,34 +494,18 @@ POST /app/user/change-password
 - 动作；
 - 状态。
 
-主要领域能力：
+权限页面只使用 OpenAPI 暴露的查询与详情动作。权限由系统注册或发布流程维护，不允许普通管理员创建后端不存在的 API 权限。
 
-```text
-POST /app/permission/query
-POST /app/permission/get
-```
-
-权限原则上由系统注册或发布流程维护，不允许普通管理员随意创建一个后端不存在的 API 权限。
-
-### 12. 权限变更与会话一致性
+### 11.5 权限变更与会话一致性
 
 - 用户角色或角色权限变更后，后端必须确保后续请求使用最新权限。
 - 前端的权限数组用于交互控制，不得作为后端继续授权的缓存依据。
 - 为及时刷新菜单，后端可以使相关用户会话失效，或通过权限版本号通知前端重新调用 `user.session`。
 - 权限被撤销后，即使旧页面仍在显示，后端也必须立即拒绝无权限 API 请求。
 
-### 13. 与其他领域的关系
+### 11.6 与其他领域的关系
 
 - APP 为 BOB 及其他业务领域提供用户身份和 API 权限判断。
 - 其他领域只声明自身 API 所需的权限，不自行维护角色体系。
 - APP 不根据角色名称生成菜单；菜单始终根据最终 API 权限数组生成。
 - 业务领域的创建、编辑、提交、审核等动作分别对应独立 API 权限。
-
-### 14. 待补充事项
-
-- 用户名、密码和锁定策略；
-- 多角色权限是否支持显式拒绝规则；
-- 角色和用户是否具有组织或数据范围；
-- 权限注册、下线和版本升级机制；
-- 超级管理员的授权方式；
-- 权限变化后的会话刷新策略和时效要求。

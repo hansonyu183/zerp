@@ -70,7 +70,11 @@ git diff --exit-code
 
 业务代码不得手改生成物。前端页面只依赖生成 DTO 或 UI 自有模型；后端在 Handler 边界把生成 DTO 映射到领域类型。
 
-## 同源部署
+## 部署方式
+
+仓库正式支持两种部署方式，二者共享同一套 OpenAPI、领域规则和生成客户端。
+
+### 同源 Web
 
 根目录 `compose.yaml` 构建四个核心服务：
 
@@ -79,7 +83,11 @@ git diff --exit-code
 - `migrate`：API 启动前执行 Goose migrations；
 - `db`：PostgreSQL 持久卷。
 
-`pgadmin` 仅通过 `--profile admin` 显式启用。生产环境只公开 Web 入口，TLS 在外层入口终止。前端固定以 `/api/` 访问业务 API。
+`pgadmin` 仅通过 `--profile admin` 显式启用。该方式只公开 Web 入口，TLS 在外层入口终止，前端以 `/api/` 访问业务 API。
+
+### Cloudflare Pages
+
+前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages 构建使用 `pnpm build:web` 和 `frontend/dist`；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
 
 ## 文档
 
@@ -88,6 +96,7 @@ git diff --exit-code
 - [VOU：业务单据](docs/domains/vou.md)
 - [WFL：业务流程](docs/domains/wfl.md)
 - [LED：业务账簿](docs/domains/led.md)
+- [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [迁移与上线切换](docs/operations/monorepo-cutover.md)
 
 ## 安全

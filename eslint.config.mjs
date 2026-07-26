@@ -78,7 +78,7 @@ export default tseslint.config(
     rules: {
       'max-lines': [
         'error',
-        { max: 1600, skipBlankLines: true, skipComments: true },
+        { max: 925, skipBlankLines: true, skipComments: true },
       ],
     },
   },
@@ -87,16 +87,19 @@ export default tseslint.config(
     rules: {
       'max-lines': [
         'error',
-        { max: 1075, skipBlankLines: true, skipComments: true },
+        { max: 650, skipBlankLines: true, skipComments: true },
       ],
     },
   },
   {
-    files: ['src/pages/bob/shared/config.ts'],
+    files: [
+      'src/pages/bob/**/config.ts',
+      'src/pages/bob/shared/config-helpers.ts',
+    ],
     rules: {
       'max-lines': [
         'error',
-        { max: 1000, skipBlankLines: true, skipComments: true },
+        { max: 300, skipBlankLines: true, skipComments: true },
       ],
     },
   },
@@ -105,7 +108,28 @@ export default tseslint.config(
     rules: {
       'max-lines': [
         'error',
-        { max: 900, skipBlankLines: true, skipComments: true },
+        { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/pages/bob/shared/history.ts',
+      'src/pages/bob/shared/references.ts',
+      'src/pages/vou/shared/artifacts.ts',
+      'src/pages/vou/shared/form.ts',
+      'src/pages/vou/shared/references.ts',
+      'src/pages/wfl/intermediary-trade/attachments.ts',
+      'src/pages/wfl/intermediary-trade/audit.ts',
+      'src/pages/wfl/intermediary-trade/drafts.ts',
+      'src/pages/wfl/intermediary-trade/model.ts',
+      'src/pages/wfl/intermediary-trade/references.ts',
+      'src/pages/wfl/intermediary-trade/validation.ts',
+    ],
+    rules: {
+      'max-lines': [
+        'error',
+        { max: 450, skipBlankLines: true, skipComments: true },
       ],
     },
   },

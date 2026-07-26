@@ -5,6 +5,7 @@ import type {
   LedgerRecord,
   LedgerReference,
 } from './types'
+import { formatLocalDateTime } from '@/utils/date'
 
 const sourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
@@ -66,11 +67,7 @@ function text(row: LedgerRecord, key: string): string {
 
 function time(row: LedgerRecord, key: string): string {
   const value = text(row, key)
-  if (value === '—') return value
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString('zh-CN')
+  return formatLocalDateTime(value === '—' ? null : value)
 }
 
 function translated(

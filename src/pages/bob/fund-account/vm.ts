@@ -1,6 +1,5 @@
-import { getBobEntityConfig } from '../shared/config'
 import { useBobEntityViewModel } from '../shared/vm'
+import { fundAccountConfig } from './config'
 
-export const fundAccountConfig = getBobEntityConfig('fund-account')
-export const useFundAccountViewModel = () =>
-  useBobEntityViewModel(fundAccountConfig)
+export { fundAccountConfig } from './config'
+export const useFundAccountViewModel = () => useBobEntityViewModel(fundAccountConfig)

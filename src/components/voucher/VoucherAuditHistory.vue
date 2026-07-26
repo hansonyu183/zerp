@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMediumDateTime } from '@/utils/date'
 import type { VoucherAuditEvent } from './types'
 
 defineOptions({ name: 'VoucherAuditHistory' })
@@ -34,12 +35,6 @@ const eventText: Record<string, string> = {
   ATTACHMENT_REMOVED: '移除附件',
 }
 
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value))
-}
 </script>
 
 <template>
@@ -71,7 +66,7 @@ function formatTime(value: string): string {
             {{ eventText[event.eventType] ?? event.eventType }}
           </v-card-title>
           <v-card-subtitle>
-            {{ formatTime(event.occurredAt) }} · {{ event.actorId }}
+            {{ formatMediumDateTime(event.occurredAt) }} · {{ event.actorId }}
           </v-card-subtitle>
           <v-card-text>
             <div>{{ event.fromStatus || '—' }} → {{ event.toStatus }}</div>

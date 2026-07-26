@@ -5,33 +5,33 @@ import {
   reactive,
   ref,
 } from 'vue'
-import { apiClient } from '@/api/client'
 import {
-  ApiError,
   getErrorMessage,
   type PageRequest,
-  type PageResult,
 } from '@/api/types'
-import { isMoney, isQuantity, parseFixed } from '@/components/voucher/decimal'
-import type {
-  VoucherAttachment,
-  VoucherReference,
-} from '@/components/voucher'
+import { parseFixed } from '@/components/voucher/decimal'
+import type { VoucherReference } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
+import { localDate } from '@/utils/date'
 import {
   calculateContainerBalanceAfter,
   calculateExpectedContainers,
-  calculateLoss,
 } from './calculations'
 import {
   intermediaryActionPath,
   intermediaryWorkflowApi,
   type IntermediaryAction,
-  type IntermediaryChildPrefix,
 } from './api'
+import { useIntermediaryAudit } from './audit'
+import { useIntermediaryAttachments } from './attachments'
+import {
+  deliveryDraftFromDetail,
+  procurementDraftFromDetail,
+  receiptDraftFromDetail,
+  signoffDraftFromDelivery,
+  signoffDraftFromDetail,
+} from './drafts'
 import type {
-  IntermediaryAuditEvent,
-  IntermediaryBalances,
   IntermediaryChildDetail,
   IntermediaryChildStage,
   IntermediaryChildSummary,
@@ -40,178 +40,30 @@ import type {
   IntermediaryDeliveryDraft,
   IntermediaryListItem,
   IntermediaryOrderDraft,
-  IntermediaryProductReference,
-  IntermediaryProcurementData,
   IntermediaryProcurementDraft,
-  IntermediaryProcurementLineView,
-  IntermediaryQuantityLineView,
-  IntermediaryReceiptData,
   IntermediaryReceiptDraft,
-  IntermediarySignoffData,
   IntermediarySignoffDraft,
-  IntermediarySignoffLineView,
+  IntermediarySignoffData,
   IntermediaryStageDraft,
-  IntermediaryWireDocument,
   IntermediaryWorkflowDocument,
 } from './types'
-
-interface ReferenceState {
-  options: IntermediaryProductReference[]
-  loading: boolean
-  error: string | null
-  sequence: number
-}
-
-interface ReferenceQueryItem {
-  objectId: string
-  code: string
-  effectiveVersionId: string | null
-  currentVersion: {
-    versionId: string
-    status: string
-    summary: {
-      name: string
-      unit?: string
-      supplierType?: string
-      plateNumber?: string
-      platformObjectId?: string
-      containerType?: 'NONE' | 'SOLVENT' | 'RESIN'
-      quantityPerContainer?: string
-    }
-  }
-}
-
-const emptyBalances = (): IntermediaryBalances => ({
-  lines: [],
-  containers: [
-    { containerType: 'SOLVENT', quantity: 0 },
-    { containerType: 'RESIN', quantity: 0 },
-  ],
-  hasUnfinishedChildren: false,
-})
-
-function today(): string {
-  const value = new Date()
-  const offset = value.getTimezoneOffset() * 60_000
-  return new Date(value.getTime() - offset).toISOString().slice(0, 10)
-}
-
-function emptyOrder(): IntermediaryOrderDraft {
-  return {
-    businessDate: today(),
-    currency: 'CNY',
-    customer: null,
-    salesperson: null,
-    remark: '',
-    productLines: [],
-  }
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
-function childPrefix(stage: IntermediaryChildStage): IntermediaryChildPrefix {
-  return stage.toLowerCase() as IntermediaryChildPrefix
-}
-
-function toDocument(value: IntermediaryWireDocument): IntermediaryWorkflowDocument {
-  if (!value.data.customer || !value.data.salesperson) {
-    throw new Error('流程根单缺少客户或业务员快照。')
-  }
-  return {
-    processId: value.processId,
-    rootDocumentId: value.rootDocumentId,
-    documentId: value.documentId,
-    documentNo: value.documentNo,
-    workflowStatus:
-      value.workflowStatus as IntermediaryWorkflowDocument['workflowStatus'],
-    rootRevision: value.rootRevision || value.revision,
-    documentRevision: value.revision,
-    businessDate: value.data.businessDate,
-    currency: value.data.currency,
-    amount: value.amount,
-    customer: value.data.customer,
-    salesperson: value.data.salesperson,
-    customerSettlementMethod: value.data.customerSettlementMethod,
-    contactName: value.data.contactName,
-    contactPhone: value.data.contactPhone,
-    deliveryAddress: value.data.deliveryAddress,
-    productLines: value.data.productLines ?? [],
-    balances: value.balances ?? emptyBalances(),
-    children: value.children ?? [],
-    attachments: value.attachments ?? [],
-    checkedBy: value.checkedBy,
-    checkedAt: value.checkedAt,
-    approvedBy: value.approvedBy,
-    approvedAt: value.approvedAt,
-    completedAt: value.completedAt,
-    remark: value.data.remark,
-    updatedAt: value.updatedAt,
-  }
-}
-
-function orderFromDocument(
-  value: IntermediaryWorkflowDocument,
-): IntermediaryOrderDraft {
-  return {
-    businessDate: value.businessDate,
-    currency: value.currency,
-    customer: { ...value.customer },
-    salesperson: { ...value.salesperson },
-    remark: value.remark ?? '',
-    productLines: value.productLines.map((line) => ({
-      key: line.lineId,
-      lineId: line.lineId,
-      product: {
-        ...line.product,
-        containerType: line.containerType,
-        quantityPerContainer: line.quantityPerContainer,
-      },
-      orderedQuantity: line.orderedQuantity,
-      unitPrice: line.unitPrice,
-      containerType: line.containerType || 'NONE',
-      quantityPerContainer: line.quantityPerContainer ?? '',
-      remark: line.remark ?? '',
-    })),
-  }
-}
-
-function containerBalance(
-  balances?: IntermediaryBalances,
-): IntermediaryContainerBalance {
-  return {
-    solvent:
-      balances?.containers.find((item) => item.containerType === 'SOLVENT')
-        ?.quantity ?? 0,
-    resin:
-      balances?.containers.find((item) => item.containerType === 'RESIN')
-        ?.quantity ?? 0,
-  }
-}
-
-function formatQuantity(micros: bigint): string {
-  const whole = micros / 1_000_000n
-  const fraction = (micros % 1_000_000n)
-    .toString()
-    .padStart(6, '0')
-    .replace(/0+$/, '')
-  return fraction ? `${whole}.${fraction}` : whole.toString()
-}
-
-function remaining(totalValue: string, usedValue: string): string {
-  const total = parseFixed(totalValue, 6, true)
-  const used = parseFixed(usedValue, 6, true)
-  if (total === null || used === null || used >= total) return '0'
-  return formatQuantity(total - used)
-}
-
-function workflowErrorMessage(error: unknown): string {
-  const message = getErrorMessage(error)
-  return error instanceof ApiError && error.code === 3001
-    ? `${message} 请重新加载流程后重试。`
-    : message
-}
+import { useIntermediaryReferences } from './references'
+import {
+  childPrefix,
+  clone,
+  containerBalance,
+  emptyOrder,
+  orderFromDocument,
+  remaining,
+  toDocument,
+  workflowErrorMessage,
+} from './model'
+import {
+  deliveredQuantity as calculateDeliveredQuantity,
+  signoffLoss as calculateSignoffLoss,
+  validateOrderDraft,
+  validateStageDraft,
+} from './validation'
 
 export function useIntermediaryWorkflowViewModel() {
   const session = useSessionStore()
@@ -254,19 +106,41 @@ export function useIntermediaryWorkflowViewModel() {
   const shortCloseDialogOpen = ref(false)
   const shortCloseReason = ref('')
 
-  const childAttachmentLoading = ref(false)
-  const childAttachmentError = ref<string | null>(null)
+  const {
+    auditEvents,
+    auditLoading,
+    auditError,
+    auditPage,
+    auditPageSize,
+    auditTotal,
+    resetAudit,
+    loadAudit,
+  } = useIntermediaryAudit(document, () => can('audit-history'))
+  const {
+    childAttachmentLoading,
+    childAttachmentError,
+    uploadChildAttachments,
+    downloadChildAttachment,
+    removeChildAttachment,
+  } = useIntermediaryAttachments({
+    document,
+    stageChild,
+    stageDetail,
+    stageEditing,
+    can,
+    childPrefix,
+    getChild,
+    loadDocument,
+    loadAudit,
+    errorMessage: workflowErrorMessage,
+  })
 
-  const auditEvents = ref<IntermediaryAuditEvent[]>([])
-  const auditLoading = ref(false)
-  const auditError = ref<string | null>(null)
-  const auditPage = ref(1)
-  const auditPageSize = ref(20)
-  const auditTotal = ref(0)
-  const auditController = ref<AbortController | null>(null)
-
-  const referenceStates = reactive<Record<string, ReferenceState>>({})
-  const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const {
+    searchReference,
+    referenceOptions,
+    referenceLoading,
+    referenceError,
+  } = useIntermediaryReferences(stageDraft)
 
   const procurement = computed(
     () =>
@@ -385,18 +259,6 @@ export function useIntermediaryWorkflowViewModel() {
     )
   })
 
-  function referenceState(key: string): ReferenceState {
-    if (!referenceStates[key]) {
-      referenceStates[key] = {
-        options: [],
-        loading: false,
-        error: null,
-        sequence: 0,
-      }
-    }
-    return referenceStates[key]
-  }
-
   function can(action: IntermediaryAction): boolean {
     return session.can(`/${intermediaryActionPath(action)}`)
   }
@@ -412,16 +274,6 @@ export function useIntermediaryWorkflowViewModel() {
 
   function canSaveStage(): boolean {
     return stageSaveVisible.value && stageEditable.value
-  }
-
-  function resetAudit(): void {
-    auditController.value?.abort()
-    auditController.value = null
-    auditEvents.value = []
-    auditLoading.value = false
-    auditError.value = null
-    auditPage.value = 1
-    auditTotal.value = 0
   }
 
   function queryFilters(): Record<string, unknown> {
@@ -536,34 +388,7 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   function validateOrder(): string | null {
-    const form = orderDraft.value
-    if (!form.customer) return '请选择客户。'
-    if (!form.businessDate) return '请选择订购日期。'
-    if (!/^[A-Z]{3}$/.test(form.currency)) return '币种必须为三位大写字母。'
-    if (form.productLines.length < 1 || form.productLines.length > 200) {
-      return '产品明细必须为 1–200 行。'
-    }
-    const seen = new Set<string>()
-    for (const line of form.productLines) {
-      if (!line.product) return '请选择每一行的产品。'
-      const key = `${line.product.objectId}/${line.product.versionId}`
-      if (seen.has(key)) return '同一产品不能重复添加。'
-      seen.add(key)
-      if (!isQuantity(line.orderedQuantity)) return '订购数量格式不正确。'
-      if (!isMoney(line.unitPrice)) return '销售单价格式不正确。'
-      if (
-        line.containerType !== 'NONE' &&
-        !isQuantity(line.quantityPerContainer)
-      ) {
-        return '桶装产品必须填写大于零的每桶产品量。'
-      }
-      if (Array.from(line.remark).length > 1000) {
-        return '行备注不能超过 1000 字。'
-      }
-    }
-    return Array.from(form.remark).length <= 1000
-      ? null
-      : '备注不能超过 1000 字。'
+    return validateOrderDraft(orderDraft.value)
   }
 
   async function saveOrder(): Promise<boolean> {
@@ -650,96 +475,6 @@ export function useIntermediaryWorkflowViewModel() {
     return data
   }
 
-  function procurementDraftFromDetail(
-    detail: IntermediaryChildDetail,
-  ): IntermediaryProcurementDraft {
-    const data = detail.data as IntermediaryProcurementData
-    return {
-      purchaseDate: data.purchaseDate,
-      supplier: { ...data.supplier },
-      purchaser: { ...data.purchaser },
-      lines: (detail.lines as IntermediaryProcurementLineView[]).map((line) => ({
-        rootLineId: line.rootLineId,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice ?? '',
-        remark: line.remark ?? '',
-      })),
-      remark: data.remark ?? '',
-    }
-  }
-
-  function receiptDraftFromDetail(
-    detail: IntermediaryChildDetail,
-  ): IntermediaryReceiptDraft {
-    const data = detail.data as IntermediaryReceiptData
-    return {
-      receiptDate: data.receiptDate,
-      lines: (detail.lines as IntermediaryQuantityLineView[]).map((line) => ({
-        rootLineId: line.rootLineId,
-        quantity: line.quantity,
-        remark: line.remark ?? '',
-      })),
-      remark: data.remark ?? '',
-    }
-  }
-
-  function deliveryDraftFromDetail(
-    detail: IntermediaryChildDetail,
-  ): IntermediaryDeliveryDraft {
-    const data = detail.data as IntermediaryDeliveryData
-    return {
-      deliveryDate: data.deliveryDate,
-      platform: { ...data.platform },
-      vehicle: { ...data.vehicle },
-      lines: (detail.lines as IntermediaryQuantityLineView[]).map((line) => ({
-        rootLineId: line.rootLineId,
-        quantity: line.quantity,
-        remark: line.remark ?? '',
-      })),
-      remark: data.remark ?? '',
-    }
-  }
-
-  function signoffDraftFromDetail(
-    detail: IntermediaryChildDetail,
-  ): IntermediarySignoffDraft {
-    const data = detail.data as IntermediarySignoffData
-    return {
-      deliveryChildId: data.deliveryChildId,
-      signoffDate: data.signoffDate,
-      lines: (detail.lines as IntermediarySignoffLineView[]).map((line) => ({
-        rootLineId: line.rootLineId,
-        signedQuantity: line.signedQuantity,
-        rejectedQuantity: line.rejectedQuantity,
-        remark: line.remark ?? '',
-      })),
-      returnedSolventContainers: data.returnedSolventContainers,
-      returnedResinContainers: data.returnedResinContainers,
-      containerDifferenceReason: data.containerDifferenceReason ?? '',
-      remark: data.remark ?? '',
-    }
-  }
-
-  function signoffDraftFromDelivery(
-    detail: IntermediaryChildDetail,
-  ): IntermediarySignoffDraft {
-    const data = detail.data as IntermediaryDeliveryData
-    return {
-      deliveryChildId: detail.child.childId,
-      signoffDate: today(),
-      lines: (detail.lines as IntermediaryQuantityLineView[]).map((line) => ({
-        rootLineId: line.rootLineId,
-        signedQuantity: line.quantity,
-        rejectedQuantity: '0',
-        remark: '',
-      })),
-      returnedSolventContainers: data.expectedSolventContainers,
-      returnedResinContainers: data.expectedResinContainers,
-      containerDifferenceReason: '',
-      remark: '',
-    }
-  }
-
   async function openStage(
     stage: IntermediaryChildStage,
     child?: IntermediaryChildSummary,
@@ -799,7 +534,7 @@ export function useIntermediaryWorkflowViewModel() {
         searchReference('purchaser', '')
       } else if (stage === 'RECEIPT') {
         stageDraft.value = {
-          receiptDate: today(),
+          receiptDate: localDate(),
           lines: document.value.balances.lines.map((line) => ({
             rootLineId: line.rootLineId,
             quantity: remaining(
@@ -812,7 +547,7 @@ export function useIntermediaryWorkflowViewModel() {
         }
       } else if (stage === 'DELIVERY') {
         stageDraft.value = {
-          deliveryDate: today(),
+          deliveryDate: localDate(),
           platform: null,
           vehicle: null,
           lines: document.value.balances.lines.map((line) => ({
@@ -840,172 +575,31 @@ export function useIntermediaryWorkflowViewModel() {
   }
 
   function deliveredQuantity(rootLineId: string): string {
-    if (
-      stageEditing.value === 'SIGNOFF' &&
-      stageDetail.value?.child.stage === 'DELIVERY'
-    ) {
-      return (
-        stageDetail.value.lines as IntermediaryQuantityLineView[]
-      ).find((line) => line.rootLineId === rootLineId)?.quantity ?? '0'
-    }
-    if (
-      stageEditing.value === 'SIGNOFF' &&
-      stageDetail.value?.child.stage === 'SIGNOFF'
-    ) {
-      const balance = stageDetail.value.balances.lines.find(
-        (line) => line.rootLineId === rootLineId,
-      )
-      const signed = (
-        stageDetail.value.lines as IntermediarySignoffLineView[]
-      ).find((line) => line.rootLineId === rootLineId)
-      const total =
-        (parseFixed(signed?.signedQuantity ?? '0', 6, true) ?? 0n) +
-        (parseFixed(signed?.rejectedQuantity ?? '0', 6, true) ?? 0n) +
-        (parseFixed(signed?.lossQuantity ?? '0', 6, true) ?? 0n)
-      return total > 0n
-        ? formatQuantity(total)
-        : balance?.remainingToSignQuantity ?? '0'
-    }
-    return '0'
+    return calculateDeliveredQuantity(
+      stageEditing.value,
+      stageDetail.value,
+      rootLineId,
+    )
   }
 
   function signoffLoss(index: number): string | null {
-    const draft = stageDraft.value as IntermediarySignoffDraft | null
-    const line = draft?.lines[index]
-    if (!line) return null
-    return calculateLoss(
-      deliveredQuantity(line.rootLineId),
-      line.signedQuantity,
-      line.rejectedQuantity,
+    return calculateSignoffLoss(
+      stageEditing.value,
+      stageDetail.value,
+      stageDraft.value as IntermediarySignoffDraft | null,
+      index,
     )
   }
 
   function validateStage(): string | null {
-    const draft = stageDraft.value
-    if (!draft) return '未加载子单草稿。'
-    if (stageEditing.value === 'PROCUREMENT') {
-      const value = draft as IntermediaryProcurementDraft
-      if (!value.purchaseDate) return '请选择采购日期。'
-      if (!value.supplier) return '请选择普通供应商。'
-      let positive = false
-      for (const line of value.lines) {
-        const quantity = parseFixed(line.quantity, 6, true)
-        const ordered = parseFixed(
-          document.value?.productLines.find(
-            (item) => item.lineId === line.rootLineId,
-          )?.orderedQuantity ?? '',
-          6,
-          true,
-        )
-        if (quantity === null || ordered === null || quantity > ordered) {
-          return '采购数量格式不正确或超过客户订购数量。'
-        }
-        if (quantity > 0n) {
-          positive = true
-          if (!isMoney(line.unitPrice)) return '采购单价格式不正确。'
-        }
-      }
-      if (!positive) return '至少一行采购数量必须大于零。'
-    } else if (stageEditing.value === 'RECEIPT') {
-      const value = draft as IntermediaryReceiptDraft
-      if (!value.receiptDate) return '请选择收货日期。'
-      let positive = false
-      for (const line of value.lines) {
-        const quantity = parseFixed(line.quantity, 6, true)
-        const balance = document.value?.balances.lines.find(
-          (item) => item.rootLineId === line.rootLineId,
-        )
-        const remainingValue = balance?.procurementQuantity
-          ? parseFixed(
-              remaining(
-                balance.procurementQuantity,
-                balance.confirmedReceiptQuantity,
-              ),
-              6,
-              true,
-            )
-          : null
-        if (
-          quantity === null ||
-          (remainingValue !== null && quantity > remainingValue)
-        ) {
-          return '本次实收数量格式不正确或超过剩余采购数量。'
-        }
-        if (quantity > 0n) positive = true
-      }
-      if (!positive) return '至少一行实收数量必须大于零。'
-    } else if (stageEditing.value === 'DELIVERY') {
-      const value = draft as IntermediaryDeliveryDraft
-      if (!value.deliveryDate) return '请选择送货日期。'
-      if (!value.platform || !value.vehicle) {
-        return '请选择物流平台和送货车辆。'
-      }
-      if (
-        value.vehicle.platformObjectId &&
-        value.vehicle.platformObjectId !== value.platform.objectId
-      ) {
-        return '送货车辆不属于所选物流平台。'
-      }
-      let positive = false
-      for (const line of value.lines) {
-        const quantity = parseFixed(line.quantity, 6, true)
-        const available = parseFixed(
-          document.value?.balances.lines.find(
-            (item) => item.rootLineId === line.rootLineId,
-          )?.availableToDeliverQuantity ?? '',
-          6,
-          true,
-        )
-        if (quantity === null || available === null || quantity > available) {
-          return '本次送货数量格式不正确或超过当前可送数量。'
-        }
-        if (quantity > 0n) positive = true
-      }
-      if (!positive) return '至少一行送货数量必须大于零。'
-      if (!calculateExpectedContainers(
-        value.lines.map((line) => {
-          const rootLine = document.value?.productLines.find(
-            (item) => item.lineId === line.rootLineId,
-          )
-          return {
-            quantity: line.quantity,
-            containerType: rootLine?.containerType ?? 'NONE',
-            quantityPerContainer: rootLine?.quantityPerContainer,
-          }
-        }),
-      )) {
-        return '无法根据包装快照计算应回收桶数。'
-      }
-    } else {
-      const value = draft as IntermediarySignoffDraft
-      if (!value.signoffDate) return '请选择签收日期。'
-      for (const [index] of value.lines.entries()) {
-        if (signoffLoss(index) === null) {
-          return '签收数和拒收数格式不正确或超过送货数。'
-        }
-      }
-      if (
-        !Number.isInteger(value.returnedSolventContainers) ||
-        value.returnedSolventContainers < 0 ||
-        !Number.isInteger(value.returnedResinContainers) ||
-        value.returnedResinContainers < 0
-      ) {
-        return '实收桶数必须为非负整数。'
-      }
-      const expected = signoffExpectedContainers.value
-      if (
-        (value.returnedSolventContainers < expected.solvent ||
-          value.returnedResinContainers < expected.resin) &&
-        !value.containerDifferenceReason.trim()
-      ) {
-        return '本次空桶少收时必须填写差异原因。'
-      }
-    }
-    return Array.from(draft.remark).length <= 1000
-      ? null
-      : '备注不能超过 1000 字。'
+    return validateStageDraft({
+      stage: stageEditing.value,
+      draft: stageDraft.value,
+      document: document.value,
+      detail: stageDetail.value,
+      signoffExpectedContainers: signoffExpectedContainers.value,
+    })
   }
-
   async function saveStage(): Promise<boolean> {
     if (!canSaveStage()) {
       stageDialogError.value =
@@ -1191,272 +785,6 @@ export function useIntermediaryWorkflowViewModel() {
     }
   }
 
-  async function sha256(file: File): Promise<string> {
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-    return [...new Uint8Array(digest)]
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('')
-  }
-
-  async function reloadStageDetail(): Promise<void> {
-    if (!document.value || !stageChild.value) return
-    const current = document.value.children.find(
-      (item) => item.childId === stageChild.value?.childId,
-    )
-    if (!current) return
-    stageChild.value = current
-    stageDetail.value = await getChild(stageEditing.value, current)
-  }
-
-  async function uploadChildAttachments(files: File[]): Promise<void> {
-    if (
-      !document.value ||
-      !stageChild.value ||
-      stageChild.value.status !== 'DRAFT'
-    ) {
-      return
-    }
-    const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}-attachment-initiate` as IntermediaryAction
-    if (!can(action)) return
-    childAttachmentLoading.value = true
-    childAttachmentError.value = null
-    try {
-      for (const file of files) {
-        const initiated =
-          await intermediaryWorkflowApi.initiateChildAttachment(prefix, {
-            processId: document.value.processId,
-            processRevision: document.value.rootRevision,
-            documentId: stageChild.value.childId,
-            documentRevision: stageChild.value.revision,
-            fileName: file.name,
-            contentType: file.type,
-            size: file.size,
-            sha256: await sha256(file),
-          })
-        document.value.rootRevision = initiated.data.processRevision
-        stageChild.value.revision = initiated.data.documentRevision
-        try {
-          await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
-        } catch (error) {
-          await loadDocument()
-          await reloadStageDetail()
-          throw error
-        }
-        await loadDocument()
-        await reloadStageDetail()
-      }
-      await loadAudit(1)
-    } catch (error) {
-      childAttachmentError.value = workflowErrorMessage(error)
-    } finally {
-      childAttachmentLoading.value = false
-    }
-  }
-
-  async function downloadChildAttachment(
-    attachment: VoucherAttachment,
-  ): Promise<void> {
-    if (!document.value || !stageChild.value) return
-    const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}-attachment-download` as IntermediaryAction
-    if (!can(action)) return
-    childAttachmentLoading.value = true
-    childAttachmentError.value = null
-    try {
-      const { data } =
-        await intermediaryWorkflowApi.getChildAttachmentDownload(prefix, {
-          processId: document.value.processId,
-          documentId: stageChild.value.childId,
-          fileId: attachment.fileId,
-        })
-      await downloadBlob(data.downloadUrl, attachment.fileName)
-    } catch (error) {
-      childAttachmentError.value = workflowErrorMessage(error)
-    } finally {
-      childAttachmentLoading.value = false
-    }
-  }
-
-  async function removeChildAttachment(
-    attachment: VoucherAttachment,
-  ): Promise<void> {
-    if (
-      !document.value ||
-      !stageChild.value ||
-      stageChild.value.status !== 'DRAFT'
-    ) {
-      return
-    }
-    const prefix = childPrefix(stageEditing.value)
-    const action = `${prefix}-attachment-remove` as IntermediaryAction
-    if (!can(action)) return
-    childAttachmentLoading.value = true
-    childAttachmentError.value = null
-    try {
-      await intermediaryWorkflowApi.removeChildAttachment(prefix, {
-        processId: document.value.processId,
-        processRevision: document.value.rootRevision,
-        documentId: stageChild.value.childId,
-        documentRevision: stageChild.value.revision,
-        fileId: attachment.fileId,
-      })
-      await Promise.all([loadDocument(), loadAudit(1)])
-      await reloadStageDetail()
-    } catch (error) {
-      childAttachmentError.value = workflowErrorMessage(error)
-    } finally {
-      childAttachmentLoading.value = false
-    }
-  }
-
-  async function downloadBlob(url: string, fileName: string): Promise<void> {
-    const blob = await apiClient.fetchAttachment(url)
-    const objectURL = URL.createObjectURL(blob)
-    const anchor = window.document.createElement('a')
-    anchor.href = objectURL
-    anchor.download = fileName
-    anchor.click()
-    setTimeout(() => URL.revokeObjectURL(objectURL), 0)
-  }
-
-  function referenceOptions(key: string): IntermediaryProductReference[] {
-    return referenceState(key).options
-  }
-
-  function referenceLoading(key: string): boolean {
-    return referenceState(key).loading
-  }
-
-  function referenceError(key: string): string | null {
-    return referenceState(key).error
-  }
-
-  function referenceEntity(key: string): string {
-    if (key === 'customer' || key === 'filterCustomer') return 'customer'
-    if (key === 'supplier' || key === 'platform') return 'supplier'
-    if (key === 'product') return 'product'
-    if (key === 'vehicle') return 'vehicle'
-    return 'employee'
-  }
-
-  function referenceFilters(key: string): Record<string, unknown> {
-    if (key === 'supplier') return { supplierType: 'GENERAL' }
-    if (key === 'platform') return { supplierType: 'LOGISTICS_PLATFORM' }
-    return {}
-  }
-
-  function searchReference(key: string, keyword: string): void {
-    const timer = referenceTimers.get(key)
-    if (timer) clearTimeout(timer)
-    referenceTimers.set(
-      key,
-      setTimeout(() => {
-        referenceTimers.delete(key)
-        void loadReference(key, keyword)
-      }, keyword ? 250 : 0),
-    )
-  }
-
-  async function loadReference(key: string, keyword: string): Promise<void> {
-    const state = referenceState(key)
-    const entity = referenceEntity(key)
-    if (!session.can(`/bob/${entity}/query`)) {
-      state.error = `缺少${entity}查询权限。`
-      return
-    }
-    const sequence = ++state.sequence
-    state.loading = true
-    state.error = null
-    try {
-      const { data } = await apiClient.post<
-        PageResult<ReferenceQueryItem>,
-        PageRequest
-      >(`bob/${entity}/query`, {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          status: ['EFFECTIVE'],
-          ...referenceFilters(key),
-          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-        },
-        sort: [{ field: 'name', order: 'asc' }],
-      })
-      if (sequence !== state.sequence) return
-      const selectedPlatform =
-        key === 'vehicle'
-          ? (stageDraft.value as IntermediaryDeliveryDraft | null)?.platform
-          : null
-      state.options = (data.items ?? [])
-        .filter(
-          (item) =>
-            item.currentVersion.status === 'EFFECTIVE' &&
-            item.effectiveVersionId === item.currentVersion.versionId &&
-            (
-              !selectedPlatform ||
-              item.currentVersion.summary.platformObjectId ===
-                selectedPlatform.objectId
-            ),
-        )
-        .map((item) => ({
-          objectId: item.objectId,
-          versionId: item.currentVersion.versionId,
-          entity,
-          code: item.code,
-          name: item.currentVersion.summary.name,
-          unit: item.currentVersion.summary.unit,
-          supplierType: item.currentVersion.summary.supplierType,
-          plateNumber: item.currentVersion.summary.plateNumber,
-          platformObjectId: item.currentVersion.summary.platformObjectId,
-          containerType: item.currentVersion.summary.containerType,
-          quantityPerContainer:
-            item.currentVersion.summary.quantityPerContainer,
-        }))
-    } catch (error) {
-      if (sequence === state.sequence) state.error = getErrorMessage(error)
-    } finally {
-      if (sequence === state.sequence) state.loading = false
-    }
-  }
-
-  async function loadAudit(nextPage = auditPage.value): Promise<void> {
-    if (!document.value || !can('audit-history')) return
-    auditController.value?.abort()
-    const controller = new AbortController()
-    const processId = document.value.processId
-    auditController.value = controller
-    auditPage.value = nextPage
-    auditLoading.value = true
-    auditError.value = null
-    try {
-      const { data } = await intermediaryWorkflowApi.audit(
-        {
-          processId,
-          page: nextPage,
-          pageSize: auditPageSize.value,
-        },
-        controller.signal,
-      )
-      if (
-        controller.signal.aborted ||
-        document.value?.processId !== processId
-      ) {
-        return
-      }
-      auditEvents.value = data.items ?? []
-      auditTotal.value = data.total
-      auditPage.value = data.page
-      auditPageSize.value = data.pageSize
-    } catch (error) {
-      if (!controller.signal.aborted) auditError.value = getErrorMessage(error)
-    } finally {
-      if (auditController.value === controller) {
-        auditController.value = null
-        auditLoading.value = false
-      }
-    }
-  }
-
   function changeActiveStep(next: number): void {
     activeStep.value = next
     if (next === 6) void loadAudit(1)
@@ -1480,8 +808,6 @@ export function useIntermediaryWorkflowViewModel() {
   if (getCurrentScope()) {
     onScopeDispose(() => {
       queryController.value?.abort()
-      auditController.value?.abort()
-      for (const timer of referenceTimers.values()) clearTimeout(timer)
     })
   }
 

@@ -2,6 +2,7 @@ import { computed, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { localDate } from '@/utils/date'
 import { createLedgerReferenceSearch } from './reference'
 import type {
   LedgerBalanceFilters,
@@ -11,12 +12,6 @@ import type {
   LedgerRecord,
   LedgerSort,
 } from './types'
-
-function localDate(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60_000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
-}
 
 function monthStart(date: string): string {
   return `${date.slice(0, 7)}-01`

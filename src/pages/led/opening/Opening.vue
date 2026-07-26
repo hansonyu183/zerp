@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { LedgerReferenceAutocomplete } from '@/components/ledger'
+import { formatLocalDateTime } from '@/utils/date'
 import { openingEventLabel, useOpeningViewModel } from './vm'
 
 const vm = useOpeningViewModel()
@@ -16,11 +17,6 @@ function changeTab(value: unknown): void {
   if (value !== 'opening' && value !== 'audit') return
   tab.value = value
   if (value === 'audit' && !vm.auditLoaded.value) void vm.loadAudit()
-}
-
-function formatTime(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
 }
 
 void vm.load()
@@ -523,7 +519,7 @@ void vm.load()
                 </thead>
                 <tbody>
                   <tr v-for="item in vm.auditItems.value" :key="item.id">
-                    <td>{{ formatTime(item.occurredAt) }}</td>
+                    <td>{{ formatLocalDateTime(item.occurredAt) }}</td>
                     <td>{{ openingEventLabel(item.eventType) }}</td>
                     <td>
                       {{ item.fromStatus ? `${statusText[item.fromStatus] ?? item.fromStatus} → ` : '' }}

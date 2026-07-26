@@ -4,6 +4,7 @@ import {
   BusinessObjectEditor,
   BusinessObjectList,
 } from '@/components/business-object'
+import { formatLocalDateTime } from '@/utils/date'
 import { getStatusText } from './config'
 import type { BobEntityViewModel } from './vm'
 import type { BobListItem } from './types'
@@ -69,12 +70,6 @@ async function confirmReview(): Promise<void> {
     reviewTarget.value = null
     reviewComment.value = ''
   }
-}
-
-function formatTime(value?: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
 }
 
 function closeReview(value: boolean): void {
@@ -439,7 +434,7 @@ function closeReview(value: boolean): void {
               <td>V{{ item.version }}</td>
               <td>{{ getStatusText(item.status) }}</td>
               <td>{{ item.summary.name }}</td>
-              <td>{{ formatTime(item.updatedAt) }}</td>
+              <td>{{ formatLocalDateTime(item.updatedAt) }}</td>
               <td>{{ item.reviewComment || '—' }}</td>
               <td class="text-end">
                 <v-btn
@@ -499,7 +494,7 @@ function closeReview(value: boolean): void {
                 {{ getStatusText(event.toStatus) }}
               </td>
               <td>{{ event.actorId }}</td>
-              <td>{{ formatTime(event.occurredAt) }}</td>
+              <td>{{ formatLocalDateTime(event.occurredAt) }}</td>
               <td>{{ event.comment || '—' }}</td>
               <td>{{ event.requestId }}</td>
             </tr>

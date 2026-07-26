@@ -1,6 +1,5 @@
-import { getBobEntityConfig } from '../shared/config'
 import { useBobEntityViewModel } from '../shared/vm'
+import { settlementMethodConfig } from './config'
 
-export const settlementMethodConfig = getBobEntityConfig('settlement-method')
-export const useSettlementMethodViewModel = () =>
-  useBobEntityViewModel(settlementMethodConfig)
+export { settlementMethodConfig } from './config'
+export const useSettlementMethodViewModel = () => useBobEntityViewModel(settlementMethodConfig)

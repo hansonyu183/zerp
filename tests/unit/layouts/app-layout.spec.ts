@@ -62,7 +62,7 @@ describe('AppLayout account interactions', () => {
     installLocalStorage()
   })
 
-  it('校验密码表单并标注 password autocomplete', async () => {
+  it('按后端契约校验资料和密码表单', async () => {
     const router = createTestRouter()
     await router.push('/home/dashboard')
     const session = useSessionStore()
@@ -136,8 +136,36 @@ describe('AppLayout account interactions', () => {
       'https://example.com/avatar.png',
     )
 
+    const profileSaveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '保存')
+    await wrapper.get('input[aria-label="显示名称"]').setValue('名'.repeat(129))
+    expect(profileSaveButton?.attributes('disabled')).toBeDefined()
+
+    await wrapper.get('input[aria-label="显示名称"]').setValue('新名称')
+    await wrapper
+      .get('input[aria-label="头像地址"]')
+      .setValue('https://user:password@example.com/avatar.png')
+    expect(profileSaveButton?.attributes('disabled')).toBeDefined()
+
+    await wrapper
+      .get('input[aria-label="头像地址"]')
+      .setValue('https://example.com/avatar.png#preview')
+    expect(profileSaveButton?.attributes('disabled')).toBeDefined()
+
+    await wrapper
+      .get('input[aria-label="头像地址"]')
+      .setValue(`https://example.com/${'a'.repeat(501)}`)
+    expect(profileSaveButton?.attributes('disabled')).toBeDefined()
+
+    await wrapper
+      .get('input[aria-label="头像地址"]')
+      .setValue('https:example.com/avatar.png')
+    expect(profileSaveButton?.attributes('disabled')).toBeDefined()
+
     await wrapper.get('input[aria-label="显示名称"]').setValue(' 新名称 ')
     await wrapper.get('input[aria-label="头像地址"]').setValue('')
+    expect(profileSaveButton?.attributes('disabled')).toBeUndefined()
     await (wrapper.vm as unknown as { saveProfile: () => Promise<void> }).saveProfile()
     expect(updateProfile).toHaveBeenCalledWith({
       displayName: '新名称',

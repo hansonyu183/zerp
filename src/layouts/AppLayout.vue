@@ -31,13 +31,28 @@ const initials = computed(() => displayName.value.trim().slice(0, 1).toUpperCase
 const isDark = computed(() => theme.global.name.value === 'zerpDark')
 const pageTitle = computed(() => String(route.meta.title || '工作台'))
 const profileValidationError = computed(() => {
-  if (!profile.displayName.trim()) return '请输入显示名称。'
-  if (!profile.avatarUrl.trim()) return ''
+  const displayNameValue = profile.displayName.trim()
+  const avatarUrlValue = profile.avatarUrl.trim()
+  if (!displayNameValue) return '请输入显示名称。'
+  if ([...displayNameValue].length > 128) return '显示名称不能超过 128 个字符。'
+  if (!avatarUrlValue) return ''
+  if ([...avatarUrlValue].length > 500) return '头像地址不能超过 500 个字符。'
+  if (!/^https:\/\/[^/\\]/i.test(avatarUrlValue)) {
+    return '头像地址必须是 HTTPS 绝对地址。'
+  }
 
   try {
-    return new URL(profile.avatarUrl.trim()).protocol === 'https:'
-      ? ''
-      : '头像地址必须使用 HTTPS。'
+    const avatarUrl = new URL(avatarUrlValue)
+    if (
+      avatarUrl.protocol !== 'https:' ||
+      !avatarUrl.hostname ||
+      avatarUrl.username ||
+      avatarUrl.password ||
+      avatarUrl.hash
+    ) {
+      return '头像地址不能包含用户凭证或片段。'
+    }
+    return ''
   } catch {
     return '请输入有效的头像地址。'
   }

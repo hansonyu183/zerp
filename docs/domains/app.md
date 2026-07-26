@@ -156,7 +156,7 @@ POST /app/user/profile
 }
 ```
 
-`avatarUrl` 为 `null` 时清除头像；非空时必须是 HTTPS URL。读取和保存成功均返回当前用户完整资料，包含 `id`、`username`、`displayName`、`avatarUrl`、`passwordChangedAt`，后端可以继续返回仅供观察的 `revision`，但前端不读取或回传它。后端必须根据请求体是空对象还是完整资料对象区分读取和保存，不接受只包含一个保存字段的模糊请求。
+`displayName` 去除首尾空白后必须为 1–128 个 Unicode 字符。`avatarUrl` 为 `null` 时清除头像；非空时必须是最长 500 个字符、不含用户凭证或 Fragment 的 HTTPS 绝对地址。读取和保存成功均返回当前用户完整资料，包含 `id`、`username`、`displayName`、`avatarUrl`、`passwordChangedAt`，后端可以继续返回仅供观察的 `revision`，但前端不读取或回传它。后端必须根据请求体是空对象还是完整资料对象区分读取和保存，不接受只包含一个保存字段的模糊请求。
 
 ### 6.5 修改密码
 

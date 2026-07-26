@@ -9,6 +9,8 @@ COPY frontend/package.json frontend/package.json
 RUN pnpm install --frozen-lockfile
 
 COPY frontend frontend
+ARG VITE_API_BASE_URL=/api/
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN pnpm --filter @zerp/frontend build
 
 FROM nginx:1.29-alpine

@@ -373,6 +373,11 @@ race、静态分析、漏洞扫描和容器构建门禁。
 根目录同时保留 `pnpm build` 兼容入口，供尚未切换设置的 Pages 项目继续使用原
 `pnpm build`/`dist` 配置；该入口只改变产物目录，不改变前端构建内容。
 
+仓库的 `.env.production` 默认指向
+`https://zerp-api.bytesucceed.com/`，确保未配置 Pages 环境变量时也不会把业务
+`POST` 错发到静态站点。完整栈 Docker 镜像通过 `VITE_API_BASE_URL` 构建参数显式
+覆盖为 `/api/`，继续使用 Nginx 同源网关；不要把这个容器专用值用于 Cloudflare Pages。
+
 从拆分仓库切换到本单仓时，必须先在 Pages 项目中同步更新构建命令和输出目录；旧的
 设置兼容运行，但仍应在正式切换时更新为上表中的单仓标准值。该设置变更属于上线切换
 步骤，不随普通代码提交自动执行。

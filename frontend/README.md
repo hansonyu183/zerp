@@ -335,7 +335,9 @@ MSW handlers 必须放在测试目录，并确保生产入口无法导入它们�
 
 ### 端到端测试
 
-Playwright 必须连接独立的真实测试后端，使用专用测试账号和可清理、可重复的数据集。核心业务请求不得通过 `page.route()` 等方式模拟。
+根目录的 `make e2e` 会创建独立 Compose 项目和测试数据库，执行迁移、管理员初始化、
+基础资料种子、API 与 Web 健康检查，再运行 Chromium 桌面端和移动端流程；结束时自动清理
+容器、网络、卷和临时环境文件。核心业务请求不得通过 `page.route()` 等方式模拟。
 
 至少覆盖以下流程：
 
@@ -347,29 +349,29 @@ Playwright 必须连接独立的真实测试后端，使用专用测试账号和
 6. 验证会话失效后的清理和登录跳转；
 7. 注销并确认会话失效。
 
-测试 API 地址、账号和数据初始化方式通过 CI 密钥或受控测试环境提供，不得提交到 Git。
-普通 Pull Request 只执行快速质量门禁；真实后端 E2E 通过 GitHub
-`e2e` Environment 中的受控密钥手动触发；CI 不保存或上传可能包含凭证或认证状态的 Playwright 产物。
-
-托管 E2E 至少需要 `E2E_API_BASE_URL`、`E2E_USERNAME` 和
-`E2E_PASSWORD`。工作流固定启用 `E2E_WFL_BOOTSTRAP=true` 和
-`E2E_LED_READONLY=1`，因此目标必须是可按测试运行重置、已启用账簿且允许只读 LED
-查询的隔离后端。其余复核账号、脱敏账号和 `E2E_VOU_*` 基础资料通过同一
-Environment 的受控 Secret 提供；完整变量表见 `.env.example`。
+本地首次运行前执行 `./backend/scripts/init-e2e-env.sh`，生成的
+`backend/.env.e2e.local` 和 `frontend/.env.e2e.local` 仅保留在本机。Pull Request
+使用同一套 `make e2e` 自包含流程，不依赖生产 API、托管账号或仓库 Secret，也不保存或上传
+可能包含凭证、认证状态或业务附件的 Playwright 产物。
 
 `pnpm check` 是本地快速门禁，包含 lint、格式、文档一致性、空白、覆盖率和构建。
-GitHub `Quality` 还会执行 `pnpm audit --prod`，因此提交前应同时运行生产依赖审计。
+根目录 `make check BACKEND_ENV=.env.test.local` 还会执行契约、Compose、后端数据库集成、
+race、静态分析、漏洞扫描和容器构建门禁。
 
 ## Cloudflare Pages 部署
 
 在 Cloudflare Pages 中连接 Git 仓库并使用以下配置：
 
-| 配置项                 | 值           |
-| ---------------------- | ------------ |
-| Framework preset       | Vue          |
-| Build command          | `pnpm build` |
-| Build output directory | `dist`       |
-| Root directory         | `/`          |
+| 配置项                 | 值               |
+| ---------------------- | ---------------- |
+| Framework preset       | Vue              |
+| Build command          | `pnpm build:web` |
+| Build output directory | `frontend/dist`  |
+| Root directory         | `/`              |
+
+从拆分仓库切换到本单仓时，必须先在 Pages 项目中同步更新构建命令和输出目录；旧的
+`pnpm build`/`dist` 设置会在单仓分支上构建失败。该设置变更属于上线切换步骤，不随普通
+代码提交自动执行。
 
 分别为 Preview 和 Production 环境设置其真实 API 地址：
 

@@ -15,7 +15,7 @@ scripts/              联调和自包含 E2E 编排
 
 ## 环境
 
-- Node.js 24
+- Node.js 26
 - pnpm 10.34.5
 - Go 1.26.5
 - Docker 与 Docker Compose

@@ -2,12 +2,14 @@ SHELL := /bin/sh
 
 BACKEND_ENV ?= .env.local
 E2E_ENV ?= .env.e2e.local
+COREPACK_VERSION ?= 0.35.0
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
 .PHONY: bootstrap dev dev-down generate generate-check check test e2e build compose-up compose-down
 
 bootstrap:
+	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
 	corepack enable
 	pnpm install --frozen-lockfile
 	go -C backend mod download

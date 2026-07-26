@@ -30,11 +30,12 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 
 ## 环境要求
 
-- Node.js 24.x（以 `.nvmrc` 为准）
+- Node.js 26.x（以 `.nvmrc` 为准）
 - pnpm（通过 Corepack 管理）
 - 可访问的真实后端 API
 
 ```bash
+npm install --global corepack@0.35.0
 corepack enable
 pnpm install
 pnpm dev

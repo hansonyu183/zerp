@@ -1,0 +1,47 @@
+services:
+  db:
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-55435}:5432'
+
+  api:
+    environment:
+      APP_ENV: test
+      APP_SESSION_COOKIE_SECURE: 'false'
+      APP_SESSION_COOKIE_SAME_SITE: lax
+      FEEDBACK_GITHUB_ENABLED: 'false'
+    ports:
+      - '127.0.0.1:${API_PORT:-18081}:8080'
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  bootstrap:
+    build:
+      context: backend
+    restart: 'no'
+    entrypoint: ['/bin/sh', '-eu', '-c']
+    command:
+      - |
+        /usr/local/bin/zerp-bootstrap-admin \
+          -username "$${APP_BOOTSTRAP_USERNAME}" \
+          -display-name "$${APP_BOOTSTRAP_DISPLAY_NAME}"
+        /usr/local/bin/zerp-seed-bob
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      APP_SESSION_COOKIE_NAME: ${APP_SESSION_COOKIE_NAME:-zerp_e2e_session}
+      APP_SESSION_COOKIE_SECURE: 'false'
+      APP_SESSION_COOKIE_SAME_SITE: lax
+      APP_BOOTSTRAP_USERNAME: ${APP_BOOTSTRAP_USERNAME:?set APP_BOOTSTRAP_USERNAME}
+      APP_BOOTSTRAP_DISPLAY_NAME: ${APP_BOOTSTRAP_DISPLAY_NAME:?set APP_BOOTSTRAP_DISPLAY_NAME}
+      APP_BOOTSTRAP_PASSWORD: ${APP_BOOTSTRAP_PASSWORD:?set APP_BOOTSTRAP_PASSWORD}
+      ATTACHMENT_STORAGE_ROOT: /var/lib/zerp/attachments
+      FEEDBACK_GITHUB_ENABLED: 'false'
+    volumes:
+      - attachment-data:/var/lib/zerp/attachments
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  pgadmin:
+    profiles: ['never']

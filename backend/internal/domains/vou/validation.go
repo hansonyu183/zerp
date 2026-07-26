@@ -1,0 +1,560 @@
+package vou
+
+import (
+	"encoding/hex"
+	"math"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/oklog/ulid/v2"
+)
+
+const dateLayout = "2006-01-02"
+
+var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
+
+type fixedProductLine struct {
+	Product           ReferenceInput
+	Quantity          int64
+	UnitPrice         int64
+	PurchaseUnitPrice *int64
+	LineAmount        int64
+	Remark            *string
+}
+
+type fixedExpenseLine struct {
+	Category, Description string
+	Amount                int64
+	Remark                *string
+}
+
+type validatedDraft struct {
+	BusinessDate                                            time.Time
+	Currency                                                string
+	Remark                                                  *string
+	Customer, Supplier, Counterparty, Employee, FundAccount *ReferenceInput
+	Salesperson, Purchaser, Handler, Warehouse              *ReferenceInput
+	CounterpartyType                                        string
+	SourceName                                              string
+	ProductLines                                            []fixedProductLine
+	ExpenseLines                                            []fixedExpenseLine
+	TotalAmount                                             int64
+}
+
+type validatedQuery struct {
+	Page, PageSize                               int
+	Keyword, PartyObjectID, SortField, SortOrder string
+	Statuses                                     []string
+	DateFrom, DateTo                             *time.Time
+}
+
+type fixedSaleExecutionLine struct {
+	LineID                           string
+	Outbound, Signed, Rejected, Loss int64
+}
+
+type validatedSaleExecution struct {
+	OutboundDate, SignoffDate time.Time
+	Platform, Vehicle         ReferenceInput
+	DifferenceReason          *string
+	Lines                     []fixedSaleExecutionLine
+}
+
+type fixedPurchaseExecutionLine struct {
+	LineID  string
+	Inbound int64
+}
+
+type validatedPurchaseExecution struct {
+	InboundDate      time.Time
+	DifferenceReason *string
+	Lines            []fixedPurchaseExecutionLine
+}
+
+func validEntity(entity string) bool {
+	for _, candidate := range entities {
+		if candidate == entity {
+			return true
+		}
+	}
+	switch entity {
+	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
+		EntityDeliveryNote, EntitySignoffNote:
+		return true
+	default:
+		return false
+	}
+}
+
+func validID(value string) bool {
+	_, err := ulid.ParseStrict(value)
+	return err == nil
+}
+
+func validateReference(ref *ReferenceInput, field string, required bool) error {
+	if ref == nil {
+		if required {
+			return domainError(ErrorValidation, field+" is required", nil, nil)
+		}
+		return nil
+	}
+	if !validID(ref.ObjectID) || !validID(ref.VersionID) {
+		return domainError(ErrorValidation, "invalid "+field, nil, nil)
+	}
+	return nil
+}
+
+func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
+	if !validEntity(entity) {
+		return validatedDraft{}, domainError(ErrorValidation, "invalid entity", nil, nil)
+	}
+	businessDate, err := time.Parse(dateLayout, strings.TrimSpace(input.BusinessDate))
+	if err != nil {
+		return validatedDraft{}, domainError(ErrorValidation, "invalid businessDate", nil, nil)
+	}
+	currency := strings.ToUpper(strings.TrimSpace(input.Currency))
+	if !currencyPattern.MatchString(currency) {
+		return validatedDraft{}, domainError(ErrorValidation, "invalid currency", nil, nil)
+	}
+	remark := optionalText(input.Remark)
+	if remark != nil && utf8.RuneCountInString(*remark) > 1000 {
+		return validatedDraft{}, domainError(ErrorValidation, "remark is too long", nil, nil)
+	}
+	result := validatedDraft{
+		BusinessDate: businessDate, Currency: currency, Remark: remark,
+		Customer: input.Customer, Supplier: input.Supplier, Counterparty: input.Counterparty,
+		Employee: input.Employee, FundAccount: input.FundAccount,
+		Salesperson: input.Salesperson, Purchaser: input.Purchaser,
+		Handler: input.Handler, Warehouse: input.Warehouse,
+		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
+		SourceName:       strings.TrimSpace(input.SourceName),
+	}
+
+	switch entity {
+	case EntitySaleOrder:
+		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, true, false, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Customer, "customer", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
+			return validatedDraft{}, err
+		}
+		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
+	case EntityPurchaseOrder:
+		if err = requireOnlyDraftRefs(input, false, true, false, false, false, true, false, true, false, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Supplier, "supplier", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Purchaser, "purchaser", false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
+			return validatedDraft{}, err
+		}
+		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
+	case EntityIntermediarySaleOrder:
+		if err = requireOnlyDraftRefs(input, true, true, false, false, true, true, false, false, false, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Customer, "customer", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Supplier, "supplier", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Purchaser, "purchaser", false); err != nil {
+			return validatedDraft{}, err
+		}
+		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, true)
+	case EntityReceipt, EntityPayment:
+		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" {
+			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
+		}
+		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.FundAccount, "fundAccount", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Handler, "handler", true); err != nil {
+			return validatedDraft{}, err
+		}
+		result.TotalAmount, err = moneyCents(input.Amount)
+	case EntityExpenseReimbursement:
+		if err = requireOnlyDraftRefs(input, false, false, false, true, false, false, false, false, true, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Employee, "employee", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.FundAccount, "fundAccount", true); err != nil {
+			return validatedDraft{}, err
+		}
+		result.ExpenseLines, result.TotalAmount, err = validateExpenseLines(input.ExpenseLines)
+	case EntityOtherIncome:
+		if err = requireOnlyDraftRefs(input, false, false, input.Counterparty != nil, false, false, false, true, false, true, true); err != nil {
+			return validatedDraft{}, err
+		}
+		if input.Counterparty != nil {
+			if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" {
+				return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
+			}
+			if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
+				return validatedDraft{}, err
+			}
+		} else if result.CounterpartyType != "" {
+			return validatedDraft{}, domainError(ErrorValidation, "counterpartyType requires counterparty", nil, nil)
+		}
+		if err = validateReference(input.FundAccount, "fundAccount", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Handler, "handler", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if result.SourceName == "" || utf8.RuneCountInString(result.SourceName) > 200 {
+			return validatedDraft{}, domainError(ErrorValidation, "invalid sourceName", nil, nil)
+		}
+		result.TotalAmount, err = moneyCents(input.Amount)
+	}
+	if err != nil {
+		return validatedDraft{}, domainError(ErrorValidation, "invalid document amount or lines", nil, err)
+	}
+	return result, nil
+}
+
+func requireOnlyDraftRefs(
+	input DraftInput,
+	customer, supplier, counterparty, employee, salesperson, purchaser, handler, warehouse, fundAccount, source bool,
+) error {
+	if (!customer && input.Customer != nil) || (!supplier && input.Supplier != nil) ||
+		(!counterparty && (input.Counterparty != nil || strings.TrimSpace(input.CounterpartyType) != "")) ||
+		(!employee && input.Employee != nil) || (!salesperson && input.Salesperson != nil) ||
+		(!purchaser && input.Purchaser != nil) || (!handler && input.Handler != nil) ||
+		(!warehouse && input.Warehouse != nil) || (!fundAccount && input.FundAccount != nil) ||
+		(!source && strings.TrimSpace(input.SourceName) != "") {
+		return domainError(ErrorValidation, "fields do not match entity", nil, nil)
+	}
+	if len(input.ProductLines) > 0 && !(customer || supplier) {
+		return domainError(ErrorValidation, "productLines do not match entity", nil, nil)
+	}
+	if len(input.ExpenseLines) > 0 && !employee {
+		return domainError(ErrorValidation, "expenseLines do not match entity", nil, nil)
+	}
+	if strings.TrimSpace(input.Amount) != "" && (customer || supplier || employee) {
+		return domainError(ErrorValidation, "amount does not match entity", nil, nil)
+	}
+	return nil
+}
+
+func validateProductLines(lines []ProductLineInput, requirePurchasePrice bool) ([]fixedProductLine, int64, error) {
+	if len(lines) == 0 || len(lines) > 200 {
+		return nil, 0, domainError(ErrorValidation, "productLines must contain 1 to 200 items", nil, nil)
+	}
+	result := make([]fixedProductLine, 0, len(lines))
+	seen := make(map[string]struct{}, len(lines))
+	var total int64
+	for _, line := range lines {
+		if err := validateReference(&line.Product, "product", true); err != nil {
+			return nil, 0, err
+		}
+		key := line.Product.ObjectID + "/" + line.Product.VersionID
+		if _, exists := seen[key]; exists {
+			return nil, 0, domainError(ErrorValidation, "duplicate product line", nil, nil)
+		}
+		seen[key] = struct{}{}
+		quantity, err := quantityMicros(line.OrderedQuantity, false)
+		if err != nil {
+			return nil, 0, err
+		}
+		price, err := moneyCents(line.UnitPrice)
+		if err != nil {
+			return nil, 0, err
+		}
+		var purchasePrice *int64
+		if requirePurchasePrice {
+			parsed, purchaseErr := moneyCents(line.PurchaseUnitPrice)
+			if purchaseErr != nil {
+				return nil, 0, domainError(ErrorValidation, "purchaseUnitPrice is required for intermediary sale lines", nil, purchaseErr)
+			}
+			purchasePrice = &parsed
+		} else if strings.TrimSpace(line.PurchaseUnitPrice) != "" {
+			return nil, 0, domainError(ErrorValidation, "purchaseUnitPrice only applies to intermediary sale lines", nil, nil)
+		}
+		amount, err := lineAmountCents(quantity, price)
+		if err != nil || total > math.MaxInt64-amount {
+			return nil, 0, domainError(ErrorValidation, "amount out of range", nil, err)
+		}
+		total += amount
+		remark, err := lineRemark(line.Remark)
+		if err != nil {
+			return nil, 0, err
+		}
+		result = append(result, fixedProductLine{
+			Product: line.Product, Quantity: quantity, UnitPrice: price,
+			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark,
+		})
+	}
+	return result, total, nil
+}
+
+func validateExpenseLines(lines []ExpenseLineInput) ([]fixedExpenseLine, int64, error) {
+	if len(lines) == 0 || len(lines) > 200 {
+		return nil, 0, domainError(ErrorValidation, "expenseLines must contain 1 to 200 items", nil, nil)
+	}
+	result := make([]fixedExpenseLine, 0, len(lines))
+	var total int64
+	for _, line := range lines {
+		category := strings.TrimSpace(line.Category)
+		description := strings.TrimSpace(line.Description)
+		if category == "" || utf8.RuneCountInString(category) > 100 ||
+			description == "" || utf8.RuneCountInString(description) > 500 {
+			return nil, 0, domainError(ErrorValidation, "invalid expense line", nil, nil)
+		}
+		amount, err := moneyCents(line.Amount)
+		if err != nil || total > math.MaxInt64-amount {
+			return nil, 0, domainError(ErrorValidation, "amount out of range", nil, err)
+		}
+		total += amount
+		remark, err := lineRemark(line.Remark)
+		if err != nil {
+			return nil, 0, err
+		}
+		result = append(result, fixedExpenseLine{
+			Category: category, Description: description, Amount: amount, Remark: remark,
+		})
+	}
+	return result, total, nil
+}
+
+func lineRemark(value string) (*string, error) {
+	remark := optionalText(value)
+	if remark != nil && utf8.RuneCountInString(*remark) > 1000 {
+		return nil, domainError(ErrorValidation, "line remark is too long", nil, nil)
+	}
+	return remark, nil
+}
+
+func validateDocumentRevision(documentID string, revision int64) error {
+	if !validID(documentID) || revision < 1 {
+		return domainError(ErrorValidation, "invalid document revision", nil, nil)
+	}
+	return nil
+}
+
+func validateReverse(input ReverseInput) (*string, error) {
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return nil, err
+	}
+	reason := optionalText(input.Reason)
+	if reason == nil || utf8.RuneCountInString(*reason) > 1000 {
+		return nil, domainError(ErrorValidation, "invalid reason", nil, nil)
+	}
+	return reason, nil
+}
+
+func validateQuery(input QueryInput) (validatedQuery, error) {
+	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 100 || len(input.Sort) > 1 ||
+		utf8.RuneCountInString(strings.TrimSpace(input.Filters.Keyword)) > 200 {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid query", nil, nil)
+	}
+	result := validatedQuery{
+		Page: input.Page, PageSize: input.PageSize, Keyword: strings.TrimSpace(input.Filters.Keyword),
+		PartyObjectID: strings.TrimSpace(input.Filters.PartyObjectID),
+		SortField:     "updatedAt", SortOrder: "desc",
+	}
+	if result.PartyObjectID != "" && !validID(result.PartyObjectID) {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
+	}
+	allowedStatuses := map[string]bool{StatusDraft: true, StatusReviewed: true, StatusApproved: true, StatusExecuted: true}
+	seen := map[string]bool{}
+	for _, status := range input.Filters.Status {
+		status = strings.ToUpper(strings.TrimSpace(status))
+		if !allowedStatuses[status] || seen[status] {
+			return validatedQuery{}, domainError(ErrorValidation, "invalid status filter", nil, nil)
+		}
+		seen[status] = true
+		result.Statuses = append(result.Statuses, status)
+	}
+	var err error
+	if strings.TrimSpace(input.Filters.DateFrom) != "" {
+		parsed, parseErr := time.Parse(dateLayout, strings.TrimSpace(input.Filters.DateFrom))
+		if parseErr != nil {
+			return validatedQuery{}, domainError(ErrorValidation, "invalid dateFrom", nil, nil)
+		}
+		result.DateFrom = &parsed
+	}
+	if strings.TrimSpace(input.Filters.DateTo) != "" {
+		parsed, parseErr := time.Parse(dateLayout, strings.TrimSpace(input.Filters.DateTo))
+		if parseErr != nil {
+			return validatedQuery{}, domainError(ErrorValidation, "invalid dateTo", nil, nil)
+		}
+		result.DateTo = &parsed
+	}
+	if result.DateFrom != nil && result.DateTo != nil && result.DateFrom.After(*result.DateTo) {
+		return validatedQuery{}, domainError(ErrorValidation, "dateFrom must not exceed dateTo", nil, nil)
+	}
+	if len(input.Sort) == 1 {
+		allowed := map[string]bool{"updatedAt": true, "documentNo": true, "businessDate": true, "status": true, "amount": true}
+		result.SortField = input.Sort[0].Field
+		result.SortOrder = strings.ToLower(input.Sort[0].Order)
+		if !allowed[result.SortField] || (result.SortOrder != "asc" && result.SortOrder != "desc") {
+			return validatedQuery{}, domainError(ErrorValidation, "invalid sort", nil, nil)
+		}
+	}
+	return result, err
+}
+
+func validateHistory(input HistoryInput) error {
+	if !validID(input.DocumentID) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 100 {
+		return domainError(ErrorValidation, "invalid history query", nil, nil)
+	}
+	return nil
+}
+
+func validateSaleExecution(input ExecuteInput) (validatedSaleExecution, error) {
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return validatedSaleExecution{}, err
+	}
+	outboundDate, err := time.Parse(dateLayout, strings.TrimSpace(input.OutboundDate))
+	if err != nil {
+		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundDate", nil, nil)
+	}
+	signoffDate, err := time.Parse(dateLayout, strings.TrimSpace(input.SignoffDate))
+	if err != nil || outboundDate.After(signoffDate) {
+		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signoffDate", nil, nil)
+	}
+	if err = validateReference(input.Platform, "platform", true); err != nil {
+		return validatedSaleExecution{}, err
+	}
+	if err = validateReference(input.Vehicle, "vehicle", true); err != nil {
+		return validatedSaleExecution{}, err
+	}
+	if len(input.SaleLines) == 0 || len(input.PurchaseLines) != 0 || strings.TrimSpace(input.InboundDate) != "" {
+		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lines", nil, nil)
+	}
+	result := validatedSaleExecution{
+		OutboundDate: outboundDate, SignoffDate: signoffDate, Platform: *input.Platform,
+		Vehicle: *input.Vehicle, DifferenceReason: optionalText(input.DifferenceReason),
+	}
+	if result.DifferenceReason != nil && utf8.RuneCountInString(*result.DifferenceReason) > 1000 {
+		return validatedSaleExecution{}, domainError(ErrorValidation, "differenceReason is too long", nil, nil)
+	}
+	seen := map[string]bool{}
+	for _, line := range input.SaleLines {
+		if !validID(line.LineID) || seen[line.LineID] {
+			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lineId", nil, nil)
+		}
+		seen[line.LineID] = true
+		outbound, err := quantityMicros(line.OutboundQuantity, false)
+		if err != nil {
+			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundQuantity", nil, err)
+		}
+		signed, err := quantityMicros(line.SignedQuantity, true)
+		if err != nil {
+			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signedQuantity", nil, err)
+		}
+		rejected, err := quantityMicros(line.RejectedQuantity, true)
+		if err != nil {
+			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid rejectedQuantity", nil, err)
+		}
+		loss, err := quantityMicros(line.LossQuantity, true)
+		if err != nil || signed > math.MaxInt64-rejected || signed+rejected > math.MaxInt64-loss ||
+			signed+rejected+loss != outbound {
+			return validatedSaleExecution{}, domainError(ErrorValidation, "sale quantities do not reconcile", nil, err)
+		}
+		result.Lines = append(result.Lines, fixedSaleExecutionLine{
+			LineID: line.LineID, Outbound: outbound, Signed: signed, Rejected: rejected, Loss: loss,
+		})
+	}
+	return result, nil
+}
+
+func validatePurchaseExecution(input ExecuteInput) (validatedPurchaseExecution, error) {
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return validatedPurchaseExecution{}, err
+	}
+	inboundDate, err := time.Parse(dateLayout, strings.TrimSpace(input.InboundDate))
+	if err != nil || len(input.PurchaseLines) == 0 || len(input.SaleLines) != 0 ||
+		input.Platform != nil || input.Vehicle != nil || strings.TrimSpace(input.OutboundDate) != "" ||
+		strings.TrimSpace(input.SignoffDate) != "" {
+		return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid purchase execution", nil, err)
+	}
+	result := validatedPurchaseExecution{InboundDate: inboundDate, DifferenceReason: optionalText(input.DifferenceReason)}
+	if result.DifferenceReason != nil && utf8.RuneCountInString(*result.DifferenceReason) > 1000 {
+		return validatedPurchaseExecution{}, domainError(ErrorValidation, "differenceReason is too long", nil, nil)
+	}
+	seen := map[string]bool{}
+	for _, line := range input.PurchaseLines {
+		if !validID(line.LineID) || seen[line.LineID] {
+			return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid execution lineId", nil, nil)
+		}
+		seen[line.LineID] = true
+		inbound, err := quantityMicros(line.InboundQuantity, false)
+		if err != nil {
+			return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid inboundQuantity", nil, err)
+		}
+		result.Lines = append(result.Lines, fixedPurchaseExecutionLine{LineID: line.LineID, Inbound: inbound})
+	}
+	return result, nil
+}
+
+func validateFinancialExecution(input ExecuteInput) error {
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return err
+	}
+	if input.OutboundDate != "" || input.SignoffDate != "" || input.InboundDate != "" ||
+		input.Platform != nil || input.Vehicle != nil || input.DifferenceReason != "" ||
+		len(input.SaleLines) != 0 || len(input.PurchaseLines) != 0 {
+		return domainError(ErrorValidation, "execution fields do not match entity", nil, nil)
+	}
+	return nil
+}
+
+func validateAttachmentInitiate(input AttachmentInitiateInput) (string, error) {
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return "", err
+	}
+	rawName := strings.TrimSpace(input.FileName)
+	name := filepath.Base(rawName)
+	if rawName != name || name == "." || name == ".." || name == "" ||
+		utf8.RuneCountInString(name) > 255 || strings.ContainsAny(rawName, "/\\\x00") {
+		return "", domainError(ErrorValidation, "invalid fileName", nil, nil)
+	}
+	if input.Size < 1 || input.Size > 10<<20 {
+		return "", domainError(ErrorValidation, "invalid file size", nil, nil)
+	}
+	allowed := map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}
+	if !allowed[input.ContentType] {
+		return "", domainError(ErrorValidation, "invalid contentType", nil, nil)
+	}
+	hash := strings.ToLower(strings.TrimSpace(input.SHA256))
+	decoded, err := hex.DecodeString(hash)
+	if err != nil || len(decoded) != 32 {
+		return "", domainError(ErrorValidation, "invalid sha256", nil, nil)
+	}
+	return name, nil
+}
+
+func optionalText(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
+}

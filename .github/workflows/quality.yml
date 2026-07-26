@@ -1,10 +1,9 @@
-name: Quality
+name: Full-stack quality
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -14,50 +13,99 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - run: pnpm install --frozen-lockfile
+      - name: Lint, bundle and generate API contracts
+        run: pnpm generate:api
+      - name: Reject generated drift
+        run: git diff --exit-code -- contracts/openapi/dist backend/internal/api/generated frontend/src/api/generated
+      - name: Check formatting and whitespace
+        run: |
+          pnpm format:check
+          git diff --check
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Check documentation
-        run: pnpm docs:check
-
-      - name: Check pull request whitespace
-        if: github.event_name == 'pull_request'
-        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
-
-      - name: Check pushed commit whitespace
-        if: github.event_name == 'push'
-        run: git show --check --format= HEAD
-
-      - name: Run unit tests with coverage
-        run: pnpm test:coverage
-
-      - name: Build
-        run: pnpm build
-
-      - name: Audit dependencies
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run frontend quality gate
+        run: pnpm check:web
+      - name: Verify Cloudflare Pages compatibility build
+        run: pnpm build && test -f dist/index.html
+      - name: Audit production dependencies
         run: pnpm audit --prod
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - name: Prepare isolated backend test environment
+        run: |
+          install -m 600 /dev/null backend/.env.ci
+          {
+            echo 'APP_ENV=test'
+            echo 'POSTGRES_DB=zerp'
+            echo 'POSTGRES_USER=zerp'
+            echo 'POSTGRES_PASSWORD=ci-only-password'
+            echo 'POSTGRES_PORT=5432'
+            echo 'DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp?sslmode=disable'
+            echo 'TEST_POSTGRES_DB=zerp_test'
+            echo 'TEST_DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp_test?sslmode=disable'
+            echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
+            echo 'FEEDBACK_GITHUB_ENABLED=false'
+          } >> backend/.env.ci
+      - name: Verify sqlc generation
+        run: |
+          make -C backend ENV_FILE=.env.ci generate
+          git diff --exit-code -- backend/internal/database/sqlc
+      - name: Test, vet and build backend
+        run: |
+          make -C backend ENV_FILE=.env.ci test
+          go -C backend vet ./...
+          go -C backend build ./...
+          go -C backend test -race ./...
+      - name: Run backend static and security gates
+        run: make -C backend quality-actionlint quality-staticcheck quality-vuln
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Compose configurations
+        run: |
+          docker compose --env-file backend/.env.example -f compose.yaml config --quiet
+          docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
+      - name: Build production-shape images
+        run: docker compose --env-file backend/.env.example -f compose.yaml build web api migrate

@@ -1,0 +1,13 @@
+root = ".."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go -C .. build -o tmp/zerp-server ./cmd/server"
+entrypoint = ["./tmp/zerp-server"]
+include_ext = ["go", "sql", "yaml"]
+exclude_dir = ["tmp", "var"]
+delay = 500
+stop_on_error = true
+
+[log]
+time = true

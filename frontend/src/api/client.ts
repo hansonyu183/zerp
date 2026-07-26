@@ -1,0 +1,384 @@
+import createClient, { type Client } from 'openapi-fetch'
+import type { components, paths } from '@/api/generated/schema'
+import { ApiError, type ApiResponse, type ApiResult } from '@/api/types'
+
+const API_PATH_PATTERN = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/
+
+type ContractPostPath = {
+  [Path in keyof paths]: paths[Path] extends { post: unknown } ? Path : never
+}[keyof paths] &
+  string
+export type BobApiEntity = components['schemas']['BobEntity']
+export type VouApiEntity = components['schemas']['VouEntity']
+type ConcretePostPath<Path extends string> =
+  Path extends `/bob/{entity}/${infer Action}`
+    ? `bob/${BobApiEntity}/${Action}`
+    : Path extends `/vou/{entity}/${infer Action}`
+      ? `vou/${VouApiEntity}/${Action}`
+      : Path extends `/${infer Concrete}`
+        ? Concrete
+        : never
+
+export type ApiPostPath = ConcretePostPath<ContractPostPath>
+
+interface ApiClientOptions {
+  baseUrl?: string
+  timeoutMs?: number
+  fetcher?: typeof fetch
+}
+
+interface PostOptions {
+  signal?: AbortSignal
+}
+
+interface FileRequestOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+interface ContractPostResult {
+  data?: unknown
+  error?: unknown
+  response: Response
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+}
+
+function isApiResponse(value: unknown): value is ApiResponse<unknown> {
+  if (!value || typeof value !== 'object') return false
+
+  const response = value as Record<string, unknown>
+  return (
+    (typeof response.code === 'number' || typeof response.code === 'string') &&
+    typeof response.message === 'string' &&
+    'data' in response &&
+    (response.requestId === undefined || typeof response.requestId === 'string')
+  )
+}
+
+export class ApiClient {
+  private readonly baseUrl?: string
+  private readonly timeoutMs: number
+  private readonly fetcher: typeof fetch
+  private readonly contractClient?: Client<paths>
+  private csrfToken: string | null = null
+
+  constructor(options: ApiClientOptions = {}) {
+    this.baseUrl = options.baseUrl?.trim()
+    this.timeoutMs = options.timeoutMs ?? 15_000
+    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
+    if (this.baseUrl) {
+      this.contractClient = createClient<paths>({
+        baseUrl: normalizeBaseUrl(this.baseUrl),
+        fetch: (request) => this.fetcher(request),
+      })
+    }
+  }
+
+  setCsrfToken(token: string | null): void {
+    this.csrfToken = token
+  }
+
+  async post<TResponse, TRequest = Record<string, never>>(
+    path: ApiPostPath,
+    body: TRequest,
+    options: PostOptions = {},
+  ): Promise<ApiResult<TResponse>> {
+    if (!this.baseUrl || !this.contractClient) {
+      throw new ApiError(
+        'configuration',
+        '未配置真实后端 API，请设置 VITE_API_BASE_URL。',
+      )
+    }
+
+    const normalizedPath = path.replace(/^\/+|\/+$/g, '')
+    if (!API_PATH_PATTERN.test(normalizedPath)) {
+      throw new ApiError(
+        'configuration',
+        `API 路径必须符合 domain/entity/action：${path}`,
+      )
+    }
+
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, this.timeoutMs)
+    const abortFromCaller = () => controller.abort(options.signal?.reason)
+
+    if (options.signal?.aborted) {
+      abortFromCaller()
+    } else {
+      options.signal?.addEventListener('abort', abortFromCaller, { once: true })
+    }
+
+    try {
+      const headers = new Headers({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      })
+
+      if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
+
+      const contractRequest = this.resolveContractPost(normalizedPath)
+      const post = this.contractClient.POST as unknown as (
+        path: ContractPostPath,
+        options: {
+          body: unknown
+          credentials: RequestCredentials
+          headers: Headers
+          params?: { path: { entity: string } }
+          parseAs: 'text'
+          signal: AbortSignal
+        },
+      ) => Promise<ContractPostResult>
+      const result = await post(contractRequest.path, {
+        body,
+        credentials: 'include',
+        headers,
+        ...(contractRequest.entity
+          ? { params: { path: { entity: contractRequest.entity } } }
+          : {}),
+        parseAs: 'text',
+        signal: controller.signal,
+      })
+      const { response } = result
+
+      if (response.status !== 200) {
+        throw new ApiError(
+          'protocol',
+          `后端返回了不符合约定的 HTTP 状态：${response.status}`,
+        )
+      }
+
+      let payload: unknown
+      try {
+        const rawPayload = result.data ?? result.error
+        if (typeof rawPayload !== 'string') {
+          throw new TypeError('OpenAPI client did not return a text payload')
+        }
+        payload = JSON.parse(rawPayload)
+      } catch (error) {
+        throw new ApiError('protocol', '后端响应不是有效的 JSON。', {
+          cause: error,
+        })
+      }
+
+      if (!isApiResponse(payload)) {
+        throw new ApiError('protocol', '后端响应不符合统一响应包络。')
+      }
+
+      if (payload.code !== 0 && payload.code !== '0') {
+        throw new ApiError('business', payload.message || '业务操作失败。', {
+          code: payload.code,
+          requestId: payload.requestId,
+        })
+      }
+
+      return {
+        data: payload.data as TResponse,
+        requestId: payload.requestId,
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error
+
+      if (timedOut) {
+        throw new ApiError('timeout', '请求超时，请稍后重试。', {
+          cause: error,
+        })
+      }
+
+      if (options.signal?.aborted) {
+        throw new ApiError('aborted', '请求已取消。', { cause: error })
+      }
+
+      throw new ApiError('network', '无法连接真实后端 API。', { cause: error })
+    } finally {
+      clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortFromCaller)
+    }
+  }
+
+  private resolveContractPost(path: string): {
+    path: ContractPostPath
+    entity?: string
+  } {
+    const segments = path.split('/')
+    if (
+      segments.length === 3 &&
+      (segments[0] === 'bob' || segments[0] === 'vou')
+    ) {
+      return {
+        path: `/${segments[0]}/{entity}/${segments[2]}` as ContractPostPath,
+        entity: segments[1],
+      }
+    }
+    return { path: `/${path}` as ContractPostPath }
+  }
+
+  async uploadAttachment(
+    uploadUrl: string,
+    file: File,
+    options: FileRequestOptions = {},
+  ): Promise<void> {
+    await this.uploadFile(
+      uploadUrl,
+      '/files/attachments/upload/',
+      file,
+      options,
+    )
+  }
+
+  async uploadFeedbackAttachment(
+    uploadUrl: string,
+    file: File,
+    options: FileRequestOptions = {},
+  ): Promise<void> {
+    await this.uploadFile(
+      uploadUrl,
+      '/files/feedback/attachments/upload/',
+      file,
+      options,
+    )
+  }
+
+  private async uploadFile(
+    uploadUrl: string,
+    requiredPrefix: string,
+    file: File,
+    options: FileRequestOptions,
+  ): Promise<void> {
+    const url = this.resolveFileUrl(uploadUrl, requiredPrefix)
+    const response = await this.fileRequest(
+      url,
+      {
+        method: 'PUT',
+        credentials: 'include',
+        headers: new Headers({ 'Content-Type': file.type }),
+        body: file,
+      },
+      options,
+    )
+
+    if (response.status !== 204) {
+      await this.throwFileResponseError(response)
+    }
+  }
+
+  async fetchAttachment(
+    downloadUrl: string,
+    options: FileRequestOptions = {},
+  ): Promise<Blob> {
+    const url = this.resolveFileUrl(downloadUrl, '/files/attachments/download/')
+    const response = await this.fileRequest(
+      url,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: new Headers({ Accept: 'application/octet-stream' }),
+      },
+      options,
+    )
+
+    if (response.status !== 200) {
+      await this.throwFileResponseError(response)
+    }
+    return response.blob()
+  }
+
+  private resolveFileUrl(value: string, requiredPrefix: string): URL {
+    if (!this.baseUrl) {
+      throw new ApiError(
+        'configuration',
+        '未配置真实后端 API，请设置 VITE_API_BASE_URL。',
+      )
+    }
+
+    const normalizedBaseUrl = normalizeBaseUrl(this.baseUrl)
+    const base = normalizedBaseUrl.startsWith('/')
+      ? new URL(normalizedBaseUrl, window.location.origin)
+      : new URL(normalizedBaseUrl)
+    const resolved = new URL(value, base)
+    if (
+      resolved.origin !== base.origin ||
+      !resolved.pathname.startsWith(requiredPrefix)
+    ) {
+      throw new ApiError('configuration', '附件地址不符合后端文件端点约定。')
+    }
+    return resolved
+  }
+
+  private async fileRequest(
+    url: URL,
+    init: RequestInit,
+    options: FileRequestOptions,
+  ): Promise<Response> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 60_000)
+    const abortFromCaller = () => controller.abort(options.signal?.reason)
+
+    if (options.signal?.aborted) {
+      abortFromCaller()
+    } else {
+      options.signal?.addEventListener('abort', abortFromCaller, { once: true })
+    }
+
+    try {
+      return await this.fetcher(url, { ...init, signal: controller.signal })
+    } catch (error) {
+      if (timedOut) {
+        throw new ApiError('timeout', '附件请求超时，请稍后重试。', {
+          cause: error,
+        })
+      }
+      if (options.signal?.aborted) {
+        throw new ApiError('aborted', '附件请求已取消。', { cause: error })
+      }
+      throw new ApiError('network', '无法连接附件服务。', { cause: error })
+    } finally {
+      clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortFromCaller)
+    }
+  }
+
+  private async throwFileResponseError(response: Response): Promise<never> {
+    let message = `附件服务返回了 HTTP ${response.status}。`
+    let requestId = response.headers.get('X-Request-ID') ?? undefined
+    try {
+      const payload = (await response.json()) as {
+        error?: unknown
+        requestId?: unknown
+      }
+      if (typeof payload.error === 'string' && payload.error) {
+        message = payload.error
+      }
+      if (typeof payload.requestId === 'string' && payload.requestId) {
+        requestId = payload.requestId
+      }
+    } catch {
+      // Technical file endpoints may return an empty/non-JSON proxy response.
+    }
+
+    if (response.status === 400 || response.status === 409) {
+      throw new ApiError('business', message, {
+        code: response.status,
+        requestId,
+      })
+    }
+    throw new ApiError('protocol', message, {
+      code: response.status,
+      requestId,
+    })
+  }
+}
+
+export const apiClient = new ApiClient({
+  baseUrl: import.meta.env.VITE_API_BASE_URL,
+})

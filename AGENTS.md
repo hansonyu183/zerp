@@ -1,18 +1,25 @@
-# 项目关键约束
+# ZERP 全栈工程约束
 
-## 文件操作边界（强制）
+## 仓库边界
 
-- 只允许在本项目目录 `/Users/hansonyu/code/zerp/` 及其子目录内创建、修改、移动或删除文件。
-- 判断文件是否位于本项目目录内时，必须以解析 `..` 和符号链接后的真实路径为准；禁止通过绝对路径、`..`、符号链接、系统临时目录或其他方式绕过此边界。
-- 允许为运行项目工具、构建和测试而只读访问项目目录外的系统程序、依赖和配置，但不得在项目目录外产生任何文件变更。
-- 如果任务必须变更项目目录外的文件，必须立即停止，并在获得用户明确的单独授权后才能继续。
+- 本仓库是 ZERP 的唯一开发仓库；前端位于 `frontend/`，后端位于 `backend/`。
+- `contracts/openapi/` 是 HTTP 线协议的唯一事实来源，`docs/domains/` 是业务规则的唯一事实来源。
+- 禁止在 `frontend/` 或 `backend/` 下复制领域文档或维护第二套接口说明。
+- 不得提交密码、Cookie、CSRF Token、数据库连接串、API Token、测试账号、附件或生产数据。
 
-- 技术栈为 Vue 3、TypeScript、Vite、Vuetify 和 Pinia；使用 pnpm，Node.js 版本须为 20.19 或更高。
-- 页面组件负责模板、样式和交互装配；业务状态与动作放在同目录的 `vm.ts`。仅跨页面共享且需要保持一致的状态进入 Pinia。
-- 所有业务 API 统一通过 `src/api/client.ts` 调用真实后端，路径遵循 `POST /{domain}/{entity}/{action}`。业务代码不得直接调用 `fetch`，不得使用假数据或本地数据作为失败兜底。
-- 认证与权限使用 `app` 领域标识，不使用 `auth`。实现领域功能前先阅读对应领域文档：[APP](docs/domains/app.md)、[BOB](docs/domains/bob.md)。
-- Cookie 会话和 CSRF 统一由 API 客户端处理。不得提交或记录密码、密钥、Cookie、Token、测试账号及敏感业务数据。
-- 除 `app` 领域外，后端返回的任一有效实体权限都可生成菜单；本地已注册实体加载对应页面，未注册实体只能加载前端固定的“开发中...”占位页。权限数据不得指定组件路径。前端权限仅用于菜单、按钮和交互控制，后端鉴权才是最终安全边界。
-- Vitest 单元及组件测试可使用 MSW；Playwright 核心流程必须连接真实测试后端，不得拦截或模拟业务请求。
-- 修改后至少运行相关单元测试；提交前运行 `pnpm build`。关键业务流程变更必须补充对应测试。
-- 保留用户已有的未提交修改，只改动任务相关文件。详细规范以 `README.md` 为准。
+## 契约优先
+
+- 新增或修改接口时先修改 OpenAPI 和领域文档，再运行 `make generate`。
+- `frontend/src/api/generated/`、`backend/internal/api/generated/`、`contracts/openapi/dist/` 均为生成物，禁止手工编辑。
+- 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, message, data, requestId}`。
+- 前端业务代码只能通过 `src/api/client.ts` 及其领域封装调用生成客户端，不得直接使用 `fetch` 或拼接任意 API 路径。
+- 后端 Handler 只做协议适配、权限、校验和领域模型映射；事务及业务规则继续位于领域 Service。
+
+## 变更门禁
+
+- 跨端契约变更必须同时包含 OpenAPI、后端适配、前端调用和对应测试。
+- SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
+- 提交前至少运行 `make generate-check`、`make check`；影响真实流程时运行 `make e2e`。
+- 保留用户已有修改，只改任务相关文件。
+
+更具体的规则见 `frontend/AGENTS.md`、`backend/AGENTS.md` 和根目录 `README.md`。

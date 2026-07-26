@@ -1,0 +1,221 @@
+{
+  'BobEntity':
+    {
+      'type': 'string',
+      'enum':
+        [
+          'customer',
+          'supplier',
+          'employee',
+          'product',
+          'service',
+          'warehouse',
+          'vehicle',
+          'fund-account',
+          'category',
+          'department',
+          'position',
+          'settlement-method',
+        ],
+    },
+  'BobQueryRequest': { '$ref': '../schemas/common.yaml#/PageRequest' },
+  'BobGetRequest':
+    {
+      'type': 'object',
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties':
+        { 'objectId': { 'type': 'string' }, 'versionId': { 'type': 'string' } },
+    },
+  'BobCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'data':
+            {
+              'type': 'object',
+              'required': ['code', 'name'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'code': { 'type': 'string', 'nullable': true },
+                  'name': { 'type': 'string', 'nullable': true },
+                  'unit': { 'type': 'string', 'nullable': true },
+                  'currency': { 'type': 'string', 'nullable': true },
+                  'supplierType': { 'type': 'string', 'nullable': true },
+                  'customerType': { 'type': 'string', 'nullable': true },
+                  'plateNumber': { 'type': 'string', 'nullable': true },
+                  'vehicleType': { 'type': 'string', 'nullable': true },
+                  'platformObjectId': { 'type': 'string', 'nullable': true },
+                  'targetEntity': { 'type': 'string', 'nullable': true },
+                  'shortName': { 'type': 'string', 'nullable': true },
+                  'categoryId': { 'type': 'string', 'nullable': true },
+                  'taxNumber': { 'type': 'string', 'nullable': true },
+                  'contactName': { 'type': 'string', 'nullable': true },
+                  'contactPhone': { 'type': 'string', 'nullable': true },
+                  'email': { 'type': 'string', 'nullable': true },
+                  'address': { 'type': 'string', 'nullable': true },
+                  'remark': { 'type': 'string', 'nullable': true },
+                  'departmentId': { 'type': 'string', 'nullable': true },
+                  'positionId': { 'type': 'string', 'nullable': true },
+                  'phone': { 'type': 'string', 'nullable': true },
+                  'hireDate': { 'type': 'string', 'nullable': true },
+                  'specification': { 'type': 'string', 'nullable': true },
+                  'model': { 'type': 'string', 'nullable': true },
+                  'barcode': { 'type': 'string', 'nullable': true },
+                  'description': { 'type': 'string', 'nullable': true },
+                  'managerEmployeeId': { 'type': 'string', 'nullable': true },
+                  'vin': { 'type': 'string', 'nullable': true },
+                  'engineNumber': { 'type': 'string', 'nullable': true },
+                  'loadCapacityKg': { 'type': 'string', 'nullable': true },
+                  'accountName': { 'type': 'string', 'nullable': true },
+                  'bankName': { 'type': 'string', 'nullable': true },
+                  'bankBranch': { 'type': 'string', 'nullable': true },
+                  'accountNumber': { 'type': 'string', 'nullable': true },
+                  'parentId': { 'type': 'string', 'nullable': true },
+                  'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'salespersonEmployeeId':
+                    { 'type': 'string', 'nullable': true },
+                  'ruleType': { 'type': 'string', 'nullable': true },
+                  'containerType': { 'type': 'string', 'nullable': true },
+                  'quantityPerContainer':
+                    { 'type': 'string', 'nullable': true },
+                  'monthOffset': { 'type': 'integer', 'format': 'int32' },
+                  'dayOfMonth':
+                    { 'type': 'integer', 'format': 'int32', 'nullable': true },
+                  'dayOffset': { 'type': 'integer', 'format': 'int32' },
+                },
+            },
+        },
+    },
+  'BobEditRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'objectRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'BobSaveRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'code': { 'type': 'string', 'nullable': true },
+                  'name': { 'type': 'string', 'nullable': true },
+                  'unit': { 'type': 'string', 'nullable': true },
+                  'currency': { 'type': 'string', 'nullable': true },
+                  'supplierType': { 'type': 'string', 'nullable': true },
+                  'customerType': { 'type': 'string', 'nullable': true },
+                  'plateNumber': { 'type': 'string', 'nullable': true },
+                  'vehicleType': { 'type': 'string', 'nullable': true },
+                  'platformObjectId': { 'type': 'string', 'nullable': true },
+                  'targetEntity': { 'type': 'string', 'nullable': true },
+                  'shortName': { 'type': 'string', 'nullable': true },
+                  'categoryId': { 'type': 'string', 'nullable': true },
+                  'taxNumber': { 'type': 'string', 'nullable': true },
+                  'contactName': { 'type': 'string', 'nullable': true },
+                  'contactPhone': { 'type': 'string', 'nullable': true },
+                  'email': { 'type': 'string', 'nullable': true },
+                  'address': { 'type': 'string', 'nullable': true },
+                  'remark': { 'type': 'string', 'nullable': true },
+                  'departmentId': { 'type': 'string', 'nullable': true },
+                  'positionId': { 'type': 'string', 'nullable': true },
+                  'phone': { 'type': 'string', 'nullable': true },
+                  'hireDate': { 'type': 'string', 'nullable': true },
+                  'specification': { 'type': 'string', 'nullable': true },
+                  'model': { 'type': 'string', 'nullable': true },
+                  'barcode': { 'type': 'string', 'nullable': true },
+                  'description': { 'type': 'string', 'nullable': true },
+                  'managerEmployeeId': { 'type': 'string', 'nullable': true },
+                  'vin': { 'type': 'string', 'nullable': true },
+                  'engineNumber': { 'type': 'string', 'nullable': true },
+                  'loadCapacityKg': { 'type': 'string', 'nullable': true },
+                  'accountName': { 'type': 'string', 'nullable': true },
+                  'bankName': { 'type': 'string', 'nullable': true },
+                  'bankBranch': { 'type': 'string', 'nullable': true },
+                  'accountNumber': { 'type': 'string', 'nullable': true },
+                  'parentId': { 'type': 'string', 'nullable': true },
+                  'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'salespersonEmployeeId':
+                    { 'type': 'string', 'nullable': true },
+                  'ruleType': { 'type': 'string', 'nullable': true },
+                  'containerType': { 'type': 'string', 'nullable': true },
+                  'quantityPerContainer':
+                    { 'type': 'string', 'nullable': true },
+                  'monthOffset': { 'type': 'integer', 'format': 'int32' },
+                  'dayOfMonth':
+                    { 'type': 'integer', 'format': 'int32', 'nullable': true },
+                  'dayOffset': { 'type': 'integer', 'format': 'int32' },
+                },
+            },
+        },
+    },
+  'BobDeleteRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'objectRevision', 'versionId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'BobVersionRevisionRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'BobReviewRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision', 'comment'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'comment': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'BobHistoryRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+}

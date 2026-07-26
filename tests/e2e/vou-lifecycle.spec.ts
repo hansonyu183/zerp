@@ -105,16 +105,14 @@ function localDate(): string {
 async function expectDraftCreated(
   workspace: Locator,
   documentNo: RegExp,
-  isMobile: boolean,
 ): Promise<void> {
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
-  if (!isMobile) await expect(workspace.getByText(documentNo)).toBeVisible()
+  await expect(
+    workspace.locator('.voucher-document-header__number'),
+  ).toHaveText(documentNo)
 }
 
-test('收款单完成附件、完整生命周期、反向流转和审计', async ({
-  page,
-  isMobile,
-}) => {
+test('收款单完成附件、完整生命周期、反向流转和审计', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
@@ -128,7 +126,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await expect(page.getByLabel('币种')).toHaveValue(fixture.currency)
   await page.getByLabel('金额').fill('100.00')
   await page.getByRole('button', { name: '创建草稿' }).click()
-  await expectDraftCreated(workspace, /^REC-\d{8}-\d{6}$/, isMobile)
+  await expectDraftCreated(workspace, /^REC-\d{8}-\d{6}$/)
 
   await page.getByRole('tab', { name: '附件' }).click()
   await page.locator('input[type=file]').setInputFiles({
@@ -164,10 +162,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
-test('销售单完成产品明细、审核批准、签收执行和反执行', async ({
-  page,
-  isMobile,
-}) => {
+test('销售单完成产品明细、审核批准、签收执行和反执行', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
@@ -186,7 +181,7 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   await draftInputs.nth(2).fill('12.50')
   await expect(draftLine).toContainText('25.00')
   await page.getByRole('button', { name: '创建草稿' }).click()
-  await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/, isMobile)
+  await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/)
   await page.getByRole('button', { name: '取消编辑' }).click()
 
   await page.getByRole('button', { name: '审核', exact: true }).click()

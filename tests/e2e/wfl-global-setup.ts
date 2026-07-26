@@ -2,6 +2,11 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { request, type APIRequestContext } from '@playwright/test'
+import type {
+  OpeningMutationResult,
+  OpeningSaveRequest,
+  OpeningView,
+} from '../../src/pages/led/opening/types'
 import {
   e2eEnv,
   wflBootstrapEnabled,
@@ -40,6 +45,86 @@ interface BobMutation {
   objectRevision: number
   versionId: string
   revision: number
+}
+
+function localDate(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+}
+
+function reference(value: { objectId: string; versionId: string }) {
+  return {
+    objectId: value.objectId,
+    versionId: value.versionId,
+  }
+}
+
+async function ensureLedgerActive(
+  api: RealApi,
+  warehouse: BobMutation,
+  product: BobMutation,
+): Promise<void> {
+  let opening = await api.post<OpeningView>('led/opening/get', {})
+  const inventoryExists = opening.inventory.some(
+    (item) =>
+      item.warehouse.objectId === warehouse.objectId &&
+      item.product.objectId === product.objectId,
+  )
+  if (opening.status === 'ACTIVE' && inventoryExists) return
+
+  if (opening.status === 'ACTIVE') {
+    await api.post<OpeningMutationResult>('led/opening/reopen', {
+      revision: opening.revision,
+      reason: 'Playwright 隔离测试更新期初资料',
+    })
+    opening = await api.post<OpeningView>('led/opening/get', {})
+  }
+  if (opening.status !== 'DRAFT' && opening.status !== 'REOPENING') {
+    throw new Error(`隔离账簿处于无法预置的状态：${opening.status}`)
+  }
+
+  const payload: OpeningSaveRequest = {
+    revision: opening.revision,
+    cutoverDate: opening.cutoverDate ?? localDate(),
+    inventory: opening.inventory.map((item) => ({
+      warehouse: reference(item.warehouse),
+      product: reference(item.product),
+      quantity: item.quantity,
+    })),
+    fund: opening.fund.map((item) => ({
+      fundAccount: reference(item.fundAccount),
+      balanceType: item.balanceType,
+      amount: item.amount,
+    })),
+    party: opening.party.map((item) => ({
+      counterpartyType: item.counterpartyType,
+      counterparty: reference(item.counterparty),
+      currency: item.currency,
+      balanceType: item.balanceType,
+      amount: item.amount,
+    })),
+    container: opening.container.map((item) => ({
+      customer: reference(item.customer),
+      containerType: item.containerType,
+      quantity: item.quantity,
+    })),
+  }
+  if (!inventoryExists) {
+    payload.inventory.push({
+      warehouse: reference(warehouse),
+      product: reference(product),
+      quantity: '1000',
+    })
+  }
+
+  const saved = await api.post<OpeningMutationResult>(
+    'led/opening/save',
+    payload,
+  )
+  await api.post<OpeningMutationResult>('led/opening/activate', {
+    revision: saved.revision,
+  })
 }
 
 class RealApi {
@@ -287,7 +372,7 @@ export default async function globalSetup(): Promise<void> {
       },
     )
     const solventProductCode = code('SOL')
-    await createEffectiveBob(
+    const solventProduct = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'product',
@@ -326,7 +411,7 @@ export default async function globalSetup(): Promise<void> {
       },
     )
     const warehouseCode = code('WHS')
-    await createEffectiveBob(
+    const warehouse = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'warehouse',
@@ -345,6 +430,12 @@ export default async function globalSetup(): Promise<void> {
         name: `WFL 测试资金账户 ${suffix}`,
         currency: 'CNY',
       },
+    )
+
+    await ensureLedgerActive(
+      operatorSession.api,
+      warehouse,
+      solventProduct,
     )
 
     const state: WflBootstrapState = {

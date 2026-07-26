@@ -110,7 +110,7 @@ make ENV_FILE=.env.test compose-up
 | `POSTGRES_USER` | Compose 启动时是 | `zerp` | Compose PostgreSQL 用户名 |
 | `POSTGRES_PASSWORD` | Compose 启动时是 | 无 | Compose PostgreSQL 本地密码；只写入被 Git 忽略的环境文件 |
 | `TEST_POSTGRES_DB` | 测试时是 | 无 | 独立测试数据库名；必须以 `_test` 结尾且不得与 `POSTGRES_DB` 相同 |
-| `TEST_DATABASE_URL` | 测试时是 | 无 | 独立测试数据库连接串；实际连接库必须与 `TEST_POSTGRES_DB` 一致 |
+| `TEST_POSTGRES_PORT` | 否 | `55434` | `make test` / `make check` 专用 PostgreSQL 回环端口；必须与 `POSTGRES_PORT` 不同，Make 会据此生成测试连接串 |
 | `API_PORT` | 否 | `8080` | Compose 暴露到宿主机的 API 端口 |
 | `POSTGRES_PORT` | 否 | `5432` | Compose 暴露到宿主机的 PostgreSQL 端口 |
 | `PGADMIN_DEFAULT_EMAIL` | Compose 启动时是 | 无 | pgAdmin 初始管理员邮箱 |
@@ -143,7 +143,11 @@ make ENV_FILE=.env.test compose-up
 | `FEEDBACK_GITHUB_REPOSITORY` | 否 | `hansonyu183/zerp` | 用户反馈 Issue 的目标仓库，格式为 `owner/repository` |
 | `FEEDBACK_GITHUB_TOKEN` | 启用时是 | 无 | 仅具目标仓库 Issues 读写权限的细粒度令牌；不得写入仓库或日志 |
 
-`make test` 会启动并等待 Compose 的 `db` 服务，幂等创建 `TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、WFL、LED 数据库测试。测试库会保留供后续运行复用；安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或实际连接库名不匹配的配置。
+`make test` 会使用独立的 `zerp-api-test` Compose 项目和宿主机端口 `55434`，幂等创建
+`TEST_POSTGRES_DB`，使用 Goose 应用全部迁移，再执行带 `integration` 构建标签的 APP、BOB、VOU、
+WFL、LED 数据库测试。直接运行 `make test` 时测试库会保留供后续运行复用；通过 `make quality`
+或仓库根目录 `make check` 运行时，无论测试成功、失败还是被中断，都会清理该测试项目的容器和卷。
+安全校验会拒绝非 `_test` 后缀、与 `POSTGRES_DB` 相同或测试端口与正式/开发数据库端口相同的配置。
 
 本机直接运行服务且未配置 CORS Origin 时，不允许任何跨域浏览器请求；同源请求和不携带 `Origin` 的服务间请求不受影响。Docker Compose 为本地开发默认允许 `http://localhost:5173`、`http://127.0.0.1:4173` 和 `http://localhost:4173`，生产环境必须显式配置实际前端 Origin。
 

@@ -5,8 +5,10 @@ STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
 override E2E_ENV_FILE := .env.e2e.local
 override E2E_PROJECT := zerp-api-e2e
-TEST_PROJECT ?= zerp-api-test
-TEST_COMPOSE = docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
+override TEST_PROJECT := zerp-api-test
+TEST_POSTGRES_PORT ?= 55434
+TEST_DATABASE_URL_EFFECTIVE = postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:$(TEST_POSTGRES_PORT)/$(TEST_POSTGRES_DB)?sslmode=disable
+TEST_COMPOSE = POSTGRES_PORT=$(TEST_POSTGRES_PORT) docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
 E2E_CLEAN_ENV = env \
 	-u APP_ENV \
 	-u API_PORT \
@@ -41,7 +43,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-integration generate quality quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
 
 run:
 	go run ./cmd/server
@@ -58,20 +60,27 @@ test-unit:
 
 test-db-prepare:
 	@test -n "$(TEST_POSTGRES_DB)" || (echo "TEST_POSTGRES_DB is required" && exit 1)
-	@test -n "$(TEST_DATABASE_URL)" || (echo "TEST_DATABASE_URL is required" && exit 1)
+	@test -n "$(POSTGRES_USER)" || (echo "POSTGRES_USER is required" && exit 1)
+	@test -n "$(POSTGRES_PASSWORD)" || (echo "POSTGRES_PASSWORD is required" && exit 1)
+	@test -n "$(TEST_POSTGRES_PORT)" || (echo "TEST_POSTGRES_PORT is required" && exit 1)
 	@case "$(TEST_POSTGRES_DB)" in \
 		*[!A-Za-z0-9_]*|"") echo "TEST_POSTGRES_DB must contain only letters, numbers, and underscores" >&2; exit 1 ;; \
 		*_test) ;; \
 		*) echo "TEST_POSTGRES_DB must end with _test" >&2; exit 1 ;; \
 	esac
 	@test "$(TEST_POSTGRES_DB)" != "$(POSTGRES_DB)" || (echo "TEST_POSTGRES_DB must differ from POSTGRES_DB" && exit 1)
+	@test "$(TEST_POSTGRES_PORT)" != "$(POSTGRES_PORT)" || (echo "TEST_POSTGRES_PORT must differ from POSTGRES_PORT" && exit 1)
 	@$(TEST_COMPOSE) up -d --wait db
 	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
 		'createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB" 2>/dev/null || psql -U "$$POSTGRES_USER" -d "$$TEST_POSTGRES_DB" -Atqc "SELECT 1" >/dev/null'
-	@go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL)" up
+	@go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up
+
+test-db-clean:
+	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
+	@$(TEST_COMPOSE) down --volumes --remove-orphans
 
 test-integration: test-db-prepare
-	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL)" \
+	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
 		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed -run 'Integration|Database' -count=1 -v
 
 generate:
@@ -111,7 +120,18 @@ quality-compose:
 	docker compose --env-file $(ENV_FILE) config --quiet
 
 quality-test:
-	@$(MAKE) test
+	@cleanup() { \
+		status="$$?"; \
+		trap - EXIT; \
+		$(MAKE) test-db-clean || cleanup_status="$$?"; \
+		if [ "$$status" -eq 0 ] && [ "$${cleanup_status:-0}" -ne 0 ]; then status="$$cleanup_status"; fi; \
+		exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	trap 'exit 129' HUP; \
+	trap 'exit 130' INT; \
+	trap 'exit 143' TERM; \
+	$(MAKE) test
 
 quality-vet-build:
 	go vet ./...

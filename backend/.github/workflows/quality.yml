@@ -1,0 +1,84 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+
+      - name: Prepare isolated test environment
+        shell: bash
+        run: |
+          install -m 600 /dev/null .env.ci
+          {
+            echo 'APP_ENV=test'
+            echo 'POSTGRES_DB=zerp'
+            echo 'POSTGRES_USER=zerp'
+            echo 'POSTGRES_PASSWORD=ci-only-password'
+            echo 'POSTGRES_PORT=5432'
+            echo 'DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp?sslmode=disable'
+            echo 'TEST_POSTGRES_DB=zerp_test'
+            echo 'TEST_DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp_test?sslmode=disable'
+            echo 'PGADMIN_DEFAULT_EMAIL=ci@example.com'
+            echo 'PGADMIN_PASSWORD_FILE=/tmp/zerp-pgadmin-password'
+            echo 'PGADMIN_PGPASS_FILE=/tmp/zerp-pgpass'
+            echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
+            echo 'FEEDBACK_GITHUB_ENABLED=false'
+          } >> .env.ci
+          printf '%s\n' 'ci-only-password' > /tmp/zerp-pgadmin-password
+          printf '%s\n' 'db:5432:*:zerp:ci-only-password' > /tmp/zerp-pgpass
+          chmod 600 /tmp/zerp-pgadmin-password /tmp/zerp-pgpass
+
+      - name: Verify generated code
+        run: make ENV_FILE=.env.ci quality-generated
+
+      - name: Verify formatting and module metadata
+        run: make ENV_FILE=.env.ci quality-format
+
+      - name: Validate GitHub Actions
+        run: make ENV_FILE=.env.ci quality-actionlint
+
+      - name: Validate Docker Compose
+        run: make ENV_FILE=.env.ci quality-compose
+
+      - name: Run tests
+        run: make ENV_FILE=.env.ci quality-test
+
+      - name: Run vet and build
+        run: make ENV_FILE=.env.ci quality-vet-build
+
+      - name: Run race detector
+        run: make ENV_FILE=.env.ci quality-race
+
+      - name: Run staticcheck
+        run: make ENV_FILE=.env.ci quality-staticcheck
+
+      - name: Scan reachable vulnerabilities
+        run: make ENV_FILE=.env.ci quality-vuln
+
+      - name: Build container image
+        run: make ENV_FILE=.env.ci QUALITY_IMAGE_TAG=zerp-back:ci quality-image

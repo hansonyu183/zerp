@@ -1,0 +1,682 @@
+package bob
+
+import (
+	"fmt"
+	"regexp"
+	"slices"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/oklog/ulid/v2"
+)
+
+var (
+	codePattern          = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]*$`)
+	currencyPattern      = regexp.MustCompile(`^[A-Z]{3}$`)
+	phonePattern         = regexp.MustCompile(`^[+0-9() -]+$`)
+	taxNumberPattern     = regexp.MustCompile(`^[A-Z0-9-]+$`)
+	barcodePattern       = regexp.MustCompile(`^[A-Z0-9._-]+$`)
+	vinPattern           = regexp.MustCompile(`^[A-HJ-NPR-Z0-9]{17}$`)
+	accountNumberPattern = regexp.MustCompile(`^[A-Z0-9]{1,64}$`)
+	loadCapacityPattern  = regexp.MustCompile(`^([0-9]{1,9})(?:\.([0-9]{1,3}))?$`)
+)
+
+func validateCreate(entity string, input CreateDetailInput) (DetailView, string, error) {
+	code := strings.ToUpper(strings.TrimSpace(input.Code))
+	if len(code) < 1 || len(code) > 64 || !codePattern.MatchString(code) {
+		return DetailView{}, "", domainError(ErrorValidation, "invalid code", nil, nil)
+	}
+	supplierType := input.SupplierType
+	if entity == EntitySupplier && supplierType == nil {
+		value := SupplierTypeGeneral
+		supplierType = &value
+	}
+	customerType := input.CustomerType
+	if entity == EntityCustomer && customerType == nil {
+		value := CustomerTypeEndUser
+		customerType = &value
+	}
+	data := DetailView{
+		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
+		SupplierType: deref(supplierType), CustomerType: deref(customerType),
+		PlateNumber: input.PlateNumber, VehicleType: input.VehicleType,
+		PlatformObjectID: input.PlatformObjectID, TargetEntity: input.TargetEntity,
+		ShortName: input.ShortName, CategoryID: input.CategoryID, TaxNumber: input.TaxNumber,
+		ContactName: input.ContactName, ContactPhone: input.ContactPhone, Email: input.Email,
+		Address: input.Address, Remark: input.Remark, DepartmentID: input.DepartmentID,
+		PositionID: input.PositionID, Phone: input.Phone, HireDate: input.HireDate,
+		Specification: input.Specification, Model: input.Model, Barcode: input.Barcode,
+		Description: input.Description, ManagerEmployeeID: input.ManagerEmployeeID,
+		VIN: input.VIN, EngineNumber: input.EngineNumber, LoadCapacityKG: input.LoadCapacityKG,
+		AccountName: input.AccountName, BankName: input.BankName, BankBranch: input.BankBranch,
+		AccountNumber: input.AccountNumber, ParentID: input.ParentID,
+		SettlementMethodID: input.SettlementMethodID, SalespersonEmployeeID: input.SalespersonEmployeeID,
+		RuleType:    input.RuleType,
+		MonthOffset: input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
+		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
+	}
+	if entity == EntityProduct && data.ContainerType == "" {
+		data.ContainerType = ContainerTypeNone
+	}
+	data, err := validateDetailData(entity, data)
+	return data, code, err
+}
+
+func mergeDetailInput(current DetailView, input DetailInput) DetailView {
+	result := current
+	result.Name = input.Name
+	result.Unit = input.Unit
+	result.Currency = input.Currency
+	result.PlateNumber = input.PlateNumber
+	result.VehicleType = input.VehicleType
+	result.PlatformObjectID = input.PlatformObjectID
+	result.RuleType = input.RuleType
+	result.MonthOffset = input.MonthOffset
+	result.DayOfMonth = input.DayOfMonth
+	result.DayOffset = input.DayOffset
+	if input.ContainerType != nil {
+		result.ContainerType = *input.ContainerType
+	}
+	if input.SupplierType != nil {
+		result.SupplierType = *input.SupplierType
+	}
+	if input.CustomerType != nil {
+		result.CustomerType = *input.CustomerType
+	}
+	if input.TargetEntity != nil {
+		result.TargetEntity = *input.TargetEntity
+	}
+	mergeOptional := func(optional OptionalString, target *string) {
+		if optional.Set {
+			*target = optional.Value
+		}
+	}
+	mergeOptional(input.ShortName, &result.ShortName)
+	mergeOptional(input.CategoryID, &result.CategoryID)
+	mergeOptional(input.TaxNumber, &result.TaxNumber)
+	mergeOptional(input.ContactName, &result.ContactName)
+	mergeOptional(input.ContactPhone, &result.ContactPhone)
+	mergeOptional(input.Email, &result.Email)
+	mergeOptional(input.Address, &result.Address)
+	mergeOptional(input.Remark, &result.Remark)
+	mergeOptional(input.DepartmentID, &result.DepartmentID)
+	mergeOptional(input.PositionID, &result.PositionID)
+	mergeOptional(input.Phone, &result.Phone)
+	mergeOptional(input.HireDate, &result.HireDate)
+	mergeOptional(input.Specification, &result.Specification)
+	mergeOptional(input.Model, &result.Model)
+	mergeOptional(input.Barcode, &result.Barcode)
+	mergeOptional(input.Description, &result.Description)
+	mergeOptional(input.ManagerEmployeeID, &result.ManagerEmployeeID)
+	mergeOptional(input.VIN, &result.VIN)
+	mergeOptional(input.EngineNumber, &result.EngineNumber)
+	mergeOptional(input.LoadCapacityKG, &result.LoadCapacityKG)
+	mergeOptional(input.AccountName, &result.AccountName)
+	mergeOptional(input.BankName, &result.BankName)
+	mergeOptional(input.BankBranch, &result.BankBranch)
+	mergeOptional(input.AccountNumber, &result.AccountNumber)
+	mergeOptional(input.ParentID, &result.ParentID)
+	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
+	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
+	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
+	return result
+}
+
+// validateDetail remains the focused validation entry point used by unit tests
+// and callers that do not need save-time merge semantics.
+func validateDetail(entity string, input DetailInput) (DetailView, error) {
+	if err := validateDetailInputFields(entity, input); err != nil {
+		return DetailView{}, err
+	}
+	current := DetailView{}
+	if entity == EntitySupplier {
+		current.SupplierType = SupplierTypeGeneral
+	}
+	if entity == EntityCustomer {
+		current.CustomerType = CustomerTypeEndUser
+	}
+	if entity == EntityProduct {
+		current.ContainerType = ContainerTypeNone
+	}
+	return validateDetailData(entity, mergeDetailInput(current, input))
+}
+
+func validateDetailInputFields(entity string, input DetailInput) error {
+	allowed := map[string]bool{}
+	allow := func(fields ...string) {
+		for _, field := range fields {
+			allowed[field] = true
+		}
+	}
+	switch entity {
+	case EntityCustomer:
+		allow("shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+	case EntitySupplier:
+		allow("shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+	case EntityEmployee:
+		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
+	case EntityProduct:
+		allow("categoryId", "specification", "model", "barcode", "remark", "quantityPerContainer")
+	case EntityService:
+		allow("categoryId", "description", "remark")
+	case EntityWarehouse:
+		allow("categoryId", "address", "contactName", "contactPhone", "managerEmployeeId", "remark")
+	case EntityVehicle:
+		allow("categoryId", "vin", "engineNumber", "loadCapacityKg", "remark")
+	case EntityFundAccount:
+		allow("categoryId", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
+	case EntityCategory:
+		allow("parentId", "description")
+	case EntityDepartment:
+		allow("categoryId", "parentId", "description")
+	case EntityPosition:
+		allow("categoryId", "description")
+	case EntitySettlementMethod:
+		allow("description")
+	default:
+		return domainError(ErrorValidation, "invalid entity", nil, nil)
+	}
+	provided := map[string]bool{
+		"shortName": input.ShortName.Set, "categoryId": input.CategoryID.Set,
+		"taxNumber": input.TaxNumber.Set, "contactName": input.ContactName.Set,
+		"contactPhone": input.ContactPhone.Set, "email": input.Email.Set,
+		"address": input.Address.Set, "remark": input.Remark.Set,
+		"departmentId": input.DepartmentID.Set, "positionId": input.PositionID.Set,
+		"phone": input.Phone.Set, "hireDate": input.HireDate.Set,
+		"specification": input.Specification.Set, "model": input.Model.Set,
+		"barcode": input.Barcode.Set, "description": input.Description.Set,
+		"managerEmployeeId": input.ManagerEmployeeID.Set, "vin": input.VIN.Set,
+		"engineNumber": input.EngineNumber.Set, "loadCapacityKg": input.LoadCapacityKG.Set,
+		"accountName": input.AccountName.Set, "bankName": input.BankName.Set,
+		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
+		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
+		"salespersonEmployeeId": input.SalespersonEmployeeID.Set,
+		"quantityPerContainer":  input.QuantityPerContainer.Set,
+	}
+	for field, present := range provided {
+		if present && !allowed[field] {
+			return domainError(ErrorValidation, fmt.Sprintf("unexpected field %s", field), nil, nil)
+		}
+	}
+	return nil
+}
+
+func validateDetailData(entity string, input DetailView) (DetailView, error) {
+	if !validEntity(entity) {
+		return DetailView{}, domainError(ErrorValidation, "invalid entity", nil, nil)
+	}
+	normalizeDetail(&input)
+	if !runeLengthBetween(input.Name, 1, 200) {
+		return DetailView{}, domainError(ErrorValidation, "invalid name", nil, nil)
+	}
+	if err := validateLengthsAndFormats(input); err != nil {
+		return DetailView{}, err
+	}
+	if err := validateEntityFields(entity, input); err != nil {
+		return DetailView{}, err
+	}
+	return input, nil
+}
+
+func normalizeDetail(input *DetailView) {
+	trim := func(value *string) { *value = strings.TrimSpace(*value) }
+	for _, value := range []*string{
+		&input.Name, &input.Unit, &input.ShortName, &input.ContactName, &input.ContactPhone,
+		&input.Email, &input.Address, &input.Remark, &input.Phone, &input.HireDate,
+		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
+		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
+		&input.VehicleType,
+		&input.QuantityPerContainer,
+	} {
+		trim(value)
+	}
+	for _, value := range []*string{
+		&input.Currency, &input.SupplierType, &input.CustomerType, &input.PlateNumber,
+		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType,
+		&input.ContainerType,
+	} {
+		*value = strings.ToUpper(strings.TrimSpace(*value))
+	}
+	for _, value := range []*string{
+		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
+		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
+	} {
+		trim(value)
+	}
+	input.Email = strings.ToLower(input.Email)
+	input.TargetEntity = strings.ToLower(strings.TrimSpace(input.TargetEntity))
+	input.AccountNumber = normalizeAccountNumber(input.AccountNumber)
+	if input.LoadCapacityKG != "" {
+		input.LoadCapacityKG = normalizeLoadCapacity(input.LoadCapacityKG)
+	}
+}
+
+func validateLengthsAndFormats(input DetailView) error {
+	checks := []struct {
+		value string
+		max   int
+	}{
+		{input.Unit, 32}, {input.ShortName, 100}, {input.ContactName, 100},
+		{input.ContactPhone, 32}, {input.Email, 254}, {input.Address, 500},
+		{input.Remark, 1000}, {input.Phone, 32}, {input.Specification, 200},
+		{input.Model, 200}, {input.Description, 1000}, {input.EngineNumber, 64},
+		{input.AccountName, 200}, {input.BankName, 200}, {input.BankBranch, 200},
+		{input.VehicleType, 64},
+	}
+	for _, check := range checks {
+		if check.value != "" && !runeLengthBetween(check.value, 1, check.max) {
+			return domainError(ErrorValidation, "field is too long", nil, nil)
+		}
+	}
+	if input.ContactPhone != "" && !phonePattern.MatchString(input.ContactPhone) {
+		return domainError(ErrorValidation, "invalid contact phone", nil, nil)
+	}
+	if input.Phone != "" && !phonePattern.MatchString(input.Phone) {
+		return domainError(ErrorValidation, "invalid phone", nil, nil)
+	}
+	if input.Email != "" && (!strings.Contains(input.Email, "@") || strings.HasPrefix(input.Email, "@") ||
+		strings.HasSuffix(input.Email, "@") || strings.Count(input.Email, "@") != 1) {
+		return domainError(ErrorValidation, "invalid email", nil, nil)
+	}
+	if input.TaxNumber != "" && (len(input.TaxNumber) > 50 || !taxNumberPattern.MatchString(input.TaxNumber)) {
+		return domainError(ErrorValidation, "invalid tax number", nil, nil)
+	}
+	if input.Barcode != "" && (len(input.Barcode) > 64 || !barcodePattern.MatchString(input.Barcode)) {
+		return domainError(ErrorValidation, "invalid barcode", nil, nil)
+	}
+	if input.VIN != "" && !vinPattern.MatchString(input.VIN) {
+		return domainError(ErrorValidation, "invalid vin", nil, nil)
+	}
+	if input.AccountNumber != "" && !accountNumberPattern.MatchString(input.AccountNumber) {
+		return domainError(ErrorValidation, "invalid account number", nil, nil)
+	}
+	if input.HireDate != "" {
+		parsed, err := time.Parse("2006-01-02", input.HireDate)
+		if err != nil || parsed.Format("2006-01-02") != input.HireDate {
+			return domainError(ErrorValidation, "invalid hire date", nil, nil)
+		}
+	}
+	if input.LoadCapacityKG != "" &&
+		(!loadCapacityPattern.MatchString(input.LoadCapacityKG) || input.LoadCapacityKG == "0.000") {
+		return domainError(ErrorValidation, "invalid load capacity", nil, nil)
+	}
+	return nil
+}
+
+func validateEntityFields(entity string, input DetailView) error {
+	allowed := map[string]bool{"name": true}
+	allow := func(fields ...string) {
+		for _, field := range fields {
+			allowed[field] = true
+		}
+	}
+	switch entity {
+	case EntityCustomer:
+		allow("customerType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		if !validCustomerType(input.CustomerType) {
+			return domainError(ErrorValidation, "invalid customer type", nil, nil)
+		}
+		if input.SalespersonEmployeeID == "" {
+			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
+		}
+	case EntitySupplier:
+		allow("supplierType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		if !validSupplierType(input.SupplierType) {
+			return domainError(ErrorValidation, "invalid supplier type", nil, nil)
+		}
+		if input.SalespersonEmployeeID == "" {
+			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
+		}
+	case EntityEmployee:
+		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
+	case EntityProduct:
+		allow("unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark")
+		if !runeLengthBetween(input.Unit, 1, 32) {
+			return domainError(ErrorValidation, "invalid unit", nil, nil)
+		}
+		if err := validateProductContainer(input); err != nil {
+			return err
+		}
+	case EntityService:
+		allow("unit", "categoryId", "description", "remark")
+		if !runeLengthBetween(input.Unit, 1, 32) {
+			return domainError(ErrorValidation, "invalid unit", nil, nil)
+		}
+	case EntityWarehouse:
+		allow("categoryId", "address", "contactName", "contactPhone", "managerEmployeeId", "remark")
+	case EntityVehicle:
+		allow("categoryId", "plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark")
+		if !runeLengthBetween(input.PlateNumber, 1, 32) ||
+			!runeLengthBetween(input.VehicleType, 1, 64) ||
+			!validID(input.PlatformObjectID) {
+			return domainError(ErrorValidation, "invalid vehicle fields", nil, nil)
+		}
+	case EntityFundAccount:
+		allow("categoryId", "currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
+		if !currencyPattern.MatchString(input.Currency) {
+			return domainError(ErrorValidation, "invalid currency", nil, nil)
+		}
+	case EntityCategory:
+		allow("targetEntity", "parentId", "description")
+		if !validCategoryTarget(input.TargetEntity) {
+			return domainError(ErrorValidation, "invalid category target", nil, nil)
+		}
+	case EntityDepartment:
+		allow("categoryId", "parentId", "description")
+	case EntityPosition:
+		allow("categoryId", "description")
+	case EntitySettlementMethod:
+		allow("ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description")
+		if err := validateSettlementRule(input); err != nil {
+			return err
+		}
+	default:
+		return domainError(ErrorValidation, "invalid entity", nil, nil)
+	}
+	values := detailFieldValues(input)
+	for field, value := range values {
+		if value != "" && !allowed[field] {
+			return domainError(ErrorValidation, fmt.Sprintf("unexpected field %s", field), nil, nil)
+		}
+	}
+	for _, id := range []string{
+		input.CategoryID, input.DepartmentID, input.PositionID, input.ManagerEmployeeID,
+		input.ParentID, input.SettlementMethodID, input.SalespersonEmployeeID,
+	} {
+		if id != "" && !validID(id) {
+			return domainError(ErrorValidation, "invalid reference id", nil, nil)
+		}
+	}
+	return nil
+}
+
+func detailFieldValues(input DetailView) map[string]string {
+	return map[string]string{
+		"unit": input.Unit, "currency": input.Currency, "supplierType": input.SupplierType,
+		"customerType": input.CustomerType, "plateNumber": input.PlateNumber,
+		"vehicleType": input.VehicleType, "platformObjectId": input.PlatformObjectID,
+		"targetEntity": input.TargetEntity, "shortName": input.ShortName, "categoryId": input.CategoryID,
+		"taxNumber": input.TaxNumber, "contactName": input.ContactName, "contactPhone": input.ContactPhone,
+		"email": input.Email, "address": input.Address, "remark": input.Remark,
+		"departmentId": input.DepartmentID, "positionId": input.PositionID, "phone": input.Phone,
+		"hireDate": input.HireDate, "specification": input.Specification, "model": input.Model,
+		"barcode": input.Barcode, "description": input.Description,
+		"managerEmployeeId": input.ManagerEmployeeID, "vin": input.VIN,
+		"engineNumber": input.EngineNumber, "loadCapacityKg": input.LoadCapacityKG,
+		"accountName": input.AccountName, "bankName": input.BankName, "bankBranch": input.BankBranch,
+		"accountNumber": input.AccountNumber, "parentId": input.ParentID,
+		"settlementMethodId":    input.SettlementMethodID,
+		"salespersonEmployeeId": input.SalespersonEmployeeID,
+		"ruleType":              input.RuleType,
+		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
+		"dayOffset":     numericField(input.DayOffset),
+		"containerType": input.ContainerType, "quantityPerContainer": input.QuantityPerContainer,
+	}
+}
+
+func validateProductContainer(input DetailView) error {
+	switch input.ContainerType {
+	case ContainerTypeNone:
+		if input.QuantityPerContainer != "" {
+			return domainError(ErrorValidation, "quantity per container is not allowed for NONE", nil, nil)
+		}
+	case ContainerTypeSolvent, ContainerTypeResin:
+		if _, err := fixedMicros(input.QuantityPerContainer); err != nil {
+			return domainError(ErrorValidation, "invalid quantity per container", nil, err)
+		}
+	default:
+		return domainError(ErrorValidation, "invalid container type", nil, nil)
+	}
+	return nil
+}
+
+func validateSettlementRule(input DetailView) error {
+	if !slices.Contains([]string{
+		SettlementRuleRelativeDays, SettlementRuleMonthEnd, SettlementRuleFixedDay,
+	}, input.RuleType) || input.MonthOffset < 0 || input.MonthOffset > 120 ||
+		input.DayOffset < -3650 || input.DayOffset > 3650 {
+		return domainError(ErrorValidation, "invalid settlement rule", nil, nil)
+	}
+	switch input.RuleType {
+	case SettlementRuleRelativeDays:
+		if input.MonthOffset != 0 || input.DayOfMonth != nil {
+			return domainError(ErrorValidation, "invalid relative settlement rule", nil, nil)
+		}
+	case SettlementRuleMonthEnd:
+		if input.DayOfMonth != nil {
+			return domainError(ErrorValidation, "invalid month-end settlement rule", nil, nil)
+		}
+	case SettlementRuleFixedDay:
+		if input.DayOfMonth == nil || *input.DayOfMonth < 1 || *input.DayOfMonth > 31 {
+			return domainError(ErrorValidation, "invalid fixed-day settlement rule", nil, nil)
+		}
+	}
+	return nil
+}
+
+func numericField(value int32) string {
+	if value == 0 {
+		return ""
+	}
+	return fmt.Sprint(value)
+}
+
+func optionalNumericField(value *int32) string {
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprint(*value)
+}
+
+func normalizeAccountNumber(value string) string {
+	return strings.ToUpper(strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == '-' {
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(value)))
+}
+
+func normalizeLoadCapacity(value string) string {
+	value = strings.TrimSpace(value)
+	match := loadCapacityPattern.FindStringSubmatch(value)
+	if match == nil {
+		return value
+	}
+	integer := strings.TrimLeft(match[1], "0")
+	if integer == "" {
+		integer = "0"
+	}
+	fraction := match[2]
+	for len(fraction) < 3 {
+		fraction += "0"
+	}
+	return integer + "." + fraction
+}
+
+func validSupplierType(value string) bool {
+	return slices.Contains([]string{SupplierTypeGeneral, SupplierTypeLogisticsPlatform}, value)
+}
+
+func validCustomerType(value string) bool {
+	return slices.Contains([]string{CustomerTypeEndUser, CustomerTypeDealer}, value)
+}
+
+func validCategoryTarget(value string) bool {
+	return value != EntityCategory && value != EntitySettlementMethod && slices.Contains(entities[:], value)
+}
+
+func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, error) {
+	input.Keyword = strings.TrimSpace(input.Keyword)
+	input.CustomerType = strings.ToUpper(strings.TrimSpace(input.CustomerType))
+	input.SupplierType = strings.ToUpper(strings.TrimSpace(input.SupplierType))
+	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
+	input.TargetEntity = strings.ToLower(strings.TrimSpace(input.TargetEntity))
+	input.CategoryID = strings.TrimSpace(input.CategoryID)
+	input.DepartmentID = strings.TrimSpace(input.DepartmentID)
+	input.PositionID = strings.TrimSpace(input.PositionID)
+	input.SalespersonEmployeeID = strings.TrimSpace(input.SalespersonEmployeeID)
+	input.ParentID = strings.TrimSpace(input.ParentID)
+	if utf8.RuneCountInString(input.Keyword) > 128 || len(input.Status) > 5 ||
+		(input.CustomerType != "" && !validCustomerType(input.CustomerType)) ||
+		(input.SupplierType != "" && !validSupplierType(input.SupplierType)) ||
+		(input.Currency != "" && !currencyPattern.MatchString(input.Currency)) ||
+		(input.TargetEntity != "" && !validCategoryTarget(input.TargetEntity)) ||
+		(input.ParentID != "" && input.RootOnly) {
+		return QueryFilters{}, domainError(ErrorValidation, "invalid query filters", nil, nil)
+	}
+	for _, id := range []string{
+		input.CategoryID, input.DepartmentID, input.PositionID,
+		input.SalespersonEmployeeID, input.ParentID,
+	} {
+		if id != "" && !validID(id) {
+			return QueryFilters{}, domainError(ErrorValidation, "invalid query reference filter", nil, nil)
+		}
+	}
+	hasUnexpected := func(allowed ...string) bool {
+		accepted := make(map[string]bool, len(allowed))
+		for _, field := range allowed {
+			accepted[field] = true
+		}
+		values := map[string]bool{
+			"customerType": input.CustomerType != "" || input.provided["customerType"],
+			"supplierType": input.SupplierType != "" || input.provided["supplierType"],
+			"categoryId":   input.CategoryID != "" || input.provided["categoryId"],
+			"departmentId": input.DepartmentID != "" || input.provided["departmentId"],
+			"positionId":   input.PositionID != "" || input.provided["positionId"],
+			"salespersonEmployeeId": input.SalespersonEmployeeID != "" ||
+				input.provided["salespersonEmployeeId"],
+			"currency":     input.Currency != "" || input.provided["currency"],
+			"targetEntity": input.TargetEntity != "" || input.provided["targetEntity"],
+			"parentId":     input.ParentID != "" || input.provided["parentId"],
+			"rootOnly":     input.RootOnly || input.provided["rootOnly"],
+		}
+		for field, present := range values {
+			if present && !accepted[field] {
+				return true
+			}
+		}
+		return false
+	}
+	var unexpected bool
+	switch entity {
+	case EntityCustomer:
+		unexpected = hasUnexpected("customerType", "categoryId", "salespersonEmployeeId")
+	case EntitySupplier:
+		unexpected = hasUnexpected("supplierType", "categoryId", "salespersonEmployeeId")
+	case EntityEmployee:
+		unexpected = hasUnexpected("categoryId", "departmentId", "positionId")
+	case EntityProduct, EntityService, EntityWarehouse, EntityVehicle:
+		unexpected = hasUnexpected("categoryId")
+	case EntityFundAccount:
+		unexpected = hasUnexpected("categoryId", "currency")
+	case EntityCategory:
+		unexpected = hasUnexpected("targetEntity", "parentId", "rootOnly")
+	case EntityDepartment:
+		unexpected = hasUnexpected("categoryId", "parentId", "rootOnly")
+	case EntityPosition:
+		unexpected = hasUnexpected("categoryId")
+	case EntitySettlementMethod:
+		unexpected = hasUnexpected()
+	default:
+		unexpected = true
+	}
+	if unexpected {
+		return QueryFilters{}, domainError(ErrorValidation, "query filters do not match entity", nil, nil)
+	}
+	return input, nil
+}
+
+func validWriteInput(entity, objectID, versionID string, revision int64, actorID, requestID string) bool {
+	return validEntity(entity) && validID(objectID) && validID(versionID) && revision >= 1 && validActorAndRequest(actorID, requestID)
+}
+
+func validDeleteInput(entity string, input DeleteInput) bool {
+	return validEntity(entity) &&
+		validID(input.ObjectID) &&
+		validID(input.VersionID) &&
+		input.ObjectRevision >= 1 &&
+		input.Revision >= 1
+}
+
+func validActorAndRequest(actorID, requestID string) bool {
+	return validID(actorID) && requestID != "" && len(requestID) <= 128
+}
+
+func validHistoryInput(entity string, input HistoryInput) bool {
+	_, validPage := pageOffset(input.Page, input.PageSize)
+	return validEntity(entity) && validID(input.ObjectID) && validPage
+}
+
+func pageOffset(page, pageSize int) (int32, bool) {
+	if page < 1 || pageSize < 1 || pageSize > 100 {
+		return 0, false
+	}
+	pageIndex := int64(page - 1)
+	if pageIndex > int64(1<<31-1)/int64(pageSize) {
+		return 0, false
+	}
+	offset := pageIndex * int64(pageSize)
+	return int32(offset), true
+}
+
+func mustPageOffset(page, pageSize int) int32 {
+	offset, _ := pageOffset(page, pageSize)
+	return offset
+}
+
+func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
+
+func validStatus(status string) bool {
+	return slices.Contains([]string{StatusDraft, StatusPending, StatusRejected, StatusEffective, StatusInvalid}, status)
+}
+
+func validID(id string) bool {
+	parsed, err := ulid.ParseStrict(id)
+	return err == nil && parsed.String() == id
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func optionalComment(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if utf8.RuneCountInString(trimmed) > 1000 {
+		return nil, domainError(ErrorValidation, "comment is too long", nil, nil)
+	}
+	if trimmed == "" {
+		return nil, nil
+	}
+	return &trimmed, nil
+}
+
+func runeLengthBetween(value string, minimum, maximum int) bool {
+	length := utf8.RuneCountInString(value)
+	return length >= minimum && length <= maximum
+}
+
+func requiredComment(value *string) (*string, error) {
+	comment, err := optionalComment(value)
+	if err != nil {
+		return nil, err
+	}
+	if comment == nil {
+		return nil, domainError(ErrorValidation, "comment is required", nil, nil)
+	}
+	return comment, nil
+}

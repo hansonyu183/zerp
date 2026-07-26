@@ -1,0 +1,81 @@
+//go:build integration
+
+package bobseed
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/hansonyu183/zerp-back/internal/domains/bob"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestSeedDemoDataIntegration(t *testing.T) {
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
+	if databaseURL == "" || databaseName == "" {
+		t.Fatal("TEST_DATABASE_URL and TEST_POSTGRES_DB are required")
+	}
+	if !strings.HasSuffix(databaseName, "_test") {
+		t.Fatalf("TEST_POSTGRES_DB %q must end with _test", databaseName)
+	}
+
+	pool, err := pgxpool.New(t.Context(), databaseURL)
+	if err != nil {
+		t.Fatalf("connect integration database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	var currentDatabase string
+	if err = pool.QueryRow(t.Context(), "select current_database()").Scan(&currentDatabase); err != nil {
+		t.Fatalf("read current database: %v", err)
+	}
+	if currentDatabase != databaseName {
+		t.Fatalf("connected database %q does not match TEST_POSTGRES_DB %q", currentDatabase, databaseName)
+	}
+
+	first, err := New(pool).Seed(t.Context())
+	if err != nil {
+		t.Fatalf("seed demo data: %v", err)
+	}
+	if first.Created+first.Resumed+first.Skipped != len(samples) {
+		t.Fatalf("first result = %+v", first)
+	}
+
+	second, err := New(pool).Seed(t.Context())
+	if err != nil {
+		t.Fatalf("repeat seed demo data: %v", err)
+	}
+	if second != (Result{Skipped: len(samples)}) {
+		t.Fatalf("second result = %+v", second)
+	}
+
+	counts := make(map[string]int)
+	for _, item := range samples {
+		var status string
+		if err = pool.QueryRow(t.Context(), `
+			SELECT v.status
+			FROM bob_objects o
+			JOIN bob_versions v ON v.id = o.current_version_id
+			WHERE o.entity = $1 AND o.code = $2
+		`, item.entity, item.data.Code).Scan(&status); err != nil {
+			t.Fatalf("query %s %s status: %v", item.entity, item.data.Code, err)
+		}
+		counts[status]++
+	}
+	expected := map[string]int{
+		bob.StatusEffective: 14,
+		bob.StatusDraft:     5,
+		bob.StatusPending:   3,
+		bob.StatusRejected:  2,
+	}
+	if len(counts) != len(expected) {
+		t.Fatalf("status counts = %v", counts)
+	}
+	for status, count := range expected {
+		if counts[status] != count {
+			t.Fatalf("%s count = %d, want %d", status, counts[status], count)
+		}
+	}
+}

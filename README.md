@@ -144,6 +144,50 @@ unset APP_BOOTSTRAP_PASSWORD
 
 本地联调可执行 `make seed-bob`，为客户、供应商、员工、产品、服务、仓库、车辆、资金账户、结算方式、分类、部门和岗位写入 24 条演示数据，并覆盖 `EFFECTIVE`、`DRAFT`、`PENDING`、`REJECTED` 状态。演示数据先创建有效员工和结算方式等参考对象，再创建带分类、部门、岗位、业务员、结算方式、负责人和物流平台引用的对象；有效客户与普通供应商均绑定 `DEMO-SM-001`，并使用 `DEMO-EMP-001` 作为业务员，车辆归属自营物流平台。命令仅允许在 `development` 或 `test` 环境运行；重复执行会核验并跳过已有演示数据，不会覆盖同代码的其他内容。
 
+## 本机隔离 E2E 后端
+
+BOB、VOU 和 WFL 的真实 Playwright 会创建、审批、反批准并修改业务数据，禁止连接生产或日常联调数据库运行。仓库提供独立的 `zerp-back-e2e` Compose 项目：API 仅监听 `127.0.0.1:18080`，PostgreSQL 仅监听 `127.0.0.1:55433`，数据库、附件卷、Cookie 名称和主 Compose 项目完全隔离，用户反馈 GitHub 发布固定关闭。
+
+首次使用：
+
+```bash
+make e2e-env-init
+make e2e-up
+```
+
+`.env.e2e.local` 会在仓库内生成随机本机密码，权限为 `0600` 且被 Git 忽略。不要复制或提交其中的密码。日常停止和恢复会保留测试数据：
+
+```bash
+make e2e-down
+make e2e-up
+make e2e-status
+```
+
+如需轮换本机 E2E 数据库和管理员密码，同时清空隔离数据：
+
+```bash
+make e2e-env-rotate
+```
+
+需要清空所有 E2E 业务数据和附件时显式执行：
+
+```bash
+make e2e-reset
+```
+
+重置命令固定校验 `APP_ENV=test`、`zerp_e2e` 数据库、专用端口和 Cookie 名称，并且只删除 `zerp-back-e2e` 项目的卷。启动流程会应用全部迁移，在空库创建 `e2e-admin`，并幂等写入 BOB 演示资料。
+
+前端 `.env.e2e.local` 使用：
+
+```dotenv
+E2E_API_BASE_URL=http://127.0.0.1:18080
+E2E_USERNAME=e2e-admin
+E2E_PASSWORD=<读取后端 .env.e2e.local 的 APP_BOOTSTRAP_PASSWORD>
+E2E_WFL_BOOTSTRAP=true
+```
+
+启用 `E2E_WFL_BOOTSTRAP` 后，前端全局预置会在隔离库创建复核账号、脱敏账号、有效客户、结算方式、普通产品和树脂产品等本轮专属资料；不需要填写静态 reviewer 或 VOU/WFL 资料关键字。
+
 ## 目录结构
 
 ```text

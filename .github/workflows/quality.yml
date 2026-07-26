@@ -54,6 +54,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Run frontend quality gate
         run: pnpm check:web
+      - name: Verify Cloudflare Pages compatibility build
+        run: pnpm build && test -f dist/index.html
       - name: Audit production dependencies
         run: pnpm audit --prod
 

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev:web": "pnpm --filter @zerp/frontend dev",
+    "build": "pnpm --filter @zerp/frontend exec vue-tsc -b && pnpm --filter @zerp/frontend exec vite build --outDir ../dist --emptyOutDir",
     "build:web": "pnpm --filter @zerp/frontend build",
     "check:web": "pnpm --filter @zerp/frontend check",
     "test:web": "pnpm --filter @zerp/frontend test:unit",

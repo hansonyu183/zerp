@@ -369,9 +369,12 @@ race、静态分析、漏洞扫描和容器构建门禁。
 | Build output directory | `frontend/dist`  |
 | Root directory         | `/`              |
 
+根目录同时保留 `pnpm build` 兼容入口，供尚未切换设置的 Pages 项目继续使用原
+`pnpm build`/`dist` 配置；该入口只改变产物目录，不改变前端构建内容。
+
 从拆分仓库切换到本单仓时，必须先在 Pages 项目中同步更新构建命令和输出目录；旧的
-`pnpm build`/`dist` 设置会在单仓分支上构建失败。该设置变更属于上线切换步骤，不随普通
-代码提交自动执行。
+设置兼容运行，但仍应在正式切换时更新为上表中的单仓标准值。该设置变更属于上线切换
+步骤，不随普通代码提交自动执行。
 
 分别为 Preview 和 Production 环境设置其真实 API 地址：
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hansonyu183/zerp-back/internal/api/authmiddleware"
 	"github.com/hansonyu183/zerp-back/internal/api/authorization"
 	"github.com/hansonyu183/zerp-back/internal/api/requestbody"
 	"github.com/hansonyu183/zerp-back/internal/api/response"
@@ -92,21 +93,7 @@ func (h *Handler) Register(router *gin.Engine) {
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, path, response.RequestID(c))
-		if err != nil {
-			h.writeAuthorizationError(c, err)
-			c.Abort()
-			return
-		}
-		if principal.ActorID == "" {
-			h.writeAuthorizationError(c, authorization.NewError(authorization.ErrorUnauthenticated, "session expired", nil))
-			c.Abort()
-			return
-		}
-		c.Set(principalContextKey, principal)
-		c.Next()
-	}
+	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
 }
 
 func (h *Handler) query(c *gin.Context, entity string) {

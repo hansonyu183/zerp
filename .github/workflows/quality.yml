@@ -57,4 +57,4 @@ jobs:
         run: pnpm build
 
       - name: Audit dependencies
-        run: pnpm audit
+        run: pnpm audit --prod

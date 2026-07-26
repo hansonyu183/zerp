@@ -57,14 +57,3 @@ jobs:
 
       - name: Run real backend tests
         run: pnpm test:e2e
-
-      - name: Upload Playwright diagnostics
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-diagnostics
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14

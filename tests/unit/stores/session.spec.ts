@@ -152,3 +152,135 @@ describe('useSessionStore.restore errors', () => {
     expect(session.errorMessage).toBe('无法连接真实后端 API。')
   })
 })
+
+describe('useSessionStore account actions', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('使用空对象读取当前资料', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        id: '1',
+        username: 'admin',
+        displayName: '管理员',
+        avatarUrl: 'https://example.com/avatar.png',
+      },
+    })
+    const session = useSessionStore()
+
+    await expect(session.getProfile()).resolves.toMatchObject({
+      displayName: '管理员',
+      avatarUrl: 'https://example.com/avatar.png',
+    })
+    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {})
+  })
+
+  it('保存名称和头像且不提交 revision', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        id: '1',
+        username: 'admin',
+        displayName: '新名称',
+        avatarUrl: null,
+        revision: 4,
+      },
+    })
+    const session = useSessionStore()
+
+    await session.updateProfile({
+      displayName: '新名称',
+      avatarUrl: null,
+    })
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {
+      displayName: '新名称',
+      avatarUrl: null,
+    })
+    expect(session.user).toEqual({
+      id: '1',
+      username: 'admin',
+      displayName: '新名称',
+      avatarUrl: null,
+    })
+  })
+
+  it('改密成功后清理会话并使用正确路径', async () => {
+    mockedApiClient.post.mockResolvedValue({ data: null })
+    const session = useSessionStore()
+    session.user = {
+      id: '1',
+      username: 'admin',
+      displayName: '管理员',
+    }
+    session.permissions = ['/bob/customer/query']
+    session.csrfToken = 'csrf-1'
+
+    await session.changePassword({
+      currentPassword: 'Current-password-1!',
+      newPassword: 'New-password-2!',
+    })
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      'app/user/change-password',
+      {
+        currentPassword: 'Current-password-1!',
+        newPassword: 'New-password-2!',
+      },
+    )
+    expect(session.user).toBeNull()
+    expect(session.permissions).toEqual([])
+    expect(session.csrfToken).toBeNull()
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith(null)
+  })
+
+  it('资料保存失败时保留当前资料且不提交 revision', async () => {
+    mockedApiClient.post.mockRejectedValue(
+      new ApiError('business', '资料保存失败。'),
+    )
+    const session = useSessionStore()
+    session.user = {
+      id: '1',
+      username: 'admin',
+      displayName: '原名称',
+      avatarUrl: null,
+    }
+
+    await expect(
+      session.updateProfile({
+        displayName: '新名称',
+        avatarUrl: 'https://example.com/avatar.png',
+      }),
+    ).rejects.toThrow('资料保存失败。')
+
+    expect(session.user?.displayName).toBe('原名称')
+    expect(session.errorMessage).toBe('资料保存失败。')
+    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {
+      displayName: '新名称',
+      avatarUrl: 'https://example.com/avatar.png',
+    })
+  })
+
+  it('改密失败时保留当前会话并暴露错误', async () => {
+    mockedApiClient.post.mockRejectedValue(
+      new ApiError('business', '当前密码错误。'),
+    )
+    const session = useSessionStore()
+    session.user = {
+      id: '1',
+      username: 'admin',
+      displayName: '管理员',
+    }
+
+    await expect(
+      session.changePassword({
+        currentPassword: 'wrong',
+        newPassword: 'New-password-2!',
+      }),
+    ).rejects.toThrow('当前密码错误。')
+
+    expect(session.user?.username).toBe('admin')
+    expect(session.errorMessage).toBe('当前密码错误。')
+  })
+})

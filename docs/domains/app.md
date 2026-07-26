@@ -4,7 +4,7 @@
 
 **APP（Application）** 是 ZERP 的应用访问与权限管理领域，负责用户身份认证、角色管理、权限分配、登录会话建立，以及向前端提供当前用户可调用的 API 权限集合。
 
-APP 只负责识别用户“是谁”和“允许执行什么操作”，不承载客户、产品、单据等业务数据。
+APP 只负责识别用户“是谁”和“允许执行什么操作”，并提供当前用户资料、改密和反馈等应用级自助能力；不承载客户、产品、单据等业务数据。
 
 ## 2. 领域目标
 
@@ -16,11 +16,12 @@ APP 只负责识别用户“是谁”和“允许执行什么操作”，不承�
 
 ## 3. 业务实体
 
-| 实体 | 标识 | 说明 |
-| --- | --- | --- |
-| 用户 | `user` | 可登录系统的身份主体，关联一个或多个角色 |
-| 角色 | `role` | 一组权限的集合，用于批量授权用户 |
-| 权限 | `permission` | 对一个 API 的调用授权，使用标准 API 路径作为唯一标识 |
+| 实体     | 标识         | 说明                                                 |
+| -------- | ------------ | ---------------------------------------------------- |
+| 用户     | `user`       | 可登录系统的身份主体，关联一个或多个角色             |
+| 角色     | `role`       | 一组权限的集合，用于批量授权用户                     |
+| 权限     | `permission` | 对一个 API 的调用授权，使用标准 API 路径作为唯一标识 |
+| 用户反馈 | `feedback`   | 登录用户提交的脱敏问题、建议和截图元数据             |
 
 ## 4. 核心关系
 
@@ -138,24 +139,55 @@ POST /app/user/signout
 
 随后跳转到登录页面。
 
+### 6.4 当前用户资料
+
+个人资料读取和保存复用：
+
+```text
+POST /app/user/profile
+```
+
+读取时请求空对象 `{}`。保存时必须同时提交显示名称和头像，不提交 `revision`：
+
+```json
+{
+  "displayName": "显示名称",
+  "avatarUrl": "https://example.com/avatar.png"
+}
+```
+
+`avatarUrl` 为 `null` 时清除头像；非空时必须是 HTTPS URL。读取和保存成功均返回当前用户完整资料，包含 `id`、`username`、`displayName`、`avatarUrl`、`passwordChangedAt`，后端可以继续返回仅供观察的 `revision`，但前端不读取或回传它。后端必须根据请求体是空对象还是完整资料对象区分读取和保存，不接受只包含一个保存字段的模糊请求。
+
+### 6.5 修改密码
+
+```text
+POST /app/user/change-password
+```
+
+请求包含 `currentPassword` 和 `newPassword`。密码策略由后端当前配置执行，前端只校验必填、新旧密码不同和两次输入一致。成功后后端撤销该用户会话并清除 Cookie；前端立即清空内存中的用户、权限和 CSRF Token，跳转登录页并提示重新登录。
+
+### 6.6 用户反馈
+
+反馈入口使用 `app/feedback/attachment-initiate`、`attachment-remove` 和 `create`。这些接口只要求有效会话和 CSRF，不进入角色逐项授权；后端必须限制附件归属、数量、类型和大小，并在持久化及发布前清理密码、Cookie、Token 等敏感内容。
+
 ## 7. 登录状态
 
 登录状态属于应用级全局状态，建议包含：
 
-| 状态 | 说明 |
-| --- | --- |
-| `initialized` | 是否已经完成会话恢复 |
-| `loading` | 是否正在执行登录、恢复或退出操作 |
-| `user` | 当前用户；为空表示未登录 |
-| `csrfToken` | 当前会话的 CSRF 凭证 |
-| `permissions` | 当前用户获准调用的 API 路径数组 |
+| 状态          | 说明                             |
+| ------------- | -------------------------------- |
+| `initialized` | 是否已经完成会话恢复             |
+| `loading`     | 是否正在执行登录、恢复或退出操作 |
+| `user`        | 当前用户；为空表示未登录         |
+| `csrfToken`   | 当前会话的 CSRF 凭证             |
+| `permissions` | 当前用户获准调用的 API 路径数组  |
 
 系统根据登录状态自动响应：
 
-- 尚未完成会话恢复时，显示初始化状态，不提前显示登录页或 Home 页。
+- 尚未完成会话恢复时，显示初始化状态，不提前显示登录页或应用布局。
 - 未登录时只允许访问登录页。
-- 已登录时进入 Home 页。
-- 已登录用户访问登录页时跳转到 Home 页。
+- 已登录时进入 `AppLayout` 下的仪表盘或首个可访问业务页面。
+- 已登录用户访问登录页时跳转到应用布局内的页面。
 - 任一业务请求返回未登录错误时，立即清空登录状态并跳转到登录页。
 
 ## 8. 动态菜单
@@ -164,8 +196,7 @@ POST /app/user/signout
 
 动态菜单以当前用户的 API 权限数组为准，本地页面注册表用于提供已实现页面的标题、图标、顺序和组件加载器。
 
-`app` 领域用于认证、会话、用户资料和权限控制等系统能力，不进入 Home
-动态菜单，也不注册为 Home 下的动态业务路由。Home 动态菜单仅从其他业务领域生成。
+`app` 领域用于认证、会话、用户资料和权限控制等系统能力，不进入业务动态菜单，也不注册为 `AppLayout` 下的动态业务路由。业务动态菜单仅从其他领域生成。
 
 ```text
 登录/恢复会话
@@ -180,7 +211,7 @@ POST /app/user/signout
     ↓
 已注册页面加载业务组件，未注册页面加载“开发中...”占位组件
     ↓
-注册对应动态路由并在 Home 中显示
+注册为 AppLayout 子路由并在业务菜单中显示
 ```
 
 ### 8.2 菜单准入权限
@@ -203,7 +234,7 @@ POST /app/user/signout
 ```text
 基础业务对象
 └── 客户
-└── Supplier
+└── 供应商
 ```
 
 菜单不再要求 `query` 权限，也不以本地是否已经注册业务组件作为显示条件。实体的完整动作权限仍随菜单路由保存，页面内按钮继续按精确权限判断。
@@ -229,7 +260,7 @@ POST /app/user/signout
 - 后端权限不能指定或加载任意前端组件。
 - 本地已注册的实体使用注册表中的标题、图标、顺序和组件；未注册实体使用权限标识生成菜单，并加载统一的“开发中...”占位组件。
 - 用户没有某实体的任何权限时，不显示菜单，也不注册对应动态路由。
-- 菜单点击后由 Home 内容区域加载对应的业务实体组件。
+- 菜单点击后由 `AppLayout` 的 `<router-view>` 加载对应业务实体组件。
 - 页面内按钮根据完整的动作权限判断是否显示或可用。
 - 用户直接访问无权限路由时，前端显示无权限结果；后端仍必须拒绝相关 API 调用。
 
@@ -261,13 +292,12 @@ can('/bob/customer/approve')
 POST /app/role/query
 POST /app/role/get
 POST /app/role/create
-POST /app/role/update
+POST /app/role/save
 POST /app/role/enable
 POST /app/role/disable
-POST /app/role/permissions
 ```
 
-`permissions` 动作用于更新角色的完整权限集合。后端必须校验权限是否存在且有效。
+`create` 和 `save` 同时维护角色资料及完整权限集合。后端必须校验权限是否存在且有效，`save` 使用角色当前 `revision` 防止并发覆盖。
 
 ## 10. 用户管理
 
@@ -286,14 +316,14 @@ POST /app/role/permissions
 POST /app/user/query
 POST /app/user/get
 POST /app/user/create
-POST /app/user/update
+POST /app/user/save
 POST /app/user/enable
 POST /app/user/disable
-POST /app/user/roles
-POST /app/user/password
 POST /app/user/signin
 POST /app/user/session
 POST /app/user/signout
+POST /app/user/profile
+POST /app/user/change-password
 ```
 
 停用用户后，该用户已有会话应立即失效，或在下一次请求时被后端拒绝。

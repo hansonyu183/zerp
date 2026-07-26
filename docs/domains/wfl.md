@@ -20,13 +20,13 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 
 页面为 `/wfl/intermediary-trade`，由五类独立原子单据组成：
 
-| 阶段 | 实体 | 数量 |
-| --- | --- | --- |
-| 客户订单 | `customer-order` | 根单一张 |
+| 阶段     | 实体                | 数量     |
+| -------- | ------------------- | -------- |
+| 客户订单 | `customer-order`    | 根单一张 |
 | 居间采购 | `procurement-order` | 最多一张 |
-| 收货 | `goods-receipt` | 可多张 |
-| 送货 | `delivery-note` | 可多张 |
-| 签收 | `signoff-note` | 可多张 |
+| 收货     | `goods-receipt`     | 可多张   |
+| 送货     | `delivery-note`     | 可多张   |
+| 签收     | `signoff-note`      | 可多张   |
 
 查询只发送 `page`、`pageSize`、可选 `keyword` 和 `statuses`。客户订单创建业务
 明细字段为 `data.lines`。采购和送货行的 `sourceLineId` 指向客户订单行；收货行
@@ -54,5 +54,5 @@ WFL Playwright 不拦截业务请求。默认复用 `E2E_USERNAME`、
 `E2E_WFL_REDACTED_*` 专用账号。
 
 自动预置只有在 `E2E_WFL_BOOTSTRAP=true` 且目标明确为可按测试运行重置的隔离
-测试库时才允许运行；凭证只来自 Git 忽略的本地环境文件或 `test-results` 临时
+测试库时才允许运行；凭证只来自 Git 忽略的 `.env.e2e.local` 或 `test-results` 临时
 状态，不写入日志。未确认隔离属性时不得开启预置开关。

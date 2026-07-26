@@ -1,8 +1,9 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useSessionStore } from '@/stores/session'
 
 vi.mock('vuetify', () => ({
   useTheme: () => ({
@@ -64,6 +65,22 @@ describe('AppLayout account interactions', () => {
   it('校验密码表单并标注 password autocomplete', async () => {
     const router = createTestRouter()
     await router.push('/home/dashboard')
+    const session = useSessionStore()
+    const getProfile = vi.spyOn(session, 'getProfile').mockResolvedValue({
+      id: '1',
+      username: 'admin',
+      displayName: '管理员',
+      avatarUrl: 'https://example.com/avatar.png',
+    })
+    const updateProfile = vi.spyOn(session, 'updateProfile').mockResolvedValue({
+      id: '1',
+      username: 'admin',
+      displayName: '新名称',
+      avatarUrl: null,
+    })
+    const changePassword = vi
+      .spyOn(session, 'changePassword')
+      .mockResolvedValue(undefined)
 
     const wrapper = mount(AppLayout, {
       global: {
@@ -112,6 +129,21 @@ describe('AppLayout account interactions', () => {
       },
     })
 
+    await (wrapper.vm as unknown as { openProfile: () => Promise<void> }).openProfile()
+    expect(getProfile).toHaveBeenCalledOnce()
+    expect(wrapper.get('input[aria-label="显示名称"]').element.value).toBe('管理员')
+    expect(wrapper.get('input[aria-label="头像地址"]').element.value).toBe(
+      'https://example.com/avatar.png',
+    )
+
+    await wrapper.get('input[aria-label="显示名称"]').setValue(' 新名称 ')
+    await wrapper.get('input[aria-label="头像地址"]').setValue('')
+    await (wrapper.vm as unknown as { saveProfile: () => Promise<void> }).saveProfile()
+    expect(updateProfile).toHaveBeenCalledWith({
+      displayName: '新名称',
+      avatarUrl: null,
+    })
+
     await (wrapper.vm as unknown as { openPassword: () => void }).openPassword()
 
     const updateButton = wrapper.findAll('button').find((button) => button.text() === '更新密码')
@@ -130,12 +162,24 @@ describe('AppLayout account interactions', () => {
     expect(wrapper.get('input[aria-label="确认新密码"]').attributes('autocomplete')).toBe('new-password')
 
     await wrapper.get('input[aria-label="当前密码"]').setValue('old-password')
-    await wrapper.get('input[aria-label="新密码"]').setValue('new-pass')
-    await wrapper.get('input[aria-label="确认新密码"]').setValue('different-pass')
+    await wrapper.get('input[aria-label="新密码"]').setValue('old-password')
+    await wrapper.get('input[aria-label="确认新密码"]').setValue('old-password')
     expect(updateButton?.attributes('disabled')).toBeDefined()
 
-    await wrapper.get('input[aria-label="新密码"]').setValue('new-password')
-    await wrapper.get('input[aria-label="确认新密码"]').setValue('new-password')
+    await wrapper.get('input[aria-label="新密码"]').setValue('New-password-2!')
+    await wrapper.get('input[aria-label="确认新密码"]').setValue('New-password-2!')
     expect(updateButton?.attributes('disabled')).toBeUndefined()
+
+    await updateButton?.trigger('click')
+    await flushPromises()
+
+    expect(changePassword).toHaveBeenCalledWith({
+      currentPassword: 'old-password',
+      newPassword: 'New-password-2!',
+    })
+    expect(router.currentRoute.value).toMatchObject({
+      name: 'signin',
+      query: { passwordChanged: '1' },
+    })
   })
 })

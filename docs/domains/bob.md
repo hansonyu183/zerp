@@ -15,20 +15,20 @@ BOB 是主数据来源，不负责销售、采购、库存、资金收付等交�
 
 ## 3. 业务实体
 
-| 实体 | 标识 | 说明 |
-| --- | --- | --- |
-| 客户 | `customer` | 购买企业产品或服务的个人、企业或组织 |
-| 供应商 | `supplier` | 向企业提供产品、服务或其他资源的个人、企业或组织 |
-| 员工 | `employee` | 与企业存在任职关系的人员 |
-| 产品 | `product` | 可采购、销售、生产或进行库存管理的实物对象 |
-| 服务 | `service` | 可采购或销售的非实物业务对象 |
-| 仓库 | `warehouse` | 存放和管理库存的场所 |
-| 车辆 | `vehicle` | 承担运输任务并关联物流平台供应商的车辆 |
-| 资金账户 | `fund-account` | 用于记录现金、银行存款及其他资金的账户 |
-| 分类 | `category` | 按目标实体组织基础资料的多级分类 |
-| 部门 | `department` | 企业组织部门及其父子层级 |
-| 岗位 | `position` | 企业内部岗位基础资料 |
-| 结算方式 | `settlement-method` | 描述相对天数、月末或指定日结算规则 |
+| 实体     | 标识                | 说明                                             |
+| -------- | ------------------- | ------------------------------------------------ |
+| 客户     | `customer`          | 购买企业产品或服务的个人、企业或组织             |
+| 供应商   | `supplier`          | 向企业提供产品、服务或其他资源的个人、企业或组织 |
+| 员工     | `employee`          | 与企业存在任职关系的人员                         |
+| 产品     | `product`           | 可采购、销售、生产或进行库存管理的实物对象       |
+| 服务     | `service`           | 可采购或销售的非实物业务对象                     |
+| 仓库     | `warehouse`         | 存放和管理库存的场所                             |
+| 车辆     | `vehicle`           | 承担运输任务并关联物流平台供应商的车辆           |
+| 资金账户 | `fund-account`      | 用于记录现金、银行存款及其他资金的账户           |
+| 分类     | `category`          | 按目标实体组织基础资料的多级分类                 |
+| 部门     | `department`        | 企业组织部门及其父子层级                         |
+| 岗位     | `position`          | 企业内部岗位基础资料                             |
+| 结算方式 | `settlement-method` | 描述相对天数、月末或指定日结算规则               |
 
 后续新增的基础业务实体，如果同样遵循“审核后才可被其他领域引用”的规则，应归入 BOB。
 
@@ -69,13 +69,13 @@ BOB 是主数据来源，不负责销售、采购、库存、资金收付等交�
 
 ### 5.1 状态定义
 
-| 状态 | 标识 | 可编辑 | 可提交审核 | 可被新业务引用 |
-| --- | --- | ---: | ---: | ---: |
-| 草稿 | `DRAFT` | 是 | 是 | 否 |
-| 待审核 | `PENDING` | 否 | 否 | 否 |
-| 已驳回 | `REJECTED` | 是 | 是 | 否 |
-| 有效 | `EFFECTIVE` | 否 | 否 | 是 |
-| 已失效 | `INVALID` | 否 | 否 | 否 |
+| 状态   | 标识        | 可编辑 | 可提交审核 | 可被新业务引用 |
+| ------ | ----------- | -----: | ---------: | -------------: |
+| 草稿   | `DRAFT`     |     是 |         是 |             否 |
+| 待审核 | `PENDING`   |     否 |         否 |             否 |
+| 已驳回 | `REJECTED`  |     是 |         是 |             否 |
+| 有效   | `EFFECTIVE` |     否 |         否 |             是 |
+| 已失效 | `INVALID`   |     否 |         否 |             否 |
 
 ### 5.2 新建流程
 
@@ -179,13 +179,13 @@ interface CustomerMutationResult {
 
 各动作请求和响应约定如下：
 
-| 动作 | 请求 | 响应 |
-| --- | --- | --- |
-| `get` | `{ objectId, versionId? }` | 顶层包含 `version` 和 `data` 的客户对象视图 |
-| `create` | `{ data: { code, ...CustomerData } }` | `CustomerMutationResult` |
-| `edit` | `{ objectId, objectRevision }` | 新草稿的 `CustomerMutationResult` |
-| `save` | `{ objectId, versionId, revision, data: CustomerData }` | `CustomerMutationResult` |
-| `delete` | `{ objectId, objectRevision, versionId, revision }` | `null` |
+| 动作     | 请求                                                    | 响应                                        |
+| -------- | ------------------------------------------------------- | ------------------------------------------- |
+| `get`    | `{ objectId, versionId? }`                              | 顶层包含 `version` 和 `data` 的客户对象视图 |
+| `create` | `{ data: { code, ...CustomerData } }`                   | `CustomerMutationResult`                    |
+| `edit`   | `{ objectId, objectRevision }`                          | 新草稿的 `CustomerMutationResult`           |
+| `save`   | `{ objectId, versionId, revision, data: CustomerData }` | `CustomerMutationResult`                    |
+| `delete` | `{ objectId, objectRevision, versionId, revision }`     | `null`                                      |
 
 `edit` 和 `delete` 使用 `objectRevision` 保护稳定对象，`save` 和 `delete`
 使用 `revision` 保护目标版本。所有写操作必须由后端校验权限、状态和
@@ -212,28 +212,27 @@ revision；`delete` 还必须校验该对象满足 4.3 节的首版草稿删除�
 发送该字段；前端缺少员工查询权限或员工列表加载失败时显示明确错误并阻止
 提交空引用。
 
-`settlement-method` 是当前后端工作区中的临时契约：字段为 `name`、
-`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`。
-后端补齐该实体的查询筛选校验前，前端页面能够加载和显示接口错误，但不能
-完成真实列表联调。
+`settlement-method` 使用正式类型化契约，字段为 `name`、`ruleType`、
+`monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`，与其他 BOB
+实体使用相同的查询、版本、审核和审计能力。
 
 ## 7. 领域能力
 
 BOB 中的各业务实体统一提供以下领域能力：
 
-| 能力 | 动作标识 | 说明 |
-| --- | --- | --- |
-| 查询 | `query` | 按条件分页查询对象或版本 |
-| 查看 | `get` | 查看对象详情及指定版本 |
-| 新建 | `create` | 创建对象及首个草稿版本 |
-| 发起编辑 | `edit` | 使有效版本失效并创建新草稿版本 |
-| 保存草稿 | `save` | 保存草稿或已驳回版本 |
-| 删除首版草稿 | `delete` | 删除满足 4.3 节全部条件、从未提交的首版草稿及其对象 |
-| 提交审核 | `submit` | 将可提交版本变为待审核 |
-| 审核通过 | `approve` | 将待审核版本变为有效版本 |
-| 审核驳回 | `reject` | 将待审核版本变为已驳回版本 |
-| 查看版本 | `versions` | 查询对象的全部历史版本 |
-| 查看审核记录 | `audit-history` | 查询提交、审核及状态变化记录 |
+| 能力         | 动作标识        | 说明                                                |
+| ------------ | --------------- | --------------------------------------------------- |
+| 查询         | `query`         | 按条件分页查询对象或版本                            |
+| 查看         | `get`           | 查看对象详情及指定版本                              |
+| 新建         | `create`        | 创建对象及首个草稿版本                              |
+| 发起编辑     | `edit`          | 使有效版本失效并创建新草稿版本                      |
+| 保存草稿     | `save`          | 保存草稿或已驳回版本                                |
+| 删除首版草稿 | `delete`        | 删除满足 4.3 节全部条件、从未提交的首版草稿及其对象 |
+| 提交审核     | `submit`        | 将可提交版本变为待审核                              |
+| 审核通过     | `approve`       | 将待审核版本变为有效版本                            |
+| 审核驳回     | `reject`        | 将待审核版本变为已驳回版本                          |
+| 查看版本     | `versions`      | 查询对象的全部历史版本                              |
+| 查看审核记录 | `audit-history` | 查询提交、审核及状态变化记录                        |
 
 接口路径遵循项目统一约定：
 

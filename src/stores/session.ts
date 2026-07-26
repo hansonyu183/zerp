@@ -26,7 +26,17 @@ export interface UserProfile {
   id: string
   username: string
   displayName: string
-  avatarUrl?: string
+  avatarUrl?: string | null
+}
+
+export interface ProfileView extends UserProfile {
+  passwordChangedAt?: string
+  revision?: number
+}
+
+export interface SaveProfileRequest {
+  displayName: string
+  avatarUrl: string | null
 }
 
 export interface SessionData {
@@ -122,22 +132,53 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function updateProfile(profile: {
-    displayName: string
-    avatarUrl?: string
-  }): Promise<void> {
-    const { data } = await apiClient.post<UserProfile, typeof profile>(
-      'app/user/profile',
-      profile,
-    )
-    user.value = data
+  async function getProfile(): Promise<ProfileView> {
+    errorMessage.value = null
+    try {
+      const { data } = await apiClient.post<ProfileView>('app/user/profile', {})
+      return data
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      throw error
+    }
+  }
+
+  async function updateProfile(profile: SaveProfileRequest): Promise<ProfileView> {
+    errorMessage.value = null
+    try {
+      const { data } = await apiClient.post<ProfileView, SaveProfileRequest>(
+        'app/user/profile',
+        profile,
+      )
+      user.value = {
+        id: data.id,
+        username: data.username,
+        displayName: data.displayName,
+        avatarUrl: data.avatarUrl ?? null,
+      }
+      return data
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      throw error
+    }
   }
 
   async function changePassword(passwords: {
     currentPassword: string
     newPassword: string
   }): Promise<void> {
-    await apiClient.post<null, typeof passwords>('app/user/password', passwords)
+    errorMessage.value = null
+    try {
+      await apiClient.post<null, typeof passwords>(
+        'app/user/change-password',
+        passwords,
+      )
+      clearSession()
+      initialized.value = true
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      throw error
+    }
   }
 
   return {
@@ -153,6 +194,7 @@ export const useSessionStore = defineStore('session', () => {
     restore,
     signIn,
     signOut,
+    getProfile,
     updateProfile,
     changePassword,
     clearSession,

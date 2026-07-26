@@ -53,7 +53,7 @@ export default defineConfig({
   use: {
     actionTimeout: 30_000,
     baseURL: appUrl,
-    trace: 'on-first-retry',
+    trace: process.env.CI ? 'off' : 'on-first-retry',
   },
   projects: [
     {

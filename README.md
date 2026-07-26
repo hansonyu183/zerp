@@ -29,7 +29,7 @@ ZERP 是供企业内部使用的 ERP 前端项目，面向基础资料、销售�
 
 ## 环境要求
 
-- Node.js 20.19+ 或 22.12+
+- Node.js 24.x（以 `.nvmrc` 为准）
 - pnpm（通过 Corepack 管理）
 - 可访问的真实后端 API
 
@@ -45,9 +45,13 @@ pnpm dev
 pnpm dev          # 启动本地开发服务器
 pnpm build        # 类型检查并生成生产构建
 pnpm preview      # 本地预览生产构建
+pnpm lint         # 检查 TypeScript、Vue 和架构约束
+pnpm format:check # 检查工程质量配置格式
+pnpm test:coverage # 单元测试、组件测试和覆盖率门槛
 pnpm test:unit    # 单元测试和组件测试
 pnpm test:e2e     # 连接真实测试后端执行端到端测试
 pnpm test         # 执行完整测试集
+pnpm check        # 执行提交前快速质量门禁
 ```
 
 ## 推荐目录结构
@@ -340,6 +344,8 @@ Playwright 必须连接独立的真实测试后端，使用专用测试账号和
 7. 注销并确认会话失效。
 
 测试 API 地址、账号和数据初始化方式通过 CI 密钥或受控测试环境提供，不得提交到 Git。
+普通 Pull Request 只执行快速质量门禁；真实后端 E2E 通过 GitHub
+`e2e` Environment 中的受控密钥手动触发；CI 不保存或上传可能包含凭证或认证状态的 Playwright 产物。
 
 ## Cloudflare Pages 部署
 

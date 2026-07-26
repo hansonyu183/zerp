@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/generated"
+	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
@@ -26,6 +27,27 @@ import (
 
 type pingerStub struct {
 	err error
+}
+
+type countingReader struct {
+	remaining int64
+	read      int64
+}
+
+func (reader *countingReader) Read(buffer []byte) (int, error) {
+	if reader.remaining == 0 {
+		return 0, io.EOF
+	}
+	if int64(len(buffer)) > reader.remaining {
+		buffer = buffer[:reader.remaining]
+	}
+	for index := range buffer {
+		buffer[index] = 'x'
+	}
+	count := len(buffer)
+	reader.remaining -= int64(count)
+	reader.read += int64(count)
+	return count, nil
 }
 
 func (stub pingerStub) Ping(context.Context) error {
@@ -221,6 +243,74 @@ func TestOpenAPIValidatorRejectsInvalidBusinessRequest(t *testing.T) {
 	}
 	if envelope.Code != response.CodeValidation {
 		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
+	}
+}
+
+func TestOpenAPIValidatorPreservesTechnicalNotFoundResponse(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
+	request := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	request.Header.Set("X-Request-ID", "missing-request-id")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusNotFound)
+	}
+	var payload struct {
+		Error     string `json:"error"`
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Error != "route not found" || payload.RequestID != "missing-request-id" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestOpenAPIValidatorLimitsRequestBodiesBeforeReading(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		method      string
+		contentType string
+		limit       int64
+		wantStatus  int
+	}{
+		{
+			name:        "business JSON",
+			path:        "/app/user/signin",
+			method:      http.MethodPost,
+			contentType: "application/json",
+			limit:       requestbody.MaxJSONBodyBytes,
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "file upload",
+			path:        "/files/attachments/upload/token",
+			method:      http.MethodPut,
+			contentType: "application/octet-stream",
+			limit:       maxFileRequestBodyBytes,
+			wantStatus:  http.StatusBadRequest,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			source := &countingReader{remaining: test.limit * 2}
+			router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
+			request := httptest.NewRequest(test.method, test.path, source)
+			request.Header.Set("Content-Type", test.contentType)
+			responseRecorder := httptest.NewRecorder()
+			router.ServeHTTP(responseRecorder, request)
+
+			if responseRecorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d", responseRecorder.Code, test.wantStatus)
+			}
+			if source.read > test.limit+1 {
+				t.Fatalf("validator read %d bytes, limit = %d", source.read, test.limit)
+			}
+		})
 	}
 }
 

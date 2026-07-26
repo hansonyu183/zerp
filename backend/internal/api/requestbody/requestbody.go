@@ -11,14 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxBodyBytes = 1 << 20
+const MaxJSONBodyBytes int64 = 1 << 20
 
 func DecodeJSON(c *gin.Context, target any) error {
 	mediaType, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		return errors.New("content type must be application/json")
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxJSONBodyBytes)
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
 	if err = decoder.Decode(target); err != nil {

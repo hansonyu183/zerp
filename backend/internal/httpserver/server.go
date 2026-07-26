@@ -5,11 +5,13 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
+	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
@@ -22,6 +24,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapigin "github.com/oapi-codegen/gin-middleware"
 )
+
+const maxFileRequestBodyBytes int64 = 10 << 20
 
 type databasePinger interface {
 	Ping(context.Context) error
@@ -94,6 +98,7 @@ func newRouter(
 		middleware.RequestLogger(logger),
 		middleware.Recovery(logger),
 		middleware.CORS(cfg.CORSAllowedOrigins),
+		limitRequestBody(),
 	)
 	swagger, err := generated.GetSpec()
 	if err != nil {
@@ -108,8 +113,8 @@ func newRouter(
 				return nil
 			},
 		},
-		ErrorHandler: func(c *gin.Context, _ string, _ int) {
-			response.BusinessError(c, response.CodeValidation, "invalid request", nil)
+		ErrorHandler: func(c *gin.Context, _ string, statusCode int) {
+			writeOpenAPIError(c, statusCode)
 		},
 	}))
 
@@ -121,12 +126,46 @@ func newRouter(
 		registerBusinessRoutes(router)
 	}
 
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":     "route not found",
-			"requestId": c.GetString("requestId"),
-		})
-	})
+	router.NoRoute(writeRouteNotFound)
 
 	return router
+}
+
+func limitRequestBody() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body != nil && c.Request.Body != http.NoBody {
+			limit := requestbody.MaxJSONBodyBytes
+			if isFileEndpoint(c.Request.URL.Path) {
+				limit = maxFileRequestBodyBytes
+			}
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
+	}
+}
+
+func writeOpenAPIError(c *gin.Context, statusCode int) {
+	if statusCode == http.StatusNotFound {
+		writeRouteNotFound(c)
+		return
+	}
+	if isFileEndpoint(c.Request.URL.Path) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":     "invalid request",
+			"requestId": response.RequestID(c),
+		})
+		return
+	}
+	response.BusinessError(c, response.CodeValidation, "invalid request", nil)
+}
+
+func writeRouteNotFound(c *gin.Context) {
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":     "route not found",
+		"requestId": response.RequestID(c),
+	})
+}
+
+func isFileEndpoint(path string) bool {
+	return strings.HasPrefix(path, "/files/")
 }

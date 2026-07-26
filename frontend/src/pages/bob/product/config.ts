@@ -78,7 +78,7 @@ export const productConfig = defineBobEntityConfig({
     } satisfies BusinessObjectField<BobForm>,
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('产品编码', '产品名称', [
+  columns: baseColumns('编码', '名称', [
     { key: 'unit', label: '单位', value: (row) => row.currentVersion.summary.unit },
     { key: 'model', label: '型号', value: (row) => row.currentVersion.summary.model },
   ]),

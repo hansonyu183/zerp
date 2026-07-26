@@ -177,7 +177,7 @@ function submit(): void {
           <v-text-field v-model="form.inboundDate" label="入库日期" type="date" variant="outlined" />
           <div class="voucher-execution__table-wrap">
             <v-table>
-              <thead><tr><th>产品</th><th>订购数量</th><th>入库数量</th></tr></thead>
+              <thead><tr><th>产品</th><th>订购</th><th>入库</th></tr></thead>
               <tbody>
                 <tr v-for="(line, index) in form.purchaseLines" :key="line.lineId">
                   <td>{{ document?.data.productLines?.[index]?.product.name }}</td>

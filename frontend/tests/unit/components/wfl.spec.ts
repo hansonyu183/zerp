@@ -81,6 +81,21 @@ function mountStage(
 }
 
 describe('WFL 通用阶段组件', () => {
+  it('使用适合窄屏的短列名', () => {
+    const wrapper = mountStage(delivery(), true, () => false)
+
+    expect(wrapper.findAll('th').map((heading) => heading.text())).toEqual([
+      '单号',
+      '父单',
+      '日期',
+      '金额',
+      '状态',
+      '核对人',
+      '操作人',
+      '操作',
+    ])
+  })
+
   it('阶段打开入口遵循 get 权限', async () => {
     const wrapper = mountStage(delivery(), false, () => false)
     expect(wrapper.find('[aria-label="打开 DN-1"]').exists()).toBe(false)

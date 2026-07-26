@@ -154,25 +154,26 @@ describe('shared BOB entity configuration and view model', () => {
   })
 
   it('定义全部十二类实体和完整状态筛选', () => {
-    const entities = [
-      'customer',
-      'supplier',
-      'employee',
-      'product',
-      'service',
-      'warehouse',
-      'vehicle',
-      'fund-account',
-      'category',
-      'department',
-      'position',
-      'settlement-method',
-    ]
+    const expectedColumns: Record<string, string[]> = {
+      customer: ['编码', '名称', '类型', '简称', '状态'],
+      supplier: ['编码', '名称', '类型', '简称', '状态'],
+      employee: ['编码', '姓名', '电话', '入职', '状态'],
+      product: ['编码', '名称', '单位', '型号', '状态'],
+      service: ['编码', '名称', '单位', '说明', '状态'],
+      warehouse: ['编码', '名称', '地址', '联系人', '状态'],
+      vehicle: ['编码', '名称', '车牌', '类型', '状态'],
+      'fund-account': ['编码', '名称', '币种', '银行', '状态'],
+      category: ['编码', '名称', '实体', '状态'],
+      department: ['编码', '名称', '状态'],
+      position: ['编码', '名称', '状态'],
+      'settlement-method': ['编码', '名称', '规则', '状态'],
+    }
 
-    for (const entity of entities) {
+    for (const [entity, columns] of Object.entries(expectedColumns)) {
       const config = getBobEntityConfig(entity)
       expect(config.entity).toBe(entity)
       expect(config.detailKeys).toContain('name')
+      expect(config.columns.map((column) => column.label)).toEqual(columns)
       expect(config.filters[0]).toMatchObject({
         key: 'status',
         multiple: true,

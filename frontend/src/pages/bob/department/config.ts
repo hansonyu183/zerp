@@ -34,7 +34,7 @@ export const departmentConfig = defineBobEntityConfig({
     reference('parentId', '父部门', context),
     textarea('description', '说明'),
   ],
-  columns: baseColumns('部门编码', '部门名称'),
+  columns: baseColumns('编码', '名称'),
   filters: baseFilters([
     categoryFilter('department'),
     {

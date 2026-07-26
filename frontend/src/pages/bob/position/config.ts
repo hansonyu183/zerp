@@ -28,6 +28,6 @@ export const positionConfig = defineBobEntityConfig({
     reference('categoryId', '岗位分类', context),
     textarea('description', '说明'),
   ],
-  columns: baseColumns('岗位编码', '岗位名称'),
+  columns: baseColumns('编码', '名称'),
   filters: baseFilters([categoryFilter('position')]),
 })

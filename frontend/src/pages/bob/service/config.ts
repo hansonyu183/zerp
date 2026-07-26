@@ -36,7 +36,7 @@ export const serviceConfig = defineBobEntityConfig({
     textarea('description', '服务说明'),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('服务编码', '服务名称', [
+  columns: baseColumns('编码', '名称', [
     { key: 'unit', label: '单位', value: (row) => row.currentVersion.summary.unit },
     {
       key: 'description',

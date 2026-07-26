@@ -72,7 +72,7 @@ function removeLine(index: number): void {
       <v-table class="voucher-expense-lines__table">
         <thead>
           <tr>
-            <th>#</th><th>费用类别</th><th>说明</th><th>金额</th><th>备注</th>
+            <th>#</th><th>类别</th><th>说明</th><th>金额</th><th>备注</th>
             <th v-if="editable" />
           </tr>
         </thead>

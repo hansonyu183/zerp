@@ -66,10 +66,10 @@ export const settlementMethodConfig = defineBobEntityConfig({
     },
     textarea('description', '说明'),
   ],
-  columns: baseColumns('结算方式编码', '结算方式名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'ruleType',
-      label: '规则类型',
+      label: '规则',
       value: (row) => row.currentVersion.summary.ruleType,
       format: (value) =>
         settlementRuleOptions.find((item) => item.value === value)?.title ??

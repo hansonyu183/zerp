@@ -69,6 +69,29 @@ describe('LED shared ledger view model', () => {
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
     ])
     expect(ledgerEntityConfigs.container.directions).toEqual([])
+    expect(ledgerEntityConfigs.inventory.entryColumns.map(
+      (column) => column.label,
+    )).toEqual([
+      '日期',
+      '入账',
+      '类型',
+      '单号',
+      '仓库',
+      '商品',
+      '方向',
+      '数量',
+      '单位',
+      '原因',
+    ])
+    expect(ledgerEntityConfigs.fund.balanceColumns.map(
+      (column) => column.label,
+    )).toEqual(['账户', '币种', '性质', '金额'])
+    expect(ledgerEntityConfigs.party.balanceColumns.map(
+      (column) => column.label,
+    )).toEqual(['往来方', '币种', '性质', '金额'])
+    expect(ledgerEntityConfigs.container.balanceColumns.map(
+      (column) => column.label,
+    )).toEqual(['客户', '桶型', '欠桶'])
   })
 
   it('queries entries with the selected filters and exact sort contract', async () => {

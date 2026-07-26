@@ -134,8 +134,8 @@ function remove(index: number): void {
       <v-table class="intermediary-lines__table">
         <thead>
           <tr>
-            <th>#</th><th>产品</th><th>订购数量</th><th>销售含税单价</th>
-            <th>包装类型</th><th>每桶产品量</th><th>行金额</th><th>备注</th>
+            <th>#</th><th>产品</th><th>订购</th><th>售价</th>
+            <th>包装</th><th>桶量</th><th>金额</th><th>备注</th>
             <th v-if="editable" />
           </tr>
         </thead>

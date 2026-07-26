@@ -194,8 +194,8 @@ void vm.load()
                     <v-table>
                       <thead>
                         <tr>
-                          <th>资金账户</th>
-                          <th>余额类型</th>
+                          <th>账户</th>
+                          <th>性质</th>
                           <th>金额</th>
                           <th v-if="vm.editable.value" class="text-end">操作</th>
                         </tr>
@@ -276,7 +276,7 @@ void vm.load()
                           <th>类型</th>
                           <th>往来方</th>
                           <th>币种</th>
-                          <th>余额类型</th>
+                          <th>性质</th>
                           <th>金额</th>
                           <th v-if="vm.editable.value" class="text-end">操作</th>
                         </tr>
@@ -380,7 +380,7 @@ void vm.load()
                       <thead>
                         <tr>
                           <th>客户</th>
-                          <th>空桶类型</th>
+                          <th>桶型</th>
                           <th>数量</th>
                           <th v-if="vm.editable.value" class="text-end">操作</th>
                         </tr>
@@ -509,12 +509,12 @@ void vm.load()
                   <tr>
                     <th>时间</th>
                     <th>事件</th>
-                    <th>状态迁移</th>
+                    <th>迁移</th>
                     <th>版本</th>
-                    <th>账簿代次</th>
+                    <th>代次</th>
                     <th>操作人</th>
                     <th>原因</th>
-                    <th>请求编号</th>
+                    <th>请求号</th>
                   </tr>
                 </thead>
                 <tbody>

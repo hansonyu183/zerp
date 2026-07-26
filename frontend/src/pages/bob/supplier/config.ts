@@ -75,10 +75,10 @@ export const supplierConfig = defineBobEntityConfig({
     textarea('address', '地址', 500),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('供应商编码', '供应商名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'supplierType',
-      label: '供应商类型',
+      label: '类型',
       value: (row) => row.currentVersion.summary.supplierType,
       format: (value) =>
         supplierTypeOptions.find((item) => item.value === value)?.title ??

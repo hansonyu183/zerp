@@ -51,15 +51,15 @@ export const employeeConfig = defineBobEntityConfig({
     { key: 'hireDate', label: '入职日期', type: 'date' },
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('员工编码', '员工姓名', [
+  columns: baseColumns('编码', '姓名', [
     {
       key: 'phone',
-      label: '联系电话',
+      label: '电话',
       value: (row) => row.currentVersion.summary.phone,
     },
     {
       key: 'hireDate',
-      label: '入职日期',
+      label: '入职',
       value: (row) => row.currentVersion.summary.hireDate,
     },
   ]),

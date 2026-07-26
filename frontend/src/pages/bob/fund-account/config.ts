@@ -46,7 +46,7 @@ export const fundAccountConfig = defineBobEntityConfig({
     text('accountNumber', '账号', 200),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('账户编码', '账户名称', [
+  columns: baseColumns('编码', '名称', [
     {
       key: 'currency',
       label: '币种',

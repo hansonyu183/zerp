@@ -424,8 +424,8 @@ function closeReview(value: boolean): void {
               <th>版本</th>
               <th>状态</th>
               <th>名称</th>
-              <th>更新时间</th>
-              <th>审核意见</th>
+              <th>更新</th>
+              <th>意见</th>
               <th class="text-end">操作</th>
             </tr>
           </thead>
@@ -478,11 +478,11 @@ function closeReview(value: boolean): void {
           <thead>
             <tr>
               <th>事件</th>
-              <th>状态变化</th>
+              <th>变化</th>
               <th>操作人</th>
               <th>时间</th>
               <th>意见</th>
-              <th>请求编号</th>
+              <th>请求号</th>
             </tr>
           </thead>
           <tbody>

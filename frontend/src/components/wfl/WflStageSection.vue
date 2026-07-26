@@ -55,13 +55,13 @@ function businessTime(value: string): string {
         <v-table class="stage-section__table">
           <thead>
             <tr>
-              <th>单据号</th>
+              <th>单号</th>
               <th>父单</th>
-              <th>业务日期</th>
+              <th>日期</th>
               <th>金额</th>
               <th>状态</th>
               <th>核对人</th>
-              <th>最终操作人</th>
+              <th>操作人</th>
               <th class="text-end">操作</th>
             </tr>
           </thead>

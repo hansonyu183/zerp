@@ -5,7 +5,7 @@ STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
 override E2E_ENV_FILE := .env.e2e.local
 override E2E_PROJECT := zerp-api-e2e
-TEST_PROJECT ?= zerp-api-test
+override TEST_PROJECT := zerp-api-test
 TEST_POSTGRES_PORT ?= 55434
 TEST_DATABASE_URL_EFFECTIVE = postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:$(TEST_POSTGRES_PORT)/$(TEST_POSTGRES_DB)?sslmode=disable
 TEST_COMPOSE = POSTGRES_PORT=$(TEST_POSTGRES_PORT) docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
@@ -76,6 +76,7 @@ test-db-prepare:
 	@go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up
 
 test-db-clean:
+	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
 	@$(TEST_COMPOSE) down --volumes --remove-orphans
 
 test-integration: test-db-prepare

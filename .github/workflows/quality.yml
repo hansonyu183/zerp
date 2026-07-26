@@ -82,7 +82,6 @@ jobs:
             echo 'DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp?sslmode=disable'
             echo 'TEST_POSTGRES_DB=zerp_test'
             echo 'TEST_POSTGRES_PORT=55434'
-            echo 'TEST_DATABASE_URL=postgres://zerp:ci-only-password@localhost:55434/zerp_test?sslmode=disable'
             echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
             echo 'FEEDBACK_GITHUB_ENABLED=false'
           } >> backend/.env.ci

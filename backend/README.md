@@ -110,8 +110,7 @@ make ENV_FILE=.env.test compose-up
 | `POSTGRES_USER` | Compose 启动时是 | `zerp` | Compose PostgreSQL 用户名 |
 | `POSTGRES_PASSWORD` | Compose 启动时是 | 无 | Compose PostgreSQL 本地密码；只写入被 Git 忽略的环境文件 |
 | `TEST_POSTGRES_DB` | 测试时是 | 无 | 独立测试数据库名；必须以 `_test` 结尾且不得与 `POSTGRES_DB` 相同 |
-| `TEST_POSTGRES_PORT` | 否 | `55434` | `make test` / `make check` 专用 PostgreSQL 回环端口；必须与 `POSTGRES_PORT` 不同 |
-| `TEST_DATABASE_URL` | 测试时是 | 无 | 独立测试数据库连接串；实际连接库必须与 `TEST_POSTGRES_DB` 一致 |
+| `TEST_POSTGRES_PORT` | 否 | `55434` | `make test` / `make check` 专用 PostgreSQL 回环端口；必须与 `POSTGRES_PORT` 不同，Make 会据此生成测试连接串 |
 | `API_PORT` | 否 | `8080` | Compose 暴露到宿主机的 API 端口 |
 | `POSTGRES_PORT` | 否 | `5432` | Compose 暴露到宿主机的 PostgreSQL 端口 |
 | `PGADMIN_DEFAULT_EMAIL` | Compose 启动时是 | 无 | pgAdmin 初始管理员邮箱 |

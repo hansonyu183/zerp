@@ -10,6 +10,11 @@ SELECT * FROM app_users WHERE id = sqlc.arg(id) LIMIT 1;
 -- name: GetAppUserByIDForUpdate :one
 SELECT * FROM app_users WHERE id = sqlc.arg(id) LIMIT 1 FOR UPDATE;
 
+-- name: GetAppUserAvatarURL :one
+SELECT p.avatar_url
+FROM (VALUES (sqlc.arg(user_id)::varchar(26))) AS requested(user_id)
+LEFT JOIN app_user_profiles p ON p.user_id = requested.user_id;
+
 -- name: RecordSigninFailure :one
 UPDATE app_users SET
   failed_signin_count = failed_signin_count + 1,
@@ -27,8 +32,10 @@ INSERT INTO app_sessions (id, user_id, token_hash, csrf_token_hash, last_seen_at
 VALUES (sqlc.arg(id), sqlc.arg(user_id), sqlc.arg(token_hash), sqlc.arg(csrf_token_hash), now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at));
 
 -- name: GetAppSessionByTokenHash :one
-SELECT s.*, u.username, u.display_name, u.status AS user_status
-FROM app_sessions s JOIN app_users u ON u.id = s.user_id
+SELECT s.*, u.username, u.display_name, u.status AS user_status, p.avatar_url
+FROM app_sessions s
+JOIN app_users u ON u.id = s.user_id
+LEFT JOIN app_user_profiles p ON p.user_id = u.id
 WHERE s.token_hash = sqlc.arg(token_hash) LIMIT 1;
 
 -- name: RotateAppSessionCSRF :execrows
@@ -219,6 +226,26 @@ INSERT INTO app_user_roles (user_id, role_id, created_by) VALUES (sqlc.arg(user_
 -- name: UpdateAppUser :execrows
 UPDATE app_users SET display_name = sqlc.arg(display_name), updated_at = now(), updated_by = sqlc.narg(actor_id), revision = revision + 1
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(revision);
+
+-- name: UpdateCurrentAppUserProfile :one
+UPDATE app_users
+SET display_name = sqlc.arg(display_name),
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id),
+    revision = revision + 1
+WHERE id = sqlc.arg(id) AND status = 'ENABLED'
+RETURNING *;
+
+-- name: UpsertAppUserProfileAvatar :exec
+INSERT INTO app_user_profiles (user_id, avatar_url, updated_by)
+VALUES (sqlc.arg(user_id), sqlc.arg(avatar_url), sqlc.arg(actor_id))
+ON CONFLICT (user_id) DO UPDATE
+SET avatar_url = EXCLUDED.avatar_url,
+    updated_at = now(),
+    updated_by = EXCLUDED.updated_by;
+
+-- name: DeleteAppUserProfileAvatar :exec
+DELETE FROM app_user_profiles WHERE user_id = sqlc.arg(user_id);
 
 -- name: UpdateAppUserPassword :execrows
 UPDATE app_users SET

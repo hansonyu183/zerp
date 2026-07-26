@@ -1,6 +1,8 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -78,12 +80,46 @@ func (h *Handler) signout(c *gin.Context) {
 }
 
 func (h *Handler) profile(c *gin.Context) {
-	if err := requestbody.DecodeEmptyObject(c); err != nil {
-		h.writeError(c, domainError(ErrorValidation, "request body must be an empty object", err))
+	var request struct {
+		DisplayName json.RawMessage `json:"displayName"`
+		AvatarURL   json.RawMessage `json:"avatarUrl"`
+	}
+	if err := requestbody.DecodeJSON(c, &request); err != nil {
+		h.writeError(c, domainError(ErrorValidation, "invalid request", err))
 		return
 	}
 	principal := currentPrincipal(c)
-	result, err := h.service.GetProfile(c.Request.Context(), principal.User.ID)
+	if len(request.DisplayName) == 0 && len(request.AvatarURL) == 0 {
+		result, err := h.service.GetProfile(c.Request.Context(), principal.User.ID)
+		h.result(c, result, err)
+		return
+	}
+	if len(request.DisplayName) == 0 ||
+		bytes.Equal(bytes.TrimSpace(request.DisplayName), []byte("null")) {
+		h.writeError(c, domainError(ErrorValidation, "display name is required", nil))
+		return
+	}
+	var displayName string
+	if err := json.Unmarshal(request.DisplayName, &displayName); err != nil {
+		h.writeError(c, domainError(ErrorValidation, "invalid display name", err))
+		return
+	}
+	var avatarURL *string
+	if len(request.AvatarURL) > 0 &&
+		!bytes.Equal(bytes.TrimSpace(request.AvatarURL), []byte("null")) {
+		var value string
+		if err := json.Unmarshal(request.AvatarURL, &value); err != nil {
+			h.writeError(c, domainError(ErrorValidation, "invalid avatar URL", err))
+			return
+		}
+		avatarURL = &value
+	}
+	result, err := h.service.SaveProfile(
+		c.Request.Context(),
+		principal.User.ID,
+		SaveProfileInput{DisplayName: displayName, AvatarURL: avatarURL},
+		response.RequestID(c),
+	)
 	h.result(c, result, err)
 }
 

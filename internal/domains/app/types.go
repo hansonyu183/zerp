@@ -42,17 +42,24 @@ func errorIsKind(err error, kind ErrorKind) bool {
 }
 
 type UserSummary struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
+	ID          string  `json:"id"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"displayName"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
 type ProfileView struct {
 	ID                string    `json:"id"`
 	Username          string    `json:"username"`
 	DisplayName       string    `json:"displayName"`
+	AvatarURL         *string   `json:"avatarUrl,omitempty"`
 	PasswordChangedAt time.Time `json:"passwordChangedAt"`
 	Revision          int64     `json:"revision"`
+}
+
+type SaveProfileInput struct {
+	DisplayName string
+	AvatarURL   *string
 }
 
 type ChangePasswordInput struct {

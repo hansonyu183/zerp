@@ -25,6 +25,8 @@ type handlerServiceStub struct {
 	authorizedPath        string
 	sessionAuthorizedPath string
 	profileResult         ProfileView
+	savedProfile          SaveProfileInput
+	savedProfileUserID    string
 	changedPassword       ChangePasswordInput
 	createdFeedback       CreateFeedbackInput
 }
@@ -48,6 +50,17 @@ func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest) (Page[U
 }
 
 func (stub *handlerServiceStub) GetProfile(context.Context, string) (ProfileView, error) {
+	return stub.profileResult, nil
+}
+
+func (stub *handlerServiceStub) SaveProfile(
+	_ context.Context,
+	userID string,
+	input SaveProfileInput,
+	_ string,
+) (ProfileView, error) {
+	stub.savedProfileUserID = userID
+	stub.savedProfile = input
 	return stub.profileResult, nil
 }
 
@@ -248,6 +261,108 @@ func TestProfileUsesCurrentPrincipalAndExactPermission(t *testing.T) {
 	}
 	if envelope.Code != response.CodeOK {
 		t.Fatalf("code = %d, want 0", envelope.Code)
+	}
+}
+
+func TestProfileSaveUsesCurrentPrincipalAndExistingPermission(t *testing.T) {
+	avatarURL := "https://images.example.com/alice.png"
+	stub := &handlerServiceStub{
+		authorizeResult: Principal{User: UserSummary{ID: "user-1"}},
+		profileResult: ProfileView{
+			ID: "user-1", Username: "alice", DisplayName: "新名称", AvatarURL: &avatarURL,
+		},
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/user/profile",
+		strings.NewReader(`{"displayName":"新名称","avatarUrl":"https://images.example.com/alice.png"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if stub.authorizedPath != "/app/user/profile" || stub.savedProfileUserID != "user-1" ||
+		stub.savedProfile.DisplayName != "新名称" || stub.savedProfile.AvatarURL == nil ||
+		*stub.savedProfile.AvatarURL != avatarURL {
+		t.Fatalf(
+			"profile save dispatch path=%q user=%q input=%#v",
+			stub.authorizedPath, stub.savedProfileUserID, stub.savedProfile,
+		)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Code != response.CodeOK {
+		t.Fatalf("code = %d, want 0", envelope.Code)
+	}
+}
+
+func TestProfileSaveRejectsInvalidShapes(t *testing.T) {
+	for _, body := range []string{
+		`{"displayName":null}`,
+		`{"avatarUrl":"https://images.example.com/alice.png"}`,
+		`{"displayName":"Alice","revision":1}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			stub := &handlerServiceStub{
+				authorizeResult: Principal{User: UserSummary{ID: "user-1"}},
+			}
+			request := httptest.NewRequest(http.MethodPost, "/app/user/profile", strings.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-CSRF-Token", "csrf")
+			request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+			recorder := httptest.NewRecorder()
+			testRouter(stub).ServeHTTP(recorder, request)
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode envelope: %v", err)
+			}
+			if envelope.Code != response.CodeValidation || stub.savedProfileUserID != "" {
+				t.Fatalf("envelope=%#v savedUser=%q", envelope, stub.savedProfileUserID)
+			}
+		})
+	}
+}
+
+func TestProfileSavePreservesAuthorizationErrors(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+		code int
+	}{
+		{
+			name: "unauthenticated",
+			err:  domainError(ErrorUnauthenticated, "session expired", nil),
+			code: response.CodeUnauthenticated,
+		},
+		{
+			name: "csrf or permission forbidden",
+			err:  domainError(ErrorForbidden, "permission denied", nil),
+			code: response.CodeForbidden,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stub := &handlerServiceStub{authorizeError: test.err}
+			request := httptest.NewRequest(
+				http.MethodPost,
+				"/app/user/profile",
+				strings.NewReader(`{"displayName":"Alice"}`),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+			recorder := httptest.NewRecorder()
+			testRouter(stub).ServeHTTP(recorder, request)
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode envelope: %v", err)
+			}
+			if envelope.Code != test.code || stub.savedProfileUserID != "" {
+				t.Fatalf("envelope=%#v savedUser=%q", envelope, stub.savedProfileUserID)
+			}
+		})
 	}
 }
 

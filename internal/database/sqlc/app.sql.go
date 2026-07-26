@@ -333,6 +333,15 @@ func (q *Queries) DeleteAppRolePermissions(ctx context.Context, roleID string) e
 	return err
 }
 
+const deleteAppUserProfileAvatar = `-- name: DeleteAppUserProfileAvatar :exec
+DELETE FROM app_user_profiles WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAppUserProfileAvatar(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, deleteAppUserProfileAvatar, userID)
+	return err
+}
+
 const deleteAppUserRoles = `-- name: DeleteAppUserRoles :exec
 DELETE FROM app_user_roles WHERE user_id = $1
 `
@@ -417,8 +426,10 @@ func (q *Queries) GetAppRolePermissionIDs(ctx context.Context, roleID string) ([
 }
 
 const getAppSessionByTokenHash = `-- name: GetAppSessionByTokenHash :one
-SELECT s.id, s.user_id, s.token_hash, s.csrf_token_hash, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoked_reason, u.username, u.display_name, u.status AS user_status
-FROM app_sessions s JOIN app_users u ON u.id = s.user_id
+SELECT s.id, s.user_id, s.token_hash, s.csrf_token_hash, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoked_reason, u.username, u.display_name, u.status AS user_status, p.avatar_url
+FROM app_sessions s
+JOIN app_users u ON u.id = s.user_id
+LEFT JOIN app_user_profiles p ON p.user_id = u.id
 WHERE s.token_hash = $1 LIMIT 1
 `
 
@@ -436,6 +447,7 @@ type GetAppSessionByTokenHashRow struct {
 	Username          string             `db:"username" json:"username"`
 	DisplayName       string             `db:"display_name" json:"display_name"`
 	UserStatus        string             `db:"user_status" json:"user_status"`
+	AvatarUrl         *string            `db:"avatar_url" json:"avatar_url"`
 }
 
 func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error) {
@@ -455,8 +467,22 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 		&i.Username,
 		&i.DisplayName,
 		&i.UserStatus,
+		&i.AvatarUrl,
 	)
 	return i, err
+}
+
+const getAppUserAvatarURL = `-- name: GetAppUserAvatarURL :one
+SELECT p.avatar_url
+FROM (VALUES ($1::varchar(26))) AS requested(user_id)
+LEFT JOIN app_user_profiles p ON p.user_id = requested.user_id
+`
+
+func (q *Queries) GetAppUserAvatarURL(ctx context.Context, userID string) (*string, error) {
+	row := q.db.QueryRow(ctx, getAppUserAvatarURL, userID)
+	var avatar_url *string
+	err := row.Scan(&avatar_url)
+	return avatar_url, err
 }
 
 const getAppUserByID = `-- name: GetAppUserByID :one
@@ -1170,4 +1196,61 @@ func (q *Queries) UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const updateCurrentAppUserProfile = `-- name: UpdateCurrentAppUserProfile :one
+UPDATE app_users
+SET display_name = $1,
+    updated_at = now(),
+    updated_by = $2,
+    revision = revision + 1
+WHERE id = $3 AND status = 'ENABLED'
+RETURNING id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision
+`
+
+type UpdateCurrentAppUserProfileParams struct {
+	DisplayName string  `db:"display_name" json:"display_name"`
+	ActorID     *string `db:"actor_id" json:"actor_id"`
+	ID          string  `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error) {
+	row := q.db.QueryRow(ctx, updateCurrentAppUserProfile, arg.DisplayName, arg.ActorID, arg.ID)
+	var i AppUser
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.Status,
+		&i.FailedSigninCount,
+		&i.LockedUntil,
+		&i.PasswordChangedAt,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.Revision,
+	)
+	return i, err
+}
+
+const upsertAppUserProfileAvatar = `-- name: UpsertAppUserProfileAvatar :exec
+INSERT INTO app_user_profiles (user_id, avatar_url, updated_by)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE
+SET avatar_url = EXCLUDED.avatar_url,
+    updated_at = now(),
+    updated_by = EXCLUDED.updated_by
+`
+
+type UpsertAppUserProfileAvatarParams struct {
+	UserID    string  `db:"user_id" json:"user_id"`
+	AvatarUrl string  `db:"avatar_url" json:"avatar_url"`
+	ActorID   *string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) UpsertAppUserProfileAvatar(ctx context.Context, arg UpsertAppUserProfileAvatarParams) error {
+	_, err := q.db.Exec(ctx, upsertAppUserProfileAvatar, arg.UserID, arg.AvatarUrl, arg.ActorID)
+	return err
 }

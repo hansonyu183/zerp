@@ -227,10 +227,33 @@ const result = await postApi<{
   id: string
   username: string
   displayName: string
+  avatarUrl?: string
   passwordChangedAt: string
   revision: number
 }>('/app/user/profile', {}, csrfToken)
 ```
+
+保存当前用户资料复用同一路径：
+
+```ts
+const updated = await postApi<{
+  id: string
+  username: string
+  displayName: string
+  avatarUrl?: string
+  passwordChangedAt: string
+  revision: number
+}>(
+  '/app/user/profile',
+  {
+    displayName,
+    avatarUrl: avatarUrl.trim() || undefined,
+  },
+  csrfToken,
+)
+```
+
+省略或传空 `avatarUrl` 会清除头像。接口不接收用户 ID、角色、状态、密码或 `revision`。
 
 ### 修改密码
 

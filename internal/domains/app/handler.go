@@ -21,6 +21,7 @@ type applicationService interface {
 	AuthorizeSession(context.Context, string, string, string, string) (Principal, error)
 	Signout(context.Context, Principal, string) error
 	GetProfile(context.Context, string) (ProfileView, error)
+	SaveProfile(context.Context, string, SaveProfileInput, string) (ProfileView, error)
 	ChangePassword(context.Context, Principal, ChangePasswordInput, string) error
 	QueryUsers(context.Context, PageRequest) (Page[UserView], error)
 	GetUser(context.Context, string) (UserView, error)

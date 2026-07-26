@@ -29,6 +29,7 @@ COPY --from=build /out/zerp-bootstrap-admin /usr/local/bin/zerp-bootstrap-admin
 COPY --from=build /out/zerp-seed-bob /usr/local/bin/zerp-seed-bob
 COPY --from=build /out/goose /usr/local/bin/goose
 COPY db/migrations /app/migrations
+RUN chmod -R a+rX /app/migrations
 
 USER zerp
 EXPOSE 8080

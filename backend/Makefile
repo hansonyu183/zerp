@@ -128,6 +128,7 @@ quality-vuln:
 
 quality-image:
 	docker build --tag $(QUALITY_IMAGE_TAG) .
+	docker run --rm --entrypoint /bin/sh $(QUALITY_IMAGE_TAG) -c 'test -r /app/migrations/00001_initial.sql'
 
 migrate-status:
 	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" status

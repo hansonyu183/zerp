@@ -32,7 +32,6 @@ test -d "${repository_root}/.git" || {
 cleanup() {
   git -C "${repository_root}" worktree remove --force "${source_root}" >/dev/null 2>&1 || true
   git -C "${repository_root}" worktree prune >/dev/null 2>&1 || true
-  rm -rf "${runtime_root}/rollback-frontend"
 }
 trap cleanup EXIT INT TERM
 cleanup
@@ -45,20 +44,6 @@ production_compose \
 production_wait_url "Production API local" "http://127.0.0.1:8080/readyz" 90
 production_wait_url "Production API public" "https://zerp-api.bytesucceed.com/readyz" 90
 
-production_load_cloudflare
-restore_root="${runtime_root}/rollback-frontend"
-mkdir -p "${restore_root}"
-tar -xzf "${release_root}/frontend-dist.tar.gz" -C "${restore_root}"
-wrangler pages deploy "${restore_root}/dist" \
-  --project-name "${CLOUDFLARE_PAGES_PROJECT:-zerp}" \
-  --branch main \
-  --commit-hash "${release_sha}" \
-  --commit-dirty=false
-
-production_wait_content \
-  "Production frontend" \
-  "https://zerp.bytesucceed.com/_zerp-release" \
-  "${release_sha}" 90
 printf '%s\n' "${release_sha}" > "${runtime_root}/current-sha.new"
 mv "${runtime_root}/current-sha.new" "${runtime_root}/current-sha"
-echo "Production application rolled back to ${release_sha}; database was not changed"
+echo "Production containers rolled back to ${release_sha}; Pages and database were not changed"

@@ -95,7 +95,7 @@ git diff --exit-code
 
 ### Cloudflare Pages
 
-前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages 构建使用 `pnpm build:web` 和 `frontend/dist`；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
+前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages Git 集成使用 `pnpm build` 和根目录 `dist/`，构建时写入精确 commit 标记；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
 
 ### 固定外网开发预览
 

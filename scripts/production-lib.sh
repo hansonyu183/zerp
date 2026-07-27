@@ -73,24 +73,6 @@ production_wait_content() {
   done
 }
 
-production_load_cloudflare() {
-  account_file=${CLOUDFLARE_ACCOUNT_FILE:-${HOME}/.secrets/cloudflare/account_id_bytesucceed}
-  token_file=${CLOUDFLARE_PAGES_TOKEN_FILE:-${HOME}/.secrets/cloudflare/api_token_pages_deploy}
-
-  test -r "${account_file}" || {
-    echo "Missing Cloudflare account file: ${account_file}" >&2
-    return 1
-  }
-  test -r "${token_file}" || {
-    echo "Missing Cloudflare Pages token file: ${token_file}" >&2
-    return 1
-  }
-
-  IFS= read -r CLOUDFLARE_ACCOUNT_ID < "${account_file}"
-  IFS= read -r CLOUDFLARE_API_TOKEN < "${token_file}"
-  export CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN
-}
-
 production_validate_release_ref() {
   release_ref=${1:-}
   test "${#release_ref}" -eq 40 || {

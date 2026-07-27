@@ -20,13 +20,13 @@ make preview-status
 
 正式环境由同一 merge commit 统一发布：
 
-1. 本机发布代理确认 `main` 的五项检查全部成功；
-2. 从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；
-3. 备份 PostgreSQL、附件及上一版发布清单；
-4. 运行向后兼容的 Goose migration；
-5. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；
-6. 将同一 commit 的前端产物上传到 Cloudflare Pages 项目 `zerp`；
-7. 验证 `https://zerp.bytesucceed.com` 与 `https://zerp-api.bytesucceed.com`，并写回 GitHub Production Deployment 状态。
+1. Cloudflare Pages Git 集成构建并发布同一 `main` commit；
+2. 本机发布代理确认 `main` 的五项检查和 `Cloudflare Pages` 全部成功；
+3. 从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；
+4. 备份 PostgreSQL、附件及上一版发布清单；
+5. 运行向后兼容的 Goose migration；
+6. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；
+7. 验证 Pages 的精确 commit 标记、`https://zerp.bytesucceed.com` 与 `https://zerp-api.bytesucceed.com`，并写回 GitHub Production Deployment 状态。
 
 发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。纯文档或 CI 配置提交记录为成功 no-op，不重建应用。
 
@@ -34,12 +34,12 @@ make preview-status
 
 - Production Compose 项目固定为 `zerp-back`，环境文件固定为 `backend/.env.production.local`，权限必须为 `600`。
 - 开发、E2E、固定预览和生产必须使用不同 Compose 项目、端口、数据库、卷和 Cookie。
-- Cloudflare Pages Token 只授予目标账户的 Pages 发布权限，保存在本机凭证目录，禁止写入仓库、日志或 launchd plist。
+- Cloudflare Pages 继续复用仓库现有 Git 集成，不新增、不复制 Pages API Token。
 - 发布备份保存在被 Git 忽略的 `backend/var/production/releases/`，保留最近七次成功版本。
 
 ## 4. 失败与回滚
 
-构建、备份或 migration 失败时不更新应用。API rollout、Pages 上传或公网健康检查失败时，发布代理自动恢复上线前的应用镜像并标记 GitHub Deployment 失败。
+构建、备份或 migration 失败时不更新应用。Pages 失败会在本机发布前阻断流程；API rollout 或公网健康检查失败时，发布代理自动恢复上线前的应用镜像并标记 GitHub Deployment 失败。
 
 数据库不得自动执行 down migration，也不得自动恢复备份，以免覆盖上线后的业务写入。所有 migration 必须兼容上一版应用；数据库恢复只能在明确停写和人工确认后执行。
 
@@ -50,11 +50,11 @@ make production-rollback PRODUCTION_REF=<full-commit-sha>
 make production-status
 ```
 
-回滚只切换应用镜像和对应前端产物，不修改数据库。
+该命令只切换本机应用镜像，不修改 Pages 或数据库。需要回退前端时，通过 revert PR 恢复 `main`；Cloudflare Pages 与本机代理会按新 merge commit 自动完成协调发布。
 
 ## 5. 安装与验收
 
-首次安装前准备生产环境文件和最小权限 Cloudflare Pages Token，然后运行：
+首次安装前准备生产环境文件，然后运行：
 
 ```bash
 scripts/install-production-agent.sh

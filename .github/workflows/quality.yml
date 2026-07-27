@@ -57,7 +57,10 @@ jobs:
       - name: Run frontend quality gate
         run: pnpm check:web
       - name: Verify Cloudflare Pages compatibility build
-        run: pnpm build && test -f dist/index.html
+        run: |
+          pnpm build
+          test -f dist/index.html
+          test "$(cat dist/_zerp-release)" = "$GITHUB_SHA"
       - name: Audit production dependencies
         run: pnpm audit --prod
 

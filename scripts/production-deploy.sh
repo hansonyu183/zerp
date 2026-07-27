@@ -17,9 +17,7 @@ env_file=$(production_env_file)
 release_root="${runtime_root}/releases/${release_sha}"
 api_image="zerp-production-api:${release_sha}"
 web_image="zerp-production-web:${release_sha}"
-pages_project=${CLOUDFLARE_PAGES_PROJECT:-zerp}
 dry_run=${PRODUCTION_DRY_RUN:-0}
-previous_sha=$(cat "${runtime_root}/current-sha" 2>/dev/null || true)
 
 test -f "${env_file}" || {
   echo "Missing production environment: ${env_file}" >&2
@@ -86,6 +84,14 @@ if [ "${dry_run}" = "1" ]; then
   exit 0
 fi
 
+if ! production_wait_content \
+  "Cloudflare Pages production" \
+  "https://zerp.bytesucceed.com/_zerp-release" \
+  "${release_sha}" 90; then
+  printf '%s\n' failed > "${release_root}/status"
+  exit 1
+fi
+
 rollback_backend() {
   if [ -n "${fallback_api_image}" ] && [ -n "${fallback_web_image}" ]; then
     echo "Rolling application containers back to their pre-deploy images" >&2
@@ -96,37 +102,8 @@ rollback_backend() {
   fi
 }
 
-rollback_frontend() {
-  previous_release="${runtime_root}/releases/${previous_sha}"
-  if [ -z "${previous_sha}" ] ||
-     [ "$(cat "${previous_release}/status" 2>/dev/null || true)" != "success" ] ||
-     [ ! -s "${previous_release}/frontend-dist.tar.gz" ]; then
-    echo "No managed frontend release is available for automatic rollback" >&2
-    return 0
-  fi
-
-  rollback_root="${release_root}/frontend-rollback"
-  rm -rf "${rollback_root}"
-  mkdir -p "${rollback_root}"
-  tar -xzf "${previous_release}/frontend-dist.tar.gz" -C "${rollback_root}"
-  wrangler pages deploy "${rollback_root}/dist" \
-    --project-name "${pages_project}" \
-    --branch main \
-    --commit-hash "${previous_sha}" \
-    --commit-dirty=false
-  production_wait_content \
-    "Production frontend rollback" \
-    "https://zerp.bytesucceed.com/_zerp-release" \
-    "${previous_sha}" 90
-  rm -rf "${rollback_root}"
-}
-
-pages_may_have_changed=false
 rollback_release() {
   rollback_backend
-  if [ "${pages_may_have_changed}" = "true" ]; then
-    rollback_frontend || true
-  fi
 }
 trap rollback_release HUP INT TERM
 
@@ -150,19 +127,6 @@ fi
 if ! production_wait_url "Production API local" "http://127.0.0.1:8080/readyz" 90 ||
    ! production_wait_url "Production API public" "https://zerp-api.bytesucceed.com/readyz" 90; then
   rollback_backend
-  printf '%s\n' failed > "${release_root}/status"
-  exit 1
-fi
-
-production_load_cloudflare
-echo "Deploying production frontend ${release_sha}"
-pages_may_have_changed=true
-if ! wrangler pages deploy "${repo_root}/frontend/dist" \
-  --project-name "${pages_project}" \
-  --branch main \
-  --commit-hash "${release_sha}" \
-  --commit-dirty=false; then
-  rollback_release
   printf '%s\n' failed > "${release_root}/status"
   exit 1
 fi

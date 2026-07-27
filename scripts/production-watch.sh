@@ -43,7 +43,8 @@ if [ "${target_sha}" = "${current_sha}" ]; then
 fi
 
 check_runs=$(gh api "repos/${repo_slug}/commits/${target_sha}/check-runs?per_page=100")
-for required_check in ${required_checks}; do
+check_ready() {
+  required_check=$1
   check_state=$(
     printf '%s' "${check_runs}" |
       jq -r --arg name "${required_check}" \
@@ -54,9 +55,14 @@ for required_check in ${required_checks}; do
   )
   if [ "${check_state}" != "completed:success" ]; then
     echo "Waiting for ${required_check} on ${target_sha}: ${check_state}"
-    exit 0
+    return 1
   fi
+}
+
+for required_check in ${required_checks}; do
+  check_ready "${required_check}" || exit 0
 done
+check_ready "Cloudflare Pages" || exit 0
 
 deployment_id=$(
   jq -n --arg ref "${target_sha}" \

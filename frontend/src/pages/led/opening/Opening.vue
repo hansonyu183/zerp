@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { LedgerReferenceAutocomplete } from '@/components/ledger'
 import { formatLocalDateTime } from '@/utils/date'
 import { openingEventLabel, useOpeningViewModel } from './vm'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 const vm = useOpeningViewModel()
 const tab = ref<'opening' | 'audit'>('opening')
+const showCurrency = ref(false)
+const currencyVisible = computed(() =>
+  showCurrency.value ||
+  vm.form.party.some((row) => row.currency.trim().toUpperCase() !== 'CNY') ||
+  Boolean(vm.errorMessage.value?.includes('币种')),
+)
+const quantityRule = (value: string) =>
+  /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) || '数量格式不正确。'
+const moneyRule = (value: string) =>
+  /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value) || '金额格式不正确。'
+const currencyRule = (value: string) =>
+  /^[A-Z]{3}$/.test(value.trim().toUpperCase()) || '币种必须是三位字母。'
 
 const statusText: Record<string, string> = {
   DRAFT: '草稿',
@@ -20,6 +33,12 @@ function changeTab(value: unknown): void {
 }
 
 void vm.load()
+
+async function saveOpening(): Promise<void> {
+  if (await vm.save()) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+}
 </script>
 
 <template>
@@ -93,6 +112,13 @@ void vm.load()
                   type="date"
                   variant="outlined"
                 />
+                <v-btn
+                  size="small"
+                  variant="text"
+                  @click="showCurrency = !showCurrency"
+                >
+                  {{ currencyVisible ? '隐藏币种' : '显示币种' }}
+                </v-btn>
                 <v-text-field
                   :model-value="vm.opening.value.activeGenerationId ?? '—'"
                   label="当前账簿代次"
@@ -147,12 +173,11 @@ void vm.load()
                             />
                           </td>
                           <td>
-                            <v-text-field
+                            <CompactTableField
                               v-model="row.quantity"
                               :disabled="!vm.editable.value"
-                              label="数量"
                               inputmode="decimal"
-                              variant="outlined"
+                              :rules="[quantityRule]"
                             />
                           </td>
                           <td v-if="vm.editable.value" class="text-end">
@@ -226,12 +251,11 @@ void vm.load()
                             />
                           </td>
                           <td>
-                            <v-text-field
+                            <CompactTableField
                               v-model="row.amount"
                               :disabled="!vm.editable.value"
                               inputmode="decimal"
-                              label="金额"
-                              variant="outlined"
+                              :rules="[moneyRule]"
                             />
                           </td>
                           <td v-if="vm.editable.value" class="text-end">
@@ -275,7 +299,7 @@ void vm.load()
                         <tr>
                           <th>类型</th>
                           <th>往来方</th>
-                          <th>币种</th>
+                          <th v-if="currencyVisible">币种</th>
                           <th>性质</th>
                           <th>金额</th>
                           <th v-if="vm.editable.value" class="text-end">操作</th>
@@ -309,14 +333,14 @@ void vm.load()
                               @search="vm.partyReferences.search"
                             />
                           </td>
-                          <td>
-                            <v-text-field
-                              v-model="row.currency"
+                          <td v-if="currencyVisible">
+                            <CompactTableField
                               :disabled="!vm.editable.value"
                               label="币种"
-                              maxlength="3"
-                              variant="outlined"
-                              @blur="row.currency = row.currency.trim().toUpperCase()"
+                              :maxlength="3"
+                              :model-value="row.currency"
+                              :rules="[currencyRule]"
+                              @update:model-value="row.currency = $event.toUpperCase()"
                             />
                           </td>
                           <td>
@@ -332,12 +356,11 @@ void vm.load()
                             />
                           </td>
                           <td>
-                            <v-text-field
+                            <CompactTableField
                               v-model="row.amount"
                               :disabled="!vm.editable.value"
                               inputmode="decimal"
-                              label="金额"
-                              variant="outlined"
+                              :rules="[moneyRule]"
                             />
                           </td>
                           <td v-if="vm.editable.value" class="text-end">
@@ -351,7 +374,7 @@ void vm.load()
                           </td>
                         </tr>
                         <tr v-if="vm.form.party.length === 0">
-                          <td :colspan="vm.editable.value ? 6 : 5" class="opening-page__empty">
+                          <td :colspan="(vm.editable.value ? 5 : 4) + (currencyVisible ? 1 : 0)" class="opening-page__empty">
                             暂无往来期初
                           </td>
                         </tr>
@@ -411,12 +434,11 @@ void vm.load()
                             />
                           </td>
                           <td>
-                            <v-text-field
+                            <CompactTableField
                               v-model="row.quantity"
                               :disabled="!vm.editable.value"
                               inputmode="numeric"
-                              label="数量"
-                              variant="outlined"
+                              :rules="[(value) => /^\d+$/.test(value) || '数量必须是非负整数。']"
                             />
                           </td>
                           <td v-if="vm.editable.value" class="text-end">
@@ -456,7 +478,7 @@ void vm.load()
                 :loading="vm.saving.value"
                 prepend-icon="mdi-content-save-outline"
                 variant="tonal"
-                @click="vm.save"
+                @click="saveOpening"
               >
                 保存期初
               </v-btn>

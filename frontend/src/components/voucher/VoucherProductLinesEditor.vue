@@ -11,6 +11,7 @@ import {
   sumMoney,
 } from './decimal'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 defineOptions({ name: 'VoucherProductLinesEditor' })
 
@@ -152,49 +153,40 @@ function removeLine(index: number): void {
               </span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 inputmode="decimal"
                 :model-value="line.orderedQuantity"
                 :rules="[
                   (v: string) => isQuantity(v) ||
                     '请输入大于零且最多六位小数的数量。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { orderedQuantity: $event })"
               />
               <span v-else>{{ line.orderedQuantity }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 inputmode="decimal"
                 :model-value="line.unitPrice"
                 :rules="[
                   (v: string) => isMoney(v) ||
                     '请输入大于零且最多两位小数的单价。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { unitPrice: $event })"
               />
               <span v-else>{{ line.unitPrice }}</span>
             </td>
             <td v-if="purchasePriceRequired">
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 inputmode="decimal"
                 :model-value="line.purchaseUnitPrice"
                 :rules="[
                   (v: string) => isMoney(v) ||
                     '请输入大于零且最多两位小数的采购单价。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { purchaseUnitPrice: $event })"
               />
               <span v-else>{{ line.purchaseUnitPrice }}</span>
@@ -203,14 +195,11 @@ function removeLine(index: number): void {
               {{ calculateLineAmount(line.orderedQuantity, line.unitPrice) ?? '—' }}
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                counter="1000"
-                density="compact"
-                hide-details="auto"
+                :maxlength="1000"
                 :model-value="line.remark"
                 :rules="[(v: string) => Array.from(v ?? '').length <= 1000 || '备注不能超过 1000 字。']"
-                variant="outlined"
                 @update:model-value="updateLine(index, { remark: $event })"
               />
               <span v-else>{{ line.remark || '—' }}</span>

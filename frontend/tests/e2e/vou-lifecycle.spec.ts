@@ -109,6 +109,8 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, '经办人', fixture.employee, workspace)
   await selectReference(page, '资金账户', fixture.fundAccount, workspace)
+  await expect(page.getByLabel('币种')).toHaveCount(0)
+  await page.getByRole('button', { name: '更多设置' }).click()
   await expect(page.getByLabel('币种')).toHaveValue(fixture.currency)
   await page.getByLabel('金额').fill('100.00')
   await page.getByRole('button', { name: '创建草稿' }).click()

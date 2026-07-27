@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
@@ -47,6 +48,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const page = ref(1)
   const pageSize = ref(20)
   const keyword = ref('')
+  const sort = ref<BusinessObjectSort>({
+    field: 'updatedAt',
+    order: 'desc',
+  })
   const filters = ref<Record<string, unknown>>(
     Object.fromEntries(
       config.filters.map((field) => [
@@ -168,7 +173,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         page: page.value,
         pageSize: pageSize.value,
         filters: buildQueryFilters(),
-        sort: [{ field: 'updatedAt', order: 'desc' }],
+        sort: [{ ...sort.value }],
       })
       rows.value = Array.isArray(data.items) ? data.items : []
       total.value = typeof data.total === 'number' ? data.total : rows.value.length
@@ -204,6 +209,12 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         field.multiple ? [] : field.type === 'switch' ? false : '',
       ]),
     )
+    sort.value = { field: 'updatedAt', order: 'desc' }
+    await search()
+  }
+
+  async function changeSort(value: BusinessObjectSort): Promise<void> {
+    sort.value = value
     await search()
   }
 
@@ -521,6 +532,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     page,
     pageSize,
     keyword,
+    sort,
     filters,
     drawerOpen,
     editorMode,
@@ -548,6 +560,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     query,
     search,
     changePage,
+    changeSort,
     resetFilters,
     openCreate,
     openView,

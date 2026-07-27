@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import {
+  isMoney,
+  isQuantity,
   VoucherAttachmentPanel,
   VoucherDocumentHeader,
   VoucherReferenceAutocomplete,
   type VoucherReference,
 } from '@/components/voucher'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 import {
   WflAuditHistory,
   WflProcessList,
@@ -38,6 +41,12 @@ import type {
 
 const props = defineProps<{ model?: IntermediaryWorkflowViewModel }>()
 const vm = reactive(props.model ?? useIntermediaryWorkflowViewModel())
+const showCurrency = ref(false)
+const currencyVisible = computed(() =>
+  showCurrency.value ||
+  vm.orderDraft.currency.trim().toUpperCase() !== 'CNY' ||
+  Boolean(vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种')),
+)
 
 const workflowStatuses: Readonly<Record<string, string>> =
   intermediaryTradeDefinition.statuses
@@ -65,6 +74,18 @@ const statusOptions = Object.entries(workflowStatuses).map(([value, title]) => (
 }))
 
 void vm.query()
+
+async function saveOrder(): Promise<void> {
+  if (await vm.saveOrder()) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+}
+
+async function saveStage(): Promise<void> {
+  if (await vm.saveStage()) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+}
 
 function workflowText(status?: string): string {
   return status ? (workflowStatuses[status] ?? status) : '—'
@@ -239,7 +260,7 @@ function createSignoff(document: WflDocumentSummary): void {
               <div>
                 <template v-if="vm.orderEditing">
                   <v-btn v-if="vm.document" :disabled="Boolean(vm.actionLoading)" variant="text" @click="vm.cancelOrderEditing">取消</v-btn>
-                  <v-btn color="primary" :loading="vm.actionLoading === 'save'" @click="vm.saveOrder">
+                  <v-btn color="primary" :loading="vm.actionLoading === 'save'" @click="saveOrder">
                     {{ vm.document ? '保存草稿' : '创建草稿' }}
                   </v-btn>
                 </template>
@@ -283,7 +304,12 @@ function createSignoff(document: WflDocumentSummary): void {
               </div>
               <div class="intermediary-workspace__form-grid">
                 <v-text-field v-model="vm.orderDraft.businessDate" :disabled="!vm.orderEditing" label="订购日期" type="date" variant="outlined" @update:model-value="vm.orderDirty = true" />
-                <v-text-field v-model="vm.orderDraft.currency" :disabled="!vm.orderEditing" label="币种" maxlength="3" variant="outlined" @update:model-value="vm.orderDraft.currency = ($event ?? '').toUpperCase(); vm.orderDirty = true" />
+                <v-text-field v-if="currencyVisible" v-model="vm.orderDraft.currency" :disabled="!vm.orderEditing" label="币种" maxlength="3" variant="outlined" @update:model-value="vm.orderDraft.currency = ($event ?? '').toUpperCase(); vm.orderDirty = true" />
+                <div class="intermediary-workspace__wide text-end">
+                  <v-btn size="small" variant="text" @click="showCurrency = !showCurrency">
+                    {{ showCurrency ? '隐藏币种' : '更多设置' }}
+                  </v-btn>
+                </div>
                 <VoucherReferenceAutocomplete
                   :disabled="!vm.orderEditing"
                   :error-message="vm.referenceError('customer')"
@@ -494,9 +520,9 @@ function createSignoff(document: WflDocumentSummary): void {
                 <tr v-for="line in stageDraftAs<IntermediaryProcurementDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
                   <td>{{ vm.document?.productLines.find((item) => item.lineId === line.rootLineId)?.orderedQuantity }}</td>
-                  <td><v-text-field v-model="line.quantity" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
-                  <td><v-text-field v-model="line.unitPrice" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
-                  <td><v-text-field v-model="line.remark" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
+                  <td><CompactTableField v-model="line.quantity" :disabled="!vm.stageEditable" :rules="[(value) => isQuantity(value) || '采购数量格式不正确。']" /></td>
+                  <td><CompactTableField v-model="line.unitPrice" :disabled="!vm.stageEditable" :rules="[(value) => isMoney(value) || '采购单价格式不正确。']" /></td>
+                  <td><CompactTableField v-model="line.remark" :disabled="!vm.stageEditable" :maxlength="1000" /></td>
                 </tr>
               </tbody>
             </v-table>
@@ -511,8 +537,8 @@ function createSignoff(document: WflDocumentSummary): void {
               <tbody>
                 <tr v-for="line in stageDraftAs<IntermediaryReceiptDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
-                  <td><v-text-field v-model="line.quantity" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
-                  <td><v-text-field v-model="line.remark" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
+                  <td><CompactTableField v-model="line.quantity" :disabled="!vm.stageEditable" :rules="[(value) => isQuantity(value) || '实收数量格式不正确。']" /></td>
+                  <td><CompactTableField v-model="line.remark" :disabled="!vm.stageEditable" :maxlength="1000" /></td>
                 </tr>
               </tbody>
             </v-table>
@@ -552,8 +578,8 @@ function createSignoff(document: WflDocumentSummary): void {
                 <tr v-for="line in stageDraftAs<IntermediaryDeliveryDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
                   <td>{{ vm.document?.balances.lines.find((item) => item.rootLineId === line.rootLineId)?.availableToDeliverQuantity }}</td>
-                  <td><v-text-field v-model="line.quantity" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
-                  <td><v-text-field v-model="line.remark" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
+                  <td><CompactTableField v-model="line.quantity" :disabled="!vm.stageEditable" :rules="[(value) => isQuantity(value) || '送货数量格式不正确。']" /></td>
+                  <td><CompactTableField v-model="line.remark" :disabled="!vm.stageEditable" :maxlength="1000" /></td>
                 </tr>
               </tbody>
             </v-table>
@@ -572,10 +598,10 @@ function createSignoff(document: WflDocumentSummary): void {
                 <tr v-for="(line, index) in stageDraftAs<IntermediarySignoffDraft>().lines" :key="line.rootLineId">
                   <td>{{ lineName(line.rootLineId) }}</td>
                   <td>{{ vm.deliveredQuantity(line.rootLineId) }}</td>
-                  <td><v-text-field v-model="line.signedQuantity" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
-                  <td><v-text-field v-model="line.rejectedQuantity" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
+                  <td><CompactTableField v-model="line.signedQuantity" :disabled="!vm.stageEditable" :rules="[(value) => isQuantity(value, true) || '签收数量格式不正确。']" /></td>
+                  <td><CompactTableField v-model="line.rejectedQuantity" :disabled="!vm.stageEditable" :rules="[(value) => isQuantity(value, true) || '拒收数量格式不正确。']" /></td>
                   <td>{{ vm.signoffLoss(index) ?? '数量不守恒' }}</td>
-                  <td><v-text-field v-model="line.remark" :disabled="!vm.stageEditable" density="compact" hide-details="auto" variant="outlined" /></td>
+                  <td><CompactTableField v-model="line.remark" :disabled="!vm.stageEditable" :maxlength="1000" /></td>
                 </tr>
               </tbody>
             </v-table>
@@ -629,7 +655,7 @@ function createSignoff(document: WflDocumentSummary): void {
           :disabled="!vm.canSaveStage()"
           :loading="Boolean(vm.actionLoading)"
           :title="vm.stageSaveBlockedReason ?? undefined"
-          @click="vm.saveStage"
+          @click="saveStage"
         >
           保存草稿
         </v-btn>

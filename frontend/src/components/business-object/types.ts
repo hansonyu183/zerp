@@ -37,6 +37,7 @@ export interface BusinessObjectField<T extends object> {
   readonly?: BusinessObjectFieldState<T>
   disabled?: BusinessObjectFieldState<T>
   visible?: BusinessObjectFieldState<T>
+  advanced?: boolean
   span?: 1 | 2
   options?: readonly BusinessObjectFieldOption[]
   loading?: boolean
@@ -66,4 +67,9 @@ export interface BusinessObjectColumn<T extends object> {
   format?: (value: unknown, row: Readonly<T>) => string
   align?: 'start' | 'center' | 'end'
   width?: string
+}
+
+export interface BusinessObjectSort {
+  field: 'code' | 'name' | 'status' | 'version' | 'updatedAt'
+  order: 'asc' | 'desc'
 }

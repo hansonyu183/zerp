@@ -165,11 +165,13 @@ function closeReview(value: boolean): void {
       :row-key="(row) => row.objectId"
       :rows="vm.rows"
       :search-label="`${vm.config.title}关键字`"
+      :sort="vm.sort"
       :total="vm.total"
       @create="vm.openCreate"
       @query="vm.search"
       @update:keyword="vm.keyword = $event"
       @update:page="vm.changePage"
+      @update:sort="vm.changeSort"
     >
       <template #cell-status="{ row }">
         <v-chip density="comfortable" size="small" variant="tonal">

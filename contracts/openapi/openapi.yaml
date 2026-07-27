@@ -967,13 +967,38 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/review':
+      '/vou/{entity}/delete':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '复核业务单据',
-              'operationId': 'voureview',
+              'summary': '删除销售链下游草稿',
+              'operationId': 'voudelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/check':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '核对业务单据',
+              'operationId': 'voucheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':
@@ -994,13 +1019,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/unreview':
+      '/vou/{entity}/uncheck':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '取消复核业务单据',
-              'operationId': 'vouunreview',
+              'summary': '反核对业务单据',
+              'operationId': 'vouuncheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':
@@ -1071,13 +1096,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/execute':
+      '/vou/{entity}/finalize':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '执行业务单据',
-              'operationId': 'vouexecute',
+              'summary': '最终处理业务单据',
+              'operationId': 'voufinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':
@@ -1088,7 +1113,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/vou.yaml#/VouExecuteRequest' },
+                            {
+                              '$ref': './schemas/vou.yaml#/VouFinalizeRequest',
+                            },
                         },
                     },
                 },
@@ -1096,13 +1123,115 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/unexecute':
+      '/vou/{entity}/unfinalize':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '反执行业务单据',
-              'operationId': 'vouunexecute',
+              'summary': '撤销业务单据最终处理',
+              'operationId': 'vouunfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/short-close-request':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '申请短结销售订单',
+              'operationId': 'vouSaleOrderShortCloseRequest',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/short-close-cancel':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '取消销售订单短结申请',
+              'operationId': 'vouSaleOrderShortCloseCancel',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/short-close-confirm':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '确认短结销售订单',
+              'operationId': 'vouSaleOrderShortCloseConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouDocumentRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/vou/{entity}/short-close-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '反确认短结销售订单',
+              'operationId': 'vouSaleOrderShortCloseUnconfirm',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':

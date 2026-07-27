@@ -135,7 +135,10 @@ const (
 	Payment               VouEntity = "payment"
 	PurchaseOrder         VouEntity = "purchase-order"
 	Receipt               VouEntity = "receipt"
+	SaleDelivery          VouEntity = "sale-delivery"
 	SaleOrder             VouEntity = "sale-order"
+	SaleOutbound          VouEntity = "sale-outbound"
+	SaleSignoff           VouEntity = "sale-signoff"
 )
 
 // Valid indicates whether the value is a known member of the VouEntity enum.
@@ -153,7 +156,13 @@ func (e VouEntity) Valid() bool {
 		return true
 	case Receipt:
 		return true
+	case SaleDelivery:
+		return true
 	case SaleOrder:
+		return true
+	case SaleOutbound:
+		return true
+	case SaleSignoff:
 		return true
 	default:
 		return false
@@ -568,6 +577,10 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"handler,omitempty"`
+		Platform *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"platform,omitempty"`
 		ProductLines *[]struct {
 			ContainerType   *string `json:"containerType,omitempty"`
 			OrderedQuantity string  `json:"orderedQuantity"`
@@ -589,11 +602,27 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"salesperson,omitempty"`
+		SignoffLines *[]struct {
+			RejectedQuantity string  `json:"rejectedQuantity"`
+			Remark           *string `json:"remark,omitempty"`
+			SignedQuantity   string  `json:"signedQuantity"`
+			SourceLineId     string  `json:"sourceLineId"`
+		} `json:"signoffLines,omitempty"`
+		SourceDocumentId *string `json:"sourceDocumentId,omitempty"`
+		SourceLines      *[]struct {
+			Quantity     string  `json:"quantity"`
+			Remark       *string `json:"remark,omitempty"`
+			SourceLineId string  `json:"sourceLineId"`
+		} `json:"sourceLines,omitempty"`
 		SourceName *string `json:"sourceName,omitempty"`
 		Supplier   *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"supplier,omitempty"`
+		Vehicle *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"vehicle,omitempty"`
 		Warehouse *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
@@ -610,8 +639,8 @@ type VouDocumentRevisionRequest struct {
 // VouEntity defines model for VouEntity.
 type VouEntity string
 
-// VouExecuteRequest defines model for VouExecuteRequest.
-type VouExecuteRequest struct {
+// VouFinalizeRequest defines model for VouFinalizeRequest.
+type VouFinalizeRequest struct {
 	DifferenceReason *string             `json:"differenceReason,omitempty"`
 	DocumentId       string              `json:"documentId"`
 	InboundDate      *openapi_types.Date `json:"inboundDate,omitempty"`
@@ -702,6 +731,10 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"handler,omitempty"`
+		Platform *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"platform,omitempty"`
 		ProductLines *[]struct {
 			ContainerType   *string `json:"containerType,omitempty"`
 			OrderedQuantity string  `json:"orderedQuantity"`
@@ -723,11 +756,27 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"salesperson,omitempty"`
+		SignoffLines *[]struct {
+			RejectedQuantity string  `json:"rejectedQuantity"`
+			Remark           *string `json:"remark,omitempty"`
+			SignedQuantity   string  `json:"signedQuantity"`
+			SourceLineId     string  `json:"sourceLineId"`
+		} `json:"signoffLines,omitempty"`
+		SourceDocumentId *string `json:"sourceDocumentId,omitempty"`
+		SourceLines      *[]struct {
+			Quantity     string  `json:"quantity"`
+			Remark       *string `json:"remark,omitempty"`
+			SourceLineId string  `json:"sourceLineId"`
+		} `json:"sourceLines,omitempty"`
 		SourceName *string `json:"sourceName,omitempty"`
 		Supplier   *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"supplier,omitempty"`
+		Vehicle *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"vehicle,omitempty"`
 		Warehouse *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
@@ -983,11 +1032,17 @@ type VouattachmentremoveJSONRequestBody = VouAttachmentRemoveRequest
 // VouaudithistoryJSONRequestBody defines body for Vouaudithistory for application/json ContentType.
 type VouaudithistoryJSONRequestBody = VouHistoryRequest
 
+// VoucheckJSONRequestBody defines body for Voucheck for application/json ContentType.
+type VoucheckJSONRequestBody = VouDocumentRevisionRequest
+
 // VoucreateJSONRequestBody defines body for Voucreate for application/json ContentType.
 type VoucreateJSONRequestBody = VouCreateRequest
 
-// VouexecuteJSONRequestBody defines body for Vouexecute for application/json ContentType.
-type VouexecuteJSONRequestBody = VouExecuteRequest
+// VoudeleteJSONRequestBody defines body for Voudelete for application/json ContentType.
+type VoudeleteJSONRequestBody = VouReverseRequest
+
+// VoufinalizeJSONRequestBody defines body for Voufinalize for application/json ContentType.
+type VoufinalizeJSONRequestBody = VouFinalizeRequest
 
 // VougetJSONRequestBody defines body for Vouget for application/json ContentType.
 type VougetJSONRequestBody = VouGetRequest
@@ -995,20 +1050,29 @@ type VougetJSONRequestBody = VouGetRequest
 // VouqueryJSONRequestBody defines body for Vouquery for application/json ContentType.
 type VouqueryJSONRequestBody = VouQueryRequest
 
-// VoureviewJSONRequestBody defines body for Voureview for application/json ContentType.
-type VoureviewJSONRequestBody = VouDocumentRevisionRequest
-
 // VousaveJSONRequestBody defines body for Vousave for application/json ContentType.
 type VousaveJSONRequestBody = VouSaveRequest
+
+// VouSaleOrderShortCloseCancelJSONRequestBody defines body for VouSaleOrderShortCloseCancel for application/json ContentType.
+type VouSaleOrderShortCloseCancelJSONRequestBody = VouReverseRequest
+
+// VouSaleOrderShortCloseConfirmJSONRequestBody defines body for VouSaleOrderShortCloseConfirm for application/json ContentType.
+type VouSaleOrderShortCloseConfirmJSONRequestBody = VouDocumentRevisionRequest
+
+// VouSaleOrderShortCloseRequestJSONRequestBody defines body for VouSaleOrderShortCloseRequest for application/json ContentType.
+type VouSaleOrderShortCloseRequestJSONRequestBody = VouReverseRequest
+
+// VouSaleOrderShortCloseUnconfirmJSONRequestBody defines body for VouSaleOrderShortCloseUnconfirm for application/json ContentType.
+type VouSaleOrderShortCloseUnconfirmJSONRequestBody = VouReverseRequest
 
 // VouunapproveJSONRequestBody defines body for Vouunapprove for application/json ContentType.
 type VouunapproveJSONRequestBody = VouReverseRequest
 
-// VouunexecuteJSONRequestBody defines body for Vouunexecute for application/json ContentType.
-type VouunexecuteJSONRequestBody = VouReverseRequest
+// VouuncheckJSONRequestBody defines body for Vouuncheck for application/json ContentType.
+type VouuncheckJSONRequestBody = VouReverseRequest
 
-// VouunreviewJSONRequestBody defines body for Vouunreview for application/json ContentType.
-type VouunreviewJSONRequestBody = VouReverseRequest
+// VouunfinalizeJSONRequestBody defines body for Vouunfinalize for application/json ContentType.
+type VouunfinalizeJSONRequestBody = VouReverseRequest
 
 // WflIntermediaryTradeapproveJSONRequestBody defines body for WflIntermediaryTradeapprove for application/json ContentType.
 type WflIntermediaryTradeapproveJSONRequestBody = WflActionRequest
@@ -1357,33 +1421,48 @@ type ServerInterface interface {
 	// Vouaudithistory 查询业务单据审计历史
 	// (POST /vou/{entity}/audit-history)
 	Vouaudithistory(c *gin.Context, entity VouEntity)
+	// Voucheck 核对业务单据
+	// (POST /vou/{entity}/check)
+	Voucheck(c *gin.Context, entity VouEntity)
 	// Voucreate 创建业务单据
 	// (POST /vou/{entity}/create)
 	Voucreate(c *gin.Context, entity VouEntity)
-	// Vouexecute 执行业务单据
-	// (POST /vou/{entity}/execute)
-	Vouexecute(c *gin.Context, entity VouEntity)
+	// Voudelete 删除销售链下游草稿
+	// (POST /vou/{entity}/delete)
+	Voudelete(c *gin.Context, entity VouEntity)
+	// Voufinalize 最终处理业务单据
+	// (POST /vou/{entity}/finalize)
+	Voufinalize(c *gin.Context, entity VouEntity)
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(c *gin.Context, entity VouEntity)
 	// Vouquery 查询业务单据
 	// (POST /vou/{entity}/query)
 	Vouquery(c *gin.Context, entity VouEntity)
-	// Voureview 复核业务单据
-	// (POST /vou/{entity}/review)
-	Voureview(c *gin.Context, entity VouEntity)
 	// Vousave 保存业务单据
 	// (POST /vou/{entity}/save)
 	Vousave(c *gin.Context, entity VouEntity)
+	// VouSaleOrderShortCloseCancel 取消销售订单短结申请
+	// (POST /vou/{entity}/short-close-cancel)
+	VouSaleOrderShortCloseCancel(c *gin.Context, entity VouEntity)
+	// VouSaleOrderShortCloseConfirm 确认短结销售订单
+	// (POST /vou/{entity}/short-close-confirm)
+	VouSaleOrderShortCloseConfirm(c *gin.Context, entity VouEntity)
+	// VouSaleOrderShortCloseRequest 申请短结销售订单
+	// (POST /vou/{entity}/short-close-request)
+	VouSaleOrderShortCloseRequest(c *gin.Context, entity VouEntity)
+	// VouSaleOrderShortCloseUnconfirm 反确认短结销售订单
+	// (POST /vou/{entity}/short-close-unconfirm)
+	VouSaleOrderShortCloseUnconfirm(c *gin.Context, entity VouEntity)
 	// Vouunapprove 取消批准业务单据
 	// (POST /vou/{entity}/unapprove)
 	Vouunapprove(c *gin.Context, entity VouEntity)
-	// Vouunexecute 反执行业务单据
-	// (POST /vou/{entity}/unexecute)
-	Vouunexecute(c *gin.Context, entity VouEntity)
-	// Vouunreview 取消复核业务单据
-	// (POST /vou/{entity}/unreview)
-	Vouunreview(c *gin.Context, entity VouEntity)
+	// Vouuncheck 反核对业务单据
+	// (POST /vou/{entity}/uncheck)
+	Vouuncheck(c *gin.Context, entity VouEntity)
+	// Vouunfinalize 撤销业务单据最终处理
+	// (POST /vou/{entity}/unfinalize)
+	Vouunfinalize(c *gin.Context, entity VouEntity)
 	// WflIntermediaryTradeapprove 居间贸易 approve
 	// (POST /wfl/intermediary-trade/approve)
 	WflIntermediaryTradeapprove(c *gin.Context)
@@ -2548,6 +2627,31 @@ func (siw *ServerInterfaceWrapper) Vouaudithistory(c *gin.Context) {
 	siw.Handler.Vouaudithistory(c, entity)
 }
 
+// Voucheck operation middleware
+func (siw *ServerInterfaceWrapper) Voucheck(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Voucheck(c, entity)
+}
+
 // Voucreate operation middleware
 func (siw *ServerInterfaceWrapper) Voucreate(c *gin.Context) {
 
@@ -2573,8 +2677,8 @@ func (siw *ServerInterfaceWrapper) Voucreate(c *gin.Context) {
 	siw.Handler.Voucreate(c, entity)
 }
 
-// Vouexecute operation middleware
-func (siw *ServerInterfaceWrapper) Vouexecute(c *gin.Context) {
+// Voudelete operation middleware
+func (siw *ServerInterfaceWrapper) Voudelete(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2595,7 +2699,32 @@ func (siw *ServerInterfaceWrapper) Vouexecute(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.Vouexecute(c, entity)
+	siw.Handler.Voudelete(c, entity)
+}
+
+// Voufinalize operation middleware
+func (siw *ServerInterfaceWrapper) Voufinalize(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Voufinalize(c, entity)
 }
 
 // Vouget operation middleware
@@ -2648,31 +2777,6 @@ func (siw *ServerInterfaceWrapper) Vouquery(c *gin.Context) {
 	siw.Handler.Vouquery(c, entity)
 }
 
-// Voureview operation middleware
-func (siw *ServerInterfaceWrapper) Voureview(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Voureview(c, entity)
-}
-
 // Vousave operation middleware
 func (siw *ServerInterfaceWrapper) Vousave(c *gin.Context) {
 
@@ -2696,6 +2800,106 @@ func (siw *ServerInterfaceWrapper) Vousave(c *gin.Context) {
 	}
 
 	siw.Handler.Vousave(c, entity)
+}
+
+// VouSaleOrderShortCloseCancel operation middleware
+func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseCancel(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouSaleOrderShortCloseCancel(c, entity)
+}
+
+// VouSaleOrderShortCloseConfirm operation middleware
+func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseConfirm(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouSaleOrderShortCloseConfirm(c, entity)
+}
+
+// VouSaleOrderShortCloseRequest operation middleware
+func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseRequest(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouSaleOrderShortCloseRequest(c, entity)
+}
+
+// VouSaleOrderShortCloseUnconfirm operation middleware
+func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseUnconfirm(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouSaleOrderShortCloseUnconfirm(c, entity)
 }
 
 // Vouunapprove operation middleware
@@ -2723,8 +2927,8 @@ func (siw *ServerInterfaceWrapper) Vouunapprove(c *gin.Context) {
 	siw.Handler.Vouunapprove(c, entity)
 }
 
-// Vouunexecute operation middleware
-func (siw *ServerInterfaceWrapper) Vouunexecute(c *gin.Context) {
+// Vouuncheck operation middleware
+func (siw *ServerInterfaceWrapper) Vouuncheck(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2745,11 +2949,11 @@ func (siw *ServerInterfaceWrapper) Vouunexecute(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.Vouunexecute(c, entity)
+	siw.Handler.Vouuncheck(c, entity)
 }
 
-// Vouunreview operation middleware
-func (siw *ServerInterfaceWrapper) Vouunreview(c *gin.Context) {
+// Vouunfinalize operation middleware
+func (siw *ServerInterfaceWrapper) Vouunfinalize(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2770,7 +2974,7 @@ func (siw *ServerInterfaceWrapper) Vouunreview(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.Vouunreview(c, entity)
+	siw.Handler.Vouunfinalize(c, entity)
 }
 
 // WflIntermediaryTradeapprove operation middleware
@@ -3579,12 +3783,17 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/vou/:entity/get", wrapper.Vouget)
 	router.POST(options.BaseURL+"/vou/:entity/create", wrapper.Voucreate)
 	router.POST(options.BaseURL+"/vou/:entity/save", wrapper.Vousave)
-	router.POST(options.BaseURL+"/vou/:entity/review", wrapper.Voureview)
-	router.POST(options.BaseURL+"/vou/:entity/unreview", wrapper.Vouunreview)
+	router.POST(options.BaseURL+"/vou/:entity/delete", wrapper.Voudelete)
+	router.POST(options.BaseURL+"/vou/:entity/check", wrapper.Voucheck)
+	router.POST(options.BaseURL+"/vou/:entity/uncheck", wrapper.Vouuncheck)
 	router.POST(options.BaseURL+"/vou/:entity/approve", wrapper.Vouapprove)
 	router.POST(options.BaseURL+"/vou/:entity/unapprove", wrapper.Vouunapprove)
-	router.POST(options.BaseURL+"/vou/:entity/execute", wrapper.Vouexecute)
-	router.POST(options.BaseURL+"/vou/:entity/unexecute", wrapper.Vouunexecute)
+	router.POST(options.BaseURL+"/vou/:entity/finalize", wrapper.Voufinalize)
+	router.POST(options.BaseURL+"/vou/:entity/unfinalize", wrapper.Vouunfinalize)
+	router.POST(options.BaseURL+"/vou/:entity/short-close-request", wrapper.VouSaleOrderShortCloseRequest)
+	router.POST(options.BaseURL+"/vou/:entity/short-close-cancel", wrapper.VouSaleOrderShortCloseCancel)
+	router.POST(options.BaseURL+"/vou/:entity/short-close-confirm", wrapper.VouSaleOrderShortCloseConfirm)
+	router.POST(options.BaseURL+"/vou/:entity/short-close-unconfirm", wrapper.VouSaleOrderShortCloseUnconfirm)
 	router.POST(options.BaseURL+"/vou/:entity/audit-history", wrapper.Vouaudithistory)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-initiate", wrapper.Vouattachmentinitiate)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-download", wrapper.Vouattachmentdownload)
@@ -5031,6 +5240,29 @@ func (response Vouaudithistory200JSONResponse) VisitVouaudithistoryResponse(w ht
 	return err
 }
 
+type VoucheckRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VoucheckJSONRequestBody
+}
+
+type VoucheckResponseObject interface {
+	VisitVoucheckResponse(w http.ResponseWriter) error
+}
+
+type Voucheck200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Voucheck200JSONResponse) VisitVoucheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type VoucreateRequestObject struct {
 	Entity VouEntity `json:"entity"`
 	Body   *VoucreateJSONRequestBody
@@ -5054,18 +5286,41 @@ func (response Voucreate200JSONResponse) VisitVoucreateResponse(w http.ResponseW
 	return err
 }
 
-type VouexecuteRequestObject struct {
+type VoudeleteRequestObject struct {
 	Entity VouEntity `json:"entity"`
-	Body   *VouexecuteJSONRequestBody
+	Body   *VoudeleteJSONRequestBody
 }
 
-type VouexecuteResponseObject interface {
-	VisitVouexecuteResponse(w http.ResponseWriter) error
+type VoudeleteResponseObject interface {
+	VisitVoudeleteResponse(w http.ResponseWriter) error
 }
 
-type Vouexecute200JSONResponse struct{ BusinessJSONResponse }
+type Voudelete200JSONResponse struct{ BusinessJSONResponse }
 
-func (response Vouexecute200JSONResponse) VisitVouexecuteResponse(w http.ResponseWriter) error {
+func (response Voudelete200JSONResponse) VisitVoudeleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoufinalizeRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VoufinalizeJSONRequestBody
+}
+
+type VoufinalizeResponseObject interface {
+	VisitVoufinalizeResponse(w http.ResponseWriter) error
+}
+
+type Voufinalize200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Voufinalize200JSONResponse) VisitVoufinalizeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5123,29 +5378,6 @@ func (response Vouquery200JSONResponse) VisitVouqueryResponse(w http.ResponseWri
 	return err
 }
 
-type VoureviewRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VoureviewJSONRequestBody
-}
-
-type VoureviewResponseObject interface {
-	VisitVoureviewResponse(w http.ResponseWriter) error
-}
-
-type Voureview200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Voureview200JSONResponse) VisitVoureviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type VousaveRequestObject struct {
 	Entity VouEntity `json:"entity"`
 	Body   *VousaveJSONRequestBody
@@ -5158,6 +5390,98 @@ type VousaveResponseObject interface {
 type Vousave200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Vousave200JSONResponse) VisitVousaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouSaleOrderShortCloseCancelRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouSaleOrderShortCloseCancelJSONRequestBody
+}
+
+type VouSaleOrderShortCloseCancelResponseObject interface {
+	VisitVouSaleOrderShortCloseCancelResponse(w http.ResponseWriter) error
+}
+
+type VouSaleOrderShortCloseCancel200JSONResponse struct{ BusinessJSONResponse }
+
+func (response VouSaleOrderShortCloseCancel200JSONResponse) VisitVouSaleOrderShortCloseCancelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouSaleOrderShortCloseConfirmRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouSaleOrderShortCloseConfirmJSONRequestBody
+}
+
+type VouSaleOrderShortCloseConfirmResponseObject interface {
+	VisitVouSaleOrderShortCloseConfirmResponse(w http.ResponseWriter) error
+}
+
+type VouSaleOrderShortCloseConfirm200JSONResponse struct{ BusinessJSONResponse }
+
+func (response VouSaleOrderShortCloseConfirm200JSONResponse) VisitVouSaleOrderShortCloseConfirmResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouSaleOrderShortCloseRequestRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouSaleOrderShortCloseRequestJSONRequestBody
+}
+
+type VouSaleOrderShortCloseRequestResponseObject interface {
+	VisitVouSaleOrderShortCloseRequestResponse(w http.ResponseWriter) error
+}
+
+type VouSaleOrderShortCloseRequest200JSONResponse struct{ BusinessJSONResponse }
+
+func (response VouSaleOrderShortCloseRequest200JSONResponse) VisitVouSaleOrderShortCloseRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouSaleOrderShortCloseUnconfirmRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouSaleOrderShortCloseUnconfirmJSONRequestBody
+}
+
+type VouSaleOrderShortCloseUnconfirmResponseObject interface {
+	VisitVouSaleOrderShortCloseUnconfirmResponse(w http.ResponseWriter) error
+}
+
+type VouSaleOrderShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
+
+func (response VouSaleOrderShortCloseUnconfirm200JSONResponse) VisitVouSaleOrderShortCloseUnconfirmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5192,18 +5516,18 @@ func (response Vouunapprove200JSONResponse) VisitVouunapproveResponse(w http.Res
 	return err
 }
 
-type VouunexecuteRequestObject struct {
+type VouuncheckRequestObject struct {
 	Entity VouEntity `json:"entity"`
-	Body   *VouunexecuteJSONRequestBody
+	Body   *VouuncheckJSONRequestBody
 }
 
-type VouunexecuteResponseObject interface {
-	VisitVouunexecuteResponse(w http.ResponseWriter) error
+type VouuncheckResponseObject interface {
+	VisitVouuncheckResponse(w http.ResponseWriter) error
 }
 
-type Vouunexecute200JSONResponse struct{ BusinessJSONResponse }
+type Vouuncheck200JSONResponse struct{ BusinessJSONResponse }
 
-func (response Vouunexecute200JSONResponse) VisitVouunexecuteResponse(w http.ResponseWriter) error {
+func (response Vouuncheck200JSONResponse) VisitVouuncheckResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5215,18 +5539,18 @@ func (response Vouunexecute200JSONResponse) VisitVouunexecuteResponse(w http.Res
 	return err
 }
 
-type VouunreviewRequestObject struct {
+type VouunfinalizeRequestObject struct {
 	Entity VouEntity `json:"entity"`
-	Body   *VouunreviewJSONRequestBody
+	Body   *VouunfinalizeJSONRequestBody
 }
 
-type VouunreviewResponseObject interface {
-	VisitVouunreviewResponse(w http.ResponseWriter) error
+type VouunfinalizeResponseObject interface {
+	VisitVouunfinalizeResponse(w http.ResponseWriter) error
 }
 
-type Vouunreview200JSONResponse struct{ BusinessJSONResponse }
+type Vouunfinalize200JSONResponse struct{ BusinessJSONResponse }
 
-func (response Vouunreview200JSONResponse) VisitVouunreviewResponse(w http.ResponseWriter) error {
+func (response Vouunfinalize200JSONResponse) VisitVouunfinalizeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6668,33 +6992,48 @@ type StrictServerInterface interface {
 	// Vouaudithistory 查询业务单据审计历史
 	// (POST /vou/{entity}/audit-history)
 	Vouaudithistory(ctx context.Context, request VouaudithistoryRequestObject) (VouaudithistoryResponseObject, error)
+	// Voucheck 核对业务单据
+	// (POST /vou/{entity}/check)
+	Voucheck(ctx context.Context, request VoucheckRequestObject) (VoucheckResponseObject, error)
 	// Voucreate 创建业务单据
 	// (POST /vou/{entity}/create)
 	Voucreate(ctx context.Context, request VoucreateRequestObject) (VoucreateResponseObject, error)
-	// Vouexecute 执行业务单据
-	// (POST /vou/{entity}/execute)
-	Vouexecute(ctx context.Context, request VouexecuteRequestObject) (VouexecuteResponseObject, error)
+	// Voudelete 删除销售链下游草稿
+	// (POST /vou/{entity}/delete)
+	Voudelete(ctx context.Context, request VoudeleteRequestObject) (VoudeleteResponseObject, error)
+	// Voufinalize 最终处理业务单据
+	// (POST /vou/{entity}/finalize)
+	Voufinalize(ctx context.Context, request VoufinalizeRequestObject) (VoufinalizeResponseObject, error)
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(ctx context.Context, request VougetRequestObject) (VougetResponseObject, error)
 	// Vouquery 查询业务单据
 	// (POST /vou/{entity}/query)
 	Vouquery(ctx context.Context, request VouqueryRequestObject) (VouqueryResponseObject, error)
-	// Voureview 复核业务单据
-	// (POST /vou/{entity}/review)
-	Voureview(ctx context.Context, request VoureviewRequestObject) (VoureviewResponseObject, error)
 	// Vousave 保存业务单据
 	// (POST /vou/{entity}/save)
 	Vousave(ctx context.Context, request VousaveRequestObject) (VousaveResponseObject, error)
+	// VouSaleOrderShortCloseCancel 取消销售订单短结申请
+	// (POST /vou/{entity}/short-close-cancel)
+	VouSaleOrderShortCloseCancel(ctx context.Context, request VouSaleOrderShortCloseCancelRequestObject) (VouSaleOrderShortCloseCancelResponseObject, error)
+	// VouSaleOrderShortCloseConfirm 确认短结销售订单
+	// (POST /vou/{entity}/short-close-confirm)
+	VouSaleOrderShortCloseConfirm(ctx context.Context, request VouSaleOrderShortCloseConfirmRequestObject) (VouSaleOrderShortCloseConfirmResponseObject, error)
+	// VouSaleOrderShortCloseRequest 申请短结销售订单
+	// (POST /vou/{entity}/short-close-request)
+	VouSaleOrderShortCloseRequest(ctx context.Context, request VouSaleOrderShortCloseRequestRequestObject) (VouSaleOrderShortCloseRequestResponseObject, error)
+	// VouSaleOrderShortCloseUnconfirm 反确认短结销售订单
+	// (POST /vou/{entity}/short-close-unconfirm)
+	VouSaleOrderShortCloseUnconfirm(ctx context.Context, request VouSaleOrderShortCloseUnconfirmRequestObject) (VouSaleOrderShortCloseUnconfirmResponseObject, error)
 	// Vouunapprove 取消批准业务单据
 	// (POST /vou/{entity}/unapprove)
 	Vouunapprove(ctx context.Context, request VouunapproveRequestObject) (VouunapproveResponseObject, error)
-	// Vouunexecute 反执行业务单据
-	// (POST /vou/{entity}/unexecute)
-	Vouunexecute(ctx context.Context, request VouunexecuteRequestObject) (VouunexecuteResponseObject, error)
-	// Vouunreview 取消复核业务单据
-	// (POST /vou/{entity}/unreview)
-	Vouunreview(ctx context.Context, request VouunreviewRequestObject) (VouunreviewResponseObject, error)
+	// Vouuncheck 反核对业务单据
+	// (POST /vou/{entity}/uncheck)
+	Vouuncheck(ctx context.Context, request VouuncheckRequestObject) (VouuncheckResponseObject, error)
+	// Vouunfinalize 撤销业务单据最终处理
+	// (POST /vou/{entity}/unfinalize)
+	Vouunfinalize(ctx context.Context, request VouunfinalizeRequestObject) (VouunfinalizeResponseObject, error)
 	// WflIntermediaryTradeapprove 居间贸易 approve
 	// (POST /wfl/intermediary-trade/approve)
 	WflIntermediaryTradeapprove(ctx context.Context, request WflIntermediaryTradeapproveRequestObject) (WflIntermediaryTradeapproveResponseObject, error)
@@ -8732,6 +9071,39 @@ func (sh *strictHandler) Vouaudithistory(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
+// Voucheck operation middleware
+func (sh *strictHandler) Voucheck(ctx *gin.Context, entity VouEntity) {
+	var request VoucheckRequestObject
+
+	request.Entity = entity
+
+	var body VoucheckJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Voucheck(ctx, request.(VoucheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Voucheck")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VoucheckResponseObject); ok {
+		if err := validResponse.VisitVoucheckResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Voucreate operation middleware
 func (sh *strictHandler) Voucreate(ctx *gin.Context, entity VouEntity) {
 	var request VoucreateRequestObject
@@ -8765,13 +9137,13 @@ func (sh *strictHandler) Voucreate(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// Vouexecute operation middleware
-func (sh *strictHandler) Vouexecute(ctx *gin.Context, entity VouEntity) {
-	var request VouexecuteRequestObject
+// Voudelete operation middleware
+func (sh *strictHandler) Voudelete(ctx *gin.Context, entity VouEntity) {
+	var request VoudeleteRequestObject
 
 	request.Entity = entity
 
-	var body VouexecuteJSONRequestBody
+	var body VoudeleteJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -8779,18 +9151,51 @@ func (sh *strictHandler) Vouexecute(ctx *gin.Context, entity VouEntity) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Vouexecute(ctx, request.(VouexecuteRequestObject))
+		return sh.ssi.Voudelete(ctx, request.(VoudeleteRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Vouexecute")
+		handler = middleware(handler, "Voudelete")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouexecuteResponseObject); ok {
-		if err := validResponse.VisitVouexecuteResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(VoudeleteResponseObject); ok {
+		if err := validResponse.VisitVoudeleteResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Voufinalize operation middleware
+func (sh *strictHandler) Voufinalize(ctx *gin.Context, entity VouEntity) {
+	var request VoufinalizeRequestObject
+
+	request.Entity = entity
+
+	var body VoufinalizeJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Voufinalize(ctx, request.(VoufinalizeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Voufinalize")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VoufinalizeResponseObject); ok {
+		if err := validResponse.VisitVoufinalizeResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -8864,39 +9269,6 @@ func (sh *strictHandler) Vouquery(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// Voureview operation middleware
-func (sh *strictHandler) Voureview(ctx *gin.Context, entity VouEntity) {
-	var request VoureviewRequestObject
-
-	request.Entity = entity
-
-	var body VoureviewJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Voureview(ctx, request.(VoureviewRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Voureview")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VoureviewResponseObject); ok {
-		if err := validResponse.VisitVoureviewResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // Vousave operation middleware
 func (sh *strictHandler) Vousave(ctx *gin.Context, entity VouEntity) {
 	var request VousaveRequestObject
@@ -8923,6 +9295,138 @@ func (sh *strictHandler) Vousave(ctx *gin.Context, entity VouEntity) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(VousaveResponseObject); ok {
 		if err := validResponse.VisitVousaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouSaleOrderShortCloseCancel operation middleware
+func (sh *strictHandler) VouSaleOrderShortCloseCancel(ctx *gin.Context, entity VouEntity) {
+	var request VouSaleOrderShortCloseCancelRequestObject
+
+	request.Entity = entity
+
+	var body VouSaleOrderShortCloseCancelJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouSaleOrderShortCloseCancel(ctx, request.(VouSaleOrderShortCloseCancelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouSaleOrderShortCloseCancel")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouSaleOrderShortCloseCancelResponseObject); ok {
+		if err := validResponse.VisitVouSaleOrderShortCloseCancelResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouSaleOrderShortCloseConfirm operation middleware
+func (sh *strictHandler) VouSaleOrderShortCloseConfirm(ctx *gin.Context, entity VouEntity) {
+	var request VouSaleOrderShortCloseConfirmRequestObject
+
+	request.Entity = entity
+
+	var body VouSaleOrderShortCloseConfirmJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouSaleOrderShortCloseConfirm(ctx, request.(VouSaleOrderShortCloseConfirmRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouSaleOrderShortCloseConfirm")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouSaleOrderShortCloseConfirmResponseObject); ok {
+		if err := validResponse.VisitVouSaleOrderShortCloseConfirmResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouSaleOrderShortCloseRequest operation middleware
+func (sh *strictHandler) VouSaleOrderShortCloseRequest(ctx *gin.Context, entity VouEntity) {
+	var request VouSaleOrderShortCloseRequestRequestObject
+
+	request.Entity = entity
+
+	var body VouSaleOrderShortCloseRequestJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouSaleOrderShortCloseRequest(ctx, request.(VouSaleOrderShortCloseRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouSaleOrderShortCloseRequest")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouSaleOrderShortCloseRequestResponseObject); ok {
+		if err := validResponse.VisitVouSaleOrderShortCloseRequestResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouSaleOrderShortCloseUnconfirm operation middleware
+func (sh *strictHandler) VouSaleOrderShortCloseUnconfirm(ctx *gin.Context, entity VouEntity) {
+	var request VouSaleOrderShortCloseUnconfirmRequestObject
+
+	request.Entity = entity
+
+	var body VouSaleOrderShortCloseUnconfirmJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouSaleOrderShortCloseUnconfirm(ctx, request.(VouSaleOrderShortCloseUnconfirmRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouSaleOrderShortCloseUnconfirm")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouSaleOrderShortCloseUnconfirmResponseObject); ok {
+		if err := validResponse.VisitVouSaleOrderShortCloseUnconfirmResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -8963,13 +9467,13 @@ func (sh *strictHandler) Vouunapprove(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// Vouunexecute operation middleware
-func (sh *strictHandler) Vouunexecute(ctx *gin.Context, entity VouEntity) {
-	var request VouunexecuteRequestObject
+// Vouuncheck operation middleware
+func (sh *strictHandler) Vouuncheck(ctx *gin.Context, entity VouEntity) {
+	var request VouuncheckRequestObject
 
 	request.Entity = entity
 
-	var body VouunexecuteJSONRequestBody
+	var body VouuncheckJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -8977,18 +9481,18 @@ func (sh *strictHandler) Vouunexecute(ctx *gin.Context, entity VouEntity) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Vouunexecute(ctx, request.(VouunexecuteRequestObject))
+		return sh.ssi.Vouuncheck(ctx, request.(VouuncheckRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Vouunexecute")
+		handler = middleware(handler, "Vouuncheck")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouunexecuteResponseObject); ok {
-		if err := validResponse.VisitVouunexecuteResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(VouuncheckResponseObject); ok {
+		if err := validResponse.VisitVouuncheckResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -8996,13 +9500,13 @@ func (sh *strictHandler) Vouunexecute(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// Vouunreview operation middleware
-func (sh *strictHandler) Vouunreview(ctx *gin.Context, entity VouEntity) {
-	var request VouunreviewRequestObject
+// Vouunfinalize operation middleware
+func (sh *strictHandler) Vouunfinalize(ctx *gin.Context, entity VouEntity) {
+	var request VouunfinalizeRequestObject
 
 	request.Entity = entity
 
-	var body VouunreviewJSONRequestBody
+	var body VouunfinalizeJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -9010,18 +9514,18 @@ func (sh *strictHandler) Vouunreview(ctx *gin.Context, entity VouEntity) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Vouunreview(ctx, request.(VouunreviewRequestObject))
+		return sh.ssi.Vouunfinalize(ctx, request.(VouunfinalizeRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Vouunreview")
+		handler = middleware(handler, "Vouunfinalize")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouunreviewResponseObject); ok {
-		if err := validResponse.VisitVouunreviewResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(VouunfinalizeResponseObject); ok {
+		if err := validResponse.VisitVouunfinalizeResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -10801,104 +11305,108 @@ func (sh *strictHandler) WflIntermediaryTradeuncheck(ctx *gin.Context) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

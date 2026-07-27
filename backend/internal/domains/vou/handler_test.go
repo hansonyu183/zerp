@@ -33,10 +33,10 @@ func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, 
 func (*handlerServiceStub) Save(context.Context, string, SaveInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Review(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Unreview(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Uncheck(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
@@ -45,10 +45,25 @@ func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInpu
 func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Execute(context.Context, string, ExecuteInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Unexecute(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
+	return MutationResult{}, nil
+}
+func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error) {
+	return MutationResult{}, nil
+}
+func (*handlerServiceStub) ShortCloseRequest(context.Context, ReverseInput, string, string) (MutationResult, error) {
+	return MutationResult{}, nil
+}
+func (*handlerServiceStub) ShortCloseCancel(context.Context, ReverseInput, string, string) (MutationResult, error) {
+	return MutationResult{}, nil
+}
+func (*handlerServiceStub) ShortCloseConfirm(context.Context, DocumentRevisionInput, string, string) (MutationResult, error) {
+	return MutationResult{}, nil
+}
+func (*handlerServiceStub) ShortCloseUnconfirm(context.Context, ReverseInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error) {
@@ -96,7 +111,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+2; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+6; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

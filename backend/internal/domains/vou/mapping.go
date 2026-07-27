@@ -25,10 +25,6 @@ func (s *Service) loadData(
 			detail.SalespersonObjectID, detail.SalespersonVersionID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,
 		)
-		data.Warehouse = optionalReference(
-			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
-			detail.WarehouseCode, detail.WarehouseName,
-		)
 		data.ContactName = deref(detail.ContactName)
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.DeliveryAddress = deref(detail.DeliveryAddress)
@@ -38,12 +34,19 @@ func (s *Service) loadData(
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDescription,
 		)
-		setSaleExecutionView(&data, detail.OutboundDate, detail.SignoffDate,
-			detail.PlatformObjectID, detail.PlatformVersionID, detail.PlatformCode, detail.PlatformName,
-			detail.VehicleObjectID, detail.VehicleVersionID, detail.VehicleCode, detail.VehicleName,
-			detail.VehiclePlateNumber, detail.DifferenceReason)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
-		return data, err
+		if err != nil {
+			return data, err
+		}
+		data.FulfillmentStatus = detail.FulfillmentStatus
+		data.ShortCloseRequestedBy = deref(detail.ShortCloseRequestedBy)
+		data.ShortCloseReason = deref(detail.ShortCloseReason)
+		if err = s.setSaleOrderBalances(ctx, document.ID, &data); err != nil {
+			return data, err
+		}
+		return data, nil
+	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
+		return s.loadSalesChainData(ctx, document, data)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, document.ID)
 		if err != nil {
@@ -270,9 +273,9 @@ func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachment
 		Data: data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,
-		ReviewedAt: optionalTime(document.ReviewedAt), ReviewedBy: document.ReviewedBy,
+		CheckedAt: optionalTime(document.ReviewedAt), CheckedBy: document.ReviewedBy,
 		ApprovedAt: optionalTime(document.ApprovedAt), ApprovedBy: document.ApprovedBy,
-		ExecutedAt: optionalTime(document.ExecutedAt), ExecutedBy: document.ExecutedBy,
+		FinalizedAt: optionalTime(document.ExecutedAt), FinalizedBy: document.ExecutedBy,
 	}
 }
 

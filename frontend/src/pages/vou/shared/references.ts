@@ -92,7 +92,9 @@ export function useVoucherReferences(
         filters: { supplierType: 'LOGISTICS_PLATFORM' },
       }
     }
-    if (key === 'vehicle') return { entities: ['vehicle'] }
+    if (key === 'vehicle') {
+      return { entities: ['vehicle'] }
+    }
     return { entities: [] }
   }
 
@@ -199,14 +201,22 @@ export function useVoucherReferences(
         }),
       )
       if (sequence !== state.sequence) return
-      state.options = [...selectedReferences(), ...pages.flat()].filter(
-        (item, index, all) =>
-          all.findIndex(
-            (candidate) =>
-              candidate.objectId === item.objectId &&
-              candidate.versionId === item.versionId,
-          ) === index,
-      )
+      const platformObjectId =
+        key === 'vehicle' ? form.value.platform?.objectId : undefined
+      state.options = [...selectedReferences(), ...pages.flat()]
+        .filter(
+          (item) =>
+            definition.entities.includes(item.entity as BobApiEntity) &&
+            (!platformObjectId || item.platformObjectId === platformObjectId),
+        )
+        .filter(
+          (item, index, all) =>
+            all.findIndex(
+              (candidate) =>
+                candidate.objectId === item.objectId &&
+                candidate.versionId === item.versionId,
+            ) === index,
+        )
     } catch (error) {
       if (sequence === state.sequence) {
         state.errorMessage = getErrorMessage(error)

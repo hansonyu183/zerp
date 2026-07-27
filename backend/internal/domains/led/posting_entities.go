@@ -29,80 +29,146 @@ func requireEffectiveDate(posting postingContext, date pgtype.Date) (bool, error
 	return !before, nil
 }
 
-func (s *Service) postSale(
+func (s *Service) postSaleOutbound(
 	ctx context.Context,
 	tx pgx.Tx,
 	q *dbsqlc.Queries,
 	posting postingContext,
 ) error {
 	doc := posting.Document
-	detail, err := q.GetVouSaleOrderDetail(ctx, doc.ID)
-	if err != nil {
-		return s.internal("read sale ledger detail", err)
-	}
-	includeInventory, err := requireEffectiveDate(posting, detail.OutboundDate)
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
 	if err != nil {
 		return err
 	}
-	includeParty, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if !include {
+		return nil
+	}
+	var warehouseObjectID, warehouseVersionID, warehouseCode, warehouseName string
+	err = tx.QueryRow(ctx, `SELECT warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+		FROM vou_sale_outbound_details WHERE document_id=$1`, doc.ID).Scan(
+		&warehouseObjectID, &warehouseVersionID, &warehouseCode, &warehouseName)
+	if err != nil {
+		return s.internal("read sale outbound ledger detail", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
+		product_name,product_unit,quantity_micros FROM vou_sale_outbound_lines WHERE document_id=$1`, doc.ID)
 	if err != nil {
 		return err
 	}
-	lines, err := q.ListVouProductLines(ctx, doc.ID)
-	if err != nil {
-		return s.internal("read sale ledger lines", err)
+	type outboundLine struct {
+		id, productObjectID, productVersionID, productCode, productName, productUnit string
+		quantity                                                                     int64
 	}
+	lines := []outboundLine{}
+	for rows.Next() {
+		var line outboundLine
+		if err = rows.Scan(&line.id, &line.productObjectID, &line.productVersionID, &line.productCode,
+			&line.productName, &line.productUnit, &line.quantity); err != nil {
+			rows.Close()
+			return err
+		}
+		lines = append(lines, line)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
 	for _, line := range lines {
-		if includeInventory {
-			if line.OutboundQtyMicros == nil || detail.WarehouseObjectID == nil || detail.WarehouseVersionID == nil ||
-				detail.WarehouseCode == nil || detail.WarehouseName == nil {
-				return domainError(
-					ErrorConflict,
-					"executed sale is missing inventory data",
-					map[string]any{"documentNo": doc.DocumentNo},
-					nil,
-				)
+		if err = lockInventoryDimension(ctx, tx, warehouseObjectID, line.productObjectID); err != nil {
+			return err
+		}
+		err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+			SourceLineID: line.id, SourceRevision: posting.SourceRevision, EffectiveDate: doc.BusinessDate,
+			OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+			WarehouseObjectID: warehouseObjectID, WarehouseVersionID: warehouseVersionID,
+			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
+			ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
+			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
+			QuantityDeltaMicros: -line.quantity,
+		})
+		if err != nil {
+			return s.writeError("post sale outbound inventory", err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) postSaleSignoff(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *dbsqlc.Queries,
+	posting postingContext,
+) error {
+	doc := posting.Document
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	var customerObjectID, customerVersionID, customerCode, customerName string
+	var warehouseObjectID, warehouseVersionID, warehouseCode, warehouseName string
+	err = tx.QueryRow(ctx, `SELECT customer_object_id,customer_version_id,customer_code,customer_name,
+		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+		FROM vou_sale_signoff_details WHERE document_id=$1`, doc.ID).Scan(
+		&customerObjectID, &customerVersionID, &customerCode, &customerName,
+		&warehouseObjectID, &warehouseVersionID, &warehouseCode, &warehouseName)
+	if err != nil {
+		return s.internal("read sale signoff ledger detail", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
+		product_name,product_unit,signed_qty_micros,rejected_qty_micros,line_amount_cents
+		FROM vou_sale_signoff_lines WHERE document_id=$1`, doc.ID)
+	if err != nil {
+		return err
+	}
+	type signoffLine struct {
+		id, productObjectID, productVersionID, productCode, productName, productUnit string
+		signed, rejected, amount                                                     int64
+	}
+	lines := []signoffLine{}
+	for rows.Next() {
+		var line signoffLine
+		if err = rows.Scan(&line.id, &line.productObjectID, &line.productVersionID, &line.productCode,
+			&line.productName, &line.productUnit, &line.signed, &line.rejected, &line.amount); err != nil {
+			rows.Close()
+			return err
+		}
+		lines = append(lines, line)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, line := range lines {
+		if line.rejected > 0 {
+			if err = lockInventoryDimension(ctx, tx, warehouseObjectID, line.productObjectID); err != nil {
+				return err
 			}
-			if err = lockInventoryDimension(ctx, tx, *detail.WarehouseObjectID, line.ProductObjectID); err != nil {
-				return s.internal("lock sale inventory", err)
-			}
-			if err = q.InsertLedInventoryEntry(ctx, inventoryParams(
-				posting,
-				doc,
-				line,
-				detail.OutboundDate,
-				*detail.WarehouseObjectID,
-				*detail.WarehouseVersionID,
-				*detail.WarehouseCode,
-				*detail.WarehouseName,
-				-*line.OutboundQtyMicros,
-			)); err != nil {
-				return s.writeError("post sale inventory", err)
+			err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
+				ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+				SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+				SourceLineID: line.id, SourceRevision: posting.SourceRevision, EffectiveDate: doc.BusinessDate,
+				OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+				WarehouseObjectID: warehouseObjectID, WarehouseVersionID: warehouseVersionID,
+				WarehouseCode: warehouseCode, WarehouseName: warehouseName,
+				ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
+				ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
+				QuantityDeltaMicros: line.rejected,
+			})
+			if err != nil {
+				return s.writeError("post sale rejection inventory", err)
 			}
 		}
-		if includeParty && line.SignedQtyMicros != nil && *line.SignedQtyMicros > 0 {
-			amount, amountErr := lineAmountCents(*line.SignedQtyMicros, line.UnitPriceCents)
-			if amountErr != nil {
-				return domainError(
-					ErrorConflict,
-					"invalid sale ledger amount",
-					map[string]any{"documentNo": doc.DocumentNo},
-					amountErr,
-				)
-			}
-			if err = q.InsertLedPartyEntry(ctx, partyParams(
-				posting,
-				doc,
-				line.ID,
-				doc.BusinessDate,
-				detail.CustomerObjectID,
-				detail.CustomerVersionID,
-				detail.CustomerCode,
-				detail.CustomerName,
-				"customer",
-				amount,
-			)); err != nil {
-				return s.writeError("post sale receivable", err)
+		if line.signed > 0 {
+			err = q.InsertLedPartyEntry(ctx, partyParams(
+				posting, doc, line.id, doc.BusinessDate,
+				customerObjectID, customerVersionID, customerCode, customerName, "customer", line.amount,
+			))
+			if err != nil {
+				return s.writeError("post sale signoff receivable", err)
 			}
 		}
 	}

@@ -650,7 +650,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/vou/{entity}/review": {
+    "/vou/{entity}/delete": {
         parameters: {
             query?: never;
             header?: never;
@@ -659,15 +659,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 复核业务单据 */
-        post: operations["voureview"];
+        /** 删除销售链下游草稿 */
+        post: operations["voudelete"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/vou/{entity}/unreview": {
+    "/vou/{entity}/check": {
         parameters: {
             query?: never;
             header?: never;
@@ -676,8 +676,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 取消复核业务单据 */
-        post: operations["vouunreview"];
+        /** 核对业务单据 */
+        post: operations["voucheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/uncheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反核对业务单据 */
+        post: operations["vouuncheck"];
         delete?: never;
         options?: never;
         head?: never;
@@ -718,7 +735,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/vou/{entity}/execute": {
+    "/vou/{entity}/finalize": {
         parameters: {
             query?: never;
             header?: never;
@@ -727,15 +744,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 执行业务单据 */
-        post: operations["vouexecute"];
+        /** 最终处理业务单据 */
+        post: operations["voufinalize"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/vou/{entity}/unexecute": {
+    "/vou/{entity}/unfinalize": {
         parameters: {
             query?: never;
             header?: never;
@@ -744,8 +761,76 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反执行业务单据 */
-        post: operations["vouunexecute"];
+        /** 撤销业务单据最终处理 */
+        post: operations["vouunfinalize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/short-close-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 申请短结销售订单 */
+        post: operations["vouSaleOrderShortCloseRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/short-close-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消销售订单短结申请 */
+        post: operations["vouSaleOrderShortCloseCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/short-close-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认短结销售订单 */
+        post: operations["vouSaleOrderShortCloseConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/short-close-unconfirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反确认短结销售订单 */
+        post: operations["vouSaleOrderShortCloseUnconfirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2350,7 +2435,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        VouEntity: "sale-order" | "purchase-order" | "intermediary-sale-order" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "purchase-order" | "intermediary-sale-order" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         VouQueryRequest: {
             page: number;
             pageSize: number;
@@ -2378,6 +2463,7 @@ export interface components {
                 businessDate?: string;
                 currency?: string;
                 remark?: string;
+                sourceDocumentId?: string;
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -2411,6 +2497,14 @@ export interface components {
                     objectId: string;
                     versionId: string;
                 };
+                platform?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                vehicle?: {
+                    objectId: string;
+                    versionId: string;
+                };
                 fundAccount?: {
                     objectId: string;
                     versionId: string;
@@ -2433,6 +2527,17 @@ export interface components {
                     category: string;
                     description: string;
                     amount: string;
+                    remark?: string;
+                }[];
+                sourceLines?: {
+                    sourceLineId: string;
+                    quantity: string;
+                    remark?: string;
+                }[];
+                signoffLines?: {
+                    sourceLineId: string;
+                    signedQuantity: string;
+                    rejectedQuantity: string;
                     remark?: string;
                 }[];
             };
@@ -2446,6 +2551,7 @@ export interface components {
                 businessDate?: string;
                 currency?: string;
                 remark?: string;
+                sourceDocumentId?: string;
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -2479,6 +2585,14 @@ export interface components {
                     objectId: string;
                     versionId: string;
                 };
+                platform?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                vehicle?: {
+                    objectId: string;
+                    versionId: string;
+                };
                 fundAccount?: {
                     objectId: string;
                     versionId: string;
@@ -2503,12 +2617,18 @@ export interface components {
                     amount: string;
                     remark?: string;
                 }[];
+                sourceLines?: {
+                    sourceLineId: string;
+                    quantity: string;
+                    remark?: string;
+                }[];
+                signoffLines?: {
+                    sourceLineId: string;
+                    signedQuantity: string;
+                    rejectedQuantity: string;
+                    remark?: string;
+                }[];
             };
-        };
-        VouDocumentRevisionRequest: {
-            documentId: string;
-            /** Format: int64 */
-            revision: number;
         };
         VouReverseRequest: {
             documentId: string;
@@ -2516,7 +2636,12 @@ export interface components {
             revision: number;
             reason: string;
         };
-        VouExecuteRequest: {
+        VouDocumentRevisionRequest: {
+            documentId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        VouFinalizeRequest: {
             documentId: string;
             /** Format: int64 */
             revision: number;
@@ -3385,7 +3510,25 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    voureview: {
+    voudelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    voucheck: {
         parameters: {
             query?: never;
             header?: never;
@@ -3403,7 +3546,7 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    vouunreview: {
+    vouuncheck: {
         parameters: {
             query?: never;
             header?: never;
@@ -3457,7 +3600,7 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    vouexecute: {
+    voufinalize: {
         parameters: {
             query?: never;
             header?: never;
@@ -3468,14 +3611,86 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["VouExecuteRequest"];
+                "application/json": components["schemas"]["VouFinalizeRequest"];
             };
         };
         responses: {
             200: components["responses"]["Business"];
         };
     };
-    vouunexecute: {
+    vouunfinalize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouSaleOrderShortCloseRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouSaleOrderShortCloseCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouSaleOrderShortCloseConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouDocumentRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouSaleOrderShortCloseUnconfirm: {
         parameters: {
             query?: never;
             header?: never;

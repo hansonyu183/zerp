@@ -4,7 +4,7 @@ import { isQuantity, parseFixed } from './decimal'
 import type {
   VoucherDocumentView,
   VoucherExecutionForm,
-  VoucherExecutionKind,
+  VoucherFinalizationKind,
   VoucherReference,
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
@@ -13,7 +13,7 @@ defineOptions({ name: 'VoucherExecutionDialog' })
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
-  kind: VoucherExecutionKind
+  kind: VoucherFinalizationKind
   document: VoucherDocumentView | null
   platformOptions?: readonly VoucherReference[]
   vehicleOptions?: readonly VoucherReference[]
@@ -91,7 +91,7 @@ const needsDifferenceReason = computed(() => {
 })
 
 const valid = computed(() => {
-  if (props.kind === 'confirm') return true
+  if (props.kind === 'direct') return true
   if (needsDifferenceReason.value && !form.value.differenceReason.trim()) return false
   if (Array.from(form.value.differenceReason).length > 1000) return false
   if (props.kind === 'purchase') {
@@ -165,13 +165,13 @@ function submit(): void {
     persistent
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <v-card rounded="xl" title="执行单据">
+    <v-card rounded="xl" title="完成单据">
       <v-card-text>
         <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
           {{ errorMessage }}
         </v-alert>
-        <v-alert v-if="kind === 'confirm'" type="info" variant="tonal">
-          执行表示确认这张单据已经实际发生。确认后需要通过反执行才能退回。
+        <v-alert v-if="kind === 'direct'" type="info" variant="tonal">
+          完成表示确认这张单据已经实际发生。完成后需通过撤销完成才能退回。
         </v-alert>
         <template v-else-if="kind === 'purchase'">
           <v-text-field v-model="form.inboundDate" label="入库日期" type="date" variant="outlined" />
@@ -246,7 +246,7 @@ function submit(): void {
           </div>
         </template>
         <v-textarea
-          v-if="kind !== 'confirm'"
+          v-if="kind !== 'direct'"
           v-model="form.differenceReason"
           class="mt-4"
           counter="1000"
@@ -263,7 +263,7 @@ function submit(): void {
           :loading="saving"
           @click="submit"
         >
-          确认执行
+          确认完成
         </v-btn>
       </v-card-actions>
     </v-card>

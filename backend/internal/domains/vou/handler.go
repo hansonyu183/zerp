@@ -22,12 +22,17 @@ type applicationService interface {
 	Get(context.Context, string, GetInput) (DocumentView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
-	Review(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
-	Unreview(context.Context, string, ReverseInput, string, string) (MutationResult, error)
+	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
+	Uncheck(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
 	Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error)
-	Execute(context.Context, string, ExecuteInput, string, string) (MutationResult, error)
-	Unexecute(context.Context, string, ReverseInput, string, string) (MutationResult, error)
+	Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error)
+	Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error)
+	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
+	ShortCloseRequest(context.Context, ReverseInput, string, string) (MutationResult, error)
+	ShortCloseCancel(context.Context, ReverseInput, string, string) (MutationResult, error)
+	ShortCloseConfirm(context.Context, DocumentRevisionInput, string, string) (MutationResult, error)
+	ShortCloseUnconfirm(context.Context, ReverseInput, string, string) (MutationResult, error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
 	CreateDownload(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
@@ -52,12 +57,13 @@ var actionRoutes = [...]actionRoute{
 	{action: "get", handle: (*Handler).get},
 	{action: "create", handle: (*Handler).create},
 	{action: "save", handle: (*Handler).save},
-	{action: "review", handle: (*Handler).review},
-	{action: "unreview", handle: (*Handler).unreview},
+	{action: "check", handle: (*Handler).check},
+	{action: "uncheck", handle: (*Handler).uncheck},
 	{action: "approve", handle: (*Handler).approve},
 	{action: "unapprove", handle: (*Handler).unapprove},
-	{action: "execute", handle: (*Handler).execute},
-	{action: "unexecute", handle: (*Handler).unexecute},
+	{action: "finalize", handle: (*Handler).finalize},
+	{action: "unfinalize", handle: (*Handler).unfinalize},
+	{action: "delete", handle: (*Handler).delete},
 	{action: "audit-history", handle: (*Handler).auditHistory},
 	{action: "attachment-initiate", handle: (*Handler).attachmentInitiate},
 	{action: "attachment-download", handle: (*Handler).attachmentDownload},
@@ -88,6 +94,11 @@ func (h *Handler) Register(router *gin.Engine) {
 			})
 		}
 	}
+	saleOrder := group.Group("/" + EntitySaleOrder)
+	saleOrder.POST("/short-close-request", h.authorize("/vou/sale-order/short-close-request"), h.shortCloseRequest)
+	saleOrder.POST("/short-close-cancel", h.authorize("/vou/sale-order/short-close-cancel"), h.shortCloseCancel)
+	saleOrder.POST("/short-close-confirm", h.authorize("/vou/sale-order/short-close-confirm"), h.shortCloseConfirm)
+	saleOrder.POST("/short-close-unconfirm", h.authorize("/vou/sale-order/short-close-unconfirm"), h.shortCloseUnconfirm)
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
 }
@@ -130,18 +141,18 @@ func (h *Handler) save(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) review(c *gin.Context, entity string) {
+func (h *Handler) check(c *gin.Context, entity string) {
 	var input DocumentRevisionInput
 	if h.bind(c, &input) {
-		result, err := h.service.Review(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Check(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
 
-func (h *Handler) unreview(c *gin.Context, entity string) {
+func (h *Handler) uncheck(c *gin.Context, entity string) {
 	var input ReverseInput
 	if h.bind(c, &input) {
-		result, err := h.service.Unreview(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Uncheck(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
@@ -162,18 +173,58 @@ func (h *Handler) unapprove(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) execute(c *gin.Context, entity string) {
-	var input ExecuteInput
+func (h *Handler) finalize(c *gin.Context, entity string) {
+	var input FinalizeInput
 	if h.bind(c, &input) {
-		result, err := h.service.Execute(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Finalize(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
 
-func (h *Handler) unexecute(c *gin.Context, entity string) {
+func (h *Handler) unfinalize(c *gin.Context, entity string) {
 	var input ReverseInput
 	if h.bind(c, &input) {
-		result, err := h.service.Unexecute(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Unfinalize(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) delete(c *gin.Context, entity string) {
+	var input DeleteInput
+	if h.bind(c, &input) {
+		result, err := h.service.Delete(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) shortCloseRequest(c *gin.Context) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		result, err := h.service.ShortCloseRequest(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) shortCloseCancel(c *gin.Context) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		result, err := h.service.ShortCloseCancel(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) shortCloseConfirm(c *gin.Context) {
+	var input DocumentRevisionInput
+	if h.bind(c, &input) {
+		result, err := h.service.ShortCloseConfirm(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) shortCloseUnconfirm(c *gin.Context) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		result, err := h.service.ShortCloseUnconfirm(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }

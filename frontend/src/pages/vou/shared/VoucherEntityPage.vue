@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import {
   calculateDueDate,
+  parseFixed,
   toVouAtomicDocument,
   VoucherAttachmentPanel,
   VoucherAuditHistory,
@@ -15,7 +16,9 @@ import {
   VoucherWorkspace,
   type VoucherDraftForm,
   type VoucherReference,
+  type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
+import { lifecycleLabels } from './config'
 import type { VoucherEntityViewModel } from './vm'
 
 const props = withDefaults(
@@ -30,6 +33,7 @@ const props = withDefaults(
   },
 )
 const vm = reactive(props.model)
+const labels = computed(() => lifecycleLabels(vm.config))
 
 const workspaceTitle = computed(
   () => `${vm.documentView ? '查看' : '新建'}${vm.config.title}`,
@@ -42,9 +46,9 @@ const atomicStatusLabel = computed(() => {
   return status
     ? {
         DRAFT: '草稿',
-        REVIEWED: '已审核',
+        CHECKED: labels.value.checked,
         APPROVED: '已批准',
-        EXECUTED: '已执行',
+        FINALIZED: labels.value.finalized,
       }[status]
     : ''
 })
@@ -54,6 +58,20 @@ const partyLabel = computed(() => {
   if (vm.config.partyMode === 'supplier') return '供应商'
   return '往来方'
 })
+const businessDateLabel = computed(() => (({
+  'sale-order': '订单日期',
+  'sale-outbound': '出库日期',
+  'sale-delivery': '配送日期',
+  'sale-signoff': '签收日期',
+} as Record<string, string>)[vm.config.entity] ?? '业务日期'))
+const basicInfoPanel = ref<string | undefined>('basic')
+const secondaryOpen = ref(false)
+const secondaryAction = ref<
+  'delete' | 'short-close-request' | 'short-close-cancel' |
+  'short-close-unconfirm'
+>('delete')
+const secondaryTitle = ref('')
+const secondaryReason = ref('')
 
 if (props.autoQuery) {
   void vm.query()
@@ -85,16 +103,42 @@ function changeCounterpartyType(value: string): void {
   vm.markReferenceChanged('counterpartyType')
   vm.searchReference('counterparty', '')
 }
+
+function openSecondary(
+  action: typeof secondaryAction.value,
+  title: string,
+): void {
+  secondaryAction.value = action
+  secondaryTitle.value = title
+  secondaryReason.value = ''
+  secondaryOpen.value = true
+}
+
+async function confirmSecondary(): Promise<void> {
+  if (!secondaryReason.value.trim()) return
+  secondaryOpen.value = false
+  await vm.secondaryAction(secondaryAction.value, secondaryReason.value.trim())
+}
+
+function formatQuantityMicros(value: bigint): string {
+  const whole = value / 1_000_000n
+  const fraction = String(value % 1_000_000n).padStart(6, '0').replace(/0+$/, '')
+  return fraction ? `${whole}.${fraction}` : String(whole)
+}
+
+function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
+  const outbound = parseFixed(line.outboundQuantity, 6, true)
+  const signed = parseFixed(line.signedQuantity, 6, true)
+  const rejected = parseFixed(line.rejectedQuantity, 6, true)
+  line.lossQuantity = outbound !== null && signed !== null && rejected !== null &&
+    signed + rejected <= outbound
+    ? formatQuantityMicros(outbound - signed - rejected)
+    : ''
+}
 </script>
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <div class="voucher-page__heading">
-      <div>
-        <div class="voucher-page__eyebrow">VOU · 业务单据</div>
-        <h1>{{ vm.config.title }}</h1>
-      </div>
-    </div>
     <v-alert
       v-if="vm.errorMessage"
       class="mb-4"
@@ -185,10 +229,49 @@ function changeCounterpartyType(value: string): void {
           v-if="vm.documentView && !vm.editing"
           :availability="vm.actionAvailability"
           :disabled="vm.busy || vm.dirty"
+          :labels="labels"
           :loading-action="vm.actionLoading"
           :status="vm.documentView.status"
           @action="vm.lifecycleAction"
         />
+        <v-btn
+          v-if="!vm.editing && vm.actionAvailability.delete"
+          color="error"
+          prepend-icon="mdi-delete-outline"
+          variant="tonal"
+          @click="openSecondary('delete', '删除草稿')"
+        >
+          删除草稿
+        </v-btn>
+        <v-btn
+          v-if="!vm.editing && vm.actionAvailability.shortCloseRequest"
+          color="warning"
+          variant="tonal"
+          @click="openSecondary('short-close-request', '申请短结')"
+        >
+          申请短结
+        </v-btn>
+        <v-btn
+          v-if="!vm.editing && vm.actionAvailability.shortCloseCancel"
+          variant="tonal"
+          @click="openSecondary('short-close-cancel', '取消短结申请')"
+        >
+          取消短结申请
+        </v-btn>
+        <v-btn
+          v-if="!vm.editing && vm.actionAvailability.shortCloseConfirm"
+          color="warning"
+          @click="vm.secondaryAction('short-close-confirm')"
+        >
+          确认短结
+        </v-btn>
+        <v-btn
+          v-if="!vm.editing && vm.actionAvailability.shortCloseUnconfirm"
+          variant="tonal"
+          @click="openSecondary('short-close-unconfirm', '撤销短结')"
+        >
+          撤销短结
+        </v-btn>
       </div>
     </template>
 
@@ -204,21 +287,44 @@ function changeCounterpartyType(value: string): void {
             :status-label="atomicStatusLabel"
           />
           <v-divider v-if="atomicDocument" class="my-5" />
+          <v-expansion-panels
+            v-model="basicInfoPanel"
+            class="voucher-form__basic-panel"
+            variant="accordion"
+          >
+            <v-expansion-panel value="basic">
+              <v-expansion-panel-title>基本信息</v-expansion-panel-title>
+              <v-expansion-panel-text>
           <div class="voucher-form__grid">
             <v-text-field
               v-model="vm.form.businessDate"
               :disabled="!vm.editing"
-              label="业务日期"
+              :label="businessDateLabel"
               type="date"
               variant="outlined"
             />
             <v-text-field
               v-model="vm.form.currency"
-              :disabled="!vm.editing || vm.config.usesFundAccount"
+              :disabled="!vm.editing || vm.config.usesFundAccount || Boolean(vm.config.sourceEntity)"
               label="币种"
               maxlength="3"
               variant="outlined"
               @update:model-value="vm.form.currency = ($event ?? '').toUpperCase()"
+            />
+            <v-autocomplete
+              v-if="vm.config.sourceEntity"
+              :disabled="!vm.editing || Boolean(vm.documentView)"
+              :error-messages="vm.sourceError ? [vm.sourceError] : []"
+              item-title="documentNo"
+              item-value="documentId"
+              :items="vm.sourceOptions"
+              label="来源单据"
+              :loading="vm.sourceLoading"
+              :model-value="vm.form.sourceDocumentId || null"
+              no-data-text="没有可用的已完成来源单据"
+              variant="outlined"
+              @update:model-value="vm.selectSourceDocument($event)"
+              @update:search="vm.searchSourceDocuments($event ?? '')"
             />
 
             <VoucherReferenceAutocomplete
@@ -296,6 +402,26 @@ function changeCounterpartyType(value: string): void {
               @update:model-value="updateReference('warehouse', $event)"
             />
             <VoucherReferenceAutocomplete
+              v-if="vm.config.entity === 'sale-delivery'"
+              :disabled="!vm.editing"
+              v-bind="referenceProps('platform')"
+              label="物流平台"
+              :model-value="vm.form.platform"
+              required
+              @search="search('platform', $event)"
+              @update:model-value="updateReference('platform', $event)"
+            />
+            <VoucherReferenceAutocomplete
+              v-if="vm.config.entity === 'sale-delivery'"
+              :disabled="!vm.editing || !vm.form.platform"
+              v-bind="referenceProps('vehicle')"
+              label="配送车辆"
+              :model-value="vm.form.vehicle"
+              required
+              @search="search('vehicle', $event)"
+              @update:model-value="updateReference('vehicle', $event)"
+            />
+            <VoucherReferenceAutocomplete
               v-if="vm.config.usesEmployee"
               :disabled="!vm.editing"
               v-bind="referenceProps('employee')"
@@ -350,6 +476,9 @@ function changeCounterpartyType(value: string): void {
               variant="outlined"
             />
           </div>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
 
           <v-divider class="my-5" />
           <VoucherProductLinesEditor
@@ -367,10 +496,125 @@ function changeCounterpartyType(value: string): void {
             v-model="vm.form.expenseLines"
             :editable="vm.editing"
           />
+          <div
+            v-if="vm.config.entity === 'sale-outbound' && vm.form.salesChainLines.length"
+            class="voucher-form__chain-table"
+          >
+            <h3>出库明细</h3>
+            <v-table>
+              <thead>
+                <tr>
+                  <th>产品</th>
+                  <th>可出库</th>
+                  <th>本次出库</th>
+                  <th>备注</th>
+                  <th v-if="vm.editing"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(line, index) in vm.form.salesChainLines" :key="line.key">
+                  <td>{{ line.productCode }} · {{ line.productName }} {{ line.productUnit }}</td>
+                  <td>{{ line.availableQuantity }}</td>
+                  <td>
+                    <v-text-field
+                      v-model="line.quantity"
+                      :disabled="!vm.editing"
+                      density="compact"
+                      hide-details="auto"
+                      inputmode="decimal"
+                      variant="outlined"
+                    />
+                  </td>
+                  <td>
+                    <v-text-field
+                      v-model="line.remark"
+                      :disabled="!vm.editing"
+                      density="compact"
+                      hide-details
+                      variant="outlined"
+                    />
+                  </td>
+                  <td v-if="vm.editing">
+                    <v-btn
+                      aria-label="移除此出库明细"
+                      icon="mdi-delete-outline"
+                      size="small"
+                      variant="text"
+                      @click="vm.form.salesChainLines.splice(index, 1)"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
+          <div
+            v-if="vm.config.entity === 'sale-delivery' && vm.form.sourceDocumentId"
+            class="voucher-form__chain-summary"
+          >
+            <v-alert type="info" variant="tonal">
+              本配送单承接出库单 {{ vm.form.sourceDocumentNo }} 的全部出库明细。
+            </v-alert>
+          </div>
+          <div
+            v-if="vm.config.entity === 'sale-signoff' && vm.form.salesChainLines.length"
+            class="voucher-form__chain-table"
+          >
+            <h3>签收明细</h3>
+            <v-table>
+              <thead>
+                <tr>
+                  <th>产品</th>
+                  <th>配送</th>
+                  <th>签收</th>
+                  <th>拒收</th>
+                  <th>损耗</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="line in vm.form.salesChainLines" :key="line.key">
+                  <td>{{ line.productCode }} · {{ line.productName }} {{ line.productUnit }}</td>
+                  <td>{{ line.outboundQuantity }}</td>
+                  <td>
+                    <v-text-field
+                      v-model="line.signedQuantity"
+                      :disabled="!vm.editing"
+                      density="compact"
+                      hide-details="auto"
+                      inputmode="decimal"
+                      variant="outlined"
+                      @update:model-value="updateSignoffLoss(line)"
+                    />
+                  </td>
+                  <td>
+                    <v-text-field
+                      v-model="line.rejectedQuantity"
+                      :disabled="!vm.editing"
+                      density="compact"
+                      hide-details="auto"
+                      inputmode="decimal"
+                      variant="outlined"
+                      @update:model-value="updateSignoffLoss(line)"
+                    />
+                  </td>
+                  <td>{{ line.lossQuantity || '—' }}</td>
+                  <td>
+                    <v-text-field
+                      v-model="line.remark"
+                      :disabled="!vm.editing"
+                      density="compact"
+                      hide-details
+                      variant="outlined"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
 
           <template v-if="vm.documentView">
             <v-divider class="my-5" />
-            <h3>后端快照与执行结果</h3>
+            <h3>业务快照与处理结果</h3>
             <div class="voucher-form__snapshot-grid">
               <div><strong>金额</strong><span>{{ vm.documentView.amount }}</span></div>
               <div><strong>联系人</strong><span>{{ vm.documentView.data.contactName || '—' }}</span></div>
@@ -407,6 +651,22 @@ function changeCounterpartyType(value: string): void {
               <div v-if="vm.documentView.data.platform">
                 <strong>物流平台/车辆</strong>
                 <span>{{ vm.documentView.data.platform.name }} / {{ vm.documentView.data.vehicle?.plateNumber }}</span>
+              </div>
+              <div v-if="vm.documentView.data.sourceDocumentNo">
+                <strong>来源单据</strong>
+                <span>{{ vm.documentView.data.sourceDocumentNo }}</span>
+              </div>
+              <div v-if="vm.documentView.data.fulfillmentStatus">
+                <strong>履约状态</strong>
+                <span>{{ vm.documentView.data.fulfillmentStatus }}</span>
+              </div>
+              <div v-if="vm.documentView.data.remainingQuantity">
+                <strong>已签 / 在途 / 可出库</strong>
+                <span>
+                  {{ vm.documentView.data.signedQuantity }} /
+                  {{ vm.documentView.data.inTransitQuantity }} /
+                  {{ vm.documentView.data.remainingQuantity }}
+                </span>
               </div>
             </div>
           </template>
@@ -460,28 +720,59 @@ function changeCounterpartyType(value: string): void {
     v-model="vm.executionOpen"
     :document="vm.documentView"
     :error-message="vm.executionError"
-    :kind="vm.config.executionKind"
+    :kind="vm.config.finalizationKind"
     :platform-loading="vm.referenceLoading('platform')"
     :platform-options="vm.referenceOptions('platform')"
-    :saving="vm.actionLoading === 'execute'"
+    :saving="vm.actionLoading === 'finalize'"
     :vehicle-loading="vm.referenceLoading('vehicle')"
     :vehicle-options="vm.referenceOptions('vehicle')"
     @platform-search="vm.searchReference('platform', $event)"
-    @submit="vm.execute"
+    @submit="vm.finalize"
     @vehicle-search="vm.searchReference('vehicle', $event)"
   />
+
+  <v-dialog v-model="secondaryOpen" max-width="560">
+    <v-card rounded="xl" :title="secondaryTitle">
+      <v-card-text>
+        <v-textarea
+          v-model="secondaryReason"
+          autofocus
+          counter="1000"
+          label="原因"
+          :rules="[
+            (value: string) => Boolean(value?.trim()) || '请输入原因。',
+            (value: string) => Array.from(value ?? '').length <= 1000 || '原因不能超过 1000 字。',
+          ]"
+          variant="outlined"
+        />
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5">
+        <v-spacer />
+        <v-btn variant="text" @click="secondaryOpen = false">取消</v-btn>
+        <v-btn
+          color="warning"
+          :disabled="!secondaryReason.trim() || Array.from(secondaryReason).length > 1000"
+          @click="confirmSecondary"
+        >
+          确认
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
-.voucher-page__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.voucher-page__heading h1 { margin: 2px 0 0; font-size: 28px; }
-.voucher-page__eyebrow { color: rgb(var(--v-theme-primary)); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
 .voucher-page__workspace-actions { display: flex; align-items: center; gap: 8px; margin-right: 12px; }
+.voucher-form__basic-panel { margin-bottom: 4px; }
 .voucher-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
 .voucher-form__wide { grid-column: 1 / -1; }
 .voucher-form__snapshot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
 .voucher-form__snapshot-grid div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; }
 .voucher-form__snapshot-grid span { color: rgb(var(--v-theme-on-surface-variant)); }
+.voucher-form__chain-table { margin-top: 18px; overflow-x: auto; }
+.voucher-form__chain-table h3 { margin-bottom: 12px; }
+.voucher-form__chain-table :deep(.v-input) { min-width: 120px; }
+.voucher-form__chain-summary { margin-top: 18px; }
 @media (max-width: 800px) {
   .voucher-form__grid, .voucher-form__snapshot-grid { grid-template-columns: 1fr; }
   .voucher-form__wide { grid-column: auto; }

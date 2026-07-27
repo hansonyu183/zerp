@@ -35,11 +35,11 @@ export function toVouAtomicDocument(
     createdBy: view.createdBy,
     updatedAt: view.updatedAt,
     updatedBy: view.updatedBy,
-    reviewedAt: view.reviewedAt,
-    reviewedBy: view.reviewedBy,
+    checkedAt: view.checkedAt,
+    checkedBy: view.checkedBy,
     approvedAt: view.approvedAt,
     approvedBy: view.approvedBy,
-    executedAt: view.executedAt,
-    executedBy: view.executedBy,
+    finalizedAt: view.finalizedAt,
+    finalizedBy: view.finalizedBy,
   }
 }

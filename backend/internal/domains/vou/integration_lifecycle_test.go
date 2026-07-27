@@ -26,7 +26,6 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 	}{
 		{EntitySaleOrder, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer, ProductLines: productLine,
-			Warehouse: &refs.warehouse,
 		}},
 		{EntityPurchaseOrder, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier, ProductLines: productLine,
@@ -71,7 +70,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("create: %v", err)
 			}
-			reviewed, err := service.Review(t.Context(), test.entity, DocumentRevisionInput{
+			reviewed, err := service.Check(t.Context(), test.entity, DocumentRevisionInput{
 				DocumentID: created.DocumentID, Revision: created.Revision,
 			}, integrationActorOne, "vou-review")
 			if err != nil {
@@ -90,8 +89,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("approve: %v", err)
 			}
-			execute := ExecuteInput{DocumentID: created.DocumentID, Revision: approved.Revision}
-			if test.entity == EntitySaleOrder || test.entity == EntityIntermediarySaleOrder {
+			execute := FinalizeInput{DocumentID: created.DocumentID, Revision: approved.Revision}
+			if test.entity == EntityIntermediarySaleOrder {
 				view, getErr := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
 				if getErr != nil {
 					t.Fatalf("get lines: %v", getErr)
@@ -114,13 +113,13 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				}}
 				execute.DifferenceReason = "少收 0.5"
 			}
-			executed, err := service.Execute(t.Context(), test.entity, execute,
+			executed, err := service.Finalize(t.Context(), test.entity, execute,
 				integrationActorOne, "vou-execute")
 			if err != nil {
 				t.Fatalf("execute: %v", err)
 			}
 			view, err := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-			if err != nil || view.Status != StatusExecuted || view.Amount == "" {
+			if err != nil || view.Status != StatusFinalized || view.Amount == "" {
 				t.Fatalf("executed view=%+v err=%v", view, err)
 			}
 			if view.Data.Remark != "单据备注" {
@@ -128,7 +127,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			}
 			switch test.entity {
 			case EntitySaleOrder:
-				if view.Data.Salesperson == nil || view.Data.Warehouse == nil ||
+				if view.Data.Salesperson == nil || view.Data.Warehouse != nil ||
 					view.Data.Salesperson.ObjectID != refs.employee.ObjectID ||
 					view.Data.ContactName != "客户联系人" ||
 					view.Data.ContactPhone != "13800000000" ||
@@ -172,7 +171,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
 				Page: 1, PageSize: 20,
 				Filters: QueryFilters{
-					Keyword: created.DocumentNo, Status: []string{StatusExecuted},
+					Keyword: created.DocumentNo, Status: []string{StatusFinalized},
 					DateFrom: "2026-07-24", DateTo: "2026-07-24",
 				},
 				Sort: []SortInput{{Field: "documentNo", Order: "asc"}},
@@ -187,7 +186,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				t.Fatalf("unfiltered query page=%+v err=%v", unfiltered, queryErr)
 			}
 			if test.entity == EntitySaleOrder {
-				unexecuted, reverseErr := service.Unexecute(t.Context(), test.entity, ReverseInput{
+				unexecuted, reverseErr := service.Unfinalize(t.Context(), test.entity, ReverseInput{
 					DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "修正执行结果",
 				}, integrationActorOne, "vou-unexecute")
 				if reverseErr != nil {
@@ -199,7 +198,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				if reverseErr != nil {
 					t.Fatalf("unapprove: %v", reverseErr)
 				}
-				unreviewed, reverseErr := service.Unreview(t.Context(), test.entity, ReverseInput{
+				unreviewed, reverseErr := service.Uncheck(t.Context(), test.entity, ReverseInput{
 					DocumentID: created.DocumentID, Revision: unapproved.Revision, Reason: "退回制单",
 				}, integrationActorOne, "vou-unreview")
 				if reverseErr != nil || unreviewed.Status != StatusDraft {
@@ -262,7 +261,10 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := len(entities) * len(actionRoutes)
+	const salesChainEntities = 3
+	const saleOrderShortCloseActions = 4
+	wantPermissions := (len(entities)-salesChainEntities)*(len(actionRoutes)-1) +
+		salesChainEntities*len(actionRoutes) + saleOrderShortCloseActions
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}

@@ -5,6 +5,9 @@
       'enum':
         [
           'sale-order',
+          'sale-outbound',
+          'sale-delivery',
+          'sale-signoff',
           'purchase-order',
           'intermediary-sale-order',
           'receipt',
@@ -75,6 +78,7 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
+                  'sourceDocumentId': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',
@@ -164,6 +168,28 @@
                           'versionId': { 'type': 'string' },
                         },
                     },
+                  'platform':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'vehicle':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
                   'fundAccount':
                     {
                       'type': 'object',
@@ -223,6 +249,44 @@
                               'category': { 'type': 'string' },
                               'description': { 'type': 'string' },
                               'amount': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'sourceLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['sourceLineId', 'quantity'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceLineId': { 'type': 'string' },
+                              'quantity': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'signoffLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required':
+                            [
+                              'sourceLineId',
+                              'signedQuantity',
+                              'rejectedQuantity',
+                            ],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceLineId': { 'type': 'string' },
+                              'signedQuantity': { 'type': 'string' },
+                              'rejectedQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -249,6 +313,7 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
+                  'sourceDocumentId': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',
@@ -338,6 +403,28 @@
                           'versionId': { 'type': 'string' },
                         },
                     },
+                  'platform':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'vehicle':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
                   'fundAccount':
                     {
                       'type': 'object',
@@ -397,6 +484,44 @@
                               'category': { 'type': 'string' },
                               'description': { 'type': 'string' },
                               'amount': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'sourceLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['sourceLineId', 'quantity'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceLineId': { 'type': 'string' },
+                              'quantity': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'signoffLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required':
+                            [
+                              'sourceLineId',
+                              'signedQuantity',
+                              'rejectedQuantity',
+                            ],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceLineId': { 'type': 'string' },
+                              'signedQuantity': { 'type': 'string' },
+                              'rejectedQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -428,7 +553,7 @@
           'reason': { 'type': 'string' },
         },
     },
-  'VouExecuteRequest':
+  'VouFinalizeRequest':
     {
       'type': 'object',
       'required': ['documentId', 'revision'],

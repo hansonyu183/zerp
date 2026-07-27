@@ -53,9 +53,9 @@ function statusText(): string {
   if (!props.document) return props.editing ? '新建草稿' : '加载中'
   return {
     DRAFT: '草稿',
-    REVIEWED: '已审核',
+    CHECKED: '已核对',
     APPROVED: '已批准',
-    EXECUTED: '已执行',
+    FINALIZED: '已完成',
   }[props.document.status]
 }
 </script>

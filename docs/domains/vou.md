@@ -6,6 +6,9 @@ VOU（Voucher）负责销售、采购、资金及费用单据的制单、审核�
 
 ```text
 sale-order
+sale-outbound
+sale-delivery
+sale-signoff
 purchase-order
 intermediary-sale-order
 receipt
@@ -40,7 +43,7 @@ SO/PO/ISO/REC/PAY/ER/OI-YYYYMMDD-######
 
 客户、供应商可在 BOB 中不配置结算方式，但不能据此新建或保存贸易单据。贸易单据保存制单时生效的结算方式对象、版本、编码、名称和规则快照；联系人、电话、地址同样只从客户或供应商有效版本读取并保存快照，不接受客户端直接输入。
 
-新建贸易单据时，客户的 `salespersonEmployeeId` 默认作为销售单或居间销售单的 `salesperson`，供应商的 `salespersonEmployeeId` 默认作为采购单或居间销售单的 `purchaser`。客户端显式传入人员引用时覆盖默认值。已有草稿保存时省略人员字段，保留单据原对象、版本、编码和名称快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
+新建贸易单据时，客户的 `salespersonEmployeeId` 默认作为销售订单或居间销售单的 `salesperson`，供应商的 `salespersonEmployeeId` 默认作为采购单或居间销售单的 `purchaser`。客户端显式传入人员引用时覆盖默认值。已有草稿保存时省略人员字段，保留单据原对象、版本、编码和名称快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
 
 后端不计算、不保存也不返回 `dueDate`。前端按单据业务日期和结算规则的自然日语义计算：
 
@@ -51,13 +54,13 @@ SO/PO/ISO/REC/PAY/ER/OI-YYYYMMDD-######
 ### 2.2 生命周期
 
 ```text
-DRAFT ⇄ REVIEWED ⇄ APPROVED ⇄ EXECUTED
+DRAFT ⇄ CHECKED ⇄ APPROVED ⇄ FINALIZED
 ```
 
 - `create` 创建草稿；`save` 只允许修改草稿。
-- `review`、`approve`、`execute` 逐级前进。
-- `unexecute`、`unapprove`、`unreview` 逐级退回，并要求原因。
-- `unexecute` 清除当前执行结果，旧值保留在审计事件中。
+- `check`、`approve`、`finalize` 逐级前进。
+- `unfinalize`、`unapprove`、`uncheck` 逐级退回，并要求原因。
+- `unfinalize` 清除当前最终处理结果，旧值保留在审计事件中。
 - 不提供提交、物理删除、作废或更正单。
 - 不比较动作操作者身份，只校验精确 APP 路径权限。
 - 所有写动作携带文档 `revision`，使用乐观并发控制。
@@ -66,7 +69,7 @@ DRAFT ⇄ REVIEWED ⇄ APPROVED ⇄ EXECUTED
 
 ```text
 query get create save
-review unreview approve unapprove execute unexecute
+check uncheck approve unapprove finalize unfinalize
 audit-history
 attachment-initiate attachment-download attachment-remove
 ```
@@ -103,9 +106,9 @@ BOB 引用结构固定为：
 | `get`                                | `documentId`                                            |
 | `create`                             | `data`                                                  |
 | `save`                               | `documentId`、`revision`、`data`                        |
-| `review`、`approve`                  | `documentId`、`revision`                                |
-| `unreview`、`unapprove`、`unexecute` | `documentId`、`revision`、`reason`                      |
-| `execute`                            | `documentId`、`revision`，并按实体携带第 3.7 节执行字段 |
+| `check`、`approve`                   | `documentId`、`revision`                                |
+| `uncheck`、`unapprove`、`unfinalize` | `documentId`、`revision`、`reason`                      |
+| `finalize`                           | `documentId`、`revision`，并按实体携带第 3.7 节处理字段 |
 | `audit-history`                      | `documentId`、`page`、`pageSize`                        |
 | 附件动作                             | 见第 5 节                                               |
 
@@ -122,17 +125,21 @@ BOB 引用结构固定为：
 
 ## 3. 单据字段
 
-### 3.1 销售单
+### 3.1 销售四单
 
-草稿包含客户、必填业务员、必填仓库、订购日期、币种、备注及至少一条产品明细。新建时省略业务员则从客户默认带入，显式传入可覆盖。明细包含产品、订购数量、含税单价和可选备注（最多 1000 字），行金额和总金额由后端计算。保存时自动快照客户联系人、电话、地址和客户结算方式。
+销售履约拆为 `sale-order -> sale-outbound -> sale-delivery -> sale-signoff`。销售订单保存客户、
+业务员、订购日期、币种、备注和产品明细，不锁定仓库。销售出库单从已最终处理的订单选取来源行、
+仓库和出库数量；一张订单可多次出库。销售配送单完整承接一张已出库单并保存物流平台和车辆，
+一张出库单最多一张配送单。销售签收单完整覆盖一张已发运配送单的全部行，一张配送单最多一张签收单。
 
-签收完成后一次执行，执行请求包含出库日期、签收日期、物流平台、送货车辆以及每行的出库、签收、拒收和损耗数量。必须满足：
+日期必须满足 `订单日期 <= 出库日期 <= 配送日期 <= 签收日期`。可再出库量等于订购量减已签收量
+再减未签收在途量，最终处理出库单时在事务内锁定并重算。签收满足
+`签收 + 拒收 + 损耗 = 出库`，其中损耗由服务端计算；拒收和损耗释放订单需求，拒收恢复库存，
+损耗不回库，只有签收量形成客户应收。
 
-- `订购日期 <= 出库日期 <= 签收日期`；
-- `0 < 出库数量 <= 订购数量`；
-- `签收 + 拒收 + 损耗 = 出库`；
-- 任一行出库少于订购数量时，整单差异原因必填；
-- 车辆必须属于所选物流平台。
+销售订单的 `fulfillmentStatus` 为 `OPEN`、`FULFILLED`、`SHORT_CLOSE_REQUESTED` 或
+`SHORT_CLOSED`。全部订购量签收后自动履约完成；无在途单据时允许申请短结，由另一操作者确认，
+并支持取消申请和带原因反确认。
 
 ### 3.2 采购单
 
@@ -140,7 +147,7 @@ BOB 引用结构固定为：
 
 ### 3.3 居间销售单
 
-草稿同时包含客户、普通供应商、必填业务员和必填采购员，不包含仓库。新建时省略人员字段，分别从客户和供应商默认带入；显式传入可独立覆盖。每条商品行的 `unitPrice` 为客户销售单价，`purchaseUnitPrice` 为必填供应商采购单价；单据抬头总额仍按销售单价计算。其余订购、金额和执行规则与销售单一致。保存时自动快照客户联系人、电话、地址及客户和供应商两套结算方式；供应商表示实际供货厂商，物流平台仍独立选择。
+草稿同时包含客户、普通供应商、必填业务员和必填采购员，不包含仓库。新建时省略人员字段，分别从客户和供应商默认带入；显式传入可独立覆盖。每条商品行的 `unitPrice` 为客户销售单价，`purchaseUnitPrice` 为必填供应商采购单价；单据抬头总额仍按销售单价计算。其余订购、金额和最终处理规则与销售订单一致。保存时自动快照客户联系人、电话、地址及客户和供应商两套结算方式；供应商表示实际供货厂商，物流平台仍独立选择。
 
 ### 3.4 收款单与付款单
 
@@ -156,11 +163,11 @@ BOB 引用结构固定为：
 
 日期仅校验字段先后关系，允许历史补录和未来计划日期。
 
-新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`review`、`approve` 和 `execute` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
+新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check`、`approve` 和 `finalize` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
 
 ### 3.7 草稿与执行载荷
 
-贸易单据草稿使用统一 `data` 结构。销售单示例：
+贸易单据草稿使用统一 `data` 结构。销售订单示例：
 
 ```json
 {
@@ -169,7 +176,6 @@ BOB 引用结构固定为：
     "currency": "CNY",
     "customer": { "objectId": "01J...", "versionId": "01J..." },
     "salesperson": { "objectId": "01J...", "versionId": "01J..." },
-    "warehouse": { "objectId": "01J...", "versionId": "01J..." },
     "remark": "客户要求分批送货",
     "productLines": [
       {
@@ -187,14 +193,17 @@ BOB 引用结构固定为：
 
 | 实体                      | 草稿专用字段                                                                                       |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sale-order`              | `customer`、可省略并从客户带入的 `salesperson`、`warehouse`、`productLines`                        |
+| `sale-order`              | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                                     |
+| `sale-outbound`           | `sourceDocumentId`、`warehouse`、`sourceLines`                                                     |
+| `sale-delivery`           | `sourceDocumentId`、`platform`、`vehicle`                                                          |
+| `sale-signoff`            | `sourceDocumentId`、`signoffLines`                                                                 |
 | `purchase-order`          | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`                        |
 | `intermediary-sale-order` | `customer`、`supplier`、`salesperson`、`purchaser`、`productLines`；每行还要求 `purchaseUnitPrice` |
 | `receipt`、`payment`      | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                             |
 | `expense-reimbursement`   | `employee`、`fundAccount`、`expenseLines`                                                          |
 | `other-income`            | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount`           |
 
-销售和居间销售执行请求：
+居间销售最终处理请求：
 
 ```json
 {
@@ -241,7 +250,7 @@ BOB 引用结构固定为：
   "pageSize": 20,
   "filters": {
     "keyword": "SO-20260726",
-    "status": ["DRAFT", "REVIEWED"],
+    "status": ["DRAFT", "CHECKED"],
     "dateFrom": "2026-07-01",
     "dateTo": "2026-07-31",
     "partyObjectId": "01J..."
@@ -367,13 +376,17 @@ BOB 引用结构固定为：
 
 审计事件追加保存事件类型、前后状态、操作者、发生时间、反向原因、请求 ID 和必要的变更摘要。反向动作清理当前态字段，但不得删除历史事件。
 
-单据 `execute` 和 `unexecute` 在完成 VOU 当前态及审计写入后、提交事务前，分别发布 `DocumentExecutedEvent` 和 `DocumentUnexecutedEvent`。主题同时包含生命周期动作和单据实体，库存、账簿等下游领域按指定单据类型订阅。事件携带单据实体、ID、单号、新 revision、操作者和 request ID；反执行事件还携带原因。订阅者通过事件获得的同一个 `pgx.Tx` 查询所需单据快照并写入下游数据。
+单据 `finalize` 和 `unfinalize` 在完成 VOU 当前态及审计写入后、提交事务前，分别发布
+`DocumentFinalizedEvent` 和 `DocumentUnfinalizedEvent`。主题同时包含生命周期动作和单据实体，
+库存、账簿等下游领域按指定单据类型订阅。事件携带单据实体、ID、单号、新 revision、操作者和
+request ID；反向事件还携带原因。订阅者通过同一个 `pgx.Tx` 查询快照并写入下游数据。
 
 所有订阅者按启动时的注册顺序同步执行并采用 fail-fast。任一订阅者主动拒绝、返回故障或发生 panic 时，VOU 执行或反执行、审计记录以及此前订阅者的数据库写入全部回滚；没有订阅者时保持现有执行行为。业务拒绝返回冲突响应，其他订阅故障返回内部错误。订阅者不得产生不能由数据库事务回滚的外部副作用。
 
 ## 7. 验收
 
-- 七类单据均能完成正向和完整反向链路；
+- 十类普通 VOU 单据均能完成正向和完整反向链路；
+- 销售订单可分批出库，出库、配送、签收严格追溯来源且并发不超量；
 - 销售、采购、居间销售的人员、仓库、联系人和结算规则按制单版本稳定快照；
 - 新建贸易单据能从客户或供应商默认带入人员，显式覆盖生效，保存草稿省略人员时保持原快照；
 - 缺少结算方式不能创建或保存贸易单据，迁移前缺少新增字段的历史单据不能正向流转；
@@ -410,7 +423,10 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 
 | 实体                      | 页面         |
 | ------------------------- | ------------ |
-| `sale-order`              | 销售单       |
+| `sale-order`              | 销售订单     |
+| `sale-outbound`           | 销售出库单   |
+| `sale-delivery`           | 销售配送单   |
+| `sale-signoff`            | 销售签收单   |
 | `purchase-order`          | 采购单       |
 | `intermediary-sale-order` | 居间销售单   |
 | `receipt`                 | 往来款收款单 |
@@ -423,12 +439,14 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 ### 9.2 通用交互
 
 - 实体页由列表和全屏单据工作区组成；页面状态由同目录 VM 和 VOU 共享 VM 管理，不进入 Pinia。
-- 单据状态固定为 `DRAFT ⇄ REVIEWED ⇄ APPROVED ⇄ EXECUTED`。反审核、反批准、反执行必须填写原因。
+- 单据状态固定为 `DRAFT ⇄ CHECKED ⇄ APPROVED ⇄ FINALIZED`。`check/uncheck`、`approve/unapprove`、
+  `finalize/unfinalize` 是统一后端动作；页面按单据类型显示审核、出库、配送、签收等业务文案。
+  所有反向动作必须填写原因。
 - 仅草稿可编辑和增删附件。所有写操作使用详情响应中的当前 `revision`，冲突后由用户重新加载，不自动覆盖。
 - BOB 新引用必须来自当前 `EFFECTIVE` 版本，并同时提交 `objectId` 和 `versionId`。详情中的历史快照可以展示，但不会被转换成新的有效引用。
 - 已有贸易草稿的业务员和采购员没有被用户改动时，保存请求省略该字段，以保留后端人员快照；新建时留空则由后端使用客户或供应商默认值。
 - 金额和数量始终保留为十进制字符串。产品行金额使用与后端相同的定点半向上取整，仅作界面反馈，最终金额以后端响应为准。
-- 历史居间销售单的每条产品明细必须填写 `purchaseUnitPrice`（采购含税单价）；销售单和采购单不得发送该字段。
+- 历史居间销售单的每条产品明细必须填写 `purchaseUnitPrice`（采购含税单价）；销售订单和采购单不得发送该字段。
 - 到期日只根据业务日期和结算规则快照在浏览器中显示，不保存、不提交，也不期待后端返回 `dueDate`。
 
 ### 9.3 附件

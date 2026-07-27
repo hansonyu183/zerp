@@ -89,6 +89,10 @@ func validEntity(entity string) bool {
 	}
 }
 
+func isSalesChainEntity(entity string) bool {
+	return entity == EntitySaleOutbound || entity == EntitySaleDelivery || entity == EntitySaleSignoff
+}
+
 func validID(value string) bool {
 	_, err := ulid.ParseStrict(value)
 	return err == nil
@@ -135,16 +139,13 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 
 	switch entity {
 	case EntitySaleOrder:
-		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, true, false, false); err != nil {
+		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, false, false, false); err != nil {
 			return validatedDraft{}, err
 		}
 		if err = validateReference(input.Customer, "customer", true); err != nil {
 			return validatedDraft{}, err
 		}
 		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
-			return validatedDraft{}, err
-		}
-		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
 			return validatedDraft{}, err
 		}
 		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
@@ -247,7 +248,9 @@ func requireOnlyDraftRefs(
 		(!employee && input.Employee != nil) || (!salesperson && input.Salesperson != nil) ||
 		(!purchaser && input.Purchaser != nil) || (!handler && input.Handler != nil) ||
 		(!warehouse && input.Warehouse != nil) || (!fundAccount && input.FundAccount != nil) ||
-		(!source && strings.TrimSpace(input.SourceName) != "") {
+		(!source && strings.TrimSpace(input.SourceName) != "") ||
+		strings.TrimSpace(input.SourceDocumentID) != "" || input.Platform != nil || input.Vehicle != nil ||
+		len(input.SourceLines) != 0 || len(input.SignoffLines) != 0 {
 		return domainError(ErrorValidation, "fields do not match entity", nil, nil)
 	}
 	if len(input.ProductLines) > 0 && !(customer || supplier) {
@@ -381,7 +384,7 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	if result.PartyObjectID != "" && !validID(result.PartyObjectID) {
 		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
 	}
-	allowedStatuses := map[string]bool{StatusDraft: true, StatusReviewed: true, StatusApproved: true, StatusExecuted: true}
+	allowedStatuses := map[string]bool{StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true}
 	seen := map[string]bool{}
 	for _, status := range input.Filters.Status {
 		status = strings.ToUpper(strings.TrimSpace(status))
@@ -427,7 +430,7 @@ func validateHistory(input HistoryInput) error {
 	return nil
 }
 
-func validateSaleExecution(input ExecuteInput) (validatedSaleExecution, error) {
+func validateSaleExecution(input FinalizeInput) (validatedSaleExecution, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return validatedSaleExecution{}, err
 	}
@@ -485,7 +488,7 @@ func validateSaleExecution(input ExecuteInput) (validatedSaleExecution, error) {
 	return result, nil
 }
 
-func validatePurchaseExecution(input ExecuteInput) (validatedPurchaseExecution, error) {
+func validatePurchaseExecution(input FinalizeInput) (validatedPurchaseExecution, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return validatedPurchaseExecution{}, err
 	}
@@ -514,7 +517,7 @@ func validatePurchaseExecution(input ExecuteInput) (validatedPurchaseExecution, 
 	return result, nil
 }
 
-func validateFinancialExecution(input ExecuteInput) error {
+func validateFinancialExecution(input FinalizeInput) error {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return err
 	}

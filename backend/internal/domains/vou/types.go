@@ -7,6 +7,9 @@ import (
 
 const (
 	EntitySaleOrder             = "sale-order"
+	EntitySaleOutbound          = "sale-outbound"
+	EntitySaleDelivery          = "sale-delivery"
+	EntitySaleSignoff           = "sale-signoff"
 	EntityPurchaseOrder         = "purchase-order"
 	EntityIntermediarySaleOrder = "intermediary-sale-order"
 	EntityReceipt               = "receipt"
@@ -20,10 +23,9 @@ const (
 	EntitySignoffNote           = "signoff-note"
 
 	StatusDraft               = "DRAFT"
-	StatusReviewed            = "REVIEWED"
-	StatusApproved            = "APPROVED"
-	StatusExecuted            = "EXECUTED"
 	StatusChecked             = "CHECKED"
+	StatusApproved            = "APPROVED"
+	StatusFinalized           = "FINALIZED"
 	StatusCompleted           = "COMPLETED"
 	StatusShortCloseRequested = "SHORT_CLOSE_REQUESTED"
 	StatusShortClosed         = "SHORT_CLOSED"
@@ -31,6 +33,9 @@ const (
 
 var entities = [...]string{
 	EntitySaleOrder,
+	EntitySaleOutbound,
+	EntitySaleDelivery,
+	EntitySaleSignoff,
 	EntityPurchaseOrder,
 	EntityIntermediarySaleOrder,
 	EntityReceipt,
@@ -76,6 +81,19 @@ type ProductLineInput struct {
 	QuantityPerContainer *string        `json:"quantityPerContainer,omitempty"`
 }
 
+type SourceQuantityLineInput struct {
+	SourceLineID string `json:"sourceLineId"`
+	Quantity     string `json:"quantity"`
+	Remark       string `json:"remark,omitempty"`
+}
+
+type SaleSignoffLineInput struct {
+	SourceLineID     string `json:"sourceLineId"`
+	SignedQuantity   string `json:"signedQuantity"`
+	RejectedQuantity string `json:"rejectedQuantity"`
+	Remark           string `json:"remark,omitempty"`
+}
+
 type ExpenseLineInput struct {
 	Category    string `json:"category"`
 	Description string `json:"description"`
@@ -84,23 +102,28 @@ type ExpenseLineInput struct {
 }
 
 type DraftInput struct {
-	BusinessDate     string             `json:"businessDate"`
-	Currency         string             `json:"currency"`
-	Remark           string             `json:"remark,omitempty"`
-	Customer         *ReferenceInput    `json:"customer,omitempty"`
-	Supplier         *ReferenceInput    `json:"supplier,omitempty"`
-	CounterpartyType string             `json:"counterpartyType,omitempty"`
-	Counterparty     *ReferenceInput    `json:"counterparty,omitempty"`
-	Employee         *ReferenceInput    `json:"employee,omitempty"`
-	Salesperson      *ReferenceInput    `json:"salesperson,omitempty"`
-	Purchaser        *ReferenceInput    `json:"purchaser,omitempty"`
-	Handler          *ReferenceInput    `json:"handler,omitempty"`
-	Warehouse        *ReferenceInput    `json:"warehouse,omitempty"`
-	FundAccount      *ReferenceInput    `json:"fundAccount,omitempty"`
-	SourceName       string             `json:"sourceName,omitempty"`
-	Amount           string             `json:"amount,omitempty"`
-	ProductLines     []ProductLineInput `json:"productLines,omitempty"`
-	ExpenseLines     []ExpenseLineInput `json:"expenseLines,omitempty"`
+	BusinessDate     string                    `json:"businessDate"`
+	Currency         string                    `json:"currency"`
+	Remark           string                    `json:"remark,omitempty"`
+	SourceDocumentID string                    `json:"sourceDocumentId,omitempty"`
+	Customer         *ReferenceInput           `json:"customer,omitempty"`
+	Supplier         *ReferenceInput           `json:"supplier,omitempty"`
+	CounterpartyType string                    `json:"counterpartyType,omitempty"`
+	Counterparty     *ReferenceInput           `json:"counterparty,omitempty"`
+	Employee         *ReferenceInput           `json:"employee,omitempty"`
+	Salesperson      *ReferenceInput           `json:"salesperson,omitempty"`
+	Purchaser        *ReferenceInput           `json:"purchaser,omitempty"`
+	Handler          *ReferenceInput           `json:"handler,omitempty"`
+	Warehouse        *ReferenceInput           `json:"warehouse,omitempty"`
+	Platform         *ReferenceInput           `json:"platform,omitempty"`
+	Vehicle          *ReferenceInput           `json:"vehicle,omitempty"`
+	FundAccount      *ReferenceInput           `json:"fundAccount,omitempty"`
+	SourceName       string                    `json:"sourceName,omitempty"`
+	Amount           string                    `json:"amount,omitempty"`
+	ProductLines     []ProductLineInput        `json:"productLines,omitempty"`
+	ExpenseLines     []ExpenseLineInput        `json:"expenseLines,omitempty"`
+	SourceLines      []SourceQuantityLineInput `json:"sourceLines,omitempty"`
+	SignoffLines     []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
 }
 
 type CreateInput struct {
@@ -137,7 +160,7 @@ type PurchaseExecutionLineInput struct {
 	InboundQuantity string `json:"inboundQuantity"`
 }
 
-type ExecuteInput struct {
+type FinalizeInput struct {
 	DocumentID       string                       `json:"documentId"`
 	Revision         int64                        `json:"revision"`
 	OutboundDate     string                       `json:"outboundDate,omitempty"`
@@ -149,6 +172,8 @@ type ExecuteInput struct {
 	SaleLines        []SaleExecutionLineInput     `json:"saleLines,omitempty"`
 	PurchaseLines    []PurchaseExecutionLineInput `json:"purchaseLines,omitempty"`
 }
+
+type DeleteInput = ReverseInput
 
 type GetInput struct {
 	DocumentID  string `json:"documentId"`
@@ -229,6 +254,23 @@ type ProductLineView struct {
 	InboundQuantity      string        `json:"inboundQuantity,omitempty"`
 	ContainerType        string        `json:"containerType,omitempty"`
 	QuantityPerContainer string        `json:"quantityPerContainer,omitempty"`
+	SourceLineID         string        `json:"sourceLineId,omitempty"`
+	Quantity             string        `json:"quantity,omitempty"`
+	AvailableQuantity    string        `json:"availableQuantity,omitempty"`
+}
+
+type SaleSignoffLineView struct {
+	LineID           string        `json:"lineId"`
+	LineNo           int32         `json:"lineNo"`
+	SourceLineID     string        `json:"sourceLineId"`
+	Product          ReferenceView `json:"product"`
+	OutboundQuantity string        `json:"outboundQuantity"`
+	SignedQuantity   string        `json:"signedQuantity"`
+	RejectedQuantity string        `json:"rejectedQuantity"`
+	LossQuantity     string        `json:"lossQuantity"`
+	UnitPrice        string        `json:"unitPrice"`
+	LineAmount       string        `json:"lineAmount"`
+	Remark           string        `json:"remark,omitempty"`
 }
 
 type ExpenseLineView struct {
@@ -292,6 +334,16 @@ type DocumentDataView struct {
 	Platform                 *ReferenceView                `json:"platform,omitempty"`
 	Vehicle                  *ReferenceView                `json:"vehicle,omitempty"`
 	DifferenceReason         string                        `json:"differenceReason,omitempty"`
+	SourceDocumentID         string                        `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo         string                        `json:"sourceDocumentNo,omitempty"`
+	SourceEntity             string                        `json:"sourceEntity,omitempty"`
+	SignoffLines             []SaleSignoffLineView         `json:"signoffLines,omitempty"`
+	FulfillmentStatus        string                        `json:"fulfillmentStatus,omitempty"`
+	SignedQuantity           string                        `json:"signedQuantity,omitempty"`
+	InTransitQuantity        string                        `json:"inTransitQuantity,omitempty"`
+	RemainingQuantity        string                        `json:"remainingQuantity,omitempty"`
+	ShortCloseRequestedBy    string                        `json:"shortCloseRequestedBy,omitempty"`
+	ShortCloseReason         string                        `json:"shortCloseReason,omitempty"`
 }
 
 type DocumentView struct {
@@ -307,12 +359,12 @@ type DocumentView struct {
 	CreatedBy   string           `json:"createdBy"`
 	UpdatedAt   time.Time        `json:"updatedAt"`
 	UpdatedBy   string           `json:"updatedBy"`
-	ReviewedAt  *time.Time       `json:"reviewedAt,omitempty"`
-	ReviewedBy  *string          `json:"reviewedBy,omitempty"`
+	CheckedAt   *time.Time       `json:"checkedAt,omitempty"`
+	CheckedBy   *string          `json:"checkedBy,omitempty"`
 	ApprovedAt  *time.Time       `json:"approvedAt,omitempty"`
 	ApprovedBy  *string          `json:"approvedBy,omitempty"`
-	ExecutedAt  *time.Time       `json:"executedAt,omitempty"`
-	ExecutedBy  *string          `json:"executedBy,omitempty"`
+	FinalizedAt *time.Time       `json:"finalizedAt,omitempty"`
+	FinalizedBy *string          `json:"finalizedBy,omitempty"`
 }
 
 type MutationResult struct {

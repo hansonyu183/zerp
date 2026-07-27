@@ -17,7 +17,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	bobService := bobdomain.NewService(pool)
 	saleDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		Salesperson: &refs.employee,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00", Remark: "制单快照",
 		}},
@@ -166,7 +166,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	if err != nil || legacy.Data.Handler != nil {
 		t.Fatalf("read legacy receipt view=%+v err=%v", legacy, err)
 	}
-	if _, err = service.Review(t.Context(), EntityReceipt, DocumentRevisionInput{
+	if _, err = service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
 		DocumentID: receipt.DocumentID, Revision: receipt.Revision,
 	}, integrationActorOne, "legacy-receipt-review"); err == nil {
 		t.Fatal("legacy receipt with missing handler advanced")
@@ -177,7 +177,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("complete legacy receipt: %v", err)
 	}
-	if _, err = service.Review(t.Context(), EntityReceipt, DocumentRevisionInput{
+	if _, err = service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
 		DocumentID: receipt.DocumentID, Revision: saved.Revision,
 	}, integrationActorOne, "legacy-receipt-reviewed"); err != nil {
 		t.Fatalf("review completed legacy receipt: %v", err)
@@ -196,7 +196,6 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 	service := newIntegrationService(t, pool)
 	draft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00",
 		}},
@@ -265,7 +264,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 
 	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		Salesperson: &refs.employee,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "1.00",
 		}},
@@ -273,30 +272,11 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 	if err != nil {
 		t.Fatalf("create sale: %v", err)
 	}
-	reviewed, _ := service.Review(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+	if _, err = service.Finalize(t.Context(), EntitySaleOrder, FinalizeInput{
 		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, integrationActorOne, "platform-mismatch-review")
-	approved, _ := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: reviewed.Revision,
-	}, integrationActorOne, "platform-mismatch-approve")
-	view, _ := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: created.DocumentID})
-	logistics := bobdomain.SupplierTypeLogisticsPlatform
-	otherPlatform := createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntitySupplier,
-		bobdomain.CreateDetailInput{
-			Code: "OLP" + newID(), Name: "其它物流", SupplierType: &logistics,
-			SalespersonEmployeeID: refs.employee.ObjectID,
-		})
-	_, err = service.Execute(t.Context(), EntitySaleOrder, ExecuteInput{
-		DocumentID: created.DocumentID, Revision: approved.Revision,
-		OutboundDate: "2026-07-24", SignoffDate: "2026-07-24",
-		Platform: &otherPlatform, Vehicle: &refs.vehicle,
-		SaleLines: []SaleExecutionLineInput{{
-			LineID: view.Data.ProductLines[0].LineID, OutboundQuantity: "1",
-			SignedQuantity: "1", RejectedQuantity: "0", LossQuantity: "0",
-		}},
-	}, integrationActorOne, "platform-mismatch-execute")
-	if err == nil {
-		t.Fatal("sale accepted vehicle from another platform")
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	}, integrationActorOne, "legacy-sale-finalize"); err == nil {
+		t.Fatal("sale order accepted legacy execution fields")
 	}
 
 	tx, err := pool.Begin(t.Context())

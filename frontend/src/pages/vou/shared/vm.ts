@@ -1,21 +1,7 @@
-import {
-  computed,
-  getCurrentScope,
-  onScopeDispose,
-  reactive,
-  ref,
-} from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient } from '@/api/client'
+import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import {
-  getErrorMessage,
-  type PageRequest,
-  type PageResult,
-} from '@/api/types'
-import {
-  calculateLineAmount,
-  isMoney,
-  isQuantity,
-  sumMoney,
   type VoucherActionAvailability,
   type VoucherDocumentView,
   type VoucherDraftForm,
@@ -37,6 +23,8 @@ import {
   type DraftPayload,
 } from './form'
 import { useVoucherReferences } from './references'
+import { appendSalesChainPayload, useVoucherSalesChain } from './sales-chain'
+import { validateVoucherDraft } from './validation'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
 
@@ -73,6 +61,14 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   const executionOpen = ref(false)
   const executionError = ref<string | null>(null)
+  const {
+    sourceOptions,
+    sourceLoading,
+    sourceError,
+    clearSourceDocuments,
+    searchSourceDocuments,
+    selectSourceDocument,
+  } = useVoucherSalesChain(config, form)
 
   const {
     referenceOptions,
@@ -92,17 +88,42 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     return {
       get: session.can(permission('get')),
       save: status === 'DRAFT' && session.can(permission('save')),
-      review: status === 'DRAFT' && session.can(permission('review')),
-      unreview: status === 'REVIEWED' && session.can(permission('unreview')),
-      approve: status === 'REVIEWED' && session.can(permission('approve')),
+      check: status === 'DRAFT' && session.can(permission('check')),
+      uncheck: status === 'CHECKED' && session.can(permission('uncheck')),
+      approve: status === 'CHECKED' && session.can(permission('approve')),
       unapprove: status === 'APPROVED' && session.can(permission('unapprove')),
-      execute: status === 'APPROVED' && session.can(permission('execute')),
-      unexecute: status === 'EXECUTED' && session.can(permission('unexecute')),
-      audit: Boolean(documentView.value) && session.can(permission('audit-history')),
+      finalize: status === 'APPROVED' && session.can(permission('finalize')),
+      unfinalize:
+        status === 'FINALIZED' && session.can(permission('unfinalize')),
+      delete:
+        status === 'DRAFT' &&
+        Boolean(config.sourceEntity) &&
+        session.can(permission('delete')),
+      shortCloseRequest:
+        status === 'FINALIZED' &&
+        documentView.value?.data.fulfillmentStatus === 'OPEN' &&
+        session.can(permission('short-close-request')),
+      shortCloseCancel:
+        status === 'FINALIZED' &&
+        documentView.value?.data.fulfillmentStatus ===
+          'SHORT_CLOSE_REQUESTED' &&
+        session.can(permission('short-close-cancel')),
+      shortCloseConfirm:
+        status === 'FINALIZED' &&
+        documentView.value?.data.fulfillmentStatus ===
+          'SHORT_CLOSE_REQUESTED' &&
+        session.can(permission('short-close-confirm')),
+      shortCloseUnconfirm:
+        status === 'FINALIZED' &&
+        documentView.value?.data.fulfillmentStatus === 'SHORT_CLOSED' &&
+        session.can(permission('short-close-unconfirm')),
+      audit:
+        Boolean(documentView.value) && session.can(permission('audit-history')),
       attachmentInitiate:
         status === 'DRAFT' && session.can(permission('attachment-initiate')),
       attachmentDownload:
-        Boolean(documentView.value) && session.can(permission('attachment-download')),
+        Boolean(documentView.value) &&
+        session.can(permission('attachment-download')),
       attachmentRemove:
         status === 'DRAFT' && session.can(permission('attachment-remove')),
     }
@@ -127,8 +148,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     loadDocument,
   )
   const busy = computed(
-    () => workspaceLoading.value || saving.value ||
-      Boolean(actionLoading.value) || attachmentLoading.value,
+    () =>
+      workspaceLoading.value ||
+      saving.value ||
+      Boolean(actionLoading.value) ||
+      attachmentLoading.value,
   )
 
   function permission(action: string): string {
@@ -140,9 +164,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   function canEdit(row: VoucherListItem): boolean {
-    return row.status === 'DRAFT' &&
+    return (
+      row.status === 'DRAFT' &&
       session.can(permission('get')) &&
       session.can(permission('save'))
+    )
   }
 
   async function query(): Promise<void> {
@@ -162,20 +188,26 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       const { data } = await apiClient.post<
         PageResult<VoucherListItem>,
         PageRequest
-      >(`vou/${config.entity}/query`, {
-        page: page.value,
-        pageSize: pageSize.value,
-        filters: {
-          ...(filters.keyword.trim() ? { keyword: filters.keyword.trim() } : {}),
-          ...(filters.status.length ? { status: [...filters.status] } : {}),
-          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
-          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
-          ...(selectedParty.value
-            ? { partyObjectId: selectedParty.value.objectId }
-            : {}),
+      >(
+        `vou/${config.entity}/query`,
+        {
+          page: page.value,
+          pageSize: pageSize.value,
+          filters: {
+            ...(filters.keyword.trim()
+              ? { keyword: filters.keyword.trim() }
+              : {}),
+            ...(filters.status.length ? { status: [...filters.status] } : {}),
+            ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+            ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
+            ...(selectedParty.value
+              ? { partyObjectId: selectedParty.value.objectId }
+              : {}),
+          },
+          sort: [{ ...sort.value }],
         },
-        sort: [{ ...sort.value }],
-      }, { signal: controller.signal })
+        { signal: controller.signal },
+      )
       if (sequence !== querySequence) return
       rows.value = data.items ?? []
       total.value = data.total ?? 0
@@ -227,9 +259,13 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     attachmentError.value = null
     auditEvents.value = []
     workspaceOpen.value = true
+    if (config.sourceEntity) void searchSourceDocuments('')
   }
 
-  async function openDocument(row: VoucherListItem, edit = false): Promise<void> {
+  async function openDocument(
+    row: VoucherListItem,
+    edit = false,
+  ): Promise<void> {
     if (!canView()) return
     workspaceOpen.value = true
     workspaceLoading.value = true
@@ -254,6 +290,25 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     >(`vou/${config.entity}/get`, { documentId: id })
     documentView.value = data
     form.value = formFromDocument(data)
+    if (data.data.sourceDocumentId && data.data.sourceDocumentNo) {
+      sourceOptions.value = [
+        {
+          documentId: data.data.sourceDocumentId,
+          entity:
+            data.data.sourceEntity ?? config.sourceEntity ?? config.entity,
+          documentNo: data.data.sourceDocumentNo,
+          status: 'FINALIZED',
+          revision: 0,
+          businessDate: data.data.businessDate,
+          currency: data.data.currency,
+          amount: data.amount,
+          updatedAt: data.updatedAt,
+        },
+        ...sourceOptions.value.filter(
+          (item) => item.documentId !== data.data.sourceDocumentId,
+        ),
+      ]
+    }
     initialForm.value = snapshot(form.value)
     personnelDirty.clear()
   }
@@ -272,8 +327,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   function startEditing(): void {
-    if (documentView.value?.status !== 'DRAFT' ||
-      !actionAvailability.value.save) return
+    if (
+      documentView.value?.status !== 'DRAFT' ||
+      !actionAvailability.value.save
+    )
+      return
     editing.value = true
     initialForm.value = snapshot(form.value)
   }
@@ -293,6 +351,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     executionOpen.value = false
     personnelDirty.clear()
     clearReferenceSearches()
+    clearSourceDocuments()
   }
 
   function markReferenceChanged(key: keyof VoucherDraftForm): void {
@@ -300,81 +359,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     if (key === 'fundAccount') {
       form.value.currency = form.value.fundAccount?.currency ?? ''
     }
+    if (key === 'platform') form.value.vehicle = null
     if (key === 'counterpartyType') form.value.counterparty = null
-  }
-
-  function validateDraft(): string | null {
-    const value = form.value
-    if (!value.businessDate) return '请选择业务日期。'
-    if (!/^[A-Z]{3}$/.test(value.currency.trim().toUpperCase())) {
-      return '币种必须是三位大写字母。'
-    }
-    if (Array.from(value.remark).length > 1000) return '备注不能超过 1000 字。'
-    if (config.partyMode === 'customer' && !value.customer) return '请选择客户。'
-    if (config.partyMode === 'supplier' && !value.supplier) return '请选择供应商。'
-    if (config.partyMode === 'dual' && (!value.customer || !value.supplier)) {
-      return '请选择客户和供应商。'
-    }
-    if (
-      config.partyMode === 'counterparty' &&
-      config.entity !== 'other-income' &&
-      (!value.counterpartyType || !value.counterparty)
-    ) {
-      return '请选择往来方类型和往来方。'
-    }
-    if (value.counterparty && !value.counterpartyType) return '请选择往来方类型。'
-    if (config.usesEmployee && !value.employee) return '请选择员工。'
-    if (config.usesWarehouse && !value.warehouse) return '请选择仓库。'
-    if (config.usesFundAccount && !value.fundAccount) return '请选择资金账户。'
-    if (config.usesHandler && !value.handler) return '请选择经办人。'
-    if (config.usesSourceName &&
-      (!value.sourceName.trim() || Array.from(value.sourceName.trim()).length > 200)) {
-      return '来源名称必填且不能超过 200 字。'
-    }
-    if (config.directAmount && !isMoney(value.amount)) return '金额格式不正确。'
-    if (config.lineKind === 'product') {
-      if (value.productLines.length < 1 || value.productLines.length > 200) {
-        return '产品明细必须包含 1 到 200 行。'
-      }
-      const seen = new Set<string>()
-      const lineAmounts: string[] = []
-      for (const line of value.productLines) {
-        if (!line.product || !isQuantity(line.orderedQuantity) ||
-          !isMoney(line.unitPrice)) return '请完整填写有效的产品、数量和单价。'
-        if (config.entity === 'intermediary-sale-order' &&
-          !isMoney(line.purchaseUnitPrice)) {
-          return '请完整填写有效的采购单价。'
-        }
-        const lineAmount = calculateLineAmount(
-          line.orderedQuantity,
-          line.unitPrice,
-        )
-        if (!lineAmount) return '产品行金额超出允许范围。'
-        lineAmounts.push(lineAmount)
-        if (Array.from(line.remark).length > 1000) return '产品行备注不能超过 1000 字。'
-        const key = `${line.product.objectId}/${line.product.versionId}`
-        if (seen.has(key)) return '同一产品不能重复添加。'
-        seen.add(key)
-      }
-      if (!sumMoney(lineAmounts)) return '单据总金额超出允许范围。'
-    }
-    if (config.lineKind === 'expense') {
-      if (value.expenseLines.length < 1 || value.expenseLines.length > 200) {
-        return '费用明细必须包含 1 到 200 行。'
-      }
-      for (const line of value.expenseLines) {
-        if (!line.category.trim() || Array.from(line.category.trim()).length > 100 ||
-          !line.description.trim() ||
-          Array.from(line.description.trim()).length > 500 ||
-          !isMoney(line.amount) || Array.from(line.remark).length > 1000) {
-          return '请完整填写有效的费用明细。'
-        }
-      }
-      if (!sumMoney(value.expenseLines.map((line) => line.amount))) {
-        return '单据总金额超出允许范围。'
-      }
-    }
-    return null
   }
 
   function buildDraftPayload(): DraftPayload {
@@ -395,17 +381,27 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       payload.counterparty = inputReference(value.counterparty)
     }
     if (config.usesEmployee) payload.employee = inputReference(value.employee)
-    if (config.usesSalesperson &&
-      (!documentView.value || personnelDirty.has('salesperson'))) {
+    if (
+      config.usesSalesperson &&
+      (!documentView.value || personnelDirty.has('salesperson'))
+    ) {
       payload.salesperson = inputReference(value.salesperson)
     }
-    if (config.usesPurchaser &&
-      (!documentView.value || personnelDirty.has('purchaser'))) {
+    if (
+      config.usesPurchaser &&
+      (!documentView.value || personnelDirty.has('purchaser'))
+    ) {
       payload.purchaser = inputReference(value.purchaser)
     }
     if (config.usesHandler) payload.handler = inputReference(value.handler)
-    if (config.usesWarehouse) payload.warehouse = inputReference(value.warehouse)
-    if (config.usesFundAccount) payload.fundAccount = inputReference(value.fundAccount)
+    if (config.usesWarehouse)
+      payload.warehouse = inputReference(value.warehouse)
+    if (config.entity === 'sale-delivery') {
+      payload.platform = inputReference(value.platform)
+      payload.vehicle = inputReference(value.vehicle)
+    }
+    if (config.usesFundAccount)
+      payload.fundAccount = inputReference(value.fundAccount)
     if (config.usesSourceName) payload.sourceName = value.sourceName.trim()
     if (config.directAmount) payload.amount = value.amount.trim()
     if (config.lineKind === 'product') {
@@ -427,11 +423,12 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       }))
     }
+    appendSalesChainPayload(config, value, payload)
     return payload
   }
 
   async function save(): Promise<boolean> {
-    const validation = validateDraft()
+    const validation = validateVoucherDraft(config, form.value)
     if (validation) {
       workspaceError.value = validation
       return false
@@ -471,13 +468,13 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   async function lifecycleAction(
-    action: 'review' | 'approve' | 'execute' |
-      'unreview' | 'unapprove' | 'unexecute',
+    action:
+      'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize',
     reason?: string,
   ): Promise<void> {
     const current = documentView.value
     if (!current || !actionAvailability.value[action]) return
-    if (action === 'execute') {
+    if (action === 'finalize' && config.finalizationKind !== 'direct') {
       executionError.value = null
       executionOpen.value = true
       return
@@ -503,43 +500,47 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     }
   }
 
-  async function execute(execution: VoucherExecutionForm): Promise<void> {
+  async function finalize(execution: VoucherExecutionForm): Promise<void> {
     const current = documentView.value
-    if (!current || !actionAvailability.value.execute) return
-    actionLoading.value = 'execute'
+    if (!current || !actionAvailability.value.finalize) return
+    actionLoading.value = 'finalize'
     executionError.value = null
     try {
       await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/execute`,
+        `vou/${config.entity}/finalize`,
         {
           documentId: current.documentId,
           revision: current.revision,
-          ...(config.executionKind === 'sale' ? {
-            outboundDate: execution.outboundDate,
-            signoffDate: execution.signoffDate,
-            platform: inputReference(execution.platform),
-            vehicle: inputReference(execution.vehicle),
-            ...(execution.differenceReason.trim()
-              ? { differenceReason: execution.differenceReason.trim() }
-              : {}),
-            saleLines: execution.saleLines.map((line) => ({
-              lineId: line.lineId,
-              outboundQuantity: line.outboundQuantity,
-              signedQuantity: line.signedQuantity,
-              rejectedQuantity: line.rejectedQuantity,
-              lossQuantity: line.lossQuantity,
-            })),
-          } : {}),
-          ...(config.executionKind === 'purchase' ? {
-            inboundDate: execution.inboundDate,
-            ...(execution.differenceReason.trim()
-              ? { differenceReason: execution.differenceReason.trim() }
-              : {}),
-            purchaseLines: execution.purchaseLines.map((line) => ({
-              lineId: line.lineId,
-              inboundQuantity: line.inboundQuantity,
-            })),
-          } : {}),
+          ...(config.finalizationKind === 'sale'
+            ? {
+                outboundDate: execution.outboundDate,
+                signoffDate: execution.signoffDate,
+                platform: inputReference(execution.platform),
+                vehicle: inputReference(execution.vehicle),
+                ...(execution.differenceReason.trim()
+                  ? { differenceReason: execution.differenceReason.trim() }
+                  : {}),
+                saleLines: execution.saleLines.map((line) => ({
+                  lineId: line.lineId,
+                  outboundQuantity: line.outboundQuantity,
+                  signedQuantity: line.signedQuantity,
+                  rejectedQuantity: line.rejectedQuantity,
+                  lossQuantity: line.lossQuantity,
+                })),
+              }
+            : {}),
+          ...(config.finalizationKind === 'purchase'
+            ? {
+                inboundDate: execution.inboundDate,
+                ...(execution.differenceReason.trim()
+                  ? { differenceReason: execution.differenceReason.trim() }
+                  : {}),
+                purchaseLines: execution.purchaseLines.map((line) => ({
+                  lineId: line.lineId,
+                  inboundQuantity: line.inboundQuantity,
+                })),
+              }
+            : {}),
         },
       )
       executionOpen.value = false
@@ -547,6 +548,50 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       await Promise.all([query(), loadAudit(1)])
     } catch (error) {
       executionError.value = getErrorMessage(error)
+    } finally {
+      actionLoading.value = null
+    }
+  }
+
+  async function secondaryAction(
+    action:
+      | 'delete'
+      | 'short-close-request'
+      | 'short-close-cancel'
+      | 'short-close-confirm'
+      | 'short-close-unconfirm',
+    reason?: string,
+  ): Promise<void> {
+    const current = documentView.value
+    if (!current) return
+    const availabilityKey = {
+      delete: 'delete',
+      'short-close-request': 'shortCloseRequest',
+      'short-close-cancel': 'shortCloseCancel',
+      'short-close-confirm': 'shortCloseConfirm',
+      'short-close-unconfirm': 'shortCloseUnconfirm',
+    }[action] as keyof VoucherActionAvailability
+    if (!actionAvailability.value[availabilityKey]) return
+    actionLoading.value = action
+    workspaceError.value = null
+    try {
+      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
+        `vou/${config.entity}/${action}`,
+        {
+          documentId: current.documentId,
+          revision: current.revision,
+          ...(reason ? { reason } : {}),
+        },
+      )
+      if (action === 'delete') {
+        closeWorkspace()
+      } else {
+        await loadDocument(current.documentId)
+        await loadAudit(1)
+      }
+      await query()
+    } catch (error) {
+      workspaceError.value = getErrorMessage(error)
     } finally {
       actionLoading.value = null
     }
@@ -609,7 +654,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     markReferenceChanged,
     save,
     lifecycleAction,
-    execute,
+    finalize,
+    secondaryAction,
     uploadAttachments,
     downloadAttachment,
     removeAttachment,
@@ -618,7 +664,14 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     referenceLoading,
     referenceError,
     searchReference,
+    sourceOptions,
+    sourceLoading,
+    sourceError,
+    searchSourceDocuments,
+    selectSourceDocument,
   }
 }
 
-export type VoucherEntityViewModel = ReturnType<typeof useVoucherEntityViewModel>
+export type VoucherEntityViewModel = ReturnType<
+  typeof useVoucherEntityViewModel
+>

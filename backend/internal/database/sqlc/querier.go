@@ -18,11 +18,11 @@ type Querier interface {
 	BobDraftAuditIsDeletable(ctx context.Context, arg BobDraftAuditIsDeletableParams) (*bool, error)
 	BobObjectHasExternalReferences(ctx context.Context, arg BobObjectHasExternalReferencesParams) (bool, error)
 	CancelLedReopen(ctx context.Context, arg CancelLedReopenParams) (int64, error)
+	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
 	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
 	ClearVouIntermediarySaleOrderExecution(ctx context.Context, documentID string) (int64, error)
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearVouPurchaseOrderExecution(ctx context.Context, documentID string) (int64, error)
-	ClearVouSaleOrderExecution(ctx context.Context, documentID string) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
 	CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategoryDetailParams) error
 	CopyBobCustomerDetail(ctx context.Context, arg CopyBobCustomerDetailParams) error
@@ -99,7 +99,7 @@ type Querier interface {
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
 	DeleteVouProductLines(ctx context.Context, documentID string) error
-	ExecuteVouDocument(ctx context.Context, arg ExecuteVouDocumentParams) (int64, error)
+	FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
@@ -189,8 +189,8 @@ type Querier interface {
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error)
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
-	ListExecutedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
+	ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
 	ListLedDraftContainer(ctx context.Context) ([]LedDraftContainer, error)
 	ListLedDraftFund(ctx context.Context) ([]LedDraftFund, error)
@@ -244,7 +244,6 @@ type Querier interface {
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
 	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)
-	ReviewVouDocument(ctx context.Context, arg ReviewVouDocumentParams) (int64, error)
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
@@ -256,14 +255,13 @@ type Querier interface {
 	SetVouPurchaseLineExecution(ctx context.Context, arg SetVouPurchaseLineExecutionParams) (int64, error)
 	SetVouPurchaseOrderExecution(ctx context.Context, arg SetVouPurchaseOrderExecutionParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
-	SetVouSaleOrderExecution(ctx context.Context, arg SetVouSaleOrderExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error
 	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
 	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
-	UnexecuteVouDocument(ctx context.Context, arg UnexecuteVouDocumentParams) (int64, error)
-	UnreviewVouDocument(ctx context.Context, arg UnreviewVouDocumentParams) (int64, error)
+	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
+	UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDocumentParams) (int64, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)

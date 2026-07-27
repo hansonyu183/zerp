@@ -17,7 +17,7 @@ SET status = 'APPROVED', revision = revision + 1,
     approved_at = now(), approved_by = $1,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'REVIEWED'
+  AND revision = $4 AND status = 'CHECKED'
 RETURNING revision
 `
 
@@ -30,6 +30,35 @@ type ApproveVouDocumentParams struct {
 
 func (q *Queries) ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error) {
 	row := q.db.QueryRow(ctx, approveVouDocument,
+		arg.ActorID,
+		arg.ID,
+		arg.Entity,
+		arg.Revision,
+	)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const checkVouDocument = `-- name: CheckVouDocument :one
+UPDATE vou_documents
+SET status = 'CHECKED', revision = revision + 1,
+    reviewed_at = now(), reviewed_by = $1,
+    updated_at = now(), updated_by = $1
+WHERE id = $2 AND entity = $3
+  AND revision = $4 AND status = 'DRAFT'
+RETURNING revision
+`
+
+type CheckVouDocumentParams struct {
+	ActorID  *string `db:"actor_id" json:"actor_id"`
+	ID       string  `db:"id" json:"id"`
+	Entity   string  `db:"entity" json:"entity"`
+	Revision int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error) {
+	row := q.db.QueryRow(ctx, checkVouDocument,
 		arg.ActorID,
 		arg.ID,
 		arg.Entity,
@@ -76,23 +105,6 @@ WHERE document_id = $1
 
 func (q *Queries) ClearVouPurchaseOrderExecution(ctx context.Context, documentID string) (int64, error) {
 	result, err := q.db.Exec(ctx, clearVouPurchaseOrderExecution, documentID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const clearVouSaleOrderExecution = `-- name: ClearVouSaleOrderExecution :execrows
-UPDATE vou_sale_order_details
-SET outbound_date = NULL, signoff_date = NULL,
-    platform_object_id = NULL, platform_version_id = NULL, platform_code = NULL, platform_name = NULL,
-    vehicle_object_id = NULL, vehicle_version_id = NULL, vehicle_code = NULL, vehicle_name = NULL,
-    vehicle_plate_number = NULL, difference_reason = NULL
-WHERE document_id = $1
-`
-
-func (q *Queries) ClearVouSaleOrderExecution(ctx context.Context, documentID string) (int64, error) {
-	result, err := q.db.Exec(ctx, clearVouSaleOrderExecution, documentID)
 	if err != nil {
 		return 0, err
 	}
@@ -183,6 +195,9 @@ WHERE d.entity = $1
   AND (
       $5::text = ''
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_object_id = $5 OR x.supplier_object_id = $5))
@@ -194,6 +209,12 @@ WHERE d.entity = $1
       $6::text = ''
       OR d.document_no ILIKE '%' || $6 || '%'
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id
           AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
@@ -300,9 +321,9 @@ func (q *Queries) DeleteVouProductLines(ctx context.Context, documentID string) 
 	return err
 }
 
-const executeVouDocument = `-- name: ExecuteVouDocument :one
+const finalizeVouDocument = `-- name: FinalizeVouDocument :one
 UPDATE vou_documents
-SET status = 'EXECUTED', revision = revision + 1,
+SET status = 'FINALIZED', revision = revision + 1,
     executed_at = now(), executed_by = $1,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND entity = $3
@@ -310,15 +331,15 @@ WHERE id = $2 AND entity = $3
 RETURNING revision
 `
 
-type ExecuteVouDocumentParams struct {
+type FinalizeVouDocumentParams struct {
 	ActorID  *string `db:"actor_id" json:"actor_id"`
 	ID       string  `db:"id" json:"id"`
 	Entity   string  `db:"entity" json:"entity"`
 	Revision int64   `db:"revision" json:"revision"`
 }
 
-func (q *Queries) ExecuteVouDocument(ctx context.Context, arg ExecuteVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, executeVouDocument,
+func (q *Queries) FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error) {
+	row := q.db.QueryRow(ctx, finalizeVouDocument,
 		arg.ActorID,
 		arg.ID,
 		arg.Entity,
@@ -632,7 +653,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, outbound_date, signoff_date, platform_object_id, platform_version_id, platform_code, platform_name, vehicle_object_id, vehicle_version_id, vehicle_code, vehicle_name, vehicle_plate_number, difference_reason, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -645,26 +666,10 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.CustomerVersionID,
 		&i.CustomerCode,
 		&i.CustomerName,
-		&i.OutboundDate,
-		&i.SignoffDate,
-		&i.PlatformObjectID,
-		&i.PlatformVersionID,
-		&i.PlatformCode,
-		&i.PlatformName,
-		&i.VehicleObjectID,
-		&i.VehicleVersionID,
-		&i.VehicleCode,
-		&i.VehicleName,
-		&i.VehiclePlateNumber,
-		&i.DifferenceReason,
 		&i.SalespersonObjectID,
 		&i.SalespersonVersionID,
 		&i.SalespersonCode,
 		&i.SalespersonName,
-		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
-		&i.WarehouseCode,
-		&i.WarehouseName,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.DeliveryAddress,
@@ -677,6 +682,9 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.SettlementDayOfMonth,
 		&i.SettlementDayOffset,
 		&i.SettlementDescription,
+		&i.FulfillmentStatus,
+		&i.ShortCloseRequestedBy,
+		&i.ShortCloseReason,
 	)
 	return i, err
 }
@@ -1326,7 +1334,6 @@ const insertVouSaleOrderDetail = `-- name: InsertVouSaleOrderDetail :exec
 INSERT INTO vou_sale_order_details (
     document_id, customer_object_id, customer_version_id, customer_code, customer_name,
     salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name,
-    warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
     contact_name, contact_phone, delivery_address,
     settlement_method_object_id, settlement_method_version_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
@@ -1337,14 +1344,12 @@ INSERT INTO vou_sale_order_details (
     $4, $5,
     $6, $7,
     $8, $9,
-    $10, $11,
-    $12, $13,
-    $14, $15, $16,
+    $10, $11, $12,
+    $13, $14,
+    $15, $16,
     $17, $18,
     $19, $20,
-    $21, $22,
-    $23, $24,
-    $25
+    $21
 )
 `
 
@@ -1358,10 +1363,6 @@ type InsertVouSaleOrderDetailParams struct {
 	SalespersonVersionID      *string `db:"salesperson_version_id" json:"salesperson_version_id"`
 	SalespersonCode           *string `db:"salesperson_code" json:"salesperson_code"`
 	SalespersonName           *string `db:"salesperson_name" json:"salesperson_name"`
-	WarehouseObjectID         *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID        *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode             *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName             *string `db:"warehouse_name" json:"warehouse_name"`
 	ContactName               *string `db:"contact_name" json:"contact_name"`
 	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
 	DeliveryAddress           *string `db:"delivery_address" json:"delivery_address"`
@@ -1387,10 +1388,6 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 		arg.SalespersonVersionID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
-		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
-		arg.WarehouseCode,
-		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.DeliveryAddress,
@@ -1573,10 +1570,14 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 
 const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.workflow_version, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.control_domain,
-       COALESCE(so.customer_name, po.supplier_name, iso.customer_name, r.counterparty_name,
+       COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
+                po.supplier_name, iso.customer_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
+LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
+LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
+LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_intermediary_sale_order_details iso ON iso.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
@@ -1590,6 +1591,9 @@ WHERE d.entity = $1
   AND (
       $5::text = ''
       OR so.customer_object_id = $5
+      OR sob.customer_object_id = $5
+      OR sd.customer_object_id = $5
+      OR ss.customer_object_id = $5
       OR po.supplier_object_id = $5
       OR iso.customer_object_id = $5 OR iso.supplier_object_id = $5
       OR r.counterparty_object_id = $5
@@ -1600,6 +1604,9 @@ WHERE d.entity = $1
       $6::text = ''
       OR d.document_no ILIKE '%' || $6 || '%'
       OR so.customer_code ILIKE '%' || $6 || '%' OR so.customer_name ILIKE '%' || $6 || '%'
+      OR sob.customer_code ILIKE '%' || $6 || '%' OR sob.customer_name ILIKE '%' || $6 || '%'
+      OR sd.customer_code ILIKE '%' || $6 || '%' OR sd.customer_name ILIKE '%' || $6 || '%'
+      OR ss.customer_code ILIKE '%' || $6 || '%' OR ss.customer_name ILIKE '%' || $6 || '%'
       OR po.supplier_code ILIKE '%' || $6 || '%' OR po.supplier_name ILIKE '%' || $6 || '%'
       OR iso.customer_name ILIKE '%' || $6 || '%' OR iso.supplier_name ILIKE '%' || $6 || '%'
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'
@@ -2006,35 +2013,6 @@ func (q *Queries) NextVouNumberCounter(ctx context.Context, arg NextVouNumberCou
 	return last_value, err
 }
 
-const reviewVouDocument = `-- name: ReviewVouDocument :one
-UPDATE vou_documents
-SET status = 'REVIEWED', revision = revision + 1,
-    reviewed_at = now(), reviewed_by = $1,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'DRAFT'
-RETURNING revision
-`
-
-type ReviewVouDocumentParams struct {
-	ActorID  *string `db:"actor_id" json:"actor_id"`
-	ID       string  `db:"id" json:"id"`
-	Entity   string  `db:"entity" json:"entity"`
-	Revision int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) ReviewVouDocument(ctx context.Context, arg ReviewVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, reviewVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
 const setVouIntermediarySaleOrderExecution = `-- name: SetVouIntermediarySaleOrderExecution :execrows
 UPDATE vou_intermediary_sale_order_details
 SET outbound_date = $1, signoff_date = $2,
@@ -2159,55 +2137,6 @@ func (q *Queries) SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLin
 	return result.RowsAffected(), nil
 }
 
-const setVouSaleOrderExecution = `-- name: SetVouSaleOrderExecution :execrows
-UPDATE vou_sale_order_details
-SET outbound_date = $1, signoff_date = $2,
-    platform_object_id = $3, platform_version_id = $4,
-    platform_code = $5, platform_name = $6,
-    vehicle_object_id = $7, vehicle_version_id = $8,
-    vehicle_code = $9, vehicle_name = $10,
-    vehicle_plate_number = $11, difference_reason = $12
-WHERE document_id = $13
-`
-
-type SetVouSaleOrderExecutionParams struct {
-	OutboundDate       pgtype.Date `db:"outbound_date" json:"outbound_date"`
-	SignoffDate        pgtype.Date `db:"signoff_date" json:"signoff_date"`
-	PlatformObjectID   *string     `db:"platform_object_id" json:"platform_object_id"`
-	PlatformVersionID  *string     `db:"platform_version_id" json:"platform_version_id"`
-	PlatformCode       *string     `db:"platform_code" json:"platform_code"`
-	PlatformName       *string     `db:"platform_name" json:"platform_name"`
-	VehicleObjectID    *string     `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID   *string     `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode        *string     `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName        *string     `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber *string     `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	DifferenceReason   *string     `db:"difference_reason" json:"difference_reason"`
-	DocumentID         string      `db:"document_id" json:"document_id"`
-}
-
-func (q *Queries) SetVouSaleOrderExecution(ctx context.Context, arg SetVouSaleOrderExecutionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setVouSaleOrderExecution,
-		arg.OutboundDate,
-		arg.SignoffDate,
-		arg.PlatformObjectID,
-		arg.PlatformVersionID,
-		arg.PlatformCode,
-		arg.PlatformName,
-		arg.VehicleObjectID,
-		arg.VehicleVersionID,
-		arg.VehicleCode,
-		arg.VehicleName,
-		arg.VehiclePlateNumber,
-		arg.DifferenceReason,
-		arg.DocumentID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const touchVouDraftAttachment = `-- name: TouchVouDraftAttachment :one
 UPDATE vou_documents
 SET revision = revision + 1, updated_at = now(), updated_by = $1
@@ -2237,7 +2166,7 @@ func (q *Queries) TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraft
 
 const unapproveVouDocument = `-- name: UnapproveVouDocument :one
 UPDATE vou_documents
-SET status = 'REVIEWED', revision = revision + 1,
+SET status = 'CHECKED', revision = revision + 1,
     approved_at = NULL, approved_by = NULL,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND entity = $3
@@ -2264,25 +2193,25 @@ func (q *Queries) UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocu
 	return revision, err
 }
 
-const unexecuteVouDocument = `-- name: UnexecuteVouDocument :one
+const uncheckVouDocument = `-- name: UncheckVouDocument :one
 UPDATE vou_documents
-SET status = 'APPROVED', revision = revision + 1,
-    executed_at = NULL, executed_by = NULL,
+SET status = 'DRAFT', revision = revision + 1,
+    reviewed_at = NULL, reviewed_by = NULL,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'EXECUTED'
+  AND revision = $4 AND status = 'CHECKED'
 RETURNING revision
 `
 
-type UnexecuteVouDocumentParams struct {
+type UncheckVouDocumentParams struct {
 	ActorID  string `db:"actor_id" json:"actor_id"`
 	ID       string `db:"id" json:"id"`
 	Entity   string `db:"entity" json:"entity"`
 	Revision int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) UnexecuteVouDocument(ctx context.Context, arg UnexecuteVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unexecuteVouDocument,
+func (q *Queries) UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error) {
+	row := q.db.QueryRow(ctx, uncheckVouDocument,
 		arg.ActorID,
 		arg.ID,
 		arg.Entity,
@@ -2293,25 +2222,25 @@ func (q *Queries) UnexecuteVouDocument(ctx context.Context, arg UnexecuteVouDocu
 	return revision, err
 }
 
-const unreviewVouDocument = `-- name: UnreviewVouDocument :one
+const unfinalizeVouDocument = `-- name: UnfinalizeVouDocument :one
 UPDATE vou_documents
-SET status = 'DRAFT', revision = revision + 1,
-    reviewed_at = NULL, reviewed_by = NULL,
+SET status = 'APPROVED', revision = revision + 1,
+    executed_at = NULL, executed_by = NULL,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'REVIEWED'
+  AND revision = $4 AND status = 'FINALIZED'
 RETURNING revision
 `
 
-type UnreviewVouDocumentParams struct {
+type UnfinalizeVouDocumentParams struct {
 	ActorID  string `db:"actor_id" json:"actor_id"`
 	ID       string `db:"id" json:"id"`
 	Entity   string `db:"entity" json:"entity"`
 	Revision int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) UnreviewVouDocument(ctx context.Context, arg UnreviewVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unreviewVouDocument,
+func (q *Queries) UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDocumentParams) (int64, error) {
+	row := q.db.QueryRow(ctx, unfinalizeVouDocument,
 		arg.ActorID,
 		arg.ID,
 		arg.Entity,
@@ -2772,21 +2701,18 @@ SET customer_object_id = $1, customer_version_id = $2,
     salesperson_object_id = $5,
     salesperson_version_id = $6,
     salesperson_code = $7, salesperson_name = $8,
-    warehouse_object_id = $9,
-    warehouse_version_id = $10,
-    warehouse_code = $11, warehouse_name = $12,
-    contact_name = $13, contact_phone = $14,
-    delivery_address = $15,
-    settlement_method_object_id = $16,
-    settlement_method_version_id = $17,
-    settlement_method_code = $18,
-    settlement_method_name = $19,
-    settlement_rule_type = $20,
-    settlement_month_offset = $21,
-    settlement_day_of_month = $22,
-    settlement_day_offset = $23,
-    settlement_description = $24
-WHERE document_id = $25
+    contact_name = $9, contact_phone = $10,
+    delivery_address = $11,
+    settlement_method_object_id = $12,
+    settlement_method_version_id = $13,
+    settlement_method_code = $14,
+    settlement_method_name = $15,
+    settlement_rule_type = $16,
+    settlement_month_offset = $17,
+    settlement_day_of_month = $18,
+    settlement_day_offset = $19,
+    settlement_description = $20
+WHERE document_id = $21
 `
 
 type UpdateVouSaleOrderDetailParams struct {
@@ -2798,10 +2724,6 @@ type UpdateVouSaleOrderDetailParams struct {
 	SalespersonVersionID      *string `db:"salesperson_version_id" json:"salesperson_version_id"`
 	SalespersonCode           *string `db:"salesperson_code" json:"salesperson_code"`
 	SalespersonName           *string `db:"salesperson_name" json:"salesperson_name"`
-	WarehouseObjectID         *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID        *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode             *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName             *string `db:"warehouse_name" json:"warehouse_name"`
 	ContactName               *string `db:"contact_name" json:"contact_name"`
 	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
 	DeliveryAddress           *string `db:"delivery_address" json:"delivery_address"`
@@ -2827,10 +2749,6 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		arg.SalespersonVersionID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
-		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
-		arg.WarehouseCode,
-		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.DeliveryAddress,

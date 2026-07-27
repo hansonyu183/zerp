@@ -9,15 +9,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *Service) Execute(
-	ctx context.Context, entity string, input ExecuteInput, actorID, requestID string,
+func (s *Service) Finalize(
+	ctx context.Context, entity string, input FinalizeInput, actorID, requestID string,
 ) (MutationResult, error) {
 	if !validEntity(entity) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin execute", err)
+		return MutationResult{}, s.internal("begin finalize", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
@@ -30,7 +30,7 @@ func (s *Service) Execute(
 	}
 	var summary map[string]any
 	switch entity {
-	case EntitySaleOrder, EntityIntermediarySaleOrder:
+	case EntityIntermediarySaleOrder:
 		execution, validationErr := validateSaleExecution(input)
 		if validationErr != nil {
 			return MutationResult{}, validationErr
@@ -48,6 +48,10 @@ func (s *Service) Execute(
 			return MutationResult{}, domainError(ErrorValidation, "inboundDate precedes businessDate", nil, nil)
 		}
 		summary, err = s.applyPurchaseExecution(ctx, q, document, execution)
+	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
+		if err = validateFinancialExecution(input); err == nil {
+			summary, err = s.prepareSalesChainFinalization(ctx, tx, document)
+		}
 	default:
 		if err = validateFinancialExecution(input); err == nil {
 			summary = map[string]any{"confirmed": true}
@@ -56,32 +60,37 @@ func (s *Service) Execute(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	revision, err := q.ExecuteVouDocument(ctx, dbsqlc.ExecuteVouDocumentParams{
+	revision, err := q.FinalizeVouDocument(ctx, dbsqlc.FinalizeVouDocumentParams{
 		ActorID: stringPtr(actorID), ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("execute document", err)
+		return MutationResult{}, s.writeError("finalize document", err)
+	}
+	if entity == EntitySaleSignoff {
+		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "EXECUTED",
-		From: stringPtr(StatusApproved), To: StatusExecuted, ActorID: actorID,
+		DocumentID: input.DocumentID, Entity: entity, Event: "FINALIZED",
+		From: stringPtr(StatusApproved), To: StatusFinalized, ActorID: actorID,
 		RequestID: requestID, Summary: summary,
 	}); err != nil {
-		return MutationResult{}, s.writeError("audit execute", err)
+		return MutationResult{}, s.writeError("audit finalize", err)
 	}
-	if err = s.events.Publish(ctx, tx, DocumentExecutedEvent{
+	if err = s.events.Publish(ctx, tx, DocumentFinalizedEvent{
 		Entity: entity, DocumentID: input.DocumentID, DocumentNo: document.DocumentNo,
 		Revision: revision, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
-		return MutationResult{}, s.eventError("publish document executed", err)
+		return MutationResult{}, s.eventError("publish document finalized", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit execute", err)
+		return MutationResult{}, s.writeError("commit finalize", err)
 	}
-	return mutation(document, StatusExecuted, revision), nil
+	return mutation(document, StatusFinalized, revision), nil
 }
 
-func (s *Service) Unexecute(
+func (s *Service) Unfinalize(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
 	reason, err := validateReverse(input)
@@ -90,23 +99,22 @@ func (s *Service) Unexecute(
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin unexecute", err)
+		return MutationResult{}, s.internal("begin unfinalize", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
 	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
-	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusExecuted); err != nil {
+	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusFinalized); err != nil {
 		return MutationResult{}, err
 	}
-	summary, err := s.executionSummary(ctx, q, entity, input.DocumentID)
+	if err = s.ensureNoSalesChainChildren(ctx, tx, document); err != nil {
+		return MutationResult{}, err
+	}
+	summary, err := s.finalizationSummary(ctx, q, entity, input.DocumentID)
 	if err != nil {
 		return MutationResult{}, s.internal("read execution for reversal", err)
 	}
 	switch entity {
-	case EntitySaleOrder:
-		if _, err = q.ClearVouSaleOrderExecution(ctx, input.DocumentID); err == nil {
-			err = q.ClearVouProductLineExecution(ctx, input.DocumentID)
-		}
 	case EntityIntermediarySaleOrder:
 		if _, err = q.ClearVouIntermediarySaleOrderExecution(ctx, input.DocumentID); err == nil {
 			err = q.ClearVouProductLineExecution(ctx, input.DocumentID)
@@ -119,27 +127,32 @@ func (s *Service) Unexecute(
 	if err != nil {
 		return MutationResult{}, s.writeError("clear execution", err)
 	}
-	revision, err := q.UnexecuteVouDocument(ctx, dbsqlc.UnexecuteVouDocumentParams{
+	revision, err := q.UnfinalizeVouDocument(ctx, dbsqlc.UnfinalizeVouDocumentParams{
 		ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("unexecute document", err)
+		return MutationResult{}, s.writeError("unfinalize document", err)
+	}
+	if entity == EntitySaleSignoff {
+		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "UNEXECUTED",
-		From: stringPtr(StatusExecuted), To: StatusApproved, ActorID: actorID,
+		DocumentID: input.DocumentID, Entity: entity, Event: "UNFINALIZED",
+		From: stringPtr(StatusFinalized), To: StatusApproved, ActorID: actorID,
 		Reason: reason, RequestID: requestID, Summary: summary,
 	}); err != nil {
-		return MutationResult{}, s.writeError("audit unexecute", err)
+		return MutationResult{}, s.writeError("audit unfinalize", err)
 	}
-	if err = s.events.Publish(ctx, tx, DocumentUnexecutedEvent{
+	if err = s.events.Publish(ctx, tx, DocumentUnfinalizedEvent{
 		Entity: entity, DocumentID: input.DocumentID, DocumentNo: document.DocumentNo,
 		Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
 	}); err != nil {
-		return MutationResult{}, s.eventError("publish document unexecuted", err)
+		return MutationResult{}, s.eventError("publish document unfinalized", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit unexecute", err)
+		return MutationResult{}, s.writeError("commit unfinalize", err)
 	}
 	return mutation(document, StatusApproved, revision), nil
 }
@@ -202,20 +215,7 @@ func (s *Service) applySaleExecution(
 	if !hasDifference {
 		execution.DifferenceReason = nil
 	}
-	switch entity {
-	case EntitySaleOrder:
-		rows, updateErr := q.SetVouSaleOrderExecution(ctx, dbsqlc.SetVouSaleOrderExecutionParams{
-			OutboundDate: dateValue(execution.OutboundDate), SignoffDate: dateValue(execution.SignoffDate),
-			PlatformObjectID: stringPtr(platform.ObjectID), PlatformVersionID: stringPtr(platform.VersionID),
-			PlatformCode: stringPtr(platform.Code), PlatformName: stringPtr(platform.Data.Name),
-			VehicleObjectID: stringPtr(vehicle.ObjectID), VehicleVersionID: stringPtr(vehicle.VersionID),
-			VehicleCode: stringPtr(vehicle.Code), VehicleName: stringPtr(vehicle.Data.Name), VehiclePlateNumber: stringPtr(vehicle.Data.PlateNumber),
-			DifferenceReason: execution.DifferenceReason, DocumentID: document.ID,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, s.writeError("set sale execution", updateErr)
-		}
-	case EntityIntermediarySaleOrder:
+	if entity == EntityIntermediarySaleOrder {
 		rows, updateErr := q.SetVouIntermediarySaleOrderExecution(ctx, dbsqlc.SetVouIntermediarySaleOrderExecutionParams{
 			OutboundDate: dateValue(execution.OutboundDate), SignoffDate: dateValue(execution.SignoffDate),
 			PlatformObjectID: stringPtr(platform.ObjectID), PlatformVersionID: stringPtr(platform.VersionID),
@@ -283,10 +283,14 @@ func (s *Service) applyPurchaseExecution(
 	return map[string]any{"inboundDate": execution.InboundDate.Format(dateLayout), "lineCount": len(lines)}, nil
 }
 
-func (s *Service) executionSummary(
+func (s *Service) finalizationSummary(
 	ctx context.Context, q *dbsqlc.Queries, entity, documentID string,
 ) (map[string]any, error) {
-	data, err := s.loadData(ctx, q, dbsqlc.VouDocument{ID: documentID, Entity: entity})
+	document, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: documentID, Entity: entity})
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.loadData(ctx, q, document)
 	if err != nil {
 		return nil, err
 	}

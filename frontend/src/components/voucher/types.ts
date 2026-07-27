@@ -1,5 +1,8 @@
 export type VoucherEntity =
   | 'sale-order'
+  | 'sale-outbound'
+  | 'sale-delivery'
+  | 'sale-signoff'
   | 'purchase-order'
   | 'intermediary-sale-order'
   | 'receipt'
@@ -7,7 +10,7 @@ export type VoucherEntity =
   | 'expense-reimbursement'
   | 'other-income'
 
-export type VoucherStatus = 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'EXECUTED'
+export type VoucherStatus = 'DRAFT' | 'CHECKED' | 'APPROVED' | 'FINALIZED'
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -44,6 +47,21 @@ export interface VoucherExpenseLineDraft {
   remark: string
 }
 
+export interface VoucherSalesChainLineDraft {
+  key: string
+  sourceLineId: string
+  productCode: string
+  productName: string
+  productUnit: string
+  availableQuantity: string
+  outboundQuantity: string
+  quantity: string
+  signedQuantity: string
+  rejectedQuantity: string
+  lossQuantity: string
+  remark: string
+}
+
 export interface VoucherDraftForm {
   businessDate: string
   currency: string
@@ -57,11 +75,16 @@ export interface VoucherDraftForm {
   purchaser: VoucherReference | null
   handler: VoucherReference | null
   warehouse: VoucherReference | null
+  platform: VoucherReference | null
+  vehicle: VoucherReference | null
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
+  sourceDocumentId: string
+  sourceDocumentNo: string
   productLines: VoucherProductLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
+  salesChainLines: VoucherSalesChainLineDraft[]
 }
 
 export interface VoucherReferenceView extends VoucherReferenceInput {
@@ -87,6 +110,23 @@ export interface VoucherProductLineView {
   rejectedQuantity?: string
   lossQuantity?: string
   inboundQuantity?: string
+  sourceLineId?: string
+  quantity?: string
+  availableQuantity?: string
+}
+
+export interface VoucherSaleSignoffLineView {
+  lineId: string
+  lineNo: number
+  sourceLineId: string
+  product: VoucherReferenceView
+  outboundQuantity: string
+  signedQuantity: string
+  rejectedQuantity: string
+  lossQuantity: string
+  unitPrice: string
+  lineAmount: string
+  remark?: string
 }
 
 export interface VoucherExpenseLineView {
@@ -152,10 +192,14 @@ export interface VouAtomicDocument<
   createdBy: string
   updatedAt?: string
   updatedBy?: string
+  checkedAt?: string
+  checkedBy?: string
   reviewedAt?: string
   reviewedBy?: string
   approvedAt?: string
   approvedBy?: string
+  finalizedAt?: string
+  finalizedBy?: string
   executedAt?: string
   executedBy?: string
 }
@@ -188,6 +232,16 @@ export interface VoucherDocumentData {
   platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
   differenceReason?: string
+  sourceDocumentId?: string
+  sourceDocumentNo?: string
+  sourceEntity?: VoucherEntity
+  signoffLines?: VoucherSaleSignoffLineView[]
+  fulfillmentStatus?: 'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
+  signedQuantity?: string
+  inTransitQuantity?: string
+  remainingQuantity?: string
+  shortCloseRequestedBy?: string
+  shortCloseReason?: string
 }
 
 export interface VoucherDocumentView {
@@ -203,12 +257,12 @@ export interface VoucherDocumentView {
   createdBy: string
   updatedAt: string
   updatedBy: string
-  reviewedAt?: string
-  reviewedBy?: string
+  checkedAt?: string
+  checkedBy?: string
   approvedAt?: string
   approvedBy?: string
-  executedAt?: string
-  executedBy?: string
+  finalizedAt?: string
+  finalizedBy?: string
 }
 
 export interface VoucherListItem {
@@ -283,7 +337,18 @@ export interface VoucherExecutionForm {
 }
 
 export type VoucherLineKind = 'product' | 'expense' | 'none'
-export type VoucherExecutionKind = 'sale' | 'purchase' | 'confirm'
+export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
+
+export interface VoucherLifecycleLabels {
+  check: string
+  uncheck: string
+  approve: string
+  unapprove: string
+  finalize: string
+  unfinalize: string
+  checked: string
+  finalized: string
+}
 
 export interface VoucherEntityConfig {
   entity: VoucherEntity
@@ -292,7 +357,9 @@ export interface VoucherEntityConfig {
   order: number
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
   lineKind: VoucherLineKind
-  executionKind: VoucherExecutionKind
+  finalizationKind: VoucherFinalizationKind
+  lifecycleLabels?: Partial<VoucherLifecycleLabels>
+  sourceEntity?: VoucherEntity
   usesSalesperson?: boolean
   usesPurchaser?: boolean
   usesWarehouse?: boolean
@@ -306,12 +373,17 @@ export interface VoucherEntityConfig {
 export interface VoucherActionAvailability {
   get: boolean
   save: boolean
-  review: boolean
-  unreview: boolean
+  check: boolean
+  uncheck: boolean
   approve: boolean
   unapprove: boolean
-  execute: boolean
-  unexecute: boolean
+  finalize: boolean
+  unfinalize: boolean
+  delete: boolean
+  shortCloseRequest: boolean
+  shortCloseCancel: boolean
+  shortCloseConfirm: boolean
+  shortCloseUnconfirm: boolean
   audit: boolean
   attachmentInitiate: boolean
   attachmentDownload: boolean

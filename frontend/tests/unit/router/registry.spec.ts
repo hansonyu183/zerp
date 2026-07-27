@@ -209,9 +209,12 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('注册 VOU 七类精确连字符实体页面', () => {
+  it('注册 VOU 十类精确连字符实体页面和有效菜单图标', () => {
     const entities = [
       'sale-order',
+      'sale-outbound',
+      'sale-delivery',
+      'sale-signoff',
       'purchase-order',
       'intermediary-sale-order',
       'receipt',
@@ -227,6 +230,9 @@ describe('permission menu registry', () => {
     expect(menus).toHaveLength(1)
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+    expect(
+      menus[0]?.children.find((item) => item.entity === 'sale-outbound')?.icon,
+    ).toBe('mdi-tray-arrow-up')
   })
 
   it('将独立 WFL 居间贸易注册在 VOU 与 LED 之间', () => {

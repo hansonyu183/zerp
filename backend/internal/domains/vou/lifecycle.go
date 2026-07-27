@@ -15,6 +15,9 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isSalesChainEntity(entity) {
+		return s.createSalesChain(ctx, entity, input, actorID, requestID)
+	}
 	draft, err := validateDraft(entity, input.Data)
 	if err != nil {
 		return MutationResult{}, err
@@ -70,6 +73,9 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isSalesChainEntity(entity) {
+		return s.saveSalesChain(ctx, entity, input, actorID, requestID)
+	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -124,7 +130,7 @@ func (s *Service) Save(
 	}, nil
 }
 
-func (s *Service) Review(
+func (s *Service) Check(
 	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
@@ -132,7 +138,7 @@ func (s *Service) Review(
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin review", err)
+		return MutationResult{}, s.internal("begin check", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
@@ -150,40 +156,40 @@ func (s *Service) Review(
 	if pending != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "attachments are still uploading", nil, nil)
 	}
-	revision, err := q.ReviewVouDocument(ctx, dbsqlc.ReviewVouDocumentParams{
+	revision, err := q.CheckVouDocument(ctx, dbsqlc.CheckVouDocumentParams{
 		ActorID: stringPtr(actorID), ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("review document", err)
+		return MutationResult{}, s.writeError("check document", err)
 	}
 	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "REVIEWED",
-		From: stringPtr(StatusDraft), To: StatusReviewed, ActorID: actorID, RequestID: requestID,
+		DocumentID: input.DocumentID, Entity: entity, Event: "CHECKED",
+		From: stringPtr(StatusDraft), To: StatusChecked, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
-		return MutationResult{}, s.writeError("audit review", err)
+		return MutationResult{}, s.writeError("audit check", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit review", err)
+		return MutationResult{}, s.writeError("commit check", err)
 	}
-	return mutation(document, StatusReviewed, revision), nil
+	return mutation(document, StatusChecked, revision), nil
 }
 
 func (s *Service) Approve(
 	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
 ) (MutationResult, error) {
-	return s.forwardTransition(ctx, entity, input, actorID, requestID, StatusReviewed, StatusApproved)
+	return s.forwardTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusApproved)
 }
 
-func (s *Service) Unreview(
+func (s *Service) Uncheck(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
-	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusReviewed, StatusDraft)
+	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusDraft)
 }
 
 func (s *Service) Unapprove(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
-	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusApproved, StatusReviewed)
+	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusApproved, StatusChecked)
 }
 
 func (s *Service) forwardTransition(
@@ -256,12 +262,12 @@ func (s *Service) reverseTransition(
 	var revision int64
 	var event string
 	switch {
-	case from == StatusReviewed && to == StatusDraft:
-		revision, err = q.UnreviewVouDocument(ctx, dbsqlc.UnreviewVouDocumentParams{
+	case from == StatusChecked && to == StatusDraft:
+		revision, err = q.UncheckVouDocument(ctx, dbsqlc.UncheckVouDocumentParams{
 			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 		})
-		event = "UNREVIEWED"
-	case from == StatusApproved && to == StatusReviewed:
+		event = "UNCHECKED"
+	case from == StatusApproved && to == StatusChecked:
 		revision, err = q.UnapproveVouDocument(ctx, dbsqlc.UnapproveVouDocumentParams{
 			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 		})

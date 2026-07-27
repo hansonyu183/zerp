@@ -67,7 +67,7 @@ func (s *Service) reverseDocumentEntries(
 	tx pgx.Tx,
 	q *dbsqlc.Queries,
 	generationID string,
-	event voudomain.DocumentUnexecutedEvent,
+	event voudomain.DocumentUnfinalizedEvent,
 	occurredAt pgtype.Timestamptz,
 ) error {
 	entries, err := loadSourceEntries(ctx, q, generationID, event.DocumentID)
@@ -90,7 +90,7 @@ func (s *Service) reverseInventoryEntries(
 	q *dbsqlc.Queries,
 	generationID string,
 	revision int64,
-	event voudomain.DocumentUnexecutedEvent,
+	event voudomain.DocumentUnfinalizedEvent,
 	occurredAt pgtype.Timestamptz,
 	entries []dbsqlc.LedInventoryEntry,
 ) error {
@@ -124,7 +124,7 @@ func (s *Service) reverseFundEntries(
 	q *dbsqlc.Queries,
 	generationID string,
 	revision int64,
-	event voudomain.DocumentUnexecutedEvent,
+	event voudomain.DocumentUnfinalizedEvent,
 	occurredAt pgtype.Timestamptz,
 	entries []dbsqlc.LedFundEntry,
 ) error {
@@ -153,7 +153,7 @@ func (s *Service) reversePartyEntries(
 	q *dbsqlc.Queries,
 	generationID string,
 	revision int64,
-	event voudomain.DocumentUnexecutedEvent,
+	event voudomain.DocumentUnfinalizedEvent,
 	occurredAt pgtype.Timestamptz,
 	entries []dbsqlc.LedPartyEntry,
 ) error {

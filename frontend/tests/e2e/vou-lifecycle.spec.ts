@@ -1,9 +1,4 @@
-import {
-  expect,
-  test,
-  type Locator,
-  type Page,
-} from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   e2eEnv,
   readWflBootstrapState,
@@ -87,19 +82,10 @@ async function selectReference(
   await option.click()
 }
 
-async function reverse(
-  page: Page,
-  button: '反执行' | '反批准' | '反审核',
-): Promise<void> {
+async function reverse(page: Page, button: string): Promise<void> {
   await page.getByRole('button', { name: button, exact: true }).click()
   await page.getByLabel('原因').fill(`E2E ${button}`)
-  await page.getByRole('button', { name: `确认${button}` }).click()
-}
-
-function localDate(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60_000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+  await page.getByRole('button', { name: `确认${button}`, exact: true }).click()
 }
 
 async function expectDraftCreated(
@@ -141,38 +127,53 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
 
   await page.getByRole('tab', { name: '单据' }).click()
   await page.getByRole('button', { name: '取消编辑' }).click()
-  await page.getByRole('button', { name: '审核', exact: true }).click()
-  await expect(workspace.getByText('已审核', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '核对', exact: true }).click()
+  await expect(workspace.getByText('已核对', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '执行', exact: true }).click()
-  await page.getByRole('button', { name: '确认执行' }).click()
-  await expect(workspace.getByText('已执行', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
-  await reverse(page, '反执行')
+  await reverse(page, '撤销完成')
   await reverse(page, '反批准')
-  await reverse(page, '反审核')
+  await reverse(page, '反核对')
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
   await page.getByRole('tab', { name: '审计' }).click()
-  await expect(workspace.getByText('反执行', { exact: true }).first()).toBeVisible()
-  await expect(workspace.getByText('反审核', { exact: true }).first()).toBeVisible()
+  await expect(
+    workspace.getByText('撤销完成', { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    workspace.getByText('反核对', { exact: true }).first(),
+  ).toBeVisible()
   await page.getByRole('tab', { name: '附件' }).click()
   await page.getByLabel('移除 vou-e2e.pdf').click()
   await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
-test('销售单完成产品明细、审核批准、签收执行和反执行', async ({ page }) => {
+test('销售订单经出库、配送和签收完成四单履约链', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
+
   await page.goto('/vou/sale-order')
   await page.getByRole('button', { name: '新建单据' }).click()
-  const workspace = page.locator('.voucher-workspace')
+  let workspace = page.locator('.voucher-workspace')
+  const basicInfoToggle = workspace.getByRole('button', {
+    name: '基本信息',
+  })
+  await expect(basicInfoToggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(workspace.getByLabel('订单日期')).toBeVisible()
+  await expect(workspace.getByText('产品明细', { exact: true })).toBeVisible()
+  await basicInfoToggle.click()
+  await expect(basicInfoToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(workspace.getByLabel('订单日期')).not.toBeVisible()
+  await expect(workspace.getByText('产品明细', { exact: true })).toBeVisible()
+  await basicInfoToggle.click()
+  await expect(basicInfoToggle).toHaveAttribute('aria-expanded', 'true')
 
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, /业务员/, fixture.employee, workspace)
-  await selectReference(page, '仓库', fixture.warehouse, workspace)
   await selectReference(page, '产品', fixture.product, workspace)
 
   const draftLine = page.locator('.voucher-lines__table tbody tr').first()
@@ -182,19 +183,71 @@ test('销售单完成产品明细、审核批准、签收执行和反执行', as
   await expect(draftLine).toContainText('25.00')
   await page.getByRole('button', { name: '创建草稿' }).click()
   await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/)
+  const orderNo = (await workspace
+    .locator('.voucher-document-header__number')
+    .textContent())!.trim()
   await page.getByRole('button', { name: '取消编辑' }).click()
 
-  await page.getByRole('button', { name: '审核', exact: true }).click()
+  await page.getByRole('button', { name: '核对', exact: true }).click()
   await page.getByRole('button', { name: '批准', exact: true }).click()
-  await page.getByRole('button', { name: '执行', exact: true }).click()
-  await selectReference(page, '物流平台', fixture.platform)
-  await selectReference(page, '送货车辆', fixture.vehicle)
-  const today = localDate()
-  await page.getByLabel('出库日期').fill(today)
-  await page.getByLabel('签收日期').fill(today)
-  await page.getByRole('button', { name: '确认执行' }).click()
-  await expect(workspace.getByText('已执行', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '确认订单', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '反确认订单', exact: true }),
+  ).toBeVisible()
 
-  await reverse(page, '反执行')
+  await page.goto('/vou/sale-outbound')
+  await page.getByRole('button', { name: '新建单据' }).click()
+  workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '来源单据', orderNo, workspace)
+  await selectReference(page, '仓库', fixture.warehouse, workspace)
+  await expect(workspace.getByText(fixture.product).first()).toBeVisible()
+  await page.getByRole('button', { name: '创建草稿' }).click()
+  await expectDraftCreated(workspace, /^SOB-\d{8}-\d{6}$/)
+  const outboundNo = (await workspace
+    .locator('.voucher-document-header__number')
+    .textContent())!.trim()
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await page.getByRole('button', { name: '核对', exact: true }).click()
+  await page.getByRole('button', { name: '批准', exact: true }).click()
+  await page.getByRole('button', { name: '出库', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '反出库', exact: true }),
+  ).toBeVisible()
+
+  await page.goto('/vou/sale-delivery')
+  await page.getByRole('button', { name: '新建单据' }).click()
+  workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '来源单据', outboundNo, workspace)
+  await selectReference(page, '物流平台', fixture.platform, workspace)
+  await selectReference(page, '配送车辆', fixture.vehicle, workspace)
+  await page.getByRole('button', { name: '创建草稿' }).click()
+  await expectDraftCreated(workspace, /^SD-\d{8}-\d{6}$/)
+  const deliveryNo = (await workspace
+    .locator('.voucher-document-header__number')
+    .textContent())!.trim()
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await page.getByRole('button', { name: '核对', exact: true }).click()
+  await page.getByRole('button', { name: '批准', exact: true }).click()
+  await page.getByRole('button', { name: '配送', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '撤销配送', exact: true }),
+  ).toBeVisible()
+
+  await page.goto('/vou/sale-signoff')
+  await page.getByRole('button', { name: '新建单据' }).click()
+  workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '来源单据', deliveryNo, workspace)
+  await expect(workspace.getByText(fixture.product).first()).toBeVisible()
+  await page.getByRole('button', { name: '创建草稿' }).click()
+  await expectDraftCreated(workspace, /^SS-\d{8}-\d{6}$/)
+  await page.getByRole('button', { name: '取消编辑' }).click()
+  await page.getByRole('button', { name: '核对', exact: true }).click()
+  await page.getByRole('button', { name: '批准', exact: true }).click()
+  await page.getByRole('button', { name: '签收', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '反签收', exact: true }),
+  ).toBeVisible()
+
+  await reverse(page, '反签收')
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 })

@@ -425,9 +425,8 @@ test('历史 V1 居间销售单仍是纯 VOU 页面', async ({ browser }) => {
     e2eEnv('E2E_PASSWORD'),
   )
   await page.goto('/vou/intermediary-sale-order')
-  await expect(page.getByText('VOU · 业务单据')).toBeVisible()
-  await expect(
-    page.getByRole('heading', { name: '居间销售单' }).last(),
-  ).toBeVisible()
+  const pageHeading = page.getByRole('heading', { name: '居间销售单' })
+  await expect(pageHeading).toHaveCount(1)
+  await expect(pageHeading).toBeVisible()
   await expect(page.getByRole('button', { name: '新建流程' })).toHaveCount(0)
 })

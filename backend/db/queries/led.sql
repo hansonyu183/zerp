@@ -240,8 +240,8 @@ SELECT id,sqlc.arg(generation_id),'OPENING','opening',id,sqlc.arg(cutover_date),
        container_type,quantity
 FROM led_draft_container WHERE quantity <> 0;
 
--- name: ListExecutedVouDocumentsForLed :many
-SELECT * FROM vou_documents WHERE status = 'EXECUTED' ORDER BY executed_at, id;
+-- name: ListFinalizedVouDocumentsForLed :many
+SELECT * FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id;
 
 -- name: InsertLedInventoryEntry :exec
 INSERT INTO led_inventory_entries (

@@ -21,9 +21,12 @@ export interface DraftPayload {
   purchaser?: VoucherReferenceInput
   handler?: VoucherReferenceInput
   warehouse?: VoucherReferenceInput
+  platform?: VoucherReferenceInput
+  vehicle?: VoucherReferenceInput
   fundAccount?: VoucherReferenceInput
   sourceName?: string
   amount?: string
+  sourceDocumentId?: string
   productLines?: Array<{
     product: VoucherReferenceInput
     orderedQuantity: string
@@ -35,6 +38,17 @@ export interface DraftPayload {
     category: string
     description: string
     amount: string
+    remark?: string
+  }>
+  sourceLines?: Array<{
+    sourceLineId: string
+    quantity: string
+    remark?: string
+  }>
+  signoffLines?: Array<{
+    sourceLineId: string
+    signedQuantity: string
+    rejectedQuantity: string
     remark?: string
   }>
 }
@@ -53,9 +67,13 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     purchaser: null,
     handler: null,
     warehouse: null,
+    platform: null,
+    vehicle: null,
     fundAccount: null,
     sourceName: '',
     amount: '',
+    sourceDocumentId: '',
+    sourceDocumentNo: '',
     productLines: config.lineKind === 'product'
       ? [{
         key: crypto.randomUUID(),
@@ -75,6 +93,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         remark: '',
       }]
       : [],
+    salesChainLines: [],
   }
 }
 
@@ -111,9 +130,13 @@ export function formFromDocument(
     purchaser: formReference(data.purchaser),
     handler: formReference(data.handler),
     warehouse: formReference(data.warehouse),
+    platform: formReference(data.platform),
+    vehicle: formReference(data.vehicle),
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
+    sourceDocumentId: data.sourceDocumentId ?? '',
+    sourceDocumentNo: data.sourceDocumentNo ?? '',
     productLines: (data.productLines ?? []).map((line) => ({
       key: line.lineId,
       lineId: line.lineId,
@@ -131,6 +154,37 @@ export function formFromDocument(
       amount: line.amount,
       remark: line.remark ?? '',
     })),
+    salesChainLines: document.entity === 'sale-signoff'
+      ? (data.signoffLines ?? []).map((line) => ({
+        key: line.lineId,
+        sourceLineId: line.sourceLineId,
+        productCode: line.product.code,
+        productName: line.product.name,
+        productUnit: line.product.unit ?? '',
+        availableQuantity: '',
+        outboundQuantity: line.outboundQuantity,
+        quantity: '',
+        signedQuantity: line.signedQuantity,
+        rejectedQuantity: line.rejectedQuantity,
+        lossQuantity: line.lossQuantity,
+        remark: line.remark ?? '',
+      }))
+      : document.entity === 'sale-outbound'
+        ? (data.productLines ?? []).map((line) => ({
+          key: line.lineId,
+          sourceLineId: line.sourceLineId ?? line.lineId,
+          productCode: line.product.code,
+          productName: line.product.name,
+          productUnit: line.product.unit ?? '',
+          availableQuantity: line.quantity ?? line.orderedQuantity,
+          outboundQuantity: '',
+          quantity: line.quantity ?? line.orderedQuantity,
+          signedQuantity: '',
+          rejectedQuantity: '',
+          lossQuantity: '',
+          remark: line.remark ?? '',
+        }))
+        : [],
   }
 }
 

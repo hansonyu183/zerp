@@ -3,10 +3,10 @@ package vou
 import "strings"
 
 const (
-	documentExecutedTopicPrefix   = "vou.document.executed."
-	documentUnexecutedTopicPrefix = "vou.document.unexecuted."
-	documentFinalizedTopicPrefix  = "vou.document.finalized."
-	documentReversedTopicPrefix   = "vou.document.reversed."
+	documentFinalizedDirectTopicPrefix = "vou.document.finalized."
+	documentUnfinalizedTopicPrefix     = "vou.document.unfinalized."
+	documentFinalizedTopicPrefix       = "vou.document.finalized."
+	documentReversedTopicPrefix        = "vou.document.reversed."
 )
 
 type ManagedDocumentEvent struct {
@@ -30,7 +30,7 @@ func ManagedDocumentReversedTopic(entity string) string {
 	return documentReversedTopicPrefix + strings.TrimSpace(entity)
 }
 
-type DocumentExecutedEvent struct {
+type DocumentFinalizedEvent struct {
 	Entity     string
 	DocumentID string
 	DocumentNo string
@@ -39,11 +39,11 @@ type DocumentExecutedEvent struct {
 	RequestID  string
 }
 
-func (event DocumentExecutedEvent) Topic() string {
-	return DocumentExecutedTopic(event.Entity)
+func (event DocumentFinalizedEvent) Topic() string {
+	return DocumentFinalizedTopic(event.Entity)
 }
 
-type DocumentUnexecutedEvent struct {
+type DocumentUnfinalizedEvent struct {
 	Entity     string
 	DocumentID string
 	DocumentNo string
@@ -53,14 +53,14 @@ type DocumentUnexecutedEvent struct {
 	Reason     string
 }
 
-func (event DocumentUnexecutedEvent) Topic() string {
-	return DocumentUnexecutedTopic(event.Entity)
+func (event DocumentUnfinalizedEvent) Topic() string {
+	return DocumentUnfinalizedTopic(event.Entity)
 }
 
-func DocumentExecutedTopic(entity string) string {
-	return documentExecutedTopicPrefix + strings.TrimSpace(entity)
+func DocumentFinalizedTopic(entity string) string {
+	return documentFinalizedDirectTopicPrefix + strings.TrimSpace(entity)
 }
 
-func DocumentUnexecutedTopic(entity string) string {
-	return documentUnexecutedTopicPrefix + strings.TrimSpace(entity)
+func DocumentUnfinalizedTopic(entity string) string {
+	return documentUnfinalizedTopicPrefix + strings.TrimSpace(entity)
 }

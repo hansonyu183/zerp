@@ -62,7 +62,7 @@ describe('VOU decimal and settlement helpers', () => {
       documentId: 'SO-1',
       entity: 'sale-order',
       documentNo: 'SO-20260725-000001',
-      status: 'REVIEWED',
+      status: 'CHECKED',
       revision: 3,
       amount: '25.00',
       data: {
@@ -75,18 +75,18 @@ describe('VOU decimal and settlement helpers', () => {
       createdBy: 'USER-1',
       updatedAt: '2026-07-25T01:00:00Z',
       updatedBy: 'USER-2',
-      reviewedAt: '2026-07-25T01:00:00Z',
-      reviewedBy: 'USER-2',
+      checkedAt: '2026-07-25T01:00:00Z',
+      checkedBy: 'USER-2',
     })
 
     expect(atomic).toMatchObject({
       documentId: 'SO-1',
       entity: 'sale-order',
-      status: 'REVIEWED',
+      status: 'CHECKED',
       revision: 3,
       businessDate: '2026-07-25',
       currency: 'CNY',
-      reviewedBy: 'USER-2',
+      checkedBy: 'USER-2',
     })
   })
 })

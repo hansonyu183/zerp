@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type {
   VoucherActionAvailability,
+  VoucherLifecycleLabels,
   VoucherStatus,
 } from './types'
 
@@ -12,6 +13,7 @@ const props = withDefaults(defineProps<{
   availability: VoucherActionAvailability
   loadingAction?: string | null
   disabled?: boolean
+  labels: VoucherLifecycleLabels
 }>(), {
   loadingAction: null,
   disabled: false,
@@ -19,19 +21,19 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   action: [
-    action: 'review' | 'approve' | 'execute' |
-      'unreview' | 'unapprove' | 'unexecute',
+    action: 'check' | 'approve' | 'finalize' |
+      'uncheck' | 'unapprove' | 'unfinalize',
     reason?: string,
   ]
 }>()
 
 const reverseOpen = ref(false)
-const reverseAction = ref<'unreview' | 'unapprove' | 'unexecute'>('unreview')
+const reverseAction = ref<'uncheck' | 'unapprove' | 'unfinalize'>('uncheck')
 const reason = ref('')
 const reverseTitle = ref('')
 
 function openReverse(
-  action: 'unreview' | 'unapprove' | 'unexecute',
+  action: 'uncheck' | 'unapprove' | 'unfinalize',
   title: string,
 ): void {
   reverseAction.value = action
@@ -51,25 +53,25 @@ function confirmReverse(): void {
 <template>
   <div class="voucher-lifecycle-actions">
     <v-btn
-      v-if="status === 'DRAFT' && availability.review"
+      v-if="status === 'DRAFT' && availability.check"
       color="primary"
       :disabled="disabled"
-      :loading="loadingAction === 'review'"
+      :loading="loadingAction === 'check'"
       prepend-icon="mdi-account-check-outline"
-      @click="emit('action', 'review')"
+      @click="emit('action', 'check')"
     >
-      审核
+      {{ labels.check }}
     </v-btn>
-    <template v-if="status === 'REVIEWED'">
+    <template v-if="status === 'CHECKED'">
       <v-btn
-        v-if="availability.unreview"
+        v-if="availability.uncheck"
         :disabled="disabled"
-        :loading="loadingAction === 'unreview'"
+        :loading="loadingAction === 'uncheck'"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
-        @click="openReverse('unreview', '反审核')"
+        @click="openReverse('uncheck', labels.uncheck)"
       >
-        反审核
+        {{ labels.uncheck }}
       </v-btn>
       <v-btn
         v-if="availability.approve"
@@ -79,7 +81,7 @@ function confirmReverse(): void {
         prepend-icon="mdi-check-decagram-outline"
         @click="emit('action', 'approve')"
       >
-        批准
+        {{ labels.approve }}
       </v-btn>
     </template>
     <template v-if="status === 'APPROVED'">
@@ -89,31 +91,31 @@ function confirmReverse(): void {
         :loading="loadingAction === 'unapprove'"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
-        @click="openReverse('unapprove', '反批准')"
+        @click="openReverse('unapprove', labels.unapprove)"
       >
-        反批准
+        {{ labels.unapprove }}
       </v-btn>
       <v-btn
-        v-if="availability.execute"
+        v-if="availability.finalize"
         color="primary"
         :disabled="disabled"
-        :loading="loadingAction === 'execute'"
+        :loading="loadingAction === 'finalize'"
         prepend-icon="mdi-play-circle-outline"
-        @click="emit('action', 'execute')"
+        @click="emit('action', 'finalize')"
       >
-        执行
+        {{ labels.finalize }}
       </v-btn>
     </template>
     <v-btn
-      v-if="status === 'EXECUTED' && availability.unexecute"
+      v-if="status === 'FINALIZED' && availability.unfinalize"
       color="warning"
       :disabled="disabled"
-      :loading="loadingAction === 'unexecute'"
+      :loading="loadingAction === 'unfinalize'"
       prepend-icon="mdi-backup-restore"
       variant="tonal"
-      @click="openReverse('unexecute', '反执行')"
+      @click="openReverse('unfinalize', labels.unfinalize)"
     >
-      反执行
+      {{ labels.unfinalize }}
     </v-btn>
   </div>
 

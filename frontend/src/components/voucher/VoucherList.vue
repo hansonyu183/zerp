@@ -66,9 +66,9 @@ const emit = defineEmits<{
 const hasNext = computed(() => props.page * props.pageSize < props.total)
 const statusOptions = [
   { title: '草稿', value: 'DRAFT' },
-  { title: '已审核', value: 'REVIEWED' },
+  { title: '已核对', value: 'CHECKED' },
   { title: '已批准', value: 'APPROVED' },
-  { title: '已执行', value: 'EXECUTED' },
+  { title: '已完成', value: 'FINALIZED' },
 ]
 const sortOptions = [
   { title: '最近更新', value: 'updatedAt' },
@@ -81,9 +81,9 @@ const sortOptions = [
 function statusText(status: VoucherStatus): string {
   return {
     DRAFT: '草稿',
-    REVIEWED: '已审核',
+    CHECKED: '已核对',
     APPROVED: '已批准',
-    EXECUTED: '已执行',
+    FINALIZED: '已完成',
   }[status]
 }
 

@@ -14,7 +14,8 @@ import (
 )
 
 var vouEntities = [...]string{
-	voudomain.EntitySaleOrder,
+	voudomain.EntitySaleOutbound,
+	voudomain.EntitySaleSignoff,
 	voudomain.EntityPurchaseOrder,
 	voudomain.EntityIntermediarySaleOrder,
 	voudomain.EntityReceipt,
@@ -28,10 +29,10 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 		return errors.New("LED event bus is required")
 	}
 	for _, entity := range vouEntities {
-		if err := bus.Subscribe(voudomain.DocumentExecutedTopic(entity), "led-posting", s.HandleDocumentExecuted); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentFinalizedTopic(entity), "led-posting", s.HandleDocumentFinalized); err != nil {
 			return err
 		}
-		if err := bus.Subscribe(voudomain.DocumentUnexecutedTopic(entity), "led-reversal", s.HandleDocumentUnexecuted); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentUnfinalizedTopic(entity), "led-reversal", s.HandleDocumentUnfinalized); err != nil {
 			return err
 		}
 	}
@@ -69,7 +70,7 @@ func (s *Service) Activate(
 		!control.CutoverDate.Valid {
 		return MutationResult{}, domainError(ErrorConflict, "ledger cannot be activated", nil, nil)
 	}
-	documents, err := q.ListExecutedVouDocumentsForLed(ctx)
+	documents, err := q.ListFinalizedVouDocumentsForLed(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
@@ -100,8 +101,8 @@ func (s *Service) Activate(
 	return MutationResult{Status: StatusActive, Revision: revision, GenerationID: generationID}, nil
 }
 
-func (s *Service) HandleDocumentExecuted(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentExecutedEvent)
+func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentFinalizedEvent)
 	if !ok {
 		return fmt.Errorf("unexpected LED executed event %T", raw)
 	}
@@ -135,8 +136,8 @@ func (s *Service) HandleDocumentExecuted(ctx context.Context, tx pgx.Tx, raw txe
 	return nil
 }
 
-func (s *Service) HandleDocumentUnexecuted(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentUnexecutedEvent)
+func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentUnfinalizedEvent)
 	if !ok {
 		return fmt.Errorf("unexpected LED unexecuted event %T", raw)
 	}
@@ -194,8 +195,12 @@ func (s *Service) postDocument(
 		posting.OccurredAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 	}
 	switch posting.Document.Entity {
-	case voudomain.EntitySaleOrder:
-		return s.postSale(ctx, tx, q, posting)
+	case voudomain.EntitySaleOrder, voudomain.EntitySaleDelivery:
+		return nil
+	case voudomain.EntitySaleOutbound:
+		return s.postSaleOutbound(ctx, tx, q, posting)
+	case voudomain.EntitySaleSignoff:
+		return s.postSaleSignoff(ctx, tx, q, posting)
 	case voudomain.EntityPurchaseOrder:
 		return s.postPurchase(ctx, tx, q, posting)
 	case voudomain.EntityIntermediarySaleOrder:

@@ -171,14 +171,37 @@ SELECT EXISTS (
        OR sale_order.customer_version_id = $2
        OR sale_order.salesperson_object_id = $1
        OR sale_order.salesperson_version_id = $2
-       OR sale_order.warehouse_object_id = $1
-       OR sale_order.warehouse_version_id = $2
        OR sale_order.settlement_method_object_id = $1
        OR sale_order.settlement_method_version_id = $2
-       OR sale_order.platform_object_id = $1
-       OR sale_order.platform_version_id = $2
-       OR sale_order.vehicle_object_id = $1
-       OR sale_order.vehicle_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_sale_outbound_details outbound
+    WHERE outbound.customer_object_id = $1
+       OR outbound.customer_version_id = $2
+       OR outbound.warehouse_object_id = $1
+       OR outbound.warehouse_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_sale_delivery_details delivery
+    WHERE delivery.customer_object_id = $1
+       OR delivery.customer_version_id = $2
+       OR delivery.platform_object_id = $1
+       OR delivery.platform_version_id = $2
+       OR delivery.vehicle_object_id = $1
+       OR delivery.vehicle_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_sale_signoff_details signoff
+    WHERE signoff.customer_object_id = $1
+       OR signoff.customer_version_id = $2
+       OR signoff.warehouse_object_id = $1
+       OR signoff.warehouse_version_id = $2
 
     UNION ALL
 
@@ -262,6 +285,20 @@ SELECT EXISTS (
     FROM vou_product_lines product_line
     WHERE product_line.product_object_id = $1
        OR product_line.product_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_sale_outbound_lines outbound_line
+    WHERE outbound_line.product_object_id = $1
+       OR outbound_line.product_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_sale_signoff_lines signoff_line
+    WHERE signoff_line.product_object_id = $1
+       OR signoff_line.product_version_id = $2
 )
 `
 

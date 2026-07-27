@@ -15,23 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  merge-evidence:
+  merge_evidence:
+    name: merge-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name == 'push'
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Reject stacked pull requests
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZERP_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: scripts/verify-pr-base.sh
       - name: Reuse merged PR checks
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/verify-merged-pr.sh
-      - name: Continue with full PR checks
-        if: github.event_name == 'pull_request'
-        run: echo "Pull request requires full quality checks"
 
   contracts:
-    needs: merge-evidence
+    needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -74,7 +82,7 @@ jobs:
         run: echo "Reused merged PR contracts result"
 
   frontend:
-    needs: merge-evidence
+    needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -105,22 +113,21 @@ jobs:
         if: github.event_name == 'push'
         run: echo "Reused merged PR frontend result"
 
-  backend:
-    needs: merge-evidence
+  backend_generate:
+    name: backend-generate
+    if: github.event_name == 'pull_request'
+    needs: merge_evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name == 'pull_request'
       - uses: actions/setup-go@v6
-        if: github.event_name == 'pull_request'
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
       - name: Prepare isolated backend test environment
-        if: github.event_name == 'pull_request'
         run: |
           install -m 600 /dev/null backend/.env.ci
           {
@@ -136,26 +143,94 @@ jobs:
             echo 'FEEDBACK_GITHUB_ENABLED=false'
           } >> backend/.env.ci
       - name: Verify sqlc generation
-        if: github.event_name == 'pull_request'
         run: |
           make -C backend ENV_FILE=.env.ci generate
           git diff --exit-code -- backend/internal/database/sqlc
+
+  backend_test:
+    name: backend-test
+    if: github.event_name == 'pull_request'
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - name: Prepare isolated backend test environment
+        run: |
+          install -m 600 /dev/null backend/.env.ci
+          {
+            echo 'APP_ENV=test'
+            echo 'POSTGRES_DB=zerp'
+            echo 'POSTGRES_USER=zerp'
+            echo 'POSTGRES_PASSWORD=ci-only-password'
+            echo 'POSTGRES_PORT=5432'
+            echo 'DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp?sslmode=disable'
+            echo 'TEST_POSTGRES_DB=zerp_test'
+            echo 'TEST_POSTGRES_PORT=55434'
+            echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
+            echo 'FEEDBACK_GITHUB_ENABLED=false'
+          } >> backend/.env.ci
       - name: Test, vet and build backend
-        if: github.event_name == 'pull_request'
         run: |
           make -C backend ENV_FILE=.env.ci test
           go -C backend vet ./...
           go -C backend build ./...
           go -C backend test -race ./...
+
+  backend_static:
+    name: backend-static
+    if: github.event_name == 'pull_request'
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
       - name: Run backend static and security gates
-        if: github.event_name == 'pull_request'
         run: make -C backend quality-actionlint quality-staticcheck quality-vuln
+
+  backend:
+    name: backend
+    if: always()
+    needs:
+      - merge_evidence
+      - backend_generate
+      - backend_test
+      - backend_static
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require successful backend gates
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
+          GENERATE_RESULT: ${{ needs.backend_generate.result }}
+          TEST_RESULT: ${{ needs.backend_test.result }}
+          STATIC_RESULT: ${{ needs.backend_static.result }}
+        run: |
+          test "$EVIDENCE_RESULT" = "success"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test "$GENERATE_RESULT" = "success"
+            test "$TEST_RESULT" = "success"
+            test "$STATIC_RESULT" = "success"
+          fi
       - name: Reuse successful PR backend check
         if: github.event_name == 'push'
         run: echo "Reused merged PR backend result"
 
   containers:
-    needs: merge-evidence
+    needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

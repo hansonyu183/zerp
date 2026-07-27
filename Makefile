@@ -40,9 +40,13 @@ check:
 	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) quality
 
 release-check:
-	sh -n scripts/pre-push.sh scripts/verify-merged-pr.sh scripts/preview.sh scripts/preview-deploy.sh
+	sh -n scripts/pre-push.sh scripts/verify-pr-base.sh scripts/verify-merged-pr.sh scripts/preview.sh scripts/preview-deploy.sh
 	sh -n scripts/production-lib.sh scripts/production-deploy.sh scripts/production-watch.sh
 	sh -n scripts/production-status.sh scripts/production-retry.sh scripts/production-rollback.sh scripts/install-production-agent.sh
+	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
+	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
+	GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD^ ZERP_PR_HEAD_SHA=HEAD scripts/verify-pr-base.sh
+	! GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD ZERP_PR_HEAD_SHA=HEAD^ scripts/verify-pr-base.sh >/dev/null 2>&1
 	ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
 	ZERP_API_IMAGE=zerp-production-api:config \
 	ZERP_WEB_IMAGE=zerp-production-web:config \

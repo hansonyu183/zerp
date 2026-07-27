@@ -79,6 +79,13 @@ case "${E2E_FORCE_REBUILD:-0}" in
     exit 1
     ;;
 esac
+case "${E2E_PLAYWRIGHT_PROJECT:-}" in
+  '' | chromium | mobile-chromium) ;;
+  *)
+    echo "E2E_PLAYWRIGHT_PROJECT must be chromium or mobile-chromium" >&2
+    exit 1
+    ;;
+esac
 
 cleanup() {
   docker compose --env-file backend/.env.e2e.local \
@@ -125,4 +132,8 @@ fi
 docker compose --env-file backend/.env.e2e.local \
   -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml up --no-build -d --wait
 
-pnpm --filter @zerp/frontend test:e2e
+if [ -n "${E2E_PLAYWRIGHT_PROJECT:-}" ]; then
+  pnpm --filter @zerp/frontend exec playwright test --project="${E2E_PLAYWRIGHT_PROJECT}"
+else
+  pnpm --filter @zerp/frontend test:e2e
+fi

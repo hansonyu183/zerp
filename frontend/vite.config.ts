@@ -32,9 +32,32 @@ function mdiWoff2Only(): Plugin {
   }
 }
 
+function releaseMarker(): Plugin {
+  const releaseSha = process.env.CF_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA
+
+  if (releaseSha && !/^[0-9a-f]{40}$/.test(releaseSha)) {
+    throw new Error('Release marker requires a full lowercase commit SHA')
+  }
+
+  return {
+    name: 'release-marker',
+    generateBundle() {
+      if (!releaseSha) {
+        return
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: '_zerp-release',
+        source: `${releaseSha}\n`,
+      })
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
     mdiWoff2Only(),
+    releaseMarker(),
     vue({
       template: { transformAssetUrls },
     }),

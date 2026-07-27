@@ -29,6 +29,8 @@ go.work.sum
 .env.*
 !.env.example
 !.env.e2e.example
+!.env.preview.example
+!.env.production.example
 
 # Editor/IDE
 # .idea/

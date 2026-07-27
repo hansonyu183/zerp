@@ -40,6 +40,8 @@ jobs:
         run: |
           pnpm format:check
           git diff --check
+      - name: Validate release scripts
+        run: make release-check
 
   frontend:
     runs-on: ubuntu-latest
@@ -55,7 +57,10 @@ jobs:
       - name: Run frontend quality gate
         run: pnpm check:web
       - name: Verify Cloudflare Pages compatibility build
-        run: pnpm build && test -f dist/index.html
+        run: |
+          pnpm build
+          test -f dist/index.html
+          test "$(cat dist/_zerp-release)" = "$GITHUB_SHA"
       - name: Audit production dependencies
         run: pnpm audit --prod
 
@@ -107,5 +112,10 @@ jobs:
         run: |
           docker compose --env-file backend/.env.example -f compose.yaml config --quiet
           docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
+          ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
+          ZERP_API_IMAGE=zerp-production-api:config \
+          ZERP_WEB_IMAGE=zerp-production-web:config \
+          docker compose --env-file backend/.env.production.example \
+            -p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
       - name: Build production-shape images
         run: docker compose --env-file backend/.env.example -f compose.yaml build web api migrate

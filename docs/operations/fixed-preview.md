@@ -35,14 +35,29 @@ make preview-reset
 ```
 
 - `preview-up`：首次生成本地环境文件，构建当前工作区，自动迁移、初始化管理员与 BOB 演示数据，等待健康后输出固定网址；
-- `preview-down`：停止预览容器，保留 PostgreSQL 与附件卷；
+- `preview-down`：停止并删除预览容器，保留 PostgreSQL 与附件卷；容器不存在时不会随 Colima 自动恢复，重新运行 `preview-up` 后恢复常驻；
 - `preview-reset`：只删除 `zerp-fullstack-preview` 的容器和卷，并重建干净预览；
 - `preview-status`：检查 Compose 状态、本机 Web/API 健康端点和公网 HTTPS；
 - `preview-password`：只把管理员密码写入 macOS 剪贴板，不在终端打印。
 
 本地凭证仅保存在被 Git 忽略的 `backend/.env.preview.local`，初始化脚本会将其权限设为 `600`。不得把该文件内容写入日志、聊天、截图或提交。
 
-## 3. Cloudflare Tunnel
+## 3. 登录后常驻与代码更新
+
+本机容器运行时使用 Colima。通过 Homebrew 用户服务注册登录自启：
+
+```bash
+brew services start colima
+brew services info colima
+```
+
+用户登录 macOS 后，Colima 会自动启动；预览的 DB、API 和 Web 容器使用 `restart: unless-stopped`，会在 Docker 就绪后恢复。Cloudflare Tunnel 由独立的系统 launchd 服务保持常驻。
+
+固定预览保持为稳定构建，不自动监听工作区文件。需要把开发中的代码更新到预览时运行 `make preview-up`；该命令重新构建当前工作区，但不会删除 PostgreSQL 或附件卷中的人工测试数据。只有 `make preview-reset` 会清空预览数据。
+
+`make preview-down` 用于有意停止预览。它会删除容器，因此即使 Colima 常驻也不会自动恢复预览；需要再次运行 `make preview-up`。
+
+## 4. Cloudflare Tunnel
 
 本机 `~/.cloudflared/config.yml` 的最终 `http_status:404` 规则前必须存在：
 
@@ -54,7 +69,7 @@ make preview-reset
 
 修改前备份配置；通过现有 Tunnel 创建代理 DNS CNAME；运行 `cloudflared tunnel ingress validate` 后重载现有 launchd 服务。不得复制或输出 Tunnel 凭据。
 
-## 4. 验收
+## 5. 验收
 
 ```bash
 docker compose --env-file backend/.env.preview.example \
@@ -64,6 +79,7 @@ sh -n backend/scripts/init-preview-env.sh scripts/preview.sh
 make generate-check
 make check
 make preview-status
+brew services info colima
 ```
 
 人工验收必须通过固定 HTTPS 入口登录，分别以桌面和手机视口打开销售订单、销售出库单、销售配送单和销售签收单页面。公网探测应从本机网络以外执行，不能用本机 Tunnel 进程的成功状态代替。

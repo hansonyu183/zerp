@@ -16,10 +16,14 @@ services:
       FEEDBACK_GITHUB_ENABLED: 'false'
     ports:
       - '127.0.0.1:${API_PORT:-18082}:8080'
+    labels:
+      io.zerp.release: ${ZERP_RELEASE_SHA:-workspace}
 
   web:
     ports:
       - '127.0.0.1:${WEB_PORT:-15176}:8080'
+    labels:
+      io.zerp.release: ${ZERP_RELEASE_SHA:-workspace}
 
   pgadmin:
     profiles: ['never']

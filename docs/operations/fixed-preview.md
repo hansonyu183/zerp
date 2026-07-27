@@ -28,6 +28,7 @@ https://zerp-preview.bytesucceed.com
 
 ```bash
 make preview-up
+make preview-deploy PREVIEW_REF=<commit>
 make preview-status
 make preview-password
 make preview-down
@@ -35,6 +36,7 @@ make preview-reset
 ```
 
 - `preview-up`：首次生成本地环境文件，构建当前工作区，自动迁移、初始化管理员与 BOB 演示数据，等待健康后输出固定网址；
+- `preview-deploy`：从隔离工作树构建指定 commit，不读取当前工作区的未提交修改，并保留现有人工测试数据；
 - `preview-down`：停止并删除预览容器，保留 PostgreSQL 与附件卷；容器不存在时不会随 Colima 自动恢复，重新运行 `preview-up` 后恢复常驻；
 - `preview-reset`：只删除 `zerp-fullstack-preview` 的容器和卷，并重建干净预览；
 - `preview-status`：检查 Compose 状态、本机 Web/API 健康端点和公网 HTTPS；
@@ -53,7 +55,7 @@ brew services info colima
 
 用户登录 macOS 后，Colima 会自动启动；预览的 DB、API 和 Web 容器使用 `restart: unless-stopped`，会在 Docker 就绪后恢复。Cloudflare Tunnel 由独立的系统 launchd 服务保持常驻。
 
-固定预览保持为稳定构建，不自动监听工作区文件。需要把开发中的代码更新到预览时运行 `make preview-up`；该命令重新构建当前工作区，但不会删除 PostgreSQL 或附件卷中的人工测试数据。只有 `make preview-reset` 会清空预览数据。
+固定预览保持为稳定构建，不自动监听工作区文件。日常临时检查可运行 `make preview-up` 构建当前工作区；进入标准 PR 流程时必须运行 `make preview-deploy PREVIEW_REF=<commit>`，确保预览只包含已经提交并通过本地门禁的准确版本。两种方式都不会删除 PostgreSQL 或附件卷中的人工测试数据，只有 `make preview-reset` 会清空预览数据。
 
 `make preview-down` 用于有意停止预览。它会删除容器，因此即使 Colima 常驻也不会自动恢复预览；需要再次运行 `make preview-up`。
 
@@ -78,6 +80,8 @@ docker compose --env-file backend/.env.preview.example \
 sh -n backend/scripts/init-preview-env.sh scripts/preview.sh
 make generate-check
 make check
+make pre-push
+make preview-deploy PREVIEW_REF=<commit>
 make preview-status
 brew services info colima
 ```

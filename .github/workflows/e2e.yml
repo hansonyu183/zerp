@@ -2,6 +2,8 @@ name: Isolated full-stack E2E
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

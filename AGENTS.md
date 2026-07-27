@@ -21,7 +21,11 @@
 
 - 跨端契约变更必须同时包含 OpenAPI、后端适配、前端调用和对应测试。
 - SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
-- 提交前至少运行 `make generate-check`、`make check`；影响真实流程时运行 `make e2e`。
+- 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
+- 形成可验收提交后运行 `make pre-push`；非纯文档变更必须通过生成检查、全栈质量门禁和隔离 E2E。
+- 本地门禁通过后使用 `make preview-deploy PREVIEW_REF=<commit>` 发布准确提交；不得用包含未提交修改的工作区代替。
+- 推送后创建草稿 PR；GitHub 必需检查全部通过且固定预览完成人工验收后，才允许人工合并。
+- 禁止直接推送、强推或自动合并 `main`。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
 - 保留用户已有修改，只改任务相关文件。
 
 运行环境、统一命令和部署方式见根目录 `README.md`；模块细则见 `frontend/AGENTS.md` 和 `backend/AGENTS.md`。

@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cd "${repo_root}"
+repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+source_root=${ZERP_PREVIEW_SOURCE_ROOT:-${repo_root}}
+env_file=${ZERP_PREVIEW_ENV_FILE:-${repo_root}/backend/.env.preview.local}
+cd "${source_root}"
 
 project=zerp-fullstack-preview
-env_file=backend/.env.preview.local
 preview_url=https://zerp-preview.bytesucceed.com
 
 usage() {
@@ -15,12 +16,12 @@ usage() {
 
 compose() {
   docker compose --env-file "${env_file}" \
-    -p "${project}" -f compose.yaml -f compose.preview.yaml "$@"
+    -p "${project}" -f "${source_root}/compose.yaml" -f "${source_root}/compose.preview.yaml" "$@"
 }
 
 ensure_env() {
   if [ ! -f "${env_file}" ]; then
-    backend/scripts/init-preview-env.sh
+    "${repo_root}/backend/scripts/init-preview-env.sh"
   fi
   chmod 600 "${env_file}"
 }
@@ -28,8 +29,8 @@ ensure_env() {
 guard() {
   ensure_env
   set -a
-  # shellcheck disable=SC1091
-  . "./${env_file}"
+  # shellcheck disable=SC1090
+  . "${env_file}"
   set +a
 
   test "${APP_ENV:-}" = "development" || {
@@ -145,10 +146,11 @@ reset() {
 status() {
   guard
   compose ps
+  release_sha=$(docker inspect "${project}-api-1" --format '{{index .Config.Labels "io.zerp.release"}}')
   wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz" 1
   wait_for_url "Preview API" "http://127.0.0.1:${API_PORT}/readyz" 1
   wait_for_url "Public preview" "${preview_url}/healthz" 1
-  echo "Preview local and public health checks passed: ${preview_url}"
+  echo "Preview local and public health checks passed: ${preview_url} (${release_sha})"
 }
 
 password() {

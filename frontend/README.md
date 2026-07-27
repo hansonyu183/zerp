@@ -5,8 +5,10 @@ ZERP 前端是单仓中的 Vue SPA，负责页面交互、会话状态、动态�
 ## 开发环境
 
 - Node.js 与 pnpm 版本以根目录 `.nvmrc`、`package.json` 和锁文件为准
-- Vue 3、TypeScript、Vite、Vuetify、Vue Router、Pinia
+- Vue 3、TypeScript 7、Vite、Vuetify、Vue Router、Pinia
 - Vitest、Vue Test Utils、MSW、Playwright
+
+`pnpm typecheck:native` 使用根目录独立锁定的 TypeScript 7.0.2。Vue 模板检查和依赖 TypeScript JavaScript API 的工具暂由 TypeScript 6 兼容层运行，完整 `pnpm build` 会同时执行两套检查。
 
 从仓库根目录启动完整开发环境：
 

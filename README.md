@@ -10,6 +10,7 @@ backend/              Go、Gin、pgx、sqlc、Goose
 contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与前后端职责说明
 scripts/              联调和自包含 E2E 编排
+tools/                独立版本的构建工具
 .github/workflows/    全栈质量门禁
 ```
 
@@ -17,6 +18,7 @@ scripts/              联调和自包含 E2E 编排
 
 - Node.js 26
 - pnpm 10.34.5
+- TypeScript 7.0.2
 - Go 1.26.5
 - Docker 与 Docker Compose
 - GNU Make
@@ -30,6 +32,8 @@ make dev
 ```
 
 `make dev` 会启动 PostgreSQL 容器、执行迁移，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
+
+TypeScript 7 原生编译器由 `tools/typescript-native/` 独立锁定并参与前端构建。TypeScript 7.0 暂不提供 JavaScript API，因此 Vue 模板检查、ESLint 和 OpenAPI 类型生成继续使用兼容的 TypeScript 6 工具链；`pnpm typecheck:native` 会用 7.0.2 检查项目 TypeScript 源码。
 
 停止前台进程后数据库卷会保留；需要停止容器时运行：
 

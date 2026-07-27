@@ -6,7 +6,9 @@ ENV GOPROXY=${GOPROXY}
 WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+COPY tools/go.mod tools/go.sum ./tools/
+RUN go mod download \
+    && go -C tools mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-server ./cmd/server

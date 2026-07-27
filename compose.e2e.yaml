@@ -16,6 +16,7 @@ services:
         condition: service_completed_successfully
 
   bootstrap:
+    image: ${ZERP_API_IMAGE:-zerp-api:workspace}
     build:
       context: backend
     restart: 'no'

@@ -38,18 +38,33 @@ git -C "${repository_root}" fetch origin main --prune
 target_sha=$(git -C "${repository_root}" rev-parse origin/main)
 current_sha=$(cat "${runtime_root}/current-sha" 2>/dev/null || true)
 processed_sha=$(cat "${runtime_root}/processed-sha" 2>/dev/null || true)
+failed_sha=$(cat "${runtime_root}/failed-sha" 2>/dev/null || true)
 
 mark_processed() {
   printf '%s\n' "$1" > "${runtime_root}/processed-sha.new"
   mv "${runtime_root}/processed-sha.new" "${runtime_root}/processed-sha"
 }
 
+mark_failed() {
+  printf '%s\n' "$1" > "${runtime_root}/failed-sha.new"
+  mv "${runtime_root}/failed-sha.new" "${runtime_root}/failed-sha"
+}
+
+clear_failed() {
+  rm -f "${runtime_root}/failed-sha" "${runtime_root}/failed-sha.new"
+}
+
 if [ "${target_sha}" = "${processed_sha}" ]; then
+  exit 0
+fi
+
+if [ "${target_sha}" = "${failed_sha}" ]; then
   exit 0
 fi
 
 if [ "${target_sha}" = "${current_sha}" ]; then
   mark_processed "${target_sha}"
+  clear_failed
   exit 0
 fi
 
@@ -111,6 +126,7 @@ if [ -n "${current_sha}" ] &&
 
   if [ "${application_change}" = "false" ]; then
     mark_processed "${target_sha}"
+    clear_failed
     set_deployment_status success "No application changes"
     echo "Production no-op for documentation-only commit ${target_sha}"
     exit 0
@@ -124,8 +140,10 @@ if ZERP_PRODUCTION_STATE_ROOT="${ZERP_PRODUCTION_STATE_ROOT:-/Users/hansonyu/cod
    ZERP_PRODUCTION_RUNTIME_ROOT="${runtime_root}" \
    "${source_root}/scripts/production-deploy.sh" "${target_sha}"; then
   mark_processed "${target_sha}"
+  clear_failed
   set_deployment_status success "Deployed ${target_sha}"
 else
+  mark_failed "${target_sha}"
   set_deployment_status failure "Deployment failed for ${target_sha}"
   exit 1
 fi

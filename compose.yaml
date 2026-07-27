@@ -18,6 +18,7 @@ services:
       start_period: 5s
 
   migrate:
+    image: ${ZERP_API_IMAGE:-zerp-api:workspace}
     build:
       context: backend
     restart: 'no'
@@ -35,6 +36,7 @@ services:
         condition: service_healthy
 
   api:
+    image: ${ZERP_API_IMAGE:-zerp-api:workspace}
     build:
       context: backend
     restart: unless-stopped
@@ -80,6 +82,7 @@ services:
       start_period: 10s
 
   web:
+    image: ${ZERP_WEB_IMAGE:-zerp-web:workspace}
     build:
       context: .
       dockerfile: frontend/Dockerfile

@@ -4,6 +4,7 @@
 !.env.example
 !**/.env.example
 !**/.env.e2e.example
+!**/.env.preview.example
 !frontend/.env.production
 
 # JavaScript

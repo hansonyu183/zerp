@@ -6,7 +6,7 @@ COREPACK_VERSION ?= 0.35.0
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check test e2e build compose-up compose-down
+.PHONY: bootstrap dev dev-down generate generate-check check test e2e build compose-up compose-down preview-up preview-down preview-reset preview-status preview-password
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -53,3 +53,18 @@ compose-up:
 
 compose-down:
 	$(COMPOSE) down
+
+preview-up:
+	@./scripts/preview.sh up
+
+preview-down:
+	@./scripts/preview.sh down
+
+preview-reset:
+	@./scripts/preview.sh reset
+
+preview-status:
+	@./scripts/preview.sh status
+
+preview-password:
+	@./scripts/preview.sh password

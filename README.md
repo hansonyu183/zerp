@@ -39,26 +39,26 @@ make dev-down
 
 ## 常用命令
 
-| 命令                    | 作用                                   |
-| ----------------------- | -------------------------------------- |
-| `make bootstrap`        | 安装 pnpm 与 Go 依赖                   |
-| `make dev`              | 启动数据库、迁移、API 与前端热更新     |
-| `make generate`         | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
-| `make generate-check`   | 验证生成物已提交且无漂移               |
-| `make check`            | 运行前端与后端质量门禁                 |
-| `make pre-push`         | 运行推送前门禁，代码变更包含隔离 E2E   |
-| `make test`             | 运行前后端测试                         |
-| `make e2e`              | 启动隔离全栈并运行真实 API Playwright  |
-| `make build`            | 构建前端、后端及容器镜像               |
-| `make compose-up`       | 启动生产形态 Compose                   |
-| `make compose-down`     | 停止生产形态 Compose                   |
-| `make preview-up`       | 构建并启动固定外网开发预览             |
-| `make preview-deploy`   | 从指定 commit 构建固定预览             |
-| `make preview-down`     | 停止预览并保留人工测试数据             |
-| `make preview-reset`    | 仅重置预览环境的数据与附件             |
-| `make preview-status`   | 检查预览容器、本机和公网健康状态       |
-| `make preview-password` | 仅把预览管理员密码复制到剪贴板         |
-| `make production-status` | 检查正式环境版本及本地/公网健康状态   |
+| 命令                     | 作用                                   |
+| ------------------------ | -------------------------------------- |
+| `make bootstrap`         | 安装 pnpm 与 Go 依赖                   |
+| `make dev`               | 启动数据库、迁移、API 与前端热更新     |
+| `make generate`          | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
+| `make generate-check`    | 验证生成物已提交且无漂移               |
+| `make check`             | 运行前端与后端质量门禁                 |
+| `make pre-push`          | 运行推送前门禁，代码变更包含隔离 E2E   |
+| `make test`              | 运行前后端测试                         |
+| `make e2e`               | 启动隔离全栈并运行真实 API Playwright  |
+| `make build`             | 构建前端、后端及容器镜像               |
+| `make compose-up`        | 启动生产形态 Compose                   |
+| `make compose-down`      | 停止生产形态 Compose                   |
+| `make preview-up`        | 构建并启动固定外网开发预览             |
+| `make preview-deploy`    | 从指定 commit 构建固定预览             |
+| `make preview-down`      | 停止预览并保留人工测试数据             |
+| `make preview-reset`     | 仅重置预览环境的数据与附件             |
+| `make preview-status`    | 检查预览容器、本机和公网健康状态       |
+| `make preview-password`  | 仅把预览管理员密码复制到剪贴板         |
+| `make production-status` | 检查正式环境版本及本地/公网健康状态    |
 
 ## 契约工作流
 

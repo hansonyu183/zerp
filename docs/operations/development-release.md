@@ -14,9 +14,11 @@ make preview-status
 
 `pre-push` 要求工作树干净。纯文档变更只运行格式和差异检查；其他变更运行生成检查、前后端质量门禁和隔离全栈 E2E。任何失败都必须修复并形成新提交，不得推送红色分支。
 
-本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 BuildKit 的 GitHub Actions 层缓存，容器只在 `e2e` 门禁中构建一次。
+本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 BuildKit 的 GitHub Actions 层缓存，并把桌面和手机 Playwright 项目放在两个隔离 runner 上并行执行；最终仍汇总为原有的 `e2e` 必需检查。
 
-预览验收通过后推送分支并创建草稿 PR。PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功，之后才可人工合并。禁止直接推送、强推或自动合并 `main`。
+预览验收通过后推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会在重任务前校验目标分支、当前 `main` ancestry 和其他未合并 PR head，避免无效的重复全量门禁。
+
+PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功，之后才可人工合并。`backend` 内部将生成检查、测试/竞态检查和静态/安全检查并行执行，再汇总为原有的必需检查名。禁止直接推送、强推或自动合并 `main`。
 
 合并后不重复运行整套质量与 E2E。main 门禁通过 GitHub API 验证合并提交与 PR head 的 Git tree 完全一致，并复用该 PR 的五项成功检查；树不一致、不是关联 PR 合并提交或任一检查缺失时立即失败。main 仍保留原有五个检查名，兼容分支保护和现有生产发布代理。
 

@@ -3,6 +3,7 @@
 .env
 .env.*
 bin/
+var/
 coverage.*
 *.out
 README.md

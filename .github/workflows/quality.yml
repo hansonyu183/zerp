@@ -7,75 +7,120 @@ on:
 
 permissions:
   contents: read
+  checks: read
+  pull-requests: read
 
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  merge-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        if: github.event_name == 'push'
+      - name: Reuse merged PR checks
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/verify-merged-pr.sh
+      - name: Continue with full PR checks
+        if: github.event_name == 'pull_request'
+        run: echo "Pull request requires full quality checks"
+
   contracts:
+    needs: merge-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
+        if: github.event_name == 'pull_request'
       - uses: actions/setup-node@v6
+        if: github.event_name == 'pull_request'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-go@v6
+        if: github.event_name == 'pull_request'
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
-      - run: pnpm install --frozen-lockfile
+      - if: github.event_name == 'pull_request'
+        run: pnpm install --frozen-lockfile
       - name: Lint, bundle and generate API contracts
+        if: github.event_name == 'pull_request'
         run: pnpm generate:api
       - name: Reject generated drift
+        if: github.event_name == 'pull_request'
         run: git diff --exit-code -- contracts/openapi/dist backend/internal/api/generated frontend/src/api/generated
       - name: Check formatting and whitespace
+        if: github.event_name == 'pull_request'
         run: |
           pnpm format:check
           git diff --check
       - name: Validate release scripts
+        if: github.event_name == 'pull_request'
         run: make release-check
+      - name: Reuse successful PR contracts check
+        if: github.event_name == 'push'
+        run: echo "Reused merged PR contracts result"
 
   frontend:
+    needs: merge-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+        if: github.event_name == 'pull_request'
       - uses: pnpm/action-setup@v6
+        if: github.event_name == 'pull_request'
       - uses: actions/setup-node@v6
+        if: github.event_name == 'pull_request'
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - if: github.event_name == 'pull_request'
+        run: pnpm install --frozen-lockfile
       - name: Run frontend quality gate
+        if: github.event_name == 'pull_request'
         run: pnpm check:web
       - name: Verify Cloudflare Pages compatibility build
+        if: github.event_name == 'pull_request'
         run: |
           pnpm build
           test -f dist/index.html
           test "$(cat dist/_zerp-release)" = "$GITHUB_SHA"
       - name: Audit production dependencies
+        if: github.event_name == 'pull_request'
         run: pnpm audit --prod
+      - name: Reuse successful PR frontend check
+        if: github.event_name == 'push'
+        run: echo "Reused merged PR frontend result"
 
   backend:
+    needs: merge-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
+        if: github.event_name == 'pull_request'
       - uses: actions/setup-go@v6
+        if: github.event_name == 'pull_request'
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
       - name: Prepare isolated backend test environment
+        if: github.event_name == 'pull_request'
         run: |
           install -m 600 /dev/null backend/.env.ci
           {
@@ -91,24 +136,33 @@ jobs:
             echo 'FEEDBACK_GITHUB_ENABLED=false'
           } >> backend/.env.ci
       - name: Verify sqlc generation
+        if: github.event_name == 'pull_request'
         run: |
           make -C backend ENV_FILE=.env.ci generate
           git diff --exit-code -- backend/internal/database/sqlc
       - name: Test, vet and build backend
+        if: github.event_name == 'pull_request'
         run: |
           make -C backend ENV_FILE=.env.ci test
           go -C backend vet ./...
           go -C backend build ./...
           go -C backend test -race ./...
       - name: Run backend static and security gates
+        if: github.event_name == 'pull_request'
         run: make -C backend quality-actionlint quality-staticcheck quality-vuln
+      - name: Reuse successful PR backend check
+        if: github.event_name == 'push'
+        run: echo "Reused merged PR backend result"
 
   containers:
+    needs: merge-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        if: github.event_name == 'pull_request'
       - name: Validate Compose configurations
+        if: github.event_name == 'pull_request'
         run: |
           docker compose --env-file backend/.env.example -f compose.yaml config --quiet
           docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
@@ -117,5 +171,6 @@ jobs:
           ZERP_WEB_IMAGE=zerp-production-web:config \
           docker compose --env-file backend/.env.production.example \
             -p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
-      - name: Build production-shape images
-        run: docker compose --env-file backend/.env.example -f compose.yaml build web api migrate
+      - name: Reuse successful PR containers check
+        if: github.event_name == 'push'
+        run: echo "Reused merged PR containers result"

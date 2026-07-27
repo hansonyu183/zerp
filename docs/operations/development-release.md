@@ -14,14 +14,18 @@ make preview-status
 
 `pre-push` 要求工作树干净。纯文档变更只运行格式和差异检查；其他变更运行生成检查、前后端质量门禁和隔离全栈 E2E。任何失败都必须修复并形成新提交，不得推送红色分支。
 
+本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 BuildKit 的 GitHub Actions 层缓存，容器只在 `e2e` 门禁中构建一次。
+
 预览验收通过后推送分支并创建草稿 PR。PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功，之后才可人工合并。禁止直接推送、强推或自动合并 `main`。
+
+合并后不重复运行整套质量与 E2E。main 门禁通过 GitHub API 验证合并提交与 PR head 的 Git tree 完全一致，并复用该 PR 的五项成功检查；树不一致、不是关联 PR 合并提交或任一检查缺失时立即失败。main 仍保留原有五个检查名，兼容分支保护和现有生产发布代理。
 
 ## 2. 自动上线
 
 正式环境由同一 merge commit 统一发布：
 
 1. Cloudflare Pages Git 集成构建并发布同一 `main` commit；
-2. 本机发布代理确认 `main` 的五项检查和 `Cloudflare Pages` 全部成功；
+2. 本机发布代理确认 `main` 已复用的五项 PR 检查和 `Cloudflare Pages` 全部成功；
 3. 从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；
 4. 备份 PostgreSQL、附件及上一版发布清单；
 5. 运行向后兼容的 Goose migration；
@@ -40,6 +44,8 @@ make preview-status
 ## 4. 失败与回滚
 
 构建、备份或 migration 失败时不更新应用。Pages 失败会在本机发布前阻断流程；API rollout 或公网健康检查失败时，发布代理自动恢复上线前的应用镜像并标记 GitHub Deployment 失败。
+
+同一 main SHA 首次发布失败后，发布代理写入失败标记并停止自动重试，避免确定性错误每分钟重复构建、备份和迁移。修复外部状态并完成必要的数据确认后，运行 `make production-retry` 清除该 SHA 的熔断标记并立即重试；新的 main SHA 不受旧失败标记影响。
 
 数据库不得自动执行 down migration，也不得自动恢复备份，以免覆盖上线后的业务写入。所有 migration 必须兼容上一版应用；数据库恢复只能在明确停写和人工确认后执行。
 

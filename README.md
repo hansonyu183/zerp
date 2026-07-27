@@ -59,6 +59,7 @@ make dev-down
 | `make preview-status`    | 检查预览容器、本机和公网健康状态       |
 | `make preview-password`  | 仅把预览管理员密码复制到剪贴板         |
 | `make production-status` | 检查正式环境版本及本地/公网健康状态    |
+| `make production-retry`  | 修复发布阻塞后重试被熔断的正式发布     |
 
 ## 契约工作流
 

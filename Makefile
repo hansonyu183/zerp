@@ -8,7 +8,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check release-check test e2e build compose-up compose-down pre-push preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check release-check test e2e build compose-up compose-down pre-push preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -40,9 +40,9 @@ check:
 	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) quality
 
 release-check:
-	sh -n scripts/pre-push.sh scripts/preview.sh scripts/preview-deploy.sh
+	sh -n scripts/pre-push.sh scripts/verify-merged-pr.sh scripts/preview.sh scripts/preview-deploy.sh
 	sh -n scripts/production-lib.sh scripts/production-deploy.sh scripts/production-watch.sh
-	sh -n scripts/production-status.sh scripts/production-rollback.sh scripts/install-production-agent.sh
+	sh -n scripts/production-status.sh scripts/production-retry.sh scripts/production-rollback.sh scripts/install-production-agent.sh
 	ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
 	ZERP_API_IMAGE=zerp-production-api:config \
 	ZERP_WEB_IMAGE=zerp-production-web:config \
@@ -90,6 +90,9 @@ preview-password:
 
 production-status:
 	@./scripts/production-status.sh
+
+production-retry:
+	@./scripts/production-retry.sh
 
 production-rollback:
 	@test -n "$(PRODUCTION_REF)" || { echo "usage: make production-rollback PRODUCTION_REF=<release-sha>" >&2; exit 2; }

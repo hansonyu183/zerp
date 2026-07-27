@@ -65,6 +65,16 @@ tar -czf "${release_root}/frontend-dist.tar.gz" -C "${repo_root}/frontend" dist
 printf '%s\n' "${api_image}" > "${release_root}/api-image"
 printf '%s\n' "${web_image}" > "${release_root}/web-image"
 
+if ! docker inspect zerp-back-db-1 >/dev/null 2>&1; then
+  echo "Starting fresh production database"
+  production_compose \
+    "${repo_root}" "${release_sha}" "${api_image}" "${web_image}" \
+    up -d --no-build --wait db
+elif [ "$(docker inspect zerp-back-db-1 --format '{{.State.Running}}')" != "true" ]; then
+  docker start zerp-back-db-1 >/dev/null
+fi
+production_wait_database "Production database" zerp-back-db-1 60
+
 echo "Backing up production data"
 docker exec zerp-back-db-1 sh -eu -c \
   'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \

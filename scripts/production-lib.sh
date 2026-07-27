@@ -73,6 +73,23 @@ production_wait_content() {
   done
 }
 
+production_wait_database() {
+  label=$1
+  container=$2
+  attempts=${3:-60}
+  count=0
+
+  until docker exec "${container}" sh -eu -c \
+    'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; do
+    count=$((count + 1))
+    if [ "${count}" -ge "${attempts}" ]; then
+      echo "${label} did not become ready: ${container}" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 production_validate_release_ref() {
   release_ref=${1:-}
   test "${#release_ref}" -eq 40 || {

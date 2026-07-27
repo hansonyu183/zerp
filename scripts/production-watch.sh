@@ -37,8 +37,19 @@ git -C "${repository_root}" worktree prune >/dev/null 2>&1 || true
 git -C "${repository_root}" fetch origin main --prune
 target_sha=$(git -C "${repository_root}" rev-parse origin/main)
 current_sha=$(cat "${runtime_root}/current-sha" 2>/dev/null || true)
+processed_sha=$(cat "${runtime_root}/processed-sha" 2>/dev/null || true)
+
+mark_processed() {
+  printf '%s\n' "$1" > "${runtime_root}/processed-sha.new"
+  mv "${runtime_root}/processed-sha.new" "${runtime_root}/processed-sha"
+}
+
+if [ "${target_sha}" = "${processed_sha}" ]; then
+  exit 0
+fi
 
 if [ "${target_sha}" = "${current_sha}" ]; then
+  mark_processed "${target_sha}"
   exit 0
 fi
 
@@ -99,8 +110,7 @@ if [ -n "${current_sha}" ] &&
   done
 
   if [ "${application_change}" = "false" ]; then
-    printf '%s\n' "${target_sha}" > "${runtime_root}/current-sha.new"
-    mv "${runtime_root}/current-sha.new" "${runtime_root}/current-sha"
+    mark_processed "${target_sha}"
     set_deployment_status success "No application changes"
     echo "Production no-op for documentation-only commit ${target_sha}"
     exit 0
@@ -113,6 +123,7 @@ git -C "${repository_root}" worktree add --detach "${source_root}" "${target_sha
 if ZERP_PRODUCTION_STATE_ROOT="${ZERP_PRODUCTION_STATE_ROOT:-/Users/hansonyu/code/zerp}" \
    ZERP_PRODUCTION_RUNTIME_ROOT="${runtime_root}" \
    "${source_root}/scripts/production-deploy.sh" "${target_sha}"; then
+  mark_processed "${target_sha}"
   set_deployment_status success "Deployed ${target_sha}"
 else
   set_deployment_status failure "Deployment failed for ${target_sha}"

@@ -3,6 +3,7 @@ import { defineComponent, h, type Component } from 'vue'
 import { describe, expect, it } from 'vitest'
 import BusinessObjectList from '@/components/business-object/BusinessObjectList.vue'
 import type { BusinessObjectColumn } from '@/components/business-object'
+import type { BusinessObjectSort } from '@/components/business-object'
 
 interface ExampleRow {
   id: string
@@ -85,6 +86,7 @@ function mountList(
     creatable: boolean
     editable: boolean | ((row: Readonly<ExampleRow>) => boolean)
     deletable: boolean | ((row: Readonly<ExampleRow>) => boolean)
+    sort: BusinessObjectSort
   }> = {},
   slots: Record<string, unknown> = {},
 ): VueWrapper {
@@ -167,6 +169,19 @@ describe('BusinessObjectList', () => {
     expect(
       wrapper.get('button[aria-label="下一页"]').attributes('disabled'),
     ).toBeDefined()
+  })
+
+  it('在表头发出单列排序且首次为升序', async () => {
+    const wrapper = mountList({
+      sort: { field: 'updatedAt', order: 'desc' },
+    })
+    const nameHeader = wrapper.findAll('th')
+      .find((heading) => heading.text() === '客户名称')
+
+    await nameHeader?.get('button').trigger('click')
+    expect(wrapper.emitted('update:sort')).toEqual([
+      [{ field: 'name', order: 'asc' }],
+    ])
   })
 
   it('为空列表显示空状态并保持正确列数', () => {

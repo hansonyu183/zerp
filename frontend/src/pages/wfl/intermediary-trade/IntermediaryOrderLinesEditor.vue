@@ -11,6 +11,7 @@ import type {
   IntermediaryOrderLineDraft,
   IntermediaryProductReference,
 } from './types'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 const props = withDefaults(defineProps<{
   modelValue: readonly IntermediaryOrderLineDraft[]
@@ -157,25 +158,19 @@ function remove(index: number): void {
               <span v-else>{{ line.product ? `${line.product.code} · ${line.product.name}` : '—' }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 :model-value="line.orderedQuantity"
                 :rules="[(value: string) => isQuantity(value) || '数量格式不正确。']"
-                variant="outlined"
                 @update:model-value="update(index, { orderedQuantity: $event })"
               />
               <span v-else>{{ line.orderedQuantity }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 :model-value="line.unitPrice"
                 :rules="[(value: string) => isMoney(value) || '单价格式不正确。']"
-                variant="outlined"
                 @update:model-value="update(index, { unitPrice: $event })"
               />
               <span v-else>{{ line.unitPrice }}</span>
@@ -197,25 +192,21 @@ function remove(index: number): void {
               <span v-else>{{ { NONE: '无桶包装', SOLVENT: '溶剂桶', RESIN: '树脂桶' }[line.containerType] }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable && line.containerType !== 'NONE'"
-                density="compact"
-                hide-details="auto"
                 :model-value="line.quantityPerContainer"
                 :rules="[(value: string) => isQuantity(value) || '每桶产品量格式不正确。']"
-                variant="outlined"
                 @update:model-value="update(index, { quantityPerContainer: $event })"
               />
               <span v-else>{{ line.quantityPerContainer || '—' }}</span>
             </td>
             <td class="text-end">{{ calculateLineAmount(line.orderedQuantity, line.unitPrice) ?? '—' }}</td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
+                :maxlength="1000"
                 :model-value="line.remark"
-                variant="outlined"
+                :rules="[(value: string) => Array.from(value ?? '').length <= 1000 || '备注不能超过 1000 字。']"
                 @update:model-value="update(index, { remark: $event })"
               />
               <span v-else>{{ line.remark || '—' }}</span>

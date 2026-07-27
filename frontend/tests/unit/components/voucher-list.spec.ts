@@ -158,6 +158,7 @@ function mountList(
         VExpansionPanels: VExpansionPanelsStub,
         VExpansionPanelText: VExpansionPanelTextStub,
         VExpansionPanelTitle: VExpansionPanelTitleStub,
+        VIcon: passthroughStub('VIcon', 'span'),
         VProgressLinear: passthroughStub('VProgressLinear'),
         VSelect: passthroughStub('VSelect'),
         VSpacer: passthroughStub('VSpacer'),
@@ -182,6 +183,27 @@ describe('VoucherList', () => {
       '更新',
       '操作',
     ])
+  })
+
+  it('通过表头按自然升序开始并再次切换方向', async () => {
+    const wrapper = mountList()
+    const numberHeader = wrapper.findAll('th')
+      .find((heading) => heading.text() === '单号')
+
+    await numberHeader?.get('button').trigger('click')
+    await wrapper.setProps({ sort: { field: 'documentNo', order: 'asc' } })
+    await numberHeader?.get('button').trigger('click')
+    await wrapper.setProps({ sort: { field: 'documentNo', order: 'desc' } })
+
+    expect(wrapper.emitted('update:sort')).toEqual([
+      [{ field: 'documentNo', order: 'asc' }],
+      [{ field: 'documentNo', order: 'desc' }],
+    ])
+    expect(
+      wrapper.findAll('th')
+        .find((heading) => heading.text() === '单号')
+        ?.attributes('aria-sort'),
+    ).toBe('descending')
   })
 
   it('默认收起筛选条件并允许反复展开和收起', async () => {

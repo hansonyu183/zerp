@@ -8,6 +8,7 @@ import type {
   VoucherReference,
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 defineOptions({ name: 'VoucherExecutionDialog' })
 
@@ -183,12 +184,9 @@ function submit(): void {
                   <td>{{ document?.data.productLines?.[index]?.product.name }}</td>
                   <td>{{ line.orderedQuantity }}</td>
                   <td>
-                    <v-text-field
-                      density="compact"
-                      hide-details="auto"
+                    <CompactTableField
                       :model-value="line.inboundQuantity"
                       :rules="[(v: string) => isQuantity(v) || '数量格式不正确。']"
-                      variant="outlined"
                       @update:model-value="line.inboundQuantity = $event"
                     />
                   </td>
@@ -231,12 +229,9 @@ function submit(): void {
                   <td>{{ document?.data.productLines?.[index]?.product.name }}</td>
                   <td>{{ line.orderedQuantity }}</td>
                   <td v-for="key in ['outboundQuantity', 'signedQuantity', 'rejectedQuantity', 'lossQuantity']" :key="key">
-                    <v-text-field
-                      density="compact"
-                      hide-details="auto"
+                    <CompactTableField
                       :model-value="line[key as keyof typeof line]"
                       :rules="[(v: string) => isQuantity(v, key !== 'outboundQuantity') || '数量格式不正确。']"
-                      variant="outlined"
                       @update:model-value="updateSaleLine(index, key, $event)"
                     />
                   </td>

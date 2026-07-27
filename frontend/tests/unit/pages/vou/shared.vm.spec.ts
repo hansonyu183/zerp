@@ -309,7 +309,7 @@ describe('shared VOU entity view model', () => {
     vm.form.value.productLines[0].purchaseUnitPrice = ''
 
     expect(await vm.save()).toBe(false)
-    expect(vm.workspaceError.value).toBe('请完整填写有效的采购单价。')
+    expect(vm.workspaceError.value).toBe('第 1 行 · 采购单价：格式不正确。')
     expect(mockedPost).not.toHaveBeenCalled()
   })
 

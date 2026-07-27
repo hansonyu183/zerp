@@ -7,6 +7,7 @@ export type {
   BusinessObjectFieldState,
   BusinessObjectFieldType,
   BusinessObjectRowState,
+  BusinessObjectSort,
   BusinessObjectValidationResult,
   BusinessObjectValidationRule,
 } from './types'

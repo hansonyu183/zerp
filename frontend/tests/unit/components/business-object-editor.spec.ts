@@ -326,10 +326,35 @@ describe('BusinessObjectEditor', () => {
       fields: advancedFields,
       modelValue: { ...model, active: false, notes: '' },
     })
-    expect(hiddenWrapper.get('[data-field="notes"]').isVisible()).toBe(false)
+    expect(hiddenWrapper.find('[data-field="notes"]').exists()).toBe(false)
     await buttonByText(hiddenWrapper, '保存').trigger('click')
     await flushPromises()
     expect(hiddenWrapper.emitted('save')).toHaveLength(1)
+  })
+
+  it('默认隐藏高级币种并在非 CNY 或手工展开时显示', async () => {
+    const currencyFields: readonly BusinessObjectField<ExampleObject>[] = [{
+      key: 'optional',
+      label: '币种',
+      type: 'text',
+      advanced: true,
+    }]
+    const wrapper = mountEditor({
+      editing: true,
+      fields: currencyFields,
+      modelValue: { ...model, optional: 'CNY' },
+    })
+
+    expect(wrapper.find('[data-field="optional"]').exists()).toBe(false)
+    await wrapper.get('.business-object-editor__advanced-button').trigger('click')
+    expect(wrapper.find('[data-field="optional"]').exists()).toBe(true)
+
+    const foreignCurrency = mountEditor({
+      editing: true,
+      fields: currencyFields,
+      modelValue: { ...model, optional: 'USD' },
+    })
+    expect(foreignCurrency.find('[data-field="optional"]').exists()).toBe(true)
   })
 
   it('取消编辑会丢弃草稿并保留编辑期间收到的外部对象', async () => {

@@ -8,6 +8,7 @@ import type {
   VoucherStatus,
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'VoucherList' })
 
@@ -70,14 +71,6 @@ const statusOptions = [
   { title: '已批准', value: 'APPROVED' },
   { title: '已完成', value: 'FINALIZED' },
 ]
-const sortOptions = [
-  { title: '最近更新', value: 'updatedAt' },
-  { title: '单号', value: 'documentNo' },
-  { title: '日期', value: 'businessDate' },
-  { title: '状态', value: 'status' },
-  { title: '金额', value: 'amount' },
-]
-
 function statusText(status: VoucherStatus): string {
   return {
     DRAFT: '草稿',
@@ -88,7 +81,12 @@ function statusText(status: VoucherStatus): string {
 }
 
 function changeSort(field: VoucherSort['field']): void {
-  emit('update:sort', { ...props.sort, field })
+  emit('update:sort', {
+    field,
+    order: props.sort.field === field && props.sort.order === 'asc'
+      ? 'desc'
+      : 'asc',
+  })
 }
 
 function changeStatuses(value: unknown): void {
@@ -155,26 +153,6 @@ function changeStatuses(value: unknown): void {
               @search="emit('party-search', $event)"
               @update:model-value="emit('update:party', $event)"
             />
-            <v-select
-              hide-details
-              item-title="title"
-              item-value="value"
-              :items="sortOptions"
-              label="排序字段"
-              :model-value="sort.field"
-              variant="outlined"
-              @update:model-value="changeSort($event)"
-            />
-            <v-btn-toggle
-              color="primary"
-              mandatory
-              :model-value="sort.order"
-              variant="outlined"
-              @update:model-value="emit('update:sort', { ...sort, order: $event })"
-            >
-              <v-btn value="desc">降序</v-btn>
-              <v-btn value="asc">升序</v-btn>
-            </v-btn-toggle>
           </div>
           <div class="voucher-list__filter-actions">
             <v-btn :disabled="!queryable" variant="text" @click="emit('reset')">重置</v-btn>
@@ -212,9 +190,40 @@ function changeStatuses(value: unknown): void {
         <v-table class="voucher-list__table">
           <thead>
             <tr>
-              <th>单号</th><th>日期</th><th>往来方</th>
-              <th>状态</th><th>币种</th><th class="text-end">金额</th>
-              <th>更新</th><th class="text-end">操作</th>
+              <SortableTableHeader
+                label="单号"
+                :active="sort.field === 'documentNo'"
+                :direction="sort.order"
+                @sort="changeSort('documentNo')"
+              />
+              <SortableTableHeader
+                label="日期"
+                :active="sort.field === 'businessDate'"
+                :direction="sort.order"
+                @sort="changeSort('businessDate')"
+              />
+              <th>往来方</th>
+              <SortableTableHeader
+                label="状态"
+                :active="sort.field === 'status'"
+                :direction="sort.order"
+                @sort="changeSort('status')"
+              />
+              <th>币种</th>
+              <SortableTableHeader
+                align="end"
+                label="金额"
+                :active="sort.field === 'amount'"
+                :direction="sort.order"
+                @sort="changeSort('amount')"
+              />
+              <SortableTableHeader
+                label="更新"
+                :active="sort.field === 'updatedAt'"
+                :direction="sort.order"
+                @sort="changeSort('updatedAt')"
+              />
+              <th class="text-end">操作</th>
             </tr>
           </thead>
           <tbody>

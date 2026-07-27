@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { VoucherExpenseLineDraft } from './types'
 import { isMoney, sumMoney } from './decimal'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 defineOptions({ name: 'VoucherExpenseLinesEditor' })
 
@@ -80,59 +81,48 @@ function removeLine(index: number): void {
           <tr v-for="(line, index) in modelValue" :key="line.key">
             <td>{{ index + 1 }}</td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 :model-value="line.category"
                 :rules="[
                   (v: string) => Boolean(v?.trim()) || '请输入费用类别。',
                   (v: string) => Array.from(v ?? '').length <= 100 || '不能超过 100 字。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { category: $event })"
               />
               <span v-else>{{ line.category }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 :model-value="line.description"
                 :rules="[
                   (v: string) => Boolean(v?.trim()) || '请输入说明。',
                   (v: string) => Array.from(v ?? '').length <= 500 || '不能超过 500 字。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { description: $event })"
               />
               <span v-else>{{ line.description }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
                 inputmode="decimal"
                 :model-value="line.amount"
                 :rules="[
                   (v: string) => isMoney(v) ||
                     '请输入大于零且最多两位小数的金额。',
                 ]"
-                variant="outlined"
                 @update:model-value="updateLine(index, { amount: $event })"
               />
               <span v-else>{{ line.amount }}</span>
             </td>
             <td>
-              <v-text-field
+              <CompactTableField
                 v-if="editable"
-                density="compact"
-                hide-details="auto"
+                :maxlength="1000"
                 :model-value="line.remark"
                 :rules="[(v: string) => Array.from(v ?? '').length <= 1000 || '备注不能超过 1000 字。']"
-                variant="outlined"
                 @update:model-value="updateLine(index, { remark: $event })"
               />
               <span v-else>{{ line.remark || '—' }}</span>

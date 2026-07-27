@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ledgerSourceEntityOptions } from './config'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import { useLedgerViewModel } from './vm'
 import type {
   LedgerEntityConfig,
@@ -27,6 +28,22 @@ function selectMode(value: unknown): void {
   if (value === 'entries' || value === 'balances') {
     vm.changeMode(value as LedgerMode)
   }
+}
+
+function sortableField(key: string) {
+  return {
+    effectiveDate: 'effectiveDate',
+    occurredAt: 'occurredAt',
+    sourceDocumentNo: 'documentNo',
+  }[key] as 'effectiveDate' | 'occurredAt' | 'documentNo' | undefined
+}
+
+function changeSort(field: 'effectiveDate' | 'occurredAt' | 'documentNo'): void {
+  vm.sort.order = vm.sort.field === field && vm.sort.order === 'asc'
+    ? 'desc'
+    : 'asc'
+  vm.sort.field = field
+  vm.search()
 }
 
 void vm.load()
@@ -131,27 +148,6 @@ void vm.load()
                 multiple
                 variant="outlined"
               />
-              <v-select
-                v-model="vm.sort.field"
-                density="comfortable"
-                :items="[
-                  { title: '生效日期', value: 'effectiveDate' },
-                  { title: '入账时间', value: 'occurredAt' },
-                  { title: '来源单号', value: 'documentNo' },
-                ]"
-                label="排序字段"
-                variant="outlined"
-              />
-              <v-select
-                v-model="vm.sort.order"
-                density="comfortable"
-                :items="[
-                  { title: '降序', value: 'desc' },
-                  { title: '升序', value: 'asc' },
-                ]"
-                label="排序方向"
-                variant="outlined"
-              />
             </div>
             <div v-else class="ledger-workspace__filters">
               <v-text-field
@@ -189,14 +185,24 @@ void vm.load()
           <v-table>
             <thead>
               <tr>
-                <th
-                  v-for="column in vm.columns.value"
-                  :key="column.key"
-                  :class="`text-${column.align ?? 'start'}`"
-                  :style="{ width: column.width }"
-                >
-                  {{ column.label }}
-                </th>
+                <template v-for="column in vm.columns.value" :key="column.key">
+                  <SortableTableHeader
+                    v-if="vm.mode.value === 'entries' && sortableField(column.key)"
+                    :active="vm.sort.field === sortableField(column.key)"
+                    :align="column.align"
+                    :direction="vm.sort.order"
+                    :label="column.label"
+                    :width="column.width"
+                    @sort="changeSort(sortableField(column.key)!)"
+                  />
+                  <th
+                    v-else
+                    :class="`text-${column.align ?? 'start'}`"
+                    :style="{ width: column.width }"
+                  >
+                    {{ column.label }}
+                  </th>
+                </template>
               </tr>
             </thead>
             <tbody>

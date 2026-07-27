@@ -7,7 +7,9 @@ import { computed } from 'vue'
 import type {
   BusinessObjectColumn,
   BusinessObjectRowState,
+  BusinessObjectSort,
 } from './types'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'BusinessObjectList' })
 
@@ -25,6 +27,7 @@ interface Props<TValue extends object> {
   creatable?: boolean
   editable?: BusinessObjectRowState<TValue>
   deletable?: BusinessObjectRowState<TValue>
+  sort?: BusinessObjectSort
 }
 
 const props = withDefaults(defineProps<Props<T>>(), {
@@ -39,6 +42,7 @@ const props = withDefaults(defineProps<Props<T>>(), {
 const emit = defineEmits<{
   'update:keyword': [value: string]
   'update:page': [value: number]
+  'update:sort': [value: BusinessObjectSort]
   query: []
   create: []
   edit: [row: T]
@@ -80,6 +84,19 @@ function changePage(page: number): void {
   if (props.loading || page < 1 || page === props.page) return
   emit('update:page', page)
 }
+
+function isSortable(key: string): key is BusinessObjectSort['field'] {
+  return ['code', 'name', 'status', 'version', 'updatedAt'].includes(key)
+}
+
+function changeSort(field: BusinessObjectSort['field']): void {
+  emit('update:sort', {
+    field,
+    order: props.sort?.field === field && props.sort.order === 'asc'
+      ? 'desc'
+      : 'asc',
+  })
+}
 </script>
 
 <template>
@@ -120,14 +137,24 @@ function changePage(page: number): void {
     <v-table class="business-object-list__table">
       <thead>
         <tr>
-          <th
-            v-for="column in columns"
-            :key="column.key"
-            :class="`text-${column.align ?? 'start'}`"
-            :style="{ width: column.width }"
-          >
-            {{ column.label }}
-          </th>
+          <template v-for="column in columns" :key="column.key">
+            <SortableTableHeader
+              v-if="sort && isSortable(column.key)"
+              :active="sort.field === column.key"
+              :align="column.align"
+              :direction="sort.order"
+              :label="column.label"
+              :width="column.width"
+              @sort="changeSort(column.key)"
+            />
+            <th
+              v-else
+              :class="`text-${column.align ?? 'start'}`"
+              :style="{ width: column.width }"
+            >
+              {{ column.label }}
+            </th>
+          </template>
           <th
             v-if="hasActionColumn"
             class="business-object-list__actions-heading text-end"

@@ -51,29 +51,29 @@ export function validateVoucherDraft(
     }
     const seen = new Set<string>()
     const lineAmounts: string[] = []
-    for (const line of value.productLines) {
+    for (const [index, line] of value.productLines.entries()) {
       if (
         !line.product ||
         !isQuantity(line.orderedQuantity) ||
         !isMoney(line.unitPrice)
       )
-        return '请完整填写有效的产品、数量和单价。'
+        return `第 ${index + 1} 行 · 产品/数量/单价：请完整填写有效值。`
       if (
         config.entity === 'intermediary-sale-order' &&
         !isMoney(line.purchaseUnitPrice)
       ) {
-        return '请完整填写有效的采购单价。'
+        return `第 ${index + 1} 行 · 采购单价：格式不正确。`
       }
       const lineAmount = calculateLineAmount(
         line.orderedQuantity,
         line.unitPrice,
       )
-      if (!lineAmount) return '产品行金额超出允许范围。'
+      if (!lineAmount) return `第 ${index + 1} 行 · 金额：超出允许范围。`
       lineAmounts.push(lineAmount)
       if (Array.from(line.remark).length > 1000)
-        return '产品行备注不能超过 1000 字。'
+        return `第 ${index + 1} 行 · 备注：不能超过 1000 字。`
       const key = `${line.product.objectId}/${line.product.versionId}`
-      if (seen.has(key)) return '同一产品不能重复添加。'
+      if (seen.has(key)) return `第 ${index + 1} 行 · 产品：不能重复添加。`
       seen.add(key)
     }
     if (!sumMoney(lineAmounts)) return '单据总金额超出允许范围。'
@@ -82,7 +82,7 @@ export function validateVoucherDraft(
     if (value.expenseLines.length < 1 || value.expenseLines.length > 200) {
       return '费用明细必须包含 1 到 200 行。'
     }
-    for (const line of value.expenseLines) {
+    for (const [index, line] of value.expenseLines.entries()) {
       if (
         !line.category.trim() ||
         Array.from(line.category.trim()).length > 100 ||
@@ -91,7 +91,7 @@ export function validateVoucherDraft(
         !isMoney(line.amount) ||
         Array.from(line.remark).length > 1000
       ) {
-        return '请完整填写有效的费用明细。'
+        return `第 ${index + 1} 行 · 费用明细：请完整填写有效值。`
       }
     }
     if (!sumMoney(value.expenseLines.map((line) => line.amount))) {

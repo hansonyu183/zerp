@@ -36,6 +36,7 @@ export const fundAccountConfig = defineBobEntityConfig({
   fields: (context) => [
     ...commonFields(context, '账户编码', '账户名称'),
     text('currency', '币种', 3, {
+      advanced: true,
       required: true,
       rules: [patternRule(/^[A-Za-z]{3}$/, '币种必须是三位字母。')],
     }),

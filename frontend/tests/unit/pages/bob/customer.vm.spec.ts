@@ -128,7 +128,9 @@ describe('customer shared BOB configuration and view model', () => {
       '名称',
       '类型',
       '简称',
+      '版本',
       '状态',
+      '更新',
     ])
   })
 

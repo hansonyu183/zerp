@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import {
   calculateDueDate,
   parseFixed,
@@ -65,6 +65,12 @@ const businessDateLabel = computed(() => (({
   'sale-signoff': '签收日期',
 } as Record<string, string>)[vm.config.entity] ?? '业务日期'))
 const basicInfoPanel = ref<string | undefined>('basic')
+const showCurrency = ref(false)
+const currencyVisible = computed(() =>
+  showCurrency.value ||
+  vm.form.currency.trim().toUpperCase() !== 'CNY' ||
+  Boolean(vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种')),
+)
 const secondaryOpen = ref(false)
 const secondaryAction = ref<
   'delete' | 'short-close-request' | 'short-close-cancel' |
@@ -87,6 +93,17 @@ function updateReference(
 
 function search(key: string, keyword: string): void {
   vm.searchReference(key, keyword)
+}
+
+function changeSort(value: typeof vm.sort): void {
+  vm.sort = value
+  vm.search()
+}
+
+async function saveDocument(): Promise<void> {
+  if (await vm.save()) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
 }
 
 function referenceProps(key: string) {
@@ -178,7 +195,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       @update:keyword="vm.filters.keyword = $event"
       @update:page="vm.changePage"
       @update:party="vm.selectedParty = $event"
-      @update:sort="vm.sort = $event"
+      @update:sort="changeSort"
       @update:statuses="vm.filters.status = $event"
       @view="vm.openDocument($event)"
     />
@@ -211,7 +228,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             color="primary"
             :loading="vm.saving"
             prepend-icon="mdi-content-save-outline"
-            @click="vm.save"
+            @click="saveDocument"
           >
             {{ vm.documentView ? '保存草稿' : '创建草稿' }}
           </v-btn>
@@ -304,6 +321,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               variant="outlined"
             />
             <v-text-field
+              v-if="currencyVisible"
               v-model="vm.form.currency"
               :disabled="!vm.editing || vm.config.usesFundAccount || Boolean(vm.config.sourceEntity)"
               label="币种"
@@ -326,6 +344,15 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               @update:model-value="vm.selectSourceDocument($event)"
               @update:search="vm.searchSourceDocuments($event ?? '')"
             />
+            <div class="voucher-form__more-settings">
+              <v-btn
+                size="small"
+                variant="text"
+                @click="showCurrency = !showCurrency"
+              >
+                {{ showCurrency ? '隐藏币种' : '更多设置' }}
+              </v-btn>
+            </div>
 
             <VoucherReferenceAutocomplete
               v-if="vm.config.partyMode === 'customer' || vm.config.partyMode === 'dual'"
@@ -765,6 +792,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 .voucher-page__workspace-actions { display: flex; align-items: center; gap: 8px; margin-right: 12px; }
 .voucher-form__basic-panel { margin-bottom: 4px; }
 .voucher-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.voucher-form__more-settings { grid-column: 1 / -1; text-align: right; }
 .voucher-form__wide { grid-column: 1 / -1; }
 .voucher-form__snapshot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
 .voucher-form__snapshot-grid div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; }

@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-target="${repo_root}/.env.preview.local"
+repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+target=${ZERP_PREVIEW_ENV_FILE:-${repo_root}/.env.preview.local}
+target_dir=$(dirname "${target}")
 
 if [ "$#" -ne 0 ]; then
   echo "usage: $0" >&2
@@ -17,7 +18,7 @@ fi
 umask 077
 postgres_password=$(openssl rand -hex 24)
 bootstrap_password="Preview!$(openssl rand -hex 16)Aa1"
-temporary=$(mktemp "${repo_root}/.env.preview.local.tmp.XXXXXX")
+temporary=$(mktemp "${target_dir}/.env.preview.local.tmp.XXXXXX")
 trap 'rm -f "${temporary}"' EXIT HUP INT TERM
 
 {

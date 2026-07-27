@@ -2,8 +2,10 @@
 set -eu
 
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+common_git_dir=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
+primary_root=$(dirname "${common_git_dir}")
 source_root=${ZERP_PREVIEW_SOURCE_ROOT:-${repo_root}}
-env_file=${ZERP_PREVIEW_ENV_FILE:-${repo_root}/backend/.env.preview.local}
+env_file=${ZERP_PREVIEW_ENV_FILE:-${primary_root}/backend/.env.preview.local}
 cd "${source_root}"
 
 project=zerp-fullstack-preview
@@ -21,7 +23,8 @@ compose() {
 
 ensure_env() {
   if [ ! -f "${env_file}" ]; then
-    "${repo_root}/backend/scripts/init-preview-env.sh"
+    ZERP_PREVIEW_ENV_FILE="${env_file}" \
+      "${repo_root}/backend/scripts/init-preview-env.sh"
   fi
   chmod 600 "${env_file}"
 }
@@ -149,7 +152,7 @@ status() {
   release_sha=$(docker inspect "${project}-api-1" --format '{{index .Config.Labels "io.zerp.release"}}')
   wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz" 1
   wait_for_url "Preview API" "http://127.0.0.1:${API_PORT}/readyz" 1
-  wait_for_url "Public preview" "${preview_url}/healthz" 1
+  wait_for_url "Public preview" "${preview_url}/healthz" 15
   echo "Preview local and public health checks passed: ${preview_url} (${release_sha})"
 }
 

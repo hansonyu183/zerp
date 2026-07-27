@@ -61,7 +61,15 @@ fingerprint() {
 }
 
 backend_source=$(fingerprint backend)
-web_source=$(fingerprint .dockerignore package.json pnpm-lock.yaml pnpm-workspace.yaml frontend)
+web_source=$(
+  fingerprint \
+    .dockerignore \
+    package.json \
+    pnpm-lock.yaml \
+    pnpm-workspace.yaml \
+    frontend \
+    tools/typescript-native
+)
 export ZERP_API_IMAGE="${ZERP_API_IMAGE:-zerp-e2e-api:cache}"
 export ZERP_WEB_IMAGE="${ZERP_WEB_IMAGE:-zerp-e2e-web:cache}"
 

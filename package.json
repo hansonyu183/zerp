@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev:web": "pnpm --filter @zerp/frontend dev",
-    "build": "pnpm --filter @zerp/frontend exec vue-tsc -b && pnpm --filter @zerp/frontend exec vite build --outDir ../dist --emptyOutDir",
+    "typecheck:native": "pnpm --filter @zerp/typescript-native --fail-if-no-match exec tsc -b --force ../../frontend/tsconfig.json",
+    "build": "pnpm typecheck:native && pnpm --filter @zerp/frontend exec vue-tsc -b && pnpm --filter @zerp/frontend exec vite build --outDir ../dist --emptyOutDir",
     "build:web": "pnpm --filter @zerp/frontend build",
     "check:web": "pnpm --filter @zerp/frontend check",
     "test:web": "pnpm --filter @zerp/frontend test:unit",
@@ -25,6 +26,7 @@
     "@redocly/cli": "^2.12.3",
     "concurrently": "^9.2.1",
     "openapi-typescript": "^7.10.1",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3"
   }
 }

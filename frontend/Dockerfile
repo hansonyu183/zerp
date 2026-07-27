@@ -6,6 +6,7 @@ WORKDIR /src
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json frontend/package.json
+COPY tools/typescript-native/package.json tools/typescript-native/package.json
 RUN pnpm install --frozen-lockfile
 
 COPY frontend frontend

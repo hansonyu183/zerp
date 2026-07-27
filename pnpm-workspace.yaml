@@ -1,5 +1,6 @@
 packages:
   - frontend
+  - tools/typescript-native
 
 overrides:
   glob: 10.5.0

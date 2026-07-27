@@ -39,6 +39,7 @@ type Service struct {
 	resolver referenceResolver
 	events   eventPublisher
 	files    attachmentService
+	sales    salesVoucherService
 	logger   *slog.Logger
 }
 
@@ -54,6 +55,10 @@ func NewService(pool *pgxpool.Pool, resolver referenceResolver, events eventPubl
 
 func (s *Service) SetAttachmentService(files attachmentService) {
 	s.files = files
+}
+
+func (s *Service) SetSalesVoucherService(sales salesVoucherService) {
+	s.sales = sales
 }
 
 type fixedCustomerLine struct {
@@ -402,10 +407,11 @@ func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView
 		return Page[ProcessView]{}, err
 	}
 	rows, err := s.pool.Query(ctx, `SELECT p.id FROM wfl_process_instances p JOIN vou_documents d
-		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
-		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))
-		ORDER BY p.updated_at DESC,p.id DESC LIMIT $3 OFFSET $4`,
-		query.keyword, query.statuses, query.pageSize, query.offset)
+		ON d.id=p.root_document_id WHERE p.process_type=$1
+		AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
+		AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))
+		ORDER BY p.updated_at DESC,p.id DESC LIMIT $4 OFFSET $5`,
+		ProcessTypeIntermediary, query.keyword, query.statuses, query.pageSize, query.offset)
 	if err != nil {
 		return Page[ProcessView]{}, internal("query processes", err)
 	}
@@ -429,9 +435,10 @@ func (s *Service) Query(ctx context.Context, input QueryInput) (Page[ProcessView
 	}
 	var total int64
 	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_process_instances p JOIN vou_documents d
-		ON d.id=p.root_document_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%')
-		AND (COALESCE(cardinality($2::text[]),0)=0 OR p.status=ANY($2::text[]))`,
-		query.keyword, query.statuses).Scan(&total)
+		ON d.id=p.root_document_id WHERE p.process_type=$1
+		AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
+		AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))`,
+		ProcessTypeIntermediary, query.keyword, query.statuses).Scan(&total)
 	return Page[ProcessView]{Items: items, Total: total, Page: query.page, PageSize: query.pageSize}, err
 }
 
@@ -442,8 +449,9 @@ func (s *Service) Get(ctx context.Context, input GetInput, permissions []string)
 	var view ProcessView
 	err := s.pool.QueryRow(ctx, `SELECT p.id,p.process_type,p.definition_version,p.status,p.revision,
 		p.root_document_id,d.document_no,p.created_at,p.created_by,p.updated_at,p.updated_by
-		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id WHERE p.id=$1`,
-		input.ProcessID).Scan(&view.ProcessID, &view.ProcessType, &view.DefinitionVersion, &view.Status,
+		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
+		WHERE p.id=$1 AND p.process_type=$2`,
+		input.ProcessID, ProcessTypeIntermediary).Scan(&view.ProcessID, &view.ProcessType, &view.DefinitionVersion, &view.Status,
 		&view.Revision, &view.RootDocumentID, &view.RootDocumentNo, &view.CreatedAt, &view.CreatedBy,
 		&view.UpdatedAt, &view.UpdatedBy)
 	if errors.Is(err, pgx.ErrNoRows) {

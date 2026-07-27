@@ -9,6 +9,7 @@ import (
 
 const (
 	ProcessTypeIntermediary = "INTERMEDIARY_TRADE"
+	ProcessTypeSales        = "SALES_FULFILLMENT"
 	StatusDraft             = "DRAFT"
 	StatusChecked           = "CHECKED"
 	StatusApproved          = "APPROVED"
@@ -21,6 +22,8 @@ const (
 	StageReceipt     = "RECEIPT"
 	StageDelivery    = "DELIVERY"
 	StageSignoff     = "SIGNOFF"
+	StageSaleOrder   = "SALE_ORDER"
+	StageOutbound    = "OUTBOUND"
 )
 
 type ErrorKind string
@@ -71,6 +74,18 @@ type SaveInput struct {
 	DocumentID       string             `json:"documentId"`
 	DocumentRevision int64              `json:"documentRevision"`
 	Data             CustomerOrderInput `json:"data"`
+}
+
+type SalesCreateInput struct {
+	Data voudomain.DraftInput `json:"data"`
+}
+
+type SalesSaveInput struct {
+	ProcessID        string               `json:"processId"`
+	ProcessRevision  int64                `json:"processRevision"`
+	DocumentID       string               `json:"documentId"`
+	DocumentRevision int64                `json:"documentRevision"`
+	Data             voudomain.DraftInput `json:"data"`
 }
 
 type ActionInput struct {
@@ -206,6 +221,7 @@ type DocumentSummary struct {
 	Status           string                     `json:"status"`
 	Revision         int64                      `json:"revision"`
 	ParentDocumentID string                     `json:"parentDocumentId,omitempty"`
+	SourceDocumentNo string                     `json:"sourceDocumentNo,omitempty"`
 	BusinessDate     string                     `json:"businessDate"`
 	Currency         string                     `json:"currency"`
 	Amount           string                     `json:"amount"`

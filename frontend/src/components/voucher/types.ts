@@ -163,6 +163,10 @@ export interface VoucherAttachment {
 }
 
 export type WflManagedVoucherEntity =
+  | 'sale-order'
+  | 'sale-outbound'
+  | 'sale-delivery'
+  | 'sale-signoff'
   | 'customer-order'
   | 'procurement-order'
   | 'goods-receipt'

@@ -10,6 +10,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 )
 
 const principalContextKey = "wflPrincipal"
@@ -24,6 +25,15 @@ type applicationService interface {
 	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
 	DownloadAttachment(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
 	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (AttachmentRemoveResult, error)
+}
+
+type salesApplicationService interface {
+	SalesQuery(context.Context, QueryInput) (Page[ProcessView], error)
+	SalesGet(context.Context, GetInput) (ProcessView, error)
+	SalesCreate(context.Context, SalesCreateInput, string, string) (MutationResult, error)
+	SalesSave(context.Context, SalesSaveInput, string, string) (MutationResult, error)
+	SalesAction(context.Context, string, ActionInput, string, string) (any, error)
+	History(context.Context, HistoryInput) (Page[AuditView], error)
 }
 
 type Handler struct {
@@ -43,6 +53,17 @@ var workflowActions = [...]string{
 	"delivery-check", "delivery-uncheck", "delivery-execute", "delivery-unexecute",
 	"signoff-create", "signoff-get", "signoff-save", "signoff-delete",
 	"signoff-check", "signoff-uncheck", "signoff-confirm", "signoff-unconfirm",
+}
+
+var salesWorkflowActions = [...]string{
+	"check", "uncheck", "approve", "unapprove", "finalize", "unfinalize",
+	"short-close-request", "short-close-cancel", "short-close-confirm", "short-close-unconfirm",
+	"outbound-get", "outbound-save", "outbound-check", "outbound-uncheck",
+	"outbound-approve", "outbound-unapprove", "outbound-finalize", "outbound-unfinalize",
+	"delivery-get", "delivery-save", "delivery-check", "delivery-uncheck",
+	"delivery-approve", "delivery-unapprove", "delivery-finalize", "delivery-unfinalize",
+	"signoff-get", "signoff-save", "signoff-check", "signoff-uncheck",
+	"signoff-approve", "signoff-unapprove", "signoff-finalize", "signoff-unfinalize",
 }
 
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
@@ -79,6 +100,98 @@ func (h *Handler) Register(router *gin.Engine) {
 			group.POST("/"+action, h.authorize("/wfl/intermediary-trade/"+action), func(c *gin.Context) {
 				h.attachment(c, action, operation)
 			})
+		}
+	}
+	h.registerSalesWorkflow(router)
+}
+
+func (h *Handler) registerSalesWorkflow(router *gin.Engine) {
+	group := router.Group("/wfl/sales-fulfillment")
+	group.POST("/query", h.authorize("/wfl/sales-fulfillment/query"), h.salesQuery)
+	group.POST("/get", h.authorize("/wfl/sales-fulfillment/get"), h.salesGet)
+	group.POST("/create", h.authorize("/wfl/sales-fulfillment/create"), h.salesCreate)
+	group.POST("/save", h.authorize("/wfl/sales-fulfillment/save"), h.salesSave)
+	group.POST("/audit-history", h.authorize("/wfl/sales-fulfillment/audit-history"), h.salesHistory)
+	for _, value := range salesWorkflowActions {
+		action := value
+		group.POST("/"+action, h.authorize("/wfl/sales-fulfillment/"+action), func(c *gin.Context) {
+			var input ActionInput
+			if h.bind(c, &input) {
+				principal := h.principal(c)
+				service, ok := h.service.(salesApplicationService)
+				if !ok {
+					h.writeError(c, internal("sales workflow service is unavailable", nil))
+					return
+				}
+				result, err := service.SalesAction(
+					c.Request.Context(), action, input, principal.ActorID, response.RequestID(c),
+				)
+				h.result(c, result, err)
+			}
+		})
+	}
+}
+
+func (h *Handler) salesService(c *gin.Context) (salesApplicationService, bool) {
+	service, ok := h.service.(salesApplicationService)
+	if !ok {
+		h.writeError(c, internal("sales workflow service is unavailable", nil))
+	}
+	return service, ok
+}
+
+func (h *Handler) salesQuery(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		if service, ok := h.salesService(c); ok {
+			result, err := service.SalesQuery(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	}
+}
+
+func (h *Handler) salesGet(c *gin.Context) {
+	var input GetInput
+	if h.bind(c, &input) {
+		if service, ok := h.salesService(c); ok {
+			result, err := service.SalesGet(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	}
+}
+
+func (h *Handler) salesCreate(c *gin.Context) {
+	var input SalesCreateInput
+	if h.bind(c, &input) {
+		if service, ok := h.salesService(c); ok {
+			principal := h.principal(c)
+			result, err := service.SalesCreate(
+				c.Request.Context(), input, principal.ActorID, response.RequestID(c),
+			)
+			h.result(c, result, err)
+		}
+	}
+}
+
+func (h *Handler) salesSave(c *gin.Context) {
+	var input SalesSaveInput
+	if h.bind(c, &input) {
+		if service, ok := h.salesService(c); ok {
+			principal := h.principal(c)
+			result, err := service.SalesSave(
+				c.Request.Context(), input, principal.ActorID, response.RequestID(c),
+			)
+			h.result(c, result, err)
+		}
+	}
+}
+
+func (h *Handler) salesHistory(c *gin.Context) {
+	var input HistoryInput
+	if h.bind(c, &input) {
+		if service, ok := h.salesService(c); ok {
+			result, err := service.History(c.Request.Context(), input)
+			h.result(c, result, err)
 		}
 	}
 }
@@ -190,7 +303,21 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 func (h *Handler) writeError(c *gin.Context, err error) {
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) {
-		domainErr = &DomainError{Kind: ErrorInternal, Message: "internal server error", Cause: err}
+		var vouErr *voudomain.DomainError
+		if errors.As(err, &vouErr) {
+			kind := ErrorInternal
+			switch vouErr.Kind {
+			case voudomain.ErrorValidation:
+				kind = ErrorValidation
+			case voudomain.ErrorConflict:
+				kind = ErrorConflict
+			}
+			domainErr = &DomainError{
+				Kind: kind, Message: vouErr.Message, Data: vouErr.Data, Cause: vouErr,
+			}
+		} else {
+			domainErr = &DomainError{Kind: ErrorInternal, Message: "internal server error", Cause: err}
+		}
 	}
 	code := response.CodeInternal
 	switch domainErr.Kind {

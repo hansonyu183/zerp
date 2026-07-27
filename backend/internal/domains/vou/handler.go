@@ -88,6 +88,11 @@ func (h *Handler) Register(router *gin.Engine) {
 		for _, route := range actionRoutes {
 			action := route.action
 			handle := route.handle
+			if (entity == EntitySaleOrder || isSalesChainEntity(entity)) &&
+				action != "query" && action != "get" &&
+				action != "audit-history" && action != "attachment-download" {
+				handle = (*Handler).managedSalesWriteRejected
+			}
 			path := "/vou/" + entity + "/" + action
 			entityGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
 				handle(h, c, entity)
@@ -95,12 +100,25 @@ func (h *Handler) Register(router *gin.Engine) {
 		}
 	}
 	saleOrder := group.Group("/" + EntitySaleOrder)
-	saleOrder.POST("/short-close-request", h.authorize("/vou/sale-order/short-close-request"), h.shortCloseRequest)
-	saleOrder.POST("/short-close-cancel", h.authorize("/vou/sale-order/short-close-cancel"), h.shortCloseCancel)
-	saleOrder.POST("/short-close-confirm", h.authorize("/vou/sale-order/short-close-confirm"), h.shortCloseConfirm)
-	saleOrder.POST("/short-close-unconfirm", h.authorize("/vou/sale-order/short-close-unconfirm"), h.shortCloseUnconfirm)
+	saleOrder.POST("/short-close-request", h.authorize("/vou/sale-order/short-close-request"), h.managedSalesWriteRejectedRoute)
+	saleOrder.POST("/short-close-cancel", h.authorize("/vou/sale-order/short-close-cancel"), h.managedSalesWriteRejectedRoute)
+	saleOrder.POST("/short-close-confirm", h.authorize("/vou/sale-order/short-close-confirm"), h.managedSalesWriteRejectedRoute)
+	saleOrder.POST("/short-close-unconfirm", h.authorize("/vou/sale-order/short-close-unconfirm"), h.managedSalesWriteRejectedRoute)
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
+}
+
+func (h *Handler) managedSalesWriteRejected(c *gin.Context, _ string) {
+	h.writeError(c, domainError(
+		ErrorValidation,
+		"销售履约单据由流程维护，请使用 /wfl/sales-fulfillment 接口",
+		nil,
+		nil,
+	))
+}
+
+func (h *Handler) managedSalesWriteRejectedRoute(c *gin.Context) {
+	h.managedSalesWriteRejected(c, EntitySaleOrder)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -193,38 +211,6 @@ func (h *Handler) delete(c *gin.Context, entity string) {
 	var input DeleteInput
 	if h.bind(c, &input) {
 		result, err := h.service.Delete(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) shortCloseRequest(c *gin.Context) {
-	var input ReverseInput
-	if h.bind(c, &input) {
-		result, err := h.service.ShortCloseRequest(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) shortCloseCancel(c *gin.Context) {
-	var input ReverseInput
-	if h.bind(c, &input) {
-		result, err := h.service.ShortCloseCancel(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) shortCloseConfirm(c *gin.Context) {
-	var input DocumentRevisionInput
-	if h.bind(c, &input) {
-		result, err := h.service.ShortCloseConfirm(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) shortCloseUnconfirm(c *gin.Context) {
-	var input ReverseInput
-	if h.bind(c, &input) {
-		result, err := h.service.ShortCloseUnconfirm(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }

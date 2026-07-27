@@ -15,8 +15,32 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	return s.createDocument(ctx, entity, input, actorID, requestID, false)
+}
+
+// CreateManagedSalesOrder is the WFL-only entry point for a new sales
+// fulfillment process. Direct VOU callers continue to create unmanaged
+// documents and therefore do not trigger workflow-generated children.
+func (s *Service) CreateManagedSalesOrder(
+	ctx context.Context,
+	input CreateInput,
+	actorID, requestID string,
+) (MutationResult, error) {
+	return s.createDocument(ctx, EntitySaleOrder, input, actorID, requestID, true)
+}
+
+func (s *Service) createDocument(
+	ctx context.Context,
+	entity string,
+	input CreateInput,
+	actorID, requestID string,
+	managed bool,
+) (MutationResult, error) {
 	if isSalesChainEntity(entity) {
 		return s.createSalesChain(ctx, entity, input, actorID, requestID)
+	}
+	if managed && entity != EntitySaleOrder {
+		return MutationResult{}, domainError(ErrorValidation, "invalid managed sales root", nil, nil)
 	}
 	draft, err := validateDraft(entity, input.Data)
 	if err != nil {
@@ -40,11 +64,21 @@ func (s *Service) Create(
 	}
 	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%06d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
-	if err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
-		ID: documentID, Entity: entity, DocumentNo: documentNo,
-		BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
-		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark, ActorID: actorID,
-	}); err != nil {
+	if managed {
+		_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
+			id,entity,document_no,business_date,currency,total_amount_cents,remark,
+			created_by,updated_by,workflow_version,control_domain
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8,2,'WFL')`,
+			documentID, entity, documentNo, draft.BusinessDate, draft.Currency,
+			draft.TotalAmount, draft.Remark, actorID)
+	} else {
+		err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
+			ID: documentID, Entity: entity, DocumentNo: documentNo,
+			BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
+			TotalAmountCents: draft.TotalAmount, Remark: draft.Remark, ActorID: actorID,
+		})
+	}
+	if err != nil {
 		return MutationResult{}, s.writeError("insert document", err)
 	}
 	resolved, err := s.resolveDraft(ctx, tx, entity, draft, resolvedDraft{}, true)
@@ -60,6 +94,13 @@ func (s *Service) Create(
 		Summary: map[string]any{"documentNo": documentNo},
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit create", err)
+	}
+	if managed {
+		if err = s.createSalesWorkflow(
+			ctx, tx, documentID, documentNo, actorID, requestID,
+		); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit create", err)
@@ -93,6 +134,9 @@ func (s *Service) Save(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusChecked); err != nil {
+		return MutationResult{}, err
+	}
 	preserved, err := s.loadPreservedPersonnel(ctx, q, entity, input.DocumentID)
 	if err != nil {
 		return MutationResult{}, err
@@ -122,6 +166,12 @@ func (s *Service) Save(
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit save", err)
 	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, "SAVED", StatusDraft, actorID, requestID,
+		map[string]any{"revision": revision},
+	); err != nil {
+		return MutationResult{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit save", err)
 	}
@@ -146,6 +196,12 @@ func (s *Service) Check(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusChecked); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.validateManagedSalesReady(ctx, tx, document); err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -167,6 +223,11 @@ func (s *Service) Check(
 		From: stringPtr(StatusDraft), To: StatusChecked, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit check", err)
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, "CHECKED", StatusChecked, actorID, requestID, nil,
+	); err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit check", err)
@@ -211,6 +272,9 @@ func (s *Service) forwardTransition(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, to); err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -232,6 +296,15 @@ func (s *Service) forwardTransition(
 		From: &from, To: to, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit transition", err)
+	}
+	summary, err := s.onManagedSalesApproved(ctx, tx, document, actorID, requestID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, event, to, actorID, requestID, summary,
+	); err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit transition", err)
@@ -259,6 +332,15 @@ func (s *Service) reverseTransition(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
 		return MutationResult{}, err
 	}
+	if managedSalesDocument(document) && from == StatusApproved && to == StatusChecked {
+		if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
+			return MutationResult{}, err
+		}
+	} else if managedSalesDocument(document) {
+		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, to); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	var revision int64
 	var event string
 	switch {
@@ -283,6 +365,11 @@ func (s *Service) reverseTransition(
 		From: &from, To: to, ActorID: actorID, Reason: reason, RequestID: requestID,
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit reverse transition", err)
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, event, to, actorID, requestID, nil,
+	); err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit reverse transition", err)

@@ -50,8 +50,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 57 {
-		t.Fatalf("route count = %d, want 57", len(routes))
+	if len(routes) != 96 {
+		t.Fatalf("route count = %d, want 96", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/intermediary-trade/create",
@@ -60,6 +60,10 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		"/wfl/intermediary-trade/delivery-execute",
 		"/wfl/intermediary-trade/signoff-confirm",
 		"/wfl/intermediary-trade/signoff-attachment-download",
+		"/wfl/sales-fulfillment/create",
+		"/wfl/sales-fulfillment/outbound-save",
+		"/wfl/sales-fulfillment/delivery-approve",
+		"/wfl/sales-fulfillment/signoff-finalize",
 	} {
 		if routes[path] != http.MethodPost {
 			t.Fatalf("missing POST %s", path)

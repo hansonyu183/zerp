@@ -13,6 +13,8 @@ export type WflProcessStatus =
 
 export type WflStage =
   | 'CUSTOMER_ORDER'
+  | 'SALE_ORDER'
+  | 'OUTBOUND'
   | 'PROCUREMENT'
   | 'RECEIPT'
   | 'DELIVERY'

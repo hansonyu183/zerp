@@ -71,6 +71,9 @@ const currencyVisible = computed(() =>
   vm.form.currency.trim().toUpperCase() !== 'CNY' ||
   Boolean(vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种')),
 )
+const sourceDocumentNo = computed(() =>
+  vm.documentView?.data.sourceDocumentNo || vm.form.sourceDocumentId || '由系统生成',
+)
 const secondaryOpen = ref(false)
 const secondaryAction = ref<
   'delete' | 'short-close-request' | 'short-close-cancel' |
@@ -329,20 +332,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               variant="outlined"
               @update:model-value="vm.form.currency = ($event ?? '').toUpperCase()"
             />
-            <v-autocomplete
+            <v-text-field
               v-if="vm.config.sourceEntity"
-              :disabled="!vm.editing || Boolean(vm.documentView)"
-              :error-messages="vm.sourceError ? [vm.sourceError] : []"
-              item-title="documentNo"
-              item-value="documentId"
-              :items="vm.sourceOptions"
               label="来源单据"
-              :loading="vm.sourceLoading"
-              :model-value="vm.form.sourceDocumentId || null"
-              no-data-text="没有可用的已完成来源单据"
+              :model-value="sourceDocumentNo"
+              readonly
               variant="outlined"
-              @update:model-value="vm.selectSourceDocument($event)"
-              @update:search="vm.searchSourceDocuments($event ?? '')"
             />
             <div class="voucher-form__more-settings">
               <v-btn

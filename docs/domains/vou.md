@@ -19,7 +19,7 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-WFL 管理的原子单据另包含 `customer-order`、`procurement-order`、`goods-receipt`、
+WFL 管理的原子单据包含销售四单以及 `customer-order`、`procurement-order`、`goods-receipt`、
 `delivery-note` 和 `signoff-note`。它们复用 VOU 的编号、revision、引用快照、附件和审计，
 但不开放普通 VOU 写入口；业务规则和流转统一由 WFL 编排。
 
@@ -127,9 +127,11 @@ BOB 引用结构固定为：
 
 ### 3.1 销售四单
 
-销售履约拆为 `sale-order -> sale-outbound -> sale-delivery -> sale-signoff`。销售订单保存客户、
-业务员、订购日期、币种、备注和产品明细，不锁定仓库。销售出库单从已最终处理的订单选取来源行、
-仓库和出库数量；一张订单可多次出库。销售配送单完整承接一张已出库单并保存物流平台和车辆，
+销售履约由 `SALES_FULFILLMENT` 编排为
+`sale-order -> sale-outbound -> sale-delivery -> sale-signoff`。销售订单保存客户、
+业务员、订购日期、币种、备注和产品明细，不锁定仓库。批准上级单据时由服务端自动创建下级草稿；
+来源 ID 和来源单号为只读关系。销售出库单从已批准订单复制可出库行，补充仓库和出库数量；
+一张订单可多次出库。销售配送单完整承接一张已批准出库单并保存物流平台和车辆，
 一张出库单最多一张配送单。销售签收单完整覆盖一张已发运配送单的全部行，一张配送单最多一张签收单。
 
 日期必须满足 `订单日期 <= 出库日期 <= 配送日期 <= 签收日期`。可再出库量等于订购量减已签收量
@@ -194,9 +196,9 @@ BOB 引用结构固定为：
 | 实体                      | 草稿专用字段                                                                                       |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `sale-order`              | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                                     |
-| `sale-outbound`           | `sourceDocumentId`、`warehouse`、`sourceLines`                                                     |
-| `sale-delivery`           | `sourceDocumentId`、`platform`、`vehicle`                                                          |
-| `sale-signoff`            | `sourceDocumentId`、`signoffLines`                                                                 |
+| `sale-outbound`           | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                                |
+| `sale-delivery`           | WFL 注入来源；客户端只传 `platform`、`vehicle`                                                     |
+| `sale-signoff`            | WFL 注入来源；客户端只传 `signoffLines`                                                            |
 | `purchase-order`          | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`                        |
 | `intermediary-sale-order` | `customer`、`supplier`、`salesperson`、`purchaser`、`productLines`；每行还要求 `purchaseUnitPrice` |
 | `receipt`、`payment`      | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                             |

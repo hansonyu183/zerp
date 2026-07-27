@@ -2,8 +2,12 @@
 
 ## 1. 领域边界
 
-WFL（Workflow）负责跨多张 VOU 原子单据的流程编排。首个流程类型为
-`INTERMEDIARY_TRADE`，定义版本为 `1`，固定包含客户订单、采购、收货、送货和签收五个阶段。
+WFL（Workflow）负责跨多张 VOU 原子单据的流程编排。当前流程类型为：
+
+- `INTERMEDIARY_TRADE`：客户订单、采购、收货、送货和签收；
+- `SALES_FULFILLMENT`：销售订单、销售出库、销售配送和销售签收。
+
+流程定义版本为 `1`。
 流程定义由代码注册，数据库只保存流程实例、阶段单据关联和追加式审计，不提供动态 BPM 配置。
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护流程状态、原子单据协作、事务和前端交互语义。
@@ -201,7 +205,28 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 - initiate 返回流程/单据 revision、`fileId`、`uploadUrl`、`expiresAt`；download 返回
   `downloadUrl`、`expiresAt`；remove 返回更新后的单据 revision 和状态。
 
-## 5. 审计与验收
+## 5. 销售履约流程
+
+销售履约入口为 `POST /wfl/sales-fulfillment/{action}`。根销售订单使用
+`query/get/create/save/audit-history` 和标准生命周期动作。下级阶段只提供
+`{outbound|delivery|signoff}-get/save/check/uncheck/approve/unapprove/finalize/unfinalize`，
+不提供 create 或 delete；`sourceDocumentId` 由服务端写入，客户端发送时拒绝。
+
+销售订单批准时幂等创建一张出库草稿；出库批准创建配送草稿；配送批准创建签收草稿。
+出库草稿复制当时可出库行并继承日期、币种，仓库待补；配送继承出库快照，物流平台和车辆待补；
+签收默认全部签收、拒收为零。系统草稿不可手工删除。反批准只会移除从未保存或流转的系统草稿，
+存在保存或流转审计时拒绝反向操作。
+
+子单据进入 `CHECKED`、`APPROVED`、`FINALIZED` 时，直接上级至少处于相同层级。上级反向流转
+不得低于任一下级状态。分批出库后仍有可出库量，或签收拒收、损耗释放需求量时，事务内保证
+存在且仅存在一张未处理出库草稿；父级、阶段唯一约束和行锁共同保证批准重试及并发不重复建单。
+
+`ProcessView.documents` 对每张阶段单据统一返回 `parentDocumentId`、`sourceDocumentNo`、
+业务日期、币种、金额、状态和 revision。来源是可跳转的只读信息，不是编辑字段。迁移将已有
+销售四单回填为 `SALES_FULFILLMENT`，保留单据 ID、单号、revision 和审计；孤儿或非法链条
+使迁移失败。旧 `/vou/sale-*` 查询、读取和历史接口保留兼容，写入统一拒绝并引导 WFL。
+
+## 6. 审计与验收
 
 每个原子单据保存 VOU 审计，流程同时保存 WFL 审计。物理删除阶段草稿时删除其 VOU 审计，
 但 WFL 删除事件必须保存单据 ID、单号、阶段、操作者、request ID 和摘要。
@@ -209,15 +234,15 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 验收覆盖完整五阶段、多批与并发数量、双人控制、短结、全部反向阻断、附件、LED 正反向流水、
 旧 V1 单据兼容以及迁移、生成、测试、vet、build、race 和 Compose 健康检查。
 
-## 6. 前端职责与交互约束
+## 7. 前端职责与交互约束
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
 WFL 是独立于 VOU 查询的流程领域。前端通过
-`POST /wfl/intermediary-trade/{action}` 对接当前后端 WFL 契约，不把流程结果并入
+`POST /wfl/{process}/{action}` 对接当前后端 WFL 契约，不把流程结果并入
 `/vou/{entity}`，也不为流程内实体注册可直接调用的旧 VOU 页面。
 
-### 6.1 通用流程层
+### 7.1 通用流程层
 
 `src/components/wfl` 提供配置驱动的流程列表、全屏工作区、阶段单据表、生命周期
 动作、原因对话框和审计记录。流程定义声明阶段顺序、图标、语义终态及可用动作；
@@ -229,7 +254,7 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 写操作和附件变更成功后重新读取完整 `ProcessView`，服务端状态、余额和 revision
 是唯一事实来源。业务冲突保留后端 `requestId` 并提示刷新。
 
-### 6.2 居间贸易
+### 7.2 居间贸易
 
 页面为 `/wfl/intermediary-trade`，由五类独立原子单据组成：
 
@@ -259,7 +284,13 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 后端冲突是最终裁决。反核对、反批准、反下单、反确认、反执行、删除草稿以及短结
 动作均要求 1–1000 字原因。
 
-### 6.3 真实后端测试
+### 7.3 销售履约
+
+页面为 `/wfl/sales-fulfillment`。四个阶段在同一流程工作区展示；批准后生成的下级草稿立即
+出现在对应阶段，来源单号只读且可跳回上级单据。VOU 导航不再提供销售订单、出库、配送、签收
+四个独立新建入口。下级保存请求只发送阶段业务资料，永不发送 `sourceDocumentId`。
+
+### 7.4 真实后端测试
 
 WFL Playwright 不拦截业务请求。默认复用 `E2E_USERNAME`、
 `E2E_REVIEWER_USERNAME` 双账号及 `E2E_VOU_*` 有效基础资料，在桌面和移动项目

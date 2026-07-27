@@ -3203,6 +3203,942 @@
                 },
             },
         },
+      '/wfl/sales-fulfillment/query':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询销售履约流程',
+              'operationId': 'wflSalesFulfillmentQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取销售履约流程',
+              'operationId': 'wflSalesFulfillmentGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '创建销售履约流程',
+              'operationId': 'wflSalesFulfillmentCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存销售订单',
+              'operationId': 'wflSalesFulfillmentSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询销售履约审计',
+              'operationId': 'wflSalesFulfillmentAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对销售订单',
+              'operationId': 'wflSalesFulfillmentCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对销售订单',
+              'operationId': 'wflSalesFulfillmentUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准销售订单并自动生成出库草稿',
+              'operationId': 'wflSalesFulfillmentApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准销售订单',
+              'operationId': 'wflSalesFulfillmentUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/finalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '完成销售订单',
+              'operationId': 'wflSalesFulfillmentFinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/unfinalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销完成销售订单',
+              'operationId': 'wflSalesFulfillmentUnfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/short-close-request':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '申请销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseRequest',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/short-close-cancel':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '取消销售履约短结申请',
+              'operationId': 'wflSalesFulfillmentShortCloseCancel',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/short-close-confirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '确认销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/short-close-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseUnconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取自动生成的销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准销售出库单并自动生成配送草稿',
+              'operationId': 'wflSalesFulfillmentOutboundApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-finalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '完成销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundFinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/outbound-unfinalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销完成销售出库单',
+              'operationId': 'wflSalesFulfillmentOutboundUnfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取自动生成的销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliverySave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准销售配送单并自动生成签收草稿',
+              'operationId': 'wflSalesFulfillmentDeliveryApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-finalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '完成销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryFinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/delivery-unfinalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销完成销售配送单',
+              'operationId': 'wflSalesFulfillmentDeliveryUnfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取自动生成的销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-finalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '完成销售签收单并更新履约余额',
+              'operationId': 'wflSalesFulfillmentSignoffFinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/sales-fulfillment/signoff-unfinalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销完成销售签收单',
+              'operationId': 'wflSalesFulfillmentSignoffUnfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
     },
   'components':
     {

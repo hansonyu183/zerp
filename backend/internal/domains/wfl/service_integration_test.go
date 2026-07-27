@@ -6,12 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -130,7 +133,7 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	}
 	var permissionCount int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain='wfl'`).
-		Scan(&permissionCount); err != nil || permissionCount != 57 {
+		Scan(&permissionCount); err != nil || permissionCount != 96 {
 		t.Fatalf("WFL permissions = %d err=%v", permissionCount, err)
 	}
 	created, err := service.Create(t.Context(), CreateInput{Data: CustomerOrderInput{
@@ -453,5 +456,357 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	}
 	if closedAny.(MutationResult).WorkflowStatus != StatusShortClosed {
 		t.Fatalf("short close status = %+v", closedAny)
+	}
+}
+
+func TestSalesFulfillmentAutoDraftAndReverseGuardIntegration(t *testing.T) {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL is not configured")
+	}
+	pool, err := pgxpool.New(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if _, err = pool.Exec(t.Context(), `TRUNCATE vou_documents,vou_files,vou_number_counters CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `TRUNCATE vou_documents,vou_files,vou_number_counters CASCADE`)
+	})
+
+	id := func() string { return ulid.Make().String() }
+	customer, salesperson, product, warehouse, settlement := id(), id(), id(), id(), id()
+	platform, vehicle := id(), id()
+	versions := map[string]string{
+		customer: id(), salesperson: id(), product: id(), warehouse: id(), settlement: id(),
+		platform: id(), vehicle: id(),
+	}
+	ref := func(objectID, entity, code string, data bobdomain.DetailView) bobdomain.EffectiveReference {
+		return bobdomain.EffectiveReference{
+			ObjectID: objectID, VersionID: versions[objectID],
+			Entity: entity, Code: code, Data: data,
+		}
+	}
+	resolver := referenceStub{values: map[string]bobdomain.EffectiveReference{
+		customer: ref(customer, bobdomain.EntityCustomer, "C001", bobdomain.DetailView{
+			Name:                      "客户",
+			SettlementMethodID:        settlement,
+			SettlementMethodVersionID: versions[settlement],
+		}),
+		salesperson: ref(salesperson, bobdomain.EntityEmployee, "E001", bobdomain.DetailView{Name: "业务员"}),
+		product: ref(product, bobdomain.EntityProduct, "P001", bobdomain.DetailView{
+			Name: "商品", Unit: "kg",
+		}),
+		warehouse: ref(warehouse, bobdomain.EntityWarehouse, "W001", bobdomain.DetailView{Name: "主仓"}),
+		platform: ref(platform, bobdomain.EntitySupplier, "L001", bobdomain.DetailView{
+			Name: "物流平台", SupplierType: bobdomain.SupplierTypeLogisticsPlatform,
+		}),
+		vehicle: ref(vehicle, bobdomain.EntityVehicle, "V001", bobdomain.DetailView{
+			Name: "配送车", PlateNumber: "粤B12345", PlatformObjectID: platform,
+		}),
+		settlement: ref(settlement, bobdomain.EntitySettlementMethod, "NET30", bobdomain.DetailView{
+			Name: "月结", RuleType: bobdomain.SettlementRuleRelativeDays, DayOffset: 30,
+		}),
+	}}
+	bus := txevent.NewBus()
+	vouchers, err := voudomain.NewService(pool, resolver, bus, voudomain.AttachmentOptions{
+		Root: t.TempDir(), UploadTTL: time.Minute, DownloadTTL: time.Minute,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(pool, resolver, bus, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SetSalesVoucherService(vouchers)
+	actor := id()
+	created, err := service.SalesCreate(t.Context(), SalesCreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-07-27", Currency: "CNY",
+		Customer:    &voudomain.ReferenceInput{ObjectID: customer, VersionID: versions[customer]},
+		Salesperson: &voudomain.ReferenceInput{ObjectID: salesperson, VersionID: versions[salesperson]},
+		ProductLines: []voudomain.ProductLineInput{{
+			Product:         voudomain.ReferenceInput{ObjectID: product, VersionID: versions[product]},
+			OrderedQuantity: "10", UnitPrice: "12.50",
+		}},
+	}}, actor, "sales-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkedValue, err := service.SalesAction(t.Context(), "check", ActionInput{
+		ProcessID: created.ProcessID, ProcessRevision: created.ProcessRevision,
+		DocumentID: created.DocumentID, DocumentRevision: created.DocumentRevision,
+	}, actor, "sales-check")
+	if err != nil {
+		t.Fatalf("%v: %v", err, errors.Unwrap(err))
+	}
+	checked := checkedValue.(MutationResult)
+	type approvalAttempt struct {
+		value any
+		err   error
+	}
+	approvals := make(chan approvalAttempt, 2)
+	for index := range 2 {
+		go func() {
+			value, approveErr := service.SalesAction(t.Context(), "approve", ActionInput{
+				ProcessID: checked.ProcessID, ProcessRevision: checked.ProcessRevision,
+				DocumentID: checked.DocumentID, DocumentRevision: checked.DocumentRevision,
+			}, actor, fmt.Sprintf("sales-approve-%d", index))
+			approvals <- approvalAttempt{value: value, err: approveErr}
+		}()
+	}
+	var approved MutationResult
+	successes := 0
+	for range 2 {
+		attempt := <-approvals
+		if attempt.err == nil {
+			successes++
+			approved = attempt.value.(MutationResult)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("concurrent approvals succeeded %d times", successes)
+	}
+	view, err := service.SalesGet(t.Context(), GetInput{ProcessID: approved.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Documents) != 2 || view.Documents[1].Stage != StageOutbound ||
+		view.Documents[1].Status != voudomain.StatusDraft ||
+		view.Documents[1].ParentDocumentID != created.DocumentID ||
+		view.Documents[1].SourceDocumentNo != view.Documents[0].DocumentNo {
+		t.Fatalf("automatic outbound = %+v", view.Documents)
+	}
+	var generatedCount int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_documents
+		WHERE parent_document_id=$1 AND entity='sale-outbound' AND auto_generated`,
+		created.DocumentID).Scan(&generatedCount); err != nil || generatedCount != 1 {
+		t.Fatalf("generated outbound count = %d err=%v", generatedCount, err)
+	}
+	if _, err = service.SalesAction(t.Context(), "approve", ActionInput{
+		ProcessID: checked.ProcessID, ProcessRevision: checked.ProcessRevision,
+		DocumentID: checked.DocumentID, DocumentRevision: checked.DocumentRevision,
+	}, actor, "sales-approve-retry"); err == nil {
+		t.Fatal("retrying approve unexpectedly succeeded")
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_documents
+		WHERE parent_document_id=$1 AND entity='sale-outbound'`, created.DocumentID).
+		Scan(&generatedCount); err != nil || generatedCount != 1 {
+		t.Fatalf("retry created duplicate outbound count = %d err=%v", generatedCount, err)
+	}
+
+	outbound := view.Documents[1]
+	clientOwnedSource, err := json.Marshal(map[string]any{
+		"businessDate":     outbound.BusinessDate,
+		"currency":         outbound.Currency,
+		"sourceDocumentId": created.DocumentID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.SalesAction(t.Context(), "outbound-save", ActionInput{
+		ProcessID: approved.ProcessID, ProcessRevision: approved.ProcessRevision,
+		DocumentID: outbound.DocumentID, DocumentRevision: outbound.Revision,
+		Data: clientOwnedSource,
+	}, actor, "sales-outbound-client-source"); err == nil {
+		t.Fatal("client-owned sourceDocumentId unexpectedly accepted")
+	}
+	if _, err = service.SalesAction(t.Context(), "outbound-check", ActionInput{
+		ProcessID: approved.ProcessID, ProcessRevision: approved.ProcessRevision,
+		DocumentID: outbound.DocumentID, DocumentRevision: outbound.Revision,
+	}, actor, "sales-outbound-check-incomplete"); err == nil {
+		t.Fatal("checking an automatic outbound without a warehouse unexpectedly succeeded")
+	}
+	data := outbound.Data.(voudomain.DocumentDataView)
+	raw, err := json.Marshal(voudomain.DraftInput{
+		BusinessDate: outbound.BusinessDate, Currency: outbound.Currency,
+		Warehouse: &voudomain.ReferenceInput{ObjectID: warehouse, VersionID: versions[warehouse]},
+		SourceLines: []voudomain.SourceQuantityLineInput{{
+			SourceLineID: data.ProductLines[0].SourceLineID,
+			Quantity:     data.ProductLines[0].Quantity,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedValue, err := service.SalesAction(t.Context(), "outbound-save", ActionInput{
+		ProcessID: approved.ProcessID, ProcessRevision: approved.ProcessRevision,
+		DocumentID: outbound.DocumentID, DocumentRevision: outbound.Revision, Data: raw,
+	}, actor, "sales-outbound-save")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := savedValue.(MutationResult)
+	outboundCheckedValue, err := service.SalesAction(t.Context(), "outbound-check", ActionInput{
+		ProcessID: saved.ProcessID, ProcessRevision: saved.ProcessRevision,
+		DocumentID: saved.DocumentID, DocumentRevision: saved.DocumentRevision,
+	}, actor, "sales-outbound-check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outboundChecked := outboundCheckedValue.(MutationResult)
+	outboundApprovedValue, err := service.SalesAction(t.Context(), "outbound-approve", ActionInput{
+		ProcessID: outboundChecked.ProcessID, ProcessRevision: outboundChecked.ProcessRevision,
+		DocumentID: outboundChecked.DocumentID, DocumentRevision: outboundChecked.DocumentRevision,
+	}, actor, "sales-outbound-approve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outboundApproved := outboundApprovedValue.(MutationResult)
+	if _, err = service.SalesAction(t.Context(), "outbound-finalize", ActionInput{
+		ProcessID: outboundApproved.ProcessID, ProcessRevision: outboundApproved.ProcessRevision,
+		DocumentID: outboundApproved.DocumentID, DocumentRevision: outboundApproved.DocumentRevision,
+	}, actor, "sales-outbound-finalize-before-parent"); err == nil {
+		t.Fatal("outbound finalized before its parent unexpectedly succeeded")
+	}
+	if _, err = service.SalesAction(t.Context(), "unapprove", ActionInput{
+		ProcessID: outboundApproved.ProcessID, ProcessRevision: outboundApproved.ProcessRevision,
+		DocumentID: created.DocumentID, DocumentRevision: view.Documents[0].Revision,
+		Reason: "验证已编辑自动草稿阻止反批准",
+	}, actor, "sales-unapprove"); err == nil {
+		t.Fatal("unapprove unexpectedly removed an edited automatic draft")
+	}
+
+	view, err = service.SalesGet(t.Context(), GetInput{ProcessID: outboundApproved.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := view.Documents[0]
+	rootFinalizedValue, err := service.SalesAction(t.Context(), "finalize", ActionInput{
+		ProcessID: outboundApproved.ProcessID, ProcessRevision: outboundApproved.ProcessRevision,
+		DocumentID: root.DocumentID, DocumentRevision: root.Revision,
+	}, actor, "sales-root-finalize")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootFinalized := rootFinalizedValue.(MutationResult)
+	outboundFinalizedValue, err := service.SalesAction(t.Context(), "outbound-finalize", ActionInput{
+		ProcessID: rootFinalized.ProcessID, ProcessRevision: rootFinalized.ProcessRevision,
+		DocumentID: outboundApproved.DocumentID, DocumentRevision: outboundApproved.DocumentRevision,
+	}, actor, "sales-outbound-finalize")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outboundFinalized := outboundFinalizedValue.(MutationResult)
+	view, err = service.SalesGet(t.Context(), GetInput{ProcessID: outboundFinalized.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivery := view.Documents[2]
+	if delivery.Stage != StageDelivery || delivery.ParentDocumentID != outbound.DocumentID {
+		t.Fatalf("automatic delivery = %+v", delivery)
+	}
+	deliveryRaw, err := json.Marshal(voudomain.DraftInput{
+		BusinessDate: delivery.BusinessDate, Currency: delivery.Currency,
+		Platform: &voudomain.ReferenceInput{ObjectID: platform, VersionID: versions[platform]},
+		Vehicle:  &voudomain.ReferenceInput{ObjectID: vehicle, VersionID: versions[vehicle]},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliverySavedValue, err := service.SalesAction(t.Context(), "delivery-save", ActionInput{
+		ProcessID: outboundFinalized.ProcessID, ProcessRevision: outboundFinalized.ProcessRevision,
+		DocumentID: delivery.DocumentID, DocumentRevision: delivery.Revision, Data: deliveryRaw,
+	}, actor, "sales-delivery-save")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliverySaved := deliverySavedValue.(MutationResult)
+	deliveryCheckedValue, err := service.SalesAction(t.Context(), "delivery-check", ActionInput{
+		ProcessID: deliverySaved.ProcessID, ProcessRevision: deliverySaved.ProcessRevision,
+		DocumentID: deliverySaved.DocumentID, DocumentRevision: deliverySaved.DocumentRevision,
+	}, actor, "sales-delivery-check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliveryChecked := deliveryCheckedValue.(MutationResult)
+	deliveryApprovedValue, err := service.SalesAction(t.Context(), "delivery-approve", ActionInput{
+		ProcessID: deliveryChecked.ProcessID, ProcessRevision: deliveryChecked.ProcessRevision,
+		DocumentID: deliveryChecked.DocumentID, DocumentRevision: deliveryChecked.DocumentRevision,
+	}, actor, "sales-delivery-approve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliveryApproved := deliveryApprovedValue.(MutationResult)
+	deliveryFinalizedValue, err := service.SalesAction(t.Context(), "delivery-finalize", ActionInput{
+		ProcessID: deliveryApproved.ProcessID, ProcessRevision: deliveryApproved.ProcessRevision,
+		DocumentID: deliveryApproved.DocumentID, DocumentRevision: deliveryApproved.DocumentRevision,
+	}, actor, "sales-delivery-finalize")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliveryFinalized := deliveryFinalizedValue.(MutationResult)
+	view, err = service.SalesGet(t.Context(), GetInput{ProcessID: deliveryFinalized.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoff := view.Documents[3]
+	signoffData := signoff.Data.(voudomain.DocumentDataView)
+	if signoff.Stage != StageSignoff || len(signoffData.SignoffLines) != 1 ||
+		signoffData.SignoffLines[0].SignedQuantity != "10.0" ||
+		signoffData.SignoffLines[0].RejectedQuantity != "0.0" {
+		t.Fatalf("automatic signoff = %+v", signoff)
+	}
+	signoffRaw, err := json.Marshal(voudomain.DraftInput{
+		BusinessDate: signoff.BusinessDate, Currency: signoff.Currency,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID:   signoffData.SignoffLines[0].SourceLineID,
+			SignedQuantity: "8", RejectedQuantity: "1",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoffSavedValue, err := service.SalesAction(t.Context(), "signoff-save", ActionInput{
+		ProcessID: deliveryFinalized.ProcessID, ProcessRevision: deliveryFinalized.ProcessRevision,
+		DocumentID: signoff.DocumentID, DocumentRevision: signoff.Revision, Data: signoffRaw,
+	}, actor, "sales-signoff-save")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoffSaved := signoffSavedValue.(MutationResult)
+	signoffCheckedValue, err := service.SalesAction(t.Context(), "signoff-check", ActionInput{
+		ProcessID: signoffSaved.ProcessID, ProcessRevision: signoffSaved.ProcessRevision,
+		DocumentID: signoffSaved.DocumentID, DocumentRevision: signoffSaved.DocumentRevision,
+	}, actor, "sales-signoff-check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoffChecked := signoffCheckedValue.(MutationResult)
+	signoffApprovedValue, err := service.SalesAction(t.Context(), "signoff-approve", ActionInput{
+		ProcessID: signoffChecked.ProcessID, ProcessRevision: signoffChecked.ProcessRevision,
+		DocumentID: signoffChecked.DocumentID, DocumentRevision: signoffChecked.DocumentRevision,
+	}, actor, "sales-signoff-approve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoffApproved := signoffApprovedValue.(MutationResult)
+	signoffFinalizedValue, err := service.SalesAction(t.Context(), "signoff-finalize", ActionInput{
+		ProcessID: signoffApproved.ProcessID, ProcessRevision: signoffApproved.ProcessRevision,
+		DocumentID: signoffApproved.DocumentID, DocumentRevision: signoffApproved.DocumentRevision,
+	}, actor, "sales-signoff-finalize")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signoffFinalized := signoffFinalizedValue.(MutationResult)
+	view, err = service.SalesGet(t.Context(), GetInput{ProcessID: signoffFinalized.ProcessID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var replenished []DocumentSummary
+	for _, document := range view.Documents {
+		if document.Stage == StageOutbound && document.Status == voudomain.StatusDraft {
+			replenished = append(replenished, document)
+		}
+	}
+	if len(replenished) != 1 {
+		t.Fatalf("replenished outbound drafts = %+v", replenished)
+	}
+	replenishedData := replenished[0].Data.(voudomain.DocumentDataView)
+	if len(replenishedData.ProductLines) != 1 ||
+		replenishedData.ProductLines[0].Quantity != "2.0" {
+		t.Fatalf("replenished outbound lines = %+v", replenishedData.ProductLines)
 	}
 }

@@ -209,12 +209,8 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('注册 VOU 十类精确连字符实体页面和有效菜单图标', () => {
+  it('销售四单迁入 WFL 后仅注册其余六类 VOU 页面', () => {
     const entities = [
-      'sale-order',
-      'sale-outbound',
-      'sale-delivery',
-      'sale-signoff',
       'purchase-order',
       'intermediary-sale-order',
       'receipt',
@@ -230,19 +226,19 @@ describe('permission menu registry', () => {
     expect(menus).toHaveLength(1)
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
-    expect(
-      menus[0]?.children.find((item) => item.entity === 'sale-outbound')?.icon,
-    ).toBe('mdi-tray-arrow-up')
+    expect(buildMenus(['/vou/sale-order/query'])).toEqual([])
   })
 
-  it('将独立 WFL 居间贸易注册在 VOU 与 LED 之间', () => {
+  it('将销售履约和居间贸易注册在 VOU 与 LED 之间', () => {
     expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(true)
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
       '/led/opening/get',
       '/wfl/intermediary-trade/query',
-      '/vou/sale-order/query',
+      '/wfl/sales-fulfillment/query',
+      '/vou/purchase-order/query',
     ])
 
     expect(menus.map((item) => item.domain)).toEqual(['vou', 'wfl', 'led'])
@@ -252,9 +248,15 @@ describe('permission menu registry', () => {
       order: 30,
       children: [
         {
+          entity: 'sales-fulfillment',
+          title: '销售履约',
+          order: 10,
+          actions: ['query'],
+        },
+        {
           entity: 'intermediary-trade',
           title: '居间贸易',
-          order: 10,
+          order: 20,
           actions: ['query'],
         },
       ],

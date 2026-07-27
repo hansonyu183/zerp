@@ -17,7 +17,8 @@ func (s *Service) loadSalesChainData(
 		var warehouse ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_order_id,p.document_no,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
+			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_version_id,''),
+			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
@@ -28,7 +29,10 @@ func (s *Service) loadSalesChainData(
 		}
 		customer.Entity, warehouse.Entity = "customer", "warehouse"
 		data.SourceDocumentID, data.SourceDocumentNo, data.SourceEntity = sourceID, sourceNo, EntitySaleOrder
-		data.Customer, data.Warehouse = &customer, &warehouse
+		data.Customer = &customer
+		if warehouse.ObjectID != "" {
+			data.Warehouse = &warehouse
+		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,product_unit,
 			quantity_micros,unit_price_cents,line_amount_cents,remark
@@ -62,8 +66,11 @@ func (s *Service) loadSalesChainData(
 		var vehicle ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_outbound_id,p.document_no,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.platform_object_id,x.platform_version_id,x.platform_code,x.platform_name,
-			x.vehicle_object_id,x.vehicle_version_id,x.vehicle_code,x.vehicle_name,x.vehicle_plate_number
+			COALESCE(x.platform_object_id,''),COALESCE(x.platform_version_id,''),
+			COALESCE(x.platform_code,''),COALESCE(x.platform_name,''),
+			COALESCE(x.vehicle_object_id,''),COALESCE(x.vehicle_version_id,''),
+			COALESCE(x.vehicle_code,''),COALESCE(x.vehicle_name,''),
+			COALESCE(x.vehicle_plate_number,'')
 			FROM vou_sale_delivery_details x JOIN vou_documents p ON p.id=x.source_outbound_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
@@ -75,7 +82,13 @@ func (s *Service) loadSalesChainData(
 		}
 		customer.Entity, platform.Entity, vehicle.Entity = "customer", "supplier", "vehicle"
 		data.SourceDocumentID, data.SourceDocumentNo, data.SourceEntity = sourceID, sourceNo, EntitySaleOutbound
-		data.Customer, data.Platform, data.Vehicle = &customer, &platform, &vehicle
+		data.Customer = &customer
+		if platform.ObjectID != "" {
+			data.Platform = &platform
+		}
+		if vehicle.ObjectID != "" {
+			data.Vehicle = &vehicle
+		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,product_unit,
 			quantity_micros,unit_price_cents,line_amount_cents,remark
@@ -204,32 +217,44 @@ func (s *Service) setSaleOrderBalances(
 func (s *Service) validateSalesChainStored(
 	ctx context.Context, entity, documentID string,
 ) error {
-	var sourceStatus string
+	var sourceStatus, sourceControl string
 	var lineCount int64
+	complete := false
 	switch entity {
 	case EntitySaleOutbound:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,(SELECT count(*) FROM vou_sale_outbound_lines WHERE document_id=x.document_id)
+		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,
+			(SELECT count(*) FROM vou_sale_outbound_lines WHERE document_id=x.document_id),
+			x.warehouse_object_id IS NOT NULL
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
-			WHERE x.document_id=$1`, documentID).Scan(&sourceStatus, &lineCount)
+			WHERE x.document_id=$1`, documentID).
+			Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale outbound", err)
 		}
 	case EntitySaleDelivery:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,1 FROM vou_sale_delivery_details x
+		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,1,
+			x.platform_object_id IS NOT NULL AND x.vehicle_object_id IS NOT NULL
+			FROM vou_sale_delivery_details x
 			JOIN vou_documents p ON p.id=x.source_outbound_id WHERE x.document_id=$1`,
-			documentID).Scan(&sourceStatus, &lineCount)
+			documentID).Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale delivery", err)
 		}
 	case EntitySaleSignoff:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id)
+		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,
+			(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id),true
 			FROM vou_sale_signoff_details x JOIN vou_documents p ON p.id=x.source_delivery_id
-			WHERE x.document_id=$1`, documentID).Scan(&sourceStatus, &lineCount)
+			WHERE x.document_id=$1`, documentID).
+			Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale signoff", err)
 		}
 	}
-	if sourceStatus != StatusFinalized || lineCount == 0 {
+	sourceReady := sourceStatus == StatusFinalized
+	if sourceControl == "WFL" {
+		sourceReady = sourceStatus == StatusApproved || sourceStatus == StatusFinalized
+	}
+	if !sourceReady || lineCount == 0 || !complete {
 		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
 	}
 	return nil
@@ -498,6 +523,12 @@ func (s *Service) shortCloseMutation(
 		Reason: reason, RequestID: requestID,
 		Summary: map[string]any{"fulfillmentStatus": next},
 	}); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, event, StatusFinalized, actorID, requestID,
+		map[string]any{"fulfillmentStatus": next},
+	); err != nil {
 		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

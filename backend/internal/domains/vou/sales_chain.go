@@ -27,6 +27,7 @@ type fixedSignoffLine struct {
 
 type salesSource struct {
 	ID, Number, Entity, Status, Currency  string
+	ControlDomain                         string
 	BusinessDate                          time.Time
 	Total                                 int64
 	CustomerObjectID, CustomerVersionID   string
@@ -191,6 +192,18 @@ func (s *Service) saveSalesChain(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	document, err := s.queries.WithTx(tx).GetVouDocument(
+		ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity},
+	)
+	if err != nil {
+		return MutationResult{}, s.internal("read saved sales workflow document", err)
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, "SAVED", StatusDraft, actorID, requestID,
+		map[string]any{"revision": result.Revision},
+	); err != nil {
+		return MutationResult{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit sales-chain save", err)
 	}
@@ -229,29 +242,29 @@ func (s *Service) lockSalesSource(
 	var err error
 	switch entity {
 	case EntitySaleOrder:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName)
 	case EntitySaleOutbound:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
 			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
 			FROM vou_documents d JOIN vou_sale_outbound_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-outbound' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleDelivery:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
 			o.warehouse_object_id,o.warehouse_version_id,o.warehouse_code,o.warehouse_name
 			FROM vou_documents d JOIN vou_sale_delivery_details x ON x.document_id=d.id
 			JOIN vou_sale_outbound_details o ON o.document_id=x.source_outbound_id
 			WHERE d.id=$1 AND d.entity='sale-delivery' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	}
@@ -262,8 +275,12 @@ func (s *Service) lockSalesSource(
 		return source, s.internal("lock sales source", err)
 	}
 	source.BusinessDate = date
-	if source.Status != StatusFinalized {
-		return source, domainError(ErrorConflict, "source document is not finalized", nil, nil)
+	ready := source.Status == StatusFinalized
+	if source.ControlDomain == "WFL" {
+		ready = source.Status == StatusApproved || source.Status == StatusFinalized
+	}
+	if !ready {
+		return source, domainError(ErrorConflict, "source document is not approved", nil, nil)
 	}
 	return source, nil
 }

@@ -25,6 +25,9 @@ func (s *Service) Finalize(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusApproved); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusFinalized); err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -71,6 +74,9 @@ func (s *Service) Finalize(
 			return MutationResult{}, err
 		}
 	}
+	if err = s.replenishManagedOutbound(ctx, tx, document, actorID, requestID); err != nil {
+		return MutationResult{}, err
+	}
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: input.DocumentID, Entity: entity, Event: "FINALIZED",
 		From: stringPtr(StatusApproved), To: StatusFinalized, ActorID: actorID,
@@ -83,6 +89,11 @@ func (s *Service) Finalize(
 		Revision: revision, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document finalized", err)
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, "FINALIZED", StatusFinalized, actorID, requestID, summary,
+	); err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit finalize", err)
@@ -107,8 +118,16 @@ func (s *Service) Unfinalize(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusFinalized); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.ensureNoSalesChainChildren(ctx, tx, document); err != nil {
-		return MutationResult{}, err
+	if managedSalesDocument(document) {
+		if err = s.validateManagedSalesChildrenAtMost(
+			ctx, tx, document, StatusApproved,
+		); err != nil {
+			return MutationResult{}, err
+		}
+	} else {
+		if err = s.ensureNoSalesChainChildren(ctx, tx, document); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	summary, err := s.finalizationSummary(ctx, q, entity, input.DocumentID)
 	if err != nil {
@@ -150,6 +169,11 @@ func (s *Service) Unfinalize(
 		Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document unfinalized", err)
+	}
+	if err = s.touchSalesWorkflow(
+		ctx, tx, document, "UNFINALIZED", StatusApproved, actorID, requestID, summary,
+	); err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit unfinalize", err)

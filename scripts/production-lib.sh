@@ -55,6 +55,24 @@ production_wait_url() {
   done
 }
 
+production_wait_content() {
+  label=$1
+  url=$2
+  expected=$3
+  attempts=${4:-60}
+  count=0
+
+  until actual=$(curl --silent --show-error --fail "${url}") &&
+    [ "${actual}" = "${expected}" ]; do
+    count=$((count + 1))
+    if [ "${count}" -ge "${attempts}" ]; then
+      echo "${label} did not publish the expected release: ${url}" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 production_load_cloudflare() {
   account_file=${CLOUDFLARE_ACCOUNT_FILE:-${HOME}/.secrets/cloudflare/account_id_bytesucceed}
   token_file=${CLOUDFLARE_PAGES_TOKEN_FILE:-${HOME}/.secrets/cloudflare/api_token_pages_deploy}

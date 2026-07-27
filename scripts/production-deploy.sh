@@ -19,6 +19,7 @@ api_image="zerp-production-api:${release_sha}"
 web_image="zerp-production-web:${release_sha}"
 pages_project=${CLOUDFLARE_PAGES_PROJECT:-zerp}
 dry_run=${PRODUCTION_DRY_RUN:-0}
+previous_sha=$(cat "${runtime_root}/current-sha" 2>/dev/null || true)
 
 test -f "${env_file}" || {
   echo "Missing production environment: ${env_file}" >&2
@@ -60,6 +61,7 @@ docker build \
 
 pnpm --dir "${repo_root}" install --frozen-lockfile
 pnpm --dir "${repo_root}" build:web
+printf '%s\n' "${release_sha}" > "${repo_root}/frontend/dist/_zerp-release"
 tar -czf "${release_root}/frontend-dist.tar.gz" -C "${repo_root}/frontend" dist
 
 printf '%s\n' "${api_image}" > "${release_root}/api-image"
@@ -93,7 +95,40 @@ rollback_backend() {
       up -d --no-build --wait db api web || true
   fi
 }
-trap rollback_backend HUP INT TERM
+
+rollback_frontend() {
+  previous_release="${runtime_root}/releases/${previous_sha}"
+  if [ -z "${previous_sha}" ] ||
+     [ "$(cat "${previous_release}/status" 2>/dev/null || true)" != "success" ] ||
+     [ ! -s "${previous_release}/frontend-dist.tar.gz" ]; then
+    echo "No managed frontend release is available for automatic rollback" >&2
+    return 0
+  fi
+
+  rollback_root="${release_root}/frontend-rollback"
+  rm -rf "${rollback_root}"
+  mkdir -p "${rollback_root}"
+  tar -xzf "${previous_release}/frontend-dist.tar.gz" -C "${rollback_root}"
+  wrangler pages deploy "${rollback_root}/dist" \
+    --project-name "${pages_project}" \
+    --branch main \
+    --commit-hash "${previous_sha}" \
+    --commit-dirty=false
+  production_wait_content \
+    "Production frontend rollback" \
+    "https://zerp.bytesucceed.com/_zerp-release" \
+    "${previous_sha}" 90
+  rm -rf "${rollback_root}"
+}
+
+pages_may_have_changed=false
+rollback_release() {
+  rollback_backend
+  if [ "${pages_may_have_changed}" = "true" ]; then
+    rollback_frontend || true
+  fi
+}
+trap rollback_release HUP INT TERM
 
 echo "Running production migrations"
 if ! production_compose \
@@ -121,18 +156,22 @@ fi
 
 production_load_cloudflare
 echo "Deploying production frontend ${release_sha}"
+pages_may_have_changed=true
 if ! wrangler pages deploy "${repo_root}/frontend/dist" \
   --project-name "${pages_project}" \
   --branch main \
   --commit-hash "${release_sha}" \
   --commit-dirty=false; then
-  rollback_backend
+  rollback_release
   printf '%s\n' failed > "${release_root}/status"
   exit 1
 fi
 
-if ! production_wait_url "Production frontend" "https://zerp.bytesucceed.com/" 90; then
-  rollback_backend
+if ! production_wait_content \
+  "Production frontend" \
+  "https://zerp.bytesucceed.com/_zerp-release" \
+  "${release_sha}" 90; then
+  rollback_release
   printf '%s\n' failed > "${release_root}/status"
   exit 1
 fi

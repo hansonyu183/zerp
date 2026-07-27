@@ -55,7 +55,10 @@ wrangler pages deploy "${restore_root}/dist" \
   --commit-hash "${release_sha}" \
   --commit-dirty=false
 
-production_wait_url "Production frontend" "https://zerp.bytesucceed.com/" 90
+production_wait_content \
+  "Production frontend" \
+  "https://zerp.bytesucceed.com/_zerp-release" \
+  "${release_sha}" 90
 printf '%s\n' "${release_sha}" > "${runtime_root}/current-sha.new"
 mv "${runtime_root}/current-sha.new" "${runtime_root}/current-sha"
 echo "Production application rolled back to ${release_sha}; database was not changed"

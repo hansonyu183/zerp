@@ -53,7 +53,7 @@ cat > "${launch_agent}" <<EOF
     <key>HOME</key>
     <string>${HOME}</string>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>ZERP_PRODUCTION_STATE_ROOT</key>
     <string>${state_root}</string>
     <key>ZERP_PRODUCTION_RUNTIME_ROOT</key>

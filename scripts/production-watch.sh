@@ -12,11 +12,18 @@ mkdir -p "${runtime_root}"
 chmod 700 "${runtime_root}"
 
 if ! mkdir "${lock_dir}" 2>/dev/null; then
-  exit 0
+  lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+    exit 0
+  fi
+  rm -rf "${lock_dir}"
+  mkdir "${lock_dir}" 2>/dev/null || exit 0
 fi
+printf '%s\n' "$$" > "${lock_dir}/pid"
 cleanup() {
   git -C "${repository_root}" worktree remove --force "${source_root}" >/dev/null 2>&1 || true
   git -C "${repository_root}" worktree prune >/dev/null 2>&1 || true
+  rm -f "${lock_dir}/pid"
   rmdir "${lock_dir}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
@@ -25,6 +32,8 @@ if [ ! -d "${repository_root}/.git" ]; then
   git clone --filter=blob:none "https://github.com/${repo_slug}.git" "${repository_root}"
 fi
 
+git -C "${repository_root}" worktree remove --force "${source_root}" >/dev/null 2>&1 || true
+git -C "${repository_root}" worktree prune >/dev/null 2>&1 || true
 git -C "${repository_root}" fetch origin main --prune
 target_sha=$(git -C "${repository_root}" rev-parse origin/main)
 current_sha=$(cat "${runtime_root}/current-sha" 2>/dev/null || true)

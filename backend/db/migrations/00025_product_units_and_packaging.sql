@@ -95,6 +95,15 @@ CREATE UNIQUE INDEX bob_product_packaging_specs_default_uq
     ON bob_product_packaging_specs(product_version_id)
     WHERE is_default;
 
+-- The earlier integrity flush switches every existing deferrable constraint to
+-- immediate mode. Restore deferred checks only for the object/version/detail
+-- cycle while the migrated packaging products are inserted.
+SET CONSTRAINTS
+    bob_objects_current_version_fk,
+    bob_objects_effective_version_fk,
+    bob_versions_detail_ck
+    DEFERRED;
+
 -- Old SOLVENT/RESIN values were returnable container-ledger dimensions, so the
 -- generated packaging products are explicitly returnable.
 INSERT INTO bob_objects (
@@ -295,6 +304,8 @@ DELETE FROM bob_versions
 WHERE id IN ('01JAVX00000000000000000020', '01JAVX00000000000000000022');
 DELETE FROM bob_objects
 WHERE id IN ('01JAVX00000000000000000019', '01JAVX00000000000000000021');
+
+SET CONSTRAINTS ALL IMMEDIATE;
 
 ALTER TABLE bob_service_versions DROP COLUMN unit_id;
 ALTER TABLE bob_product_versions

@@ -105,6 +105,39 @@ wait_for_url() {
   done
 }
 
+warm_public_assets() {
+  index_file=$(mktemp)
+  cache_bust=${ZERP_RELEASE_SHA:-$(date +%s)}
+
+  if ! curl --silent --show-error --fail \
+    --retry 4 --retry-all-errors --retry-delay 1 \
+    --connect-timeout 10 --max-time 90 \
+    --output "${index_file}" \
+    "${preview_url}/signin?preview-release=${cache_bust}"; then
+    rm -f "${index_file}"
+    echo "Public preview entry could not be downloaded completely" >&2
+    return 1
+  fi
+
+  assets=$(
+    sed -n 's#.*\(/assets/[^"]*\).*#\1#p' "${index_file}"
+  )
+  rm -f "${index_file}"
+
+  test -n "${assets}" || {
+    echo "Public preview entry did not reference any built assets" >&2
+    return 1
+  }
+
+  for asset in ${assets}; do
+    echo "Warming public preview asset: ${asset}"
+    curl --silent --show-error --fail --compressed \
+      --retry 4 --retry-all-errors --retry-delay 1 \
+      --connect-timeout 10 --max-time 90 \
+      --output /dev/null "${preview_url}${asset}"
+  done
+}
+
 up() {
   guard
 
@@ -130,6 +163,7 @@ up() {
 
   wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz"
   wait_for_url "Preview API" "http://127.0.0.1:${API_PORT}/readyz"
+  warm_public_assets
   echo "Preview ready: ${preview_url}"
 }
 

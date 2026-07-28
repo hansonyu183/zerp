@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import type { AuxEntityViewModel } from './vm'
 
 const props = defineProps<{ model: AuxEntityViewModel }>()
@@ -22,45 +23,36 @@ void vm.query()
       {{ vm.errorMessage }}
     </v-alert>
 
-    <v-card variant="outlined">
-      <v-card-title class="d-flex align-center">
-        <span>数据列表</span>
-        <v-spacer />
-        <v-btn
-          v-if="vm.canCreate"
-          color="primary"
-          prepend-icon="mdi-plus"
-          variant="tonal"
-          @click="vm.openCreate"
-        >
-          新增
-        </v-btn>
-      </v-card-title>
-      <v-card-text class="d-flex flex-wrap ga-3">
-        <v-text-field
-          v-model="vm.keyword"
-          clearable
-          density="compact"
-          hide-details
-          label="编码或名称"
-          style="max-width: 320px"
-          @keyup.enter="vm.query"
-        />
+    <EntityListControls
+      :creatable="vm.canCreate"
+      filterable
+      :keyword="vm.keyword"
+      :loading="vm.loading"
+      :search-label="`${vm.config.title}关键字`"
+      @apply-filters="vm.search"
+      @create="vm.openCreate"
+      @query="vm.search"
+      @reset-filters="vm.resetFilters"
+      @update:keyword="vm.keyword = $event"
+    >
+      <template #filters>
         <v-select
           v-model="vm.enabled"
+          clearable
+          density="comfortable"
+          item-title="title"
+          item-value="value"
           :items="[
-            { title: '全部', value: null },
             { title: '启用', value: true },
             { title: '停用', value: false },
           ]"
-          density="compact"
-          hide-details
           label="状态"
-          style="max-width: 160px"
+          variant="outlined"
         />
-        <v-btn variant="tonal" @click="vm.query">查询</v-btn>
-      </v-card-text>
+      </template>
+    </EntityListControls>
 
+    <v-card variant="outlined">
       <v-data-table
         :headers="[
           { title: '编码', key: 'code' },
@@ -114,10 +106,10 @@ void vm.query()
         </template>
       </v-data-table>
       <v-pagination
-        v-model="vm.page"
+        :model-value="vm.page"
         class="my-3"
         :length="pageCount"
-        @update:model-value="vm.query"
+        @update:model-value="vm.changePage"
       />
     </v-card>
 

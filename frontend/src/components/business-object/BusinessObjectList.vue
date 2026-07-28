@@ -1,14 +1,11 @@
-<script
-  setup
-  lang="ts"
-  generic="T extends object"
->
+<script setup lang="ts" generic="T extends object">
 import { computed } from 'vue'
 import type {
   BusinessObjectColumn,
   BusinessObjectRowState,
   BusinessObjectSort,
 } from './types'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'BusinessObjectList' })
@@ -45,20 +42,19 @@ const emit = defineEmits<{
   'update:sort': [value: BusinessObjectSort]
   query: []
   create: []
+  resetFilters: []
+  applyFilters: []
   edit: [row: T]
   delete: [row: T]
 }>()
 
-const hasNextPage = computed(
-  () => props.page * props.pageSize < props.total,
-)
-const hasActionColumn = computed(
-  () =>
-    props.rows.some(
-      (row) =>
-        resolveRowState(props.editable, row) ||
-        resolveRowState(props.deletable, row),
-    ),
+const hasNextPage = computed(() => props.page * props.pageSize < props.total)
+const hasActionColumn = computed(() =>
+  props.rows.some(
+    (row) =>
+      resolveRowState(props.editable, row) ||
+      resolveRowState(props.deletable, row),
+  ),
 )
 const columnCount = computed(
   () => props.columns.length + (hasActionColumn.value ? 1 : 0),
@@ -92,47 +88,38 @@ function isSortable(key: string): key is BusinessObjectSort['field'] {
 function changeSort(field: BusinessObjectSort['field']): void {
   emit('update:sort', {
     field,
-    order: props.sort?.field === field && props.sort.order === 'asc'
-      ? 'desc'
-      : 'asc',
+    order:
+      props.sort?.field === field && props.sort.order === 'asc'
+        ? 'desc'
+        : 'asc',
   })
 }
 </script>
 
 <template>
   <section class="business-object-list">
-    <div class="business-object-list__toolbar">
-      <v-text-field
-        :model-value="keyword"
-        clearable
-        density="comfortable"
-        hide-details
-        :label="searchLabel"
-        prepend-inner-icon="mdi-magnify"
-        variant="outlined"
-        @keyup.enter="emit('query')"
-        @update:model-value="emit('update:keyword', $event ?? '')"
-      />
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-refresh"
-        :loading="loading"
-        @click="emit('query')"
-      >
-        查询
-      </v-btn>
-      <v-btn
-        v-if="creatable"
-        color="primary"
-        :disabled="loading"
-        prepend-icon="mdi-plus"
-        variant="tonal"
-        @click="emit('create')"
-      >
-        新增
-      </v-btn>
-      <slot name="toolbar" />
-    </div>
+    <EntityListControls
+      :creatable="creatable"
+      :filterable="Boolean($slots.filters)"
+      :keyword="keyword"
+      :loading="loading"
+      :search-label="searchLabel"
+      @apply-filters="emit('applyFilters')"
+      @create="emit('create')"
+      @query="emit('query')"
+      @reset-filters="emit('resetFilters')"
+      @update:keyword="emit('update:keyword', $event)"
+    >
+      <template v-if="$slots.filters" #filters>
+        <slot name="filters" />
+      </template>
+      <template v-if="$slots['filter-actions']" #filter-actions>
+        <slot name="filter-actions" />
+      </template>
+      <template v-if="$slots.toolbar" #toolbar>
+        <slot name="toolbar" />
+      </template>
+    </EntityListControls>
 
     <v-table class="business-object-list__table">
       <thead>
@@ -164,10 +151,7 @@ function changeSort(field: BusinessObjectSort['field']): void {
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="(row, index) in rows"
-          :key="rowKey(row)"
-        >
+        <tr v-for="(row, index) in rows" :key="rowKey(row)">
           <td
             v-for="column in columns"
             :key="column.key"
@@ -183,10 +167,7 @@ function changeSort(field: BusinessObjectSort['field']): void {
               {{ formatValue(column, row) }}
             </slot>
           </td>
-          <td
-            v-if="hasActionColumn"
-            class="business-object-list__actions"
-          >
+          <td v-if="hasActionColumn" class="business-object-list__actions">
             <slot
               name="actions"
               :deletable="resolveRowState(deletable, row)"
@@ -217,10 +198,7 @@ function changeSort(field: BusinessObjectSort['field']): void {
           </td>
         </tr>
         <tr v-if="!loading && rows.length === 0">
-          <td
-            class="business-object-list__empty"
-            :colspan="columnCount"
-          >
+          <td class="business-object-list__empty" :colspan="columnCount">
             {{ emptyText }}
           </td>
         </tr>
@@ -249,14 +227,6 @@ function changeSort(field: BusinessObjectSort['field']): void {
 </template>
 
 <style scoped>
-.business-object-list__toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 420px) auto auto;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
 .business-object-list__table {
   overflow: hidden;
   background: rgb(var(--v-theme-surface));
@@ -293,15 +263,5 @@ function changeSort(field: BusinessObjectSort['field']): void {
   padding: 16px 0 0;
   color: rgb(var(--v-theme-on-surface-variant));
   font-size: 13px;
-}
-
-@media (max-width: 640px) {
-  .business-object-list__toolbar {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .business-object-list__toolbar .v-input {
-    grid-column: 1 / -1;
-  }
 }
 </style>

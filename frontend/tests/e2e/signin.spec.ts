@@ -109,7 +109,25 @@ test('辅助对象菜单使用中文并导航到真实页面', async ({ page, is
   await productCategoryLink.click()
 
   await expect(page).toHaveURL(/\/aux\/product-category/)
-  await expect(page.getByText('数据列表', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('textbox', { name: '产品分类关键字', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '查询', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '新增', exact: true }),
+  ).toBeVisible()
+  await page.getByText('筛选条件', { exact: true }).click()
+  await expect(
+    page.getByRole('combobox', { name: '状态', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '重置', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '应用筛选', exact: true }),
+  ).toBeVisible()
   await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
     'ZERP / 产品分类',
   )

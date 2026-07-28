@@ -50,9 +50,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   >({})
   const referenceLoading = ref(false)
 
-  const canCreate = computed(() =>
-    session.can(`/aux/${config.entity}/create`),
-  )
+  const canCreate = computed(() => session.can(`/aux/${config.entity}/create`))
 
   const path = (action: string) =>
     `aux/${config.entity}/${action}` as ApiPostPath
@@ -79,6 +77,23 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     }
   }
 
+  async function search(): Promise<void> {
+    page.value = 1
+    await query()
+  }
+
+  async function resetFilters(): Promise<void> {
+    keyword.value = ''
+    enabled.value = null
+    await search()
+  }
+
+  async function changePage(nextPage: number): Promise<void> {
+    if (nextPage < 1 || nextPage === page.value || loading.value) return
+    page.value = nextPage
+    await query()
+  }
+
   function resetForm(data: Record<string, unknown>): void {
     for (const key of Object.keys(form)) delete form[key]
     Object.assign(form, data)
@@ -89,25 +104,27 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (!fields.length) return
     referenceLoading.value = true
     try {
-      await Promise.all(fields.map(async (field) => {
-        const reference = field.reference
-        if (!reference) return
-        const result = await apiClient.post<AuxPage>(
-          `aux/${reference.entity}/query` as ApiPostPath,
-          {
-            page: 1,
-            pageSize: 200,
-            filters: { enabled: true },
-            sort: [{ field: 'code', order: 'asc' }],
-          } as never,
-        )
-        referenceOptions[field.key] = result.data.items
-          .filter((item) => item.objectId !== editing.value?.objectId)
-          .map((item) => ({
-            title: `${item.code} · ${String(item.currentVersion.data.name ?? '')}`,
-            value: reference.value === 'code' ? item.code : item.objectId,
-          }))
-      }))
+      await Promise.all(
+        fields.map(async (field) => {
+          const reference = field.reference
+          if (!reference) return
+          const result = await apiClient.post<AuxPage>(
+            `aux/${reference.entity}/query` as ApiPostPath,
+            {
+              page: 1,
+              pageSize: 200,
+              filters: { enabled: true },
+              sort: [{ field: 'code', order: 'asc' }],
+            } as never,
+          )
+          referenceOptions[field.key] = result.data.items
+            .filter((item) => item.objectId !== editing.value?.objectId)
+            .map((item) => ({
+              title: `${item.code} · ${String(item.currentVersion.data.name ?? '')}`,
+              value: reference.value === 'code' ? item.code : item.objectId,
+            }))
+        }),
+      )
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {
@@ -201,6 +218,9 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     referenceLoading,
     canCreate,
     query,
+    search,
+    resetFilters,
+    changePage,
     openCreate,
     openEdit,
     save,

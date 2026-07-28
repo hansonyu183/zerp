@@ -45,7 +45,7 @@ PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全�
 6. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；
 7. 验证 Pages 的精确 commit 标记、`https://zerp.bytesucceed.com` 与 `https://zerp-api.bytesucceed.com`，并写回 GitHub Production Deployment 状态。
 
-发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。纯文档或 CI 配置提交记录为成功 no-op，不重建应用；代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
+发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。代理复用 `scripts/change-impact.sh`：文档和验证工具提交不等待已跳过的 Pages 检查，直接记录为成功 no-op；应用发布成功后自动更新已安装的控制器脚本。代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
 
 ## 3. 生产隔离与凭证
 

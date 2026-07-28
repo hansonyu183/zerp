@@ -15,26 +15,26 @@ import (
 
 const principalContextKey = "wflPrincipal"
 
-type applicationService interface {
-	Query(context.Context, QueryInput) (Page[ProcessView], error)
-	Get(context.Context, GetInput, []string) (ProcessView, error)
-	Create(context.Context, CreateInput, string, string) (MutationResult, error)
-	Save(context.Context, SaveInput, string, string) (MutationResult, error)
-	History(context.Context, HistoryInput) (Page[AuditView], error)
-	Action(context.Context, string, ActionInput, string, string) (any, error)
-	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
-	DownloadAttachment(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
-	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (AttachmentRemoveResult, error)
-}
+type applicationService interface{}
 
 type salesApplicationService interface {
 	SalesQuery(context.Context, QueryInput) (Page[ProcessView], error)
 	SalesGet(context.Context, GetInput) (ProcessView, error)
-	SalesCreate(context.Context, SalesCreateInput, string, string) (MutationResult, error)
-	SalesSave(context.Context, SalesSaveInput, string, string) (MutationResult, error)
 	SalesAction(context.Context, string, ActionInput, string, string) (any, error)
-	History(context.Context, HistoryInput) (Page[AuditView], error)
+	SalesHistory(context.Context, HistoryInput) (Page[AuditView], error)
 }
+
+type purchaseApplicationService interface {
+	PurchaseQuery(context.Context, QueryInput) (Page[ProcessView], error)
+	PurchaseGet(context.Context, GetInput) (ProcessView, error)
+	PurchaseAction(context.Context, string, ActionInput, string, string) (any, error)
+	PurchaseHistory(context.Context, HistoryInput) (Page[AuditView], error)
+}
+
+var (
+	_ salesApplicationService    = (*Service)(nil)
+	_ purchaseApplicationService = (*Service)(nil)
+)
 
 type Handler struct {
 	service    applicationService
@@ -42,28 +42,12 @@ type Handler struct {
 	logger     *slog.Logger
 }
 
-var workflowActions = [...]string{
-	"check", "uncheck", "approve", "unapprove",
+var salesWorkflowActions = [...]string{
 	"short-close-request", "short-close-cancel", "short-close-confirm", "short-close-unconfirm",
-	"procurement-create", "procurement-get", "procurement-save", "procurement-delete",
-	"procurement-check", "procurement-uncheck", "procurement-place", "procurement-unplace",
-	"receipt-create", "receipt-get", "receipt-save", "receipt-delete",
-	"receipt-check", "receipt-uncheck", "receipt-confirm", "receipt-unconfirm",
-	"delivery-create", "delivery-get", "delivery-save", "delivery-delete",
-	"delivery-check", "delivery-uncheck", "delivery-execute", "delivery-unexecute",
-	"signoff-create", "signoff-get", "signoff-save", "signoff-delete",
-	"signoff-check", "signoff-uncheck", "signoff-confirm", "signoff-unconfirm",
 }
 
-var salesWorkflowActions = [...]string{
-	"check", "uncheck", "approve", "unapprove", "finalize", "unfinalize",
+var purchaseWorkflowActions = [...]string{
 	"short-close-request", "short-close-cancel", "short-close-confirm", "short-close-unconfirm",
-	"outbound-get", "outbound-save", "outbound-check", "outbound-uncheck",
-	"outbound-approve", "outbound-unapprove", "outbound-finalize", "outbound-unfinalize",
-	"delivery-get", "delivery-save", "delivery-check", "delivery-uncheck",
-	"delivery-approve", "delivery-unapprove", "delivery-finalize", "delivery-unfinalize",
-	"signoff-get", "signoff-save", "signoff-check", "signoff-uncheck",
-	"signoff-approve", "signoff-unapprove", "signoff-finalize", "signoff-unfinalize",
 }
 
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
@@ -77,40 +61,77 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 }
 
 func (h *Handler) Register(router *gin.Engine) {
-	group := router.Group("/wfl/intermediary-trade")
-	group.POST("/query", h.authorize("/wfl/intermediary-trade/query"), h.query)
-	group.POST("/get", h.authorize("/wfl/intermediary-trade/get"), h.get)
-	group.POST("/create", h.authorize("/wfl/intermediary-trade/create"), h.create)
-	group.POST("/save", h.authorize("/wfl/intermediary-trade/save"), h.save)
-	group.POST("/audit-history", h.authorize("/wfl/intermediary-trade/audit-history"), h.history)
-	for _, value := range workflowActions {
+	h.registerSalesWorkflow(router)
+	h.registerPurchaseWorkflow(router)
+}
+
+func (h *Handler) registerPurchaseWorkflow(router *gin.Engine) {
+	group := router.Group("/wfl/purchase-fulfillment")
+	group.POST("/query", h.authorize("/wfl/purchase-fulfillment/query"), h.purchaseQuery)
+	group.POST("/get", h.authorize("/wfl/purchase-fulfillment/get"), h.purchaseGet)
+	group.POST("/audit-history", h.authorize("/wfl/purchase-fulfillment/audit-history"), h.purchaseHistory)
+	for _, value := range purchaseWorkflowActions {
 		action := value
-		group.POST("/"+action, h.authorize("/wfl/intermediary-trade/"+action), func(c *gin.Context) {
+		group.POST("/"+action, h.authorize("/wfl/purchase-fulfillment/"+action), func(c *gin.Context) {
 			var input ActionInput
 			if h.bind(c, &input) {
+				service, ok := h.service.(purchaseApplicationService)
+				if !ok {
+					h.writeError(c, internal("purchase workflow service is unavailable", nil))
+					return
+				}
 				principal := h.principal(c)
-				result, err := h.service.Action(c.Request.Context(), action, input, principal.ActorID, response.RequestID(c))
+				result, err := service.PurchaseAction(
+					c.Request.Context(), action, input, principal.ActorID, response.RequestID(c),
+				)
 				h.result(c, result, err)
 			}
 		})
 	}
-	for _, stage := range []string{"procurement", "receipt", "delivery", "signoff"} {
-		for _, operation := range []string{"initiate", "download", "remove"} {
-			action := stage + "-attachment-" + operation
-			group.POST("/"+action, h.authorize("/wfl/intermediary-trade/"+action), func(c *gin.Context) {
-				h.attachment(c, action, operation)
-			})
+}
+
+func (h *Handler) purchaseService(c *gin.Context) (purchaseApplicationService, bool) {
+	service, ok := h.service.(purchaseApplicationService)
+	if !ok {
+		h.writeError(c, internal("purchase workflow service is unavailable", nil))
+	}
+	return service, ok
+}
+
+func (h *Handler) purchaseQuery(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		if service, ok := h.purchaseService(c); ok {
+			result, err := service.PurchaseQuery(c.Request.Context(), input)
+			h.result(c, result, err)
 		}
 	}
-	h.registerSalesWorkflow(router)
+}
+
+func (h *Handler) purchaseGet(c *gin.Context) {
+	var input GetInput
+	if h.bind(c, &input) {
+		if service, ok := h.purchaseService(c); ok {
+			result, err := service.PurchaseGet(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	}
+}
+
+func (h *Handler) purchaseHistory(c *gin.Context) {
+	var input HistoryInput
+	if h.bind(c, &input) {
+		if service, ok := h.purchaseService(c); ok {
+			result, err := service.PurchaseHistory(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	}
 }
 
 func (h *Handler) registerSalesWorkflow(router *gin.Engine) {
 	group := router.Group("/wfl/sales-fulfillment")
 	group.POST("/query", h.authorize("/wfl/sales-fulfillment/query"), h.salesQuery)
 	group.POST("/get", h.authorize("/wfl/sales-fulfillment/get"), h.salesGet)
-	group.POST("/create", h.authorize("/wfl/sales-fulfillment/create"), h.salesCreate)
-	group.POST("/save", h.authorize("/wfl/sales-fulfillment/save"), h.salesSave)
 	group.POST("/audit-history", h.authorize("/wfl/sales-fulfillment/audit-history"), h.salesHistory)
 	for _, value := range salesWorkflowActions {
 		action := value
@@ -160,63 +181,11 @@ func (h *Handler) salesGet(c *gin.Context) {
 	}
 }
 
-func (h *Handler) salesCreate(c *gin.Context) {
-	var input SalesCreateInput
-	if h.bind(c, &input) {
-		if service, ok := h.salesService(c); ok {
-			principal := h.principal(c)
-			result, err := service.SalesCreate(
-				c.Request.Context(), input, principal.ActorID, response.RequestID(c),
-			)
-			h.result(c, result, err)
-		}
-	}
-}
-
-func (h *Handler) salesSave(c *gin.Context) {
-	var input SalesSaveInput
-	if h.bind(c, &input) {
-		if service, ok := h.salesService(c); ok {
-			principal := h.principal(c)
-			result, err := service.SalesSave(
-				c.Request.Context(), input, principal.ActorID, response.RequestID(c),
-			)
-			h.result(c, result, err)
-		}
-	}
-}
-
 func (h *Handler) salesHistory(c *gin.Context) {
 	var input HistoryInput
 	if h.bind(c, &input) {
 		if service, ok := h.salesService(c); ok {
-			result, err := service.History(c.Request.Context(), input)
-			h.result(c, result, err)
-		}
-	}
-}
-
-func (h *Handler) attachment(c *gin.Context, action, operation string) {
-	principal := h.principal(c)
-	switch operation {
-	case "initiate":
-		var input AttachmentInitiateInput
-		if h.bind(c, &input) {
-			result, err := h.service.InitiateAttachment(c.Request.Context(), action, input,
-				principal.ActorID, response.RequestID(c))
-			h.result(c, result, err)
-		}
-	case "download":
-		var input AttachmentDownloadInput
-		if h.bind(c, &input) {
-			result, err := h.service.DownloadAttachment(c.Request.Context(), action, input, principal.ActorID)
-			h.result(c, result, err)
-		}
-	case "remove":
-		var input AttachmentRemoveInput
-		if h.bind(c, &input) {
-			result, err := h.service.RemoveAttachment(c.Request.Context(), action, input,
-				principal.ActorID, response.RequestID(c))
+			result, err := service.SalesHistory(c.Request.Context(), input)
 			h.result(c, result, err)
 		}
 	}
@@ -224,46 +193,6 @@ func (h *Handler) attachment(c *gin.Context, action, operation string) {
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
 	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
-}
-
-func (h *Handler) query(c *gin.Context) {
-	var input QueryInput
-	if h.bind(c, &input) {
-		result, err := h.service.Query(c.Request.Context(), input)
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) get(c *gin.Context) {
-	var input GetInput
-	if h.bind(c, &input) {
-		result, err := h.service.Get(c.Request.Context(), input, h.principal(c).Permissions)
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) create(c *gin.Context) {
-	var input CreateInput
-	if h.bind(c, &input) {
-		result, err := h.service.Create(c.Request.Context(), input, h.principal(c).ActorID, response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) save(c *gin.Context) {
-	var input SaveInput
-	if h.bind(c, &input) {
-		result, err := h.service.Save(c.Request.Context(), input, h.principal(c).ActorID, response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) history(c *gin.Context) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		result, err := h.service.History(c.Request.Context(), input)
-		h.result(c, result, err)
-	}
 }
 
 func (h *Handler) bind(c *gin.Context, target any) bool {

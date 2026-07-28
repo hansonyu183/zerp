@@ -455,23 +455,11 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1
-    FROM vou_intermediary_sale_order_details intermediary
-    WHERE intermediary.customer_object_id = sqlc.arg(target_object_id)
-       OR intermediary.customer_version_id = sqlc.arg(target_version_id)
-       OR intermediary.supplier_object_id = sqlc.arg(target_object_id)
-       OR intermediary.supplier_version_id = sqlc.arg(target_version_id)
-       OR intermediary.salesperson_object_id = sqlc.arg(target_object_id)
-       OR intermediary.salesperson_version_id = sqlc.arg(target_version_id)
-       OR intermediary.purchaser_object_id = sqlc.arg(target_object_id)
-       OR intermediary.purchaser_version_id = sqlc.arg(target_version_id)
-       OR intermediary.customer_settlement_method_object_id = sqlc.arg(target_object_id)
-       OR intermediary.customer_settlement_method_version_id = sqlc.arg(target_version_id)
-       OR intermediary.supplier_settlement_method_object_id = sqlc.arg(target_object_id)
-       OR intermediary.supplier_settlement_method_version_id = sqlc.arg(target_version_id)
-       OR intermediary.platform_object_id = sqlc.arg(target_object_id)
-       OR intermediary.platform_version_id = sqlc.arg(target_version_id)
-       OR intermediary.vehicle_object_id = sqlc.arg(target_object_id)
-       OR intermediary.vehicle_version_id = sqlc.arg(target_version_id)
+    FROM vou_purchase_inbound_details purchase_inbound
+    WHERE purchase_inbound.supplier_object_id = sqlc.arg(target_object_id)
+       OR purchase_inbound.supplier_version_id = sqlc.arg(target_version_id)
+       OR purchase_inbound.warehouse_object_id = sqlc.arg(target_object_id)
+       OR purchase_inbound.warehouse_version_id = sqlc.arg(target_version_id)
 
     UNION ALL
 

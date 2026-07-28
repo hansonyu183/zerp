@@ -9,7 +9,21 @@
           'sale-delivery',
           'sale-signoff',
           'purchase-order',
-          'intermediary-sale-order',
+          'purchase-inbound',
+          'receipt',
+          'payment',
+          'expense-reimbursement',
+          'other-income',
+        ],
+    },
+  'VouCreatableEntity':
+    {
+      'type': 'string',
+      'enum':
+        [
+          'sale-order',
+          'purchase-order',
+          'purchase-inbound',
           'receipt',
           'payment',
           'expense-reimbursement',
@@ -69,6 +83,8 @@
       'additionalProperties': false,
       'properties':
         {
+          'parentEntity': { '$ref': '#/VouEntity' },
+          'parentDocumentId': { 'type': 'string' },
           'data':
             {
               'type': 'object',
@@ -78,7 +94,6 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
-                  'sourceDocumentId': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',
@@ -313,7 +328,6 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
-                  'sourceDocumentId': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',

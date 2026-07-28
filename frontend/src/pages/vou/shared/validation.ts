@@ -58,12 +58,6 @@ export function validateVoucherDraft(
         !isMoney(line.unitPrice)
       )
         return `第 ${index + 1} 行 · 产品/数量/单价：请完整填写有效值。`
-      if (
-        config.entity === 'intermediary-sale-order' &&
-        !isMoney(line.purchaseUnitPrice)
-      ) {
-        return `第 ${index + 1} 行 · 采购单价：格式不正确。`
-      }
       const lineAmount = calculateLineAmount(
         line.orderedQuantity,
         line.unitPrice,

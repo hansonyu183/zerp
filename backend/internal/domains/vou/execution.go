@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/jackc/pgx/v5"
 )
 
 func (s *Service) Finalize(
@@ -33,24 +31,6 @@ func (s *Service) Finalize(
 	}
 	var summary map[string]any
 	switch entity {
-	case EntityIntermediarySaleOrder:
-		execution, validationErr := validateSaleExecution(input)
-		if validationErr != nil {
-			return MutationResult{}, validationErr
-		}
-		if execution.OutboundDate.Before(document.BusinessDate.Time) {
-			return MutationResult{}, domainError(ErrorValidation, "outboundDate precedes businessDate", nil, nil)
-		}
-		summary, err = s.applySaleExecution(ctx, tx, q, entity, document, execution)
-	case EntityPurchaseOrder:
-		execution, validationErr := validatePurchaseExecution(input)
-		if validationErr != nil {
-			return MutationResult{}, validationErr
-		}
-		if execution.InboundDate.Before(document.BusinessDate.Time) {
-			return MutationResult{}, domainError(ErrorValidation, "inboundDate precedes businessDate", nil, nil)
-		}
-		summary, err = s.applyPurchaseExecution(ctx, q, document, execution)
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		if err = validateFinancialExecution(input); err == nil {
 			summary, err = s.prepareSalesChainFinalization(ctx, tx, document)
@@ -74,6 +54,11 @@ func (s *Service) Finalize(
 			return MutationResult{}, err
 		}
 	}
+	if entity == EntityPurchaseInbound {
+		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	if err = s.replenishManagedOutbound(ctx, tx, document, actorID, requestID); err != nil {
 		return MutationResult{}, err
 	}
@@ -90,7 +75,7 @@ func (s *Service) Finalize(
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document finalized", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, "FINALIZED", StatusFinalized, actorID, requestID, summary,
 	); err != nil {
 		return MutationResult{}, err
@@ -133,19 +118,6 @@ func (s *Service) Unfinalize(
 	if err != nil {
 		return MutationResult{}, s.internal("read execution for reversal", err)
 	}
-	switch entity {
-	case EntityIntermediarySaleOrder:
-		if _, err = q.ClearVouIntermediarySaleOrderExecution(ctx, input.DocumentID); err == nil {
-			err = q.ClearVouProductLineExecution(ctx, input.DocumentID)
-		}
-	case EntityPurchaseOrder:
-		if _, err = q.ClearVouPurchaseOrderExecution(ctx, input.DocumentID); err == nil {
-			err = q.ClearVouProductLineExecution(ctx, input.DocumentID)
-		}
-	}
-	if err != nil {
-		return MutationResult{}, s.writeError("clear execution", err)
-	}
 	revision, err := q.UnfinalizeVouDocument(ctx, dbsqlc.UnfinalizeVouDocumentParams{
 		ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 	})
@@ -154,6 +126,11 @@ func (s *Service) Unfinalize(
 	}
 	if entity == EntitySaleSignoff {
 		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
+	}
+	if entity == EntityPurchaseInbound {
+		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -170,7 +147,7 @@ func (s *Service) Unfinalize(
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document unfinalized", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, "UNFINALIZED", StatusApproved, actorID, requestID, summary,
 	); err != nil {
 		return MutationResult{}, err
@@ -179,132 +156,6 @@ func (s *Service) Unfinalize(
 		return MutationResult{}, s.writeError("commit unfinalize", err)
 	}
 	return mutation(document, StatusApproved, revision), nil
-}
-
-func (s *Service) applySaleExecution(
-	ctx context.Context,
-	tx pgx.Tx,
-	q *dbsqlc.Queries,
-	entity string,
-	document dbsqlc.VouDocument,
-	execution validatedSaleExecution,
-) (map[string]any, error) {
-	platform, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntitySupplier, execution.Platform.ObjectID, execution.Platform.VersionID,
-	)
-	if err != nil || platform.Data.SupplierType != bobdomain.SupplierTypeLogisticsPlatform {
-		return nil, domainError(ErrorConflict, "platform is not an effective logistics platform", nil, err)
-	}
-	vehicle, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityVehicle, execution.Vehicle.ObjectID, execution.Vehicle.VersionID,
-	)
-	if err != nil {
-		return nil, domainError(ErrorConflict, "vehicle is not effective", nil, err)
-	}
-	if vehicle.Data.PlatformObjectID != platform.ObjectID {
-		return nil, domainError(ErrorConflict, "vehicle does not belong to platform", nil, nil)
-	}
-	lines, err := q.ListVouProductLines(ctx, document.ID)
-	if err != nil {
-		return nil, s.internal("list sale lines", err)
-	}
-	if len(lines) != len(execution.Lines) {
-		return nil, domainError(ErrorValidation, "execution lines do not match document", nil, nil)
-	}
-	byID := make(map[string]fixedSaleExecutionLine, len(execution.Lines))
-	for _, line := range execution.Lines {
-		byID[line.LineID] = line
-	}
-	hasDifference := false
-	for _, line := range lines {
-		actual, ok := byID[line.ID]
-		if !ok || actual.Outbound > line.OrderedQtyMicros {
-			return nil, domainError(ErrorValidation, "execution lines do not match ordered quantities", nil, nil)
-		}
-		if actual.Outbound < line.OrderedQtyMicros {
-			hasDifference = true
-		}
-		rows, updateErr := q.SetVouSaleLineExecution(ctx, dbsqlc.SetVouSaleLineExecutionParams{
-			OutboundQtyMicros: int64Ptr(actual.Outbound), SignedQtyMicros: int64Ptr(actual.Signed),
-			RejectedQtyMicros: int64Ptr(actual.Rejected), LossQtyMicros: int64Ptr(actual.Loss),
-			ID: line.ID, DocumentID: document.ID,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, s.writeError("set sale line execution", updateErr)
-		}
-	}
-	if hasDifference && execution.DifferenceReason == nil {
-		return nil, domainError(ErrorValidation, "differenceReason is required", nil, nil)
-	}
-	if !hasDifference {
-		execution.DifferenceReason = nil
-	}
-	if entity == EntityIntermediarySaleOrder {
-		rows, updateErr := q.SetVouIntermediarySaleOrderExecution(ctx, dbsqlc.SetVouIntermediarySaleOrderExecutionParams{
-			OutboundDate: dateValue(execution.OutboundDate), SignoffDate: dateValue(execution.SignoffDate),
-			PlatformObjectID: stringPtr(platform.ObjectID), PlatformVersionID: stringPtr(platform.VersionID),
-			PlatformCode: stringPtr(platform.Code), PlatformName: stringPtr(platform.Data.Name),
-			VehicleObjectID: stringPtr(vehicle.ObjectID), VehicleVersionID: stringPtr(vehicle.VersionID),
-			VehicleCode: stringPtr(vehicle.Code), VehicleName: stringPtr(vehicle.Data.Name), VehiclePlateNumber: stringPtr(vehicle.Data.PlateNumber),
-			DifferenceReason: execution.DifferenceReason, DocumentID: document.ID,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, s.writeError("set intermediary execution", updateErr)
-		}
-	}
-	return map[string]any{
-		"outboundDate": execution.OutboundDate.Format(dateLayout),
-		"signoffDate":  execution.SignoffDate.Format(dateLayout), "lineCount": len(lines),
-	}, nil
-}
-
-func (s *Service) applyPurchaseExecution(
-	ctx context.Context,
-	q *dbsqlc.Queries,
-	document dbsqlc.VouDocument,
-	execution validatedPurchaseExecution,
-) (map[string]any, error) {
-	lines, err := q.ListVouProductLines(ctx, document.ID)
-	if err != nil {
-		return nil, s.internal("list purchase lines", err)
-	}
-	if len(lines) != len(execution.Lines) {
-		return nil, domainError(ErrorValidation, "execution lines do not match document", nil, nil)
-	}
-	byID := make(map[string]fixedPurchaseExecutionLine, len(execution.Lines))
-	for _, line := range execution.Lines {
-		byID[line.LineID] = line
-	}
-	hasDifference := false
-	for _, line := range lines {
-		actual, ok := byID[line.ID]
-		if !ok || actual.Inbound > line.OrderedQtyMicros {
-			return nil, domainError(ErrorValidation, "execution lines do not match ordered quantities", nil, nil)
-		}
-		if actual.Inbound < line.OrderedQtyMicros {
-			hasDifference = true
-		}
-		rows, updateErr := q.SetVouPurchaseLineExecution(ctx, dbsqlc.SetVouPurchaseLineExecutionParams{
-			InboundQtyMicros: int64Ptr(actual.Inbound), ID: line.ID, DocumentID: document.ID,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, s.writeError("set purchase line execution", updateErr)
-		}
-	}
-	if hasDifference && execution.DifferenceReason == nil {
-		return nil, domainError(ErrorValidation, "differenceReason is required", nil, nil)
-	}
-	if !hasDifference {
-		execution.DifferenceReason = nil
-	}
-	rows, err := q.SetVouPurchaseOrderExecution(ctx, dbsqlc.SetVouPurchaseOrderExecutionParams{
-		InboundDate: dateValue(execution.InboundDate), DifferenceReason: execution.DifferenceReason,
-		DocumentID: document.ID,
-	})
-	if err != nil || rows != 1 {
-		return nil, s.writeError("set purchase execution", err)
-	}
-	return map[string]any{"inboundDate": execution.InboundDate.Format(dateLayout), "lineCount": len(lines)}, nil
 }
 
 func (s *Service) finalizationSummary(

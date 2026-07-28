@@ -10,7 +10,7 @@ sale-outbound
 sale-delivery
 sale-signoff
 purchase-order
-intermediary-sale-order
+purchase-inbound
 receipt
 payment
 expense-reimbursement
@@ -19,9 +19,8 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-WFL 管理的原子单据包含销售四单以及 `customer-order`、`procurement-order`、`goods-receipt`、
-`delivery-note` 和 `signoff-note`。它们复用 VOU 的编号、revision、引用快照、附件和审计，
-但不开放普通 VOU 写入口；业务规则和流转统一由 WFL 编排。
+十类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
 
@@ -43,7 +42,7 @@ SO/PO/ISO/REC/PAY/ER/OI-YYYYMMDD-######
 
 客户、供应商可在 BOB 中不配置结算方式，但不能据此新建或保存贸易单据。贸易单据保存制单时生效的结算方式对象、版本、编码、名称和规则快照；联系人、电话、地址同样只从客户或供应商有效版本读取并保存快照，不接受客户端直接输入。
 
-新建贸易单据时，客户的 `salespersonEmployeeId` 默认作为销售订单或居间销售单的 `salesperson`，供应商的 `salespersonEmployeeId` 默认作为采购单或居间销售单的 `purchaser`。客户端显式传入人员引用时覆盖默认值。已有草稿保存时省略人员字段，保留单据原对象、版本、编码和名称快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
+新建贸易单据时，客户的 `salespersonEmployeeId` 默认作为销售订单的 `salesperson`，供应商的 `salespersonEmployeeId` 默认作为采购订单的 `purchaser`。客户端显式传入人员引用时覆盖默认值。已有草稿保存时省略人员字段，保留单据原对象、版本、编码和名称快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
 
 后端不计算、不保存也不返回 `dueDate`。前端按单据业务日期和结算规则的自然日语义计算：
 
@@ -73,6 +72,10 @@ check uncheck approve unapprove finalize unfinalize
 audit-history
 attachment-initiate attachment-download attachment-remove
 ```
+
+流程管理实体只开放其中的只读动作：`query`、`get`、`audit-history` 和适用的
+`attachment-download`。销售履约四单保留历史写路径用于兼容，但统一拒绝并引导调用 WFL；
+居间贸易五单不创建独立写权限。
 
 ### 2.3 通用写入语义
 
@@ -130,9 +133,9 @@ BOB 引用结构固定为：
 销售履约由 `SALES_FULFILLMENT` 编排为
 `sale-order -> sale-outbound -> sale-delivery -> sale-signoff`。销售订单保存客户、
 业务员、订购日期、币种、备注和产品明细，不锁定仓库。批准上级单据时由服务端自动创建下级草稿；
-来源 ID 和来源单号为只读关系。销售出库单从已批准订单复制可出库行，补充仓库和出库数量；
-一张订单可多次出库。销售配送单完整承接一张已批准出库单并保存物流平台和车辆，
-一张出库单最多一张配送单。销售签收单完整覆盖一张已发运配送单的全部行，一张配送单最多一张签收单。
+来源 ID 和来源单号为只读关系。销售出库从已批准订单复制可出库行，补充仓库和出库数量；
+一张订单可多次出库。销售送货完整承接一张已批准出库单并保存物流平台和车辆，
+一张出库单最多一张销售送货。销售签收完整覆盖一张已发运送货单的全部行，一张送货单最多一张销售签收。
 
 日期必须满足 `订单日期 <= 出库日期 <= 配送日期 <= 签收日期`。可再出库量等于订购量减已签收量
 再减未签收在途量，最终处理出库单时在事务内锁定并重算。签收满足
@@ -143,23 +146,32 @@ BOB 引用结构固定为：
 `SHORT_CLOSED`。全部订购量签收后自动履约完成；无在途单据时允许申请短结，由另一操作者确认，
 并支持取消申请和带原因反确认。
 
-### 3.2 采购单
+### 3.2 采购订单与采购入库
 
-草稿包含普通供应商、必填采购员、必填仓库、订购日期、币种、备注及产品明细；新建时省略采购员则从供应商业务员默认带入，显式传入可覆盖。单据自动快照供应商联系人、电话和结算方式。执行请求包含入库日期和逐行入库数量。`订购日期 <= 入库日期`，且 `0 < 入库数量 <= 订购数量`；存在少收时差异原因必填。
+采购履约由 `PURCHASE_FULFILLMENT` 编排为
+`purchase-order -> purchase-inbound`。采购订单只保存供应商、采购员、供应商结算快照、
+计划仓库、订购日期、币种、备注、商品、订购数量和采购单价，不保存实际入库日期或入库数量。
+采购订单批准后才能显式创建一张或多张采购入库草稿。
 
-### 3.3 居间销售单
+采购入库从订单只读继承供应商、商品和采购单价，默认使用计划仓库，但可选择实际仓库；
+每张入库可只包含部分订单行。所有未删除入库单的累计数量不得超过订购数量，创建、保存和删除
+均在锁定父订单的同一事务内重算。草稿删除或减少数量会立即释放占用量。采购订单不记账；
+采购入库最终处理时按实际数量增加库存并贷记供应商应付，反最终处理追加反向流水。
 
-草稿同时包含客户、普通供应商、必填业务员和必填采购员，不包含仓库。新建时省略人员字段，分别从客户和供应商默认带入；显式传入可独立覆盖。每条商品行的 `unitPrice` 为客户销售单价，`purchaseUnitPrice` 为必填供应商采购单价；单据抬头总额仍按销售单价计算。其余订购、金额和最终处理规则与销售订单一致。保存时自动快照客户联系人、电话、地址及客户和供应商两套结算方式；供应商表示实际供货厂商，物流平台仍独立选择。
+全部订购量最终入库后订单自动完成；撤销最终入库会重新打开自动完成的订单。存在未完成入库单时
+不得短结；不足量订单由一人申请、另一人确认短结，反短结后恢复入库。
 
-### 3.4 收款单与付款单
+旧 `intermediary-sale-order` 聚合已删除；居间业务只由 WFL 五张独立原子单据组成。
+
+### 3.3 往来收款与往来付款
 
 草稿包含一个客户或供应商、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；执行只确认单据已实际发生。
 
-### 3.5 费用报销单
+### 3.4 费用报销
 
 草稿包含员工、统一费用日期、统一支出账户、币种、备注及至少一条费用明细。员工即经办人，不增加重复的 `handler`。每条费用包含费用类别文本、说明、金额和可选备注（最多 1000 字）；总金额由后端汇总，币种必须与支出账户一致。
 
-### 3.6 其它收入单
+### 3.5 其他收入
 
 草稿包含来源名称、可选客户或供应商、资金账户、必填经办人、业务日期、币种、金额和备注。币种必须与资金账户一致。
 
@@ -193,53 +205,19 @@ BOB 引用结构固定为：
 
 各实体在通用字段之外使用：
 
-| 实体                      | 草稿专用字段                                                                                       |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sale-order`              | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                                     |
-| `sale-outbound`           | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                                |
-| `sale-delivery`           | WFL 注入来源；客户端只传 `platform`、`vehicle`                                                     |
-| `sale-signoff`            | WFL 注入来源；客户端只传 `signoffLines`                                                            |
-| `purchase-order`          | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`                        |
-| `intermediary-sale-order` | `customer`、`supplier`、`salesperson`、`purchaser`、`productLines`；每行还要求 `purchaseUnitPrice` |
-| `receipt`、`payment`      | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                             |
-| `expense-reimbursement`   | `employee`、`fundAccount`、`expenseLines`                                                          |
-| `other-income`            | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount`           |
+| 实体                    | 草稿专用字段                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `sale-order`            | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                           |
+| `sale-outbound`         | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                      |
+| `sale-delivery`         | WFL 注入来源；客户端只传 `platform`、`vehicle`                                           |
+| `sale-signoff`          | WFL 注入来源；客户端只传 `signoffLines`                                                  |
+| `purchase-order`        | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`              |
+| `purchase-inbound`      | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                            |
+| `receipt`、`payment`    | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                   |
+| `expense-reimbursement` | `employee`、`fundAccount`、`expenseLines`                                                |
+| `other-income`          | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount` |
 
-居间销售最终处理请求：
-
-```json
-{
-  "documentId": "01J...",
-  "revision": 4,
-  "outboundDate": "2026-07-27",
-  "signoffDate": "2026-07-28",
-  "platform": { "objectId": "01J...", "versionId": "01J..." },
-  "vehicle": { "objectId": "01J...", "versionId": "01J..." },
-  "differenceReason": "客户少收一件",
-  "saleLines": [
-    {
-      "lineId": "01J...",
-      "outboundQuantity": "10.000000",
-      "signedQuantity": "9.000000",
-      "rejectedQuantity": "1.000000",
-      "lossQuantity": "0.000000"
-    }
-  ]
-}
-```
-
-采购执行改用 `inboundDate` 和非空 `purchaseLines`：
-
-```json
-{
-  "documentId": "01J...",
-  "revision": 4,
-  "inboundDate": "2026-07-27",
-  "purchaseLines": [{ "lineId": "01J...", "inboundQuantity": "10.000000" }]
-}
-```
-
-收付款、费用报销和其它收入执行只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
+往来收付款、费用报销和其他收入执行只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
 `reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
 
 ## 4. 查询与展示语义
@@ -387,9 +365,9 @@ request ID；反向事件还携带原因。订阅者通过同一个 `pgx.Tx` 查
 
 ## 7. 验收
 
-- 十类普通 VOU 单据均能完成正向和完整反向链路；
-- 销售订单可分批出库，出库、配送、签收严格追溯来源且并发不超量；
-- 销售、采购、居间销售的人员、仓库、联系人和结算规则按制单版本稳定快照；
+- 15 类原子单据均能独立查询和查看，受管单据的 VOU 写入口统一拒绝；
+- 销售订单可分批出库，销售出库、销售送货、销售签收严格追溯来源且并发不超量；
+- 销售、采购和居间流程的人员、仓库、联系人和结算规则按制单版本稳定快照；
 - 新建贸易单据能从客户或供应商默认带入人员，显式覆盖生效，保存草稿省略人员时保持原快照；
 - 缺少结算方式不能创建或保存贸易单据，迁移前缺少新增字段的历史单据不能正向流转；
 - 商品和费用明细备注可保存、读取并拒绝超过 1000 字的输入；
@@ -397,46 +375,45 @@ request ID；反向事件还携带原因。订阅者通过同一个 `pgx.Tx` 查
 - 数量、金额、日期和差异原因约束同时由服务测试和数据库约束覆盖；
 - 并发编号唯一，过期 revision 不产生部分写入；
 - 执行与反执行事件按单据类型精确投递，任一订阅失败不产生 VOU 或下游部分写入；
-- 居间销售采购单价只允许用于居间商品行，缺失时不能完成正向流转；
+- 采购入库只读继承采购单价，累计占用和并发写入均不能超过采购订单；
 - 附件大小、类型、哈希、令牌、路径和权限规则可验证；
 - 迁移、sqlc 生成、单元测试、数据库集成测试、vet、build、race、Compose 健康检查全部通过。
 
-## 8. WFL 受管单据
+## 8. 上级单据与 WFL 组合
 
-WFL 可复用本域的编号、状态、审计、附件和精确数值基础设施，但受管单据不可通过
-`/vou/*` 写入。居间贸易流程由 `customer-order`、`procurement-order`、`goods-receipt`、
-`delivery-note`、`signoff-note` 五类独立原子单据组成。
+所有单据统一提供可空的 `parentEntity + parentDocumentId`。两者必须同时为空或同时存在；
+创建时校验上级实体和 ID 匹配、上级存在且不能自引用，创建后不可修改。VOU 不限制固定父子
+实体组合，也不保存流程 ID、控制域、自动生成标记或完整来源链。父单号按需关联查询。
 
-这些单据使用 `parentDocumentId` 保存直接业务来源，并以 `controlDomain=WFL` 标记唯一写入方。
-完整流程、状态、权限和数量契约以 [WFL 文档](wfl.md) 为准。
+VOU 在同一事务内发布创建、保存、状态变化和删除事件。WFL 可据此维护组合，但不能以流程
+归属或流程角色拒绝已获得 VOU API 权限的用户。完整组合规则见 [WFL 文档](wfl.md)。
 
 ## 9. 前端职责与交互约束
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
-VOU 前端对接后端 `POST /vou/{entity}/{action}` 契约，提供七类独立单据的查询、制单、审核、批准、执行、反向流转、附件和审计界面。后端领域文档和实际请求/响应类型是业务规则来源；本文只记录前端映射和交互边界。
+VOU 前端对接后端 `POST /vou/{entity}/{action}` 契约，提供十类独立单据的查询、制单、审核、批准、执行、反向流转、附件和审计界面。后端领域文档和实际请求/响应类型是业务规则来源；本文只记录前端映射和交互边界。
 
 VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附件和审计展示。
-`/vou/intermediary-sale-order` 只承载历史 V1 居间销售单，不再切换或聚合流程数据。
-由多张独立 VOU 单据组成的居间贸易流程属于 WFL 领域，见
-[wfl.md](./wfl.md)。
+旧居间单据和 `/wfl/intermediary-trade` 均不再注册，访问进入未找到页面。所有保留单据均按
+VOU 权限提供完整能力；销售出库、销售送货和销售签收不注册公开创建 API，由 WFL 事件订阅
+自动创建。采购入库允许人工创建。
 
 ### 9.1 实体与页面
 
-| 实体                      | 页面         |
-| ------------------------- | ------------ |
-| `sale-order`              | 销售订单     |
-| `sale-outbound`           | 销售出库单   |
-| `sale-delivery`           | 销售配送单   |
-| `sale-signoff`            | 销售签收单   |
-| `purchase-order`          | 采购单       |
-| `intermediary-sale-order` | 居间销售单   |
-| `receipt`                 | 往来款收款单 |
-| `payment`                 | 往来款付款单 |
-| `expense-reimbursement`   | 费用报销单   |
-| `other-income`            | 其它收入单   |
-
-实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
+| 实体                                                                                         | 页面     |
+| -------------------------------------------------------------------------------------------- | -------- |
+| `sale-order`                                                                                 | 销售订单 |
+| `sale-outbound`                                                                              | 销售出库 |
+| `sale-delivery`                                                                              | 销售送货 |
+| `sale-signoff`                                                                               | 销售签收 |
+| `purchase-order`                                                                             | 采购订单 |
+| `purchase-inbound`                                                                           | 采购入库 |
+| `receipt`                                                                                    | 往来收款 |
+| `payment`                                                                                    | 往来付款 |
+| `expense-reimbursement`                                                                      | 费用报销 |
+| `other-income`                                                                               | 其他收入 |
+| 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。 |
 
 ### 9.2 通用交互
 
@@ -448,7 +425,7 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 - BOB 新引用必须来自当前 `EFFECTIVE` 版本，并同时提交 `objectId` 和 `versionId`。详情中的历史快照可以展示，但不会被转换成新的有效引用。
 - 已有贸易草稿的业务员和采购员没有被用户改动时，保存请求省略该字段，以保留后端人员快照；新建时留空则由后端使用客户或供应商默认值。
 - 金额和数量始终保留为十进制字符串。产品行金额使用与后端相同的定点半向上取整，仅作界面反馈，最终金额以后端响应为准。
-- 历史居间销售单的每条产品明细必须填写 `purchaseUnitPrice`（采购含税单价）；销售订单和采购单不得发送该字段。
+- 采购订单的 `unitPrice` 是供应商采购单价；采购入库只读继承，客户端不得修改。
 - 到期日只根据业务日期和结算规则快照在浏览器中显示，不保存、不提交，也不期待后端返回 `dueDate`。
 
 ### 9.3 附件

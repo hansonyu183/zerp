@@ -54,16 +54,12 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
-			vou_signoff_note_lines, vou_signoff_note_details,
-			vou_delivery_note_lines, vou_delivery_note_details,
-			vou_goods_receipt_lines, vou_goods_receipt_details,
-			vou_procurement_order_lines, vou_procurement_order_details,
-			vou_customer_order_lines, vou_customer_order_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
+			vou_purchase_inbound_lines, vou_purchase_inbound_details,
 			vou_expense_lines, vou_product_lines, vou_other_income_details,
 			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
-			vou_intermediary_sale_order_details, vou_purchase_order_details,
+			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
 		t.Fatalf("truncate VOU: %v", err)

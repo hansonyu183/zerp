@@ -9,14 +9,13 @@ import { formatLocalDateTime } from '@/utils/date'
 
 const sourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
-  { title: '销售出库单', value: 'sale-outbound' },
-  { title: '销售签收单', value: 'sale-signoff' },
-  { title: '采购单', value: 'purchase-order' },
-  { title: '居间销售单', value: 'intermediary-sale-order' },
-  { title: '收款单', value: 'receipt' },
-  { title: '付款单', value: 'payment' },
-  { title: '费用报销单', value: 'expense-reimbursement' },
-  { title: '其它收入单', value: 'other-income' },
+  { title: '销售出库', value: 'sale-outbound' },
+  { title: '销售签收', value: 'sale-signoff' },
+  { title: '采购入库', value: 'purchase-inbound' },
+  { title: '往来收款', value: 'receipt' },
+  { title: '往来付款', value: 'payment' },
+  { title: '费用报销', value: 'expense-reimbursement' },
+  { title: '其他收入', value: 'other-income' },
   { title: '居间收货确认', value: 'intermediary-receipt' },
   { title: '居间签收确认', value: 'intermediary-signoff' },
 ]

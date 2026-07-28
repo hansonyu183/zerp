@@ -3,13 +3,14 @@ import type {
   VoucherDocumentData,
   VoucherDocumentView,
   VoucherExpenseLineView,
+  VoucherManagedLineView,
   VoucherProductLineView,
   VoucherStatus,
 } from './types'
 
 export type VoucherAtomicDocument = VouAtomicDocument<
   VoucherDocumentData,
-  VoucherProductLineView | VoucherExpenseLineView,
+  VoucherProductLineView | VoucherExpenseLineView | VoucherManagedLineView,
   VoucherStatus
 >
 
@@ -29,6 +30,7 @@ export function toVouAtomicDocument(
     lines: [
       ...(view.data.productLines ?? []),
       ...(view.data.expenseLines ?? []),
+      ...(view.data.lines ?? []),
     ],
     attachments: view.attachments,
     createdAt: view.createdAt,
@@ -41,5 +43,6 @@ export function toVouAtomicDocument(
     approvedBy: view.approvedBy,
     finalizedAt: view.finalizedAt,
     finalizedBy: view.finalizedBy,
+    parentDocumentId: view.parentDocumentId,
   }
 }

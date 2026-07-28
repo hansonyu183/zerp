@@ -34,12 +34,6 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const hiddenLegacyPages = new Set([
-  'vou/sale-order',
-  'vou/sale-outbound',
-  'vou/sale-delivery',
-  'vou/sale-signoff',
-])
 const developingPage: PageLoader =
   () => import('@/pages/system/developing/Developing.vue')
 
@@ -174,37 +168,64 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/bob/settlement-method/SettlementMethod.vue'),
   }),
   registerPage('vou', {
+    entity: 'sale-order',
+    entityTitle: '销售订单',
+    icon: 'mdi-cart-arrow-down',
+    order: 10,
+    component: () => import('@/pages/vou/sale-order/SaleOrder.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-outbound',
+    entityTitle: '销售出库',
+    icon: 'mdi-tray-arrow-up',
+    order: 20,
+    component: () => import('@/pages/vou/sale-outbound/SaleOutbound.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-delivery',
+    entityTitle: '销售送货',
+    icon: 'mdi-truck-delivery-outline',
+    order: 30,
+    component: () => import('@/pages/vou/sale-delivery/SaleDelivery.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-signoff',
+    entityTitle: '销售签收',
+    icon: 'mdi-clipboard-check-outline',
+    order: 40,
+    component: () => import('@/pages/vou/sale-signoff/SaleSignoff.vue'),
+  }),
+  registerPage('vou', {
     entity: 'purchase-order',
-    entityTitle: '采购单',
+    entityTitle: '采购订单',
     icon: 'mdi-cart-arrow-up',
     order: 50,
     component: () => import('@/pages/vou/purchase-order/PurchaseOrder.vue'),
   }),
   registerPage('vou', {
-    entity: 'intermediary-sale-order',
-    entityTitle: '居间销售单',
-    icon: 'mdi-swap-horizontal-bold',
+    entity: 'purchase-inbound',
+    entityTitle: '采购入库',
+    icon: 'mdi-tray-arrow-down',
     order: 60,
-    component: () =>
-      import('@/pages/vou/intermediary-sale-order/IntermediarySaleOrder.vue'),
+    component: () => import('@/pages/vou/purchase-inbound/PurchaseInbound.vue'),
   }),
   registerPage('vou', {
     entity: 'receipt',
-    entityTitle: '往来款收款单',
+    entityTitle: '往来收款',
     icon: 'mdi-cash-plus',
     order: 70,
     component: () => import('@/pages/vou/receipt/Receipt.vue'),
   }),
   registerPage('vou', {
     entity: 'payment',
-    entityTitle: '往来款付款单',
+    entityTitle: '往来付款',
     icon: 'mdi-cash-minus',
     order: 80,
     component: () => import('@/pages/vou/payment/Payment.vue'),
   }),
   registerPage('vou', {
     entity: 'expense-reimbursement',
-    entityTitle: '费用报销单',
+    entityTitle: '费用报销',
     icon: 'mdi-receipt-text-outline',
     order: 90,
     component: () =>
@@ -212,7 +233,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('vou', {
     entity: 'other-income',
-    entityTitle: '其它收入单',
+    entityTitle: '其他收入',
     icon: 'mdi-cash-multiple',
     order: 100,
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
@@ -226,12 +247,12 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/wfl/sales-fulfillment/SalesFulfillment.vue'),
   }),
   registerPage('wfl', {
-    entity: 'intermediary-trade',
-    entityTitle: '居间贸易',
-    icon: 'mdi-swap-horizontal-bold',
+    entity: 'purchase-fulfillment',
+    entityTitle: '采购履约',
+    icon: 'mdi-warehouse',
     order: 20,
     component: () =>
-      import('@/pages/wfl/intermediary-trade/IntermediaryTrade.vue'),
+      import('@/pages/wfl/purchase-fulfillment/PurchaseFulfillment.vue'),
   }),
   registerPage('led', {
     entity: 'opening',
@@ -305,7 +326,6 @@ export function buildMenus(
     if (domain === 'app') continue
 
     const key = `${domain}/${entity}`
-    if (hiddenLegacyPages.has(key)) continue
     const actions = actionsByPage.get(key) ?? []
     if (!actions.includes(action)) actions.push(action)
     actionsByPage.set(key, actions)

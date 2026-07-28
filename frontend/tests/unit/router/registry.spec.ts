@@ -209,10 +209,14 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('销售四单迁入 WFL 后仅注册其余六类 VOU 页面', () => {
+  it('为全部十类原子单据注册独立 VOU 页面', () => {
     const entities = [
+      'sale-order',
+      'sale-outbound',
+      'sale-delivery',
+      'sale-signoff',
       'purchase-order',
-      'intermediary-sale-order',
+      'purchase-inbound',
       'receipt',
       'payment',
       'expense-reimbursement',
@@ -226,17 +230,32 @@ describe('permission menu registry', () => {
     expect(menus).toHaveLength(1)
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
-    expect(buildMenus(['/vou/sale-order/query'])).toEqual([])
+    expect(menus[0]?.children.map((item) => item.title)).toEqual([
+      '销售订单',
+      '销售出库',
+      '销售送货',
+      '销售签收',
+      '采购订单',
+      '采购入库',
+      '往来收款',
+      '往来付款',
+      '费用报销',
+      '其他收入',
+    ])
+    expect(hasRegisteredPage('vou', 'sale-order')).toBe(true)
+    expect(hasRegisteredPage('vou', 'customer-order')).toBe(false)
+    expect(hasRegisteredPage('vou', 'intermediary-sale-order')).toBe(false)
   })
 
-  it('将销售履约和居间贸易注册在 VOU 与 LED 之间', () => {
-    expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(true)
+  it('将销售与采购履约注册在 VOU 与 LED 之间', () => {
+    expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(false)
     expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(true)
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
       '/led/opening/get',
-      '/wfl/intermediary-trade/query',
+      '/wfl/purchase-fulfillment/query',
       '/wfl/sales-fulfillment/query',
       '/vou/purchase-order/query',
     ])
@@ -254,8 +273,8 @@ describe('permission menu registry', () => {
           actions: ['query'],
         },
         {
-          entity: 'intermediary-trade',
-          title: '居间贸易',
+          entity: 'purchase-fulfillment',
+          title: '采购履约',
           order: 20,
           actions: ['query'],
         },

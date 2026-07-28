@@ -111,7 +111,7 @@ func mutation(document dbsqlc.VouDocument, status string, revision int64) Mutati
 func entityPrefix(entity string) string {
 	return map[string]string{
 		EntitySaleOrder: "SO", EntitySaleOutbound: "SOB", EntitySaleDelivery: "SD",
-		EntitySaleSignoff: "SS", EntityPurchaseOrder: "PO", EntityIntermediarySaleOrder: "ISO",
+		EntitySaleSignoff: "SS", EntityPurchaseOrder: "PO", EntityPurchaseInbound: "PI",
 		EntityReceipt: "REC", EntityPayment: "PAY", EntityExpenseReimbursement: "ER", EntityOtherIncome: "OI",
 	}[entity]
 }
@@ -135,7 +135,6 @@ func formatDate(value pgtype.Date) string {
 }
 
 func stringPtr(value string) *string { return &value }
-func int64Ptr(value int64) *int64    { return &value }
 
 type settlementSnapshotFields struct {
 	ObjectID, VersionID, Code, Name, RuleType, Description *string

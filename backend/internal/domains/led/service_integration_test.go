@@ -54,16 +54,12 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
 			vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
-			vou_signoff_note_lines, vou_signoff_note_details,
-			vou_delivery_note_lines, vou_delivery_note_details,
-			vou_goods_receipt_lines, vou_goods_receipt_details,
-			vou_procurement_order_lines, vou_procurement_order_details,
-			vou_customer_order_lines, vou_customer_order_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
+			vou_purchase_inbound_lines, vou_purchase_inbound_details,
 			vou_expense_lines, vou_product_lines, vou_other_income_details,
 			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
-			vou_intermediary_sale_order_details, vou_purchase_order_details,
+			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
 		t.Fatalf("truncate LED/VOU: %v", err)
@@ -208,6 +204,68 @@ func advanceToApproved(
 	return approved, view
 }
 
+func advancePurchaseInboundToApproved(
+	t *testing.T,
+	service *voudomain.Service,
+	refs integrationRefs,
+	quantity, unitPrice string,
+) (voudomain.MutationResult, voudomain.DocumentView) {
+	t.Helper()
+	order, err := service.CreateManagedPurchaseOrder(t.Context(), voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
+		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []voudomain.ProductLineInput{{
+			Product: refs.product, OrderedQuantity: quantity, UnitPrice: unitPrice,
+		}},
+	}}, integrationActorOne, "led-purchase-create")
+	if err != nil {
+		t.Fatalf("create purchase order: %v", err)
+	}
+	checked, err := service.Check(t.Context(), voudomain.EntityPurchaseOrder,
+		voudomain.DocumentRevisionInput{DocumentID: order.DocumentID, Revision: order.Revision},
+		integrationActorOne, "led-purchase-check")
+	if err != nil {
+		t.Fatalf("check purchase order: %v", err)
+	}
+	if _, err = service.Approve(t.Context(), voudomain.EntityPurchaseOrder,
+		voudomain.DocumentRevisionInput{DocumentID: order.DocumentID, Revision: checked.Revision},
+		integrationActorOne, "led-purchase-approve"); err != nil {
+		t.Fatalf("approve purchase order: %v", err)
+	}
+	orderView, err := service.Get(t.Context(), voudomain.EntityPurchaseOrder,
+		voudomain.GetInput{DocumentID: order.DocumentID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbound, err := service.CreatePurchaseInbound(t.Context(), voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-07-24", SourceDocumentID: order.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []voudomain.SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: quantity,
+		}},
+	}}, integrationActorOne, "led-inbound-create")
+	if err != nil {
+		t.Fatalf("create purchase inbound: %v", err)
+	}
+	inboundChecked, err := service.Check(t.Context(), voudomain.EntityPurchaseInbound,
+		voudomain.DocumentRevisionInput{DocumentID: inbound.DocumentID, Revision: inbound.Revision},
+		integrationActorOne, "led-inbound-check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved, err := service.Approve(t.Context(), voudomain.EntityPurchaseInbound,
+		voudomain.DocumentRevisionInput{DocumentID: inbound.DocumentID, Revision: inboundChecked.Revision},
+		integrationActorOne, "led-inbound-approve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.Get(t.Context(), voudomain.EntityPurchaseInbound,
+		voudomain.GetInput{DocumentID: inbound.DocumentID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return approved, view
+}
+
 func finalizeSaleOrder(
 	t *testing.T,
 	service *voudomain.Service,
@@ -256,28 +314,18 @@ func TestLEDInventoryPostingStrictBalanceAndReversalIntegration(t *testing.T) {
 	refs := prepareLEDReferences(t, pool)
 	ledger, vouchers := newIntegratedServices(t, pool)
 
-	inactiveApproved, inactiveView := advanceToApproved(t, vouchers, voudomain.EntityPurchaseOrder, voudomain.DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []voudomain.ProductLineInput{{Product: refs.product, OrderedQuantity: "1", UnitPrice: "1.00"}},
-	})
-	_, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseOrder, voudomain.FinalizeInput{
-		DocumentID: inactiveApproved.DocumentID, Revision: inactiveApproved.Revision, InboundDate: "2026-07-24",
-		PurchaseLines: []voudomain.PurchaseExecutionLineInput{{LineID: inactiveView.Data.ProductLines[0].LineID, InboundQuantity: "1"}},
+	inactiveApproved, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "1", "1.00")
+	_, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.FinalizeInput{
+		DocumentID: inactiveApproved.DocumentID, Revision: inactiveApproved.Revision,
 	}, integrationActorOne, "inactive-execute")
 	if err == nil {
 		t.Fatal("inactive ledger allowed VOU execution")
 	}
 
 	activateEmptyLedger(t, ledger)
-	purchaseApproved, purchaseView := advanceToApproved(t, vouchers, voudomain.EntityPurchaseOrder, voudomain.DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []voudomain.ProductLineInput{{Product: refs.product, OrderedQuantity: "5", UnitPrice: "10.00"}},
-	})
-	purchaseExecuted, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseOrder, voudomain.FinalizeInput{
-		DocumentID: purchaseApproved.DocumentID, Revision: purchaseApproved.Revision, InboundDate: "2026-07-24",
-		PurchaseLines: []voudomain.PurchaseExecutionLineInput{{LineID: purchaseView.Data.ProductLines[0].LineID, InboundQuantity: "5"}},
+	purchaseApproved, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "5", "10.00")
+	purchaseExecuted, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.FinalizeInput{
+		DocumentID: purchaseApproved.DocumentID, Revision: purchaseApproved.Revision,
 	}, integrationActorOne, "purchase-execute")
 	if err != nil {
 		t.Fatalf("execute purchase: %v", err)
@@ -308,7 +356,7 @@ func TestLEDInventoryPostingStrictBalanceAndReversalIntegration(t *testing.T) {
 	if err != nil || len(balances.Items) != 1 || balances.Items[0].Quantity != "1.0" {
 		t.Fatalf("inventory balances = %+v, err=%v", balances, err)
 	}
-	_, err = vouchers.Unfinalize(t.Context(), voudomain.EntityPurchaseOrder, voudomain.ReverseInput{
+	_, err = vouchers.Unfinalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.ReverseInput{
 		DocumentID: purchaseExecuted.DocumentID, Revision: purchaseExecuted.Revision, Reason: "撤销采购",
 	}, integrationActorOne, "purchase-unexecute-rejected")
 	if err == nil {
@@ -320,7 +368,7 @@ func TestLEDInventoryPostingStrictBalanceAndReversalIntegration(t *testing.T) {
 	if err != nil || saleReversed.Status != voudomain.StatusApproved {
 		t.Fatalf("unexecute sale = %+v, err=%v", saleReversed, err)
 	}
-	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityPurchaseOrder, voudomain.ReverseInput{
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.ReverseInput{
 		DocumentID: purchaseExecuted.DocumentID, Revision: purchaseExecuted.Revision, Reason: "撤销采购",
 	}, integrationActorOne, "purchase-unexecute"); err != nil {
 		t.Fatalf("unexecute purchase after sale reversal: %v", err)
@@ -335,18 +383,9 @@ func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activateEmptyLedger(t, ledger)
 
-	purchaseApproved, purchaseView := advanceToApproved(t, vouchers, voudomain.EntityPurchaseOrder, voudomain.DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []voudomain.ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "10", UnitPrice: "10.00",
-		}},
-	})
-	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseOrder, voudomain.FinalizeInput{
-		DocumentID: purchaseApproved.DocumentID, Revision: purchaseApproved.Revision, InboundDate: "2026-07-24",
-		PurchaseLines: []voudomain.PurchaseExecutionLineInput{{
-			LineID: purchaseView.Data.ProductLines[0].LineID, InboundQuantity: "10",
-		}},
+	purchaseApproved, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "10", "10.00")
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.FinalizeInput{
+		DocumentID: purchaseApproved.DocumentID, Revision: purchaseApproved.Revision,
 	}, integrationActorOne, "sale-chain-purchase-finalize"); err != nil {
 		t.Fatalf("finalize purchase: %v", err)
 	}
@@ -413,7 +452,7 @@ func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *
 	}
 }
 
-func TestLEDFundPartyIntermediaryAndReopenIntegration(t *testing.T) {
+func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
@@ -430,23 +469,6 @@ func TestLEDFundPartyIntermediaryAndReopenIntegration(t *testing.T) {
 	}, integrationActorOne, "receipt-execute")
 	if err != nil {
 		t.Fatalf("execute receipt: %v", err)
-	}
-	intermediaryApproved, intermediaryView := advanceToApproved(t, vouchers, voudomain.EntityIntermediarySaleOrder, voudomain.DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer, Supplier: &refs.supplier,
-		Salesperson: &refs.employee, Purchaser: &refs.employee,
-		ProductLines: []voudomain.ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "2", UnitPrice: "12.00", PurchaseUnitPrice: "10.00",
-		}},
-	})
-	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityIntermediarySaleOrder, voudomain.FinalizeInput{
-		DocumentID: intermediaryApproved.DocumentID, Revision: intermediaryApproved.Revision,
-		OutboundDate: "2026-07-24", SignoffDate: "2026-07-24", Platform: &refs.platform, Vehicle: &refs.vehicle,
-		SaleLines: []voudomain.SaleExecutionLineInput{{
-			LineID: intermediaryView.Data.ProductLines[0].LineID, OutboundQuantity: "2",
-			SignedQuantity: "2", RejectedQuantity: "0", LossQuantity: "0",
-		}},
-	}, integrationActorOne, "intermediary-execute"); err != nil {
-		t.Fatalf("execute intermediary: %v", err)
 	}
 	paymentApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityPayment, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
@@ -492,7 +514,7 @@ func TestLEDFundPartyIntermediaryAndReopenIntegration(t *testing.T) {
 	for _, item := range party.Items {
 		got[item.CounterpartyType] = item.BalanceType + "/" + item.Amount
 	}
-	if got["customer"] != "PAYABLE/76.00" || got["supplier"] != "RECEIVABLE/10.00" {
+	if got["customer"] != "PAYABLE/100.00" || got["supplier"] != "RECEIVABLE/30.00" {
 		t.Fatalf("party balances = %v", got)
 	}
 	reopened, err := ledger.Reopen(t.Context(), ReopenInput{

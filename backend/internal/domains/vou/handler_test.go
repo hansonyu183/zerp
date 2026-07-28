@@ -98,6 +98,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	wanted := map[string]string{}
 	for _, entity := range entities {
 		for _, route := range actionRoutes {
+			if route.action == "create" && !publicCreateEntity(entity) {
+				continue
+			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
 		}
 	}
@@ -111,7 +114,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+6; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3+2; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }
@@ -127,7 +130,7 @@ func TestHandlerUsesExactVOUPermissionPath(t *testing.T) {
 		return authorization.Principal{ActorID: testObjectID}, nil
 	})
 	router := newVOUTestRouter(service, authorizer)
-	request := httptest.NewRequest(http.MethodPost, "/vou/intermediary-sale-order/query",
+	request := httptest.NewRequest(http.MethodPost, "/vou/purchase-inbound/query",
 		strings.NewReader(`{"page":1,"pageSize":20,"filters":{},"sort":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -135,10 +138,10 @@ func TestHandlerUsesExactVOUPermissionPath(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if permission != "/vou/intermediary-sale-order/query" {
+	if permission != "/vou/purchase-inbound/query" {
 		t.Fatalf("permission = %q", permission)
 	}
-	if service.queryCalls != 1 || service.entity != EntityIntermediarySaleOrder {
+	if service.queryCalls != 1 || service.entity != EntityPurchaseInbound {
 		t.Fatalf("query calls=%d entity=%q", service.queryCalls, service.entity)
 	}
 }

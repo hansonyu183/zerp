@@ -69,7 +69,7 @@ func (s *Service) resolveDraftPersonnel(
 			result.Customer.Data.SalespersonEmployeeID,
 			"customer salesperson",
 		)
-	} else if entity == EntitySaleOrder || entity == EntityIntermediarySaleOrder {
+	} else if entity == EntitySaleOrder {
 		err = domainError(ErrorConflict, "salesperson is required", nil, nil)
 	}
 	if err != nil {
@@ -87,7 +87,7 @@ func (s *Service) resolveDraftPersonnel(
 			result.Supplier.Data.SalespersonEmployeeID,
 			"supplier salesperson",
 		)
-	} else if entity == EntityPurchaseOrder || entity == EntityIntermediarySaleOrder {
+	} else if entity == EntityPurchaseOrder {
 		err = domainError(ErrorConflict, "purchaser is required", nil, nil)
 	}
 	return err
@@ -140,12 +140,6 @@ func (s *Service) resolveDraftSettlements(
 		result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
 	case EntityPurchaseOrder:
 		result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
-	case EntityIntermediarySaleOrder:
-		if result.CustomerSettlement, err = s.resolveSettlement(
-			ctx, tx, result.Customer, "customer",
-		); err == nil {
-			result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
-		}
 	}
 	return err
 }

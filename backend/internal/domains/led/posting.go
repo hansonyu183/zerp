@@ -16,8 +16,7 @@ import (
 var vouEntities = [...]string{
 	voudomain.EntitySaleOutbound,
 	voudomain.EntitySaleSignoff,
-	voudomain.EntityPurchaseOrder,
-	voudomain.EntityIntermediarySaleOrder,
+	voudomain.EntityPurchaseInbound,
 	voudomain.EntityReceipt,
 	voudomain.EntityPayment,
 	voudomain.EntityExpenseReimbursement,
@@ -33,16 +32,6 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 			return err
 		}
 		if err := bus.Subscribe(voudomain.DocumentUnfinalizedTopic(entity), "led-reversal", s.HandleDocumentUnfinalized); err != nil {
-			return err
-		}
-	}
-	for _, entity := range []string{voudomain.EntityGoodsReceipt, voudomain.EntitySignoffNote} {
-		if err := bus.Subscribe(voudomain.ManagedDocumentFinalizedTopic(entity),
-			"led-wfl-posting", s.HandleManagedDocument); err != nil {
-			return err
-		}
-		if err := bus.Subscribe(voudomain.ManagedDocumentReversedTopic(entity),
-			"led-wfl-reversal", s.HandleManagedDocument); err != nil {
 			return err
 		}
 	}
@@ -84,9 +73,6 @@ func (s *Service) Activate(
 	if err = s.replayVouDocuments(
 		ctx, tx, q, generationID, control.CutoverDate.Time, documents, actorID, requestID,
 	); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.replayManagedDocuments(ctx, tx, generationID, control.CutoverDate.Time, requestID); err != nil {
 		return MutationResult{}, err
 	}
 	revision, err := s.finalizeActivation(
@@ -201,10 +187,8 @@ func (s *Service) postDocument(
 		return s.postSaleOutbound(ctx, tx, q, posting)
 	case voudomain.EntitySaleSignoff:
 		return s.postSaleSignoff(ctx, tx, q, posting)
-	case voudomain.EntityPurchaseOrder:
+	case voudomain.EntityPurchaseInbound:
 		return s.postPurchase(ctx, tx, q, posting)
-	case voudomain.EntityIntermediarySaleOrder:
-		return s.postIntermediarySale(ctx, q, posting)
 	case voudomain.EntityReceipt:
 		return s.postReceipt(ctx, q, posting)
 	case voudomain.EntityPayment:
@@ -215,23 +199,6 @@ func (s *Service) postDocument(
 		return s.postOtherIncome(ctx, q, posting)
 	default:
 		return domainError(ErrorValidation, "unsupported VOU entity", nil, nil)
-	}
-}
-
-func inventoryParams(
-	posting postingContext, doc dbsqlc.VouDocument, line dbsqlc.VouProductLine, effectiveDate pgtype.Date,
-	warehouseObjectID, warehouseVersionID, warehouseCode, warehouseName string, delta int64,
-) dbsqlc.InsertLedInventoryEntryParams {
-	return dbsqlc.InsertLedInventoryEntryParams{
-		ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
-		SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
-		SourceLineID: line.ID, SourceRevision: posting.SourceRevision, EffectiveDate: effectiveDate,
-		OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
-		WarehouseObjectID: warehouseObjectID, WarehouseVersionID: warehouseVersionID,
-		WarehouseCode: warehouseCode, WarehouseName: warehouseName,
-		ProductObjectID: line.ProductObjectID, ProductVersionID: line.ProductVersionID,
-		ProductCode: line.ProductCode, ProductName: line.ProductName, ProductUnit: line.ProductUnit,
-		QuantityDeltaMicros: delta,
 	}
 }
 

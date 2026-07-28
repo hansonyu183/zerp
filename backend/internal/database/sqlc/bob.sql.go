@@ -219,23 +219,11 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1
-    FROM vou_intermediary_sale_order_details intermediary
-    WHERE intermediary.customer_object_id = $1
-       OR intermediary.customer_version_id = $2
-       OR intermediary.supplier_object_id = $1
-       OR intermediary.supplier_version_id = $2
-       OR intermediary.salesperson_object_id = $1
-       OR intermediary.salesperson_version_id = $2
-       OR intermediary.purchaser_object_id = $1
-       OR intermediary.purchaser_version_id = $2
-       OR intermediary.customer_settlement_method_object_id = $1
-       OR intermediary.customer_settlement_method_version_id = $2
-       OR intermediary.supplier_settlement_method_object_id = $1
-       OR intermediary.supplier_settlement_method_version_id = $2
-       OR intermediary.platform_object_id = $1
-       OR intermediary.platform_version_id = $2
-       OR intermediary.vehicle_object_id = $1
-       OR intermediary.vehicle_version_id = $2
+    FROM vou_purchase_inbound_details purchase_inbound
+    WHERE purchase_inbound.supplier_object_id = $1
+       OR purchase_inbound.supplier_version_id = $2
+       OR purchase_inbound.warehouse_object_id = $1
+       OR purchase_inbound.warehouse_version_id = $2
 
     UNION ALL
 

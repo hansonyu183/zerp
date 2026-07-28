@@ -20,9 +20,7 @@ type Querier interface {
 	CancelLedReopen(ctx context.Context, arg CancelLedReopenParams) (int64, error)
 	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
 	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
-	ClearVouIntermediarySaleOrderExecution(ctx context.Context, documentID string) (int64, error)
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
-	ClearVouPurchaseOrderExecution(ctx context.Context, documentID string) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
 	CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategoryDetailParams) error
 	CopyBobCustomerDetail(ctx context.Context, arg CopyBobCustomerDetailParams) error
@@ -99,6 +97,7 @@ type Querier interface {
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
 	DeleteVouProductLines(ctx context.Context, documentID string) error
+	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
 	FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
@@ -117,9 +116,9 @@ type Querier interface {
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
 	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
-	GetVouIntermediarySaleOrderDetail(ctx context.Context, documentID string) (VouIntermediarySaleOrderDetail, error)
 	GetVouOtherIncomeDetail(ctx context.Context, documentID string) (VouOtherIncomeDetail, error)
 	GetVouPaymentDetail(ctx context.Context, documentID string) (VouPaymentDetail, error)
+	GetVouPurchaseInboundDetail(ctx context.Context, documentID string) (VouPurchaseInboundDetail, error)
 	GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error)
 	GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
@@ -171,10 +170,11 @@ type Querier interface {
 	InsertVouExpenseLine(ctx context.Context, arg InsertVouExpenseLineParams) error
 	InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error
 	InsertVouFile(ctx context.Context, arg InsertVouFileParams) error
-	InsertVouIntermediarySaleOrderDetail(ctx context.Context, arg InsertVouIntermediarySaleOrderDetailParams) error
 	InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouOtherIncomeDetailParams) error
 	InsertVouPaymentDetail(ctx context.Context, arg InsertVouPaymentDetailParams) error
 	InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error
+	InsertVouPurchaseInboundDetail(ctx context.Context, arg InsertVouPurchaseInboundDetailParams) error
+	InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVouPurchaseInboundLineParams) error
 	InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVouPurchaseOrderDetailParams) error
 	InsertVouReceiptDetail(ctx context.Context, arg InsertVouReceiptDetailParams) error
 	InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error
@@ -216,6 +216,7 @@ type Querier interface {
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
+	ListVouPurchaseInboundLines(ctx context.Context, documentID string) ([]VouPurchaseInboundLine, error)
 	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
 	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
@@ -251,9 +252,6 @@ type Querier interface {
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)
-	SetVouIntermediarySaleOrderExecution(ctx context.Context, arg SetVouIntermediarySaleOrderExecutionParams) (int64, error)
-	SetVouPurchaseLineExecution(ctx context.Context, arg SetVouPurchaseLineExecutionParams) (int64, error)
-	SetVouPurchaseOrderExecution(ctx context.Context, arg SetVouPurchaseOrderExecutionParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
@@ -280,9 +278,9 @@ type Querier interface {
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)
-	UpdateVouIntermediarySaleOrderDetail(ctx context.Context, arg UpdateVouIntermediarySaleOrderDetailParams) (int64, error)
 	UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouOtherIncomeDetailParams) (int64, error)
 	UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPaymentDetailParams) (int64, error)
+	UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg UpdateVouPurchaseInboundWarehouseParams) (int64, error)
 	UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error)
 	UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error)
 	UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error)

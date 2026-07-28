@@ -59,18 +59,6 @@ export default defineConfig({
           branches: 82,
           functions: 100,
         },
-        'src/pages/wfl/intermediary-trade/vm.ts': {
-          lines: 33,
-          statements: 31,
-          branches: 22,
-          functions: 30,
-        },
-        'src/pages/wfl/intermediary-trade/validation.ts': {
-          lines: 100,
-          statements: 100,
-          branches: 90,
-          functions: 100,
-        },
       },
     },
   },

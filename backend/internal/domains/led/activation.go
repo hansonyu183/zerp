@@ -5,7 +5,6 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -16,31 +15,9 @@ func (s *Service) preflightActivation(
 	documents []dbsqlc.VouDocument,
 	cutoverDate time.Time,
 ) error {
-	missingPrices := make([]string, 0)
-	for _, document := range documents {
-		if document.Entity != voudomain.EntityIntermediarySaleOrder ||
-			document.BusinessDate.Time.Before(cutoverDate) {
-			continue
-		}
-		lines, err := q.ListVouProductLines(ctx, document.ID)
-		if err != nil {
-			return s.internal("preflight intermediary prices", err)
-		}
-		for _, line := range lines {
-			if line.PurchaseUnitPriceCents == nil {
-				missingPrices = append(missingPrices, document.DocumentNo)
-				break
-			}
-		}
-	}
-	if len(missingPrices) > 0 {
-		return domainError(
-			ErrorConflict,
-			"executed intermediary documents are missing purchaseUnitPrice",
-			map[string]any{"documentNos": missingPrices},
-			nil,
-		)
-	}
+	_ = q
+	_ = cutoverDate
+	_ = documents
 	return nil
 }
 
@@ -139,43 +116,6 @@ func (s *Service) replayVouDocuments(
 		}
 	}
 	return nil
-}
-
-func (s *Service) replayManagedDocuments(
-	ctx context.Context,
-	tx pgx.Tx,
-	generationID string,
-	cutoverDate time.Time,
-	requestID string,
-) error {
-	rows, err := tx.Query(ctx, `SELECT d.entity,d.id,d.document_no,d.revision,
-		COALESCE(d.approved_by,d.updated_by),d.approved_at
-		FROM vou_documents d WHERE d.control_domain='WFL' AND d.status='APPROVED'
-		AND d.entity IN ('goods-receipt','signoff-note') ORDER BY d.approved_at,d.id`)
-	if err != nil {
-		return s.internal("list WFL documents", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var event voudomain.ManagedDocumentEvent
-		var occurredAt pgtype.Timestamptz
-		if err = rows.Scan(
-			&event.Entity,
-			&event.DocumentID,
-			&event.DocumentNo,
-			&event.Revision,
-			&event.ActorID,
-			&occurredAt,
-		); err != nil {
-			return err
-		}
-		event.Action = "FINALIZED"
-		event.RequestID = "led-rebuild/" + requestID
-		if err = s.postManagedDocument(ctx, tx, generationID, cutoverDate, event, false); err != nil {
-			return err
-		}
-	}
-	return rows.Err()
 }
 
 func (s *Service) finalizeActivation(

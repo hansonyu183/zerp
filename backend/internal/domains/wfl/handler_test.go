@@ -1,7 +1,6 @@
 package wfl
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,34 +12,6 @@ import (
 
 type handlerStub struct{}
 
-func (*handlerStub) Query(context.Context, QueryInput) (Page[ProcessView], error) {
-	return Page[ProcessView]{}, nil
-}
-func (*handlerStub) Get(context.Context, GetInput, []string) (ProcessView, error) {
-	return ProcessView{}, nil
-}
-func (*handlerStub) Create(context.Context, CreateInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerStub) Save(context.Context, SaveInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerStub) History(context.Context, HistoryInput) (Page[AuditView], error) {
-	return Page[AuditView]{}, nil
-}
-func (*handlerStub) Action(context.Context, string, ActionInput, string, string) (any, error) {
-	return MutationResult{}, nil
-}
-func (*handlerStub) InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error) {
-	return AttachmentInitiateResult{}, nil
-}
-func (*handlerStub) DownloadAttachment(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error) {
-	return AttachmentDownloadResult{}, nil
-}
-func (*handlerStub) RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (AttachmentRemoveResult, error) {
-	return AttachmentRemoveResult{}, nil
-}
-
 func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -50,23 +21,32 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 96 {
-		t.Fatalf("route count = %d, want 96", len(routes))
+	if len(routes) != 14 {
+		t.Fatalf("route count = %d, want 14", len(routes))
 	}
 	for _, path := range []string{
-		"/wfl/intermediary-trade/create",
-		"/wfl/intermediary-trade/procurement-place",
-		"/wfl/intermediary-trade/receipt-confirm",
-		"/wfl/intermediary-trade/delivery-execute",
-		"/wfl/intermediary-trade/signoff-confirm",
-		"/wfl/intermediary-trade/signoff-attachment-download",
-		"/wfl/sales-fulfillment/create",
-		"/wfl/sales-fulfillment/outbound-save",
-		"/wfl/sales-fulfillment/delivery-approve",
-		"/wfl/sales-fulfillment/signoff-finalize",
+		"/wfl/sales-fulfillment/query",
+		"/wfl/sales-fulfillment/get",
+		"/wfl/sales-fulfillment/audit-history",
+		"/wfl/sales-fulfillment/short-close-request",
+		"/wfl/purchase-fulfillment/query",
+		"/wfl/purchase-fulfillment/get",
+		"/wfl/purchase-fulfillment/audit-history",
+		"/wfl/purchase-fulfillment/short-close-confirm",
 	} {
 		if routes[path] != http.MethodPost {
 			t.Fatalf("missing POST %s", path)
+		}
+	}
+	for _, path := range []string{
+		"/wfl/intermediary-trade/query",
+		"/wfl/sales-fulfillment/create",
+		"/wfl/sales-fulfillment/outbound-save",
+		"/wfl/purchase-fulfillment/create",
+		"/wfl/purchase-fulfillment/inbound-create",
+	} {
+		if _, exists := routes[path]; exists {
+			t.Fatalf("removed workflow route is still registered: %s", path)
 		}
 	}
 }

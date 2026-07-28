@@ -6,29 +6,23 @@ import (
 )
 
 const (
-	EntitySaleOrder             = "sale-order"
-	EntitySaleOutbound          = "sale-outbound"
-	EntitySaleDelivery          = "sale-delivery"
-	EntitySaleSignoff           = "sale-signoff"
-	EntityPurchaseOrder         = "purchase-order"
-	EntityIntermediarySaleOrder = "intermediary-sale-order"
-	EntityReceipt               = "receipt"
-	EntityPayment               = "payment"
-	EntityExpenseReimbursement  = "expense-reimbursement"
-	EntityOtherIncome           = "other-income"
-	EntityCustomerOrder         = "customer-order"
-	EntityProcurementOrder      = "procurement-order"
-	EntityGoodsReceipt          = "goods-receipt"
-	EntityDeliveryNote          = "delivery-note"
-	EntitySignoffNote           = "signoff-note"
-
-	StatusDraft               = "DRAFT"
-	StatusChecked             = "CHECKED"
-	StatusApproved            = "APPROVED"
-	StatusFinalized           = "FINALIZED"
-	StatusCompleted           = "COMPLETED"
-	StatusShortCloseRequested = "SHORT_CLOSE_REQUESTED"
-	StatusShortClosed         = "SHORT_CLOSED"
+	EntitySaleOrder            = "sale-order"
+	EntitySaleOutbound         = "sale-outbound"
+	EntitySaleDelivery         = "sale-delivery"
+	EntitySaleSignoff          = "sale-signoff"
+	EntityPurchaseOrder        = "purchase-order"
+	EntityPurchaseInbound      = "purchase-inbound"
+	EntityReceipt              = "receipt"
+	EntityPayment              = "payment"
+	EntityExpenseReimbursement = "expense-reimbursement"
+	EntityOtherIncome          = "other-income"
+	StatusDraft                = "DRAFT"
+	StatusChecked              = "CHECKED"
+	StatusApproved             = "APPROVED"
+	StatusFinalized            = "FINALIZED"
+	StatusCompleted            = "COMPLETED"
+	StatusShortCloseRequested  = "SHORT_CLOSE_REQUESTED"
+	StatusShortClosed          = "SHORT_CLOSED"
 )
 
 var entities = [...]string{
@@ -37,11 +31,21 @@ var entities = [...]string{
 	EntitySaleDelivery,
 	EntitySaleSignoff,
 	EntityPurchaseOrder,
-	EntityIntermediarySaleOrder,
+	EntityPurchaseInbound,
 	EntityReceipt,
 	EntityPayment,
 	EntityExpenseReimbursement,
 	EntityOtherIncome,
+}
+
+func publicCreateEntity(entity string) bool {
+	switch entity {
+	case EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
+		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
+		return true
+	default:
+		return false
+	}
 }
 
 type ErrorKind string
@@ -105,7 +109,7 @@ type DraftInput struct {
 	BusinessDate     string                    `json:"businessDate"`
 	Currency         string                    `json:"currency"`
 	Remark           string                    `json:"remark,omitempty"`
-	SourceDocumentID string                    `json:"sourceDocumentId,omitempty"`
+	SourceDocumentID string                    `json:"-"`
 	Customer         *ReferenceInput           `json:"customer,omitempty"`
 	Supplier         *ReferenceInput           `json:"supplier,omitempty"`
 	CounterpartyType string                    `json:"counterpartyType,omitempty"`
@@ -127,7 +131,9 @@ type DraftInput struct {
 }
 
 type CreateInput struct {
-	Data DraftInput `json:"data"`
+	ParentEntity     string     `json:"parentEntity,omitempty"`
+	ParentDocumentID string     `json:"parentDocumentId,omitempty"`
+	Data             DraftInput `json:"data"`
 }
 
 type SaveInput struct {
@@ -273,6 +279,23 @@ type SaleSignoffLineView struct {
 	Remark           string        `json:"remark,omitempty"`
 }
 
+type ManagedLineView struct {
+	LineID               string         `json:"lineId"`
+	LineNo               int32          `json:"lineNo,omitempty"`
+	SourceLineID         string         `json:"sourceLineId,omitempty"`
+	Product              *ReferenceView `json:"product,omitempty"`
+	Quantity             string         `json:"quantity,omitempty"`
+	OrderedQuantity      string         `json:"orderedQuantity,omitempty"`
+	SignedQuantity       string         `json:"signedQuantity,omitempty"`
+	RejectedQuantity     string         `json:"rejectedQuantity,omitempty"`
+	LossQuantity         string         `json:"lossQuantity,omitempty"`
+	UnitPrice            string         `json:"unitPrice,omitempty"`
+	LineAmount           string         `json:"lineAmount,omitempty"`
+	ContainerType        string         `json:"containerType,omitempty"`
+	QuantityPerContainer string         `json:"quantityPerContainer,omitempty"`
+	Remark               string         `json:"remark,omitempty"`
+}
+
 type ExpenseLineView struct {
 	LineID      string `json:"lineId"`
 	LineNo      int32  `json:"lineNo"`
@@ -307,64 +330,70 @@ type AttachmentView struct {
 }
 
 type DocumentDataView struct {
-	BusinessDate             string                        `json:"businessDate"`
-	Currency                 string                        `json:"currency"`
-	Remark                   string                        `json:"remark,omitempty"`
-	Customer                 *ReferenceView                `json:"customer,omitempty"`
-	Supplier                 *ReferenceView                `json:"supplier,omitempty"`
-	Counterparty             *ReferenceView                `json:"counterparty,omitempty"`
-	Employee                 *ReferenceView                `json:"employee,omitempty"`
-	Salesperson              *ReferenceView                `json:"salesperson,omitempty"`
-	Purchaser                *ReferenceView                `json:"purchaser,omitempty"`
-	Handler                  *ReferenceView                `json:"handler,omitempty"`
-	Warehouse                *ReferenceView                `json:"warehouse,omitempty"`
-	FundAccount              *ReferenceView                `json:"fundAccount,omitempty"`
-	ContactName              string                        `json:"contactName,omitempty"`
-	ContactPhone             string                        `json:"contactPhone,omitempty"`
-	DeliveryAddress          string                        `json:"deliveryAddress,omitempty"`
-	SettlementMethod         *SettlementMethodSnapshotView `json:"settlementMethod,omitempty"`
-	CustomerSettlementMethod *SettlementMethodSnapshotView `json:"customerSettlementMethod,omitempty"`
-	SupplierSettlementMethod *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
-	SourceName               string                        `json:"sourceName,omitempty"`
-	ProductLines             []ProductLineView             `json:"productLines,omitempty"`
-	ExpenseLines             []ExpenseLineView             `json:"expenseLines,omitempty"`
-	OutboundDate             string                        `json:"outboundDate,omitempty"`
-	SignoffDate              string                        `json:"signoffDate,omitempty"`
-	InboundDate              string                        `json:"inboundDate,omitempty"`
-	Platform                 *ReferenceView                `json:"platform,omitempty"`
-	Vehicle                  *ReferenceView                `json:"vehicle,omitempty"`
-	DifferenceReason         string                        `json:"differenceReason,omitempty"`
-	SourceDocumentID         string                        `json:"sourceDocumentId,omitempty"`
-	SourceDocumentNo         string                        `json:"sourceDocumentNo,omitempty"`
-	SourceEntity             string                        `json:"sourceEntity,omitempty"`
-	SignoffLines             []SaleSignoffLineView         `json:"signoffLines,omitempty"`
-	FulfillmentStatus        string                        `json:"fulfillmentStatus,omitempty"`
-	SignedQuantity           string                        `json:"signedQuantity,omitempty"`
-	InTransitQuantity        string                        `json:"inTransitQuantity,omitempty"`
-	RemainingQuantity        string                        `json:"remainingQuantity,omitempty"`
-	ShortCloseRequestedBy    string                        `json:"shortCloseRequestedBy,omitempty"`
-	ShortCloseReason         string                        `json:"shortCloseReason,omitempty"`
+	BusinessDate              string                        `json:"businessDate"`
+	Currency                  string                        `json:"currency"`
+	Remark                    string                        `json:"remark,omitempty"`
+	Customer                  *ReferenceView                `json:"customer,omitempty"`
+	Supplier                  *ReferenceView                `json:"supplier,omitempty"`
+	Counterparty              *ReferenceView                `json:"counterparty,omitempty"`
+	Employee                  *ReferenceView                `json:"employee,omitempty"`
+	Salesperson               *ReferenceView                `json:"salesperson,omitempty"`
+	Purchaser                 *ReferenceView                `json:"purchaser,omitempty"`
+	Handler                   *ReferenceView                `json:"handler,omitempty"`
+	Warehouse                 *ReferenceView                `json:"warehouse,omitempty"`
+	FundAccount               *ReferenceView                `json:"fundAccount,omitempty"`
+	ContactName               string                        `json:"contactName,omitempty"`
+	ContactPhone              string                        `json:"contactPhone,omitempty"`
+	DeliveryAddress           string                        `json:"deliveryAddress,omitempty"`
+	SettlementMethod          *SettlementMethodSnapshotView `json:"settlementMethod,omitempty"`
+	CustomerSettlementMethod  *SettlementMethodSnapshotView `json:"customerSettlementMethod,omitempty"`
+	SupplierSettlementMethod  *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
+	SourceName                string                        `json:"sourceName,omitempty"`
+	ProductLines              []ProductLineView             `json:"productLines,omitempty"`
+	ExpenseLines              []ExpenseLineView             `json:"expenseLines,omitempty"`
+	OutboundDate              string                        `json:"outboundDate,omitempty"`
+	SignoffDate               string                        `json:"signoffDate,omitempty"`
+	InboundDate               string                        `json:"inboundDate,omitempty"`
+	Platform                  *ReferenceView                `json:"platform,omitempty"`
+	Vehicle                   *ReferenceView                `json:"vehicle,omitempty"`
+	DifferenceReason          string                        `json:"differenceReason,omitempty"`
+	SignoffLines              []SaleSignoffLineView         `json:"signoffLines,omitempty"`
+	FulfillmentStatus         string                        `json:"fulfillmentStatus,omitempty"`
+	SignedQuantity            string                        `json:"signedQuantity,omitempty"`
+	InTransitQuantity         string                        `json:"inTransitQuantity,omitempty"`
+	RemainingQuantity         string                        `json:"remainingQuantity,omitempty"`
+	ShortCloseRequestedBy     string                        `json:"shortCloseRequestedBy,omitempty"`
+	ShortCloseReason          string                        `json:"shortCloseReason,omitempty"`
+	Lines                     []ManagedLineView             `json:"lines,omitempty"`
+	ExpectedSolventContainers int64                         `json:"expectedSolventContainers,omitempty"`
+	ExpectedResinContainers   int64                         `json:"expectedResinContainers,omitempty"`
+	ReturnedSolventContainers int64                         `json:"returnedSolventContainers,omitempty"`
+	ReturnedResinContainers   int64                         `json:"returnedResinContainers,omitempty"`
+	ContainerDifferenceReason string                        `json:"containerDifferenceReason,omitempty"`
 }
 
 type DocumentView struct {
-	DocumentID  string           `json:"documentId"`
-	Entity      string           `json:"entity"`
-	DocumentNo  string           `json:"documentNo"`
-	Status      string           `json:"status"`
-	Revision    int64            `json:"revision"`
-	Amount      string           `json:"amount"`
-	Data        DocumentDataView `json:"data"`
-	Attachments []AttachmentView `json:"attachments"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	CreatedBy   string           `json:"createdBy"`
-	UpdatedAt   time.Time        `json:"updatedAt"`
-	UpdatedBy   string           `json:"updatedBy"`
-	CheckedAt   *time.Time       `json:"checkedAt,omitempty"`
-	CheckedBy   *string          `json:"checkedBy,omitempty"`
-	ApprovedAt  *time.Time       `json:"approvedAt,omitempty"`
-	ApprovedBy  *string          `json:"approvedBy,omitempty"`
-	FinalizedAt *time.Time       `json:"finalizedAt,omitempty"`
-	FinalizedBy *string          `json:"finalizedBy,omitempty"`
+	DocumentID       string           `json:"documentId"`
+	Entity           string           `json:"entity"`
+	DocumentNo       string           `json:"documentNo"`
+	Status           string           `json:"status"`
+	Revision         int64            `json:"revision"`
+	Amount           string           `json:"amount"`
+	Data             DocumentDataView `json:"data"`
+	Attachments      []AttachmentView `json:"attachments"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	CreatedBy        string           `json:"createdBy"`
+	UpdatedAt        time.Time        `json:"updatedAt"`
+	UpdatedBy        string           `json:"updatedBy"`
+	CheckedAt        *time.Time       `json:"checkedAt,omitempty"`
+	CheckedBy        *string          `json:"checkedBy,omitempty"`
+	ApprovedAt       *time.Time       `json:"approvedAt,omitempty"`
+	ApprovedBy       *string          `json:"approvedBy,omitempty"`
+	FinalizedAt      *time.Time       `json:"finalizedAt,omitempty"`
+	FinalizedBy      *string          `json:"finalizedBy,omitempty"`
+	ParentEntity     string           `json:"parentEntity,omitempty"`
+	ParentDocumentID string           `json:"parentDocumentId,omitempty"`
+	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`
 }
 
 type MutationResult struct {

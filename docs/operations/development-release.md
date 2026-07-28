@@ -62,6 +62,11 @@ PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全�
 
 数据库不得自动执行 down migration，也不得自动恢复备份，以免覆盖上线后的业务写入。所有 migration 必须兼容上一版应用；数据库恢复只能在明确停写和人工确认后执行。
 
+`00023_atomic_documents_and_remove_intermediary.sql` 是一次性不可逆迁移。合并包含该迁移的 PR 前，
+发布代理必须确认 PostgreSQL、附件目录和上一版镜像备份均已成功并记录恢复点。迁移后运行
+`make cleanup-vou-attachments` 删除已移除居间单据留下的存储孤儿。若发布失败，不能只回滚镜像，
+必须在停写后同时恢复数据库、附件和上一版镜像。
+
 人工回滚到已验证版本：
 
 ```bash

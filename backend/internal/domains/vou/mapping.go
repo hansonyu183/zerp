@@ -69,48 +69,43 @@ func (s *Service) loadData(
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDescription,
 		)
-		data.InboundDate = formatDate(detail.InboundDate)
-		data.DifferenceReason = deref(detail.DifferenceReason)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
+		if err == nil {
+			err = s.setPurchaseOrderBalances(ctx, document.ID, &data)
+		}
 		return data, err
-	case EntityIntermediarySaleOrder:
-		detail, err := q.GetVouIntermediarySaleOrderDetail(ctx, document.ID)
+	case EntityPurchaseInbound:
+		detail, err := q.GetVouPurchaseInboundDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
-		data.Customer = reference(detail.CustomerObjectID, detail.CustomerVersionID, "customer", detail.CustomerCode, detail.CustomerName, "", "", "")
-		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierVersionID, "supplier", detail.SupplierCode, detail.SupplierName, "", "", "")
-		data.Salesperson = optionalReference(
-			detail.SalespersonObjectID, detail.SalespersonVersionID, "employee",
-			detail.SalespersonCode, detail.SalespersonName,
+		data.Supplier = reference(
+			detail.SupplierObjectID, detail.SupplierVersionID, "supplier",
+			detail.SupplierCode, detail.SupplierName, "", "", "",
 		)
-		data.Purchaser = optionalReference(
-			detail.PurchaserObjectID, detail.PurchaserVersionID, "employee",
-			detail.PurchaserCode, detail.PurchaserName,
+		data.Warehouse = reference(
+			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseCode, detail.WarehouseName, "", "", "",
 		)
-		data.ContactName = deref(detail.ContactName)
-		data.ContactPhone = deref(detail.ContactPhone)
-		data.DeliveryAddress = deref(detail.DeliveryAddress)
-		data.CustomerSettlementMethod = settlementView(
-			detail.CustomerSettlementMethodObjectID, detail.CustomerSettlementMethodVersionID,
-			detail.CustomerSettlementMethodCode, detail.CustomerSettlementMethodName,
-			detail.CustomerSettlementRuleType, detail.CustomerSettlementMonthOffset,
-			detail.CustomerSettlementDayOfMonth, detail.CustomerSettlementDayOffset,
-			detail.CustomerSettlementDescription,
-		)
-		data.SupplierSettlementMethod = settlementView(
-			detail.SupplierSettlementMethodObjectID, detail.SupplierSettlementMethodVersionID,
-			detail.SupplierSettlementMethodCode, detail.SupplierSettlementMethodName,
-			detail.SupplierSettlementRuleType, detail.SupplierSettlementMonthOffset,
-			detail.SupplierSettlementDayOfMonth, detail.SupplierSettlementDayOffset,
-			detail.SupplierSettlementDescription,
-		)
-		setSaleExecutionView(&data, detail.OutboundDate, detail.SignoffDate,
-			detail.PlatformObjectID, detail.PlatformVersionID, detail.PlatformCode, detail.PlatformName,
-			detail.VehicleObjectID, detail.VehicleVersionID, detail.VehicleCode, detail.VehicleName,
-			detail.VehiclePlateNumber, detail.DifferenceReason)
-		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
-		return data, err
+		rows, err := q.ListVouPurchaseInboundLines(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		for _, row := range rows {
+			data.ProductLines = append(data.ProductLines, ProductLineView{
+				LineID: row.ID, LineNo: row.LineNo,
+				SourceLineID: row.SourceOrderLineID,
+				Product: *reference(
+					row.ProductObjectID, row.ProductVersionID, "product",
+					row.ProductCode, row.ProductName, row.ProductUnit, "", "",
+				),
+				OrderedQuantity: formatQuantity(row.QuantityMicros),
+				UnitPrice:       formatMoney(row.UnitPriceCents),
+				LineAmount:      formatMoney(row.LineAmountCents),
+				Remark:          deref(row.Remark),
+			})
+		}
+		return data, nil
 	case EntityReceipt:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
@@ -205,25 +200,6 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 	return items, nil
 }
 
-func setSaleExecutionView(
-	data *DocumentDataView,
-	outboundDate, signoffDate pgtype.Date,
-	platformObjectID, platformVersionID, platformCode, platformName *string,
-	vehicleObjectID, vehicleVersionID, vehicleCode, vehicleName, vehiclePlate, differenceReason *string,
-) {
-	data.OutboundDate = formatDate(outboundDate)
-	data.SignoffDate = formatDate(signoffDate)
-	if platformObjectID != nil {
-		data.Platform = reference(deref(platformObjectID), deref(platformVersionID), "supplier",
-			deref(platformCode), deref(platformName), "", "", "")
-	}
-	if vehicleObjectID != nil {
-		data.Vehicle = reference(deref(vehicleObjectID), deref(vehicleVersionID), "vehicle",
-			deref(vehicleCode), deref(vehicleName), "", "", deref(vehiclePlate))
-	}
-	data.DifferenceReason = deref(differenceReason)
-}
-
 func reference(objectID, versionID, entity, code, name, unit, currency, plate string) *ReferenceView {
 	return &ReferenceView{
 		ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Name: name,
@@ -269,7 +245,7 @@ func derefInt32(value *int32) int32 {
 func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachments []AttachmentView) DocumentView {
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
-		Status: document.Status, Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
+		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
 		Data: data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,

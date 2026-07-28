@@ -26,7 +26,6 @@ export interface DraftPayload {
   fundAccount?: VoucherReferenceInput
   sourceName?: string
   amount?: string
-  sourceDocumentId?: string
   productLines?: Array<{
     product: VoucherReferenceInput
     orderedQuantity: string
@@ -72,8 +71,8 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
-    sourceDocumentId: '',
-    sourceDocumentNo: '',
+    parentDocumentId: '',
+    parentDocumentNo: '',
     productLines: config.lineKind === 'product'
       ? [{
         key: crypto.randomUUID(),
@@ -135,8 +134,8 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
-    sourceDocumentId: data.sourceDocumentId ?? '',
-    sourceDocumentNo: data.sourceDocumentNo ?? '',
+    parentDocumentId: document.parentDocumentId ?? '',
+    parentDocumentNo: document.parentDocumentNo ?? '',
     productLines: (data.productLines ?? []).map((line) => ({
       key: line.lineId,
       lineId: line.lineId,

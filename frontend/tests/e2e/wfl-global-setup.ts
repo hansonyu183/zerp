@@ -248,19 +248,8 @@ export default async function globalSetup(): Promise<void> {
     const selected = permissions.filter(
       (item) =>
         item.status === 'ENABLED' &&
-        (
-          item.path.startsWith('/wfl/intermediary-trade/') ||
-          bobReviewerActions.has(item.path)
-        ),
+        bobReviewerActions.has(item.path),
     )
-    const wflPermissions = selected.filter((item) =>
-      item.path.startsWith('/wfl/intermediary-trade/'),
-    )
-    if (wflPermissions.length === 0) {
-      throw new Error(
-        '隔离后端未注册 /wfl/intermediary-trade 权限目录。',
-      )
-    }
 
     const suffix = `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`
       .toUpperCase()
@@ -284,35 +273,6 @@ export default async function globalSetup(): Promise<void> {
       reviewerPassword,
     )
     contexts.push(reviewerSession.context)
-
-    const redactedPermissions = permissions.filter((item) =>
-      [
-        '/app/user/signout',
-        '/wfl/intermediary-trade/query',
-        '/wfl/intermediary-trade/get',
-        '/wfl/intermediary-trade/audit-history',
-        '/wfl/intermediary-trade/receipt-get',
-        '/wfl/intermediary-trade/delivery-get',
-        '/wfl/intermediary-trade/signoff-get',
-      ].includes(item.path),
-    )
-    const redactedRole = await operatorSession.api.post<RoleView>(
-      'app/role/create',
-      {
-        code: `e2e-wfl-redacted-${suffix}`.toLowerCase(),
-        name: `E2E WFL 脱敏 ${suffix}`,
-        description: '隔离测试采购脱敏角色',
-        permissionIds: redactedPermissions.map((item) => item.id),
-      },
-    )
-    const redactedUsername = `e2e-wfl-redacted-${suffix}`.toLowerCase()
-    const redactedPassword = `Wfl!${randomBytes(12).toString('base64url')}Bb2`
-    await operatorSession.api.post('app/user/create', {
-      username: redactedUsername,
-      displayName: `E2E WFL 脱敏 ${suffix}`,
-      password: redactedPassword,
-      roleIds: [redactedRole.id],
-    })
 
     const code = (kind: string) => `WFL-${kind}-${suffix}`
     const employee = await createEffectiveBob(
@@ -442,10 +402,6 @@ export default async function globalSetup(): Promise<void> {
       reviewer: {
         username: reviewerUsername,
         password: reviewerPassword,
-      },
-      redacted: {
-        username: redactedUsername,
-        password: redactedPassword,
       },
       fixtures: {
         customer: customerCode,

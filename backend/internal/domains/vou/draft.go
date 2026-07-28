@@ -49,19 +49,6 @@ func (s *Service) loadPreservedPersonnel(
 			detail.PurchaserObjectID, detail.PurchaserVersionID,
 			detail.PurchaserCode, detail.PurchaserName,
 		)
-	case EntityIntermediarySaleOrder:
-		detail, err := q.GetVouIntermediarySaleOrderDetail(ctx, documentID)
-		if err != nil {
-			return result, s.internal("read intermediary order personnel", err)
-		}
-		result.Salesperson = makeReference(
-			detail.SalespersonObjectID, detail.SalespersonVersionID,
-			detail.SalespersonCode, detail.SalespersonName,
-		)
-		result.Purchaser = makeReference(
-			detail.PurchaserObjectID, detail.PurchaserVersionID,
-			detail.PurchaserCode, detail.PurchaserName,
-		)
 	}
 	return result, nil
 }
@@ -121,8 +108,6 @@ func (s *Service) writeDetail(
 		return s.writeSaleDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityPurchaseOrder:
 		return s.writePurchaseDetail(ctx, q, entity, documentID, draft, refs, update)
-	case EntityIntermediarySaleOrder:
-		return s.writeIntermediaryDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityReceipt, EntityPayment:
 		return s.writeCashDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityExpenseReimbursement:
@@ -191,26 +176,16 @@ func (s *Service) validateStoredAttributes(
 		}
 		missing = detail.PurchaserObjectID == nil || detail.WarehouseObjectID == nil ||
 			detail.SettlementMethodObjectID == nil
-	case EntityIntermediarySaleOrder:
-		detail, err := q.GetVouIntermediarySaleOrderDetail(ctx, documentID)
+	case EntityPurchaseInbound:
+		detail, err := q.GetVouPurchaseInboundDetail(ctx, documentID)
 		if err != nil {
-			return s.internal("read intermediary order attributes", err)
+			return s.internal("read purchase inbound attributes", err)
 		}
-		missing = detail.SalespersonObjectID == nil || detail.PurchaserObjectID == nil ||
-			detail.CustomerSettlementMethodObjectID == nil ||
-			detail.SupplierSettlementMethodObjectID == nil
-		if !missing {
-			lines, lineErr := q.ListVouProductLines(ctx, documentID)
-			if lineErr != nil {
-				return s.internal("read intermediary purchase prices", lineErr)
-			}
-			for _, line := range lines {
-				if line.PurchaseUnitPriceCents == nil {
-					missing = true
-					break
-				}
-			}
+		lines, lineErr := q.ListVouPurchaseInboundLines(ctx, documentID)
+		if lineErr != nil {
+			return s.internal("read purchase inbound lines", lineErr)
 		}
+		missing = detail.WarehouseObjectID == "" || len(lines) == 0
 	case EntityReceipt:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {

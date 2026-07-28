@@ -3,31 +3,68 @@ package vou
 import "strings"
 
 const (
+	documentCreatedTopicPrefix         = "vou.document.created."
+	documentDeletedTopicPrefix         = "vou.document.deleted."
+	documentChangedTopicPrefix         = "vou.document.changed."
 	documentFinalizedDirectTopicPrefix = "vou.document.finalized."
 	documentUnfinalizedTopicPrefix     = "vou.document.unfinalized."
-	documentFinalizedTopicPrefix       = "vou.document.finalized."
-	documentReversedTopicPrefix        = "vou.document.reversed."
 )
 
-type ManagedDocumentEvent struct {
-	Action, Entity, DocumentID, DocumentNo string
-	Revision                               int64
-	ActorID, RequestID, Reason             string
+type DocumentCreatedEvent struct {
+	Entity           string
+	DocumentID       string
+	DocumentNo       string
+	Revision         int64
+	ParentEntity     string
+	ParentDocumentID string
+	ActorID          string
+	RequestID        string
 }
 
-func (event ManagedDocumentEvent) Topic() string {
-	if event.Action == "FINALIZED" {
-		return documentFinalizedTopicPrefix + strings.TrimSpace(event.Entity)
-	}
-	return documentReversedTopicPrefix + strings.TrimSpace(event.Entity)
+func (event DocumentCreatedEvent) Topic() string {
+	return DocumentCreatedTopic(event.Entity)
 }
 
-func ManagedDocumentFinalizedTopic(entity string) string {
-	return documentFinalizedTopicPrefix + strings.TrimSpace(entity)
+func DocumentCreatedTopic(entity string) string {
+	return documentCreatedTopicPrefix + strings.TrimSpace(entity)
 }
 
-func ManagedDocumentReversedTopic(entity string) string {
-	return documentReversedTopicPrefix + strings.TrimSpace(entity)
+type DocumentDeletedEvent struct {
+	Entity           string
+	DocumentID       string
+	DocumentNo       string
+	ParentDocumentID string
+	ActorID          string
+	RequestID        string
+	Reason           string
+}
+
+func (event DocumentDeletedEvent) Topic() string {
+	return DocumentDeletedTopic(event.Entity)
+}
+
+func DocumentDeletedTopic(entity string) string {
+	return documentDeletedTopicPrefix + strings.TrimSpace(entity)
+}
+
+type DocumentChangedEvent struct {
+	Action     string
+	Entity     string
+	DocumentID string
+	DocumentNo string
+	Status     string
+	Revision   int64
+	ActorID    string
+	RequestID  string
+	Reason     string
+}
+
+func (event DocumentChangedEvent) Topic() string {
+	return DocumentChangedTopic(event.Entity)
+}
+
+func DocumentChangedTopic(entity string) string {
+	return documentChangedTopicPrefix + strings.TrimSpace(entity)
 }
 
 type DocumentFinalizedEvent struct {

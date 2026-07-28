@@ -1,6 +1,6 @@
 import type {
   VouAtomicDocument,
-  WflManagedVoucherEntity,
+  VoucherEntity,
 } from '@/components/voucher'
 
 export type WflProcessStatus =
@@ -60,7 +60,7 @@ export type WflAction =
 
 export interface WflDocumentSummary<TData = unknown, TLine = unknown>
   extends VouAtomicDocument<TData, TLine> {
-  entity: WflManagedVoucherEntity
+  entity: VoucherEntity
   stage: WflStage
 }
 
@@ -87,7 +87,7 @@ export interface WflProcessListRow {
 export interface WflStageDefinition {
   stage: WflStage
   prefix?: WflStagePrefix
-  entity: WflManagedVoucherEntity
+  entity: VoucherEntity
   title: string
   icon: string
   repeatable: boolean

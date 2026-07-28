@@ -108,7 +108,7 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesEmployee) form.employee = reference('employee')
   if (config.usesHandler) form.handler = reference('employee')
   if (config.usesFundAccount) form.fundAccount = reference('fund-account')
-  if (config.usesSourceName) form.sourceName = '其它收入来源'
+  if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
   if (config.lineKind === 'product') {
     form.productLines = [
@@ -117,8 +117,7 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
         product: reference('product'),
         orderedQuantity: '2.5',
         unitPrice: '4.00',
-        purchaseUnitPrice:
-          config.entity === 'intermediary-sale-order' ? '3.00' : '',
+        purchaseUnitPrice: '',
         remark: '',
       },
     ]
@@ -142,25 +141,27 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines the ten exact backend entities', () => {
+  it('defines all ten atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',
       'sale-outbound',
       'sale-delivery',
       'sale-signoff',
       'purchase-order',
-      'intermediary-sale-order',
+      'purchase-inbound',
       'receipt',
       'payment',
       'expense-reimbursement',
       'other-income',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
+    expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe('sale-order')
+    expect(voucherEntityConfigs['purchase-inbound'].parentEntity).toBe('purchase-order')
   })
 
   it('builds entity-specific create payloads without dueDate or unrelated fields', async () => {
     for (const config of Object.values(voucherEntityConfigs).filter(
-      (item) => !item.sourceEntity,
+      (item) => !item.parentEntity,
     )) {
       vi.clearAllMocks()
       useSessionStore().permissions = [`/vou/${config.entity}/create`]
@@ -202,12 +203,7 @@ describe('shared VOU entity view model', () => {
         const productLine = (
           data.productLines as Array<Record<string, unknown>>
         )[0]
-        if (config.entity === 'intermediary-sale-order') {
-          expect(productLine).toHaveProperty('purchaseUnitPrice', '3.00')
-          expect(vm.form.value.productLines[0].purchaseUnitPrice).toBe('3.00')
-        } else {
-          expect(productLine).not.toHaveProperty('purchaseUnitPrice')
-        }
+        expect(productLine).not.toHaveProperty('purchaseUnitPrice')
       }
     }
   })
@@ -282,10 +278,11 @@ describe('shared VOU entity view model', () => {
     vm.form.value.salesChainLines[0].quantity = '4'
     expect(await vm.save()).toBe(true)
     expect(captured).toEqual({
+      parentEntity: 'sale-order',
+      parentDocumentId: 'ORDER-1',
       data: {
         businessDate: '2026-07-25',
         currency: 'CNY',
-        sourceDocumentId: 'ORDER-1',
         warehouse: {
           objectId: 'warehouse-object',
           versionId: 'warehouse-version',
@@ -300,132 +297,48 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('requires a purchase unit price for intermediary sale order lines', async () => {
-    const config = voucherEntityConfigs['intermediary-sale-order']
-    useSessionStore().permissions = [`/vou/${config.entity}/create`]
-    const vm = useVoucherEntityViewModel(config)
-    vm.openCreate()
-    populate(config, vm.form.value)
-    vm.form.value.productLines[0].purchaseUnitPrice = ''
-
-    expect(await vm.save()).toBe(false)
-    expect(vm.workspaceError.value).toBe('第 1 行 · 采购单价：格式不正确。')
-    expect(mockedPost).not.toHaveBeenCalled()
-  })
-
-  it('loads and saves an intermediary purchase unit price', async () => {
-    const config = voucherEntityConfigs['intermediary-sale-order']
-    const form = useVoucherEntityViewModel(config).form.value
-    populate(config, form)
-    const view = documentView(config, form)
-    useSessionStore().permissions = [
-      `/vou/${config.entity}/get`,
-      `/vou/${config.entity}/save`,
-    ]
-    const vm = useVoucherEntityViewModel(config)
-    let savedData: Record<string, unknown> | undefined
-    mockedPost.mockImplementation(async (path, body) => {
-      if (path.endsWith('/get')) return { data: view }
-      if (path.endsWith('/save')) {
-        savedData = (body as { data: Record<string, unknown> }).data
-        return {
-          data: {
-            documentId: view.documentId,
-            documentNo: view.documentNo,
-            status: 'DRAFT',
-            revision: 2,
-          },
-        }
-      }
-      return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
-    })
-
-    await vm.openDocument(
-      {
-        documentId: view.documentId,
-        entity: config.entity,
-        documentNo: view.documentNo,
-        status: 'DRAFT',
-        revision: 1,
-        businessDate: form.businessDate,
-        currency: form.currency,
-        amount: view.amount,
-        updatedAt: view.updatedAt,
-      },
-      true,
-    )
-    expect(vm.form.value.productLines[0].purchaseUnitPrice).toBe('3.00')
-
-    vm.form.value.productLines[0].purchaseUnitPrice = '3.25'
-    expect(await vm.save()).toBe(true)
-    expect(
-      (savedData?.productLines as Array<Record<string, unknown>>)[0],
-    ).toHaveProperty('purchaseUnitPrice', '3.25')
-  })
-
-  it('omits unchanged salesperson when saving an existing draft', async () => {
+  it('uses exact VOU write permissions for atomic documents', async () => {
     const config = voucherEntityConfigs['sale-order']
-    const form = {
-      ...useVoucherEntityViewModel(config).form.value,
-      customer: reference('customer'),
-      salesperson: reference('employee'),
-      warehouse: reference('warehouse'),
-      currency: 'CNY',
-      productLines: [
-        {
-          key: 'line',
-          lineId: 'LINE-1',
-          product: reference('product'),
-          orderedQuantity: '1',
-          unitPrice: '10.00',
-          purchaseUnitPrice: '',
-          remark: '',
-        },
-      ],
-    }
-    const view = documentView(config, form)
     useSessionStore().permissions = [
+      '/vou/sale-order/query',
       '/vou/sale-order/get',
+      '/vou/sale-order/create',
       '/vou/sale-order/save',
+      '/vou/sale-order/check',
+      '/vou/sale-order/attachment-initiate',
+      '/vou/sale-order/attachment-remove',
     ]
     const vm = useVoucherEntityViewModel(config)
-    let savedData: Record<string, unknown> | undefined
-    mockedPost.mockImplementation(async (path, body) => {
-      if (path.endsWith('/get')) return { data: view }
-      if (path.endsWith('/save')) {
-        savedData = (body as { data: Record<string, unknown> }).data
-        return {
-          data: {
-            documentId: view.documentId,
-            documentNo: view.documentNo,
-            status: 'DRAFT',
-            revision: 2,
-          },
-        }
-      }
-      return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+    mockedPost.mockResolvedValue({
+      data: documentView(config, vm.form.value),
     })
-    await vm.openDocument(
-      {
-        documentId: view.documentId,
-        entity: config.entity,
-        documentNo: view.documentNo,
-        status: 'DRAFT',
-        revision: 1,
-        businessDate: '2026-07-24',
-        currency: 'CNY',
-        amount: '10.00',
-        updatedAt: '2026-07-24T00:00:00Z',
-      },
-      true,
-    )
-
-    expect(await vm.save()).toBe(true)
-    expect(savedData).not.toHaveProperty('salesperson')
-    expect(savedData?.customer).toEqual({
-      objectId: 'customer-object',
-      versionId: 'customer-version',
+    await vm.openDocument({
+      documentId: 'DOCUMENT-1',
+      entity: config.entity,
+      documentNo: 'SO-1',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-24',
+      currency: 'CNY',
+      amount: '10.00',
+      updatedAt: '2026-07-24T00:00:00Z',
     })
+    expect(vm.canCreate.value).toBe(true)
+    expect(vm.canEdit({
+      documentId: 'DOCUMENT-1',
+      entity: config.entity,
+      documentNo: 'SO-1',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-24',
+      currency: 'CNY',
+      amount: '10.00',
+      updatedAt: '2026-07-24T00:00:00Z',
+    })).toBe(true)
+    expect(vm.actionAvailability.value.save).toBe(true)
+    expect(vm.actionAvailability.value.check).toBe(true)
+    expect(vm.actionAvailability.value.attachmentInitiate).toBe(true)
+    expect(vm.actionAvailability.value.attachmentRemove).toBe(true)
   })
 
   it('only exposes matching effective BOB object and version pairs', async () => {

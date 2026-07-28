@@ -28,7 +28,6 @@ func (s *Service) loadSalesChainData(
 			return data, err
 		}
 		customer.Entity, warehouse.Entity = "customer", "warehouse"
-		data.SourceDocumentID, data.SourceDocumentNo, data.SourceEntity = sourceID, sourceNo, EntitySaleOrder
 		data.Customer = &customer
 		if warehouse.ObjectID != "" {
 			data.Warehouse = &warehouse
@@ -81,7 +80,6 @@ func (s *Service) loadSalesChainData(
 			return data, err
 		}
 		customer.Entity, platform.Entity, vehicle.Entity = "customer", "supplier", "vehicle"
-		data.SourceDocumentID, data.SourceDocumentNo, data.SourceEntity = sourceID, sourceNo, EntitySaleOutbound
 		data.Customer = &customer
 		if platform.ObjectID != "" {
 			data.Platform = &platform
@@ -130,7 +128,6 @@ func (s *Service) loadSalesChainData(
 			return data, err
 		}
 		customer.Entity, warehouse.Entity = "customer", "warehouse"
-		data.SourceDocumentID, data.SourceDocumentNo, data.SourceEntity = sourceID, sourceNo, EntitySaleDelivery
 		data.Customer, data.Warehouse = &customer, &warehouse
 		rows, err := s.pool.Query(ctx, `SELECT id,source_outbound_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,product_unit,
@@ -217,43 +214,40 @@ func (s *Service) setSaleOrderBalances(
 func (s *Service) validateSalesChainStored(
 	ctx context.Context, entity, documentID string,
 ) error {
-	var sourceStatus, sourceControl string
+	var sourceStatus string
 	var lineCount int64
 	complete := false
 	switch entity {
 	case EntitySaleOutbound:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,
+		err := s.pool.QueryRow(ctx, `SELECT p.status,
 			(SELECT count(*) FROM vou_sale_outbound_lines WHERE document_id=x.document_id),
 			x.warehouse_object_id IS NOT NULL
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
 			WHERE x.document_id=$1`, documentID).
-			Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
+			Scan(&sourceStatus, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale outbound", err)
 		}
 	case EntitySaleDelivery:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,1,
+		err := s.pool.QueryRow(ctx, `SELECT p.status,1,
 			x.platform_object_id IS NOT NULL AND x.vehicle_object_id IS NOT NULL
 			FROM vou_sale_delivery_details x
 			JOIN vou_documents p ON p.id=x.source_outbound_id WHERE x.document_id=$1`,
-			documentID).Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
+			documentID).Scan(&sourceStatus, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale delivery", err)
 		}
 	case EntitySaleSignoff:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,p.control_domain,
+		err := s.pool.QueryRow(ctx, `SELECT p.status,
 			(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id),true
 			FROM vou_sale_signoff_details x JOIN vou_documents p ON p.id=x.source_delivery_id
 			WHERE x.document_id=$1`, documentID).
-			Scan(&sourceStatus, &sourceControl, &lineCount, &complete)
+			Scan(&sourceStatus, &lineCount, &complete)
 		if err != nil {
 			return s.internal("validate sale signoff", err)
 		}
 	}
-	sourceReady := sourceStatus == StatusFinalized
-	if sourceControl == "WFL" {
-		sourceReady = sourceStatus == StatusApproved || sourceStatus == StatusFinalized
-	}
+	sourceReady := sourceStatus == StatusApproved || sourceStatus == StatusFinalized
 	if !sourceReady || lineCount == 0 || !complete {
 		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
 	}
@@ -305,7 +299,7 @@ func (s *Service) prepareSalesChainFinalization(
 		if err = rows.Err(); err != nil {
 			return nil, err
 		}
-		return map[string]any{"sourceDocumentId": orderID}, nil
+		return map[string]any{"parentDocumentId": orderID}, nil
 	}
 	var sourceStatus string
 	if err := tx.QueryRow(ctx, `SELECT p.status FROM vou_documents d
@@ -314,7 +308,7 @@ func (s *Service) prepareSalesChainFinalization(
 		sourceStatus != StatusFinalized {
 		return nil, domainError(ErrorConflict, "sales-chain source is not finalized", nil, err)
 	}
-	return map[string]any{"sourceDocumentId": document.ParentDocumentID}, nil
+	return map[string]any{"parentDocumentId": document.ParentDocumentID}, nil
 }
 
 func (s *Service) ensureNoSalesChainChildren(
@@ -374,8 +368,11 @@ func (s *Service) refreshSaleOrderFulfillment(
 func (s *Service) Delete(
 	ctx context.Context, entity string, input DeleteInput, actorID, requestID string,
 ) (MutationResult, error) {
-	if !isSalesChainEntity(entity) {
-		return MutationResult{}, domainError(ErrorValidation, "only sales-chain child drafts can be deleted", nil, nil)
+	if entity == EntityPurchaseInbound {
+		return s.DeletePurchaseInbound(ctx, input, actorID, requestID)
+	}
+	if !validEntity(entity) {
+		return MutationResult{}, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
 	reason, err := validateReverse(input)
 	if err != nil {
@@ -383,10 +380,11 @@ func (s *Service) Delete(
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin delete sales-chain draft", err)
+		return MutationResult{}, s.internal("begin delete draft", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	var number, status, parentID string
+	var number, status string
+	var parentID *string
 	var revision int64
 	err = tx.QueryRow(ctx, `SELECT document_no,status,revision,parent_document_id
 		FROM vou_documents WHERE id=$1 AND entity=$2 FOR UPDATE`,
@@ -402,26 +400,46 @@ func (s *Service) Delete(
 		return MutationResult{}, err
 	}
 	if attachments != 0 || children != 0 {
-		return MutationResult{}, domainError(ErrorConflict, "draft has attachments or downstream documents", nil, nil)
+		return MutationResult{}, domainError(ErrorConflict, "draft has attachments or child documents", nil, nil)
+	}
+	parentDocumentID := ""
+	if parentID != nil {
+		parentDocumentID = *parentID
+	}
+	if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{
+		Entity: entity, DocumentID: input.DocumentID, DocumentNo: number,
+		ParentDocumentID: parentDocumentID, ActorID: actorID,
+		RequestID: requestID, Reason: *reason,
+	}); err != nil {
+		return MutationResult{}, err
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM vou_audit_events WHERE document_id=$1`, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
 	switch entity {
+	case EntitySaleOrder:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
+			DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)
 	case EntitySaleOutbound:
-		if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1`,
-			input.DocumentID); err == nil {
-			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_details WHERE document_id=$1`,
-				input.DocumentID)
-		}
+		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1;
+			DELETE FROM vou_sale_outbound_details WHERE document_id=$1`, input.DocumentID)
 	case EntitySaleDelivery:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_delivery_details WHERE document_id=$1`, input.DocumentID)
 	case EntitySaleSignoff:
-		if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1`,
-			input.DocumentID); err == nil {
-			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_details WHERE document_id=$1`,
-				input.DocumentID)
-		}
+		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1;
+			DELETE FROM vou_sale_signoff_details WHERE document_id=$1`, input.DocumentID)
+	case EntityPurchaseOrder:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
+			DELETE FROM vou_purchase_order_details WHERE document_id=$1`, input.DocumentID)
+	case EntityReceipt:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_receipt_details WHERE document_id=$1`, input.DocumentID)
+	case EntityPayment:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_payment_details WHERE document_id=$1`, input.DocumentID)
+	case EntityExpenseReimbursement:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_lines WHERE document_id=$1;
+			DELETE FROM vou_expense_reimbursement_details WHERE document_id=$1`, input.DocumentID)
+	case EntityOtherIncome:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_other_income_details WHERE document_id=$1`, input.DocumentID)
 	}
 	if err != nil {
 		return MutationResult{}, err
@@ -429,17 +447,19 @@ func (s *Service) Delete(
 	if _, err = tx.Exec(ctx, `DELETE FROM vou_documents WHERE id=$1`, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
-	var parentEntity, parentStatus string
-	if err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
-		WHERE id=$2 RETURNING entity,status`, actorID, parentID).Scan(&parentEntity, &parentStatus); err != nil {
-		return MutationResult{}, err
-	}
-	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
-		DocumentID: parentID, Entity: parentEntity, Event: "DELETED",
-		From: &parentStatus, To: parentStatus, ActorID: actorID, Reason: reason, RequestID: requestID,
-		Summary: map[string]any{"documentId": input.DocumentID, "documentNo": number, "entity": entity},
-	}); err != nil {
-		return MutationResult{}, err
+	if parentID != nil {
+		var parentEntity, parentStatus string
+		if err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
+			WHERE id=$2 RETURNING entity,status`, actorID, *parentID).Scan(&parentEntity, &parentStatus); err != nil {
+			return MutationResult{}, err
+		}
+		if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
+			DocumentID: *parentID, Entity: parentEntity, Event: "DELETED",
+			From: &parentStatus, To: parentStatus, ActorID: actorID, Reason: reason, RequestID: requestID,
+			Summary: map[string]any{"documentId": input.DocumentID, "documentNo": number, "entity": entity},
+		}); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
@@ -525,7 +545,7 @@ func (s *Service) shortCloseMutation(
 	}); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, event, StatusFinalized, actorID, requestID,
 		map[string]any{"fulfillmentStatus": next},
 	); err != nil {

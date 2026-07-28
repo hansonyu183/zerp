@@ -4,13 +4,20 @@ export type VoucherEntity =
   | 'sale-delivery'
   | 'sale-signoff'
   | 'purchase-order'
-  | 'intermediary-sale-order'
+  | 'purchase-inbound'
   | 'receipt'
   | 'payment'
   | 'expense-reimbursement'
   | 'other-income'
 
-export type VoucherStatus = 'DRAFT' | 'CHECKED' | 'APPROVED' | 'FINALIZED'
+export type VoucherStatus =
+  | 'DRAFT'
+  | 'CHECKED'
+  | 'APPROVED'
+  | 'FINALIZED'
+  | 'ORDERED'
+  | 'CONFIRMED'
+  | 'EXECUTED'
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -80,8 +87,8 @@ export interface VoucherDraftForm {
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
-  sourceDocumentId: string
-  sourceDocumentNo: string
+  parentDocumentId: string
+  parentDocumentNo: string
   productLines: VoucherProductLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
@@ -162,18 +169,7 @@ export interface VoucherAttachment {
   createdBy: string
 }
 
-export type WflManagedVoucherEntity =
-  | 'sale-order'
-  | 'sale-outbound'
-  | 'sale-delivery'
-  | 'sale-signoff'
-  | 'customer-order'
-  | 'procurement-order'
-  | 'goods-receipt'
-  | 'delivery-note'
-  | 'signoff-note'
-
-export type VouAtomicEntity = VoucherEntity | WflManagedVoucherEntity
+export type VouAtomicEntity = VoucherEntity
 
 export interface VouAtomicDocument<
   TData = unknown,
@@ -185,7 +181,9 @@ export interface VouAtomicDocument<
   entity: VouAtomicEntity
   status: TStatus
   revision: number
+  parentEntity?: VoucherEntity
   parentDocumentId?: string
+  parentDocumentNo?: string
   businessDate: string
   currency: string
   amount: string
@@ -236,9 +234,6 @@ export interface VoucherDocumentData {
   platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
   differenceReason?: string
-  sourceDocumentId?: string
-  sourceDocumentNo?: string
-  sourceEntity?: VoucherEntity
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?: 'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
   signedQuantity?: string
@@ -246,6 +241,29 @@ export interface VoucherDocumentData {
   remainingQuantity?: string
   shortCloseRequestedBy?: string
   shortCloseReason?: string
+  lines?: VoucherManagedLineView[]
+  expectedSolventContainers?: number
+  expectedResinContainers?: number
+  returnedSolventContainers?: number
+  returnedResinContainers?: number
+  containerDifferenceReason?: string
+}
+
+export interface VoucherManagedLineView {
+  lineId: string
+  lineNo?: number
+  sourceLineId?: string
+  product?: VoucherReferenceView
+  quantity?: string
+  orderedQuantity?: string
+  signedQuantity?: string
+  rejectedQuantity?: string
+  lossQuantity?: string
+  unitPrice?: string
+  lineAmount?: string
+  containerType?: 'NONE' | 'SOLVENT' | 'RESIN'
+  quantityPerContainer?: string
+  remark?: string
 }
 
 export interface VoucherDocumentView {
@@ -267,6 +285,9 @@ export interface VoucherDocumentView {
   approvedBy?: string
   finalizedAt?: string
   finalizedBy?: string
+  parentEntity?: VoucherEntity
+  parentDocumentId?: string
+  parentDocumentNo?: string
 }
 
 export interface VoucherListItem {
@@ -363,7 +384,7 @@ export interface VoucherEntityConfig {
   lineKind: VoucherLineKind
   finalizationKind: VoucherFinalizationKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
-  sourceEntity?: VoucherEntity
+  parentEntity?: VoucherEntity
   usesSalesperson?: boolean
   usesPurchaser?: boolean
   usesWarehouse?: boolean

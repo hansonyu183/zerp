@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import VoucherEntityPage from '../shared/VoucherEntityPage.vue'
-import { useIntermediarySaleOrderViewModel } from './vm'
+import { usePurchaseInboundViewModel } from './vm'
 
-const vm = useIntermediarySaleOrderViewModel()
+const vm = usePurchaseInboundViewModel()
 </script>
 
 <template>

@@ -63,30 +63,13 @@ type validatedSaleExecution struct {
 	Lines                     []fixedSaleExecutionLine
 }
 
-type fixedPurchaseExecutionLine struct {
-	LineID  string
-	Inbound int64
-}
-
-type validatedPurchaseExecution struct {
-	InboundDate      time.Time
-	DifferenceReason *string
-	Lines            []fixedPurchaseExecutionLine
-}
-
 func validEntity(entity string) bool {
 	for _, candidate := range entities {
 		if candidate == entity {
 			return true
 		}
 	}
-	switch entity {
-	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
-		EntityDeliveryNote, EntitySignoffNote:
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func isSalesChainEntity(entity string) bool {
@@ -163,23 +146,6 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
-	case EntityIntermediarySaleOrder:
-		if err = requireOnlyDraftRefs(input, true, true, false, false, true, true, false, false, false, false); err != nil {
-			return validatedDraft{}, err
-		}
-		if err = validateReference(input.Customer, "customer", true); err != nil {
-			return validatedDraft{}, err
-		}
-		if err = validateReference(input.Supplier, "supplier", true); err != nil {
-			return validatedDraft{}, err
-		}
-		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
-			return validatedDraft{}, err
-		}
-		if err = validateReference(input.Purchaser, "purchaser", false); err != nil {
-			return validatedDraft{}, err
-		}
-		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, true)
 	case EntityReceipt, EntityPayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
@@ -384,7 +350,10 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	if result.PartyObjectID != "" && !validID(result.PartyObjectID) {
 		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
 	}
-	allowedStatuses := map[string]bool{StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true}
+	allowedStatuses := map[string]bool{
+		StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true,
+		"ORDERED": true, "CONFIRMED": true, "EXECUTED": true,
+	}
 	seen := map[string]bool{}
 	for _, status := range input.Filters.Status {
 		status = strings.ToUpper(strings.TrimSpace(status))
@@ -484,35 +453,6 @@ func validateSaleExecution(input FinalizeInput) (validatedSaleExecution, error) 
 		result.Lines = append(result.Lines, fixedSaleExecutionLine{
 			LineID: line.LineID, Outbound: outbound, Signed: signed, Rejected: rejected, Loss: loss,
 		})
-	}
-	return result, nil
-}
-
-func validatePurchaseExecution(input FinalizeInput) (validatedPurchaseExecution, error) {
-	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
-		return validatedPurchaseExecution{}, err
-	}
-	inboundDate, err := time.Parse(dateLayout, strings.TrimSpace(input.InboundDate))
-	if err != nil || len(input.PurchaseLines) == 0 || len(input.SaleLines) != 0 ||
-		input.Platform != nil || input.Vehicle != nil || strings.TrimSpace(input.OutboundDate) != "" ||
-		strings.TrimSpace(input.SignoffDate) != "" {
-		return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid purchase execution", nil, err)
-	}
-	result := validatedPurchaseExecution{InboundDate: inboundDate, DifferenceReason: optionalText(input.DifferenceReason)}
-	if result.DifferenceReason != nil && utf8.RuneCountInString(*result.DifferenceReason) > 1000 {
-		return validatedPurchaseExecution{}, domainError(ErrorValidation, "differenceReason is too long", nil, nil)
-	}
-	seen := map[string]bool{}
-	for _, line := range input.PurchaseLines {
-		if !validID(line.LineID) || seen[line.LineID] {
-			return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid execution lineId", nil, nil)
-		}
-		seen[line.LineID] = true
-		inbound, err := quantityMicros(line.InboundQuantity, false)
-		if err != nil {
-			return validatedPurchaseExecution{}, domainError(ErrorValidation, "invalid inboundQuantity", nil, err)
-		}
-		result.Lines = append(result.Lines, fixedPurchaseExecutionLine{LineID: line.LineID, Inbound: inbound})
 	}
 	return result, nil
 }

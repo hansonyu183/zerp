@@ -8,22 +8,21 @@ import (
 )
 
 const (
-	ProcessTypeIntermediary = "INTERMEDIARY_TRADE"
-	ProcessTypeSales        = "SALES_FULFILLMENT"
-	StatusDraft             = "DRAFT"
-	StatusChecked           = "CHECKED"
-	StatusApproved          = "APPROVED"
-	StatusCompleted         = "COMPLETED"
-	StatusShortRequested    = "SHORT_CLOSE_REQUESTED"
-	StatusShortClosed       = "SHORT_CLOSED"
+	ProcessTypeSales     = "SALES_FULFILLMENT"
+	ProcessTypePurchase  = "PURCHASE_FULFILLMENT"
+	StatusDraft          = "DRAFT"
+	StatusChecked        = "CHECKED"
+	StatusApproved       = "APPROVED"
+	StatusCompleted      = "COMPLETED"
+	StatusShortRequested = "SHORT_CLOSE_REQUESTED"
+	StatusShortClosed    = "SHORT_CLOSED"
 
-	StageCustomer    = "CUSTOMER_ORDER"
-	StageProcurement = "PROCUREMENT"
-	StageReceipt     = "RECEIPT"
-	StageDelivery    = "DELIVERY"
-	StageSignoff     = "SIGNOFF"
-	StageSaleOrder   = "SALE_ORDER"
-	StageOutbound    = "OUTBOUND"
+	StageSaleOrder       = "SALE_ORDER"
+	StageOutbound        = "OUTBOUND"
+	StageDelivery        = "DELIVERY"
+	StageSignoff         = "SIGNOFF"
+	StagePurchaseOrder   = "PURCHASE_ORDER"
+	StagePurchaseInbound = "PURCHASE_INBOUND"
 )
 
 type ErrorKind string
@@ -43,38 +42,6 @@ type DomainError struct {
 
 func (e *DomainError) Error() string { return e.Message }
 func (e *DomainError) Unwrap() error { return e.Cause }
-
-type ReferenceInput = voudomain.ReferenceInput
-
-type CustomerLineInput struct {
-	Product              ReferenceInput `json:"product"`
-	OrderedQuantity      string         `json:"orderedQuantity"`
-	UnitPrice            string         `json:"unitPrice"`
-	ContainerType        *string        `json:"containerType,omitempty"`
-	QuantityPerContainer *string        `json:"quantityPerContainer,omitempty"`
-	Remark               string         `json:"remark,omitempty"`
-}
-
-type CustomerOrderInput struct {
-	BusinessDate string              `json:"businessDate"`
-	Currency     string              `json:"currency"`
-	Remark       string              `json:"remark,omitempty"`
-	Customer     ReferenceInput      `json:"customer"`
-	Salesperson  *ReferenceInput     `json:"salesperson,omitempty"`
-	Lines        []CustomerLineInput `json:"lines"`
-}
-
-type CreateInput struct {
-	Data CustomerOrderInput `json:"data"`
-}
-
-type SaveInput struct {
-	ProcessID        string             `json:"processId"`
-	ProcessRevision  int64              `json:"processRevision"`
-	DocumentID       string             `json:"documentId"`
-	DocumentRevision int64              `json:"documentRevision"`
-	Data             CustomerOrderInput `json:"data"`
-}
 
 type SalesCreateInput struct {
 	Data voudomain.DraftInput `json:"data"`
@@ -97,57 +64,6 @@ type ActionInput struct {
 	Reason           string          `json:"reason,omitempty"`
 }
 
-type QuantityLineInput struct {
-	SourceLineID string `json:"sourceLineId"`
-	Quantity     string `json:"quantity"`
-	Remark       string `json:"remark,omitempty"`
-}
-
-type ProcurementLineInput struct {
-	SourceLineID string `json:"sourceLineId"`
-	Quantity     string `json:"quantity"`
-	UnitPrice    string `json:"unitPrice,omitempty"`
-	Remark       string `json:"remark,omitempty"`
-}
-
-type ProcurementInput struct {
-	Supplier     ReferenceInput         `json:"supplier"`
-	Purchaser    *ReferenceInput        `json:"purchaser,omitempty"`
-	BusinessDate string                 `json:"businessDate"`
-	Lines        []ProcurementLineInput `json:"lines"`
-	Remark       string                 `json:"remark,omitempty"`
-}
-
-type ReceiptInput struct {
-	BusinessDate string              `json:"businessDate"`
-	Lines        []QuantityLineInput `json:"lines"`
-	Remark       string              `json:"remark,omitempty"`
-}
-
-type DeliveryInput struct {
-	BusinessDate string              `json:"businessDate"`
-	Platform     ReferenceInput      `json:"platform"`
-	Vehicle      ReferenceInput      `json:"vehicle"`
-	Lines        []QuantityLineInput `json:"lines"`
-	Remark       string              `json:"remark,omitempty"`
-}
-
-type SignoffLineInput struct {
-	SourceLineID     string `json:"sourceLineId"`
-	SignedQuantity   string `json:"signedQuantity"`
-	RejectedQuantity string `json:"rejectedQuantity"`
-	Remark           string `json:"remark,omitempty"`
-}
-
-type SignoffInput struct {
-	BusinessDate              string             `json:"businessDate"`
-	Lines                     []SignoffLineInput `json:"lines"`
-	ReturnedSolventContainers int64              `json:"returnedSolventContainers"`
-	ReturnedResinContainers   int64              `json:"returnedResinContainers"`
-	ContainerDifferenceReason string             `json:"containerDifferenceReason,omitempty"`
-	Remark                    string             `json:"remark,omitempty"`
-}
-
 type QueryInput struct {
 	Page     int      `json:"page"`
 	PageSize int      `json:"pageSize"`
@@ -165,54 +81,6 @@ type HistoryInput struct {
 	PageSize  int    `json:"pageSize"`
 }
 
-type AttachmentInitiateInput struct {
-	ProcessID        string `json:"processId"`
-	ProcessRevision  int64  `json:"processRevision"`
-	DocumentID       string `json:"documentId"`
-	DocumentRevision int64  `json:"documentRevision"`
-	FileName         string `json:"fileName"`
-	ContentType      string `json:"contentType"`
-	Size             int64  `json:"size"`
-	SHA256           string `json:"sha256"`
-}
-
-type AttachmentDownloadInput struct {
-	ProcessID  string `json:"processId"`
-	DocumentID string `json:"documentId"`
-	FileID     string `json:"fileId"`
-}
-
-type AttachmentRemoveInput struct {
-	ProcessID        string `json:"processId"`
-	ProcessRevision  int64  `json:"processRevision"`
-	DocumentID       string `json:"documentId"`
-	DocumentRevision int64  `json:"documentRevision"`
-	FileID           string `json:"fileId"`
-}
-
-type AttachmentInitiateResult struct {
-	ProcessID        string    `json:"processId"`
-	ProcessRevision  int64     `json:"processRevision"`
-	DocumentID       string    `json:"documentId"`
-	DocumentRevision int64     `json:"documentRevision"`
-	FileID           string    `json:"fileId"`
-	UploadURL        string    `json:"uploadUrl"`
-	ExpiresAt        time.Time `json:"expiresAt"`
-}
-
-type AttachmentDownloadResult struct {
-	DownloadURL string    `json:"downloadUrl"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-}
-
-type AttachmentRemoveResult struct {
-	ProcessID        string `json:"processId"`
-	ProcessRevision  int64  `json:"processRevision"`
-	DocumentID       string `json:"documentId"`
-	DocumentRevision int64  `json:"documentRevision"`
-	DocumentStatus   string `json:"documentStatus"`
-}
-
 type DocumentSummary struct {
 	DocumentID       string                     `json:"documentId"`
 	DocumentNo       string                     `json:"documentNo"`
@@ -220,8 +88,9 @@ type DocumentSummary struct {
 	Stage            string                     `json:"stage"`
 	Status           string                     `json:"status"`
 	Revision         int64                      `json:"revision"`
+	ParentEntity     string                     `json:"parentEntity,omitempty"`
 	ParentDocumentID string                     `json:"parentDocumentId,omitempty"`
-	SourceDocumentNo string                     `json:"sourceDocumentNo,omitempty"`
+	ParentDocumentNo string                     `json:"parentDocumentNo,omitempty"`
 	BusinessDate     string                     `json:"businessDate"`
 	Currency         string                     `json:"currency"`
 	Amount           string                     `json:"amount"`

@@ -925,7 +925,8 @@
               'summary': '创建业务单据',
               'operationId': 'voucreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/VouCreatableEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -1148,108 +1149,6 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/short-close-request':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '申请短结销售订单',
-              'operationId': 'vouSaleOrderShortCloseRequest',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/short-close-cancel':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '取消销售订单短结申请',
-              'operationId': 'vouSaleOrderShortCloseCancel',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/short-close-confirm':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '确认短结销售订单',
-              'operationId': 'vouSaleOrderShortCloseConfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/vou.yaml#/VouDocumentRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/short-close-unconfirm':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '反确认短结销售订单',
-              'operationId': 'vouSaleOrderShortCloseUnconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
       '/vou/{entity}/audit-history':
         {
           'post':
@@ -1356,13 +1255,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/query':
+      '/wfl/sales-fulfillment/query':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '查询居间贸易流程',
-              'operationId': 'wflIntermediaryTradequery',
+              'summary': '查询销售履约流程',
+              'operationId': 'wflSalesFulfillmentQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1380,13 +1279,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/get':
+      '/wfl/sales-fulfillment/get':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '读取居间贸易流程',
-              'operationId': 'wflIntermediaryTradeget',
+              'summary': '读取销售履约流程',
+              'operationId': 'wflSalesFulfillmentGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1404,61 +1303,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/create':
+      '/wfl/sales-fulfillment/audit-history':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '创建居间贸易流程',
-              'operationId': 'wflIntermediaryTradecreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存居间贸易客户订单',
-              'operationId': 'wflIntermediaryTradesave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflSaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/audit-history':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询居间贸易审计历史',
-              'operationId': 'wflIntermediaryTradeaudithistory',
+              'summary': '查询销售履约审计',
+              'operationId': 'wflSalesFulfillmentAuditHistory',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1476,13 +1327,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/check':
+      '/wfl/sales-fulfillment/short-close-request':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 check',
-              'operationId': 'wflIntermediaryTradecheck',
+              'summary': '申请销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseRequest',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1500,13 +1351,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/uncheck':
+      '/wfl/sales-fulfillment/short-close-cancel':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 uncheck',
-              'operationId': 'wflIntermediaryTradeuncheck',
+              'summary': '取消销售履约短结申请',
+              'operationId': 'wflSalesFulfillmentShortCloseCancel',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1524,13 +1375,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/approve':
+      '/wfl/sales-fulfillment/short-close-confirm':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 approve',
-              'operationId': 'wflIntermediaryTradeapprove',
+              'summary': '确认销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseConfirm',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1548,13 +1399,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/unapprove':
+      '/wfl/sales-fulfillment/short-close-unconfirm':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 unapprove',
-              'operationId': 'wflIntermediaryTradeunapprove',
+              'summary': '撤销销售履约短结',
+              'operationId': 'wflSalesFulfillmentShortCloseUnconfirm',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1572,13 +1423,85 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/short-close-request':
+      '/wfl/purchase-fulfillment/query':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 short-close-request',
-              'operationId': 'wflIntermediaryTradeshortcloserequest',
+              'summary': '查询采购履约流程',
+              'operationId': 'wflPurchaseFulfillmentQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取采购履约流程',
+              'operationId': 'wflPurchaseFulfillmentGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询采购履约审计',
+              'operationId': 'wflPurchaseFulfillmentAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/short-close-request':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '申请采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseRequest',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1596,13 +1519,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/short-close-cancel':
+      '/wfl/purchase-fulfillment/short-close-cancel':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 short-close-cancel',
-              'operationId': 'wflIntermediaryTradeshortclosecancel',
+              'summary': '取消采购履约短结申请',
+              'operationId': 'wflPurchaseFulfillmentShortCloseCancel',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1620,13 +1543,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/short-close-confirm':
+      '/wfl/purchase-fulfillment/short-close-confirm':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 short-close-confirm',
-              'operationId': 'wflIntermediaryTradeshortcloseconfirm',
+              'summary': '确认采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseConfirm',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1644,13 +1567,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/intermediary-trade/short-close-unconfirm':
+      '/wfl/purchase-fulfillment/short-close-unconfirm':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '居间贸易 short-close-unconfirm',
-              'operationId': 'wflIntermediaryTradeshortcloseunconfirm',
+              'summary': '撤销采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseUnconfirm',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1661,1094 +1584,6 @@
                         {
                           'schema':
                             { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-create',
-              'operationId': 'wflIntermediaryTradeprocurementcreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-get',
-              'operationId': 'wflIntermediaryTradeprocurementget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-save',
-              'operationId': 'wflIntermediaryTradeprocurementsave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-delete':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-delete',
-              'operationId': 'wflIntermediaryTradeprocurementdelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-check',
-              'operationId': 'wflIntermediaryTradeprocurementcheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-uncheck',
-              'operationId': 'wflIntermediaryTradeprocurementuncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-place':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-place',
-              'operationId': 'wflIntermediaryTradeprocurementplace',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-unplace':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement-unplace',
-              'operationId': 'wflIntermediaryTradeprocurementunplace',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-create',
-              'operationId': 'wflIntermediaryTradereceiptcreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-get',
-              'operationId': 'wflIntermediaryTradereceiptget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-save',
-              'operationId': 'wflIntermediaryTradereceiptsave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-delete':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-delete',
-              'operationId': 'wflIntermediaryTradereceiptdelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-check',
-              'operationId': 'wflIntermediaryTradereceiptcheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-uncheck',
-              'operationId': 'wflIntermediaryTradereceiptuncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-confirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-confirm',
-              'operationId': 'wflIntermediaryTradereceiptconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-unconfirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt-unconfirm',
-              'operationId': 'wflIntermediaryTradereceiptunconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-create',
-              'operationId': 'wflIntermediaryTradedeliverycreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-get',
-              'operationId': 'wflIntermediaryTradedeliveryget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-save',
-              'operationId': 'wflIntermediaryTradedeliverysave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-delete':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-delete',
-              'operationId': 'wflIntermediaryTradedeliverydelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-check',
-              'operationId': 'wflIntermediaryTradedeliverycheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-uncheck',
-              'operationId': 'wflIntermediaryTradedeliveryuncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-execute':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-execute',
-              'operationId': 'wflIntermediaryTradedeliveryexecute',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-unexecute':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery-unexecute',
-              'operationId': 'wflIntermediaryTradedeliveryunexecute',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-create',
-              'operationId': 'wflIntermediaryTradesignoffcreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-get',
-              'operationId': 'wflIntermediaryTradesignoffget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflStageGetRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-save',
-              'operationId': 'wflIntermediaryTradesignoffsave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-delete':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-delete',
-              'operationId': 'wflIntermediaryTradesignoffdelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-check',
-              'operationId': 'wflIntermediaryTradesignoffcheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-uncheck',
-              'operationId': 'wflIntermediaryTradesignoffuncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-confirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-confirm',
-              'operationId': 'wflIntermediaryTradesignoffconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-unconfirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff-unconfirm',
-              'operationId': 'wflIntermediaryTradesignoffunconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-attachment-initiate':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement 附件 initiate',
-              'operationId': 'wflIntermediaryTradeprocurementattachmentinitiate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-attachment-download':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement 附件 download',
-              'operationId': 'wflIntermediaryTradeprocurementattachmentdownload',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/procurement-attachment-remove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 procurement 附件 remove',
-              'operationId': 'wflIntermediaryTradeprocurementattachmentremove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-attachment-initiate':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt 附件 initiate',
-              'operationId': 'wflIntermediaryTradereceiptattachmentinitiate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-attachment-download':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt 附件 download',
-              'operationId': 'wflIntermediaryTradereceiptattachmentdownload',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/receipt-attachment-remove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 receipt 附件 remove',
-              'operationId': 'wflIntermediaryTradereceiptattachmentremove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-attachment-initiate':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery 附件 initiate',
-              'operationId': 'wflIntermediaryTradedeliveryattachmentinitiate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-attachment-download':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery 附件 download',
-              'operationId': 'wflIntermediaryTradedeliveryattachmentdownload',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/delivery-attachment-remove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 delivery 附件 remove',
-              'operationId': 'wflIntermediaryTradedeliveryattachmentremove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-attachment-initiate':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff 附件 initiate',
-              'operationId': 'wflIntermediaryTradesignoffattachmentinitiate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-attachment-download':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff 附件 download',
-              'operationId': 'wflIntermediaryTradesignoffattachmentdownload',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/intermediary-trade/signoff-attachment-remove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '居间贸易 signoff 附件 remove',
-              'operationId': 'wflIntermediaryTradesignoffattachmentremove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
-                            },
                         },
                     },
                 },
@@ -3203,942 +2038,6 @@
                 },
             },
         },
-      '/wfl/sales-fulfillment/query':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询销售履约流程',
-              'operationId': 'wflSalesFulfillmentQuery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取销售履约流程',
-              'operationId': 'wflSalesFulfillmentGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '创建销售履约流程',
-              'operationId': 'wflSalesFulfillmentCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存销售订单',
-              'operationId': 'wflSalesFulfillmentSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflSaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/audit-history':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询销售履约审计',
-              'operationId': 'wflSalesFulfillmentAuditHistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '核对销售订单',
-              'operationId': 'wflSalesFulfillmentCheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反核对销售订单',
-              'operationId': 'wflSalesFulfillmentUncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/approve':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '批准销售订单并自动生成出库草稿',
-              'operationId': 'wflSalesFulfillmentApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/unapprove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反批准销售订单',
-              'operationId': 'wflSalesFulfillmentUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/finalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '完成销售订单',
-              'operationId': 'wflSalesFulfillmentFinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/unfinalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤销完成销售订单',
-              'operationId': 'wflSalesFulfillmentUnfinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/short-close-request':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '申请销售履约短结',
-              'operationId': 'wflSalesFulfillmentShortCloseRequest',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/short-close-cancel':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '取消销售履约短结申请',
-              'operationId': 'wflSalesFulfillmentShortCloseCancel',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/short-close-confirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '确认销售履约短结',
-              'operationId': 'wflSalesFulfillmentShortCloseConfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/short-close-unconfirm':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤销销售履约短结',
-              'operationId': 'wflSalesFulfillmentShortCloseUnconfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取自动生成的销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '核对销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundCheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反核对销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundUncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-approve':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '批准销售出库单并自动生成配送草稿',
-              'operationId': 'wflSalesFulfillmentOutboundApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-unapprove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反批准销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-finalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '完成销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundFinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/outbound-unfinalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤销完成销售出库单',
-              'operationId': 'wflSalesFulfillmentOutboundUnfinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取自动生成的销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliverySave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '核对销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryCheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反核对销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryUncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-approve':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '批准销售配送单并自动生成签收草稿',
-              'operationId': 'wflSalesFulfillmentDeliveryApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-unapprove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反批准销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-finalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '完成销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryFinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/delivery-unfinalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤销完成销售配送单',
-              'operationId': 'wflSalesFulfillmentDeliveryUnfinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取自动生成的销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-check':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '核对销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffCheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-uncheck':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反核对销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffUncheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-approve':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '批准销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-unapprove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反批准销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-finalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '完成销售签收单并更新履约余额',
-              'operationId': 'wflSalesFulfillmentSignoffFinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/sales-fulfillment/signoff-unfinalize':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤销完成销售签收单',
-              'operationId': 'wflSalesFulfillmentSignoffUnfinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
     },
   'components':
     {
@@ -4174,6 +2073,13 @@
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/vou.yaml#/VouEntity' },
+            },
+          'VouCreatableEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/vou.yaml#/VouCreatableEntity' },
             },
           'FileToken':
             {

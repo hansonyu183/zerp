@@ -127,42 +127,75 @@ func (e PageRequestSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for VouCreatableEntity.
+const (
+	VouCreatableEntityExpenseReimbursement VouCreatableEntity = "expense-reimbursement"
+	VouCreatableEntityOtherIncome          VouCreatableEntity = "other-income"
+	VouCreatableEntityPayment              VouCreatableEntity = "payment"
+	VouCreatableEntityPurchaseInbound      VouCreatableEntity = "purchase-inbound"
+	VouCreatableEntityPurchaseOrder        VouCreatableEntity = "purchase-order"
+	VouCreatableEntityReceipt              VouCreatableEntity = "receipt"
+	VouCreatableEntitySaleOrder            VouCreatableEntity = "sale-order"
+)
+
+// Valid indicates whether the value is a known member of the VouCreatableEntity enum.
+func (e VouCreatableEntity) Valid() bool {
+	switch e {
+	case VouCreatableEntityExpenseReimbursement:
+		return true
+	case VouCreatableEntityOtherIncome:
+		return true
+	case VouCreatableEntityPayment:
+		return true
+	case VouCreatableEntityPurchaseInbound:
+		return true
+	case VouCreatableEntityPurchaseOrder:
+		return true
+	case VouCreatableEntityReceipt:
+		return true
+	case VouCreatableEntitySaleOrder:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VouEntity.
 const (
-	ExpenseReimbursement  VouEntity = "expense-reimbursement"
-	IntermediarySaleOrder VouEntity = "intermediary-sale-order"
-	OtherIncome           VouEntity = "other-income"
-	Payment               VouEntity = "payment"
-	PurchaseOrder         VouEntity = "purchase-order"
-	Receipt               VouEntity = "receipt"
-	SaleDelivery          VouEntity = "sale-delivery"
-	SaleOrder             VouEntity = "sale-order"
-	SaleOutbound          VouEntity = "sale-outbound"
-	SaleSignoff           VouEntity = "sale-signoff"
+	VouEntityExpenseReimbursement VouEntity = "expense-reimbursement"
+	VouEntityOtherIncome          VouEntity = "other-income"
+	VouEntityPayment              VouEntity = "payment"
+	VouEntityPurchaseInbound      VouEntity = "purchase-inbound"
+	VouEntityPurchaseOrder        VouEntity = "purchase-order"
+	VouEntityReceipt              VouEntity = "receipt"
+	VouEntitySaleDelivery         VouEntity = "sale-delivery"
+	VouEntitySaleOrder            VouEntity = "sale-order"
+	VouEntitySaleOutbound         VouEntity = "sale-outbound"
+	VouEntitySaleSignoff          VouEntity = "sale-signoff"
 )
 
 // Valid indicates whether the value is a known member of the VouEntity enum.
 func (e VouEntity) Valid() bool {
 	switch e {
-	case ExpenseReimbursement:
+	case VouEntityExpenseReimbursement:
 		return true
-	case IntermediarySaleOrder:
+	case VouEntityOtherIncome:
 		return true
-	case OtherIncome:
+	case VouEntityPayment:
 		return true
-	case Payment:
+	case VouEntityPurchaseInbound:
 		return true
-	case PurchaseOrder:
+	case VouEntityPurchaseOrder:
 		return true
-	case Receipt:
+	case VouEntityReceipt:
 		return true
-	case SaleDelivery:
+	case VouEntitySaleDelivery:
 		return true
-	case SaleOrder:
+	case VouEntitySaleOrder:
 		return true
-	case SaleOutbound:
+	case VouEntitySaleOutbound:
 		return true
-	case SaleSignoff:
+	case VouEntitySaleSignoff:
 		return true
 	default:
 		return false
@@ -544,6 +577,9 @@ type VouAttachmentRemoveRequest struct {
 	Revision   int64  `json:"revision"`
 }
 
+// VouCreatableEntity defines model for VouCreatableEntity.
+type VouCreatableEntity string
+
 // VouCreateRequest defines model for VouCreateRequest.
 type VouCreateRequest struct {
 	Data struct {
@@ -608,8 +644,7 @@ type VouCreateRequest struct {
 			SignedQuantity   string  `json:"signedQuantity"`
 			SourceLineId     string  `json:"sourceLineId"`
 		} `json:"signoffLines,omitempty"`
-		SourceDocumentId *string `json:"sourceDocumentId,omitempty"`
-		SourceLines      *[]struct {
+		SourceLines *[]struct {
 			Quantity     string  `json:"quantity"`
 			Remark       *string `json:"remark,omitempty"`
 			SourceLineId string  `json:"sourceLineId"`
@@ -628,6 +663,8 @@ type VouCreateRequest struct {
 			VersionId string `json:"versionId"`
 		} `json:"warehouse,omitempty"`
 	} `json:"data"`
+	ParentDocumentId *string    `json:"parentDocumentId,omitempty"`
+	ParentEntity     *VouEntity `json:"parentEntity,omitempty"`
 }
 
 // VouDocumentRevisionRequest defines model for VouDocumentRevisionRequest.
@@ -762,8 +799,7 @@ type VouSaveRequest struct {
 			SignedQuantity   string  `json:"signedQuantity"`
 			SourceLineId     string  `json:"sourceLineId"`
 		} `json:"signoffLines,omitempty"`
-		SourceDocumentId *string `json:"sourceDocumentId,omitempty"`
-		SourceLines      *[]struct {
+		SourceLines *[]struct {
 			Quantity     string  `json:"quantity"`
 			Remark       *string `json:"remark,omitempty"`
 			SourceLineId string  `json:"sourceLineId"`
@@ -796,39 +832,6 @@ type WflActionRequest struct {
 	Reason           *string                 `json:"reason,omitempty"`
 }
 
-// WflAttachmentDownloadRequest defines model for WflAttachmentDownloadRequest.
-type WflAttachmentDownloadRequest struct {
-	DocumentId string `json:"documentId"`
-	FileId     string `json:"fileId"`
-	ProcessId  string `json:"processId"`
-}
-
-// WflAttachmentInitiateRequest defines model for WflAttachmentInitiateRequest.
-type WflAttachmentInitiateRequest struct {
-	ContentType      string `json:"contentType"`
-	DocumentId       string `json:"documentId"`
-	DocumentRevision int64  `json:"documentRevision"`
-	FileName         string `json:"fileName"`
-	ProcessId        string `json:"processId"`
-	ProcessRevision  int64  `json:"processRevision"`
-	Sha256           string `json:"sha256"`
-	Size             int64  `json:"size"`
-}
-
-// WflAttachmentRemoveRequest defines model for WflAttachmentRemoveRequest.
-type WflAttachmentRemoveRequest struct {
-	DocumentId       string `json:"documentId"`
-	DocumentRevision int64  `json:"documentRevision"`
-	FileId           string `json:"fileId"`
-	ProcessId        string `json:"processId"`
-	ProcessRevision  int64  `json:"processRevision"`
-}
-
-// WflCreateRequest defines model for WflCreateRequest.
-type WflCreateRequest struct {
-	Data map[string]interface{} `json:"data"`
-}
-
 // WflGetRequest defines model for WflGetRequest.
 type WflGetRequest struct {
 	ProcessId string `json:"processId"`
@@ -847,21 +850,6 @@ type WflQueryRequest struct {
 	Page     int       `json:"page"`
 	PageSize int       `json:"pageSize"`
 	Statuses *[]string `json:"statuses,omitempty"`
-}
-
-// WflSaveRequest defines model for WflSaveRequest.
-type WflSaveRequest struct {
-	Data             map[string]interface{} `json:"data"`
-	DocumentId       string                 `json:"documentId"`
-	DocumentRevision int64                  `json:"documentRevision"`
-	ProcessId        string                 `json:"processId"`
-	ProcessRevision  int64                  `json:"processRevision"`
-}
-
-// WflStageGetRequest defines model for WflStageGetRequest.
-type WflStageGetRequest struct {
-	DocumentId string `json:"documentId"`
-	ProcessId  string `json:"processId"`
 }
 
 // FileToken defines model for FileToken.
@@ -1053,18 +1041,6 @@ type VouqueryJSONRequestBody = VouQueryRequest
 // VousaveJSONRequestBody defines body for Vousave for application/json ContentType.
 type VousaveJSONRequestBody = VouSaveRequest
 
-// VouSaleOrderShortCloseCancelJSONRequestBody defines body for VouSaleOrderShortCloseCancel for application/json ContentType.
-type VouSaleOrderShortCloseCancelJSONRequestBody = VouReverseRequest
-
-// VouSaleOrderShortCloseConfirmJSONRequestBody defines body for VouSaleOrderShortCloseConfirm for application/json ContentType.
-type VouSaleOrderShortCloseConfirmJSONRequestBody = VouDocumentRevisionRequest
-
-// VouSaleOrderShortCloseRequestJSONRequestBody defines body for VouSaleOrderShortCloseRequest for application/json ContentType.
-type VouSaleOrderShortCloseRequestJSONRequestBody = VouReverseRequest
-
-// VouSaleOrderShortCloseUnconfirmJSONRequestBody defines body for VouSaleOrderShortCloseUnconfirm for application/json ContentType.
-type VouSaleOrderShortCloseUnconfirmJSONRequestBody = VouReverseRequest
-
 // VouunapproveJSONRequestBody defines body for Vouunapprove for application/json ContentType.
 type VouunapproveJSONRequestBody = VouReverseRequest
 
@@ -1074,248 +1050,35 @@ type VouuncheckJSONRequestBody = VouReverseRequest
 // VouunfinalizeJSONRequestBody defines body for Vouunfinalize for application/json ContentType.
 type VouunfinalizeJSONRequestBody = VouReverseRequest
 
-// WflIntermediaryTradeapproveJSONRequestBody defines body for WflIntermediaryTradeapprove for application/json ContentType.
-type WflIntermediaryTradeapproveJSONRequestBody = WflActionRequest
+// WflPurchaseFulfillmentAuditHistoryJSONRequestBody defines body for WflPurchaseFulfillmentAuditHistory for application/json ContentType.
+type WflPurchaseFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
 
-// WflIntermediaryTradeaudithistoryJSONRequestBody defines body for WflIntermediaryTradeaudithistory for application/json ContentType.
-type WflIntermediaryTradeaudithistoryJSONRequestBody = WflHistoryRequest
+// WflPurchaseFulfillmentGetJSONRequestBody defines body for WflPurchaseFulfillmentGet for application/json ContentType.
+type WflPurchaseFulfillmentGetJSONRequestBody = WflGetRequest
 
-// WflIntermediaryTradecheckJSONRequestBody defines body for WflIntermediaryTradecheck for application/json ContentType.
-type WflIntermediaryTradecheckJSONRequestBody = WflActionRequest
+// WflPurchaseFulfillmentQueryJSONRequestBody defines body for WflPurchaseFulfillmentQuery for application/json ContentType.
+type WflPurchaseFulfillmentQueryJSONRequestBody = WflQueryRequest
 
-// WflIntermediaryTradecreateJSONRequestBody defines body for WflIntermediaryTradecreate for application/json ContentType.
-type WflIntermediaryTradecreateJSONRequestBody = WflCreateRequest
+// WflPurchaseFulfillmentShortCloseCancelJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseCancel for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseCancelJSONRequestBody = WflActionRequest
 
-// WflIntermediaryTradedeliveryattachmentdownloadJSONRequestBody defines body for WflIntermediaryTradedeliveryattachmentdownload for application/json ContentType.
-type WflIntermediaryTradedeliveryattachmentdownloadJSONRequestBody = WflAttachmentDownloadRequest
+// WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseConfirm for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody = WflActionRequest
 
-// WflIntermediaryTradedeliveryattachmentinitiateJSONRequestBody defines body for WflIntermediaryTradedeliveryattachmentinitiate for application/json ContentType.
-type WflIntermediaryTradedeliveryattachmentinitiateJSONRequestBody = WflAttachmentInitiateRequest
+// WflPurchaseFulfillmentShortCloseRequestJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseRequest for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
 
-// WflIntermediaryTradedeliveryattachmentremoveJSONRequestBody defines body for WflIntermediaryTradedeliveryattachmentremove for application/json ContentType.
-type WflIntermediaryTradedeliveryattachmentremoveJSONRequestBody = WflAttachmentRemoveRequest
-
-// WflIntermediaryTradedeliverycheckJSONRequestBody defines body for WflIntermediaryTradedeliverycheck for application/json ContentType.
-type WflIntermediaryTradedeliverycheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliverycreateJSONRequestBody defines body for WflIntermediaryTradedeliverycreate for application/json ContentType.
-type WflIntermediaryTradedeliverycreateJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliverydeleteJSONRequestBody defines body for WflIntermediaryTradedeliverydelete for application/json ContentType.
-type WflIntermediaryTradedeliverydeleteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliveryexecuteJSONRequestBody defines body for WflIntermediaryTradedeliveryexecute for application/json ContentType.
-type WflIntermediaryTradedeliveryexecuteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliverygetJSONRequestBody defines body for WflIntermediaryTradedeliveryget for application/json ContentType.
-type WflIntermediaryTradedeliverygetJSONRequestBody = WflStageGetRequest
-
-// WflIntermediaryTradedeliverysaveJSONRequestBody defines body for WflIntermediaryTradedeliverysave for application/json ContentType.
-type WflIntermediaryTradedeliverysaveJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliveryuncheckJSONRequestBody defines body for WflIntermediaryTradedeliveryuncheck for application/json ContentType.
-type WflIntermediaryTradedeliveryuncheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradedeliveryunexecuteJSONRequestBody defines body for WflIntermediaryTradedeliveryunexecute for application/json ContentType.
-type WflIntermediaryTradedeliveryunexecuteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradegetJSONRequestBody defines body for WflIntermediaryTradeget for application/json ContentType.
-type WflIntermediaryTradegetJSONRequestBody = WflGetRequest
-
-// WflIntermediaryTradeprocurementattachmentdownloadJSONRequestBody defines body for WflIntermediaryTradeprocurementattachmentdownload for application/json ContentType.
-type WflIntermediaryTradeprocurementattachmentdownloadJSONRequestBody = WflAttachmentDownloadRequest
-
-// WflIntermediaryTradeprocurementattachmentinitiateJSONRequestBody defines body for WflIntermediaryTradeprocurementattachmentinitiate for application/json ContentType.
-type WflIntermediaryTradeprocurementattachmentinitiateJSONRequestBody = WflAttachmentInitiateRequest
-
-// WflIntermediaryTradeprocurementattachmentremoveJSONRequestBody defines body for WflIntermediaryTradeprocurementattachmentremove for application/json ContentType.
-type WflIntermediaryTradeprocurementattachmentremoveJSONRequestBody = WflAttachmentRemoveRequest
-
-// WflIntermediaryTradeprocurementcheckJSONRequestBody defines body for WflIntermediaryTradeprocurementcheck for application/json ContentType.
-type WflIntermediaryTradeprocurementcheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementcreateJSONRequestBody defines body for WflIntermediaryTradeprocurementcreate for application/json ContentType.
-type WflIntermediaryTradeprocurementcreateJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementdeleteJSONRequestBody defines body for WflIntermediaryTradeprocurementdelete for application/json ContentType.
-type WflIntermediaryTradeprocurementdeleteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementgetJSONRequestBody defines body for WflIntermediaryTradeprocurementget for application/json ContentType.
-type WflIntermediaryTradeprocurementgetJSONRequestBody = WflStageGetRequest
-
-// WflIntermediaryTradeprocurementplaceJSONRequestBody defines body for WflIntermediaryTradeprocurementplace for application/json ContentType.
-type WflIntermediaryTradeprocurementplaceJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementsaveJSONRequestBody defines body for WflIntermediaryTradeprocurementsave for application/json ContentType.
-type WflIntermediaryTradeprocurementsaveJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementuncheckJSONRequestBody defines body for WflIntermediaryTradeprocurementuncheck for application/json ContentType.
-type WflIntermediaryTradeprocurementuncheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeprocurementunplaceJSONRequestBody defines body for WflIntermediaryTradeprocurementunplace for application/json ContentType.
-type WflIntermediaryTradeprocurementunplaceJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradequeryJSONRequestBody defines body for WflIntermediaryTradequery for application/json ContentType.
-type WflIntermediaryTradequeryJSONRequestBody = WflQueryRequest
-
-// WflIntermediaryTradereceiptattachmentdownloadJSONRequestBody defines body for WflIntermediaryTradereceiptattachmentdownload for application/json ContentType.
-type WflIntermediaryTradereceiptattachmentdownloadJSONRequestBody = WflAttachmentDownloadRequest
-
-// WflIntermediaryTradereceiptattachmentinitiateJSONRequestBody defines body for WflIntermediaryTradereceiptattachmentinitiate for application/json ContentType.
-type WflIntermediaryTradereceiptattachmentinitiateJSONRequestBody = WflAttachmentInitiateRequest
-
-// WflIntermediaryTradereceiptattachmentremoveJSONRequestBody defines body for WflIntermediaryTradereceiptattachmentremove for application/json ContentType.
-type WflIntermediaryTradereceiptattachmentremoveJSONRequestBody = WflAttachmentRemoveRequest
-
-// WflIntermediaryTradereceiptcheckJSONRequestBody defines body for WflIntermediaryTradereceiptcheck for application/json ContentType.
-type WflIntermediaryTradereceiptcheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptconfirmJSONRequestBody defines body for WflIntermediaryTradereceiptconfirm for application/json ContentType.
-type WflIntermediaryTradereceiptconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptcreateJSONRequestBody defines body for WflIntermediaryTradereceiptcreate for application/json ContentType.
-type WflIntermediaryTradereceiptcreateJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptdeleteJSONRequestBody defines body for WflIntermediaryTradereceiptdelete for application/json ContentType.
-type WflIntermediaryTradereceiptdeleteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptgetJSONRequestBody defines body for WflIntermediaryTradereceiptget for application/json ContentType.
-type WflIntermediaryTradereceiptgetJSONRequestBody = WflStageGetRequest
-
-// WflIntermediaryTradereceiptsaveJSONRequestBody defines body for WflIntermediaryTradereceiptsave for application/json ContentType.
-type WflIntermediaryTradereceiptsaveJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptuncheckJSONRequestBody defines body for WflIntermediaryTradereceiptuncheck for application/json ContentType.
-type WflIntermediaryTradereceiptuncheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradereceiptunconfirmJSONRequestBody defines body for WflIntermediaryTradereceiptunconfirm for application/json ContentType.
-type WflIntermediaryTradereceiptunconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesaveJSONRequestBody defines body for WflIntermediaryTradesave for application/json ContentType.
-type WflIntermediaryTradesaveJSONRequestBody = WflSaveRequest
-
-// WflIntermediaryTradeshortclosecancelJSONRequestBody defines body for WflIntermediaryTradeshortclosecancel for application/json ContentType.
-type WflIntermediaryTradeshortclosecancelJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeshortcloseconfirmJSONRequestBody defines body for WflIntermediaryTradeshortcloseconfirm for application/json ContentType.
-type WflIntermediaryTradeshortcloseconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeshortcloserequestJSONRequestBody defines body for WflIntermediaryTradeshortcloserequest for application/json ContentType.
-type WflIntermediaryTradeshortcloserequestJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeshortcloseunconfirmJSONRequestBody defines body for WflIntermediaryTradeshortcloseunconfirm for application/json ContentType.
-type WflIntermediaryTradeshortcloseunconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffattachmentdownloadJSONRequestBody defines body for WflIntermediaryTradesignoffattachmentdownload for application/json ContentType.
-type WflIntermediaryTradesignoffattachmentdownloadJSONRequestBody = WflAttachmentDownloadRequest
-
-// WflIntermediaryTradesignoffattachmentinitiateJSONRequestBody defines body for WflIntermediaryTradesignoffattachmentinitiate for application/json ContentType.
-type WflIntermediaryTradesignoffattachmentinitiateJSONRequestBody = WflAttachmentInitiateRequest
-
-// WflIntermediaryTradesignoffattachmentremoveJSONRequestBody defines body for WflIntermediaryTradesignoffattachmentremove for application/json ContentType.
-type WflIntermediaryTradesignoffattachmentremoveJSONRequestBody = WflAttachmentRemoveRequest
-
-// WflIntermediaryTradesignoffcheckJSONRequestBody defines body for WflIntermediaryTradesignoffcheck for application/json ContentType.
-type WflIntermediaryTradesignoffcheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffconfirmJSONRequestBody defines body for WflIntermediaryTradesignoffconfirm for application/json ContentType.
-type WflIntermediaryTradesignoffconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffcreateJSONRequestBody defines body for WflIntermediaryTradesignoffcreate for application/json ContentType.
-type WflIntermediaryTradesignoffcreateJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffdeleteJSONRequestBody defines body for WflIntermediaryTradesignoffdelete for application/json ContentType.
-type WflIntermediaryTradesignoffdeleteJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffgetJSONRequestBody defines body for WflIntermediaryTradesignoffget for application/json ContentType.
-type WflIntermediaryTradesignoffgetJSONRequestBody = WflStageGetRequest
-
-// WflIntermediaryTradesignoffsaveJSONRequestBody defines body for WflIntermediaryTradesignoffsave for application/json ContentType.
-type WflIntermediaryTradesignoffsaveJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffuncheckJSONRequestBody defines body for WflIntermediaryTradesignoffuncheck for application/json ContentType.
-type WflIntermediaryTradesignoffuncheckJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradesignoffunconfirmJSONRequestBody defines body for WflIntermediaryTradesignoffunconfirm for application/json ContentType.
-type WflIntermediaryTradesignoffunconfirmJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeunapproveJSONRequestBody defines body for WflIntermediaryTradeunapprove for application/json ContentType.
-type WflIntermediaryTradeunapproveJSONRequestBody = WflActionRequest
-
-// WflIntermediaryTradeuncheckJSONRequestBody defines body for WflIntermediaryTradeuncheck for application/json ContentType.
-type WflIntermediaryTradeuncheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentApproveJSONRequestBody defines body for WflSalesFulfillmentApprove for application/json ContentType.
-type WflSalesFulfillmentApproveJSONRequestBody = WflActionRequest
+// WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseUnconfirm for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
 
 // WflSalesFulfillmentAuditHistoryJSONRequestBody defines body for WflSalesFulfillmentAuditHistory for application/json ContentType.
 type WflSalesFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
 
-// WflSalesFulfillmentCheckJSONRequestBody defines body for WflSalesFulfillmentCheck for application/json ContentType.
-type WflSalesFulfillmentCheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentCreateJSONRequestBody defines body for WflSalesFulfillmentCreate for application/json ContentType.
-type WflSalesFulfillmentCreateJSONRequestBody = WflCreateRequest
-
-// WflSalesFulfillmentDeliveryApproveJSONRequestBody defines body for WflSalesFulfillmentDeliveryApprove for application/json ContentType.
-type WflSalesFulfillmentDeliveryApproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryCheckJSONRequestBody defines body for WflSalesFulfillmentDeliveryCheck for application/json ContentType.
-type WflSalesFulfillmentDeliveryCheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryFinalizeJSONRequestBody defines body for WflSalesFulfillmentDeliveryFinalize for application/json ContentType.
-type WflSalesFulfillmentDeliveryFinalizeJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryGetJSONRequestBody defines body for WflSalesFulfillmentDeliveryGet for application/json ContentType.
-type WflSalesFulfillmentDeliveryGetJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliverySaveJSONRequestBody defines body for WflSalesFulfillmentDeliverySave for application/json ContentType.
-type WflSalesFulfillmentDeliverySaveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryUnapproveJSONRequestBody defines body for WflSalesFulfillmentDeliveryUnapprove for application/json ContentType.
-type WflSalesFulfillmentDeliveryUnapproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryUncheckJSONRequestBody defines body for WflSalesFulfillmentDeliveryUncheck for application/json ContentType.
-type WflSalesFulfillmentDeliveryUncheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentDeliveryUnfinalizeJSONRequestBody defines body for WflSalesFulfillmentDeliveryUnfinalize for application/json ContentType.
-type WflSalesFulfillmentDeliveryUnfinalizeJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentFinalizeJSONRequestBody defines body for WflSalesFulfillmentFinalize for application/json ContentType.
-type WflSalesFulfillmentFinalizeJSONRequestBody = WflActionRequest
-
 // WflSalesFulfillmentGetJSONRequestBody defines body for WflSalesFulfillmentGet for application/json ContentType.
 type WflSalesFulfillmentGetJSONRequestBody = WflGetRequest
 
-// WflSalesFulfillmentOutboundApproveJSONRequestBody defines body for WflSalesFulfillmentOutboundApprove for application/json ContentType.
-type WflSalesFulfillmentOutboundApproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundCheckJSONRequestBody defines body for WflSalesFulfillmentOutboundCheck for application/json ContentType.
-type WflSalesFulfillmentOutboundCheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundFinalizeJSONRequestBody defines body for WflSalesFulfillmentOutboundFinalize for application/json ContentType.
-type WflSalesFulfillmentOutboundFinalizeJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundGetJSONRequestBody defines body for WflSalesFulfillmentOutboundGet for application/json ContentType.
-type WflSalesFulfillmentOutboundGetJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundSaveJSONRequestBody defines body for WflSalesFulfillmentOutboundSave for application/json ContentType.
-type WflSalesFulfillmentOutboundSaveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundUnapproveJSONRequestBody defines body for WflSalesFulfillmentOutboundUnapprove for application/json ContentType.
-type WflSalesFulfillmentOutboundUnapproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundUncheckJSONRequestBody defines body for WflSalesFulfillmentOutboundUncheck for application/json ContentType.
-type WflSalesFulfillmentOutboundUncheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentOutboundUnfinalizeJSONRequestBody defines body for WflSalesFulfillmentOutboundUnfinalize for application/json ContentType.
-type WflSalesFulfillmentOutboundUnfinalizeJSONRequestBody = WflActionRequest
-
 // WflSalesFulfillmentQueryJSONRequestBody defines body for WflSalesFulfillmentQuery for application/json ContentType.
 type WflSalesFulfillmentQueryJSONRequestBody = WflQueryRequest
-
-// WflSalesFulfillmentSaveJSONRequestBody defines body for WflSalesFulfillmentSave for application/json ContentType.
-type WflSalesFulfillmentSaveJSONRequestBody = WflSaveRequest
 
 // WflSalesFulfillmentShortCloseCancelJSONRequestBody defines body for WflSalesFulfillmentShortCloseCancel for application/json ContentType.
 type WflSalesFulfillmentShortCloseCancelJSONRequestBody = WflActionRequest
@@ -1328,39 +1091,6 @@ type WflSalesFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
 
 // WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflSalesFulfillmentShortCloseUnconfirm for application/json ContentType.
 type WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffApproveJSONRequestBody defines body for WflSalesFulfillmentSignoffApprove for application/json ContentType.
-type WflSalesFulfillmentSignoffApproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffCheckJSONRequestBody defines body for WflSalesFulfillmentSignoffCheck for application/json ContentType.
-type WflSalesFulfillmentSignoffCheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffFinalizeJSONRequestBody defines body for WflSalesFulfillmentSignoffFinalize for application/json ContentType.
-type WflSalesFulfillmentSignoffFinalizeJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffGetJSONRequestBody defines body for WflSalesFulfillmentSignoffGet for application/json ContentType.
-type WflSalesFulfillmentSignoffGetJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffSaveJSONRequestBody defines body for WflSalesFulfillmentSignoffSave for application/json ContentType.
-type WflSalesFulfillmentSignoffSaveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffUnapproveJSONRequestBody defines body for WflSalesFulfillmentSignoffUnapprove for application/json ContentType.
-type WflSalesFulfillmentSignoffUnapproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffUncheckJSONRequestBody defines body for WflSalesFulfillmentSignoffUncheck for application/json ContentType.
-type WflSalesFulfillmentSignoffUncheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentSignoffUnfinalizeJSONRequestBody defines body for WflSalesFulfillmentSignoffUnfinalize for application/json ContentType.
-type WflSalesFulfillmentSignoffUnfinalizeJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentUnapproveJSONRequestBody defines body for WflSalesFulfillmentUnapprove for application/json ContentType.
-type WflSalesFulfillmentUnapproveJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentUncheckJSONRequestBody defines body for WflSalesFulfillmentUncheck for application/json ContentType.
-type WflSalesFulfillmentUncheckJSONRequestBody = WflActionRequest
-
-// WflSalesFulfillmentUnfinalizeJSONRequestBody defines body for WflSalesFulfillmentUnfinalize for application/json ContentType.
-type WflSalesFulfillmentUnfinalizeJSONRequestBody = WflActionRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1543,7 +1273,7 @@ type ServerInterface interface {
 	Voucheck(c *gin.Context, entity VouEntity)
 	// Voucreate 创建业务单据
 	// (POST /vou/{entity}/create)
-	Voucreate(c *gin.Context, entity VouEntity)
+	Voucreate(c *gin.Context, entity VouCreatableEntity)
 	// Voudelete 删除销售链下游草稿
 	// (POST /vou/{entity}/delete)
 	Voudelete(c *gin.Context, entity VouEntity)
@@ -1559,18 +1289,6 @@ type ServerInterface interface {
 	// Vousave 保存业务单据
 	// (POST /vou/{entity}/save)
 	Vousave(c *gin.Context, entity VouEntity)
-	// VouSaleOrderShortCloseCancel 取消销售订单短结申请
-	// (POST /vou/{entity}/short-close-cancel)
-	VouSaleOrderShortCloseCancel(c *gin.Context, entity VouEntity)
-	// VouSaleOrderShortCloseConfirm 确认短结销售订单
-	// (POST /vou/{entity}/short-close-confirm)
-	VouSaleOrderShortCloseConfirm(c *gin.Context, entity VouEntity)
-	// VouSaleOrderShortCloseRequest 申请短结销售订单
-	// (POST /vou/{entity}/short-close-request)
-	VouSaleOrderShortCloseRequest(c *gin.Context, entity VouEntity)
-	// VouSaleOrderShortCloseUnconfirm 反确认短结销售订单
-	// (POST /vou/{entity}/short-close-unconfirm)
-	VouSaleOrderShortCloseUnconfirm(c *gin.Context, entity VouEntity)
 	// Vouunapprove 取消批准业务单据
 	// (POST /vou/{entity}/unapprove)
 	Vouunapprove(c *gin.Context, entity VouEntity)
@@ -1580,249 +1298,36 @@ type ServerInterface interface {
 	// Vouunfinalize 撤销业务单据最终处理
 	// (POST /vou/{entity}/unfinalize)
 	Vouunfinalize(c *gin.Context, entity VouEntity)
-	// WflIntermediaryTradeapprove 居间贸易 approve
-	// (POST /wfl/intermediary-trade/approve)
-	WflIntermediaryTradeapprove(c *gin.Context)
-	// WflIntermediaryTradeaudithistory 查询居间贸易审计历史
-	// (POST /wfl/intermediary-trade/audit-history)
-	WflIntermediaryTradeaudithistory(c *gin.Context)
-	// WflIntermediaryTradecheck 居间贸易 check
-	// (POST /wfl/intermediary-trade/check)
-	WflIntermediaryTradecheck(c *gin.Context)
-	// WflIntermediaryTradecreate 创建居间贸易流程
-	// (POST /wfl/intermediary-trade/create)
-	WflIntermediaryTradecreate(c *gin.Context)
-	// WflIntermediaryTradedeliveryattachmentdownload 居间贸易 delivery 附件 download
-	// (POST /wfl/intermediary-trade/delivery-attachment-download)
-	WflIntermediaryTradedeliveryattachmentdownload(c *gin.Context)
-	// WflIntermediaryTradedeliveryattachmentinitiate 居间贸易 delivery 附件 initiate
-	// (POST /wfl/intermediary-trade/delivery-attachment-initiate)
-	WflIntermediaryTradedeliveryattachmentinitiate(c *gin.Context)
-	// WflIntermediaryTradedeliveryattachmentremove 居间贸易 delivery 附件 remove
-	// (POST /wfl/intermediary-trade/delivery-attachment-remove)
-	WflIntermediaryTradedeliveryattachmentremove(c *gin.Context)
-	// WflIntermediaryTradedeliverycheck 居间贸易 delivery-check
-	// (POST /wfl/intermediary-trade/delivery-check)
-	WflIntermediaryTradedeliverycheck(c *gin.Context)
-	// WflIntermediaryTradedeliverycreate 居间贸易 delivery-create
-	// (POST /wfl/intermediary-trade/delivery-create)
-	WflIntermediaryTradedeliverycreate(c *gin.Context)
-	// WflIntermediaryTradedeliverydelete 居间贸易 delivery-delete
-	// (POST /wfl/intermediary-trade/delivery-delete)
-	WflIntermediaryTradedeliverydelete(c *gin.Context)
-	// WflIntermediaryTradedeliveryexecute 居间贸易 delivery-execute
-	// (POST /wfl/intermediary-trade/delivery-execute)
-	WflIntermediaryTradedeliveryexecute(c *gin.Context)
-	// WflIntermediaryTradedeliveryget 居间贸易 delivery-get
-	// (POST /wfl/intermediary-trade/delivery-get)
-	WflIntermediaryTradedeliveryget(c *gin.Context)
-	// WflIntermediaryTradedeliverysave 居间贸易 delivery-save
-	// (POST /wfl/intermediary-trade/delivery-save)
-	WflIntermediaryTradedeliverysave(c *gin.Context)
-	// WflIntermediaryTradedeliveryuncheck 居间贸易 delivery-uncheck
-	// (POST /wfl/intermediary-trade/delivery-uncheck)
-	WflIntermediaryTradedeliveryuncheck(c *gin.Context)
-	// WflIntermediaryTradedeliveryunexecute 居间贸易 delivery-unexecute
-	// (POST /wfl/intermediary-trade/delivery-unexecute)
-	WflIntermediaryTradedeliveryunexecute(c *gin.Context)
-	// WflIntermediaryTradeget 读取居间贸易流程
-	// (POST /wfl/intermediary-trade/get)
-	WflIntermediaryTradeget(c *gin.Context)
-	// WflIntermediaryTradeprocurementattachmentdownload 居间贸易 procurement 附件 download
-	// (POST /wfl/intermediary-trade/procurement-attachment-download)
-	WflIntermediaryTradeprocurementattachmentdownload(c *gin.Context)
-	// WflIntermediaryTradeprocurementattachmentinitiate 居间贸易 procurement 附件 initiate
-	// (POST /wfl/intermediary-trade/procurement-attachment-initiate)
-	WflIntermediaryTradeprocurementattachmentinitiate(c *gin.Context)
-	// WflIntermediaryTradeprocurementattachmentremove 居间贸易 procurement 附件 remove
-	// (POST /wfl/intermediary-trade/procurement-attachment-remove)
-	WflIntermediaryTradeprocurementattachmentremove(c *gin.Context)
-	// WflIntermediaryTradeprocurementcheck 居间贸易 procurement-check
-	// (POST /wfl/intermediary-trade/procurement-check)
-	WflIntermediaryTradeprocurementcheck(c *gin.Context)
-	// WflIntermediaryTradeprocurementcreate 居间贸易 procurement-create
-	// (POST /wfl/intermediary-trade/procurement-create)
-	WflIntermediaryTradeprocurementcreate(c *gin.Context)
-	// WflIntermediaryTradeprocurementdelete 居间贸易 procurement-delete
-	// (POST /wfl/intermediary-trade/procurement-delete)
-	WflIntermediaryTradeprocurementdelete(c *gin.Context)
-	// WflIntermediaryTradeprocurementget 居间贸易 procurement-get
-	// (POST /wfl/intermediary-trade/procurement-get)
-	WflIntermediaryTradeprocurementget(c *gin.Context)
-	// WflIntermediaryTradeprocurementplace 居间贸易 procurement-place
-	// (POST /wfl/intermediary-trade/procurement-place)
-	WflIntermediaryTradeprocurementplace(c *gin.Context)
-	// WflIntermediaryTradeprocurementsave 居间贸易 procurement-save
-	// (POST /wfl/intermediary-trade/procurement-save)
-	WflIntermediaryTradeprocurementsave(c *gin.Context)
-	// WflIntermediaryTradeprocurementuncheck 居间贸易 procurement-uncheck
-	// (POST /wfl/intermediary-trade/procurement-uncheck)
-	WflIntermediaryTradeprocurementuncheck(c *gin.Context)
-	// WflIntermediaryTradeprocurementunplace 居间贸易 procurement-unplace
-	// (POST /wfl/intermediary-trade/procurement-unplace)
-	WflIntermediaryTradeprocurementunplace(c *gin.Context)
-	// WflIntermediaryTradequery 查询居间贸易流程
-	// (POST /wfl/intermediary-trade/query)
-	WflIntermediaryTradequery(c *gin.Context)
-	// WflIntermediaryTradereceiptattachmentdownload 居间贸易 receipt 附件 download
-	// (POST /wfl/intermediary-trade/receipt-attachment-download)
-	WflIntermediaryTradereceiptattachmentdownload(c *gin.Context)
-	// WflIntermediaryTradereceiptattachmentinitiate 居间贸易 receipt 附件 initiate
-	// (POST /wfl/intermediary-trade/receipt-attachment-initiate)
-	WflIntermediaryTradereceiptattachmentinitiate(c *gin.Context)
-	// WflIntermediaryTradereceiptattachmentremove 居间贸易 receipt 附件 remove
-	// (POST /wfl/intermediary-trade/receipt-attachment-remove)
-	WflIntermediaryTradereceiptattachmentremove(c *gin.Context)
-	// WflIntermediaryTradereceiptcheck 居间贸易 receipt-check
-	// (POST /wfl/intermediary-trade/receipt-check)
-	WflIntermediaryTradereceiptcheck(c *gin.Context)
-	// WflIntermediaryTradereceiptconfirm 居间贸易 receipt-confirm
-	// (POST /wfl/intermediary-trade/receipt-confirm)
-	WflIntermediaryTradereceiptconfirm(c *gin.Context)
-	// WflIntermediaryTradereceiptcreate 居间贸易 receipt-create
-	// (POST /wfl/intermediary-trade/receipt-create)
-	WflIntermediaryTradereceiptcreate(c *gin.Context)
-	// WflIntermediaryTradereceiptdelete 居间贸易 receipt-delete
-	// (POST /wfl/intermediary-trade/receipt-delete)
-	WflIntermediaryTradereceiptdelete(c *gin.Context)
-	// WflIntermediaryTradereceiptget 居间贸易 receipt-get
-	// (POST /wfl/intermediary-trade/receipt-get)
-	WflIntermediaryTradereceiptget(c *gin.Context)
-	// WflIntermediaryTradereceiptsave 居间贸易 receipt-save
-	// (POST /wfl/intermediary-trade/receipt-save)
-	WflIntermediaryTradereceiptsave(c *gin.Context)
-	// WflIntermediaryTradereceiptuncheck 居间贸易 receipt-uncheck
-	// (POST /wfl/intermediary-trade/receipt-uncheck)
-	WflIntermediaryTradereceiptuncheck(c *gin.Context)
-	// WflIntermediaryTradereceiptunconfirm 居间贸易 receipt-unconfirm
-	// (POST /wfl/intermediary-trade/receipt-unconfirm)
-	WflIntermediaryTradereceiptunconfirm(c *gin.Context)
-	// WflIntermediaryTradesave 保存居间贸易客户订单
-	// (POST /wfl/intermediary-trade/save)
-	WflIntermediaryTradesave(c *gin.Context)
-	// WflIntermediaryTradeshortclosecancel 居间贸易 short-close-cancel
-	// (POST /wfl/intermediary-trade/short-close-cancel)
-	WflIntermediaryTradeshortclosecancel(c *gin.Context)
-	// WflIntermediaryTradeshortcloseconfirm 居间贸易 short-close-confirm
-	// (POST /wfl/intermediary-trade/short-close-confirm)
-	WflIntermediaryTradeshortcloseconfirm(c *gin.Context)
-	// WflIntermediaryTradeshortcloserequest 居间贸易 short-close-request
-	// (POST /wfl/intermediary-trade/short-close-request)
-	WflIntermediaryTradeshortcloserequest(c *gin.Context)
-	// WflIntermediaryTradeshortcloseunconfirm 居间贸易 short-close-unconfirm
-	// (POST /wfl/intermediary-trade/short-close-unconfirm)
-	WflIntermediaryTradeshortcloseunconfirm(c *gin.Context)
-	// WflIntermediaryTradesignoffattachmentdownload 居间贸易 signoff 附件 download
-	// (POST /wfl/intermediary-trade/signoff-attachment-download)
-	WflIntermediaryTradesignoffattachmentdownload(c *gin.Context)
-	// WflIntermediaryTradesignoffattachmentinitiate 居间贸易 signoff 附件 initiate
-	// (POST /wfl/intermediary-trade/signoff-attachment-initiate)
-	WflIntermediaryTradesignoffattachmentinitiate(c *gin.Context)
-	// WflIntermediaryTradesignoffattachmentremove 居间贸易 signoff 附件 remove
-	// (POST /wfl/intermediary-trade/signoff-attachment-remove)
-	WflIntermediaryTradesignoffattachmentremove(c *gin.Context)
-	// WflIntermediaryTradesignoffcheck 居间贸易 signoff-check
-	// (POST /wfl/intermediary-trade/signoff-check)
-	WflIntermediaryTradesignoffcheck(c *gin.Context)
-	// WflIntermediaryTradesignoffconfirm 居间贸易 signoff-confirm
-	// (POST /wfl/intermediary-trade/signoff-confirm)
-	WflIntermediaryTradesignoffconfirm(c *gin.Context)
-	// WflIntermediaryTradesignoffcreate 居间贸易 signoff-create
-	// (POST /wfl/intermediary-trade/signoff-create)
-	WflIntermediaryTradesignoffcreate(c *gin.Context)
-	// WflIntermediaryTradesignoffdelete 居间贸易 signoff-delete
-	// (POST /wfl/intermediary-trade/signoff-delete)
-	WflIntermediaryTradesignoffdelete(c *gin.Context)
-	// WflIntermediaryTradesignoffget 居间贸易 signoff-get
-	// (POST /wfl/intermediary-trade/signoff-get)
-	WflIntermediaryTradesignoffget(c *gin.Context)
-	// WflIntermediaryTradesignoffsave 居间贸易 signoff-save
-	// (POST /wfl/intermediary-trade/signoff-save)
-	WflIntermediaryTradesignoffsave(c *gin.Context)
-	// WflIntermediaryTradesignoffuncheck 居间贸易 signoff-uncheck
-	// (POST /wfl/intermediary-trade/signoff-uncheck)
-	WflIntermediaryTradesignoffuncheck(c *gin.Context)
-	// WflIntermediaryTradesignoffunconfirm 居间贸易 signoff-unconfirm
-	// (POST /wfl/intermediary-trade/signoff-unconfirm)
-	WflIntermediaryTradesignoffunconfirm(c *gin.Context)
-	// WflIntermediaryTradeunapprove 居间贸易 unapprove
-	// (POST /wfl/intermediary-trade/unapprove)
-	WflIntermediaryTradeunapprove(c *gin.Context)
-	// WflIntermediaryTradeuncheck 居间贸易 uncheck
-	// (POST /wfl/intermediary-trade/uncheck)
-	WflIntermediaryTradeuncheck(c *gin.Context)
-	// WflSalesFulfillmentApprove 批准销售订单并自动生成出库草稿
-	// (POST /wfl/sales-fulfillment/approve)
-	WflSalesFulfillmentApprove(c *gin.Context)
+	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
+	// (POST /wfl/purchase-fulfillment/audit-history)
+	WflPurchaseFulfillmentAuditHistory(c *gin.Context)
+	// WflPurchaseFulfillmentGet 读取采购履约流程
+	// (POST /wfl/purchase-fulfillment/get)
+	WflPurchaseFulfillmentGet(c *gin.Context)
+	// WflPurchaseFulfillmentQuery 查询采购履约流程
+	// (POST /wfl/purchase-fulfillment/query)
+	WflPurchaseFulfillmentQuery(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
+	// (POST /wfl/purchase-fulfillment/short-close-cancel)
+	WflPurchaseFulfillmentShortCloseCancel(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseConfirm 确认采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-confirm)
+	WflPurchaseFulfillmentShortCloseConfirm(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseRequest 申请采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-request)
+	WflPurchaseFulfillmentShortCloseRequest(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
+	WflPurchaseFulfillmentShortCloseUnconfirm(c *gin.Context)
 	// WflSalesFulfillmentAuditHistory 查询销售履约审计
 	// (POST /wfl/sales-fulfillment/audit-history)
 	WflSalesFulfillmentAuditHistory(c *gin.Context)
-	// WflSalesFulfillmentCheck 核对销售订单
-	// (POST /wfl/sales-fulfillment/check)
-	WflSalesFulfillmentCheck(c *gin.Context)
-	// WflSalesFulfillmentCreate 创建销售履约流程
-	// (POST /wfl/sales-fulfillment/create)
-	WflSalesFulfillmentCreate(c *gin.Context)
-	// WflSalesFulfillmentDeliveryApprove 批准销售配送单并自动生成签收草稿
-	// (POST /wfl/sales-fulfillment/delivery-approve)
-	WflSalesFulfillmentDeliveryApprove(c *gin.Context)
-	// WflSalesFulfillmentDeliveryCheck 核对销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-check)
-	WflSalesFulfillmentDeliveryCheck(c *gin.Context)
-	// WflSalesFulfillmentDeliveryFinalize 完成销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-finalize)
-	WflSalesFulfillmentDeliveryFinalize(c *gin.Context)
-	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-get)
-	WflSalesFulfillmentDeliveryGet(c *gin.Context)
-	// WflSalesFulfillmentDeliverySave 保存销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-save)
-	WflSalesFulfillmentDeliverySave(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUnapprove 反批准销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-unapprove)
-	WflSalesFulfillmentDeliveryUnapprove(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUncheck 反核对销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-uncheck)
-	WflSalesFulfillmentDeliveryUncheck(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-unfinalize)
-	WflSalesFulfillmentDeliveryUnfinalize(c *gin.Context)
-	// WflSalesFulfillmentFinalize 完成销售订单
-	// (POST /wfl/sales-fulfillment/finalize)
-	WflSalesFulfillmentFinalize(c *gin.Context)
 	// WflSalesFulfillmentGet 读取销售履约流程
 	// (POST /wfl/sales-fulfillment/get)
 	WflSalesFulfillmentGet(c *gin.Context)
-	// WflSalesFulfillmentOutboundApprove 批准销售出库单并自动生成配送草稿
-	// (POST /wfl/sales-fulfillment/outbound-approve)
-	WflSalesFulfillmentOutboundApprove(c *gin.Context)
-	// WflSalesFulfillmentOutboundCheck 核对销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-check)
-	WflSalesFulfillmentOutboundCheck(c *gin.Context)
-	// WflSalesFulfillmentOutboundFinalize 完成销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-finalize)
-	WflSalesFulfillmentOutboundFinalize(c *gin.Context)
-	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-get)
-	WflSalesFulfillmentOutboundGet(c *gin.Context)
-	// WflSalesFulfillmentOutboundSave 保存销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-save)
-	WflSalesFulfillmentOutboundSave(c *gin.Context)
-	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-unapprove)
-	WflSalesFulfillmentOutboundUnapprove(c *gin.Context)
-	// WflSalesFulfillmentOutboundUncheck 反核对销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-uncheck)
-	WflSalesFulfillmentOutboundUncheck(c *gin.Context)
-	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-unfinalize)
-	WflSalesFulfillmentOutboundUnfinalize(c *gin.Context)
 	// WflSalesFulfillmentQuery 查询销售履约流程
 	// (POST /wfl/sales-fulfillment/query)
 	WflSalesFulfillmentQuery(c *gin.Context)
-	// WflSalesFulfillmentSave 保存销售订单
-	// (POST /wfl/sales-fulfillment/save)
-	WflSalesFulfillmentSave(c *gin.Context)
 	// WflSalesFulfillmentShortCloseCancel 取消销售履约短结申请
 	// (POST /wfl/sales-fulfillment/short-close-cancel)
 	WflSalesFulfillmentShortCloseCancel(c *gin.Context)
@@ -1835,39 +1340,6 @@ type ServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(c *gin.Context)
-	// WflSalesFulfillmentSignoffApprove 批准销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-approve)
-	WflSalesFulfillmentSignoffApprove(c *gin.Context)
-	// WflSalesFulfillmentSignoffCheck 核对销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-check)
-	WflSalesFulfillmentSignoffCheck(c *gin.Context)
-	// WflSalesFulfillmentSignoffFinalize 完成销售签收单并更新履约余额
-	// (POST /wfl/sales-fulfillment/signoff-finalize)
-	WflSalesFulfillmentSignoffFinalize(c *gin.Context)
-	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-get)
-	WflSalesFulfillmentSignoffGet(c *gin.Context)
-	// WflSalesFulfillmentSignoffSave 保存销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-save)
-	WflSalesFulfillmentSignoffSave(c *gin.Context)
-	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-unapprove)
-	WflSalesFulfillmentSignoffUnapprove(c *gin.Context)
-	// WflSalesFulfillmentSignoffUncheck 反核对销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-uncheck)
-	WflSalesFulfillmentSignoffUncheck(c *gin.Context)
-	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-unfinalize)
-	WflSalesFulfillmentSignoffUnfinalize(c *gin.Context)
-	// WflSalesFulfillmentUnapprove 反批准销售订单
-	// (POST /wfl/sales-fulfillment/unapprove)
-	WflSalesFulfillmentUnapprove(c *gin.Context)
-	// WflSalesFulfillmentUncheck 反核对销售订单
-	// (POST /wfl/sales-fulfillment/uncheck)
-	WflSalesFulfillmentUncheck(c *gin.Context)
-	// WflSalesFulfillmentUnfinalize 撤销完成销售订单
-	// (POST /wfl/sales-fulfillment/unfinalize)
-	WflSalesFulfillmentUnfinalize(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2893,7 +2365,7 @@ func (siw *ServerInterfaceWrapper) Voucreate(c *gin.Context) {
 	_ = err
 
 	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
+	var entity VouCreatableEntity
 
 	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
 	if err != nil {
@@ -3036,106 +2508,6 @@ func (siw *ServerInterfaceWrapper) Vousave(c *gin.Context) {
 	siw.Handler.Vousave(c, entity)
 }
 
-// VouSaleOrderShortCloseCancel operation middleware
-func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseCancel(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VouSaleOrderShortCloseCancel(c, entity)
-}
-
-// VouSaleOrderShortCloseConfirm operation middleware
-func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseConfirm(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VouSaleOrderShortCloseConfirm(c, entity)
-}
-
-// VouSaleOrderShortCloseRequest operation middleware
-func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseRequest(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VouSaleOrderShortCloseRequest(c, entity)
-}
-
-// VouSaleOrderShortCloseUnconfirm operation middleware
-func (siw *ServerInterfaceWrapper) VouSaleOrderShortCloseUnconfirm(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VouSaleOrderShortCloseUnconfirm(c, entity)
-}
-
 // Vouunapprove operation middleware
 func (siw *ServerInterfaceWrapper) Vouunapprove(c *gin.Context) {
 
@@ -3211,8 +2583,8 @@ func (siw *ServerInterfaceWrapper) Vouunfinalize(c *gin.Context) {
 	siw.Handler.Vouunfinalize(c, entity)
 }
 
-// WflIntermediaryTradeapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeapprove(c *gin.Context) {
+// WflPurchaseFulfillmentAuditHistory operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentAuditHistory(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3221,11 +2593,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradeapprove(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradeapprove(c)
+	siw.Handler.WflPurchaseFulfillmentAuditHistory(c)
 }
 
-// WflIntermediaryTradeaudithistory operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeaudithistory(c *gin.Context) {
+// WflPurchaseFulfillmentGet operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentGet(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3234,11 +2606,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradeaudithistory(c *gin.Conte
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradeaudithistory(c)
+	siw.Handler.WflPurchaseFulfillmentGet(c)
 }
 
-// WflIntermediaryTradecheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradecheck(c *gin.Context) {
+// WflPurchaseFulfillmentQuery operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentQuery(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3247,11 +2619,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradecheck(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradecheck(c)
+	siw.Handler.WflPurchaseFulfillmentQuery(c)
 }
 
-// WflIntermediaryTradecreate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradecreate(c *gin.Context) {
+// WflPurchaseFulfillmentShortCloseCancel operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseCancel(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3260,11 +2632,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradecreate(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradecreate(c)
+	siw.Handler.WflPurchaseFulfillmentShortCloseCancel(c)
 }
 
-// WflIntermediaryTradedeliveryattachmentdownload operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentdownload(c *gin.Context) {
+// WflPurchaseFulfillmentShortCloseConfirm operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseConfirm(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3273,11 +2645,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentdownloa
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradedeliveryattachmentdownload(c)
+	siw.Handler.WflPurchaseFulfillmentShortCloseConfirm(c)
 }
 
-// WflIntermediaryTradedeliveryattachmentinitiate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentinitiate(c *gin.Context) {
+// WflPurchaseFulfillmentShortCloseRequest operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseRequest(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3286,11 +2658,11 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentinitiat
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradedeliveryattachmentinitiate(c)
+	siw.Handler.WflPurchaseFulfillmentShortCloseRequest(c)
 }
 
-// WflIntermediaryTradedeliveryattachmentremove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentremove(c *gin.Context) {
+// WflPurchaseFulfillmentShortCloseUnconfirm operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseUnconfirm(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3299,670 +2671,7 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryattachmentremove(
 		}
 	}
 
-	siw.Handler.WflIntermediaryTradedeliveryattachmentremove(c)
-}
-
-// WflIntermediaryTradedeliverycheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliverycheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliverycheck(c)
-}
-
-// WflIntermediaryTradedeliverycreate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliverycreate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliverycreate(c)
-}
-
-// WflIntermediaryTradedeliverydelete operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliverydelete(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliverydelete(c)
-}
-
-// WflIntermediaryTradedeliveryexecute operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryexecute(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliveryexecute(c)
-}
-
-// WflIntermediaryTradedeliveryget operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliveryget(c)
-}
-
-// WflIntermediaryTradedeliverysave operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliverysave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliverysave(c)
-}
-
-// WflIntermediaryTradedeliveryuncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryuncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliveryuncheck(c)
-}
-
-// WflIntermediaryTradedeliveryunexecute operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradedeliveryunexecute(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradedeliveryunexecute(c)
-}
-
-// WflIntermediaryTradeget operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeget(c)
-}
-
-// WflIntermediaryTradeprocurementattachmentdownload operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementattachmentdownload(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementattachmentdownload(c)
-}
-
-// WflIntermediaryTradeprocurementattachmentinitiate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementattachmentinitiate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementattachmentinitiate(c)
-}
-
-// WflIntermediaryTradeprocurementattachmentremove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementattachmentremove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementattachmentremove(c)
-}
-
-// WflIntermediaryTradeprocurementcheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementcheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementcheck(c)
-}
-
-// WflIntermediaryTradeprocurementcreate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementcreate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementcreate(c)
-}
-
-// WflIntermediaryTradeprocurementdelete operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementdelete(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementdelete(c)
-}
-
-// WflIntermediaryTradeprocurementget operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementget(c)
-}
-
-// WflIntermediaryTradeprocurementplace operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementplace(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementplace(c)
-}
-
-// WflIntermediaryTradeprocurementsave operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementsave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementsave(c)
-}
-
-// WflIntermediaryTradeprocurementuncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementuncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementuncheck(c)
-}
-
-// WflIntermediaryTradeprocurementunplace operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeprocurementunplace(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeprocurementunplace(c)
-}
-
-// WflIntermediaryTradequery operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradequery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradequery(c)
-}
-
-// WflIntermediaryTradereceiptattachmentdownload operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptattachmentdownload(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptattachmentdownload(c)
-}
-
-// WflIntermediaryTradereceiptattachmentinitiate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptattachmentinitiate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptattachmentinitiate(c)
-}
-
-// WflIntermediaryTradereceiptattachmentremove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptattachmentremove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptattachmentremove(c)
-}
-
-// WflIntermediaryTradereceiptcheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptcheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptcheck(c)
-}
-
-// WflIntermediaryTradereceiptconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptconfirm(c)
-}
-
-// WflIntermediaryTradereceiptcreate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptcreate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptcreate(c)
-}
-
-// WflIntermediaryTradereceiptdelete operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptdelete(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptdelete(c)
-}
-
-// WflIntermediaryTradereceiptget operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptget(c)
-}
-
-// WflIntermediaryTradereceiptsave operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptsave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptsave(c)
-}
-
-// WflIntermediaryTradereceiptuncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptuncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptuncheck(c)
-}
-
-// WflIntermediaryTradereceiptunconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradereceiptunconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradereceiptunconfirm(c)
-}
-
-// WflIntermediaryTradesave operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesave(c)
-}
-
-// WflIntermediaryTradeshortclosecancel operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeshortclosecancel(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeshortclosecancel(c)
-}
-
-// WflIntermediaryTradeshortcloseconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeshortcloseconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeshortcloseconfirm(c)
-}
-
-// WflIntermediaryTradeshortcloserequest operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeshortcloserequest(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeshortcloserequest(c)
-}
-
-// WflIntermediaryTradeshortcloseunconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeshortcloseunconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeshortcloseunconfirm(c)
-}
-
-// WflIntermediaryTradesignoffattachmentdownload operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffattachmentdownload(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffattachmentdownload(c)
-}
-
-// WflIntermediaryTradesignoffattachmentinitiate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffattachmentinitiate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffattachmentinitiate(c)
-}
-
-// WflIntermediaryTradesignoffattachmentremove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffattachmentremove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffattachmentremove(c)
-}
-
-// WflIntermediaryTradesignoffcheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffcheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffcheck(c)
-}
-
-// WflIntermediaryTradesignoffconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffconfirm(c)
-}
-
-// WflIntermediaryTradesignoffcreate operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffcreate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffcreate(c)
-}
-
-// WflIntermediaryTradesignoffdelete operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffdelete(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffdelete(c)
-}
-
-// WflIntermediaryTradesignoffget operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffget(c)
-}
-
-// WflIntermediaryTradesignoffsave operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffsave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffsave(c)
-}
-
-// WflIntermediaryTradesignoffuncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffuncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffuncheck(c)
-}
-
-// WflIntermediaryTradesignoffunconfirm operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradesignoffunconfirm(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradesignoffunconfirm(c)
-}
-
-// WflIntermediaryTradeunapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeunapprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeunapprove(c)
-}
-
-// WflIntermediaryTradeuncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflIntermediaryTradeuncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflIntermediaryTradeuncheck(c)
-}
-
-// WflSalesFulfillmentApprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentApprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentApprove(c)
+	siw.Handler.WflPurchaseFulfillmentShortCloseUnconfirm(c)
 }
 
 // WflSalesFulfillmentAuditHistory operation middleware
@@ -3978,149 +2687,6 @@ func (siw *ServerInterfaceWrapper) WflSalesFulfillmentAuditHistory(c *gin.Contex
 	siw.Handler.WflSalesFulfillmentAuditHistory(c)
 }
 
-// WflSalesFulfillmentCheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentCheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentCheck(c)
-}
-
-// WflSalesFulfillmentCreate operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentCreate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentCreate(c)
-}
-
-// WflSalesFulfillmentDeliveryApprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryApprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryApprove(c)
-}
-
-// WflSalesFulfillmentDeliveryCheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryCheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryCheck(c)
-}
-
-// WflSalesFulfillmentDeliveryFinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryFinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryFinalize(c)
-}
-
-// WflSalesFulfillmentDeliveryGet operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryGet(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryGet(c)
-}
-
-// WflSalesFulfillmentDeliverySave operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliverySave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliverySave(c)
-}
-
-// WflSalesFulfillmentDeliveryUnapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryUnapprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryUnapprove(c)
-}
-
-// WflSalesFulfillmentDeliveryUncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryUncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryUncheck(c)
-}
-
-// WflSalesFulfillmentDeliveryUnfinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentDeliveryUnfinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentDeliveryUnfinalize(c)
-}
-
-// WflSalesFulfillmentFinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentFinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentFinalize(c)
-}
-
 // WflSalesFulfillmentGet operation middleware
 func (siw *ServerInterfaceWrapper) WflSalesFulfillmentGet(c *gin.Context) {
 
@@ -4134,110 +2700,6 @@ func (siw *ServerInterfaceWrapper) WflSalesFulfillmentGet(c *gin.Context) {
 	siw.Handler.WflSalesFulfillmentGet(c)
 }
 
-// WflSalesFulfillmentOutboundApprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundApprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundApprove(c)
-}
-
-// WflSalesFulfillmentOutboundCheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundCheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundCheck(c)
-}
-
-// WflSalesFulfillmentOutboundFinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundFinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundFinalize(c)
-}
-
-// WflSalesFulfillmentOutboundGet operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundGet(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundGet(c)
-}
-
-// WflSalesFulfillmentOutboundSave operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundSave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundSave(c)
-}
-
-// WflSalesFulfillmentOutboundUnapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundUnapprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundUnapprove(c)
-}
-
-// WflSalesFulfillmentOutboundUncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundUncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundUncheck(c)
-}
-
-// WflSalesFulfillmentOutboundUnfinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentOutboundUnfinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentOutboundUnfinalize(c)
-}
-
 // WflSalesFulfillmentQuery operation middleware
 func (siw *ServerInterfaceWrapper) WflSalesFulfillmentQuery(c *gin.Context) {
 
@@ -4249,19 +2711,6 @@ func (siw *ServerInterfaceWrapper) WflSalesFulfillmentQuery(c *gin.Context) {
 	}
 
 	siw.Handler.WflSalesFulfillmentQuery(c)
-}
-
-// WflSalesFulfillmentSave operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSave(c)
 }
 
 // WflSalesFulfillmentShortCloseCancel operation middleware
@@ -4314,149 +2763,6 @@ func (siw *ServerInterfaceWrapper) WflSalesFulfillmentShortCloseUnconfirm(c *gin
 	}
 
 	siw.Handler.WflSalesFulfillmentShortCloseUnconfirm(c)
-}
-
-// WflSalesFulfillmentSignoffApprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffApprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffApprove(c)
-}
-
-// WflSalesFulfillmentSignoffCheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffCheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffCheck(c)
-}
-
-// WflSalesFulfillmentSignoffFinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffFinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffFinalize(c)
-}
-
-// WflSalesFulfillmentSignoffGet operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffGet(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffGet(c)
-}
-
-// WflSalesFulfillmentSignoffSave operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffSave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffSave(c)
-}
-
-// WflSalesFulfillmentSignoffUnapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffUnapprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffUnapprove(c)
-}
-
-// WflSalesFulfillmentSignoffUncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffUncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffUncheck(c)
-}
-
-// WflSalesFulfillmentSignoffUnfinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentSignoffUnfinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentSignoffUnfinalize(c)
-}
-
-// WflSalesFulfillmentUnapprove operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentUnapprove(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentUnapprove(c)
-}
-
-// WflSalesFulfillmentUncheck operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentUncheck(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentUncheck(c)
-}
-
-// WflSalesFulfillmentUnfinalize operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentUnfinalize(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentUnfinalize(c)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -4531,71 +2837,24 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/vou/:entity/unapprove", wrapper.Vouunapprove)
 	router.POST(options.BaseURL+"/vou/:entity/finalize", wrapper.Voufinalize)
 	router.POST(options.BaseURL+"/vou/:entity/unfinalize", wrapper.Vouunfinalize)
-	router.POST(options.BaseURL+"/vou/:entity/short-close-request", wrapper.VouSaleOrderShortCloseRequest)
-	router.POST(options.BaseURL+"/vou/:entity/short-close-cancel", wrapper.VouSaleOrderShortCloseCancel)
-	router.POST(options.BaseURL+"/vou/:entity/short-close-confirm", wrapper.VouSaleOrderShortCloseConfirm)
-	router.POST(options.BaseURL+"/vou/:entity/short-close-unconfirm", wrapper.VouSaleOrderShortCloseUnconfirm)
 	router.POST(options.BaseURL+"/vou/:entity/audit-history", wrapper.Vouaudithistory)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-initiate", wrapper.Vouattachmentinitiate)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-download", wrapper.Vouattachmentdownload)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-remove", wrapper.Vouattachmentremove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/query", wrapper.WflIntermediaryTradequery)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/get", wrapper.WflIntermediaryTradeget)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/create", wrapper.WflIntermediaryTradecreate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/save", wrapper.WflIntermediaryTradesave)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/audit-history", wrapper.WflIntermediaryTradeaudithistory)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/check", wrapper.WflIntermediaryTradecheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/uncheck", wrapper.WflIntermediaryTradeuncheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/approve", wrapper.WflIntermediaryTradeapprove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/unapprove", wrapper.WflIntermediaryTradeunapprove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/short-close-request", wrapper.WflIntermediaryTradeshortcloserequest)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/short-close-cancel", wrapper.WflIntermediaryTradeshortclosecancel)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/short-close-confirm", wrapper.WflIntermediaryTradeshortcloseconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/short-close-unconfirm", wrapper.WflIntermediaryTradeshortcloseunconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-create", wrapper.WflIntermediaryTradeprocurementcreate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-get", wrapper.WflIntermediaryTradeprocurementget)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-save", wrapper.WflIntermediaryTradeprocurementsave)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-delete", wrapper.WflIntermediaryTradeprocurementdelete)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-check", wrapper.WflIntermediaryTradeprocurementcheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-uncheck", wrapper.WflIntermediaryTradeprocurementuncheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-place", wrapper.WflIntermediaryTradeprocurementplace)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-unplace", wrapper.WflIntermediaryTradeprocurementunplace)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-create", wrapper.WflIntermediaryTradereceiptcreate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-get", wrapper.WflIntermediaryTradereceiptget)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-save", wrapper.WflIntermediaryTradereceiptsave)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-delete", wrapper.WflIntermediaryTradereceiptdelete)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-check", wrapper.WflIntermediaryTradereceiptcheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-uncheck", wrapper.WflIntermediaryTradereceiptuncheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-confirm", wrapper.WflIntermediaryTradereceiptconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-unconfirm", wrapper.WflIntermediaryTradereceiptunconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-create", wrapper.WflIntermediaryTradedeliverycreate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-get", wrapper.WflIntermediaryTradedeliveryget)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-save", wrapper.WflIntermediaryTradedeliverysave)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-delete", wrapper.WflIntermediaryTradedeliverydelete)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-check", wrapper.WflIntermediaryTradedeliverycheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-uncheck", wrapper.WflIntermediaryTradedeliveryuncheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-execute", wrapper.WflIntermediaryTradedeliveryexecute)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-unexecute", wrapper.WflIntermediaryTradedeliveryunexecute)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-create", wrapper.WflIntermediaryTradesignoffcreate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-get", wrapper.WflIntermediaryTradesignoffget)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-save", wrapper.WflIntermediaryTradesignoffsave)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-delete", wrapper.WflIntermediaryTradesignoffdelete)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-check", wrapper.WflIntermediaryTradesignoffcheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-uncheck", wrapper.WflIntermediaryTradesignoffuncheck)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-confirm", wrapper.WflIntermediaryTradesignoffconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-unconfirm", wrapper.WflIntermediaryTradesignoffunconfirm)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-attachment-initiate", wrapper.WflIntermediaryTradeprocurementattachmentinitiate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-attachment-download", wrapper.WflIntermediaryTradeprocurementattachmentdownload)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/procurement-attachment-remove", wrapper.WflIntermediaryTradeprocurementattachmentremove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-attachment-initiate", wrapper.WflIntermediaryTradereceiptattachmentinitiate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-attachment-download", wrapper.WflIntermediaryTradereceiptattachmentdownload)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/receipt-attachment-remove", wrapper.WflIntermediaryTradereceiptattachmentremove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-attachment-initiate", wrapper.WflIntermediaryTradedeliveryattachmentinitiate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-attachment-download", wrapper.WflIntermediaryTradedeliveryattachmentdownload)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/delivery-attachment-remove", wrapper.WflIntermediaryTradedeliveryattachmentremove)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-attachment-initiate", wrapper.WflIntermediaryTradesignoffattachmentinitiate)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-attachment-download", wrapper.WflIntermediaryTradesignoffattachmentdownload)
-	router.POST(options.BaseURL+"/wfl/intermediary-trade/signoff-attachment-remove", wrapper.WflIntermediaryTradesignoffattachmentremove)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/query", wrapper.WflSalesFulfillmentQuery)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/get", wrapper.WflSalesFulfillmentGet)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/audit-history", wrapper.WflSalesFulfillmentAuditHistory)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-request", wrapper.WflSalesFulfillmentShortCloseRequest)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-cancel", wrapper.WflSalesFulfillmentShortCloseCancel)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-confirm", wrapper.WflSalesFulfillmentShortCloseConfirm)
+	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-unconfirm", wrapper.WflSalesFulfillmentShortCloseUnconfirm)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/query", wrapper.WflPurchaseFulfillmentQuery)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/get", wrapper.WflPurchaseFulfillmentGet)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/audit-history", wrapper.WflPurchaseFulfillmentAuditHistory)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-request", wrapper.WflPurchaseFulfillmentShortCloseRequest)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-cancel", wrapper.WflPurchaseFulfillmentShortCloseCancel)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-confirm", wrapper.WflPurchaseFulfillmentShortCloseConfirm)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-unconfirm", wrapper.WflPurchaseFulfillmentShortCloseUnconfirm)
 	router.POST(options.BaseURL+"/led/opening/get", wrapper.Ledopeningget)
 	router.POST(options.BaseURL+"/led/opening/save", wrapper.Ledopeningsave)
 	router.POST(options.BaseURL+"/led/opening/activate", wrapper.Ledopeningactivate)
@@ -4615,45 +2874,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/files/attachments/download/:token", wrapper.DownloadAttachment)
 	router.GET(options.BaseURL+"/healthz", wrapper.Health)
 	router.GET(options.BaseURL+"/readyz", wrapper.Readiness)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/query", wrapper.WflSalesFulfillmentQuery)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/get", wrapper.WflSalesFulfillmentGet)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/create", wrapper.WflSalesFulfillmentCreate)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/save", wrapper.WflSalesFulfillmentSave)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/audit-history", wrapper.WflSalesFulfillmentAuditHistory)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/check", wrapper.WflSalesFulfillmentCheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/uncheck", wrapper.WflSalesFulfillmentUncheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/approve", wrapper.WflSalesFulfillmentApprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/unapprove", wrapper.WflSalesFulfillmentUnapprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/finalize", wrapper.WflSalesFulfillmentFinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/unfinalize", wrapper.WflSalesFulfillmentUnfinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-request", wrapper.WflSalesFulfillmentShortCloseRequest)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-cancel", wrapper.WflSalesFulfillmentShortCloseCancel)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-confirm", wrapper.WflSalesFulfillmentShortCloseConfirm)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-unconfirm", wrapper.WflSalesFulfillmentShortCloseUnconfirm)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-get", wrapper.WflSalesFulfillmentOutboundGet)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-save", wrapper.WflSalesFulfillmentOutboundSave)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-check", wrapper.WflSalesFulfillmentOutboundCheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-uncheck", wrapper.WflSalesFulfillmentOutboundUncheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-approve", wrapper.WflSalesFulfillmentOutboundApprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-unapprove", wrapper.WflSalesFulfillmentOutboundUnapprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-finalize", wrapper.WflSalesFulfillmentOutboundFinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/outbound-unfinalize", wrapper.WflSalesFulfillmentOutboundUnfinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-get", wrapper.WflSalesFulfillmentDeliveryGet)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-save", wrapper.WflSalesFulfillmentDeliverySave)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-check", wrapper.WflSalesFulfillmentDeliveryCheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-uncheck", wrapper.WflSalesFulfillmentDeliveryUncheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-approve", wrapper.WflSalesFulfillmentDeliveryApprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-unapprove", wrapper.WflSalesFulfillmentDeliveryUnapprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-finalize", wrapper.WflSalesFulfillmentDeliveryFinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/delivery-unfinalize", wrapper.WflSalesFulfillmentDeliveryUnfinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-get", wrapper.WflSalesFulfillmentSignoffGet)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-save", wrapper.WflSalesFulfillmentSignoffSave)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-check", wrapper.WflSalesFulfillmentSignoffCheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-uncheck", wrapper.WflSalesFulfillmentSignoffUncheck)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-approve", wrapper.WflSalesFulfillmentSignoffApprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-unapprove", wrapper.WflSalesFulfillmentSignoffUnapprove)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-finalize", wrapper.WflSalesFulfillmentSignoffFinalize)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-unfinalize", wrapper.WflSalesFulfillmentSignoffUnfinalize)
 }
 
 type BusinessJSONResponse BusinessEnvelope
@@ -6044,7 +4264,7 @@ func (response Voucheck200JSONResponse) VisitVoucheckResponse(w http.ResponseWri
 }
 
 type VoucreateRequestObject struct {
-	Entity VouEntity `json:"entity"`
+	Entity VouCreatableEntity `json:"entity"`
 	Body   *VoucreateJSONRequestBody
 }
 
@@ -6181,98 +4401,6 @@ func (response Vousave200JSONResponse) VisitVousaveResponse(w http.ResponseWrite
 	return err
 }
 
-type VouSaleOrderShortCloseCancelRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VouSaleOrderShortCloseCancelJSONRequestBody
-}
-
-type VouSaleOrderShortCloseCancelResponseObject interface {
-	VisitVouSaleOrderShortCloseCancelResponse(w http.ResponseWriter) error
-}
-
-type VouSaleOrderShortCloseCancel200JSONResponse struct{ BusinessJSONResponse }
-
-func (response VouSaleOrderShortCloseCancel200JSONResponse) VisitVouSaleOrderShortCloseCancelResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VouSaleOrderShortCloseConfirmRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VouSaleOrderShortCloseConfirmJSONRequestBody
-}
-
-type VouSaleOrderShortCloseConfirmResponseObject interface {
-	VisitVouSaleOrderShortCloseConfirmResponse(w http.ResponseWriter) error
-}
-
-type VouSaleOrderShortCloseConfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response VouSaleOrderShortCloseConfirm200JSONResponse) VisitVouSaleOrderShortCloseConfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VouSaleOrderShortCloseRequestRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VouSaleOrderShortCloseRequestJSONRequestBody
-}
-
-type VouSaleOrderShortCloseRequestResponseObject interface {
-	VisitVouSaleOrderShortCloseRequestResponse(w http.ResponseWriter) error
-}
-
-type VouSaleOrderShortCloseRequest200JSONResponse struct{ BusinessJSONResponse }
-
-func (response VouSaleOrderShortCloseRequest200JSONResponse) VisitVouSaleOrderShortCloseRequestResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VouSaleOrderShortCloseUnconfirmRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VouSaleOrderShortCloseUnconfirmJSONRequestBody
-}
-
-type VouSaleOrderShortCloseUnconfirmResponseObject interface {
-	VisitVouSaleOrderShortCloseUnconfirmResponse(w http.ResponseWriter) error
-}
-
-type VouSaleOrderShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response VouSaleOrderShortCloseUnconfirm200JSONResponse) VisitVouSaleOrderShortCloseUnconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type VouunapproveRequestObject struct {
 	Entity VouEntity `json:"entity"`
 	Body   *VouunapproveJSONRequestBody
@@ -6342,39 +4470,17 @@ func (response Vouunfinalize200JSONResponse) VisitVouunfinalizeResponse(w http.R
 	return err
 }
 
-type WflIntermediaryTradeapproveRequestObject struct {
-	Body *WflIntermediaryTradeapproveJSONRequestBody
+type WflPurchaseFulfillmentAuditHistoryRequestObject struct {
+	Body *WflPurchaseFulfillmentAuditHistoryJSONRequestBody
 }
 
-type WflIntermediaryTradeapproveResponseObject interface {
-	VisitWflIntermediaryTradeapproveResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentAuditHistoryResponseObject interface {
+	VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradeapprove200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentAuditHistory200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradeapprove200JSONResponse) VisitWflIntermediaryTradeapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeaudithistoryRequestObject struct {
-	Body *WflIntermediaryTradeaudithistoryJSONRequestBody
-}
-
-type WflIntermediaryTradeaudithistoryResponseObject interface {
-	VisitWflIntermediaryTradeaudithistoryResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeaudithistory200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeaudithistory200JSONResponse) VisitWflIntermediaryTradeaudithistoryResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentAuditHistory200JSONResponse) VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6386,39 +4492,17 @@ func (response WflIntermediaryTradeaudithistory200JSONResponse) VisitWflIntermed
 	return err
 }
 
-type WflIntermediaryTradecheckRequestObject struct {
-	Body *WflIntermediaryTradecheckJSONRequestBody
+type WflPurchaseFulfillmentGetRequestObject struct {
+	Body *WflPurchaseFulfillmentGetJSONRequestBody
 }
 
-type WflIntermediaryTradecheckResponseObject interface {
-	VisitWflIntermediaryTradecheckResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentGetResponseObject interface {
+	VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradecheck200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentGet200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradecheck200JSONResponse) VisitWflIntermediaryTradecheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradecreateRequestObject struct {
-	Body *WflIntermediaryTradecreateJSONRequestBody
-}
-
-type WflIntermediaryTradecreateResponseObject interface {
-	VisitWflIntermediaryTradecreateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradecreate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradecreate200JSONResponse) VisitWflIntermediaryTradecreateResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentGet200JSONResponse) VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6430,39 +4514,17 @@ func (response WflIntermediaryTradecreate200JSONResponse) VisitWflIntermediaryTr
 	return err
 }
 
-type WflIntermediaryTradedeliveryattachmentdownloadRequestObject struct {
-	Body *WflIntermediaryTradedeliveryattachmentdownloadJSONRequestBody
+type WflPurchaseFulfillmentQueryRequestObject struct {
+	Body *WflPurchaseFulfillmentQueryJSONRequestBody
 }
 
-type WflIntermediaryTradedeliveryattachmentdownloadResponseObject interface {
-	VisitWflIntermediaryTradedeliveryattachmentdownloadResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentQueryResponseObject interface {
+	VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradedeliveryattachmentdownload200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentQuery200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradedeliveryattachmentdownload200JSONResponse) VisitWflIntermediaryTradedeliveryattachmentdownloadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliveryattachmentinitiateRequestObject struct {
-	Body *WflIntermediaryTradedeliveryattachmentinitiateJSONRequestBody
-}
-
-type WflIntermediaryTradedeliveryattachmentinitiateResponseObject interface {
-	VisitWflIntermediaryTradedeliveryattachmentinitiateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliveryattachmentinitiate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliveryattachmentinitiate200JSONResponse) VisitWflIntermediaryTradedeliveryattachmentinitiateResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentQuery200JSONResponse) VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6474,39 +4536,17 @@ func (response WflIntermediaryTradedeliveryattachmentinitiate200JSONResponse) Vi
 	return err
 }
 
-type WflIntermediaryTradedeliveryattachmentremoveRequestObject struct {
-	Body *WflIntermediaryTradedeliveryattachmentremoveJSONRequestBody
+type WflPurchaseFulfillmentShortCloseCancelRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseCancelJSONRequestBody
 }
 
-type WflIntermediaryTradedeliveryattachmentremoveResponseObject interface {
-	VisitWflIntermediaryTradedeliveryattachmentremoveResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentShortCloseCancelResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseCancelResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradedeliveryattachmentremove200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentShortCloseCancel200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradedeliveryattachmentremove200JSONResponse) VisitWflIntermediaryTradedeliveryattachmentremoveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliverycheckRequestObject struct {
-	Body *WflIntermediaryTradedeliverycheckJSONRequestBody
-}
-
-type WflIntermediaryTradedeliverycheckResponseObject interface {
-	VisitWflIntermediaryTradedeliverycheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliverycheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliverycheck200JSONResponse) VisitWflIntermediaryTradedeliverycheckResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentShortCloseCancel200JSONResponse) VisitWflPurchaseFulfillmentShortCloseCancelResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6518,39 +4558,17 @@ func (response WflIntermediaryTradedeliverycheck200JSONResponse) VisitWflInterme
 	return err
 }
 
-type WflIntermediaryTradedeliverycreateRequestObject struct {
-	Body *WflIntermediaryTradedeliverycreateJSONRequestBody
+type WflPurchaseFulfillmentShortCloseConfirmRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody
 }
 
-type WflIntermediaryTradedeliverycreateResponseObject interface {
-	VisitWflIntermediaryTradedeliverycreateResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentShortCloseConfirmResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseConfirmResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradedeliverycreate200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentShortCloseConfirm200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradedeliverycreate200JSONResponse) VisitWflIntermediaryTradedeliverycreateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliverydeleteRequestObject struct {
-	Body *WflIntermediaryTradedeliverydeleteJSONRequestBody
-}
-
-type WflIntermediaryTradedeliverydeleteResponseObject interface {
-	VisitWflIntermediaryTradedeliverydeleteResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliverydelete200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliverydelete200JSONResponse) VisitWflIntermediaryTradedeliverydeleteResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentShortCloseConfirm200JSONResponse) VisitWflPurchaseFulfillmentShortCloseConfirmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6562,39 +4580,17 @@ func (response WflIntermediaryTradedeliverydelete200JSONResponse) VisitWflInterm
 	return err
 }
 
-type WflIntermediaryTradedeliveryexecuteRequestObject struct {
-	Body *WflIntermediaryTradedeliveryexecuteJSONRequestBody
+type WflPurchaseFulfillmentShortCloseRequestRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseRequestJSONRequestBody
 }
 
-type WflIntermediaryTradedeliveryexecuteResponseObject interface {
-	VisitWflIntermediaryTradedeliveryexecuteResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentShortCloseRequestResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseRequestResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradedeliveryexecute200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentShortCloseRequest200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradedeliveryexecute200JSONResponse) VisitWflIntermediaryTradedeliveryexecuteResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliverygetRequestObject struct {
-	Body *WflIntermediaryTradedeliverygetJSONRequestBody
-}
-
-type WflIntermediaryTradedeliverygetResponseObject interface {
-	VisitWflIntermediaryTradedeliverygetResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliveryget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliveryget200JSONResponse) VisitWflIntermediaryTradedeliverygetResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentShortCloseRequest200JSONResponse) VisitWflPurchaseFulfillmentShortCloseRequestResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6606,1007 +4602,17 @@ func (response WflIntermediaryTradedeliveryget200JSONResponse) VisitWflIntermedi
 	return err
 }
 
-type WflIntermediaryTradedeliverysaveRequestObject struct {
-	Body *WflIntermediaryTradedeliverysaveJSONRequestBody
+type WflPurchaseFulfillmentShortCloseUnconfirmRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody
 }
 
-type WflIntermediaryTradedeliverysaveResponseObject interface {
-	VisitWflIntermediaryTradedeliverysaveResponse(w http.ResponseWriter) error
+type WflPurchaseFulfillmentShortCloseUnconfirmResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error
 }
 
-type WflIntermediaryTradedeliverysave200JSONResponse struct{ BusinessJSONResponse }
+type WflPurchaseFulfillmentShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
 
-func (response WflIntermediaryTradedeliverysave200JSONResponse) VisitWflIntermediaryTradedeliverysaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliveryuncheckRequestObject struct {
-	Body *WflIntermediaryTradedeliveryuncheckJSONRequestBody
-}
-
-type WflIntermediaryTradedeliveryuncheckResponseObject interface {
-	VisitWflIntermediaryTradedeliveryuncheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliveryuncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliveryuncheck200JSONResponse) VisitWflIntermediaryTradedeliveryuncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradedeliveryunexecuteRequestObject struct {
-	Body *WflIntermediaryTradedeliveryunexecuteJSONRequestBody
-}
-
-type WflIntermediaryTradedeliveryunexecuteResponseObject interface {
-	VisitWflIntermediaryTradedeliveryunexecuteResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradedeliveryunexecute200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradedeliveryunexecute200JSONResponse) VisitWflIntermediaryTradedeliveryunexecuteResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradegetRequestObject struct {
-	Body *WflIntermediaryTradegetJSONRequestBody
-}
-
-type WflIntermediaryTradegetResponseObject interface {
-	VisitWflIntermediaryTradegetResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeget200JSONResponse) VisitWflIntermediaryTradegetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementattachmentdownloadRequestObject struct {
-	Body *WflIntermediaryTradeprocurementattachmentdownloadJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementattachmentdownloadResponseObject interface {
-	VisitWflIntermediaryTradeprocurementattachmentdownloadResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementattachmentdownload200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementattachmentdownload200JSONResponse) VisitWflIntermediaryTradeprocurementattachmentdownloadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementattachmentinitiateRequestObject struct {
-	Body *WflIntermediaryTradeprocurementattachmentinitiateJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementattachmentinitiateResponseObject interface {
-	VisitWflIntermediaryTradeprocurementattachmentinitiateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementattachmentinitiate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementattachmentinitiate200JSONResponse) VisitWflIntermediaryTradeprocurementattachmentinitiateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementattachmentremoveRequestObject struct {
-	Body *WflIntermediaryTradeprocurementattachmentremoveJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementattachmentremoveResponseObject interface {
-	VisitWflIntermediaryTradeprocurementattachmentremoveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementattachmentremove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementattachmentremove200JSONResponse) VisitWflIntermediaryTradeprocurementattachmentremoveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementcheckRequestObject struct {
-	Body *WflIntermediaryTradeprocurementcheckJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementcheckResponseObject interface {
-	VisitWflIntermediaryTradeprocurementcheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementcheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementcheck200JSONResponse) VisitWflIntermediaryTradeprocurementcheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementcreateRequestObject struct {
-	Body *WflIntermediaryTradeprocurementcreateJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementcreateResponseObject interface {
-	VisitWflIntermediaryTradeprocurementcreateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementcreate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementcreate200JSONResponse) VisitWflIntermediaryTradeprocurementcreateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementdeleteRequestObject struct {
-	Body *WflIntermediaryTradeprocurementdeleteJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementdeleteResponseObject interface {
-	VisitWflIntermediaryTradeprocurementdeleteResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementdelete200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementdelete200JSONResponse) VisitWflIntermediaryTradeprocurementdeleteResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementgetRequestObject struct {
-	Body *WflIntermediaryTradeprocurementgetJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementgetResponseObject interface {
-	VisitWflIntermediaryTradeprocurementgetResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementget200JSONResponse) VisitWflIntermediaryTradeprocurementgetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementplaceRequestObject struct {
-	Body *WflIntermediaryTradeprocurementplaceJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementplaceResponseObject interface {
-	VisitWflIntermediaryTradeprocurementplaceResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementplace200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementplace200JSONResponse) VisitWflIntermediaryTradeprocurementplaceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementsaveRequestObject struct {
-	Body *WflIntermediaryTradeprocurementsaveJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementsaveResponseObject interface {
-	VisitWflIntermediaryTradeprocurementsaveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementsave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementsave200JSONResponse) VisitWflIntermediaryTradeprocurementsaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementuncheckRequestObject struct {
-	Body *WflIntermediaryTradeprocurementuncheckJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementuncheckResponseObject interface {
-	VisitWflIntermediaryTradeprocurementuncheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementuncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementuncheck200JSONResponse) VisitWflIntermediaryTradeprocurementuncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeprocurementunplaceRequestObject struct {
-	Body *WflIntermediaryTradeprocurementunplaceJSONRequestBody
-}
-
-type WflIntermediaryTradeprocurementunplaceResponseObject interface {
-	VisitWflIntermediaryTradeprocurementunplaceResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeprocurementunplace200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeprocurementunplace200JSONResponse) VisitWflIntermediaryTradeprocurementunplaceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradequeryRequestObject struct {
-	Body *WflIntermediaryTradequeryJSONRequestBody
-}
-
-type WflIntermediaryTradequeryResponseObject interface {
-	VisitWflIntermediaryTradequeryResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradequery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradequery200JSONResponse) VisitWflIntermediaryTradequeryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptattachmentdownloadRequestObject struct {
-	Body *WflIntermediaryTradereceiptattachmentdownloadJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptattachmentdownloadResponseObject interface {
-	VisitWflIntermediaryTradereceiptattachmentdownloadResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptattachmentdownload200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptattachmentdownload200JSONResponse) VisitWflIntermediaryTradereceiptattachmentdownloadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptattachmentinitiateRequestObject struct {
-	Body *WflIntermediaryTradereceiptattachmentinitiateJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptattachmentinitiateResponseObject interface {
-	VisitWflIntermediaryTradereceiptattachmentinitiateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptattachmentinitiate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptattachmentinitiate200JSONResponse) VisitWflIntermediaryTradereceiptattachmentinitiateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptattachmentremoveRequestObject struct {
-	Body *WflIntermediaryTradereceiptattachmentremoveJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptattachmentremoveResponseObject interface {
-	VisitWflIntermediaryTradereceiptattachmentremoveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptattachmentremove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptattachmentremove200JSONResponse) VisitWflIntermediaryTradereceiptattachmentremoveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptcheckRequestObject struct {
-	Body *WflIntermediaryTradereceiptcheckJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptcheckResponseObject interface {
-	VisitWflIntermediaryTradereceiptcheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptcheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptcheck200JSONResponse) VisitWflIntermediaryTradereceiptcheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptconfirmRequestObject struct {
-	Body *WflIntermediaryTradereceiptconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptconfirmResponseObject interface {
-	VisitWflIntermediaryTradereceiptconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptconfirm200JSONResponse) VisitWflIntermediaryTradereceiptconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptcreateRequestObject struct {
-	Body *WflIntermediaryTradereceiptcreateJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptcreateResponseObject interface {
-	VisitWflIntermediaryTradereceiptcreateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptcreate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptcreate200JSONResponse) VisitWflIntermediaryTradereceiptcreateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptdeleteRequestObject struct {
-	Body *WflIntermediaryTradereceiptdeleteJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptdeleteResponseObject interface {
-	VisitWflIntermediaryTradereceiptdeleteResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptdelete200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptdelete200JSONResponse) VisitWflIntermediaryTradereceiptdeleteResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptgetRequestObject struct {
-	Body *WflIntermediaryTradereceiptgetJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptgetResponseObject interface {
-	VisitWflIntermediaryTradereceiptgetResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptget200JSONResponse) VisitWflIntermediaryTradereceiptgetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptsaveRequestObject struct {
-	Body *WflIntermediaryTradereceiptsaveJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptsaveResponseObject interface {
-	VisitWflIntermediaryTradereceiptsaveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptsave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptsave200JSONResponse) VisitWflIntermediaryTradereceiptsaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptuncheckRequestObject struct {
-	Body *WflIntermediaryTradereceiptuncheckJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptuncheckResponseObject interface {
-	VisitWflIntermediaryTradereceiptuncheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptuncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptuncheck200JSONResponse) VisitWflIntermediaryTradereceiptuncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradereceiptunconfirmRequestObject struct {
-	Body *WflIntermediaryTradereceiptunconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradereceiptunconfirmResponseObject interface {
-	VisitWflIntermediaryTradereceiptunconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradereceiptunconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradereceiptunconfirm200JSONResponse) VisitWflIntermediaryTradereceiptunconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesaveRequestObject struct {
-	Body *WflIntermediaryTradesaveJSONRequestBody
-}
-
-type WflIntermediaryTradesaveResponseObject interface {
-	VisitWflIntermediaryTradesaveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesave200JSONResponse) VisitWflIntermediaryTradesaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeshortclosecancelRequestObject struct {
-	Body *WflIntermediaryTradeshortclosecancelJSONRequestBody
-}
-
-type WflIntermediaryTradeshortclosecancelResponseObject interface {
-	VisitWflIntermediaryTradeshortclosecancelResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeshortclosecancel200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeshortclosecancel200JSONResponse) VisitWflIntermediaryTradeshortclosecancelResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeshortcloseconfirmRequestObject struct {
-	Body *WflIntermediaryTradeshortcloseconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradeshortcloseconfirmResponseObject interface {
-	VisitWflIntermediaryTradeshortcloseconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeshortcloseconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeshortcloseconfirm200JSONResponse) VisitWflIntermediaryTradeshortcloseconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeshortcloserequestRequestObject struct {
-	Body *WflIntermediaryTradeshortcloserequestJSONRequestBody
-}
-
-type WflIntermediaryTradeshortcloserequestResponseObject interface {
-	VisitWflIntermediaryTradeshortcloserequestResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeshortcloserequest200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeshortcloserequest200JSONResponse) VisitWflIntermediaryTradeshortcloserequestResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeshortcloseunconfirmRequestObject struct {
-	Body *WflIntermediaryTradeshortcloseunconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradeshortcloseunconfirmResponseObject interface {
-	VisitWflIntermediaryTradeshortcloseunconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeshortcloseunconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeshortcloseunconfirm200JSONResponse) VisitWflIntermediaryTradeshortcloseunconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffattachmentdownloadRequestObject struct {
-	Body *WflIntermediaryTradesignoffattachmentdownloadJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffattachmentdownloadResponseObject interface {
-	VisitWflIntermediaryTradesignoffattachmentdownloadResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffattachmentdownload200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffattachmentdownload200JSONResponse) VisitWflIntermediaryTradesignoffattachmentdownloadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffattachmentinitiateRequestObject struct {
-	Body *WflIntermediaryTradesignoffattachmentinitiateJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffattachmentinitiateResponseObject interface {
-	VisitWflIntermediaryTradesignoffattachmentinitiateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffattachmentinitiate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffattachmentinitiate200JSONResponse) VisitWflIntermediaryTradesignoffattachmentinitiateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffattachmentremoveRequestObject struct {
-	Body *WflIntermediaryTradesignoffattachmentremoveJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffattachmentremoveResponseObject interface {
-	VisitWflIntermediaryTradesignoffattachmentremoveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffattachmentremove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffattachmentremove200JSONResponse) VisitWflIntermediaryTradesignoffattachmentremoveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffcheckRequestObject struct {
-	Body *WflIntermediaryTradesignoffcheckJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffcheckResponseObject interface {
-	VisitWflIntermediaryTradesignoffcheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffcheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffcheck200JSONResponse) VisitWflIntermediaryTradesignoffcheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffconfirmRequestObject struct {
-	Body *WflIntermediaryTradesignoffconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffconfirmResponseObject interface {
-	VisitWflIntermediaryTradesignoffconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffconfirm200JSONResponse) VisitWflIntermediaryTradesignoffconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffcreateRequestObject struct {
-	Body *WflIntermediaryTradesignoffcreateJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffcreateResponseObject interface {
-	VisitWflIntermediaryTradesignoffcreateResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffcreate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffcreate200JSONResponse) VisitWflIntermediaryTradesignoffcreateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffdeleteRequestObject struct {
-	Body *WflIntermediaryTradesignoffdeleteJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffdeleteResponseObject interface {
-	VisitWflIntermediaryTradesignoffdeleteResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffdelete200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffdelete200JSONResponse) VisitWflIntermediaryTradesignoffdeleteResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffgetRequestObject struct {
-	Body *WflIntermediaryTradesignoffgetJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffgetResponseObject interface {
-	VisitWflIntermediaryTradesignoffgetResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffget200JSONResponse) VisitWflIntermediaryTradesignoffgetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffsaveRequestObject struct {
-	Body *WflIntermediaryTradesignoffsaveJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffsaveResponseObject interface {
-	VisitWflIntermediaryTradesignoffsaveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffsave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffsave200JSONResponse) VisitWflIntermediaryTradesignoffsaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffuncheckRequestObject struct {
-	Body *WflIntermediaryTradesignoffuncheckJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffuncheckResponseObject interface {
-	VisitWflIntermediaryTradesignoffuncheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffuncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffuncheck200JSONResponse) VisitWflIntermediaryTradesignoffuncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradesignoffunconfirmRequestObject struct {
-	Body *WflIntermediaryTradesignoffunconfirmJSONRequestBody
-}
-
-type WflIntermediaryTradesignoffunconfirmResponseObject interface {
-	VisitWflIntermediaryTradesignoffunconfirmResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradesignoffunconfirm200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradesignoffunconfirm200JSONResponse) VisitWflIntermediaryTradesignoffunconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeunapproveRequestObject struct {
-	Body *WflIntermediaryTradeunapproveJSONRequestBody
-}
-
-type WflIntermediaryTradeunapproveResponseObject interface {
-	VisitWflIntermediaryTradeunapproveResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeunapprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeunapprove200JSONResponse) VisitWflIntermediaryTradeunapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflIntermediaryTradeuncheckRequestObject struct {
-	Body *WflIntermediaryTradeuncheckJSONRequestBody
-}
-
-type WflIntermediaryTradeuncheckResponseObject interface {
-	VisitWflIntermediaryTradeuncheckResponse(w http.ResponseWriter) error
-}
-
-type WflIntermediaryTradeuncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflIntermediaryTradeuncheck200JSONResponse) VisitWflIntermediaryTradeuncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentApproveRequestObject struct {
-	Body *WflSalesFulfillmentApproveJSONRequestBody
-}
-
-type WflSalesFulfillmentApproveResponseObject interface {
-	VisitWflSalesFulfillmentApproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentApprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentApprove200JSONResponse) VisitWflSalesFulfillmentApproveResponse(w http.ResponseWriter) error {
+func (response WflPurchaseFulfillmentShortCloseUnconfirm200JSONResponse) VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7640,248 +4646,6 @@ func (response WflSalesFulfillmentAuditHistory200JSONResponse) VisitWflSalesFulf
 	return err
 }
 
-type WflSalesFulfillmentCheckRequestObject struct {
-	Body *WflSalesFulfillmentCheckJSONRequestBody
-}
-
-type WflSalesFulfillmentCheckResponseObject interface {
-	VisitWflSalesFulfillmentCheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentCheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentCheck200JSONResponse) VisitWflSalesFulfillmentCheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentCreateRequestObject struct {
-	Body *WflSalesFulfillmentCreateJSONRequestBody
-}
-
-type WflSalesFulfillmentCreateResponseObject interface {
-	VisitWflSalesFulfillmentCreateResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentCreate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentCreate200JSONResponse) VisitWflSalesFulfillmentCreateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryApproveRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryApproveJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryApproveResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryApproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryApprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryApprove200JSONResponse) VisitWflSalesFulfillmentDeliveryApproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryCheckRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryCheckJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryCheckResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryCheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryCheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryCheck200JSONResponse) VisitWflSalesFulfillmentDeliveryCheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryFinalizeRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryFinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryFinalizeResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryFinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryFinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryFinalize200JSONResponse) VisitWflSalesFulfillmentDeliveryFinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryGetRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryGetJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryGetResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryGetResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryGet200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryGet200JSONResponse) VisitWflSalesFulfillmentDeliveryGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliverySaveRequestObject struct {
-	Body *WflSalesFulfillmentDeliverySaveJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliverySaveResponseObject interface {
-	VisitWflSalesFulfillmentDeliverySaveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliverySave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliverySave200JSONResponse) VisitWflSalesFulfillmentDeliverySaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryUnapproveRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryUnapproveJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryUnapproveResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryUnapproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryUnapprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryUnapprove200JSONResponse) VisitWflSalesFulfillmentDeliveryUnapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryUncheckRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryUncheckJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryUncheckResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryUncheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryUncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryUncheck200JSONResponse) VisitWflSalesFulfillmentDeliveryUncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentDeliveryUnfinalizeRequestObject struct {
-	Body *WflSalesFulfillmentDeliveryUnfinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentDeliveryUnfinalizeResponseObject interface {
-	VisitWflSalesFulfillmentDeliveryUnfinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentDeliveryUnfinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentDeliveryUnfinalize200JSONResponse) VisitWflSalesFulfillmentDeliveryUnfinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentFinalizeRequestObject struct {
-	Body *WflSalesFulfillmentFinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentFinalizeResponseObject interface {
-	VisitWflSalesFulfillmentFinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentFinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentFinalize200JSONResponse) VisitWflSalesFulfillmentFinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type WflSalesFulfillmentGetRequestObject struct {
 	Body *WflSalesFulfillmentGetJSONRequestBody
 }
@@ -7904,182 +4668,6 @@ func (response WflSalesFulfillmentGet200JSONResponse) VisitWflSalesFulfillmentGe
 	return err
 }
 
-type WflSalesFulfillmentOutboundApproveRequestObject struct {
-	Body *WflSalesFulfillmentOutboundApproveJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundApproveResponseObject interface {
-	VisitWflSalesFulfillmentOutboundApproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundApprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundApprove200JSONResponse) VisitWflSalesFulfillmentOutboundApproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundCheckRequestObject struct {
-	Body *WflSalesFulfillmentOutboundCheckJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundCheckResponseObject interface {
-	VisitWflSalesFulfillmentOutboundCheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundCheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundCheck200JSONResponse) VisitWflSalesFulfillmentOutboundCheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundFinalizeRequestObject struct {
-	Body *WflSalesFulfillmentOutboundFinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundFinalizeResponseObject interface {
-	VisitWflSalesFulfillmentOutboundFinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundFinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundFinalize200JSONResponse) VisitWflSalesFulfillmentOutboundFinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundGetRequestObject struct {
-	Body *WflSalesFulfillmentOutboundGetJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundGetResponseObject interface {
-	VisitWflSalesFulfillmentOutboundGetResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundGet200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundGet200JSONResponse) VisitWflSalesFulfillmentOutboundGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundSaveRequestObject struct {
-	Body *WflSalesFulfillmentOutboundSaveJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundSaveResponseObject interface {
-	VisitWflSalesFulfillmentOutboundSaveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundSave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundSave200JSONResponse) VisitWflSalesFulfillmentOutboundSaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundUnapproveRequestObject struct {
-	Body *WflSalesFulfillmentOutboundUnapproveJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundUnapproveResponseObject interface {
-	VisitWflSalesFulfillmentOutboundUnapproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundUnapprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundUnapprove200JSONResponse) VisitWflSalesFulfillmentOutboundUnapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundUncheckRequestObject struct {
-	Body *WflSalesFulfillmentOutboundUncheckJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundUncheckResponseObject interface {
-	VisitWflSalesFulfillmentOutboundUncheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundUncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundUncheck200JSONResponse) VisitWflSalesFulfillmentOutboundUncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentOutboundUnfinalizeRequestObject struct {
-	Body *WflSalesFulfillmentOutboundUnfinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentOutboundUnfinalizeResponseObject interface {
-	VisitWflSalesFulfillmentOutboundUnfinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentOutboundUnfinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentOutboundUnfinalize200JSONResponse) VisitWflSalesFulfillmentOutboundUnfinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type WflSalesFulfillmentQueryRequestObject struct {
 	Body *WflSalesFulfillmentQueryJSONRequestBody
 }
@@ -8091,28 +4679,6 @@ type WflSalesFulfillmentQueryResponseObject interface {
 type WflSalesFulfillmentQuery200JSONResponse struct{ BusinessJSONResponse }
 
 func (response WflSalesFulfillmentQuery200JSONResponse) VisitWflSalesFulfillmentQueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSaveRequestObject struct {
-	Body *WflSalesFulfillmentSaveJSONRequestBody
-}
-
-type WflSalesFulfillmentSaveResponseObject interface {
-	VisitWflSalesFulfillmentSaveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSave200JSONResponse) VisitWflSalesFulfillmentSaveResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -8201,248 +4767,6 @@ type WflSalesFulfillmentShortCloseUnconfirmResponseObject interface {
 type WflSalesFulfillmentShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
 
 func (response WflSalesFulfillmentShortCloseUnconfirm200JSONResponse) VisitWflSalesFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffApproveRequestObject struct {
-	Body *WflSalesFulfillmentSignoffApproveJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffApproveResponseObject interface {
-	VisitWflSalesFulfillmentSignoffApproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffApprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffApprove200JSONResponse) VisitWflSalesFulfillmentSignoffApproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffCheckRequestObject struct {
-	Body *WflSalesFulfillmentSignoffCheckJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffCheckResponseObject interface {
-	VisitWflSalesFulfillmentSignoffCheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffCheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffCheck200JSONResponse) VisitWflSalesFulfillmentSignoffCheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffFinalizeRequestObject struct {
-	Body *WflSalesFulfillmentSignoffFinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffFinalizeResponseObject interface {
-	VisitWflSalesFulfillmentSignoffFinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffFinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffFinalize200JSONResponse) VisitWflSalesFulfillmentSignoffFinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffGetRequestObject struct {
-	Body *WflSalesFulfillmentSignoffGetJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffGetResponseObject interface {
-	VisitWflSalesFulfillmentSignoffGetResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffGet200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffGet200JSONResponse) VisitWflSalesFulfillmentSignoffGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffSaveRequestObject struct {
-	Body *WflSalesFulfillmentSignoffSaveJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffSaveResponseObject interface {
-	VisitWflSalesFulfillmentSignoffSaveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffSave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffSave200JSONResponse) VisitWflSalesFulfillmentSignoffSaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffUnapproveRequestObject struct {
-	Body *WflSalesFulfillmentSignoffUnapproveJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffUnapproveResponseObject interface {
-	VisitWflSalesFulfillmentSignoffUnapproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffUnapprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffUnapprove200JSONResponse) VisitWflSalesFulfillmentSignoffUnapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffUncheckRequestObject struct {
-	Body *WflSalesFulfillmentSignoffUncheckJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffUncheckResponseObject interface {
-	VisitWflSalesFulfillmentSignoffUncheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffUncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffUncheck200JSONResponse) VisitWflSalesFulfillmentSignoffUncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentSignoffUnfinalizeRequestObject struct {
-	Body *WflSalesFulfillmentSignoffUnfinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentSignoffUnfinalizeResponseObject interface {
-	VisitWflSalesFulfillmentSignoffUnfinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentSignoffUnfinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentSignoffUnfinalize200JSONResponse) VisitWflSalesFulfillmentSignoffUnfinalizeResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentUnapproveRequestObject struct {
-	Body *WflSalesFulfillmentUnapproveJSONRequestBody
-}
-
-type WflSalesFulfillmentUnapproveResponseObject interface {
-	VisitWflSalesFulfillmentUnapproveResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentUnapprove200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentUnapprove200JSONResponse) VisitWflSalesFulfillmentUnapproveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentUncheckRequestObject struct {
-	Body *WflSalesFulfillmentUncheckJSONRequestBody
-}
-
-type WflSalesFulfillmentUncheckResponseObject interface {
-	VisitWflSalesFulfillmentUncheckResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentUncheck200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentUncheck200JSONResponse) VisitWflSalesFulfillmentUncheckResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentUnfinalizeRequestObject struct {
-	Body *WflSalesFulfillmentUnfinalizeJSONRequestBody
-}
-
-type WflSalesFulfillmentUnfinalizeResponseObject interface {
-	VisitWflSalesFulfillmentUnfinalizeResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentUnfinalize200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentUnfinalize200JSONResponse) VisitWflSalesFulfillmentUnfinalizeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -8651,18 +4975,6 @@ type StrictServerInterface interface {
 	// Vousave 保存业务单据
 	// (POST /vou/{entity}/save)
 	Vousave(ctx context.Context, request VousaveRequestObject) (VousaveResponseObject, error)
-	// VouSaleOrderShortCloseCancel 取消销售订单短结申请
-	// (POST /vou/{entity}/short-close-cancel)
-	VouSaleOrderShortCloseCancel(ctx context.Context, request VouSaleOrderShortCloseCancelRequestObject) (VouSaleOrderShortCloseCancelResponseObject, error)
-	// VouSaleOrderShortCloseConfirm 确认短结销售订单
-	// (POST /vou/{entity}/short-close-confirm)
-	VouSaleOrderShortCloseConfirm(ctx context.Context, request VouSaleOrderShortCloseConfirmRequestObject) (VouSaleOrderShortCloseConfirmResponseObject, error)
-	// VouSaleOrderShortCloseRequest 申请短结销售订单
-	// (POST /vou/{entity}/short-close-request)
-	VouSaleOrderShortCloseRequest(ctx context.Context, request VouSaleOrderShortCloseRequestRequestObject) (VouSaleOrderShortCloseRequestResponseObject, error)
-	// VouSaleOrderShortCloseUnconfirm 反确认短结销售订单
-	// (POST /vou/{entity}/short-close-unconfirm)
-	VouSaleOrderShortCloseUnconfirm(ctx context.Context, request VouSaleOrderShortCloseUnconfirmRequestObject) (VouSaleOrderShortCloseUnconfirmResponseObject, error)
 	// Vouunapprove 取消批准业务单据
 	// (POST /vou/{entity}/unapprove)
 	Vouunapprove(ctx context.Context, request VouunapproveRequestObject) (VouunapproveResponseObject, error)
@@ -8672,249 +4984,36 @@ type StrictServerInterface interface {
 	// Vouunfinalize 撤销业务单据最终处理
 	// (POST /vou/{entity}/unfinalize)
 	Vouunfinalize(ctx context.Context, request VouunfinalizeRequestObject) (VouunfinalizeResponseObject, error)
-	// WflIntermediaryTradeapprove 居间贸易 approve
-	// (POST /wfl/intermediary-trade/approve)
-	WflIntermediaryTradeapprove(ctx context.Context, request WflIntermediaryTradeapproveRequestObject) (WflIntermediaryTradeapproveResponseObject, error)
-	// WflIntermediaryTradeaudithistory 查询居间贸易审计历史
-	// (POST /wfl/intermediary-trade/audit-history)
-	WflIntermediaryTradeaudithistory(ctx context.Context, request WflIntermediaryTradeaudithistoryRequestObject) (WflIntermediaryTradeaudithistoryResponseObject, error)
-	// WflIntermediaryTradecheck 居间贸易 check
-	// (POST /wfl/intermediary-trade/check)
-	WflIntermediaryTradecheck(ctx context.Context, request WflIntermediaryTradecheckRequestObject) (WflIntermediaryTradecheckResponseObject, error)
-	// WflIntermediaryTradecreate 创建居间贸易流程
-	// (POST /wfl/intermediary-trade/create)
-	WflIntermediaryTradecreate(ctx context.Context, request WflIntermediaryTradecreateRequestObject) (WflIntermediaryTradecreateResponseObject, error)
-	// WflIntermediaryTradedeliveryattachmentdownload 居间贸易 delivery 附件 download
-	// (POST /wfl/intermediary-trade/delivery-attachment-download)
-	WflIntermediaryTradedeliveryattachmentdownload(ctx context.Context, request WflIntermediaryTradedeliveryattachmentdownloadRequestObject) (WflIntermediaryTradedeliveryattachmentdownloadResponseObject, error)
-	// WflIntermediaryTradedeliveryattachmentinitiate 居间贸易 delivery 附件 initiate
-	// (POST /wfl/intermediary-trade/delivery-attachment-initiate)
-	WflIntermediaryTradedeliveryattachmentinitiate(ctx context.Context, request WflIntermediaryTradedeliveryattachmentinitiateRequestObject) (WflIntermediaryTradedeliveryattachmentinitiateResponseObject, error)
-	// WflIntermediaryTradedeliveryattachmentremove 居间贸易 delivery 附件 remove
-	// (POST /wfl/intermediary-trade/delivery-attachment-remove)
-	WflIntermediaryTradedeliveryattachmentremove(ctx context.Context, request WflIntermediaryTradedeliveryattachmentremoveRequestObject) (WflIntermediaryTradedeliveryattachmentremoveResponseObject, error)
-	// WflIntermediaryTradedeliverycheck 居间贸易 delivery-check
-	// (POST /wfl/intermediary-trade/delivery-check)
-	WflIntermediaryTradedeliverycheck(ctx context.Context, request WflIntermediaryTradedeliverycheckRequestObject) (WflIntermediaryTradedeliverycheckResponseObject, error)
-	// WflIntermediaryTradedeliverycreate 居间贸易 delivery-create
-	// (POST /wfl/intermediary-trade/delivery-create)
-	WflIntermediaryTradedeliverycreate(ctx context.Context, request WflIntermediaryTradedeliverycreateRequestObject) (WflIntermediaryTradedeliverycreateResponseObject, error)
-	// WflIntermediaryTradedeliverydelete 居间贸易 delivery-delete
-	// (POST /wfl/intermediary-trade/delivery-delete)
-	WflIntermediaryTradedeliverydelete(ctx context.Context, request WflIntermediaryTradedeliverydeleteRequestObject) (WflIntermediaryTradedeliverydeleteResponseObject, error)
-	// WflIntermediaryTradedeliveryexecute 居间贸易 delivery-execute
-	// (POST /wfl/intermediary-trade/delivery-execute)
-	WflIntermediaryTradedeliveryexecute(ctx context.Context, request WflIntermediaryTradedeliveryexecuteRequestObject) (WflIntermediaryTradedeliveryexecuteResponseObject, error)
-	// WflIntermediaryTradedeliveryget 居间贸易 delivery-get
-	// (POST /wfl/intermediary-trade/delivery-get)
-	WflIntermediaryTradedeliveryget(ctx context.Context, request WflIntermediaryTradedeliverygetRequestObject) (WflIntermediaryTradedeliverygetResponseObject, error)
-	// WflIntermediaryTradedeliverysave 居间贸易 delivery-save
-	// (POST /wfl/intermediary-trade/delivery-save)
-	WflIntermediaryTradedeliverysave(ctx context.Context, request WflIntermediaryTradedeliverysaveRequestObject) (WflIntermediaryTradedeliverysaveResponseObject, error)
-	// WflIntermediaryTradedeliveryuncheck 居间贸易 delivery-uncheck
-	// (POST /wfl/intermediary-trade/delivery-uncheck)
-	WflIntermediaryTradedeliveryuncheck(ctx context.Context, request WflIntermediaryTradedeliveryuncheckRequestObject) (WflIntermediaryTradedeliveryuncheckResponseObject, error)
-	// WflIntermediaryTradedeliveryunexecute 居间贸易 delivery-unexecute
-	// (POST /wfl/intermediary-trade/delivery-unexecute)
-	WflIntermediaryTradedeliveryunexecute(ctx context.Context, request WflIntermediaryTradedeliveryunexecuteRequestObject) (WflIntermediaryTradedeliveryunexecuteResponseObject, error)
-	// WflIntermediaryTradeget 读取居间贸易流程
-	// (POST /wfl/intermediary-trade/get)
-	WflIntermediaryTradeget(ctx context.Context, request WflIntermediaryTradegetRequestObject) (WflIntermediaryTradegetResponseObject, error)
-	// WflIntermediaryTradeprocurementattachmentdownload 居间贸易 procurement 附件 download
-	// (POST /wfl/intermediary-trade/procurement-attachment-download)
-	WflIntermediaryTradeprocurementattachmentdownload(ctx context.Context, request WflIntermediaryTradeprocurementattachmentdownloadRequestObject) (WflIntermediaryTradeprocurementattachmentdownloadResponseObject, error)
-	// WflIntermediaryTradeprocurementattachmentinitiate 居间贸易 procurement 附件 initiate
-	// (POST /wfl/intermediary-trade/procurement-attachment-initiate)
-	WflIntermediaryTradeprocurementattachmentinitiate(ctx context.Context, request WflIntermediaryTradeprocurementattachmentinitiateRequestObject) (WflIntermediaryTradeprocurementattachmentinitiateResponseObject, error)
-	// WflIntermediaryTradeprocurementattachmentremove 居间贸易 procurement 附件 remove
-	// (POST /wfl/intermediary-trade/procurement-attachment-remove)
-	WflIntermediaryTradeprocurementattachmentremove(ctx context.Context, request WflIntermediaryTradeprocurementattachmentremoveRequestObject) (WflIntermediaryTradeprocurementattachmentremoveResponseObject, error)
-	// WflIntermediaryTradeprocurementcheck 居间贸易 procurement-check
-	// (POST /wfl/intermediary-trade/procurement-check)
-	WflIntermediaryTradeprocurementcheck(ctx context.Context, request WflIntermediaryTradeprocurementcheckRequestObject) (WflIntermediaryTradeprocurementcheckResponseObject, error)
-	// WflIntermediaryTradeprocurementcreate 居间贸易 procurement-create
-	// (POST /wfl/intermediary-trade/procurement-create)
-	WflIntermediaryTradeprocurementcreate(ctx context.Context, request WflIntermediaryTradeprocurementcreateRequestObject) (WflIntermediaryTradeprocurementcreateResponseObject, error)
-	// WflIntermediaryTradeprocurementdelete 居间贸易 procurement-delete
-	// (POST /wfl/intermediary-trade/procurement-delete)
-	WflIntermediaryTradeprocurementdelete(ctx context.Context, request WflIntermediaryTradeprocurementdeleteRequestObject) (WflIntermediaryTradeprocurementdeleteResponseObject, error)
-	// WflIntermediaryTradeprocurementget 居间贸易 procurement-get
-	// (POST /wfl/intermediary-trade/procurement-get)
-	WflIntermediaryTradeprocurementget(ctx context.Context, request WflIntermediaryTradeprocurementgetRequestObject) (WflIntermediaryTradeprocurementgetResponseObject, error)
-	// WflIntermediaryTradeprocurementplace 居间贸易 procurement-place
-	// (POST /wfl/intermediary-trade/procurement-place)
-	WflIntermediaryTradeprocurementplace(ctx context.Context, request WflIntermediaryTradeprocurementplaceRequestObject) (WflIntermediaryTradeprocurementplaceResponseObject, error)
-	// WflIntermediaryTradeprocurementsave 居间贸易 procurement-save
-	// (POST /wfl/intermediary-trade/procurement-save)
-	WflIntermediaryTradeprocurementsave(ctx context.Context, request WflIntermediaryTradeprocurementsaveRequestObject) (WflIntermediaryTradeprocurementsaveResponseObject, error)
-	// WflIntermediaryTradeprocurementuncheck 居间贸易 procurement-uncheck
-	// (POST /wfl/intermediary-trade/procurement-uncheck)
-	WflIntermediaryTradeprocurementuncheck(ctx context.Context, request WflIntermediaryTradeprocurementuncheckRequestObject) (WflIntermediaryTradeprocurementuncheckResponseObject, error)
-	// WflIntermediaryTradeprocurementunplace 居间贸易 procurement-unplace
-	// (POST /wfl/intermediary-trade/procurement-unplace)
-	WflIntermediaryTradeprocurementunplace(ctx context.Context, request WflIntermediaryTradeprocurementunplaceRequestObject) (WflIntermediaryTradeprocurementunplaceResponseObject, error)
-	// WflIntermediaryTradequery 查询居间贸易流程
-	// (POST /wfl/intermediary-trade/query)
-	WflIntermediaryTradequery(ctx context.Context, request WflIntermediaryTradequeryRequestObject) (WflIntermediaryTradequeryResponseObject, error)
-	// WflIntermediaryTradereceiptattachmentdownload 居间贸易 receipt 附件 download
-	// (POST /wfl/intermediary-trade/receipt-attachment-download)
-	WflIntermediaryTradereceiptattachmentdownload(ctx context.Context, request WflIntermediaryTradereceiptattachmentdownloadRequestObject) (WflIntermediaryTradereceiptattachmentdownloadResponseObject, error)
-	// WflIntermediaryTradereceiptattachmentinitiate 居间贸易 receipt 附件 initiate
-	// (POST /wfl/intermediary-trade/receipt-attachment-initiate)
-	WflIntermediaryTradereceiptattachmentinitiate(ctx context.Context, request WflIntermediaryTradereceiptattachmentinitiateRequestObject) (WflIntermediaryTradereceiptattachmentinitiateResponseObject, error)
-	// WflIntermediaryTradereceiptattachmentremove 居间贸易 receipt 附件 remove
-	// (POST /wfl/intermediary-trade/receipt-attachment-remove)
-	WflIntermediaryTradereceiptattachmentremove(ctx context.Context, request WflIntermediaryTradereceiptattachmentremoveRequestObject) (WflIntermediaryTradereceiptattachmentremoveResponseObject, error)
-	// WflIntermediaryTradereceiptcheck 居间贸易 receipt-check
-	// (POST /wfl/intermediary-trade/receipt-check)
-	WflIntermediaryTradereceiptcheck(ctx context.Context, request WflIntermediaryTradereceiptcheckRequestObject) (WflIntermediaryTradereceiptcheckResponseObject, error)
-	// WflIntermediaryTradereceiptconfirm 居间贸易 receipt-confirm
-	// (POST /wfl/intermediary-trade/receipt-confirm)
-	WflIntermediaryTradereceiptconfirm(ctx context.Context, request WflIntermediaryTradereceiptconfirmRequestObject) (WflIntermediaryTradereceiptconfirmResponseObject, error)
-	// WflIntermediaryTradereceiptcreate 居间贸易 receipt-create
-	// (POST /wfl/intermediary-trade/receipt-create)
-	WflIntermediaryTradereceiptcreate(ctx context.Context, request WflIntermediaryTradereceiptcreateRequestObject) (WflIntermediaryTradereceiptcreateResponseObject, error)
-	// WflIntermediaryTradereceiptdelete 居间贸易 receipt-delete
-	// (POST /wfl/intermediary-trade/receipt-delete)
-	WflIntermediaryTradereceiptdelete(ctx context.Context, request WflIntermediaryTradereceiptdeleteRequestObject) (WflIntermediaryTradereceiptdeleteResponseObject, error)
-	// WflIntermediaryTradereceiptget 居间贸易 receipt-get
-	// (POST /wfl/intermediary-trade/receipt-get)
-	WflIntermediaryTradereceiptget(ctx context.Context, request WflIntermediaryTradereceiptgetRequestObject) (WflIntermediaryTradereceiptgetResponseObject, error)
-	// WflIntermediaryTradereceiptsave 居间贸易 receipt-save
-	// (POST /wfl/intermediary-trade/receipt-save)
-	WflIntermediaryTradereceiptsave(ctx context.Context, request WflIntermediaryTradereceiptsaveRequestObject) (WflIntermediaryTradereceiptsaveResponseObject, error)
-	// WflIntermediaryTradereceiptuncheck 居间贸易 receipt-uncheck
-	// (POST /wfl/intermediary-trade/receipt-uncheck)
-	WflIntermediaryTradereceiptuncheck(ctx context.Context, request WflIntermediaryTradereceiptuncheckRequestObject) (WflIntermediaryTradereceiptuncheckResponseObject, error)
-	// WflIntermediaryTradereceiptunconfirm 居间贸易 receipt-unconfirm
-	// (POST /wfl/intermediary-trade/receipt-unconfirm)
-	WflIntermediaryTradereceiptunconfirm(ctx context.Context, request WflIntermediaryTradereceiptunconfirmRequestObject) (WflIntermediaryTradereceiptunconfirmResponseObject, error)
-	// WflIntermediaryTradesave 保存居间贸易客户订单
-	// (POST /wfl/intermediary-trade/save)
-	WflIntermediaryTradesave(ctx context.Context, request WflIntermediaryTradesaveRequestObject) (WflIntermediaryTradesaveResponseObject, error)
-	// WflIntermediaryTradeshortclosecancel 居间贸易 short-close-cancel
-	// (POST /wfl/intermediary-trade/short-close-cancel)
-	WflIntermediaryTradeshortclosecancel(ctx context.Context, request WflIntermediaryTradeshortclosecancelRequestObject) (WflIntermediaryTradeshortclosecancelResponseObject, error)
-	// WflIntermediaryTradeshortcloseconfirm 居间贸易 short-close-confirm
-	// (POST /wfl/intermediary-trade/short-close-confirm)
-	WflIntermediaryTradeshortcloseconfirm(ctx context.Context, request WflIntermediaryTradeshortcloseconfirmRequestObject) (WflIntermediaryTradeshortcloseconfirmResponseObject, error)
-	// WflIntermediaryTradeshortcloserequest 居间贸易 short-close-request
-	// (POST /wfl/intermediary-trade/short-close-request)
-	WflIntermediaryTradeshortcloserequest(ctx context.Context, request WflIntermediaryTradeshortcloserequestRequestObject) (WflIntermediaryTradeshortcloserequestResponseObject, error)
-	// WflIntermediaryTradeshortcloseunconfirm 居间贸易 short-close-unconfirm
-	// (POST /wfl/intermediary-trade/short-close-unconfirm)
-	WflIntermediaryTradeshortcloseunconfirm(ctx context.Context, request WflIntermediaryTradeshortcloseunconfirmRequestObject) (WflIntermediaryTradeshortcloseunconfirmResponseObject, error)
-	// WflIntermediaryTradesignoffattachmentdownload 居间贸易 signoff 附件 download
-	// (POST /wfl/intermediary-trade/signoff-attachment-download)
-	WflIntermediaryTradesignoffattachmentdownload(ctx context.Context, request WflIntermediaryTradesignoffattachmentdownloadRequestObject) (WflIntermediaryTradesignoffattachmentdownloadResponseObject, error)
-	// WflIntermediaryTradesignoffattachmentinitiate 居间贸易 signoff 附件 initiate
-	// (POST /wfl/intermediary-trade/signoff-attachment-initiate)
-	WflIntermediaryTradesignoffattachmentinitiate(ctx context.Context, request WflIntermediaryTradesignoffattachmentinitiateRequestObject) (WflIntermediaryTradesignoffattachmentinitiateResponseObject, error)
-	// WflIntermediaryTradesignoffattachmentremove 居间贸易 signoff 附件 remove
-	// (POST /wfl/intermediary-trade/signoff-attachment-remove)
-	WflIntermediaryTradesignoffattachmentremove(ctx context.Context, request WflIntermediaryTradesignoffattachmentremoveRequestObject) (WflIntermediaryTradesignoffattachmentremoveResponseObject, error)
-	// WflIntermediaryTradesignoffcheck 居间贸易 signoff-check
-	// (POST /wfl/intermediary-trade/signoff-check)
-	WflIntermediaryTradesignoffcheck(ctx context.Context, request WflIntermediaryTradesignoffcheckRequestObject) (WflIntermediaryTradesignoffcheckResponseObject, error)
-	// WflIntermediaryTradesignoffconfirm 居间贸易 signoff-confirm
-	// (POST /wfl/intermediary-trade/signoff-confirm)
-	WflIntermediaryTradesignoffconfirm(ctx context.Context, request WflIntermediaryTradesignoffconfirmRequestObject) (WflIntermediaryTradesignoffconfirmResponseObject, error)
-	// WflIntermediaryTradesignoffcreate 居间贸易 signoff-create
-	// (POST /wfl/intermediary-trade/signoff-create)
-	WflIntermediaryTradesignoffcreate(ctx context.Context, request WflIntermediaryTradesignoffcreateRequestObject) (WflIntermediaryTradesignoffcreateResponseObject, error)
-	// WflIntermediaryTradesignoffdelete 居间贸易 signoff-delete
-	// (POST /wfl/intermediary-trade/signoff-delete)
-	WflIntermediaryTradesignoffdelete(ctx context.Context, request WflIntermediaryTradesignoffdeleteRequestObject) (WflIntermediaryTradesignoffdeleteResponseObject, error)
-	// WflIntermediaryTradesignoffget 居间贸易 signoff-get
-	// (POST /wfl/intermediary-trade/signoff-get)
-	WflIntermediaryTradesignoffget(ctx context.Context, request WflIntermediaryTradesignoffgetRequestObject) (WflIntermediaryTradesignoffgetResponseObject, error)
-	// WflIntermediaryTradesignoffsave 居间贸易 signoff-save
-	// (POST /wfl/intermediary-trade/signoff-save)
-	WflIntermediaryTradesignoffsave(ctx context.Context, request WflIntermediaryTradesignoffsaveRequestObject) (WflIntermediaryTradesignoffsaveResponseObject, error)
-	// WflIntermediaryTradesignoffuncheck 居间贸易 signoff-uncheck
-	// (POST /wfl/intermediary-trade/signoff-uncheck)
-	WflIntermediaryTradesignoffuncheck(ctx context.Context, request WflIntermediaryTradesignoffuncheckRequestObject) (WflIntermediaryTradesignoffuncheckResponseObject, error)
-	// WflIntermediaryTradesignoffunconfirm 居间贸易 signoff-unconfirm
-	// (POST /wfl/intermediary-trade/signoff-unconfirm)
-	WflIntermediaryTradesignoffunconfirm(ctx context.Context, request WflIntermediaryTradesignoffunconfirmRequestObject) (WflIntermediaryTradesignoffunconfirmResponseObject, error)
-	// WflIntermediaryTradeunapprove 居间贸易 unapprove
-	// (POST /wfl/intermediary-trade/unapprove)
-	WflIntermediaryTradeunapprove(ctx context.Context, request WflIntermediaryTradeunapproveRequestObject) (WflIntermediaryTradeunapproveResponseObject, error)
-	// WflIntermediaryTradeuncheck 居间贸易 uncheck
-	// (POST /wfl/intermediary-trade/uncheck)
-	WflIntermediaryTradeuncheck(ctx context.Context, request WflIntermediaryTradeuncheckRequestObject) (WflIntermediaryTradeuncheckResponseObject, error)
-	// WflSalesFulfillmentApprove 批准销售订单并自动生成出库草稿
-	// (POST /wfl/sales-fulfillment/approve)
-	WflSalesFulfillmentApprove(ctx context.Context, request WflSalesFulfillmentApproveRequestObject) (WflSalesFulfillmentApproveResponseObject, error)
+	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
+	// (POST /wfl/purchase-fulfillment/audit-history)
+	WflPurchaseFulfillmentAuditHistory(ctx context.Context, request WflPurchaseFulfillmentAuditHistoryRequestObject) (WflPurchaseFulfillmentAuditHistoryResponseObject, error)
+	// WflPurchaseFulfillmentGet 读取采购履约流程
+	// (POST /wfl/purchase-fulfillment/get)
+	WflPurchaseFulfillmentGet(ctx context.Context, request WflPurchaseFulfillmentGetRequestObject) (WflPurchaseFulfillmentGetResponseObject, error)
+	// WflPurchaseFulfillmentQuery 查询采购履约流程
+	// (POST /wfl/purchase-fulfillment/query)
+	WflPurchaseFulfillmentQuery(ctx context.Context, request WflPurchaseFulfillmentQueryRequestObject) (WflPurchaseFulfillmentQueryResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
+	// (POST /wfl/purchase-fulfillment/short-close-cancel)
+	WflPurchaseFulfillmentShortCloseCancel(ctx context.Context, request WflPurchaseFulfillmentShortCloseCancelRequestObject) (WflPurchaseFulfillmentShortCloseCancelResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseConfirm 确认采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-confirm)
+	WflPurchaseFulfillmentShortCloseConfirm(ctx context.Context, request WflPurchaseFulfillmentShortCloseConfirmRequestObject) (WflPurchaseFulfillmentShortCloseConfirmResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseRequest 申请采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-request)
+	WflPurchaseFulfillmentShortCloseRequest(ctx context.Context, request WflPurchaseFulfillmentShortCloseRequestRequestObject) (WflPurchaseFulfillmentShortCloseRequestResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
+	WflPurchaseFulfillmentShortCloseUnconfirm(ctx context.Context, request WflPurchaseFulfillmentShortCloseUnconfirmRequestObject) (WflPurchaseFulfillmentShortCloseUnconfirmResponseObject, error)
 	// WflSalesFulfillmentAuditHistory 查询销售履约审计
 	// (POST /wfl/sales-fulfillment/audit-history)
 	WflSalesFulfillmentAuditHistory(ctx context.Context, request WflSalesFulfillmentAuditHistoryRequestObject) (WflSalesFulfillmentAuditHistoryResponseObject, error)
-	// WflSalesFulfillmentCheck 核对销售订单
-	// (POST /wfl/sales-fulfillment/check)
-	WflSalesFulfillmentCheck(ctx context.Context, request WflSalesFulfillmentCheckRequestObject) (WflSalesFulfillmentCheckResponseObject, error)
-	// WflSalesFulfillmentCreate 创建销售履约流程
-	// (POST /wfl/sales-fulfillment/create)
-	WflSalesFulfillmentCreate(ctx context.Context, request WflSalesFulfillmentCreateRequestObject) (WflSalesFulfillmentCreateResponseObject, error)
-	// WflSalesFulfillmentDeliveryApprove 批准销售配送单并自动生成签收草稿
-	// (POST /wfl/sales-fulfillment/delivery-approve)
-	WflSalesFulfillmentDeliveryApprove(ctx context.Context, request WflSalesFulfillmentDeliveryApproveRequestObject) (WflSalesFulfillmentDeliveryApproveResponseObject, error)
-	// WflSalesFulfillmentDeliveryCheck 核对销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-check)
-	WflSalesFulfillmentDeliveryCheck(ctx context.Context, request WflSalesFulfillmentDeliveryCheckRequestObject) (WflSalesFulfillmentDeliveryCheckResponseObject, error)
-	// WflSalesFulfillmentDeliveryFinalize 完成销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-finalize)
-	WflSalesFulfillmentDeliveryFinalize(ctx context.Context, request WflSalesFulfillmentDeliveryFinalizeRequestObject) (WflSalesFulfillmentDeliveryFinalizeResponseObject, error)
-	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-get)
-	WflSalesFulfillmentDeliveryGet(ctx context.Context, request WflSalesFulfillmentDeliveryGetRequestObject) (WflSalesFulfillmentDeliveryGetResponseObject, error)
-	// WflSalesFulfillmentDeliverySave 保存销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-save)
-	WflSalesFulfillmentDeliverySave(ctx context.Context, request WflSalesFulfillmentDeliverySaveRequestObject) (WflSalesFulfillmentDeliverySaveResponseObject, error)
-	// WflSalesFulfillmentDeliveryUnapprove 反批准销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-unapprove)
-	WflSalesFulfillmentDeliveryUnapprove(ctx context.Context, request WflSalesFulfillmentDeliveryUnapproveRequestObject) (WflSalesFulfillmentDeliveryUnapproveResponseObject, error)
-	// WflSalesFulfillmentDeliveryUncheck 反核对销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-uncheck)
-	WflSalesFulfillmentDeliveryUncheck(ctx context.Context, request WflSalesFulfillmentDeliveryUncheckRequestObject) (WflSalesFulfillmentDeliveryUncheckResponseObject, error)
-	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售配送单
-	// (POST /wfl/sales-fulfillment/delivery-unfinalize)
-	WflSalesFulfillmentDeliveryUnfinalize(ctx context.Context, request WflSalesFulfillmentDeliveryUnfinalizeRequestObject) (WflSalesFulfillmentDeliveryUnfinalizeResponseObject, error)
-	// WflSalesFulfillmentFinalize 完成销售订单
-	// (POST /wfl/sales-fulfillment/finalize)
-	WflSalesFulfillmentFinalize(ctx context.Context, request WflSalesFulfillmentFinalizeRequestObject) (WflSalesFulfillmentFinalizeResponseObject, error)
 	// WflSalesFulfillmentGet 读取销售履约流程
 	// (POST /wfl/sales-fulfillment/get)
 	WflSalesFulfillmentGet(ctx context.Context, request WflSalesFulfillmentGetRequestObject) (WflSalesFulfillmentGetResponseObject, error)
-	// WflSalesFulfillmentOutboundApprove 批准销售出库单并自动生成配送草稿
-	// (POST /wfl/sales-fulfillment/outbound-approve)
-	WflSalesFulfillmentOutboundApprove(ctx context.Context, request WflSalesFulfillmentOutboundApproveRequestObject) (WflSalesFulfillmentOutboundApproveResponseObject, error)
-	// WflSalesFulfillmentOutboundCheck 核对销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-check)
-	WflSalesFulfillmentOutboundCheck(ctx context.Context, request WflSalesFulfillmentOutboundCheckRequestObject) (WflSalesFulfillmentOutboundCheckResponseObject, error)
-	// WflSalesFulfillmentOutboundFinalize 完成销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-finalize)
-	WflSalesFulfillmentOutboundFinalize(ctx context.Context, request WflSalesFulfillmentOutboundFinalizeRequestObject) (WflSalesFulfillmentOutboundFinalizeResponseObject, error)
-	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-get)
-	WflSalesFulfillmentOutboundGet(ctx context.Context, request WflSalesFulfillmentOutboundGetRequestObject) (WflSalesFulfillmentOutboundGetResponseObject, error)
-	// WflSalesFulfillmentOutboundSave 保存销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-save)
-	WflSalesFulfillmentOutboundSave(ctx context.Context, request WflSalesFulfillmentOutboundSaveRequestObject) (WflSalesFulfillmentOutboundSaveResponseObject, error)
-	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-unapprove)
-	WflSalesFulfillmentOutboundUnapprove(ctx context.Context, request WflSalesFulfillmentOutboundUnapproveRequestObject) (WflSalesFulfillmentOutboundUnapproveResponseObject, error)
-	// WflSalesFulfillmentOutboundUncheck 反核对销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-uncheck)
-	WflSalesFulfillmentOutboundUncheck(ctx context.Context, request WflSalesFulfillmentOutboundUncheckRequestObject) (WflSalesFulfillmentOutboundUncheckResponseObject, error)
-	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库单
-	// (POST /wfl/sales-fulfillment/outbound-unfinalize)
-	WflSalesFulfillmentOutboundUnfinalize(ctx context.Context, request WflSalesFulfillmentOutboundUnfinalizeRequestObject) (WflSalesFulfillmentOutboundUnfinalizeResponseObject, error)
 	// WflSalesFulfillmentQuery 查询销售履约流程
 	// (POST /wfl/sales-fulfillment/query)
 	WflSalesFulfillmentQuery(ctx context.Context, request WflSalesFulfillmentQueryRequestObject) (WflSalesFulfillmentQueryResponseObject, error)
-	// WflSalesFulfillmentSave 保存销售订单
-	// (POST /wfl/sales-fulfillment/save)
-	WflSalesFulfillmentSave(ctx context.Context, request WflSalesFulfillmentSaveRequestObject) (WflSalesFulfillmentSaveResponseObject, error)
 	// WflSalesFulfillmentShortCloseCancel 取消销售履约短结申请
 	// (POST /wfl/sales-fulfillment/short-close-cancel)
 	WflSalesFulfillmentShortCloseCancel(ctx context.Context, request WflSalesFulfillmentShortCloseCancelRequestObject) (WflSalesFulfillmentShortCloseCancelResponseObject, error)
@@ -8927,39 +5026,6 @@ type StrictServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(ctx context.Context, request WflSalesFulfillmentShortCloseUnconfirmRequestObject) (WflSalesFulfillmentShortCloseUnconfirmResponseObject, error)
-	// WflSalesFulfillmentSignoffApprove 批准销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-approve)
-	WflSalesFulfillmentSignoffApprove(ctx context.Context, request WflSalesFulfillmentSignoffApproveRequestObject) (WflSalesFulfillmentSignoffApproveResponseObject, error)
-	// WflSalesFulfillmentSignoffCheck 核对销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-check)
-	WflSalesFulfillmentSignoffCheck(ctx context.Context, request WflSalesFulfillmentSignoffCheckRequestObject) (WflSalesFulfillmentSignoffCheckResponseObject, error)
-	// WflSalesFulfillmentSignoffFinalize 完成销售签收单并更新履约余额
-	// (POST /wfl/sales-fulfillment/signoff-finalize)
-	WflSalesFulfillmentSignoffFinalize(ctx context.Context, request WflSalesFulfillmentSignoffFinalizeRequestObject) (WflSalesFulfillmentSignoffFinalizeResponseObject, error)
-	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-get)
-	WflSalesFulfillmentSignoffGet(ctx context.Context, request WflSalesFulfillmentSignoffGetRequestObject) (WflSalesFulfillmentSignoffGetResponseObject, error)
-	// WflSalesFulfillmentSignoffSave 保存销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-save)
-	WflSalesFulfillmentSignoffSave(ctx context.Context, request WflSalesFulfillmentSignoffSaveRequestObject) (WflSalesFulfillmentSignoffSaveResponseObject, error)
-	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-unapprove)
-	WflSalesFulfillmentSignoffUnapprove(ctx context.Context, request WflSalesFulfillmentSignoffUnapproveRequestObject) (WflSalesFulfillmentSignoffUnapproveResponseObject, error)
-	// WflSalesFulfillmentSignoffUncheck 反核对销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-uncheck)
-	WflSalesFulfillmentSignoffUncheck(ctx context.Context, request WflSalesFulfillmentSignoffUncheckRequestObject) (WflSalesFulfillmentSignoffUncheckResponseObject, error)
-	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收单
-	// (POST /wfl/sales-fulfillment/signoff-unfinalize)
-	WflSalesFulfillmentSignoffUnfinalize(ctx context.Context, request WflSalesFulfillmentSignoffUnfinalizeRequestObject) (WflSalesFulfillmentSignoffUnfinalizeResponseObject, error)
-	// WflSalesFulfillmentUnapprove 反批准销售订单
-	// (POST /wfl/sales-fulfillment/unapprove)
-	WflSalesFulfillmentUnapprove(ctx context.Context, request WflSalesFulfillmentUnapproveRequestObject) (WflSalesFulfillmentUnapproveResponseObject, error)
-	// WflSalesFulfillmentUncheck 反核对销售订单
-	// (POST /wfl/sales-fulfillment/uncheck)
-	WflSalesFulfillmentUncheck(ctx context.Context, request WflSalesFulfillmentUncheckRequestObject) (WflSalesFulfillmentUncheckResponseObject, error)
-	// WflSalesFulfillmentUnfinalize 撤销完成销售订单
-	// (POST /wfl/sales-fulfillment/unfinalize)
-	WflSalesFulfillmentUnfinalize(ctx context.Context, request WflSalesFulfillmentUnfinalizeRequestObject) (WflSalesFulfillmentUnfinalizeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx *gin.Context, request any) (any, error)
@@ -10860,7 +6926,7 @@ func (sh *strictHandler) Voucheck(ctx *gin.Context, entity VouEntity) {
 }
 
 // Voucreate operation middleware
-func (sh *strictHandler) Voucreate(ctx *gin.Context, entity VouEntity) {
+func (sh *strictHandler) Voucreate(ctx *gin.Context, entity VouCreatableEntity) {
 	var request VoucreateRequestObject
 
 	request.Entity = entity
@@ -11057,138 +7123,6 @@ func (sh *strictHandler) Vousave(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// VouSaleOrderShortCloseCancel operation middleware
-func (sh *strictHandler) VouSaleOrderShortCloseCancel(ctx *gin.Context, entity VouEntity) {
-	var request VouSaleOrderShortCloseCancelRequestObject
-
-	request.Entity = entity
-
-	var body VouSaleOrderShortCloseCancelJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.VouSaleOrderShortCloseCancel(ctx, request.(VouSaleOrderShortCloseCancelRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "VouSaleOrderShortCloseCancel")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouSaleOrderShortCloseCancelResponseObject); ok {
-		if err := validResponse.VisitVouSaleOrderShortCloseCancelResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// VouSaleOrderShortCloseConfirm operation middleware
-func (sh *strictHandler) VouSaleOrderShortCloseConfirm(ctx *gin.Context, entity VouEntity) {
-	var request VouSaleOrderShortCloseConfirmRequestObject
-
-	request.Entity = entity
-
-	var body VouSaleOrderShortCloseConfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.VouSaleOrderShortCloseConfirm(ctx, request.(VouSaleOrderShortCloseConfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "VouSaleOrderShortCloseConfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouSaleOrderShortCloseConfirmResponseObject); ok {
-		if err := validResponse.VisitVouSaleOrderShortCloseConfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// VouSaleOrderShortCloseRequest operation middleware
-func (sh *strictHandler) VouSaleOrderShortCloseRequest(ctx *gin.Context, entity VouEntity) {
-	var request VouSaleOrderShortCloseRequestRequestObject
-
-	request.Entity = entity
-
-	var body VouSaleOrderShortCloseRequestJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.VouSaleOrderShortCloseRequest(ctx, request.(VouSaleOrderShortCloseRequestRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "VouSaleOrderShortCloseRequest")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouSaleOrderShortCloseRequestResponseObject); ok {
-		if err := validResponse.VisitVouSaleOrderShortCloseRequestResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// VouSaleOrderShortCloseUnconfirm operation middleware
-func (sh *strictHandler) VouSaleOrderShortCloseUnconfirm(ctx *gin.Context, entity VouEntity) {
-	var request VouSaleOrderShortCloseUnconfirmRequestObject
-
-	request.Entity = entity
-
-	var body VouSaleOrderShortCloseUnconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.VouSaleOrderShortCloseUnconfirm(ctx, request.(VouSaleOrderShortCloseUnconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "VouSaleOrderShortCloseUnconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouSaleOrderShortCloseUnconfirmResponseObject); ok {
-		if err := validResponse.VisitVouSaleOrderShortCloseUnconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // Vouunapprove operation middleware
 func (sh *strictHandler) Vouunapprove(ctx *gin.Context, entity VouEntity) {
 	var request VouunapproveRequestObject
@@ -11288,11 +7222,11 @@ func (sh *strictHandler) Vouunfinalize(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
-// WflIntermediaryTradeapprove operation middleware
-func (sh *strictHandler) WflIntermediaryTradeapprove(ctx *gin.Context) {
-	var request WflIntermediaryTradeapproveRequestObject
+// WflPurchaseFulfillmentAuditHistory operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentAuditHistory(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentAuditHistoryRequestObject
 
-	var body WflIntermediaryTradeapproveJSONRequestBody
+	var body WflPurchaseFulfillmentAuditHistoryJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11300,18 +7234,18 @@ func (sh *strictHandler) WflIntermediaryTradeapprove(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeapprove(ctx, request.(WflIntermediaryTradeapproveRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentAuditHistory(ctx, request.(WflPurchaseFulfillmentAuditHistoryRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeapprove")
+		handler = middleware(handler, "WflPurchaseFulfillmentAuditHistory")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeapproveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeapproveResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentAuditHistoryResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentAuditHistoryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11319,11 +7253,11 @@ func (sh *strictHandler) WflIntermediaryTradeapprove(ctx *gin.Context) {
 	}
 }
 
-// WflIntermediaryTradeaudithistory operation middleware
-func (sh *strictHandler) WflIntermediaryTradeaudithistory(ctx *gin.Context) {
-	var request WflIntermediaryTradeaudithistoryRequestObject
+// WflPurchaseFulfillmentGet operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentGet(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentGetRequestObject
 
-	var body WflIntermediaryTradeaudithistoryJSONRequestBody
+	var body WflPurchaseFulfillmentGetJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11331,18 +7265,18 @@ func (sh *strictHandler) WflIntermediaryTradeaudithistory(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeaudithistory(ctx, request.(WflIntermediaryTradeaudithistoryRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentGet(ctx, request.(WflPurchaseFulfillmentGetRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeaudithistory")
+		handler = middleware(handler, "WflPurchaseFulfillmentGet")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeaudithistoryResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeaudithistoryResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentGetResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentGetResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11350,11 +7284,11 @@ func (sh *strictHandler) WflIntermediaryTradeaudithistory(ctx *gin.Context) {
 	}
 }
 
-// WflIntermediaryTradecheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradecheck(ctx *gin.Context) {
-	var request WflIntermediaryTradecheckRequestObject
+// WflPurchaseFulfillmentQuery operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentQuery(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentQueryRequestObject
 
-	var body WflIntermediaryTradecheckJSONRequestBody
+	var body WflPurchaseFulfillmentQueryJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11362,18 +7296,18 @@ func (sh *strictHandler) WflIntermediaryTradecheck(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradecheck(ctx, request.(WflIntermediaryTradecheckRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentQuery(ctx, request.(WflPurchaseFulfillmentQueryRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradecheck")
+		handler = middleware(handler, "WflPurchaseFulfillmentQuery")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradecheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradecheckResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentQueryResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentQueryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11381,11 +7315,11 @@ func (sh *strictHandler) WflIntermediaryTradecheck(ctx *gin.Context) {
 	}
 }
 
-// WflIntermediaryTradecreate operation middleware
-func (sh *strictHandler) WflIntermediaryTradecreate(ctx *gin.Context) {
-	var request WflIntermediaryTradecreateRequestObject
+// WflPurchaseFulfillmentShortCloseCancel operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseCancel(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseCancelRequestObject
 
-	var body WflIntermediaryTradecreateJSONRequestBody
+	var body WflPurchaseFulfillmentShortCloseCancelJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11393,18 +7327,18 @@ func (sh *strictHandler) WflIntermediaryTradecreate(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradecreate(ctx, request.(WflIntermediaryTradecreateRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentShortCloseCancel(ctx, request.(WflPurchaseFulfillmentShortCloseCancelRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradecreate")
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseCancel")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradecreateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradecreateResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseCancelResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseCancelResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11412,11 +7346,11 @@ func (sh *strictHandler) WflIntermediaryTradecreate(ctx *gin.Context) {
 	}
 }
 
-// WflIntermediaryTradedeliveryattachmentdownload operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentdownload(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryattachmentdownloadRequestObject
+// WflPurchaseFulfillmentShortCloseConfirm operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseConfirm(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseConfirmRequestObject
 
-	var body WflIntermediaryTradedeliveryattachmentdownloadJSONRequestBody
+	var body WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11424,18 +7358,18 @@ func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentdownload(ctx *gin
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryattachmentdownload(ctx, request.(WflIntermediaryTradedeliveryattachmentdownloadRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentShortCloseConfirm(ctx, request.(WflPurchaseFulfillmentShortCloseConfirmRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryattachmentdownload")
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseConfirm")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryattachmentdownloadResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryattachmentdownloadResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseConfirmResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseConfirmResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11443,11 +7377,11 @@ func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentdownload(ctx *gin
 	}
 }
 
-// WflIntermediaryTradedeliveryattachmentinitiate operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentinitiate(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryattachmentinitiateRequestObject
+// WflPurchaseFulfillmentShortCloseRequest operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseRequest(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseRequestRequestObject
 
-	var body WflIntermediaryTradedeliveryattachmentinitiateJSONRequestBody
+	var body WflPurchaseFulfillmentShortCloseRequestJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11455,18 +7389,18 @@ func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentinitiate(ctx *gin
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryattachmentinitiate(ctx, request.(WflIntermediaryTradedeliveryattachmentinitiateRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentShortCloseRequest(ctx, request.(WflPurchaseFulfillmentShortCloseRequestRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryattachmentinitiate")
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseRequest")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryattachmentinitiateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryattachmentinitiateResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseRequestResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseRequestResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -11474,11 +7408,11 @@ func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentinitiate(ctx *gin
 	}
 }
 
-// WflIntermediaryTradedeliveryattachmentremove operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentremove(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryattachmentremoveRequestObject
+// WflPurchaseFulfillmentShortCloseUnconfirm operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseUnconfirm(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseUnconfirmRequestObject
 
-	var body WflIntermediaryTradedeliveryattachmentremoveJSONRequestBody
+	var body WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -11486,1599 +7420,18 @@ func (sh *strictHandler) WflIntermediaryTradedeliveryattachmentremove(ctx *gin.C
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryattachmentremove(ctx, request.(WflIntermediaryTradedeliveryattachmentremoveRequestObject))
+		return sh.ssi.WflPurchaseFulfillmentShortCloseUnconfirm(ctx, request.(WflPurchaseFulfillmentShortCloseUnconfirmRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryattachmentremove")
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseUnconfirm")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryattachmentremoveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryattachmentremoveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliverycheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliverycheck(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliverycheckRequestObject
-
-	var body WflIntermediaryTradedeliverycheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliverycheck(ctx, request.(WflIntermediaryTradedeliverycheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliverycheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliverycheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliverycheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliverycreate operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliverycreate(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliverycreateRequestObject
-
-	var body WflIntermediaryTradedeliverycreateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliverycreate(ctx, request.(WflIntermediaryTradedeliverycreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliverycreate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliverycreateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliverycreateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliverydelete operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliverydelete(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliverydeleteRequestObject
-
-	var body WflIntermediaryTradedeliverydeleteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliverydelete(ctx, request.(WflIntermediaryTradedeliverydeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliverydelete")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliverydeleteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliverydeleteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliveryexecute operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryexecute(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryexecuteRequestObject
-
-	var body WflIntermediaryTradedeliveryexecuteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryexecute(ctx, request.(WflIntermediaryTradedeliveryexecuteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryexecute")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryexecuteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryexecuteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliveryget operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryget(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliverygetRequestObject
-
-	var body WflIntermediaryTradedeliverygetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryget(ctx, request.(WflIntermediaryTradedeliverygetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliverygetResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliverygetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliverysave operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliverysave(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliverysaveRequestObject
-
-	var body WflIntermediaryTradedeliverysaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliverysave(ctx, request.(WflIntermediaryTradedeliverysaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliverysave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliverysaveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliverysaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliveryuncheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryuncheck(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryuncheckRequestObject
-
-	var body WflIntermediaryTradedeliveryuncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryuncheck(ctx, request.(WflIntermediaryTradedeliveryuncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryuncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryuncheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryuncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradedeliveryunexecute operation middleware
-func (sh *strictHandler) WflIntermediaryTradedeliveryunexecute(ctx *gin.Context) {
-	var request WflIntermediaryTradedeliveryunexecuteRequestObject
-
-	var body WflIntermediaryTradedeliveryunexecuteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradedeliveryunexecute(ctx, request.(WflIntermediaryTradedeliveryunexecuteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradedeliveryunexecute")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradedeliveryunexecuteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradedeliveryunexecuteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeget operation middleware
-func (sh *strictHandler) WflIntermediaryTradeget(ctx *gin.Context) {
-	var request WflIntermediaryTradegetRequestObject
-
-	var body WflIntermediaryTradegetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeget(ctx, request.(WflIntermediaryTradegetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradegetResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradegetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementattachmentdownload operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementattachmentdownload(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementattachmentdownloadRequestObject
-
-	var body WflIntermediaryTradeprocurementattachmentdownloadJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementattachmentdownload(ctx, request.(WflIntermediaryTradeprocurementattachmentdownloadRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementattachmentdownload")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementattachmentdownloadResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementattachmentdownloadResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementattachmentinitiate operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementattachmentinitiate(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementattachmentinitiateRequestObject
-
-	var body WflIntermediaryTradeprocurementattachmentinitiateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementattachmentinitiate(ctx, request.(WflIntermediaryTradeprocurementattachmentinitiateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementattachmentinitiate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementattachmentinitiateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementattachmentinitiateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementattachmentremove operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementattachmentremove(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementattachmentremoveRequestObject
-
-	var body WflIntermediaryTradeprocurementattachmentremoveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementattachmentremove(ctx, request.(WflIntermediaryTradeprocurementattachmentremoveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementattachmentremove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementattachmentremoveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementattachmentremoveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementcheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementcheck(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementcheckRequestObject
-
-	var body WflIntermediaryTradeprocurementcheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementcheck(ctx, request.(WflIntermediaryTradeprocurementcheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementcheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementcheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementcheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementcreate operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementcreate(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementcreateRequestObject
-
-	var body WflIntermediaryTradeprocurementcreateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementcreate(ctx, request.(WflIntermediaryTradeprocurementcreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementcreate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementcreateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementcreateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementdelete operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementdelete(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementdeleteRequestObject
-
-	var body WflIntermediaryTradeprocurementdeleteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementdelete(ctx, request.(WflIntermediaryTradeprocurementdeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementdelete")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementdeleteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementdeleteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementget operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementget(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementgetRequestObject
-
-	var body WflIntermediaryTradeprocurementgetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementget(ctx, request.(WflIntermediaryTradeprocurementgetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementgetResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementgetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementplace operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementplace(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementplaceRequestObject
-
-	var body WflIntermediaryTradeprocurementplaceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementplace(ctx, request.(WflIntermediaryTradeprocurementplaceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementplace")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementplaceResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementplaceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementsave operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementsave(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementsaveRequestObject
-
-	var body WflIntermediaryTradeprocurementsaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementsave(ctx, request.(WflIntermediaryTradeprocurementsaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementsave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementsaveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementsaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementuncheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementuncheck(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementuncheckRequestObject
-
-	var body WflIntermediaryTradeprocurementuncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementuncheck(ctx, request.(WflIntermediaryTradeprocurementuncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementuncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementuncheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementuncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeprocurementunplace operation middleware
-func (sh *strictHandler) WflIntermediaryTradeprocurementunplace(ctx *gin.Context) {
-	var request WflIntermediaryTradeprocurementunplaceRequestObject
-
-	var body WflIntermediaryTradeprocurementunplaceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeprocurementunplace(ctx, request.(WflIntermediaryTradeprocurementunplaceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeprocurementunplace")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeprocurementunplaceResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeprocurementunplaceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradequery operation middleware
-func (sh *strictHandler) WflIntermediaryTradequery(ctx *gin.Context) {
-	var request WflIntermediaryTradequeryRequestObject
-
-	var body WflIntermediaryTradequeryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradequery(ctx, request.(WflIntermediaryTradequeryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradequery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradequeryResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradequeryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptattachmentdownload operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptattachmentdownload(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptattachmentdownloadRequestObject
-
-	var body WflIntermediaryTradereceiptattachmentdownloadJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptattachmentdownload(ctx, request.(WflIntermediaryTradereceiptattachmentdownloadRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptattachmentdownload")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptattachmentdownloadResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptattachmentdownloadResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptattachmentinitiate operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptattachmentinitiate(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptattachmentinitiateRequestObject
-
-	var body WflIntermediaryTradereceiptattachmentinitiateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptattachmentinitiate(ctx, request.(WflIntermediaryTradereceiptattachmentinitiateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptattachmentinitiate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptattachmentinitiateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptattachmentinitiateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptattachmentremove operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptattachmentremove(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptattachmentremoveRequestObject
-
-	var body WflIntermediaryTradereceiptattachmentremoveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptattachmentremove(ctx, request.(WflIntermediaryTradereceiptattachmentremoveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptattachmentremove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptattachmentremoveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptattachmentremoveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptcheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptcheck(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptcheckRequestObject
-
-	var body WflIntermediaryTradereceiptcheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptcheck(ctx, request.(WflIntermediaryTradereceiptcheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptcheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptcheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptcheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptconfirmRequestObject
-
-	var body WflIntermediaryTradereceiptconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptconfirm(ctx, request.(WflIntermediaryTradereceiptconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptcreate operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptcreate(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptcreateRequestObject
-
-	var body WflIntermediaryTradereceiptcreateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptcreate(ctx, request.(WflIntermediaryTradereceiptcreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptcreate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptcreateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptcreateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptdelete operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptdelete(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptdeleteRequestObject
-
-	var body WflIntermediaryTradereceiptdeleteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptdelete(ctx, request.(WflIntermediaryTradereceiptdeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptdelete")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptdeleteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptdeleteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptget operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptget(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptgetRequestObject
-
-	var body WflIntermediaryTradereceiptgetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptget(ctx, request.(WflIntermediaryTradereceiptgetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptgetResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptgetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptsave operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptsave(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptsaveRequestObject
-
-	var body WflIntermediaryTradereceiptsaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptsave(ctx, request.(WflIntermediaryTradereceiptsaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptsave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptsaveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptsaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptuncheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptuncheck(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptuncheckRequestObject
-
-	var body WflIntermediaryTradereceiptuncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptuncheck(ctx, request.(WflIntermediaryTradereceiptuncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptuncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptuncheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptuncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradereceiptunconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradereceiptunconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradereceiptunconfirmRequestObject
-
-	var body WflIntermediaryTradereceiptunconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradereceiptunconfirm(ctx, request.(WflIntermediaryTradereceiptunconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradereceiptunconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradereceiptunconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradereceiptunconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesave operation middleware
-func (sh *strictHandler) WflIntermediaryTradesave(ctx *gin.Context) {
-	var request WflIntermediaryTradesaveRequestObject
-
-	var body WflIntermediaryTradesaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesave(ctx, request.(WflIntermediaryTradesaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesaveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeshortclosecancel operation middleware
-func (sh *strictHandler) WflIntermediaryTradeshortclosecancel(ctx *gin.Context) {
-	var request WflIntermediaryTradeshortclosecancelRequestObject
-
-	var body WflIntermediaryTradeshortclosecancelJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeshortclosecancel(ctx, request.(WflIntermediaryTradeshortclosecancelRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeshortclosecancel")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeshortclosecancelResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeshortclosecancelResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeshortcloseconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradeshortcloseconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradeshortcloseconfirmRequestObject
-
-	var body WflIntermediaryTradeshortcloseconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeshortcloseconfirm(ctx, request.(WflIntermediaryTradeshortcloseconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeshortcloseconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeshortcloseconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeshortcloseconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeshortcloserequest operation middleware
-func (sh *strictHandler) WflIntermediaryTradeshortcloserequest(ctx *gin.Context) {
-	var request WflIntermediaryTradeshortcloserequestRequestObject
-
-	var body WflIntermediaryTradeshortcloserequestJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeshortcloserequest(ctx, request.(WflIntermediaryTradeshortcloserequestRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeshortcloserequest")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeshortcloserequestResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeshortcloserequestResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeshortcloseunconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradeshortcloseunconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradeshortcloseunconfirmRequestObject
-
-	var body WflIntermediaryTradeshortcloseunconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeshortcloseunconfirm(ctx, request.(WflIntermediaryTradeshortcloseunconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeshortcloseunconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeshortcloseunconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeshortcloseunconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffattachmentdownload operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffattachmentdownload(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffattachmentdownloadRequestObject
-
-	var body WflIntermediaryTradesignoffattachmentdownloadJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffattachmentdownload(ctx, request.(WflIntermediaryTradesignoffattachmentdownloadRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffattachmentdownload")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffattachmentdownloadResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffattachmentdownloadResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffattachmentinitiate operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffattachmentinitiate(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffattachmentinitiateRequestObject
-
-	var body WflIntermediaryTradesignoffattachmentinitiateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffattachmentinitiate(ctx, request.(WflIntermediaryTradesignoffattachmentinitiateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffattachmentinitiate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffattachmentinitiateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffattachmentinitiateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffattachmentremove operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffattachmentremove(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffattachmentremoveRequestObject
-
-	var body WflIntermediaryTradesignoffattachmentremoveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffattachmentremove(ctx, request.(WflIntermediaryTradesignoffattachmentremoveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffattachmentremove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffattachmentremoveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffattachmentremoveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffcheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffcheck(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffcheckRequestObject
-
-	var body WflIntermediaryTradesignoffcheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffcheck(ctx, request.(WflIntermediaryTradesignoffcheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffcheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffcheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffcheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffconfirmRequestObject
-
-	var body WflIntermediaryTradesignoffconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffconfirm(ctx, request.(WflIntermediaryTradesignoffconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffcreate operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffcreate(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffcreateRequestObject
-
-	var body WflIntermediaryTradesignoffcreateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffcreate(ctx, request.(WflIntermediaryTradesignoffcreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffcreate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffcreateResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffcreateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffdelete operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffdelete(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffdeleteRequestObject
-
-	var body WflIntermediaryTradesignoffdeleteJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffdelete(ctx, request.(WflIntermediaryTradesignoffdeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffdelete")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffdeleteResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffdeleteResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffget operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffget(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffgetRequestObject
-
-	var body WflIntermediaryTradesignoffgetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffget(ctx, request.(WflIntermediaryTradesignoffgetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffgetResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffgetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffsave operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffsave(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffsaveRequestObject
-
-	var body WflIntermediaryTradesignoffsaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffsave(ctx, request.(WflIntermediaryTradesignoffsaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffsave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffsaveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffsaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffuncheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffuncheck(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffuncheckRequestObject
-
-	var body WflIntermediaryTradesignoffuncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffuncheck(ctx, request.(WflIntermediaryTradesignoffuncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffuncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffuncheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffuncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradesignoffunconfirm operation middleware
-func (sh *strictHandler) WflIntermediaryTradesignoffunconfirm(ctx *gin.Context) {
-	var request WflIntermediaryTradesignoffunconfirmRequestObject
-
-	var body WflIntermediaryTradesignoffunconfirmJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradesignoffunconfirm(ctx, request.(WflIntermediaryTradesignoffunconfirmRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradesignoffunconfirm")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradesignoffunconfirmResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradesignoffunconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeunapprove operation middleware
-func (sh *strictHandler) WflIntermediaryTradeunapprove(ctx *gin.Context) {
-	var request WflIntermediaryTradeunapproveRequestObject
-
-	var body WflIntermediaryTradeunapproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeunapprove(ctx, request.(WflIntermediaryTradeunapproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeunapprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeunapproveResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeunapproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflIntermediaryTradeuncheck operation middleware
-func (sh *strictHandler) WflIntermediaryTradeuncheck(ctx *gin.Context) {
-	var request WflIntermediaryTradeuncheckRequestObject
-
-	var body WflIntermediaryTradeuncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflIntermediaryTradeuncheck(ctx, request.(WflIntermediaryTradeuncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflIntermediaryTradeuncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflIntermediaryTradeuncheckResponseObject); ok {
-		if err := validResponse.VisitWflIntermediaryTradeuncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentApprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentApprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentApproveRequestObject
-
-	var body WflSalesFulfillmentApproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentApprove(ctx, request.(WflSalesFulfillmentApproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentApprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentApproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentApproveResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseUnconfirmResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -13117,347 +7470,6 @@ func (sh *strictHandler) WflSalesFulfillmentAuditHistory(ctx *gin.Context) {
 	}
 }
 
-// WflSalesFulfillmentCheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentCheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentCheckRequestObject
-
-	var body WflSalesFulfillmentCheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentCheck(ctx, request.(WflSalesFulfillmentCheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentCheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentCheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentCheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentCreate operation middleware
-func (sh *strictHandler) WflSalesFulfillmentCreate(ctx *gin.Context) {
-	var request WflSalesFulfillmentCreateRequestObject
-
-	var body WflSalesFulfillmentCreateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentCreate(ctx, request.(WflSalesFulfillmentCreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentCreate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentCreateResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentCreateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryApprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryApprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryApproveRequestObject
-
-	var body WflSalesFulfillmentDeliveryApproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryApprove(ctx, request.(WflSalesFulfillmentDeliveryApproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryApprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryApproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryApproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryCheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryCheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryCheckRequestObject
-
-	var body WflSalesFulfillmentDeliveryCheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryCheck(ctx, request.(WflSalesFulfillmentDeliveryCheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryCheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryCheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryCheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryFinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryFinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryFinalizeRequestObject
-
-	var body WflSalesFulfillmentDeliveryFinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryFinalize(ctx, request.(WflSalesFulfillmentDeliveryFinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryFinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryFinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryFinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryGet operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryGet(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryGetRequestObject
-
-	var body WflSalesFulfillmentDeliveryGetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryGet(ctx, request.(WflSalesFulfillmentDeliveryGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryGet")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryGetResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliverySave operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliverySave(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliverySaveRequestObject
-
-	var body WflSalesFulfillmentDeliverySaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliverySave(ctx, request.(WflSalesFulfillmentDeliverySaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliverySave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliverySaveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliverySaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryUnapprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryUnapprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryUnapproveRequestObject
-
-	var body WflSalesFulfillmentDeliveryUnapproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryUnapprove(ctx, request.(WflSalesFulfillmentDeliveryUnapproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryUnapprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryUnapproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryUnapproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryUncheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryUncheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryUncheckRequestObject
-
-	var body WflSalesFulfillmentDeliveryUncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryUncheck(ctx, request.(WflSalesFulfillmentDeliveryUncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryUncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryUncheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryUncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentDeliveryUnfinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentDeliveryUnfinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentDeliveryUnfinalizeRequestObject
-
-	var body WflSalesFulfillmentDeliveryUnfinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentDeliveryUnfinalize(ctx, request.(WflSalesFulfillmentDeliveryUnfinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentDeliveryUnfinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentDeliveryUnfinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentDeliveryUnfinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentFinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentFinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentFinalizeRequestObject
-
-	var body WflSalesFulfillmentFinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentFinalize(ctx, request.(WflSalesFulfillmentFinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentFinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentFinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentFinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // WflSalesFulfillmentGet operation middleware
 func (sh *strictHandler) WflSalesFulfillmentGet(ctx *gin.Context) {
 	var request WflSalesFulfillmentGetRequestObject
@@ -13489,254 +7501,6 @@ func (sh *strictHandler) WflSalesFulfillmentGet(ctx *gin.Context) {
 	}
 }
 
-// WflSalesFulfillmentOutboundApprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundApprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundApproveRequestObject
-
-	var body WflSalesFulfillmentOutboundApproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundApprove(ctx, request.(WflSalesFulfillmentOutboundApproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundApprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundApproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundApproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundCheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundCheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundCheckRequestObject
-
-	var body WflSalesFulfillmentOutboundCheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundCheck(ctx, request.(WflSalesFulfillmentOutboundCheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundCheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundCheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundCheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundFinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundFinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundFinalizeRequestObject
-
-	var body WflSalesFulfillmentOutboundFinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundFinalize(ctx, request.(WflSalesFulfillmentOutboundFinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundFinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundFinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundFinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundGet operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundGet(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundGetRequestObject
-
-	var body WflSalesFulfillmentOutboundGetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundGet(ctx, request.(WflSalesFulfillmentOutboundGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundGet")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundGetResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundSave operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundSave(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundSaveRequestObject
-
-	var body WflSalesFulfillmentOutboundSaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundSave(ctx, request.(WflSalesFulfillmentOutboundSaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundSave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundSaveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundSaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundUnapprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundUnapprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundUnapproveRequestObject
-
-	var body WflSalesFulfillmentOutboundUnapproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundUnapprove(ctx, request.(WflSalesFulfillmentOutboundUnapproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundUnapprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundUnapproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundUnapproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundUncheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundUncheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundUncheckRequestObject
-
-	var body WflSalesFulfillmentOutboundUncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundUncheck(ctx, request.(WflSalesFulfillmentOutboundUncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundUncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundUncheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundUncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentOutboundUnfinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentOutboundUnfinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentOutboundUnfinalizeRequestObject
-
-	var body WflSalesFulfillmentOutboundUnfinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentOutboundUnfinalize(ctx, request.(WflSalesFulfillmentOutboundUnfinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentOutboundUnfinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentOutboundUnfinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentOutboundUnfinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // WflSalesFulfillmentQuery operation middleware
 func (sh *strictHandler) WflSalesFulfillmentQuery(ctx *gin.Context) {
 	var request WflSalesFulfillmentQueryRequestObject
@@ -13761,37 +7525,6 @@ func (sh *strictHandler) WflSalesFulfillmentQuery(ctx *gin.Context) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(WflSalesFulfillmentQueryResponseObject); ok {
 		if err := validResponse.VisitWflSalesFulfillmentQueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSave operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSave(ctx *gin.Context) {
-	var request WflSalesFulfillmentSaveRequestObject
-
-	var body WflSalesFulfillmentSaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSave(ctx, request.(WflSalesFulfillmentSaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSaveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSaveResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -13923,465 +7656,99 @@ func (sh *strictHandler) WflSalesFulfillmentShortCloseUnconfirm(ctx *gin.Context
 	}
 }
 
-// WflSalesFulfillmentSignoffApprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffApprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffApproveRequestObject
-
-	var body WflSalesFulfillmentSignoffApproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffApprove(ctx, request.(WflSalesFulfillmentSignoffApproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffApprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffApproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffApproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffCheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffCheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffCheckRequestObject
-
-	var body WflSalesFulfillmentSignoffCheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffCheck(ctx, request.(WflSalesFulfillmentSignoffCheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffCheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffCheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffCheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffFinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffFinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffFinalizeRequestObject
-
-	var body WflSalesFulfillmentSignoffFinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffFinalize(ctx, request.(WflSalesFulfillmentSignoffFinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffFinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffFinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffFinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffGet operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffGet(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffGetRequestObject
-
-	var body WflSalesFulfillmentSignoffGetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffGet(ctx, request.(WflSalesFulfillmentSignoffGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffGet")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffGetResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffSave operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffSave(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffSaveRequestObject
-
-	var body WflSalesFulfillmentSignoffSaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffSave(ctx, request.(WflSalesFulfillmentSignoffSaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffSave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffSaveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffSaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffUnapprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffUnapprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffUnapproveRequestObject
-
-	var body WflSalesFulfillmentSignoffUnapproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffUnapprove(ctx, request.(WflSalesFulfillmentSignoffUnapproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffUnapprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffUnapproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffUnapproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffUncheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffUncheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffUncheckRequestObject
-
-	var body WflSalesFulfillmentSignoffUncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffUncheck(ctx, request.(WflSalesFulfillmentSignoffUncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffUncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffUncheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffUncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentSignoffUnfinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentSignoffUnfinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentSignoffUnfinalizeRequestObject
-
-	var body WflSalesFulfillmentSignoffUnfinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentSignoffUnfinalize(ctx, request.(WflSalesFulfillmentSignoffUnfinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentSignoffUnfinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentSignoffUnfinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentSignoffUnfinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentUnapprove operation middleware
-func (sh *strictHandler) WflSalesFulfillmentUnapprove(ctx *gin.Context) {
-	var request WflSalesFulfillmentUnapproveRequestObject
-
-	var body WflSalesFulfillmentUnapproveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentUnapprove(ctx, request.(WflSalesFulfillmentUnapproveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentUnapprove")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentUnapproveResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentUnapproveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentUncheck operation middleware
-func (sh *strictHandler) WflSalesFulfillmentUncheck(ctx *gin.Context) {
-	var request WflSalesFulfillmentUncheckRequestObject
-
-	var body WflSalesFulfillmentUncheckJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentUncheck(ctx, request.(WflSalesFulfillmentUncheckRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentUncheck")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentUncheckResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentUncheckResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentUnfinalize operation middleware
-func (sh *strictHandler) WflSalesFulfillmentUnfinalize(ctx *gin.Context) {
-	var request WflSalesFulfillmentUnfinalizeRequestObject
-
-	var body WflSalesFulfillmentUnfinalizeJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentUnfinalize(ctx, request.(WflSalesFulfillmentUnfinalizeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentUnfinalize")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentUnfinalizeResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentUnfinalizeResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

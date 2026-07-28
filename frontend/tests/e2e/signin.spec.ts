@@ -118,6 +118,20 @@ test('辅助对象菜单使用中文并导航到真实页面', async ({ page, is
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
   ).toBeVisible()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const generatedCode = page.locator(
+    '.aux-entity-drawer [data-field="code"] .business-object-editor__value',
+  )
+  await expect(generatedCode).toHaveText(
+    /^AUX-PRODUCT-CATEGORY-\d{17}-[A-Z0-9]{6}$/,
+  )
+  await expect(
+    page.locator('.aux-entity-drawer').getByRole('textbox', { name: '编码' }),
+  ).toHaveCount(0)
+  await page
+    .locator('.aux-entity-drawer')
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
   await page.getByText('筛选条件', { exact: true }).click()
   await expect(
     page.getByRole('combobox', { name: '状态', exact: true }),

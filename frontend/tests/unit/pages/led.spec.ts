@@ -85,10 +85,10 @@ describe('LED shared ledger view model', () => {
     ])
     expect(ledgerEntityConfigs.fund.balanceColumns.map(
       (column) => column.label,
-    )).toEqual(['账户', '币种', '性质', '金额'])
+    )).toEqual(['账户', '性质', '金额'])
     expect(ledgerEntityConfigs.party.balanceColumns.map(
       (column) => column.label,
-    )).toEqual(['往来方', '币种', '性质', '金额'])
+    )).toEqual(['往来方', '性质', '金额'])
     expect(ledgerEntityConfigs.container.balanceColumns.map(
       (column) => column.label,
     )).toEqual(['客户', '桶型', '欠桶'])

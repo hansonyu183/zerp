@@ -13,7 +13,7 @@ export function buildVoucherDraftPayload(
 ): DraftPayload {
   const payload: DraftPayload = {
     businessDate: value.businessDate,
-    currency: value.currency.trim().toUpperCase(),
+    currency: value.currency.trim().toUpperCase() || 'CNY',
     ...(value.remark.trim() ? { remark: value.remark.trim() } : {}),
   }
   if (config.partyMode === 'customer' || config.partyMode === 'dual') {

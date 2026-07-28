@@ -146,12 +146,10 @@ export const ledgerEntityConfigs: Readonly<
       col('direction', '方向', (row) =>
         translated(row, 'direction', directionText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-      col('currency', '币种', (row) => text(row, 'currency')),
       ...endingEntryColumns,
     ],
     balanceColumns: [
       col('fundAccount', '账户', (row) => reference(row, 'fundAccount')),
-      col('currency', '币种', (row) => text(row, 'currency')),
       col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
@@ -175,12 +173,10 @@ export const ledgerEntityConfigs: Readonly<
       col('direction', '方向', (row) =>
         translated(row, 'direction', directionText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-      col('currency', '币种', (row) => text(row, 'currency')),
       ...endingEntryColumns,
     ],
     balanceColumns: [
       col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
-      col('currency', '币种', (row) => text(row, 'currency')),
       col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText)),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),

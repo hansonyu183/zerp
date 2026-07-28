@@ -52,7 +52,6 @@ export const customerConfig = defineBobEntityConfig({
   fields: (context) => [
     ...commonFields(context, '客户编码', '客户名称'),
     reference('customerType', '客户类型', context, true),
-    text('shortName', '客户简称', 100),
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
@@ -74,11 +73,6 @@ export const customerConfig = defineBobEntityConfig({
       label: '类型',
       value: (row) => row.currentVersion.summary.customerType,
       format: (value) => String(value),
-    },
-    {
-      key: 'shortName',
-      label: '简称',
-      value: (row) => row.currentVersion.summary.shortName,
     },
   ]),
   filters: baseFilters([

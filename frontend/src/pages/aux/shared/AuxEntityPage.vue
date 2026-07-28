@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import { BusinessObjectEditor } from '@/components/business-object'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import type { AuxEntityViewModel } from './vm'
 
@@ -113,62 +114,27 @@ void vm.query()
       />
     </v-card>
 
-    <v-dialog v-model="vm.editorOpen" max-width="720">
-      <v-card>
-        <v-card-title>
-          {{ vm.editing ? `编辑${vm.config.title}` : `新增${vm.config.title}` }}
-        </v-card-title>
-        <v-card-text>
-          <v-text-field v-model="vm.code" label="编码" required />
-          <template v-for="field in vm.config.fields" :key="field.key">
-            <v-select
-              v-if="
-                field.type === 'select' &&
-                (!field.visible || field.visible(vm.form))
-              "
-              v-model="vm.form[field.key]"
-              :items="field.options"
-              :label="field.label"
-              :required="field.required"
-            />
-            <v-autocomplete
-              v-else-if="
-                field.type === 'reference' &&
-                (!field.visible || field.visible(vm.form))
-              "
-              v-model="vm.form[field.key]"
-              :clearable="!field.required"
-              :items="vm.referenceOptions[field.key] ?? []"
-              :label="field.label"
-              :loading="vm.referenceLoading"
-              :required="field.required"
-            />
-            <v-textarea
-              v-else-if="
-                field.type === 'textarea' &&
-                (!field.visible || field.visible(vm.form))
-              "
-              v-model="vm.form[field.key]"
-              :label="field.label"
-              rows="3"
-            />
-            <v-text-field
-              v-else-if="!field.visible || field.visible(vm.form)"
-              v-model="vm.form[field.key]"
-              :label="field.label"
-              :required="field.required"
-              :type="field.type === 'number' ? 'number' : 'text'"
-            />
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="vm.editorOpen = false">取消</v-btn>
-          <v-btn color="primary" :loading="vm.saving" @click="vm.save">
-            保存
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
+
+  <v-navigation-drawer
+    v-model="vm.editorOpen"
+    class="aux-entity-drawer"
+    location="end"
+    temporary
+    width="720"
+  >
+    <BusinessObjectEditor
+      :editable="false"
+      editing
+      :fields="vm.editorFields"
+      :model-value="vm.editorModel"
+      :reset-key="vm.editorResetKey"
+      :saving="vm.saving"
+      :title="
+        vm.editing ? `编辑${vm.config.title}` : `新增${vm.config.title}`
+      "
+      @cancel="vm.closeEditor"
+      @save="vm.save"
+    />
+  </v-navigation-drawer>
 </template>

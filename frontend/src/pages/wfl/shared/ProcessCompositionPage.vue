@@ -216,7 +216,7 @@ onMounted(query)
                 <td class="text-primary">{{ document.documentNo }}</td>
                 <td>{{ document.status }}</td>
                 <td>{{ document.businessDate }}</td>
-                <td>{{ document.currency }} {{ document.amount }}</td>
+                <td>{{ document.amount }}</td>
               </tr>
             </tbody>
           </v-table>

@@ -96,7 +96,7 @@ export function patternRule(pattern: RegExp, message: string) {
 }
 
 export function commonFields(
-  context: BobFieldContext,
+  _context: BobFieldContext,
   codeLabel: string,
   nameLabel: string,
 ): BusinessObjectField<BobForm>[] {
@@ -104,9 +104,8 @@ export function commonFields(
     {
       key: 'code',
       label: codeLabel,
-      type: 'text',
+      type: 'readonly',
       required: true,
-      readonly: context.mode !== 'create',
       rules: [patternRule(codePattern, '编码格式不正确。')],
     },
     {
@@ -268,7 +267,7 @@ export function defineBobEntityConfig(
     metadata.fields(emptyContext).map((field) => String(field.key)),
   )
 
-  assertConfigKeys(metadata.entity, 'requiredKeys', metadata.requiredKeys, fieldKeys)
+  assertConfigKeys(metadata.entity, 'requiredKeys', metadata.requiredKeys, formKeys)
   assertConfigKeys(metadata.entity, 'uppercaseKeys', metadata.uppercaseKeys ?? [], formKeys)
   assertConfigKeys(metadata.entity, 'persistedKeys', metadata.persistedKeys ?? [], formKeys)
   assertConfigKeys(

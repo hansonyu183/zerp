@@ -105,15 +105,14 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await page.goto('/vou/receipt')
   await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')
+  await expect(workspace.getByText('币种', { exact: true })).toHaveCount(0)
+  await expect(workspace.getByText('更多设置', { exact: true })).toHaveCount(0)
 
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, '经办人', fixture.employee, workspace)
   await selectReference(page, '资金账户', fixture.fundAccount, workspace)
-  await expect(workspace.getByLabel('币种')).not.toBeVisible()
-  await workspace.getByRole('button', { name: '更多设置' }).click()
-  await expect(workspace.getByLabel('币种')).toHaveValue(fixture.currency)
   await page.getByLabel('金额').fill('100.00')
-  await page.getByRole('button', { name: '创建草稿' }).click()
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^REC-\d{8}-\d{6}$/)
 
   await page.getByRole('tab', { name: '附件' }).click()
@@ -161,9 +160,6 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await page.goto('/vou/sale-order')
   await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')
-  await expect(workspace.getByLabel('币种')).not.toBeVisible()
-  await workspace.getByRole('button', { name: '更多设置' }).click()
-  await expect(workspace.getByLabel('币种')).toHaveValue('CNY')
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, /业务员/, fixture.employee, workspace)
   await selectReference(page, '产品', fixture.product, workspace)
@@ -172,7 +168,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const originalLineHeight = await draftLine.evaluate(
     (element) => element.getBoundingClientRect().height,
   )
-  await workspace.getByRole('button', { name: '创建草稿' }).click()
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expect(page.getByText(/第 1 行/)).toBeVisible()
   await expect
     .poll(() =>
@@ -183,7 +179,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await draftInputs.nth(1).fill('2')
   await draftInputs.nth(2).fill('12.50')
   await expect(draftLine).toContainText('25.00')
-  await workspace.getByRole('button', { name: '创建草稿' }).click()
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/)
   const orderNo = (
     await workspace.locator('.voucher-document-header__number').textContent()

@@ -39,7 +39,7 @@ const route = useRoute()
 const labels = computed(() => lifecycleLabels(vm.config))
 
 const workspaceTitle = computed(
-  () => `${vm.documentView ? '查看' : '新建'}${vm.config.title}`,
+  () => `${vm.documentView ? '查看' : '新增'}${vm.config.title}`,
 )
 const atomicDocument = computed(() =>
   vm.documentView ? toVouAtomicDocument(vm.documentView) : null,
@@ -76,15 +76,6 @@ const businessDateLabel = computed(
     )[vm.config.entity] ?? '业务日期',
 )
 const basicInfoPanel = ref<string | undefined>('basic')
-const showCurrency = ref(false)
-const currencyVisible = computed(
-  () =>
-    showCurrency.value ||
-    vm.form.currency.trim().toUpperCase() !== 'CNY' ||
-    Boolean(
-      vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种'),
-    ),
-)
 const parentDocumentNo = computed(
   () =>
     vm.documentView?.parentDocumentNo ||
@@ -265,7 +256,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             prepend-icon="mdi-content-save-outline"
             @click="saveDocument"
           >
-            {{ vm.documentView ? '保存草稿' : '创建草稿' }}
+            保存
           </v-btn>
         </template>
         <v-btn
@@ -356,36 +347,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     variant="outlined"
                   />
                   <v-text-field
-                    v-if="currencyVisible"
-                    v-model="vm.form.currency"
-                    :disabled="
-                      !vm.editing ||
-                      vm.config.usesFundAccount ||
-                      Boolean(vm.config.parentEntity)
-                    "
-                    label="币种"
-                    maxlength="3"
-                    variant="outlined"
-                    @update:model-value="
-                      vm.form.currency = ($event ?? '').toUpperCase()
-                    "
-                  />
-                  <v-text-field
                     v-if="vm.config.parentEntity"
                     label="来源单据"
                     :model-value="parentDocumentNo"
                     readonly
                     variant="outlined"
                   />
-                  <div class="voucher-form__more-settings">
-                    <v-btn
-                      size="small"
-                      variant="text"
-                      @click="showCurrency = !showCurrency"
-                    >
-                      {{ showCurrency ? '隐藏币种' : '更多设置' }}
-                    </v-btn>
-                  </div>
 
                   <VoucherReferenceAutocomplete
                     v-if="
@@ -449,7 +416,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     v-if="vm.config.usesSalesperson"
                     :disabled="!vm.editing"
                     v-bind="referenceProps('salesperson')"
-                    label="业务员（新建时可使用客户默认值）"
+                    hint="新增时默认使用客户业务员"
+                    label="业务员"
                     :model-value="vm.form.salesperson"
                     @search="search('salesperson', $event)"
                     @update:model-value="updateReference('salesperson', $event)"
@@ -458,7 +426,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     v-if="vm.config.usesPurchaser"
                     :disabled="!vm.editing"
                     v-bind="referenceProps('purchaser')"
-                    label="采购员（新建时可使用供应商默认值）"
+                    hint="新增时默认使用供应商采购员"
+                    label="采购员"
                     :model-value="vm.form.purchaser"
                     @search="search('purchaser', $event)"
                     @update:model-value="updateReference('purchaser', $event)"
@@ -905,10 +874,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px 20px;
-}
-.voucher-form__more-settings {
-  grid-column: 1 / -1;
-  text-align: right;
 }
 .voucher-form__wide {
   grid-column: 1 / -1;

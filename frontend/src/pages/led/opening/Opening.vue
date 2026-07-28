@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { LedgerReferenceAutocomplete } from '@/components/ledger'
 import { formatLocalDateTime } from '@/utils/date'
 import { openingEventLabel, useOpeningViewModel } from './vm'
@@ -7,19 +7,10 @@ import CompactTableField from '@/components/common/CompactTableField.vue'
 
 const vm = useOpeningViewModel()
 const tab = ref<'opening' | 'audit'>('opening')
-const showCurrency = ref(false)
-const currencyVisible = computed(
-  () =>
-    showCurrency.value ||
-    vm.form.party.some((row) => row.currency.trim().toUpperCase() !== 'CNY') ||
-    Boolean(vm.errorMessage.value?.includes('币种')),
-)
 const quantityRule = (value: string) =>
   /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) || '数量格式不正确。'
 const moneyRule = (value: string) =>
   /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value) || '金额格式不正确。'
-const currencyRule = (value: string) =>
-  /^[A-Z]{3}$/.test(value.trim().toUpperCase()) || '币种必须是三位字母。'
 
 const statusText: Record<string, string> = {
   DRAFT: '草稿',
@@ -105,13 +96,6 @@ async function saveOpening(): Promise<void> {
                   type="date"
                   variant="outlined"
                 />
-                <v-btn
-                  size="small"
-                  variant="text"
-                  @click="showCurrency = !showCurrency"
-                >
-                  {{ currencyVisible ? '隐藏币种' : '显示币种' }}
-                </v-btn>
                 <v-text-field
                   :model-value="vm.opening.value.activeGenerationId ?? '—'"
                   label="当前账簿代次"
@@ -307,7 +291,6 @@ async function saveOpening(): Promise<void> {
                         <tr>
                           <th>类型</th>
                           <th>往来方</th>
-                          <th v-if="currencyVisible">币种</th>
                           <th>性质</th>
                           <th>金额</th>
                           <th v-if="vm.editable.value" class="text-end">
@@ -349,18 +332,6 @@ async function saveOpening(): Promise<void> {
                               @search="vm.partyReferences.search"
                             />
                           </td>
-                          <td v-if="currencyVisible">
-                            <CompactTableField
-                              :disabled="!vm.editable.value"
-                              label="币种"
-                              :maxlength="3"
-                              :model-value="row.currency"
-                              :rules="[currencyRule]"
-                              @update:model-value="
-                                row.currency = $event.toUpperCase()
-                              "
-                            />
-                          </td>
                           <td>
                             <v-select
                               v-model="row.balanceType"
@@ -393,10 +364,7 @@ async function saveOpening(): Promise<void> {
                         </tr>
                         <tr v-if="vm.form.party.length === 0">
                           <td
-                            :colspan="
-                              (vm.editable.value ? 5 : 4) +
-                              (currencyVisible ? 1 : 0)
-                            "
+                            :colspan="vm.editable.value ? 5 : 4"
                             class="opening-page__empty"
                           >
                             暂无往来期初

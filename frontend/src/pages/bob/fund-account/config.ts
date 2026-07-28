@@ -3,7 +3,6 @@ import {
   baseFilters,
   commonFields,
   defineBobEntityConfig,
-  patternRule,
   text,
   textarea,
 } from '../shared/config-helpers'
@@ -25,11 +24,6 @@ export const fundAccountConfig = defineBobEntityConfig({
   uppercaseKeys: ['code', 'currency', 'accountNumber'],
   fields: (context) => [
     ...commonFields(context, '账户编码', '账户名称'),
-    text('currency', '币种', 3, {
-      advanced: true,
-      required: true,
-      rules: [patternRule(/^[A-Za-z]{3}$/, '币种必须是三位字母。')],
-    }),
     text('accountName', '户名', 200),
     text('bankName', '银行', 200),
     text('bankBranch', '支行', 200),
@@ -38,17 +32,10 @@ export const fundAccountConfig = defineBobEntityConfig({
   ],
   columns: baseColumns('编码', '名称', [
     {
-      key: 'currency',
-      label: '币种',
-      value: (row) => row.currentVersion.summary.currency,
-    },
-    {
       key: 'bankName',
       label: '银行',
       value: (row) => row.currentVersion.summary.bankName,
     },
   ]),
-  filters: baseFilters([
-    { key: 'currency', label: '币种', type: 'text' },
-  ]),
+  filters: baseFilters(),
 })

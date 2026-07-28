@@ -189,7 +189,6 @@ function changeStatuses(value: unknown): void {
                 :direction="sort.order"
                 @sort="changeSort('status')"
               />
-              <th>币种</th>
               <SortableTableHeader
                 align="end"
                 label="金额"
@@ -216,7 +215,6 @@ function changeStatuses(value: unknown): void {
                   statusText(row.status)
                 }}</v-chip>
               </td>
-              <td>{{ row.currency }}</td>
               <td class="text-end">{{ row.amount }}</td>
               <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end text-no-wrap">
@@ -238,7 +236,7 @@ function changeStatuses(value: unknown): void {
               </td>
             </tr>
             <tr v-if="!loading && rows.length === 0">
-              <td colspan="8" class="text-center py-12">{{ emptyText }}</td>
+              <td colspan="7" class="text-center py-12">{{ emptyText }}</td>
             </tr>
           </tbody>
         </v-table>

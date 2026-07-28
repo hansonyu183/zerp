@@ -1,7 +1,9 @@
 import { computed, reactive, ref } from 'vue'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
+import type { BusinessObjectField } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
+import { generateObjectCode } from '@/utils/object-code'
 import type { AuxEntityConfig } from './config'
 
 export interface AuxVersion {
@@ -42,15 +44,45 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
   const editorOpen = ref(false)
+  const editorResetKey = ref(0)
   const editing = ref<AuxListItem | null>(null)
-  const code = ref('')
-  const form = reactive<Record<string, unknown>>(config.defaults())
+  const editorModel = ref<Record<string, unknown>>({
+    code: '',
+    ...config.defaults(),
+  })
   const referenceOptions = reactive<
     Record<string, { title: string; value: string }[]>
   >({})
   const referenceLoading = ref(false)
 
   const canCreate = computed(() => session.can(`/aux/${config.entity}/create`))
+  const editorFields = computed<
+    readonly BusinessObjectField<Record<string, unknown>>[]
+  >(() => [
+    {
+      key: 'code',
+      label: '编码',
+      type: 'readonly',
+      required: true,
+    },
+    ...config.fields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      type: field.type === 'reference'
+        ? 'autocomplete' as const
+        : field.type ?? 'text',
+      required: field.required,
+      clearable: !field.required,
+      options: field.reference
+        ? referenceOptions[field.key] ?? []
+        : field.options,
+      loading: field.type === 'reference' && referenceLoading.value,
+      visible: field.visible
+        ? (record: Readonly<Record<string, unknown>>) =>
+            field.visible?.(record as Record<string, unknown>) ?? true
+        : undefined,
+    })),
+  ])
 
   const path = (action: string) =>
     `aux/${config.entity}/${action}` as ApiPostPath
@@ -94,11 +126,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     await query()
   }
 
-  function resetForm(data: Record<string, unknown>): void {
-    for (const key of Object.keys(form)) delete form[key]
-    Object.assign(form, data)
-  }
-
   async function loadReferences(): Promise<void> {
     const fields = config.fields.filter((field) => field.reference)
     if (!fields.length) return
@@ -134,34 +161,48 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
 
   function openCreate(): void {
     editing.value = null
-    code.value = ''
-    resetForm(config.defaults())
+    editorModel.value = {
+      code: generateObjectCode('aux', config.entity),
+      ...config.defaults(),
+    }
+    editorResetKey.value += 1
     editorOpen.value = true
     void loadReferences()
   }
 
   function openEdit(row: AuxListItem): void {
     editing.value = row
-    code.value = row.code
-    resetForm({ ...config.defaults(), ...row.currentVersion.data })
+    editorModel.value = {
+      code: row.code,
+      ...config.defaults(),
+      ...row.currentVersion.data,
+    }
+    editorResetKey.value += 1
     editorOpen.value = true
     void loadReferences()
   }
 
-  async function save(): Promise<void> {
+  function closeEditor(): void {
+    if (saving.value) return
+    editorOpen.value = false
+  }
+
+  async function save(value: Record<string, unknown>): Promise<void> {
     saving.value = true
     errorMessage.value = null
     try {
+      editorModel.value = structuredClone(value)
+      const { code, ...data } = value
       if (editing.value) {
         await apiClient.post(path('save'), {
           objectId: editing.value.objectId,
           revision: editing.value.objectRevision,
-          code: code.value,
-          data: { ...form },
+          code: String(code),
+          data,
         })
       } else {
         await apiClient.post(path('create'), {
-          data: { code: code.value, ...form },
+          data: { code: String(code), ...data },
         })
       }
       editorOpen.value = false
@@ -211,9 +252,10 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     saving,
     errorMessage,
     editorOpen,
+    editorResetKey,
     editing,
-    code,
-    form,
+    editorModel,
+    editorFields,
     referenceOptions,
     referenceLoading,
     canCreate,
@@ -223,6 +265,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     changePage,
     openCreate,
     openEdit,
+    closeEditor,
     save,
     changeEnabled,
     deleteObject,

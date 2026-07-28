@@ -87,10 +87,7 @@ const lastPage = computed(() =>
               <td>{{ row.partyName || '—' }}</td>
               <td>{{ statusText(row.status) }}</td>
               <td>{{ stageText(row.currentStage) }}</td>
-              <td class="text-end">
-                {{ row.amount
-                }}<template v-if="row.currency"> {{ row.currency }}</template>
-              </td>
+              <td class="text-end">{{ row.amount }}</td>
               <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end">
                 <v-btn

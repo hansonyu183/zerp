@@ -56,7 +56,7 @@ export interface DraftPayload {
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
   return {
     businessDate: localDate(),
-    currency: config.usesFundAccount ? '' : 'CNY',
+    currency: 'CNY',
     remark: '',
     customer: null,
     supplier: null,

@@ -37,7 +37,6 @@ export interface BusinessObjectField<T extends object> {
   readonly?: BusinessObjectFieldState<T>
   disabled?: BusinessObjectFieldState<T>
   visible?: BusinessObjectFieldState<T>
-  advanced?: boolean
   span?: 1 | 2
   options?: readonly BusinessObjectFieldOption[]
   loading?: boolean

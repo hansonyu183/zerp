@@ -52,7 +52,6 @@ export const supplierConfig = defineBobEntityConfig({
       required: true,
       options: supplierTypeOptions,
     },
-    text('shortName', '供应商简称', 100),
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
@@ -76,11 +75,6 @@ export const supplierConfig = defineBobEntityConfig({
       format: (value) =>
         supplierTypeOptions.find((item) => item.value === value)?.title ??
         String(value),
-    },
-    {
-      key: 'shortName',
-      label: '简称',
-      value: (row) => row.currentVersion.summary.shortName,
     },
   ]),
   filters: baseFilters([

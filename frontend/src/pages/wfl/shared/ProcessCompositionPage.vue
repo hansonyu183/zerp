@@ -38,7 +38,6 @@ interface ProcessPage {
 
 const props = defineProps<{
   processEntity: 'sales-fulfillment' | 'purchase-fulfillment'
-  title: string
 }>()
 
 const router = useRouter()
@@ -139,11 +138,7 @@ onMounted(query)
 
 <template>
   <v-container fluid class="pa-4 pa-md-7">
-    <div class="d-flex flex-wrap align-center justify-space-between ga-3 mb-5">
-      <div>
-        <div class="text-overline text-primary">WFL · 单据组合</div>
-        <h1 class="text-h4">{{ title }}</h1>
-      </div>
+    <div class="d-flex flex-wrap align-center justify-end ga-3 mb-5">
       <div class="d-flex ga-2">
         <v-text-field
           v-model="keyword"

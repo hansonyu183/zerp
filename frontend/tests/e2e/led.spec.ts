@@ -13,11 +13,8 @@ async function signIn(page: Page): Promise<void> {
   await expect(page).not.toHaveURL(/\/signin/)
 }
 
-function contentHeading(page: Page, name: string) {
-  return page.locator('.page-content').getByRole('heading', {
-    name,
-    exact: true,
-  })
+function pageBreadcrumb(page: Page) {
+  return page.locator('.page-heading__breadcrumb')
 }
 
 test.describe('LED 真实后端只读流程', () => {
@@ -32,7 +29,7 @@ test.describe('LED 真实后端只读流程', () => {
 
   test('加载期初状态和生命周期审计', async ({ page }) => {
     await page.goto('/led/opening')
-    await expect(contentHeading(page, '期初与启用')).toBeVisible()
+    await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与启用')
     await expect(page.getByText(/版本 \d+/)).toBeVisible()
     const auditTab = page.getByRole('tab', { name: '生命周期审计' })
     if (await auditTab.isVisible()) {
@@ -55,7 +52,7 @@ test.describe('LED 真实后端只读流程', () => {
           response.request().method() === 'POST',
       )
       await page.goto(`/led/${ledger.entity}`)
-      await expect(contentHeading(page, ledger.title)).toBeVisible()
+      await expect(pageBreadcrumb(page)).toHaveText(`ZERP / ${ledger.title}`)
       const entryPayload = await (await entryResponse).json() as {
         code: number | string
       }

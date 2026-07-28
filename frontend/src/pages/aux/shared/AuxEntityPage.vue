@@ -4,9 +4,7 @@ import type { AuxEntityViewModel } from './vm'
 
 const props = defineProps<{ model: AuxEntityViewModel }>()
 const vm = reactive(props.model)
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(vm.total / vm.pageSize)),
-)
+const pageCount = computed(() => Math.max(1, Math.ceil(vm.total / vm.pageSize)))
 
 void vm.query()
 </script>
@@ -24,25 +22,20 @@ void vm.query()
       {{ vm.errorMessage }}
     </v-alert>
 
-    <div class="d-flex flex-wrap ga-3 align-center mb-4">
-      <div>
-        <h1 class="text-h5">{{ vm.config.title }}</h1>
-        <div class="text-body-2 text-medium-emphasis">
-          保存后立即生效，历史版本自动保留。
-        </div>
-      </div>
-      <v-spacer />
-      <v-btn
-        v-if="vm.canCreate"
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="vm.openCreate"
-      >
-        新增
-      </v-btn>
-    </div>
-
     <v-card variant="outlined">
+      <v-card-title class="d-flex align-center">
+        <span>数据列表</span>
+        <v-spacer />
+        <v-btn
+          v-if="vm.canCreate"
+          color="primary"
+          prepend-icon="mdi-plus"
+          variant="tonal"
+          @click="vm.openCreate"
+        >
+          新增
+        </v-btn>
+      </v-card-title>
       <v-card-text class="d-flex flex-wrap ga-3">
         <v-text-field
           v-model="vm.keyword"
@@ -103,7 +96,11 @@ void vm.query()
             @click="vm.openEdit(item)"
           />
           <v-btn
-            :icon="item.enabled ? 'mdi-pause-circle-outline' : 'mdi-play-circle-outline'"
+            :icon="
+              item.enabled
+                ? 'mdi-pause-circle-outline'
+                : 'mdi-play-circle-outline'
+            "
             size="small"
             variant="text"
             @click="vm.changeEnabled(item)"
@@ -133,14 +130,20 @@ void vm.query()
           <v-text-field v-model="vm.code" label="编码" required />
           <template v-for="field in vm.config.fields" :key="field.key">
             <v-select
-              v-if="field.type === 'select' && (!field.visible || field.visible(vm.form))"
+              v-if="
+                field.type === 'select' &&
+                (!field.visible || field.visible(vm.form))
+              "
               v-model="vm.form[field.key]"
               :items="field.options"
               :label="field.label"
               :required="field.required"
             />
             <v-autocomplete
-              v-else-if="field.type === 'reference' && (!field.visible || field.visible(vm.form))"
+              v-else-if="
+                field.type === 'reference' &&
+                (!field.visible || field.visible(vm.form))
+              "
               v-model="vm.form[field.key]"
               :clearable="!field.required"
               :items="vm.referenceOptions[field.key] ?? []"
@@ -149,7 +152,10 @@ void vm.query()
               :required="field.required"
             />
             <v-textarea
-              v-else-if="field.type === 'textarea' && (!field.visible || field.visible(vm.form))"
+              v-else-if="
+                field.type === 'textarea' &&
+                (!field.visible || field.visible(vm.form))
+              "
               v-model="vm.form[field.key]"
               :label="field.label"
               rows="3"
@@ -166,11 +172,7 @@ void vm.query()
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="vm.editorOpen = false">取消</v-btn>
-          <v-btn
-            color="primary"
-            :loading="vm.saving"
-            @click="vm.save"
-          >
+          <v-btn color="primary" :loading="vm.saving" @click="vm.save">
             保存
           </v-btn>
         </v-card-actions>

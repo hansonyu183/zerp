@@ -8,10 +8,11 @@ import CompactTableField from '@/components/common/CompactTableField.vue'
 const vm = useOpeningViewModel()
 const tab = ref<'opening' | 'audit'>('opening')
 const showCurrency = ref(false)
-const currencyVisible = computed(() =>
-  showCurrency.value ||
-  vm.form.party.some((row) => row.currency.trim().toUpperCase() !== 'CNY') ||
-  Boolean(vm.errorMessage.value?.includes('币种')),
+const currencyVisible = computed(
+  () =>
+    showCurrency.value ||
+    vm.form.party.some((row) => row.currency.trim().toUpperCase() !== 'CNY') ||
+    Boolean(vm.errorMessage.value?.includes('币种')),
 )
 const quantityRule = (value: string) =>
   /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) || '数量格式不正确。'
@@ -43,12 +44,8 @@ async function saveOpening(): Promise<void> {
 
 <template>
   <v-container fluid class="opening-page pa-5 pa-md-8">
-    <div class="opening-page__heading">
-      <div>
-        <div class="text-overline text-medium-emphasis">LED · 业务账簿</div>
-        <h1>期初与启用</h1>
-      </div>
-      <div v-if="vm.opening.value" class="opening-page__status">
+    <div v-if="vm.opening.value" class="opening-page__status-row">
+      <div class="opening-page__status">
         <v-chip color="primary" variant="tonal">
           {{ statusText[vm.opening.value.status] ?? vm.opening.value.status }}
         </v-chip>
@@ -56,11 +53,7 @@ async function saveOpening(): Promise<void> {
       </div>
     </div>
 
-    <v-alert
-      v-if="!vm.canGet.value"
-      type="warning"
-      variant="tonal"
-    >
+    <v-alert v-if="!vm.canGet.value" type="warning" variant="tonal">
       当前账号没有查看账簿期初的权限。
     </v-alert>
 
@@ -145,16 +138,23 @@ async function saveOpening(): Promise<void> {
                           <th>仓库</th>
                           <th>商品</th>
                           <th>数量</th>
-                          <th v-if="vm.editable.value" class="text-end">操作</th>
+                          <th v-if="vm.editable.value" class="text-end">
+                            操作
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(row, index) in vm.form.inventory" :key="row.key">
+                        <tr
+                          v-for="(row, index) in vm.form.inventory"
+                          :key="row.key"
+                        >
                           <td>
                             <LedgerReferenceAutocomplete
                               v-model="row.warehouse"
                               :disabled="!vm.editable.value"
-                              :error-message="vm.warehouseReferences.errorMessage"
+                              :error-message="
+                                vm.warehouseReferences.errorMessage
+                              "
                               label="仓库"
                               :loading="vm.warehouseReferences.loading"
                               :options="vm.warehouseReferences.options"
@@ -191,7 +191,10 @@ async function saveOpening(): Promise<void> {
                           </td>
                         </tr>
                         <tr v-if="vm.form.inventory.length === 0">
-                          <td :colspan="vm.editable.value ? 4 : 3" class="opening-page__empty">
+                          <td
+                            :colspan="vm.editable.value ? 4 : 3"
+                            class="opening-page__empty"
+                          >
                             暂无库存期初
                           </td>
                         </tr>
@@ -222,7 +225,9 @@ async function saveOpening(): Promise<void> {
                           <th>账户</th>
                           <th>性质</th>
                           <th>金额</th>
-                          <th v-if="vm.editable.value" class="text-end">操作</th>
+                          <th v-if="vm.editable.value" class="text-end">
+                            操作
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -269,7 +274,10 @@ async function saveOpening(): Promise<void> {
                           </td>
                         </tr>
                         <tr v-if="vm.form.fund.length === 0">
-                          <td :colspan="vm.editable.value ? 4 : 3" class="opening-page__empty">
+                          <td
+                            :colspan="vm.editable.value ? 4 : 3"
+                            class="opening-page__empty"
+                          >
                             暂无资金期初
                           </td>
                         </tr>
@@ -302,11 +310,16 @@ async function saveOpening(): Promise<void> {
                           <th v-if="currencyVisible">币种</th>
                           <th>性质</th>
                           <th>金额</th>
-                          <th v-if="vm.editable.value" class="text-end">操作</th>
+                          <th v-if="vm.editable.value" class="text-end">
+                            操作
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(row, index) in vm.form.party" :key="row.key">
+                        <tr
+                          v-for="(row, index) in vm.form.party"
+                          :key="row.key"
+                        >
                           <td>
                             <v-select
                               v-model="row.counterpartyType"
@@ -327,9 +340,12 @@ async function saveOpening(): Promise<void> {
                               :error-message="vm.partyReferences.errorMessage"
                               label="往来方"
                               :loading="vm.partyReferences.loading"
-                              :options="vm.partyReferences.options.filter(
-                                (item) => item.entity === row.counterpartyType,
-                              )"
+                              :options="
+                                vm.partyReferences.options.filter(
+                                  (item) =>
+                                    item.entity === row.counterpartyType,
+                                )
+                              "
                               @search="vm.partyReferences.search"
                             />
                           </td>
@@ -340,7 +356,9 @@ async function saveOpening(): Promise<void> {
                               :maxlength="3"
                               :model-value="row.currency"
                               :rules="[currencyRule]"
-                              @update:model-value="row.currency = $event.toUpperCase()"
+                              @update:model-value="
+                                row.currency = $event.toUpperCase()
+                              "
                             />
                           </td>
                           <td>
@@ -374,7 +392,13 @@ async function saveOpening(): Promise<void> {
                           </td>
                         </tr>
                         <tr v-if="vm.form.party.length === 0">
-                          <td :colspan="(vm.editable.value ? 5 : 4) + (currencyVisible ? 1 : 0)" class="opening-page__empty">
+                          <td
+                            :colspan="
+                              (vm.editable.value ? 5 : 4) +
+                              (currencyVisible ? 1 : 0)
+                            "
+                            class="opening-page__empty"
+                          >
                             暂无往来期初
                           </td>
                         </tr>
@@ -405,16 +429,23 @@ async function saveOpening(): Promise<void> {
                           <th>客户</th>
                           <th>桶型</th>
                           <th>数量</th>
-                          <th v-if="vm.editable.value" class="text-end">操作</th>
+                          <th v-if="vm.editable.value" class="text-end">
+                            操作
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(row, index) in vm.form.container" :key="row.key">
+                        <tr
+                          v-for="(row, index) in vm.form.container"
+                          :key="row.key"
+                        >
                           <td>
                             <LedgerReferenceAutocomplete
                               v-model="row.customer"
                               :disabled="!vm.editable.value"
-                              :error-message="vm.customerReferences.errorMessage"
+                              :error-message="
+                                vm.customerReferences.errorMessage
+                              "
                               label="客户"
                               :loading="vm.customerReferences.loading"
                               :options="vm.customerReferences.options"
@@ -438,7 +469,10 @@ async function saveOpening(): Promise<void> {
                               v-model="row.quantity"
                               :disabled="!vm.editable.value"
                               inputmode="numeric"
-                              :rules="[(value) => /^\d+$/.test(value) || '数量必须是非负整数。']"
+                              :rules="[
+                                (value) =>
+                                  /^\d+$/.test(value) || '数量必须是非负整数。',
+                              ]"
                             />
                           </td>
                           <td v-if="vm.editable.value" class="text-end">
@@ -452,7 +486,10 @@ async function saveOpening(): Promise<void> {
                           </td>
                         </tr>
                         <tr v-if="vm.form.container.length === 0">
-                          <td :colspan="vm.editable.value ? 4 : 3" class="opening-page__empty">
+                          <td
+                            :colspan="vm.editable.value ? 4 : 3"
+                            class="opening-page__empty"
+                          >
                             暂无空桶期初
                           </td>
                         </tr>
@@ -485,8 +522,8 @@ async function saveOpening(): Promise<void> {
               <v-btn
                 v-if="
                   vm.canActivate.value &&
-                    (vm.opening.value.status === 'DRAFT' ||
-                      vm.opening.value.status === 'REOPENING')
+                  (vm.opening.value.status === 'DRAFT' ||
+                    vm.opening.value.status === 'REOPENING')
                 "
                 color="primary"
                 :loading="vm.saving.value"
@@ -497,8 +534,7 @@ async function saveOpening(): Promise<void> {
               </v-btn>
               <v-btn
                 v-if="
-                  vm.canReopen.value &&
-                    vm.opening.value.status === 'ACTIVE'
+                  vm.canReopen.value && vm.opening.value.status === 'ACTIVE'
                 "
                 color="warning"
                 :loading="vm.saving.value"
@@ -510,7 +546,7 @@ async function saveOpening(): Promise<void> {
               <v-btn
                 v-if="
                   vm.canCancelReopen.value &&
-                    vm.opening.value.status === 'REOPENING'
+                  vm.opening.value.status === 'REOPENING'
                 "
                 :loading="vm.saving.value"
                 prepend-icon="mdi-undo-variant"
@@ -544,7 +580,11 @@ async function saveOpening(): Promise<void> {
                     <td>{{ formatLocalDateTime(item.occurredAt) }}</td>
                     <td>{{ openingEventLabel(item.eventType) }}</td>
                     <td>
-                      {{ item.fromStatus ? `${statusText[item.fromStatus] ?? item.fromStatus} → ` : '' }}
+                      {{
+                        item.fromStatus
+                          ? `${statusText[item.fromStatus] ?? item.fromStatus} → `
+                          : ''
+                      }}
                       {{ statusText[item.toStatus] ?? item.toStatus }}
                     </td>
                     <td>{{ item.revision }}</td>
@@ -553,8 +593,14 @@ async function saveOpening(): Promise<void> {
                     <td>{{ item.reason ?? '—' }}</td>
                     <td>{{ item.requestId }}</td>
                   </tr>
-                  <tr v-if="!vm.auditLoading.value && vm.auditItems.value.length === 0">
-                    <td colspan="8" class="opening-page__empty">暂无审计记录</td>
+                  <tr
+                    v-if="
+                      !vm.auditLoading.value && vm.auditItems.value.length === 0
+                    "
+                  >
+                    <td colspan="8" class="opening-page__empty">
+                      暂无审计记录
+                    </td>
                   </tr>
                 </tbody>
               </v-table>
@@ -581,7 +627,7 @@ async function saveOpening(): Promise<void> {
                 icon="mdi-chevron-right"
                 :disabled="
                   vm.auditPage.value >= vm.auditPageCount.value ||
-                    vm.auditLoading.value
+                  vm.auditLoading.value
                 "
                 variant="text"
                 @click="vm.changeAuditPage(vm.auditPage.value + 1)"
@@ -616,11 +662,7 @@ async function saveOpening(): Promise<void> {
         >
           取消
         </v-btn>
-        <v-btn
-          color="warning"
-          :loading="vm.saving.value"
-          @click="vm.reopen"
-        >
+        <v-btn color="warning" :loading="vm.saving.value" @click="vm.reopen">
           确认重开
         </v-btn>
       </v-card-actions>
@@ -629,7 +671,7 @@ async function saveOpening(): Promise<void> {
 </template>
 
 <style scoped>
-.opening-page__heading,
+.opening-page__status-row,
 .opening-page__status,
 .opening-page__actions,
 .opening-page__pagination {
@@ -638,14 +680,9 @@ async function saveOpening(): Promise<void> {
   align-items: center;
 }
 
-.opening-page__heading {
-  justify-content: space-between;
+.opening-page__status-row {
+  justify-content: flex-end;
   margin-bottom: 24px;
-}
-
-.opening-page__heading h1 {
-  font-size: 28px;
-  line-height: 1.2;
 }
 
 .opening-page__summary {
@@ -692,12 +729,5 @@ async function saveOpening(): Promise<void> {
 
 .opening-page__pagination {
   justify-content: flex-end;
-}
-
-@media (max-width: 640px) {
-  .opening-page__heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 </style>

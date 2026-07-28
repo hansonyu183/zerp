@@ -4,11 +4,7 @@ import { ledgerSourceEntityOptions } from './config'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import { useLedgerViewModel } from './vm'
-import type {
-  LedgerEntityConfig,
-  LedgerMode,
-  LedgerRecord,
-} from './types'
+import type { LedgerEntityConfig, LedgerMode, LedgerRecord } from './types'
 
 defineOptions({ name: 'LedgerWorkspace' })
 
@@ -38,10 +34,11 @@ function sortableField(key: string) {
   }[key] as 'effectiveDate' | 'occurredAt' | 'documentNo' | undefined
 }
 
-function changeSort(field: 'effectiveDate' | 'occurredAt' | 'documentNo'): void {
-  vm.sort.order = vm.sort.field === field && vm.sort.order === 'asc'
-    ? 'desc'
-    : 'asc'
+function changeSort(
+  field: 'effectiveDate' | 'occurredAt' | 'documentNo',
+): void {
+  vm.sort.order =
+    vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc'
   vm.sort.field = field
   vm.search()
 }
@@ -51,11 +48,10 @@ void vm.load()
 
 <template>
   <v-container fluid class="ledger-workspace pa-5 pa-md-8">
-    <div class="ledger-workspace__heading">
-      <div>
-        <div class="text-overline text-medium-emphasis">LED · 业务账簿</div>
-        <h1>{{ config.title }}</h1>
-      </div>
+    <div
+      v-if="vm.canQuery.value || vm.canBalance.value"
+      class="ledger-workspace__controls"
+    >
       <v-btn-toggle
         :model-value="vm.mode.value"
         color="primary"
@@ -187,7 +183,9 @@ void vm.load()
               <tr>
                 <template v-for="column in vm.columns.value" :key="column.key">
                   <SortableTableHeader
-                    v-if="vm.mode.value === 'entries' && sortableField(column.key)"
+                    v-if="
+                      vm.mode.value === 'entries' && sortableField(column.key)
+                    "
                     :active="vm.sort.field === sortableField(column.key)"
                     :align="column.align"
                     :direction="vm.sort.order"
@@ -258,17 +256,12 @@ void vm.load()
 </template>
 
 <style scoped>
-.ledger-workspace__heading {
+.ledger-workspace__controls {
   display: flex;
   gap: 16px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 24px;
-}
-
-.ledger-workspace__heading h1 {
-  font-size: 28px;
-  line-height: 1.2;
 }
 
 .ledger-workspace__filters {
@@ -300,12 +293,5 @@ void vm.load()
   height: 112px;
   color: rgb(var(--v-theme-on-surface-variant));
   text-align: center;
-}
-
-@media (max-width: 640px) {
-  .ledger-workspace__heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 </style>

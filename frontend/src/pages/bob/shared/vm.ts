@@ -5,10 +5,10 @@ import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { generateObjectCode } from '@/utils/object-code'
 import {
-  formulaFromPayload,
-  formulaPayload,
-  type ProductFormulaDraft,
-} from '@/components/formula'
+  comparableProductValue,
+  productFormFields,
+  productPayload,
+} from './product-data'
 import { useBobHistory } from './history'
 import { useBobReferences } from './references'
 import type {
@@ -254,9 +254,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       data[key] = value
     }
     if (config.entity === 'product') {
-      data.formula = formulaPayload(
-        normalized.formula as ProductFormulaDraft | null,
-      )
+      Object.assign(data, productPayload(normalized))
     }
     return data
   }
@@ -267,9 +265,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       config.detailKeys.map((key) => [key, normalized[key]]),
     )
     if (config.entity === 'product') {
-      data.formula = formulaPayload(
-        normalized.formula as ProductFormulaDraft | null,
-      )
+      Object.assign(data, productPayload(normalized))
     }
     return data
   }
@@ -281,9 +277,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       form[key] = view.data[key] ?? form[key] ?? ''
     }
     if (config.entity === 'product') {
-      form.formula = formulaFromPayload(
-        view.data.formula as Parameters<typeof formulaFromPayload>[0],
-      )
+      Object.assign(form, productFormFields(view.data))
     }
     return form
   }
@@ -432,22 +426,14 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         const missing = config.persistedKeys?.find(
           (key) =>
             JSON.stringify(
-              key === 'formula'
-                ? (formulaPayload(
-                    formulaFromPayload(
-                      persisted.data[key] as Parameters<
-                        typeof formulaFromPayload
-                      >[0],
-                    ),
-                  ) ?? '')
-                : (persisted.data[key] ?? ''),
+              comparableProductValue(
+                key,
+                persisted.data[key],
+                true,
+              ),
             ) !==
             JSON.stringify(
-              key === 'formula'
-                ? (formulaPayload(
-                    normalized[key] as ProductFormulaDraft | null,
-                  ) ?? '')
-                : (normalized[key] ?? ''),
+              comparableProductValue(key, normalized[key], false),
             ),
         )
         if (missing) {

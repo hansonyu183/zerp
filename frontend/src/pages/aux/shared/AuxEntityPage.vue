@@ -83,12 +83,14 @@ void vm.query()
         </template>
         <template #[`item.actions`]="{ item }">
           <v-btn
+            v-if="vm.canSave"
             icon="mdi-pencil-outline"
             size="small"
             variant="text"
             @click="vm.openEdit(item)"
           />
           <v-btn
+            v-if="item.enabled ? vm.canDisable : vm.canEnable"
             :icon="
               item.enabled
                 ? 'mdi-pause-circle-outline'
@@ -99,6 +101,7 @@ void vm.query()
             @click="vm.changeEnabled(item)"
           />
           <v-btn
+            v-if="vm.canDelete"
             icon="mdi-delete-outline"
             size="small"
             variant="text"
@@ -134,6 +137,7 @@ void vm.query()
         vm.editing ? `编辑${vm.config.title}` : `新增${vm.config.title}`
       "
       @cancel="vm.closeEditor"
+      @reference-search="vm.searchEditorReference"
       @save="vm.save"
     />
   </v-navigation-drawer>

@@ -156,4 +156,110 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		fixedOrderView.Data.ProductLines[0].Formula.SourceType != "PRODUCT_FIXED" {
 		t.Fatalf("fixed order snapshot = %+v", fixedOrderView.Data.ProductLines[0].Formula)
 	}
+
+	rawView, err := bobService.Get(t.Context(), bobdomain.EntityProduct, bobdomain.GetInput{
+		ObjectID: refs.product.ObjectID,
+	})
+	if err != nil {
+		t.Fatalf("get raw material before edit: %v", err)
+	}
+	editedRaw, err := bobService.Edit(
+		t.Context(),
+		bobdomain.EntityProduct,
+		bobdomain.ObjectRevisionInput{
+			ObjectID:       refs.product.ObjectID,
+			ObjectRevision: rawView.ObjectRevision,
+		},
+		integrationActorOne,
+		"formula-raw-edit",
+	)
+	if err != nil {
+		t.Fatalf("edit raw material: %v", err)
+	}
+	submittedRaw, err := bobService.Submit(
+		t.Context(),
+		bobdomain.EntityProduct,
+		bobdomain.VersionRevisionInput{
+			ObjectID:  editedRaw.ObjectID,
+			VersionID: editedRaw.VersionID,
+			Revision:  editedRaw.Revision,
+		},
+		integrationActorOne,
+		"formula-raw-submit",
+	)
+	if err != nil {
+		t.Fatalf("submit raw material: %v", err)
+	}
+	approvedRaw, err := bobService.Approve(
+		t.Context(),
+		bobdomain.EntityProduct,
+		bobdomain.ReviewInput{
+			ObjectID:  submittedRaw.ObjectID,
+			VersionID: submittedRaw.VersionID,
+			Revision:  submittedRaw.Revision,
+		},
+		integrationActorTwo,
+		"formula-raw-approve",
+	)
+	if err != nil {
+		t.Fatalf("approve raw material: %v", err)
+	}
+
+	refreshedDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
+		Product: standard,
+	})
+	if err != nil {
+		t.Fatalf("fixed default after raw material update: %v", err)
+	}
+	if refreshedDefault.Formula == nil ||
+		refreshedDefault.Formula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		t.Fatalf("refreshed fixed default = %+v", refreshedDefault)
+	}
+	refreshedCustomerDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
+		Customer: &refs.customer,
+		Product:  custom,
+	})
+	if err != nil {
+		t.Fatalf("customer default after raw material update: %v", err)
+	}
+	if refreshedCustomerDefault.Formula == nil ||
+		refreshedCustomerDefault.Formula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		t.Fatalf("refreshed customer default = %+v", refreshedCustomerDefault)
+	}
+
+	rebasedOrder, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-28",
+		Currency:     "CNY",
+		Customer:     &refs.customer,
+		Salesperson:  &refs.employee,
+		ProductLines: []ProductLineInput{{
+			Product: standard, OrderedQuantity: "1", UnitPrice: "12.00",
+			Formula: &FormulaInput{
+				BaseOutputQuantity: fixedDefault.Formula.BaseOutputQuantity,
+				SourceType:         fixedDefault.SourceType,
+				Components: []FormulaComponentInput{{
+					Material: refs.product,
+					Quantity: fixedDefault.Formula.Components[0].Quantity,
+				}},
+			},
+		}},
+	}}, integrationActorOne, "formula-rebased-order-create")
+	if err != nil {
+		t.Fatalf("create order from stale formula material version: %v", err)
+	}
+	rebasedOrderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{
+		DocumentID: rebasedOrder.DocumentID,
+	})
+	if err != nil {
+		t.Fatalf("get rebased formula order: %v", err)
+	}
+	rebasedFormula := rebasedOrderView.Data.ProductLines[0].Formula
+	if rebasedFormula == nil ||
+		rebasedFormula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		t.Fatalf("rebased order formula = %+v", rebasedFormula)
+	}
+	if fixedOrderView.Data.ProductLines[0].Formula.Components[0].Material.VersionID !=
+		refs.product.VersionID {
+		t.Fatalf("historical formula snapshot changed = %+v", fixedOrderView.Data.ProductLines[0].Formula)
+	}
 }

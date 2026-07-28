@@ -9,6 +9,10 @@ import {
   FormulaEditorDialog,
   type ProductFormulaDraft,
 } from '@/components/formula'
+import {
+  PackagingSpecsEditorDialog,
+  type PackagingSpecDraft,
+} from '@/components/packaging'
 import { getStatusText } from './config'
 import type { BobEntityViewModel } from './vm'
 import type { BobListItem } from './types'
@@ -28,6 +32,12 @@ const formulaEditable = ref(false)
 const formulaProductName = ref('')
 const formulaProductUnit = ref('')
 let formulaSetter: ((value: ProductFormulaDraft) => void) | null = null
+const packagingOpen = ref(false)
+const packagingModel = ref<PackagingSpecDraft[]>([])
+const packagingEditable = ref(false)
+const packagingProductName = ref('')
+const packagingProductUnit = ref('')
+let packagingSetter: ((value: PackagingSpecDraft[]) => void) | null = null
 
 const versionsLength = computed(() =>
   Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
@@ -102,6 +112,29 @@ function openFormula(
 function saveFormula(value: ProductFormulaDraft): void {
   formulaModel.value = value
   formulaSetter?.(value)
+}
+
+function openPackagingSpecs(
+  value: unknown,
+  record: Readonly<Record<string, unknown>>,
+  editable: boolean,
+  setValue?: (value: unknown) => void,
+): void {
+  packagingModel.value = Array.isArray(value)
+    ? structuredClone(value as PackagingSpecDraft[])
+    : []
+  packagingEditable.value = editable
+  packagingProductName.value = String(record.name ?? '产品')
+  packagingProductUnit.value = String(record.unit ?? '')
+  packagingSetter = setValue
+    ? (specs) => setValue(specs)
+    : null
+  packagingOpen.value = true
+}
+
+function savePackagingSpecs(value: PackagingSpecDraft[]): void {
+  packagingModel.value = value
+  packagingSetter?.(value)
 }
 </script>
 
@@ -339,6 +372,30 @@ function saveFormula(value: ProductFormulaDraft): void {
             查看固定配方
           </v-btn>
         </template>
+        <template #input-packagingSpecs="{ record, setValue, value }">
+          <div class="business-object-editor__label">包装规格</div>
+          <v-btn
+            prepend-icon="mdi-package-variant-closed"
+            variant="tonal"
+            @click="openPackagingSpecs(value, record, true, setValue)"
+          >
+            {{
+              Array.isArray(value) && value.length > 0
+                ? `编辑包装规格（${value.length}）`
+                : '维护包装规格'
+            }}
+          </v-btn>
+        </template>
+        <template #display-packagingSpecs="{ record, value }">
+          <div class="business-object-editor__label">包装规格</div>
+          <v-btn
+            prepend-icon="mdi-package-variant-closed"
+            variant="text"
+            @click="openPackagingSpecs(value, record, false)"
+          >
+            查看包装规格
+          </v-btn>
+        </template>
       </BusinessObjectEditor>
     </div>
   </v-navigation-drawer>
@@ -351,6 +408,15 @@ function saveFormula(value: ProductFormulaDraft): void {
     :product-unit="formulaProductUnit"
     source-type="PRODUCT_FIXED"
     @save="saveFormula"
+  />
+
+  <PackagingSpecsEditorDialog
+    v-model:open="packagingOpen"
+    :editable="packagingEditable"
+    :model-value="packagingModel"
+    :product-name="packagingProductName"
+    :product-unit="packagingProductUnit"
+    @save="savePackagingSpecs"
   />
 
   <v-dialog

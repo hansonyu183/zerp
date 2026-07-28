@@ -16,12 +16,46 @@ export function useVoucherFormula(
   config: VoucherEntityConfig,
   form: Ref<VoucherDraftForm>,
 ) {
+  const requestVersions = new Map<string, number>()
+
+  function nextRequestVersion(lineKey: string): number {
+    const version = (requestVersions.get(lineKey) ?? 0) + 1
+    requestVersions.set(lineKey, version)
+    return version
+  }
+
+  function currentRequestLine(
+    index: number,
+    lineKey: string,
+    productKey: string,
+    customerKey: string | null,
+    requestVersion: number,
+  ) {
+    const current = form.value.productLines[index]
+    const currentCustomer = form.value.customer
+    const currentCustomerKey = currentCustomer
+      ? `${currentCustomer.objectId}/${currentCustomer.versionId}`
+      : ''
+    if (
+      !current?.product ||
+      current.key !== lineKey ||
+      `${current.product.objectId}/${current.product.versionId}` !==
+        productKey ||
+      (customerKey !== null && currentCustomerKey !== customerKey) ||
+      requestVersions.get(lineKey) !== requestVersion
+    ) {
+      return null
+    }
+    return current
+  }
+
   async function changeLineProduct(
     index: number,
     product: VoucherReference | null,
   ): Promise<void> {
     const line = form.value.productLines[index]
     if (!line) return
+    nextRequestVersion(line.key)
     form.value.productLines[index] = {
       ...line,
       product,
@@ -37,6 +71,17 @@ export function useVoucherFormula(
     const line = form.value.productLines[index]
     const product = line?.product
     if (!line || !product) return
+    const requestVersion = nextRequestVersion(line.key)
+    const lineKey = line.key
+    const customer =
+      product.productKind === 'CUSTOM_FINISHED' ? form.value.customer : null
+    const customerKey =
+      product.productKind === 'CUSTOM_FINISHED'
+        ? customer
+          ? `${customer.objectId}/${customer.versionId}`
+          : ''
+        : null
+    const productKey = `${product.objectId}/${product.versionId}`
     if (product.productKind === 'PACKAGING') {
       line.formula = null
       line.formulaError = ''
@@ -47,7 +92,6 @@ export function useVoucherFormula(
       line.formulaError = '请先选择客户。'
       return
     }
-    const productKey = `${product.objectId}/${product.versionId}`
     line.formulaLoading = true
     line.formulaError = ''
     try {
@@ -63,18 +107,19 @@ export function useVoucherFormula(
           product: { objectId: string; versionId: string }
         }
       >('vou/sale-order/formula-default', {
-        ...(form.value.customer
-          ? { customer: inputReference(form.value.customer) }
+        ...(customer
+          ? { customer: inputReference(customer) }
           : {}),
         product: inputReference(product)!,
       })
-      const current = form.value.productLines[index]
-      if (
-        !current?.product ||
-        `${current.product.objectId}/${current.product.versionId}` !==
-          productKey
+      const current = currentRequestLine(
+        index,
+        lineKey,
+        productKey,
+        customerKey,
+        requestVersion,
       )
-        return
+      if (!current) return
       const formula = formulaFromPayload(data.formula)
       if (formula) {
         formula.sourceType = data.sourceType
@@ -87,13 +132,25 @@ export function useVoucherFormula(
           ? ''
           : '暂无历史配方，请手工维护。'
     } catch (error) {
-      const current = form.value.productLines[index]
+      const current = currentRequestLine(
+        index,
+        lineKey,
+        productKey,
+        customerKey,
+        requestVersion,
+      )
       if (current) {
         current.formula = null
         current.formulaError = getErrorMessage(error)
       }
     } finally {
-      const current = form.value.productLines[index]
+      const current = currentRequestLine(
+        index,
+        lineKey,
+        productKey,
+        customerKey,
+        requestVersion,
+      )
       if (current) current.formulaLoading = false
     }
   }

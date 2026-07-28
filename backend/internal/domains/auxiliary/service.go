@@ -17,6 +17,10 @@ import (
 
 var codePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]{0,63}$`)
 
+// AUX graphs use JSONB references, so a transaction-level domain lock keeps
+// validation and mutation atomic across concurrent AUX writes.
+const auxiliaryWriteLockKey int64 = 0x5a455250415558
+
 type dbtx interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 	Query(context.Context, string, ...any) (pgx.Rows, error)
@@ -155,17 +159,23 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
 	code := strings.ToUpper(strings.TrimSpace(input.Data.Code))
-	data, err := s.validateData(ctx, nil, entity, "", input.Data.Data)
-	if !validEntity(entity) || !codePattern.MatchString(code) || !validID(actorID) || strings.TrimSpace(requestID) == "" || err != nil {
-		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
+	if !validEntity(entity) || !codePattern.MatchString(code) || !validID(actorID) || strings.TrimSpace(requestID) == "" {
+		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, nil)
 	}
 	objectID, versionID := ulid.Make().String(), ulid.Make().String()
-	raw, _ := json.Marshal(data)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin create", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
+		return MutationResult{}, s.internal("lock auxiliary writes", err)
+	}
+	data, err := s.validateData(ctx, tx, entity, "", input.Data.Data)
+	if err != nil {
+		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
+	}
+	raw, _ := json.Marshal(data)
 	if _, err = tx.Exec(ctx, `INSERT INTO aux_objects
 		(id,entity,code,current_version_id,created_by,updated_by)
 		VALUES($1,$2,$3,$4,$5,$5)`, objectID, entity, code, versionID, actorID); err != nil {
@@ -195,6 +205,9 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, s.internal("begin save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
+		return MutationResult{}, s.internal("lock auxiliary writes", err)
+	}
 	var object struct {
 		code             string
 		currentVersionID string
@@ -281,6 +294,9 @@ func (s *Service) setEnabled(ctx context.Context, entity string, input RevisionI
 		return MutationResult{}, s.internal("begin auxiliary state change", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
+		return MutationResult{}, s.internal("lock auxiliary writes", err)
+	}
 	var versionID string
 	var version int32
 	var current bool
@@ -324,6 +340,9 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return s.internal("begin auxiliary delete", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
+		return s.internal("lock auxiliary writes", err)
+	}
 	var revision int64
 	if err = tx.QueryRow(ctx, `SELECT revision FROM aux_objects WHERE id=$1 AND entity=$2 FOR UPDATE`, input.ObjectID, entity).Scan(&revision); errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorValidation, "object not found", nil, nil)
@@ -351,6 +370,11 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return s.internal("delete auxiliary object", err)
 	}
 	return tx.Commit(ctx)
+}
+
+func lockAuxiliaryWrites(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, auxiliaryWriteLockKey)
+	return err
 }
 
 func (s *Service) Versions(ctx context.Context, entity string, input HistoryInput) (Page[VersionView], error) {

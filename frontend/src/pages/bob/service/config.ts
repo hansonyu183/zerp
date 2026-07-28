@@ -1,11 +1,9 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
   defineBobEntityConfig,
   reference,
-  text,
   textarea,
 } from '../shared/config-helpers'
 
@@ -16,23 +14,31 @@ export const serviceConfig = defineBobEntityConfig({
   nameLabel: '服务名称',
   defaults: {
     unit: '',
-    categoryId: '',
+    inventoryUnitId: '',
     description: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'unit'],
+  requiredKeys: ['code', 'name', 'inventoryUnitId'],
+  persistedKeys: ['inventoryUnitId'],
   uppercaseKeys: ['code'],
   references: {
-    categoryId: {
-      entity: 'category',
-      label: '服务分类',
-      filters: { targetEntity: 'service' },
+    inventoryUnitId: {
+      domain: 'aux',
+      entity: 'measurement-unit',
+      label: '服务单位',
     },
   },
   fields: (context) => [
     ...commonFields(context, '服务编码', '服务名称'),
-    text('unit', '单位', 32, { required: true }),
-    reference('categoryId', '服务分类', context),
+    {
+      ...reference('inventoryUnitId', '服务单位', context, true),
+      onChange: (value: unknown) => {
+        const selected = context.referenceOptions.inventoryUnitId?.find(
+          (option) => option.value === value,
+        )
+        return { unit: selected?.title.split(' · ')[0] ?? '' }
+      },
+    },
     textarea('description', '服务说明'),
     textarea('remark', '备注'),
   ],
@@ -44,5 +50,5 @@ export const serviceConfig = defineBobEntityConfig({
       value: (row) => row.currentVersion.summary.description,
     },
   ]),
-  filters: baseFilters([categoryFilter('service')]),
+  filters: baseFilters(),
 })

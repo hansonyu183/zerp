@@ -30,6 +30,7 @@ export interface DraftPayload {
     product: VoucherReferenceInput
     orderedQuantity: string
     unitPrice: string
+    settlementSurcharge?: string
     purchaseUnitPrice?: string
     remark?: string
   }>
@@ -55,7 +56,7 @@ export interface DraftPayload {
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
   return {
     businessDate: localDate(),
-    currency: config.usesFundAccount ? '' : 'CNY',
+    currency: 'CNY',
     remark: '',
     customer: null,
     supplier: null,
@@ -79,6 +80,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         product: null,
         orderedQuantity: '',
         unitPrice: '',
+        settlementSurcharge: '',
         purchaseUnitPrice: '',
         remark: '',
       }]
@@ -141,7 +143,8 @@ export function formFromDocument(
       lineId: line.lineId,
       product: formReference(line.product),
       orderedQuantity: line.orderedQuantity,
-      unitPrice: line.unitPrice,
+      unitPrice: line.baseUnitPrice ?? line.unitPrice,
+      settlementSurcharge: line.settlementSurcharge ?? '',
       purchaseUnitPrice: line.purchaseUnitPrice ?? '',
       remark: line.remark ?? '',
     })),

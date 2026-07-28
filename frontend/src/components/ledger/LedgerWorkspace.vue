@@ -2,13 +2,10 @@
 import { computed } from 'vue'
 import { ledgerSourceEntityOptions } from './config'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import { useLedgerViewModel } from './vm'
-import type {
-  LedgerEntityConfig,
-  LedgerMode,
-  LedgerRecord,
-} from './types'
+import type { LedgerEntityConfig, LedgerMode, LedgerRecord } from './types'
 
 defineOptions({ name: 'LedgerWorkspace' })
 
@@ -38,10 +35,11 @@ function sortableField(key: string) {
   }[key] as 'effectiveDate' | 'occurredAt' | 'documentNo' | undefined
 }
 
-function changeSort(field: 'effectiveDate' | 'occurredAt' | 'documentNo'): void {
-  vm.sort.order = vm.sort.field === field && vm.sort.order === 'asc'
-    ? 'desc'
-    : 'asc'
+function changeSort(
+  field: 'effectiveDate' | 'occurredAt' | 'documentNo',
+): void {
+  vm.sort.order =
+    vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc'
   vm.sort.field = field
   vm.search()
 }
@@ -51,11 +49,10 @@ void vm.load()
 
 <template>
   <v-container fluid class="ledger-workspace pa-5 pa-md-8">
-    <div class="ledger-workspace__heading">
-      <div>
-        <div class="text-overline text-medium-emphasis">LED · 业务账簿</div>
-        <h1>{{ config.title }}</h1>
-      </div>
+    <div
+      v-if="vm.canQuery.value || vm.canBalance.value"
+      class="ledger-workspace__controls"
+    >
       <v-btn-toggle
         :model-value="vm.mode.value"
         color="primary"
@@ -88,97 +85,88 @@ void vm.load()
         {{ vm.errorMessage.value }}
       </v-alert>
 
-      <v-expansion-panels class="mb-4" variant="accordion">
-        <v-expansion-panel>
-          <v-expansion-panel-title>筛选条件</v-expansion-panel-title>
-          <v-expansion-panel-text>
-            <div
-              v-if="vm.mode.value === 'entries'"
-              class="ledger-workspace__filters"
-            >
-              <v-text-field
-                v-model="vm.queryFilters.dateFrom"
-                density="comfortable"
-                label="开始日期"
-                type="date"
-                variant="outlined"
-              />
-              <v-text-field
-                v-model="vm.queryFilters.dateTo"
-                density="comfortable"
-                label="结束日期"
-                type="date"
-                variant="outlined"
-              />
-              <LedgerReferenceAutocomplete
-                v-model="vm.queryFilters.object"
-                :error-message="vm.references.errorMessage"
-                :label="config.objectLabel"
-                :loading="vm.references.loading"
-                :options="vm.references.options"
-                @search="vm.references.search"
-              />
-              <v-select
-                v-model="vm.queryFilters.sourceEntity"
-                clearable
-                density="comfortable"
-                item-title="title"
-                item-value="value"
-                :items="ledgerSourceEntityOptions"
-                label="来源单据"
-                variant="outlined"
-              />
-              <v-text-field
-                v-model="vm.queryFilters.documentNo"
-                clearable
-                density="comfortable"
-                label="来源单号"
-                variant="outlined"
-              />
-              <v-select
-                v-if="config.directions.length > 0"
-                v-model="vm.queryFilters.direction"
-                chips
-                clearable
-                density="comfortable"
-                item-title="title"
-                item-value="value"
-                :items="config.directions"
-                label="方向"
-                multiple
-                variant="outlined"
-              />
-            </div>
-            <div v-else class="ledger-workspace__filters">
-              <v-text-field
-                v-model="vm.balanceFilters.asOfDate"
-                density="comfortable"
-                label="截止日期"
-                type="date"
-                variant="outlined"
-              />
-              <LedgerReferenceAutocomplete
-                v-model="vm.balanceFilters.object"
-                :error-message="vm.references.errorMessage"
-                :label="config.objectLabel"
-                :loading="vm.references.loading"
-                :options="vm.references.options"
-                @search="vm.references.search"
-              />
-            </div>
-            <div class="ledger-workspace__filter-actions">
-              <v-btn variant="text" @click="vm.resetFilters">重置</v-btn>
-              <v-btn
-                color="primary"
-                :loading="vm.loading.value"
-                @click="vm.search"
-              >
-                查询
-              </v-btn>
-            </div>
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-      </v-expansion-panels>
+      <EntityListControls
+        filterable
+        :loading="vm.loading.value"
+        :searchable="false"
+        @apply-filters="vm.search"
+        @query="vm.search"
+        @reset-filters="vm.resetFilters"
+      >
+        <template #filters>
+          <template v-if="vm.mode.value === 'entries'">
+            <v-text-field
+              v-model="vm.queryFilters.dateFrom"
+              density="comfortable"
+              label="开始日期"
+              type="date"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="vm.queryFilters.dateTo"
+              density="comfortable"
+              label="结束日期"
+              type="date"
+              variant="outlined"
+            />
+            <LedgerReferenceAutocomplete
+              v-model="vm.queryFilters.object"
+              :error-message="vm.references.errorMessage"
+              :label="config.objectLabel"
+              :loading="vm.references.loading"
+              :options="vm.references.options"
+              @search="vm.references.search"
+            />
+            <v-select
+              v-model="vm.queryFilters.sourceEntity"
+              clearable
+              density="comfortable"
+              item-title="title"
+              item-value="value"
+              :items="ledgerSourceEntityOptions"
+              label="来源单据"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="vm.queryFilters.documentNo"
+              clearable
+              density="comfortable"
+              label="来源单号"
+              variant="outlined"
+            />
+            <v-select
+              v-if="config.directions.length > 0"
+              v-model="vm.queryFilters.direction"
+              chips
+              clearable
+              density="comfortable"
+              item-title="title"
+              item-value="value"
+              :items="config.directions"
+              label="方向"
+              multiple
+              variant="outlined"
+            />
+          </template>
+          <template v-else>
+            <v-text-field
+              v-model="vm.balanceFilters.asOfDate"
+              density="comfortable"
+              label="截止日期"
+              type="date"
+              variant="outlined"
+            />
+            <LedgerReferenceAutocomplete
+              v-model="vm.balanceFilters.object"
+              :error-message="vm.references.errorMessage"
+              :label="config.objectLabel"
+              :loading="vm.references.loading"
+              :options="vm.references.options"
+              @search="vm.references.search"
+            />
+          </template>
+        </template>
+      </EntityListControls>
 
       <v-card rounded="lg" variant="flat">
         <div class="ledger-workspace__table">
@@ -187,7 +175,9 @@ void vm.load()
               <tr>
                 <template v-for="column in vm.columns.value" :key="column.key">
                   <SortableTableHeader
-                    v-if="vm.mode.value === 'entries' && sortableField(column.key)"
+                    v-if="
+                      vm.mode.value === 'entries' && sortableField(column.key)
+                    "
                     :active="vm.sort.field === sortableField(column.key)"
                     :align="column.align"
                     :direction="vm.sort.order"
@@ -258,26 +248,14 @@ void vm.load()
 </template>
 
 <style scoped>
-.ledger-workspace__heading {
+.ledger-workspace__controls {
   display: flex;
   gap: 16px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 24px;
 }
 
-.ledger-workspace__heading h1 {
-  font-size: 28px;
-  line-height: 1.2;
-}
-
-.ledger-workspace__filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 12px;
-}
-
-.ledger-workspace__filter-actions,
 .ledger-workspace__pagination {
   display: flex;
   gap: 8px;
@@ -300,12 +278,5 @@ void vm.load()
   height: 112px;
   color: rgb(var(--v-theme-on-surface-variant));
   text-align: center;
-}
-
-@media (max-width: 640px) {
-  .ledger-workspace__heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 </style>

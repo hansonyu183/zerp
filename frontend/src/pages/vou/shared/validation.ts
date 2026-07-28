@@ -1,5 +1,6 @@
 import {
-  calculateLineAmount,
+  calculatePricedLineAmount,
+  addMoney,
   isMoney,
   isQuantity,
   sumMoney,
@@ -13,9 +14,6 @@ export function validateVoucherDraft(
   value: VoucherDraftForm,
 ): string | null {
   if (!value.businessDate) return '请选择业务日期。'
-  if (!/^[A-Z]{3}$/.test(value.currency.trim().toUpperCase())) {
-    return '币种必须是三位大写字母。'
-  }
   if (Array.from(value.remark).length > 1000) return '备注不能超过 1000 字。'
   if (config.partyMode === 'customer' && !value.customer) return '请选择客户。'
   if (config.partyMode === 'supplier' && !value.supplier)
@@ -55,12 +53,15 @@ export function validateVoucherDraft(
       if (
         !line.product ||
         !isQuantity(line.orderedQuantity) ||
-        !isMoney(line.unitPrice)
+        !isMoney(line.unitPrice) ||
+        ((line.settlementSurcharge ?? '') !== '' &&
+          !isMoney(line.settlementSurcharge ?? '', true))
       )
         return `第 ${index + 1} 行 · 产品/数量/单价：请完整填写有效值。`
-      const lineAmount = calculateLineAmount(
+      const lineAmount = calculatePricedLineAmount(
         line.orderedQuantity,
-        line.unitPrice,
+        addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
+        line.product.pricingQuantityPerInventoryUnit ?? '1',
       )
       if (!lineAmount) return `第 ${index + 1} 行 · 金额：超出允许范围。`
       lineAmounts.push(lineAmount)

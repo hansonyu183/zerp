@@ -412,11 +412,14 @@ func (q *Queries) CopyBobPositionDetail(ctx context.Context, arg CopyBobPosition
 const copyBobProductDetail = `-- name: CopyBobProductDetail :exec
 INSERT INTO bob_product_versions (
     version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark
+    category_id, specification, model, barcode, remark, product_kind,
+    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
+    returnable
 )
 SELECT $1, d.name, d.unit, d.container_type, d.quantity_per_container_micros,
        d.category_id, d.specification,
-       d.model, d.barcode, d.remark
+       d.model, d.barcode, d.remark, d.product_kind, d.inventory_unit_id,
+       d.pricing_unit_id, d.pricing_quantity_per_inventory_unit_micros, d.returnable
 FROM bob_product_versions d WHERE d.version_id = $2
 `
 
@@ -430,9 +433,30 @@ func (q *Queries) CopyBobProductDetail(ctx context.Context, arg CopyBobProductDe
 	return err
 }
 
+const copyBobProductPackagingSpecs = `-- name: CopyBobProductPackagingSpecs :exec
+INSERT INTO bob_product_packaging_specs (
+    product_version_id, packaging_product_object_id, packaging_product_version_id,
+    content_quantity_micros, is_default
+)
+SELECT $1, source.packaging_product_object_id,
+       source.packaging_product_version_id, source.content_quantity_micros, source.is_default
+FROM bob_product_packaging_specs source
+WHERE source.product_version_id = $2
+`
+
+type CopyBobProductPackagingSpecsParams struct {
+	NewVersionID    string `db:"new_version_id" json:"new_version_id"`
+	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
+}
+
+func (q *Queries) CopyBobProductPackagingSpecs(ctx context.Context, arg CopyBobProductPackagingSpecsParams) error {
+	_, err := q.db.Exec(ctx, copyBobProductPackagingSpecs, arg.NewVersionID, arg.SourceVersionID)
+	return err
+}
+
 const copyBobServiceDetail = `-- name: CopyBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, category_id, description, remark)
-SELECT $1, d.name, d.unit, d.category_id, d.description, d.remark
+INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
+SELECT $1, d.name, d.unit, d.unit_id, d.category_id, d.description, d.remark
 FROM bob_service_versions d WHERE d.version_id = $2
 `
 
@@ -803,6 +827,16 @@ func (q *Queries) DeleteBobProductDetail(ctx context.Context, versionID string) 
 	return result.RowsAffected(), nil
 }
 
+const deleteBobProductPackagingSpecs = `-- name: DeleteBobProductPackagingSpecs :exec
+DELETE FROM bob_product_packaging_specs
+WHERE product_version_id = $1
+`
+
+func (q *Queries) DeleteBobProductPackagingSpecs(ctx context.Context, productVersionID string) error {
+	_, err := q.db.Exec(ctx, deleteBobProductPackagingSpecs, productVersionID)
+	return err
+}
+
 const deleteBobServiceDetail = `-- name: DeleteBobServiceDetail :execrows
 DELETE FROM bob_service_versions WHERE version_id = $1
 `
@@ -883,7 +917,7 @@ func (q *Queries) FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectID
 }
 
 const getBobVersionView = `-- name: GetBobVersionView :one
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
   AND version_id = COALESCE(NULLIF($3::text, ''), current_version_id)
 `
@@ -961,6 +995,12 @@ func (q *Queries) GetBobVersionView(ctx context.Context, arg GetBobVersionViewPa
 		&i.SettlementDayOffset,
 		&i.ContainerType,
 		&i.QuantityPerContainerMicros,
+		&i.ProductKind,
+		&i.InventoryUnitID,
+		&i.PricingUnitID,
+		&i.PricingQuantityPerInventoryUnitMicros,
+		&i.Returnable,
+		&i.PackagingSpecs,
 	)
 	return i, err
 }
@@ -1235,25 +1275,34 @@ func (q *Queries) InsertBobPositionDetail(ctx context.Context, arg InsertBobPosi
 const insertBobProductDetail = `-- name: InsertBobProductDetail :exec
 INSERT INTO bob_product_versions (
     version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark
+    category_id, specification, model, barcode, remark, product_kind,
+    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
+    returnable
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6,
-    $7, $8, $9, $10
+    $7, $8, $9, $10,
+    $11, $12, $13,
+    $14, $15
 )
 `
 
 type InsertBobProductDetailParams struct {
-	VersionID                  string  `db:"version_id" json:"version_id"`
-	Name                       string  `db:"name" json:"name"`
-	Unit                       string  `db:"unit" json:"unit"`
-	ContainerType              string  `db:"container_type" json:"container_type"`
-	QuantityPerContainerMicros *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
-	CategoryID                 *string `db:"category_id" json:"category_id"`
-	Specification              *string `db:"specification" json:"specification"`
-	Model                      *string `db:"model" json:"model"`
-	Barcode                    *string `db:"barcode" json:"barcode"`
-	Remark                     *string `db:"remark" json:"remark"`
+	VersionID                             string  `db:"version_id" json:"version_id"`
+	Name                                  string  `db:"name" json:"name"`
+	Unit                                  string  `db:"unit" json:"unit"`
+	ContainerType                         string  `db:"container_type" json:"container_type"`
+	QuantityPerContainerMicros            *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
+	CategoryID                            *string `db:"category_id" json:"category_id"`
+	Specification                         *string `db:"specification" json:"specification"`
+	Model                                 *string `db:"model" json:"model"`
+	Barcode                               *string `db:"barcode" json:"barcode"`
+	Remark                                *string `db:"remark" json:"remark"`
+	ProductKind                           string  `db:"product_kind" json:"product_kind"`
+	InventoryUnitID                       string  `db:"inventory_unit_id" json:"inventory_unit_id"`
+	PricingUnitID                         string  `db:"pricing_unit_id" json:"pricing_unit_id"`
+	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	Returnable                            bool    `db:"returnable" json:"returnable"`
 }
 
 func (q *Queries) InsertBobProductDetail(ctx context.Context, arg InsertBobProductDetailParams) error {
@@ -1268,15 +1317,50 @@ func (q *Queries) InsertBobProductDetail(ctx context.Context, arg InsertBobProdu
 		arg.Model,
 		arg.Barcode,
 		arg.Remark,
+		arg.ProductKind,
+		arg.InventoryUnitID,
+		arg.PricingUnitID,
+		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.Returnable,
+	)
+	return err
+}
+
+const insertBobProductPackagingSpec = `-- name: InsertBobProductPackagingSpec :exec
+INSERT INTO bob_product_packaging_specs (
+    product_version_id, packaging_product_object_id, packaging_product_version_id,
+    content_quantity_micros, is_default
+) VALUES (
+    $1, $2,
+    $3, $4,
+    $5
+)
+`
+
+type InsertBobProductPackagingSpecParams struct {
+	ProductVersionID          string `db:"product_version_id" json:"product_version_id"`
+	PackagingProductObjectID  string `db:"packaging_product_object_id" json:"packaging_product_object_id"`
+	PackagingProductVersionID string `db:"packaging_product_version_id" json:"packaging_product_version_id"`
+	ContentQuantityMicros     int64  `db:"content_quantity_micros" json:"content_quantity_micros"`
+	IsDefault                 bool   `db:"is_default" json:"is_default"`
+}
+
+func (q *Queries) InsertBobProductPackagingSpec(ctx context.Context, arg InsertBobProductPackagingSpecParams) error {
+	_, err := q.db.Exec(ctx, insertBobProductPackagingSpec,
+		arg.ProductVersionID,
+		arg.PackagingProductObjectID,
+		arg.PackagingProductVersionID,
+		arg.ContentQuantityMicros,
+		arg.IsDefault,
 	)
 	return err
 }
 
 const insertBobServiceDetail = `-- name: InsertBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, category_id, description, remark)
+INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
 VALUES (
-    $1, $2, $3, $4,
-    $5, $6
+    $1, $2, $3, $4, $5,
+    $6, $7
 )
 `
 
@@ -1284,6 +1368,7 @@ type InsertBobServiceDetailParams struct {
 	VersionID   string  `db:"version_id" json:"version_id"`
 	Name        string  `db:"name" json:"name"`
 	Unit        string  `db:"unit" json:"unit"`
+	UnitID      string  `db:"unit_id" json:"unit_id"`
 	CategoryID  *string `db:"category_id" json:"category_id"`
 	Description *string `db:"description" json:"description"`
 	Remark      *string `db:"remark" json:"remark"`
@@ -1294,6 +1379,7 @@ func (q *Queries) InsertBobServiceDetail(ctx context.Context, arg InsertBobServi
 		arg.VersionID,
 		arg.Name,
 		arg.Unit,
+		arg.UnitID,
 		arg.CategoryID,
 		arg.Description,
 		arg.Remark,
@@ -1569,7 +1655,7 @@ func (q *Queries) ListBobAuditEvents(ctx context.Context, arg ListBobAuditEvents
 }
 
 const listBobObjects = `-- name: ListBobObjects :many
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs
 FROM bob_version_views
 WHERE entity = $1 AND version_id = current_version_id
   AND (cardinality($2::text[]) = 0 OR status = ANY($2::text[]))
@@ -1730,6 +1816,12 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.SettlementDayOffset,
 			&i.ContainerType,
 			&i.QuantityPerContainerMicros,
+			&i.ProductKind,
+			&i.InventoryUnitID,
+			&i.PricingUnitID,
+			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.Returnable,
+			&i.PackagingSpecs,
 		); err != nil {
 			return nil, err
 		}
@@ -1742,7 +1834,7 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 }
 
 const listBobVersions = `-- name: ListBobVersions :many
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
 ORDER BY version_no DESC
 LIMIT $4 OFFSET $3
@@ -1833,6 +1925,12 @@ func (q *Queries) ListBobVersions(ctx context.Context, arg ListBobVersionsParams
 			&i.SettlementDayOffset,
 			&i.ContainerType,
 			&i.QuantityPerContainerMicros,
+			&i.ProductKind,
+			&i.InventoryUnitID,
+			&i.PricingUnitID,
+			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.Returnable,
+			&i.PackagingSpecs,
 		); err != nil {
 			return nil, err
 		}
@@ -2061,7 +2159,7 @@ func (q *Queries) RejectBobVersion(ctx context.Context, arg RejectBobVersionPara
 }
 
 const resolveBobEffectiveReference = `-- name: ResolveBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -2144,12 +2242,18 @@ func (q *Queries) ResolveBobEffectiveReference(ctx context.Context, arg ResolveB
 		&i.SettlementDayOffset,
 		&i.ContainerType,
 		&i.QuantityPerContainerMicros,
+		&i.ProductKind,
+		&i.InventoryUnitID,
+		&i.PricingUnitID,
+		&i.PricingQuantityPerInventoryUnitMicros,
+		&i.Returnable,
+		&i.PackagingSpecs,
 	)
 	return i, err
 }
 
 const resolveCurrentBobEffectiveReference = `-- name: ResolveCurrentBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -2231,6 +2335,12 @@ func (q *Queries) ResolveCurrentBobEffectiveReference(ctx context.Context, arg R
 		&i.SettlementDayOffset,
 		&i.ContainerType,
 		&i.QuantityPerContainerMicros,
+		&i.ProductKind,
+		&i.InventoryUnitID,
+		&i.PricingUnitID,
+		&i.PricingQuantityPerInventoryUnitMicros,
+		&i.Returnable,
+		&i.PackagingSpecs,
 	)
 	return i, err
 }
@@ -2528,21 +2638,31 @@ SET name = $1, unit = $2, container_type = $3,
     quantity_per_container_micros = $4,
     category_id = $5,
     specification = $6, model = $7,
-    barcode = $8, remark = $9
-WHERE version_id = $10
+    barcode = $8, remark = $9,
+    product_kind = $10,
+    inventory_unit_id = $11,
+    pricing_unit_id = $12,
+    pricing_quantity_per_inventory_unit_micros = $13,
+    returnable = $14
+WHERE version_id = $15
 `
 
 type UpdateBobProductDetailParams struct {
-	Name                       string  `db:"name" json:"name"`
-	Unit                       string  `db:"unit" json:"unit"`
-	ContainerType              string  `db:"container_type" json:"container_type"`
-	QuantityPerContainerMicros *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
-	CategoryID                 *string `db:"category_id" json:"category_id"`
-	Specification              *string `db:"specification" json:"specification"`
-	Model                      *string `db:"model" json:"model"`
-	Barcode                    *string `db:"barcode" json:"barcode"`
-	Remark                     *string `db:"remark" json:"remark"`
-	VersionID                  string  `db:"version_id" json:"version_id"`
+	Name                                  string  `db:"name" json:"name"`
+	Unit                                  string  `db:"unit" json:"unit"`
+	ContainerType                         string  `db:"container_type" json:"container_type"`
+	QuantityPerContainerMicros            *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
+	CategoryID                            *string `db:"category_id" json:"category_id"`
+	Specification                         *string `db:"specification" json:"specification"`
+	Model                                 *string `db:"model" json:"model"`
+	Barcode                               *string `db:"barcode" json:"barcode"`
+	Remark                                *string `db:"remark" json:"remark"`
+	ProductKind                           string  `db:"product_kind" json:"product_kind"`
+	InventoryUnitID                       string  `db:"inventory_unit_id" json:"inventory_unit_id"`
+	PricingUnitID                         string  `db:"pricing_unit_id" json:"pricing_unit_id"`
+	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	Returnable                            bool    `db:"returnable" json:"returnable"`
+	VersionID                             string  `db:"version_id" json:"version_id"`
 }
 
 func (q *Queries) UpdateBobProductDetail(ctx context.Context, arg UpdateBobProductDetailParams) (int64, error) {
@@ -2556,6 +2676,11 @@ func (q *Queries) UpdateBobProductDetail(ctx context.Context, arg UpdateBobProdu
 		arg.Model,
 		arg.Barcode,
 		arg.Remark,
+		arg.ProductKind,
+		arg.InventoryUnitID,
+		arg.PricingUnitID,
+		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.Returnable,
 		arg.VersionID,
 	)
 	if err != nil {
@@ -2566,14 +2691,16 @@ func (q *Queries) UpdateBobProductDetail(ctx context.Context, arg UpdateBobProdu
 
 const updateBobServiceDetail = `-- name: UpdateBobServiceDetail :execrows
 UPDATE bob_service_versions
-SET name = $1, unit = $2, category_id = $3,
-    description = $4, remark = $5
-WHERE version_id = $6
+SET name = $1, unit = $2, unit_id = $3,
+    category_id = $4,
+    description = $5, remark = $6
+WHERE version_id = $7
 `
 
 type UpdateBobServiceDetailParams struct {
 	Name        string  `db:"name" json:"name"`
 	Unit        string  `db:"unit" json:"unit"`
+	UnitID      string  `db:"unit_id" json:"unit_id"`
 	CategoryID  *string `db:"category_id" json:"category_id"`
 	Description *string `db:"description" json:"description"`
 	Remark      *string `db:"remark" json:"remark"`
@@ -2584,6 +2711,7 @@ func (q *Queries) UpdateBobServiceDetail(ctx context.Context, arg UpdateBobServi
 	result, err := q.db.Exec(ctx, updateBobServiceDetail,
 		arg.Name,
 		arg.Unit,
+		arg.UnitID,
 		arg.CategoryID,
 		arg.Description,
 		arg.Remark,

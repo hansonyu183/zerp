@@ -33,11 +33,8 @@ export interface PageRegistration {
 
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
-const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const developingPage: PageLoader =
-  () => import('@/pages/system/developing/Developing.vue')
 
-type DomainId = 'bob' | 'vou' | 'wfl' | 'led'
+type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -49,9 +46,14 @@ type EntityRegistration = Omit<
 
 const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
   bob: {
-    domainTitle: '基础业务对象',
+    domainTitle: '业务对象',
     domainIcon: 'mdi-database-outline',
     domainOrder: 10,
+  },
+  aux: {
+    domainTitle: '辅助对象',
+    domainIcon: 'mdi-shape-plus-outline',
+    domainOrder: 15,
   },
   vou: {
     domainTitle: '业务单据',
@@ -138,34 +140,70 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
-  registerPage('bob', {
-    entity: 'category',
-    entityTitle: '分类',
+  registerPage('aux', {
+    entity: 'product-category',
+    entityTitle: '产品分类',
     icon: 'mdi-shape-outline',
-    order: 90,
-    component: () => import('@/pages/bob/category/Category.vue'),
+    order: 10,
+    component: () => import('@/pages/aux/product-category/ProductCategory.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'department',
     entityTitle: '部门',
     icon: 'mdi-office-building-outline',
-    order: 100,
-    component: () => import('@/pages/bob/department/Department.vue'),
+    order: 20,
+    component: () => import('@/pages/aux/department/Department.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'position',
     entityTitle: '岗位',
     icon: 'mdi-briefcase-account-outline',
-    order: 110,
-    component: () => import('@/pages/bob/position/Position.vue'),
+    order: 30,
+    component: () => import('@/pages/aux/position/Position.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'settlement-method',
     entityTitle: '结算方式',
     icon: 'mdi-calendar-clock-outline',
-    order: 120,
+    order: 40,
     component: () =>
-      import('@/pages/bob/settlement-method/SettlementMethod.vue'),
+      import('@/pages/aux/settlement-method/SettlementMethod.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'measurement-unit',
+    entityTitle: '计量单位',
+    icon: 'mdi-ruler-square',
+    order: 50,
+    component: () => import('@/pages/aux/measurement-unit/MeasurementUnit.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'dictionary-type',
+    entityTitle: '字典类型',
+    icon: 'mdi-book-alphabet',
+    order: 60,
+    component: () => import('@/pages/aux/dictionary-type/DictionaryType.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'dictionary-item',
+    entityTitle: '字典项',
+    icon: 'mdi-format-list-bulleted-type',
+    order: 70,
+    component: () => import('@/pages/aux/dictionary-item/DictionaryItem.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'income-expense-type',
+    entityTitle: '收支类型',
+    icon: 'mdi-swap-vertical',
+    order: 80,
+    component: () =>
+      import('@/pages/aux/income-expense-type/IncomeExpenseType.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'account-subject',
+    entityTitle: '会计科目',
+    icon: 'mdi-file-tree-outline',
+    order: 90,
+    component: () => import('@/pages/aux/account-subject/AccountSubject.vue'),
   }),
   registerPage('vou', {
     entity: 'sale-order',
@@ -304,12 +342,14 @@ const registeredRouteNames = new Set<string>()
 export function normalizePermissions(value: unknown): string[] {
   if (!Array.isArray(value)) return []
 
-  return [...new Set(
-    value.filter(
-      (permission): permission is string =>
-        typeof permission === 'string' && PERMISSION_PATTERN.test(permission),
+  return [
+    ...new Set(
+      value.filter(
+        (permission): permission is string =>
+          typeof permission === 'string' && PERMISSION_PATTERN.test(permission),
+      ),
     ),
-  )]
+  ]
 }
 
 export function buildMenus(
@@ -344,39 +384,27 @@ export function buildMenus(
       registration,
     ]),
   )
-  const registrationsByDomain = new Map<string, PageRegistration>()
-
-  for (const registration of sortedRegistrations) {
-    if (registration.domain === 'app') continue
-    if (!registrationsByDomain.has(registration.domain)) {
-      registrationsByDomain.set(registration.domain, registration)
-    }
-  }
-
   const domains = new Map<string, MenuDomain>()
 
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
     const registration = registrationsByPage.get(key)
-    const domainRegistration = registration ??
-      registrationsByDomain.get(domainId)
+    if (!registration || registration.domain === 'app') continue
+
     const existingDomain = domains.get(domainId)
     const domain = existingDomain ?? {
       domain: domainId,
-      title: domainRegistration?.domainTitle ??
-        formatIdentifierTitle(domainId),
-      ...(domainRegistration?.domainIcon
-        ? { icon: domainRegistration.domainIcon }
-        : {}),
-      order: domainRegistration?.domainOrder ?? FALLBACK_ORDER,
+      title: registration.domainTitle,
+      ...(registration.domainIcon ? { icon: registration.domainIcon } : {}),
+      order: registration.domainOrder,
       children: [],
     }
 
     domain.children.push({
       entity: entityId,
-      title: registration?.entityTitle ?? formatIdentifierTitle(entityId),
-      ...(registration?.icon ? { icon: registration.icon } : {}),
-      order: registration?.order ?? FALLBACK_ORDER,
+      title: registration.entityTitle,
+      ...(registration.icon ? { icon: registration.icon } : {}),
+      order: registration.order,
       actions,
     })
     domains.set(domainId, domain)
@@ -387,30 +415,23 @@ export function buildMenus(
       ...domain,
       children: domain.children.sort(
         (left, right) =>
-          left.order - right.order ||
-          left.entity.localeCompare(right.entity),
+          left.order - right.order || left.entity.localeCompare(right.entity),
       ),
     }))
     .sort(
       (left, right) =>
-        left.order - right.order ||
-        left.domain.localeCompare(right.domain),
+        left.order - right.order || left.domain.localeCompare(right.domain),
     )
-}
-
-function formatIdentifierTitle(identifier: string): string {
-  return identifier
-    .split('-')
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ')
 }
 
 export function hasRegisteredPage(domain: string, entity: string): boolean {
   return `${domain}/${entity}` in pageRegistry
 }
 
-export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[]): number {
+export function registerMenuRoutes(
+  router: Router,
+  menus: readonly MenuDomain[],
+): number {
   const expectedRouteNames = new Set<string>()
   let added = 0
 
@@ -418,6 +439,7 @@ export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[])
     for (const entity of domain.children) {
       const key = `${domain.domain}/${entity.entity}`
       const registration = pageRegistry[key]
+      if (!registration) continue
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
@@ -426,12 +448,12 @@ export function registerMenuRoutes(router: Router, menus: readonly MenuDomain[])
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component: registration?.component ?? developingPage,
+        component: registration.component,
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
-          developing: !registration,
+          developing: false,
         },
       })
       registeredRouteNames.add(routeName)

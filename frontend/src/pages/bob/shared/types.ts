@@ -20,10 +20,6 @@ export type BobEntity =
   | 'warehouse'
   | 'vehicle'
   | 'fund-account'
-  | 'category'
-  | 'department'
-  | 'position'
-  | 'settlement-method'
 
 export type BobForm = {
   code: string
@@ -115,7 +111,9 @@ export interface BobEditContext {
 }
 
 export interface BobReferenceConfig {
-  entity: BobEntity | 'customer'
+  domain?: 'bob' | 'aux'
+  value?: 'objectId' | 'code'
+  entity: string
   label: string
   filters?: Record<string, unknown> | ((form: Readonly<BobForm>) => Record<string, unknown>)
 }
@@ -159,6 +157,26 @@ export interface ReferenceQueryItem {
   code: string
   currentVersion: {
     summary: {
+      name: string
+    }
+  }
+}
+
+export interface AuxReferenceQueryItem {
+  objectId: string
+  code: string
+  currentVersion: {
+    data: {
+      name: string
+    }
+  }
+}
+
+export interface AuxReferenceObject {
+  objectId: string
+  code: string
+  currentVersion: {
+    data: {
       name: string
     }
   }

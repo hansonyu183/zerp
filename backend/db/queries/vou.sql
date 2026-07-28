@@ -7,10 +7,10 @@ RETURNING last_value;
 
 -- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
-    id, entity, document_no, business_date, currency, total_amount_cents, remark,
+    id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,
     parent_entity, parent_document_id, created_by, updated_by
 ) VALUES (
-    sqlc.arg(id), sqlc.arg(entity), sqlc.arg(document_no), sqlc.arg(business_date),
+    sqlc.arg(id), sqlc.arg(entity), sqlc.arg(document_no), sqlc.arg(business_date), sqlc.narg(due_date),
     sqlc.arg(currency), sqlc.arg(total_amount_cents), sqlc.narg(remark),
     sqlc.narg(parent_entity), sqlc.narg(parent_document_id),
     sqlc.arg(actor_id), sqlc.arg(actor_id)
@@ -29,7 +29,7 @@ WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity);
 
 -- name: UpdateVouDraft :one
 UPDATE vou_documents
-SET business_date = sqlc.arg(business_date), currency = sqlc.arg(currency),
+SET business_date = sqlc.arg(business_date), due_date = sqlc.narg(due_date), currency = sqlc.arg(currency),
     total_amount_cents = sqlc.arg(total_amount_cents), remark = sqlc.narg(remark),
     revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
@@ -200,6 +200,8 @@ INSERT INTO vou_sale_order_details (
     settlement_method_object_id, settlement_method_version_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
+    settlement_due_days, settlement_cutoff_day,
+    settlement_default_sales_surcharge_cents,
     settlement_description
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_version_id),
@@ -211,6 +213,8 @@ INSERT INTO vou_sale_order_details (
     sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
+    sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
+    sqlc.arg(settlement_default_sales_surcharge_cents),
     sqlc.narg(settlement_description)
 );
 
@@ -231,6 +235,9 @@ SET customer_object_id = sqlc.arg(customer_object_id), customer_version_id = sql
     settlement_month_offset = sqlc.arg(settlement_month_offset),
     settlement_day_of_month = sqlc.narg(settlement_day_of_month),
     settlement_day_offset = sqlc.arg(settlement_day_offset),
+    settlement_due_days = sqlc.narg(settlement_due_days),
+    settlement_cutoff_day = sqlc.narg(settlement_cutoff_day),
+    settlement_default_sales_surcharge_cents = sqlc.arg(settlement_default_sales_surcharge_cents),
     settlement_description = sqlc.narg(settlement_description)
 WHERE document_id = sqlc.arg(document_id);
 
@@ -246,6 +253,8 @@ INSERT INTO vou_purchase_order_details (
     settlement_method_object_id, settlement_method_version_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
+    settlement_due_days, settlement_cutoff_day,
+    settlement_default_sales_surcharge_cents,
     settlement_description
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(supplier_object_id), sqlc.arg(supplier_version_id),
@@ -259,6 +268,8 @@ INSERT INTO vou_purchase_order_details (
     sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
+    sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
+    sqlc.arg(settlement_default_sales_surcharge_cents),
     sqlc.narg(settlement_description)
 );
 
@@ -281,6 +292,9 @@ SET supplier_object_id = sqlc.arg(supplier_object_id), supplier_version_id = sql
     settlement_month_offset = sqlc.arg(settlement_month_offset),
     settlement_day_of_month = sqlc.narg(settlement_day_of_month),
     settlement_day_offset = sqlc.arg(settlement_day_offset),
+    settlement_due_days = sqlc.narg(settlement_due_days),
+    settlement_cutoff_day = sqlc.narg(settlement_cutoff_day),
+    settlement_default_sales_surcharge_cents = sqlc.arg(settlement_default_sales_surcharge_cents),
     settlement_description = sqlc.narg(settlement_description)
 WHERE document_id = sqlc.arg(document_id);
 
@@ -451,12 +465,16 @@ DELETE FROM vou_product_lines WHERE document_id = sqlc.arg(document_id);
 -- name: InsertVouProductLine :exec
 INSERT INTO vou_product_lines (
     id, document_id, document_entity, line_no, product_object_id, product_version_id,
-    product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents,
+    product_code, product_name, product_unit, ordered_qty_micros,
+    product_kind, pricing_quantity_per_inventory_unit_micros,
+    base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark
 ) VALUES (
     sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(document_entity), sqlc.arg(line_no),
     sqlc.arg(product_object_id), sqlc.arg(product_version_id), sqlc.arg(product_code),
     sqlc.arg(product_name), sqlc.arg(product_unit), sqlc.arg(ordered_qty_micros),
+    sqlc.arg(product_kind), sqlc.arg(pricing_quantity_per_inventory_unit_micros),
+    sqlc.arg(base_unit_price_cents), sqlc.arg(settlement_surcharge_cents),
     sqlc.arg(unit_price_cents), sqlc.arg(line_amount_cents),
     sqlc.narg(purchase_unit_price_cents), sqlc.narg(remark)
 );

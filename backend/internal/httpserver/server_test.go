@@ -19,6 +19,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
@@ -151,6 +152,7 @@ func TestRecoveryUsesBusinessEnvelope(t *testing.T) {
 func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
 		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
+		auxdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
@@ -165,7 +167,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	for _, route := range router.Routes() {
 		contractPath := ginParameter.ReplaceAllString(route.Path, `{$1}`)
 		segments := strings.Split(contractPath, "/")
-		if len(segments) > 3 && (segments[1] == "bob" || segments[1] == "vou") {
+		if len(segments) > 3 && (segments[1] == "aux" || segments[1] == "bob" || segments[1] == "vou") {
 			segments[2] = "{entity}"
 			contractPath = strings.Join(segments, "/")
 		}
@@ -200,6 +202,7 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 	}
 	for contractPath, pathItem := range swagger.Paths.Map() {
 		if !strings.HasPrefix(contractPath, "/app/") &&
+			!strings.HasPrefix(contractPath, "/aux/") &&
 			!strings.HasPrefix(contractPath, "/bob/") &&
 			!strings.HasPrefix(contractPath, "/vou/") &&
 			!strings.HasPrefix(contractPath, "/wfl/") &&

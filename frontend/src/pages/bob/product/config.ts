@@ -3,11 +3,10 @@ import type { BobForm } from '../shared/types'
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
-  containerTypeOptions,
   defineBobEntityConfig,
   patternRule,
+  productKindOptions,
   quantityPattern,
   reference,
   text,
@@ -21,66 +20,142 @@ export const productConfig = defineBobEntityConfig({
   nameLabel: '产品名称',
   defaults: {
     unit: '',
+    productKind: 'RAW_MATERIAL',
+    inventoryUnitId: '',
+    pricingUnitId: '01JAVX00000000000000000011',
+    pricingQuantityPerInventoryUnit: '1',
+    returnable: false,
+    packagingSpecs: [],
     categoryId: '',
     specification: '',
     model: '',
     barcode: '',
-    containerType: 'NONE',
-    quantityPerContainer: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'unit'],
-  persistedKeys: ['containerType', 'quantityPerContainer'],
+  requiredKeys: [
+    'code',
+    'name',
+    'productKind',
+    'inventoryUnitId',
+    'pricingUnitId',
+    'pricingQuantityPerInventoryUnit',
+  ],
+  persistedKeys: [
+    'productKind',
+    'inventoryUnitId',
+    'pricingUnitId',
+    'pricingQuantityPerInventoryUnit',
+    'returnable',
+    'packagingSpecs',
+  ],
   uppercaseKeys: ['code', 'barcode'],
   references: {
     categoryId: {
-      entity: 'category',
+      domain: 'aux',
+      entity: 'product-category',
       label: '产品分类',
-      filters: { targetEntity: 'product' },
+    },
+    inventoryUnitId: {
+      domain: 'aux',
+      entity: 'measurement-unit',
+      label: '库存单位',
     },
   },
   fields: (context) => [
     ...commonFields(context, '产品编码', '产品名称'),
-    text('unit', '单位', 32, { required: true }),
+    {
+      key: 'productKind',
+      label: '产品类型',
+      type: 'select',
+      required: true,
+      options: productKindOptions,
+      onChange: (value: unknown) =>
+        value === 'PACKAGING'
+          ? { pricingUnitId: '', pricingQuantityPerInventoryUnit: '1' }
+          : {
+              pricingUnitId: '01JAVX00000000000000000011',
+              returnable: false,
+      },
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      key: 'pricingUnitId',
+      label: '定价单位',
+      type: 'readonly',
+      visible: () => false,
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      key: 'packagingSpecs',
+      label: '包装规格',
+      type: 'readonly',
+      visible: () => false,
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      ...reference('inventoryUnitId', '库存单位', context, true),
+      onChange: (value: unknown, record: Readonly<BobForm>) => {
+        const selected = context.referenceOptions.inventoryUnitId?.find(
+          (option) => option.value === value,
+        )
+        return {
+          unit: selected?.title.split(' · ')[0] ?? '',
+          ...(record.productKind === 'PACKAGING'
+            ? { pricingUnitId: value }
+            : {}),
+        }
+      },
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      key: 'pricingQuantityPerInventoryUnit',
+      label: '每库存单位折合 kg',
+      type: 'text',
+      required: true,
+      visible: (record: Readonly<BobForm>) =>
+        record.productKind !== 'PACKAGING',
+      rules: [
+        patternRule(
+          quantityPattern,
+          '折算数量必须为大于零且最多六位小数的数量。',
+        ),
+      ],
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      key: 'returnable',
+      label: '可回收周转',
+      type: 'switch',
+      visible: (record: Readonly<BobForm>) =>
+        record.productKind === 'PACKAGING',
+    } satisfies BusinessObjectField<BobForm>,
     reference('categoryId', '产品分类', context),
     text('specification', '规格', 200),
     text('model', '型号', 200),
     text('barcode', '条码', 64),
-    {
-      key: 'containerType',
-      label: '包装类型',
-      type: 'select',
-      required: true,
-      options: containerTypeOptions,
-      onChange: (value: unknown) =>
-        value === 'NONE' ? { quantityPerContainer: '' } : undefined,
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'quantityPerContainer',
-      label: '每桶产品量',
-      type: 'text',
-      required: true,
-      visible: (record: Readonly<BobForm>) =>
-        record.containerType === 'SOLVENT' ||
-        record.containerType === 'RESIN',
-      rules: [
-        patternRule(
-          quantityPattern,
-          '每桶产品量必须为大于零且最多六位小数的数量。',
-        ),
-        (value: unknown, record: Readonly<BobForm>) =>
-          record.containerType === 'NONE' ||
-          (typeof value === 'string' &&
-            quantityPattern.test(value.trim()) &&
-            Number(value) > 0) ||
-          '每桶产品量必须大于零。',
-      ],
-    } satisfies BusinessObjectField<BobForm>,
     textarea('remark', '备注'),
   ],
   columns: baseColumns('编码', '名称', [
-    { key: 'unit', label: '单位', value: (row) => row.currentVersion.summary.unit },
+    {
+      key: 'productKind',
+      label: '类型',
+      value: (row) => row.currentVersion.summary.productKind,
+      format: (value) =>
+        productKindOptions.find((option) => option.value === value)?.title ??
+        String(value),
+    },
+    {
+      key: 'unit',
+      label: '库存单位',
+      value: (row) => row.currentVersion.summary.unit,
+    },
     { key: 'model', label: '型号', value: (row) => row.currentVersion.summary.model },
   ]),
-  filters: baseFilters([categoryFilter('product')]),
+  filters: baseFilters([
+    {
+      key: 'categoryId',
+      label: '产品分类',
+      type: 'autocomplete',
+      reference: {
+        domain: 'aux',
+        entity: 'product-category',
+        label: '产品分类',
+      },
+    },
+  ]),
 })

@@ -414,7 +414,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 菜单中显示：
 
 ```text
-基础业务对象
+业务对象
 └── 客户
 └── 供应商
 ```
@@ -428,7 +428,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 ```ts
 {
   domain: 'bob',
-  domainTitle: '基础业务对象',
+  domainTitle: '业务对象',
   entity: 'customer',
   entityTitle: '客户',
   icon: 'mdi-account-group',

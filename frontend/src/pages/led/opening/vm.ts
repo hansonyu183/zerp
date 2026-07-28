@@ -231,7 +231,7 @@ export function useOpeningViewModel() {
       !row.counterparty ||
       !/^[A-Z]{3}$/.test(row.currency.trim().toUpperCase()) ||
       !fixed(row.amount, 2)
-    )) return '请完整填写有效的往来期初、三位币种和两位小数金额。'
+    )) return '请完整填写有效的往来期初，金额最多两位小数且不得为负。'
     if (form.container.some((row) => {
       const quantity = Number(row.quantity)
       return !row.customer ||
@@ -247,7 +247,7 @@ export function useOpeningViewModel() {
     ))) return '资金期初存在重复的资金账户。'
     if (duplicate(form.party.map((row) =>
       `${row.counterpartyType}/${row.counterparty?.objectId}/${row.currency.trim().toUpperCase()}`
-    ))) return '往来期初存在重复的往来方和币种组合。'
+    ))) return '往来期初存在重复记录。'
     if (duplicate(form.container.map((row) =>
       `${row.customer?.objectId}/${row.containerType}`
     ))) return '空桶期初存在重复的客户和空桶类型组合。'

@@ -31,21 +31,23 @@ func conflictData(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionR
 func detailFields(entity string) []string {
 	switch entity {
 	case EntityCustomer:
-		return []string{"name", "customerType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
+		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntitySupplier:
-		return []string{"name", "supplierType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
+		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntityEmployee:
-		return []string{"name", "categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
+		return []string{"name", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
-		return []string{"name", "unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark"}
+		return []string{"name", "unit", "productKind", "inventoryUnitId", "pricingUnitId",
+			"pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs",
+			"categoryId", "specification", "model", "barcode", "remark"}
 	case EntityService:
-		return []string{"name", "unit", "categoryId", "description", "remark"}
+		return []string{"name", "unit", "inventoryUnitId", "description", "remark"}
 	case EntityWarehouse:
-		return []string{"name", "categoryId", "address", "contactName", "contactPhone", "managerEmployeeId", "remark"}
+		return []string{"name", "address", "contactName", "contactPhone", "managerEmployeeId", "remark"}
 	case EntityVehicle:
-		return []string{"name", "plateNumber", "vehicleType", "platformObjectId", "categoryId", "vin", "engineNumber", "loadCapacityKg", "remark"}
+		return []string{"name", "plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark"}
 	case EntityFundAccount:
-		return []string{"name", "currency", "categoryId", "accountName", "bankName", "bankBranch", "accountNumber", "remark"}
+		return []string{"name", "currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark"}
 	case EntityCategory:
 		return []string{"name", "targetEntity", "parentId", "description"}
 	case EntityDepartment:
@@ -117,13 +119,51 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		RuleType:                  row.SettlementRuleType,
 		MonthOffset:               row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
 		ContainerType: row.ContainerType,
+		ProductKind:   row.ProductKind, InventoryUnitID: row.InventoryUnitID,
+		PricingUnitID:                   row.PricingUnitID,
+		PricingQuantityPerInventoryUnit: formatMicros(row.PricingQuantityPerInventoryUnitMicros),
+		Returnable:                      row.Returnable,
 	}
+	result.PackagingSpecs = packagingSpecs(row.PackagingSpecs)
 	if row.ContainerType == ContainerTypeSolvent || row.ContainerType == ContainerTypeResin {
 		result.QuantityPerContainer = formatMicros(row.QuantityPerContainerMicros)
 	}
 	if row.SettlementRuleType == SettlementRuleFixedDay {
 		day := row.SettlementDayOfMonth
 		result.DayOfMonth = &day
+	}
+	return result
+}
+
+func packagingSpecs(value any) []PackagingSpecInput {
+	if value == nil {
+		return []PackagingSpecInput{}
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return []PackagingSpecInput{}
+	}
+	var stored []struct {
+		PackagingProductObjectID  string `json:"packagingProductObjectId"`
+		PackagingProductVersionID string `json:"packagingProductVersionId"`
+		PackagingProductCode      string `json:"packagingProductCode"`
+		PackagingProductName      string `json:"packagingProductName"`
+		ContentQuantityMicros     int64  `json:"contentQuantityMicros"`
+		IsDefault                 bool   `json:"isDefault"`
+	}
+	if err = json.Unmarshal(raw, &stored); err != nil {
+		return []PackagingSpecInput{}
+	}
+	result := make([]PackagingSpecInput, 0, len(stored))
+	for _, item := range stored {
+		result = append(result, PackagingSpecInput{
+			PackagingProductObjectID:  item.PackagingProductObjectID,
+			PackagingProductVersionID: item.PackagingProductVersionID,
+			PackagingProductCode:      item.PackagingProductCode,
+			PackagingProductName:      item.PackagingProductName,
+			ContentQuantity:           formatMicros(item.ContentQuantityMicros),
+			IsDefault:                 item.IsDefault,
+		})
 	}
 	return result
 }

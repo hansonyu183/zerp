@@ -5,7 +5,8 @@ import type {
   VoucherReference,
 } from './types'
 import {
-  calculateLineAmount,
+  calculatePricedLineAmount,
+  addMoney,
   isMoney,
   isQuantity,
   sumMoney,
@@ -22,12 +23,14 @@ const props = withDefaults(defineProps<{
   productLoading?: boolean
   productError?: string | null
   purchasePriceRequired?: boolean
+  settlementSurchargeEnabled?: boolean
 }>(), {
   editable: true,
   productOptions: () => [],
   productLoading: false,
   productError: null,
   purchasePriceRequired: false,
+  settlementSurchargeEnabled: false,
 })
 
 const emit = defineEmits<{
@@ -49,7 +52,11 @@ const duplicateProducts = computed(() => {
 const total = computed(() =>
   sumMoney(
     props.modelValue.map((line) =>
-      calculateLineAmount(line.orderedQuantity, line.unitPrice) ?? '',
+      calculatePricedLineAmount(
+        line.orderedQuantity,
+        addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
+        line.product?.pricingQuantityPerInventoryUnit ?? '1',
+      ) ?? '',
     ),
   ),
 )
@@ -75,6 +82,7 @@ function addLine(): void {
       product: null,
       orderedQuantity: '',
       unitPrice: '',
+      settlementSurcharge: '',
       purchaseUnitPrice: '',
       remark: '',
     },
@@ -126,7 +134,8 @@ function removeLine(index: number): void {
             <th>#</th>
             <th class="voucher-lines__reference">产品</th>
             <th>数量</th>
-            <th>售价</th>
+            <th>{{ settlementSurchargeEnabled ? '基础售价' : '售价' }}</th>
+            <th v-if="settlementSurchargeEnabled">结算加价/kg</th>
             <th v-if="purchasePriceRequired">采购价</th>
             <th>金额</th>
             <th>备注</th>
@@ -178,6 +187,20 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.unitPrice }}</span>
             </td>
+            <td v-if="settlementSurchargeEnabled">
+              <CompactTableField
+                v-if="editable"
+                inputmode="decimal"
+                :model-value="line.settlementSurcharge"
+                placeholder="按结算方式"
+                :rules="[
+                  (v: string) => !v || isMoney(v, true) ||
+                    '请输入非负且最多两位小数的加价。',
+                ]"
+                @update:model-value="updateLine(index, { settlementSurcharge: $event })"
+              />
+              <span v-else>{{ line.settlementSurcharge || '0.00' }}</span>
+            </td>
             <td v-if="purchasePriceRequired">
               <CompactTableField
                 v-if="editable"
@@ -192,7 +215,13 @@ function removeLine(index: number): void {
               <span v-else>{{ line.purchaseUnitPrice }}</span>
             </td>
             <td class="text-end">
-              {{ calculateLineAmount(line.orderedQuantity, line.unitPrice) ?? '—' }}
+              {{
+                calculatePricedLineAmount(
+                  line.orderedQuantity,
+                  addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
+                  line.product?.pricingQuantityPerInventoryUnit ?? '1',
+                ) ?? '—'
+              }}
             </td>
             <td>
               <CompactTableField

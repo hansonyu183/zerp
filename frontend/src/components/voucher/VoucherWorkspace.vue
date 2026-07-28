@@ -50,7 +50,7 @@ function forceClose(): void {
 }
 
 function statusText(): string {
-  if (!props.document) return props.editing ? '新建草稿' : '加载中'
+  if (!props.document) return props.editing ? '新增草稿' : '加载中'
   return {
     DRAFT: '草稿',
     CHECKED: '已核对',

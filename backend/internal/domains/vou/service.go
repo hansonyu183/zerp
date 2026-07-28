@@ -138,22 +138,32 @@ func stringPtr(value string) *string { return &value }
 
 type settlementSnapshotFields struct {
 	ObjectID, VersionID, Code, Name, RuleType, Description *string
-	MonthOffset, DayOfMonth, DayOffset                     *int32
+	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay *int32
+	DefaultSalesSurchargeCents                             int64
 }
 
 func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnapshotFields {
 	if reference == nil {
 		return settlementSnapshotFields{}
 	}
-	return settlementSnapshotFields{
+	surcharge, _ := parseFixed(reference.Data.DefaultSalesSurcharge, 2, true)
+	result := settlementSnapshotFields{
 		ObjectID: stringPtr(reference.ObjectID), VersionID: stringPtr(reference.VersionID),
 		Code: stringPtr(reference.Code), Name: stringPtr(reference.Data.Name),
-		RuleType:    stringPtr(reference.Data.RuleType),
-		MonthOffset: int32Ptr(reference.Data.MonthOffset),
-		DayOfMonth:  reference.Data.DayOfMonth,
-		DayOffset:   int32Ptr(reference.Data.DayOffset),
-		Description: optionalText(reference.Data.Description),
+		RuleType:                   stringPtr(reference.Data.RuleType),
+		MonthOffset:                int32Ptr(reference.Data.MonthOffset),
+		DayOfMonth:                 reference.Data.DayOfMonth,
+		DayOffset:                  int32Ptr(reference.Data.DayOffset),
+		DefaultSalesSurchargeCents: surcharge,
+		Description:                optionalText(reference.Data.Description),
 	}
+	if reference.Data.RuleType == "DUE_DAYS" {
+		result.DueDays = int32Ptr(reference.Data.DueDays)
+	}
+	if reference.Data.RuleType == "MONTH_END" {
+		result.CutoffDay = int32Ptr(reference.Data.CutoffDay)
+	}
+	return result
 }
 
 func int32Ptr(value int32) *int32 { return &value }

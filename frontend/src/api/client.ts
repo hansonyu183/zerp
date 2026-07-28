@@ -9,10 +9,13 @@ type ContractPostPath = {
 }[keyof paths] &
   string
 export type BobApiEntity = components['schemas']['BobEntity']
+export type AuxApiEntity = components['schemas']['AuxEntity']
 export type VouApiEntity = components['schemas']['VouEntity']
 type ConcretePostPath<Path extends string> =
   Path extends `/bob/{entity}/${infer Action}`
     ? `bob/${BobApiEntity}/${Action}`
+    : Path extends `/aux/{entity}/${infer Action}`
+      ? `aux/${AuxApiEntity}/${Action}`
     : Path extends `/vou/{entity}/${infer Action}`
       ? `vou/${VouApiEntity}/${Action}`
       : Path extends `/${infer Concrete}`
@@ -209,7 +212,9 @@ export class ApiClient {
     const segments = path.split('/')
     if (
       segments.length === 3 &&
-      (segments[0] === 'bob' || segments[0] === 'vou')
+      (segments[0] === 'bob' ||
+        segments[0] === 'aux' ||
+        segments[0] === 'vou')
     ) {
       return {
         path: `/${segments[0]}/{entity}/${segments[2]}` as ContractPostPath,

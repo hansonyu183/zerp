@@ -22,48 +22,183 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AuxEntity.
+const (
+	AccountSubject    AuxEntity = "account-subject"
+	Department        AuxEntity = "department"
+	DictionaryItem    AuxEntity = "dictionary-item"
+	DictionaryType    AuxEntity = "dictionary-type"
+	IncomeExpenseType AuxEntity = "income-expense-type"
+	MeasurementUnit   AuxEntity = "measurement-unit"
+	Position          AuxEntity = "position"
+	ProductCategory   AuxEntity = "product-category"
+	SettlementMethod  AuxEntity = "settlement-method"
+)
+
+// Valid indicates whether the value is a known member of the AuxEntity enum.
+func (e AuxEntity) Valid() bool {
+	switch e {
+	case AccountSubject:
+		return true
+	case Department:
+		return true
+	case DictionaryItem:
+		return true
+	case DictionaryType:
+		return true
+	case IncomeExpenseType:
+		return true
+	case MeasurementUnit:
+		return true
+	case Position:
+		return true
+	case ProductCategory:
+		return true
+	case SettlementMethod:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuxQueryRequestFiltersDirection.
+const (
+	EXPENSE AuxQueryRequestFiltersDirection = "EXPENSE"
+	INCOME  AuxQueryRequestFiltersDirection = "INCOME"
+)
+
+// Valid indicates whether the value is a known member of the AuxQueryRequestFiltersDirection enum.
+func (e AuxQueryRequestFiltersDirection) Valid() bool {
+	switch e {
+	case EXPENSE:
+		return true
+	case INCOME:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuxQueryRequestSortField.
+const (
+	Code      AuxQueryRequestSortField = "code"
+	Name      AuxQueryRequestSortField = "name"
+	UpdatedAt AuxQueryRequestSortField = "updatedAt"
+	Version   AuxQueryRequestSortField = "version"
+)
+
+// Valid indicates whether the value is a known member of the AuxQueryRequestSortField enum.
+func (e AuxQueryRequestSortField) Valid() bool {
+	switch e {
+	case Code:
+		return true
+	case Name:
+		return true
+	case UpdatedAt:
+		return true
+	case Version:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuxQueryRequestSortOrder.
+const (
+	AuxQueryRequestSortOrderAsc  AuxQueryRequestSortOrder = "asc"
+	AuxQueryRequestSortOrderDesc AuxQueryRequestSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the AuxQueryRequestSortOrder enum.
+func (e AuxQueryRequestSortOrder) Valid() bool {
+	switch e {
+	case AuxQueryRequestSortOrderAsc:
+		return true
+	case AuxQueryRequestSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BobCreateRequestDataProductKind.
+const (
+	BobCreateRequestDataProductKindCUSTOMFINISHED   BobCreateRequestDataProductKind = "CUSTOM_FINISHED"
+	BobCreateRequestDataProductKindPACKAGING        BobCreateRequestDataProductKind = "PACKAGING"
+	BobCreateRequestDataProductKindRAWMATERIAL      BobCreateRequestDataProductKind = "RAW_MATERIAL"
+	BobCreateRequestDataProductKindSTANDARDFINISHED BobCreateRequestDataProductKind = "STANDARD_FINISHED"
+)
+
+// Valid indicates whether the value is a known member of the BobCreateRequestDataProductKind enum.
+func (e BobCreateRequestDataProductKind) Valid() bool {
+	switch e {
+	case BobCreateRequestDataProductKindCUSTOMFINISHED:
+		return true
+	case BobCreateRequestDataProductKindPACKAGING:
+		return true
+	case BobCreateRequestDataProductKindRAWMATERIAL:
+		return true
+	case BobCreateRequestDataProductKindSTANDARDFINISHED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BobEntity.
 const (
-	Category         BobEntity = "category"
-	Customer         BobEntity = "customer"
-	Department       BobEntity = "department"
-	Employee         BobEntity = "employee"
-	FundAccount      BobEntity = "fund-account"
-	Position         BobEntity = "position"
-	Product          BobEntity = "product"
-	Service          BobEntity = "service"
-	SettlementMethod BobEntity = "settlement-method"
-	Supplier         BobEntity = "supplier"
-	Vehicle          BobEntity = "vehicle"
-	Warehouse        BobEntity = "warehouse"
+	Customer    BobEntity = "customer"
+	Employee    BobEntity = "employee"
+	FundAccount BobEntity = "fund-account"
+	Product     BobEntity = "product"
+	Service     BobEntity = "service"
+	Supplier    BobEntity = "supplier"
+	Vehicle     BobEntity = "vehicle"
+	Warehouse   BobEntity = "warehouse"
 )
 
 // Valid indicates whether the value is a known member of the BobEntity enum.
 func (e BobEntity) Valid() bool {
 	switch e {
-	case Category:
-		return true
 	case Customer:
-		return true
-	case Department:
 		return true
 	case Employee:
 		return true
 	case FundAccount:
 		return true
-	case Position:
-		return true
 	case Product:
 		return true
 	case Service:
-		return true
-	case SettlementMethod:
 		return true
 	case Supplier:
 		return true
 	case Vehicle:
 		return true
 	case Warehouse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BobSaveRequestDataProductKind.
+const (
+	BobSaveRequestDataProductKindCUSTOMFINISHED   BobSaveRequestDataProductKind = "CUSTOM_FINISHED"
+	BobSaveRequestDataProductKindPACKAGING        BobSaveRequestDataProductKind = "PACKAGING"
+	BobSaveRequestDataProductKindRAWMATERIAL      BobSaveRequestDataProductKind = "RAW_MATERIAL"
+	BobSaveRequestDataProductKindSTANDARDFINISHED BobSaveRequestDataProductKind = "STANDARD_FINISHED"
+)
+
+// Valid indicates whether the value is a known member of the BobSaveRequestDataProductKind enum.
+func (e BobSaveRequestDataProductKind) Valid() bool {
+	switch e {
+	case BobSaveRequestDataProductKindCUSTOMFINISHED:
+		return true
+	case BobSaveRequestDataProductKindPACKAGING:
+		return true
+	case BobSaveRequestDataProductKindRAWMATERIAL:
+		return true
+	case BobSaveRequestDataProductKindSTANDARDFINISHED:
 		return true
 	default:
 		return false
@@ -220,54 +355,127 @@ func (e VouQueryRequestSortOrder) Valid() bool {
 	}
 }
 
+// AuxCreateData defines model for AuxCreateData.
+type AuxCreateData struct {
+	Code                 string                 `json:"code"`
+	Name                 string                 `json:"name"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// AuxCreateRequest defines model for AuxCreateRequest.
+type AuxCreateRequest struct {
+	Data AuxCreateData `json:"data"`
+}
+
+// AuxData defines model for AuxData.
+type AuxData map[string]interface{}
+
+// AuxEntity defines model for AuxEntity.
+type AuxEntity string
+
+// AuxGetRequest defines model for AuxGetRequest.
+type AuxGetRequest struct {
+	ObjectId  string  `json:"objectId"`
+	VersionId *string `json:"versionId,omitempty"`
+}
+
+// AuxHistoryRequest defines model for AuxHistoryRequest.
+type AuxHistoryRequest struct {
+	ObjectId string `json:"objectId"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+
+// AuxQueryRequest defines model for AuxQueryRequest.
+type AuxQueryRequest struct {
+	Filters *struct {
+		DictionaryTypeCode *string                          `json:"dictionaryTypeCode,omitempty"`
+		Direction          *AuxQueryRequestFiltersDirection `json:"direction,omitempty"`
+		Enabled            *bool                            `json:"enabled,omitempty"`
+		Keyword            *string                          `json:"keyword,omitempty"`
+		ParentId           *string                          `json:"parentId,omitempty"`
+		RootOnly           *bool                            `json:"rootOnly,omitempty"`
+	} `json:"filters,omitempty"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+	Sort     *[]struct {
+		Field AuxQueryRequestSortField `json:"field"`
+		Order AuxQueryRequestSortOrder `json:"order"`
+	} `json:"sort,omitempty"`
+}
+
+// AuxQueryRequestFiltersDirection defines model for AuxQueryRequest.Filters.Direction.
+type AuxQueryRequestFiltersDirection string
+
+// AuxQueryRequestSortField defines model for AuxQueryRequest.Sort.Field.
+type AuxQueryRequestSortField string
+
+// AuxQueryRequestSortOrder defines model for AuxQueryRequest.Sort.Order.
+type AuxQueryRequestSortOrder string
+
+// AuxRevisionRequest defines model for AuxRevisionRequest.
+type AuxRevisionRequest struct {
+	ObjectId string `json:"objectId"`
+	Revision int64  `json:"revision"`
+}
+
+// AuxSaveRequest defines model for AuxSaveRequest.
+type AuxSaveRequest struct {
+	Code     *string `json:"code,omitempty"`
+	Data     AuxData `json:"data"`
+	ObjectId string  `json:"objectId"`
+	Revision int64   `json:"revision"`
+}
+
 // BobCreateRequest defines model for BobCreateRequest.
 type BobCreateRequest struct {
 	Data struct {
-		AccountName           *string `json:"accountName,omitempty"`
-		AccountNumber         *string `json:"accountNumber,omitempty"`
-		Address               *string `json:"address,omitempty"`
-		BankBranch            *string `json:"bankBranch,omitempty"`
-		BankName              *string `json:"bankName,omitempty"`
-		Barcode               *string `json:"barcode,omitempty"`
-		CategoryId            *string `json:"categoryId,omitempty"`
-		Code                  *string `json:"code"`
-		ContactName           *string `json:"contactName,omitempty"`
-		ContactPhone          *string `json:"contactPhone,omitempty"`
-		ContainerType         *string `json:"containerType,omitempty"`
-		Currency              *string `json:"currency,omitempty"`
-		CustomerType          *string `json:"customerType,omitempty"`
-		DayOfMonth            *int32  `json:"dayOfMonth,omitempty"`
-		DayOffset             *int32  `json:"dayOffset,omitempty"`
-		DepartmentId          *string `json:"departmentId,omitempty"`
-		Description           *string `json:"description,omitempty"`
-		Email                 *string `json:"email,omitempty"`
-		EngineNumber          *string `json:"engineNumber,omitempty"`
-		HireDate              *string `json:"hireDate,omitempty"`
-		LoadCapacityKg        *string `json:"loadCapacityKg,omitempty"`
-		ManagerEmployeeId     *string `json:"managerEmployeeId,omitempty"`
-		Model                 *string `json:"model,omitempty"`
-		MonthOffset           *int32  `json:"monthOffset,omitempty"`
-		Name                  *string `json:"name"`
-		ParentId              *string `json:"parentId,omitempty"`
-		Phone                 *string `json:"phone,omitempty"`
-		PlateNumber           *string `json:"plateNumber,omitempty"`
-		PlatformObjectId      *string `json:"platformObjectId,omitempty"`
-		PositionId            *string `json:"positionId,omitempty"`
-		QuantityPerContainer  *string `json:"quantityPerContainer,omitempty"`
-		Remark                *string `json:"remark,omitempty"`
-		RuleType              *string `json:"ruleType,omitempty"`
-		SalespersonEmployeeId *string `json:"salespersonEmployeeId,omitempty"`
-		SettlementMethodId    *string `json:"settlementMethodId,omitempty"`
-		ShortName             *string `json:"shortName,omitempty"`
-		Specification         *string `json:"specification,omitempty"`
-		SupplierType          *string `json:"supplierType,omitempty"`
-		TargetEntity          *string `json:"targetEntity,omitempty"`
-		TaxNumber             *string `json:"taxNumber,omitempty"`
-		Unit                  *string `json:"unit,omitempty"`
-		VehicleType           *string `json:"vehicleType,omitempty"`
-		Vin                   *string `json:"vin,omitempty"`
+		AccountName                     *string                          `json:"accountName,omitempty"`
+		AccountNumber                   *string                          `json:"accountNumber,omitempty"`
+		Address                         *string                          `json:"address,omitempty"`
+		BankBranch                      *string                          `json:"bankBranch,omitempty"`
+		BankName                        *string                          `json:"bankName,omitempty"`
+		Barcode                         *string                          `json:"barcode,omitempty"`
+		CategoryId                      *string                          `json:"categoryId,omitempty"`
+		Code                            *string                          `json:"code"`
+		ContactName                     *string                          `json:"contactName,omitempty"`
+		ContactPhone                    *string                          `json:"contactPhone,omitempty"`
+		Currency                        *string                          `json:"currency,omitempty"`
+		CustomerType                    *string                          `json:"customerType,omitempty"`
+		DepartmentId                    *string                          `json:"departmentId,omitempty"`
+		Description                     *string                          `json:"description,omitempty"`
+		Email                           *string                          `json:"email,omitempty"`
+		EngineNumber                    *string                          `json:"engineNumber,omitempty"`
+		HireDate                        *string                          `json:"hireDate,omitempty"`
+		InventoryUnitId                 *string                          `json:"inventoryUnitId,omitempty"`
+		LoadCapacityKg                  *string                          `json:"loadCapacityKg,omitempty"`
+		ManagerEmployeeId               *string                          `json:"managerEmployeeId,omitempty"`
+		Model                           *string                          `json:"model,omitempty"`
+		Name                            *string                          `json:"name"`
+		PackagingSpecs                  *[]BobPackagingSpecInput         `json:"packagingSpecs,omitempty"`
+		Phone                           *string                          `json:"phone,omitempty"`
+		PlateNumber                     *string                          `json:"plateNumber,omitempty"`
+		PlatformObjectId                *string                          `json:"platformObjectId,omitempty"`
+		PositionId                      *string                          `json:"positionId,omitempty"`
+		PricingQuantityPerInventoryUnit *string                          `json:"pricingQuantityPerInventoryUnit,omitempty"`
+		PricingUnitId                   *string                          `json:"pricingUnitId,omitempty"`
+		ProductKind                     *BobCreateRequestDataProductKind `json:"productKind,omitempty"`
+		Remark                          *string                          `json:"remark,omitempty"`
+		Returnable                      *bool                            `json:"returnable,omitempty"`
+		SalespersonEmployeeId           *string                          `json:"salespersonEmployeeId,omitempty"`
+		SettlementMethodId              *string                          `json:"settlementMethodId,omitempty"`
+		ShortName                       *string                          `json:"shortName,omitempty"`
+		Specification                   *string                          `json:"specification,omitempty"`
+		SupplierType                    *string                          `json:"supplierType,omitempty"`
+		TaxNumber                       *string                          `json:"taxNumber,omitempty"`
+		Unit                            *string                          `json:"unit,omitempty"`
+		VehicleType                     *string                          `json:"vehicleType,omitempty"`
+		Vin                             *string                          `json:"vin,omitempty"`
 	} `json:"data"`
 }
+
+// BobCreateRequestDataProductKind defines model for BobCreateRequest.Data.ProductKind.
+type BobCreateRequestDataProductKind string
 
 // BobDeleteRequest defines model for BobDeleteRequest.
 type BobDeleteRequest struct {
@@ -299,6 +507,14 @@ type BobHistoryRequest struct {
 	PageSize int    `json:"pageSize"`
 }
 
+// BobPackagingSpecInput defines model for BobPackagingSpecInput.
+type BobPackagingSpecInput struct {
+	ContentQuantity           string `json:"contentQuantity"`
+	IsDefault                 bool   `json:"isDefault"`
+	PackagingProductObjectId  string `json:"packagingProductObjectId"`
+	PackagingProductVersionId string `json:"packagingProductVersionId"`
+}
+
 // BobReviewRequest defines model for BobReviewRequest.
 type BobReviewRequest struct {
 	Comment   *string `json:"comment"`
@@ -310,54 +526,55 @@ type BobReviewRequest struct {
 // BobSaveRequest defines model for BobSaveRequest.
 type BobSaveRequest struct {
 	Data struct {
-		AccountName           *string `json:"accountName,omitempty"`
-		AccountNumber         *string `json:"accountNumber,omitempty"`
-		Address               *string `json:"address,omitempty"`
-		BankBranch            *string `json:"bankBranch,omitempty"`
-		BankName              *string `json:"bankName,omitempty"`
-		Barcode               *string `json:"barcode,omitempty"`
-		CategoryId            *string `json:"categoryId,omitempty"`
-		Code                  *string `json:"code,omitempty"`
-		ContactName           *string `json:"contactName,omitempty"`
-		ContactPhone          *string `json:"contactPhone,omitempty"`
-		ContainerType         *string `json:"containerType,omitempty"`
-		Currency              *string `json:"currency,omitempty"`
-		CustomerType          *string `json:"customerType,omitempty"`
-		DayOfMonth            *int32  `json:"dayOfMonth,omitempty"`
-		DayOffset             *int32  `json:"dayOffset,omitempty"`
-		DepartmentId          *string `json:"departmentId,omitempty"`
-		Description           *string `json:"description,omitempty"`
-		Email                 *string `json:"email,omitempty"`
-		EngineNumber          *string `json:"engineNumber,omitempty"`
-		HireDate              *string `json:"hireDate,omitempty"`
-		LoadCapacityKg        *string `json:"loadCapacityKg,omitempty"`
-		ManagerEmployeeId     *string `json:"managerEmployeeId,omitempty"`
-		Model                 *string `json:"model,omitempty"`
-		MonthOffset           *int32  `json:"monthOffset,omitempty"`
-		Name                  *string `json:"name,omitempty"`
-		ParentId              *string `json:"parentId,omitempty"`
-		Phone                 *string `json:"phone,omitempty"`
-		PlateNumber           *string `json:"plateNumber,omitempty"`
-		PlatformObjectId      *string `json:"platformObjectId,omitempty"`
-		PositionId            *string `json:"positionId,omitempty"`
-		QuantityPerContainer  *string `json:"quantityPerContainer,omitempty"`
-		Remark                *string `json:"remark,omitempty"`
-		RuleType              *string `json:"ruleType,omitempty"`
-		SalespersonEmployeeId *string `json:"salespersonEmployeeId,omitempty"`
-		SettlementMethodId    *string `json:"settlementMethodId,omitempty"`
-		ShortName             *string `json:"shortName,omitempty"`
-		Specification         *string `json:"specification,omitempty"`
-		SupplierType          *string `json:"supplierType,omitempty"`
-		TargetEntity          *string `json:"targetEntity,omitempty"`
-		TaxNumber             *string `json:"taxNumber,omitempty"`
-		Unit                  *string `json:"unit,omitempty"`
-		VehicleType           *string `json:"vehicleType,omitempty"`
-		Vin                   *string `json:"vin,omitempty"`
+		AccountName                     *string                        `json:"accountName,omitempty"`
+		AccountNumber                   *string                        `json:"accountNumber,omitempty"`
+		Address                         *string                        `json:"address,omitempty"`
+		BankBranch                      *string                        `json:"bankBranch,omitempty"`
+		BankName                        *string                        `json:"bankName,omitempty"`
+		Barcode                         *string                        `json:"barcode,omitempty"`
+		CategoryId                      *string                        `json:"categoryId,omitempty"`
+		Code                            *string                        `json:"code,omitempty"`
+		ContactName                     *string                        `json:"contactName,omitempty"`
+		ContactPhone                    *string                        `json:"contactPhone,omitempty"`
+		Currency                        *string                        `json:"currency,omitempty"`
+		CustomerType                    *string                        `json:"customerType,omitempty"`
+		DepartmentId                    *string                        `json:"departmentId,omitempty"`
+		Description                     *string                        `json:"description,omitempty"`
+		Email                           *string                        `json:"email,omitempty"`
+		EngineNumber                    *string                        `json:"engineNumber,omitempty"`
+		HireDate                        *string                        `json:"hireDate,omitempty"`
+		InventoryUnitId                 *string                        `json:"inventoryUnitId,omitempty"`
+		LoadCapacityKg                  *string                        `json:"loadCapacityKg,omitempty"`
+		ManagerEmployeeId               *string                        `json:"managerEmployeeId,omitempty"`
+		Model                           *string                        `json:"model,omitempty"`
+		Name                            *string                        `json:"name,omitempty"`
+		PackagingSpecs                  *[]BobPackagingSpecInput       `json:"packagingSpecs,omitempty"`
+		Phone                           *string                        `json:"phone,omitempty"`
+		PlateNumber                     *string                        `json:"plateNumber,omitempty"`
+		PlatformObjectId                *string                        `json:"platformObjectId,omitempty"`
+		PositionId                      *string                        `json:"positionId,omitempty"`
+		PricingQuantityPerInventoryUnit *string                        `json:"pricingQuantityPerInventoryUnit,omitempty"`
+		PricingUnitId                   *string                        `json:"pricingUnitId,omitempty"`
+		ProductKind                     *BobSaveRequestDataProductKind `json:"productKind,omitempty"`
+		Remark                          *string                        `json:"remark,omitempty"`
+		Returnable                      *bool                          `json:"returnable,omitempty"`
+		SalespersonEmployeeId           *string                        `json:"salespersonEmployeeId,omitempty"`
+		SettlementMethodId              *string                        `json:"settlementMethodId,omitempty"`
+		ShortName                       *string                        `json:"shortName,omitempty"`
+		Specification                   *string                        `json:"specification,omitempty"`
+		SupplierType                    *string                        `json:"supplierType,omitempty"`
+		TaxNumber                       *string                        `json:"taxNumber,omitempty"`
+		Unit                            *string                        `json:"unit,omitempty"`
+		VehicleType                     *string                        `json:"vehicleType,omitempty"`
+		Vin                             *string                        `json:"vin,omitempty"`
 	} `json:"data"`
 	ObjectId  string `json:"objectId"`
 	Revision  int64  `json:"revision"`
 	VersionId string `json:"versionId"`
 }
+
+// BobSaveRequestDataProductKind defines model for BobSaveRequest.Data.ProductKind.
+type BobSaveRequestDataProductKind string
 
 // BobVersionRevisionRequest defines model for BobVersionRevisionRequest.
 type BobVersionRevisionRequest struct {
@@ -627,6 +844,7 @@ type VouCreateRequest struct {
 			PurchaseUnitPrice    *string `json:"purchaseUnitPrice,omitempty"`
 			QuantityPerContainer *string `json:"quantityPerContainer,omitempty"`
 			Remark               *string `json:"remark,omitempty"`
+			SettlementSurcharge  *string `json:"settlementSurcharge,omitempty"`
 			UnitPrice            string  `json:"unitPrice"`
 		} `json:"productLines,omitempty"`
 		Purchaser *struct {
@@ -782,6 +1000,7 @@ type VouSaveRequest struct {
 			PurchaseUnitPrice    *string `json:"purchaseUnitPrice,omitempty"`
 			QuantityPerContainer *string `json:"quantityPerContainer,omitempty"`
 			Remark               *string `json:"remark,omitempty"`
+			SettlementSurcharge  *string `json:"settlementSurcharge,omitempty"`
 			UnitPrice            string  `json:"unitPrice"`
 		} `json:"productLines,omitempty"`
 		Purchaser *struct {
@@ -929,6 +1148,33 @@ type AppUserSigninJSONRequestBody = SignInRequest
 
 // AppUserSignoutJSONRequestBody defines body for AppUserSignout for application/json ContentType.
 type AppUserSignoutJSONRequestBody = EmptyObject
+
+// AuxaudithistoryJSONRequestBody defines body for Auxaudithistory for application/json ContentType.
+type AuxaudithistoryJSONRequestBody = AuxHistoryRequest
+
+// AuxcreateJSONRequestBody defines body for Auxcreate for application/json ContentType.
+type AuxcreateJSONRequestBody = AuxCreateRequest
+
+// AuxdeleteJSONRequestBody defines body for Auxdelete for application/json ContentType.
+type AuxdeleteJSONRequestBody = AuxRevisionRequest
+
+// AuxdisableJSONRequestBody defines body for Auxdisable for application/json ContentType.
+type AuxdisableJSONRequestBody = AuxRevisionRequest
+
+// AuxenableJSONRequestBody defines body for Auxenable for application/json ContentType.
+type AuxenableJSONRequestBody = AuxRevisionRequest
+
+// AuxgetJSONRequestBody defines body for Auxget for application/json ContentType.
+type AuxgetJSONRequestBody = AuxGetRequest
+
+// AuxqueryJSONRequestBody defines body for Auxquery for application/json ContentType.
+type AuxqueryJSONRequestBody = AuxQueryRequest
+
+// AuxsaveJSONRequestBody defines body for Auxsave for application/json ContentType.
+type AuxsaveJSONRequestBody = AuxSaveRequest
+
+// AuxversionsJSONRequestBody defines body for Auxversions for application/json ContentType.
+type AuxversionsJSONRequestBody = AuxHistoryRequest
 
 // BobapproveJSONRequestBody defines body for Bobapprove for application/json ContentType.
 type BobapproveJSONRequestBody = BobReviewRequest
@@ -1092,6 +1338,85 @@ type WflSalesFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
 // WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflSalesFulfillmentShortCloseUnconfirm for application/json ContentType.
 type WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
 
+// Getter for additional properties for AuxCreateData. Returns the specified
+// element and whether it was found
+func (a AuxCreateData) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for AuxCreateData
+func (a *AuxCreateData) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for AuxCreateData to handle AdditionalProperties
+func (a *AuxCreateData) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["code"]; found {
+		err = json.Unmarshal(raw, &a.Code)
+		if err != nil {
+			return fmt.Errorf("error reading 'code': %w", err)
+		}
+		delete(object, "code")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for AuxCreateData to handle AdditionalProperties
+func (a AuxCreateData) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["code"], err = json.Marshal(a.Code)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'code': %w", err)
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// AppFeedbackattachmentinitiate 初始化反馈附件
@@ -1163,37 +1488,64 @@ type ServerInterface interface {
 	// AppUserSignout 退出当前会话
 	// (POST /app/user/signout)
 	AppUserSignout(c *gin.Context)
-	// Bobapprove 批准基础业务对象
+	// Auxaudithistory 查询辅助对象变更记录
+	// (POST /aux/{entity}/audit-history)
+	Auxaudithistory(c *gin.Context, entity AuxEntity)
+	// Auxcreate 创建并立即启用辅助对象
+	// (POST /aux/{entity}/create)
+	Auxcreate(c *gin.Context, entity AuxEntity)
+	// Auxdelete 删除未引用辅助对象
+	// (POST /aux/{entity}/delete)
+	Auxdelete(c *gin.Context, entity AuxEntity)
+	// Auxdisable 停用辅助对象
+	// (POST /aux/{entity}/disable)
+	Auxdisable(c *gin.Context, entity AuxEntity)
+	// Auxenable 启用辅助对象
+	// (POST /aux/{entity}/enable)
+	Auxenable(c *gin.Context, entity AuxEntity)
+	// Auxget 读取辅助对象
+	// (POST /aux/{entity}/get)
+	Auxget(c *gin.Context, entity AuxEntity)
+	// Auxquery 查询辅助对象
+	// (POST /aux/{entity}/query)
+	Auxquery(c *gin.Context, entity AuxEntity)
+	// Auxsave 保存辅助对象新版本并立即生效
+	// (POST /aux/{entity}/save)
+	Auxsave(c *gin.Context, entity AuxEntity)
+	// Auxversions 查询辅助对象版本
+	// (POST /aux/{entity}/versions)
+	Auxversions(c *gin.Context, entity AuxEntity)
+	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(c *gin.Context, entity BobEntity)
-	// Bobaudithistory 查询基础业务对象审核历史
+	// Bobaudithistory 查询业务对象审核历史
 	// (POST /bob/{entity}/audit-history)
 	Bobaudithistory(c *gin.Context, entity BobEntity)
-	// Bobcreate 创建基础业务对象草稿
+	// Bobcreate 创建业务对象草稿
 	// (POST /bob/{entity}/create)
 	Bobcreate(c *gin.Context, entity BobEntity)
-	// Bobdelete 删除基础业务对象首版草稿
+	// Bobdelete 删除业务对象首版草稿
 	// (POST /bob/{entity}/delete)
 	Bobdelete(c *gin.Context, entity BobEntity)
-	// Bobedit 发起基础业务对象编辑
+	// Bobedit 发起业务对象编辑
 	// (POST /bob/{entity}/edit)
 	Bobedit(c *gin.Context, entity BobEntity)
-	// Bobget 读取基础业务对象
+	// Bobget 读取业务对象
 	// (POST /bob/{entity}/get)
 	Bobget(c *gin.Context, entity BobEntity)
-	// Bobquery 查询基础业务对象
+	// Bobquery 查询业务对象
 	// (POST /bob/{entity}/query)
 	Bobquery(c *gin.Context, entity BobEntity)
-	// Bobreject 驳回基础业务对象
+	// Bobreject 驳回业务对象
 	// (POST /bob/{entity}/reject)
 	Bobreject(c *gin.Context, entity BobEntity)
-	// Bobsave 保存基础业务对象草稿
+	// Bobsave 保存业务对象草稿
 	// (POST /bob/{entity}/save)
 	Bobsave(c *gin.Context, entity BobEntity)
-	// Bobsubmit 提交基础业务对象审核
+	// Bobsubmit 提交业务对象审核
 	// (POST /bob/{entity}/submit)
 	Bobsubmit(c *gin.Context, entity BobEntity)
-	// Bobversions 查询基础业务对象版本
+	// Bobversions 查询业务对象版本
 	// (POST /bob/{entity}/versions)
 	Bobversions(c *gin.Context, entity BobEntity)
 	// DownloadAttachment 下载业务附件
@@ -1648,6 +2000,231 @@ func (siw *ServerInterfaceWrapper) AppUserSignout(c *gin.Context) {
 	}
 
 	siw.Handler.AppUserSignout(c)
+}
+
+// Auxaudithistory operation middleware
+func (siw *ServerInterfaceWrapper) Auxaudithistory(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxaudithistory(c, entity)
+}
+
+// Auxcreate operation middleware
+func (siw *ServerInterfaceWrapper) Auxcreate(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxcreate(c, entity)
+}
+
+// Auxdelete operation middleware
+func (siw *ServerInterfaceWrapper) Auxdelete(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxdelete(c, entity)
+}
+
+// Auxdisable operation middleware
+func (siw *ServerInterfaceWrapper) Auxdisable(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxdisable(c, entity)
+}
+
+// Auxenable operation middleware
+func (siw *ServerInterfaceWrapper) Auxenable(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxenable(c, entity)
+}
+
+// Auxget operation middleware
+func (siw *ServerInterfaceWrapper) Auxget(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxget(c, entity)
+}
+
+// Auxquery operation middleware
+func (siw *ServerInterfaceWrapper) Auxquery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxquery(c, entity)
+}
+
+// Auxsave operation middleware
+func (siw *ServerInterfaceWrapper) Auxsave(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxsave(c, entity)
+}
+
+// Auxversions operation middleware
+func (siw *ServerInterfaceWrapper) Auxversions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity AuxEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Auxversions(c, entity)
 }
 
 // Bobapprove operation middleware
@@ -2815,6 +3392,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/app/feedback/attachment-remove", wrapper.AppFeedbackattachmentremove)
 	router.POST(options.BaseURL+"/app/feedback/create", wrapper.AppFeedbackcreate)
 	router.POST(options.BaseURL+"/app/feedback/get", wrapper.AppFeedbackget)
+	router.POST(options.BaseURL+"/aux/:entity/query", wrapper.Auxquery)
+	router.POST(options.BaseURL+"/aux/:entity/get", wrapper.Auxget)
+	router.POST(options.BaseURL+"/aux/:entity/create", wrapper.Auxcreate)
+	router.POST(options.BaseURL+"/aux/:entity/save", wrapper.Auxsave)
+	router.POST(options.BaseURL+"/aux/:entity/enable", wrapper.Auxenable)
+	router.POST(options.BaseURL+"/aux/:entity/disable", wrapper.Auxdisable)
+	router.POST(options.BaseURL+"/aux/:entity/delete", wrapper.Auxdelete)
+	router.POST(options.BaseURL+"/aux/:entity/versions", wrapper.Auxversions)
+	router.POST(options.BaseURL+"/aux/:entity/audit-history", wrapper.Auxaudithistory)
 	router.POST(options.BaseURL+"/bob/:entity/query", wrapper.Bobquery)
 	router.POST(options.BaseURL+"/bob/:entity/get", wrapper.Bobget)
 	router.POST(options.BaseURL+"/bob/:entity/create", wrapper.Bobcreate)
@@ -3377,6 +3963,213 @@ type AppUserSignoutResponseObject interface {
 type AppUserSignout200JSONResponse struct{ BusinessJSONResponse }
 
 func (response AppUserSignout200JSONResponse) VisitAppUserSignoutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxaudithistoryRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxaudithistoryJSONRequestBody
+}
+
+type AuxaudithistoryResponseObject interface {
+	VisitAuxaudithistoryResponse(w http.ResponseWriter) error
+}
+
+type Auxaudithistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxaudithistory200JSONResponse) VisitAuxaudithistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxcreateRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxcreateJSONRequestBody
+}
+
+type AuxcreateResponseObject interface {
+	VisitAuxcreateResponse(w http.ResponseWriter) error
+}
+
+type Auxcreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxcreate200JSONResponse) VisitAuxcreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxdeleteRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxdeleteJSONRequestBody
+}
+
+type AuxdeleteResponseObject interface {
+	VisitAuxdeleteResponse(w http.ResponseWriter) error
+}
+
+type Auxdelete200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxdelete200JSONResponse) VisitAuxdeleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxdisableRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxdisableJSONRequestBody
+}
+
+type AuxdisableResponseObject interface {
+	VisitAuxdisableResponse(w http.ResponseWriter) error
+}
+
+type Auxdisable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxdisable200JSONResponse) VisitAuxdisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxenableRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxenableJSONRequestBody
+}
+
+type AuxenableResponseObject interface {
+	VisitAuxenableResponse(w http.ResponseWriter) error
+}
+
+type Auxenable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxenable200JSONResponse) VisitAuxenableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxgetRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxgetJSONRequestBody
+}
+
+type AuxgetResponseObject interface {
+	VisitAuxgetResponse(w http.ResponseWriter) error
+}
+
+type Auxget200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxget200JSONResponse) VisitAuxgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxqueryRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxqueryJSONRequestBody
+}
+
+type AuxqueryResponseObject interface {
+	VisitAuxqueryResponse(w http.ResponseWriter) error
+}
+
+type Auxquery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxquery200JSONResponse) VisitAuxqueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxsaveRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxsaveJSONRequestBody
+}
+
+type AuxsaveResponseObject interface {
+	VisitAuxsaveResponse(w http.ResponseWriter) error
+}
+
+type Auxsave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxsave200JSONResponse) VisitAuxsaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuxversionsRequestObject struct {
+	Entity AuxEntity `json:"entity"`
+	Body   *AuxversionsJSONRequestBody
+}
+
+type AuxversionsResponseObject interface {
+	VisitAuxversionsResponse(w http.ResponseWriter) error
+}
+
+type Auxversions200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Auxversions200JSONResponse) VisitAuxversionsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4849,37 +5642,64 @@ type StrictServerInterface interface {
 	// AppUserSignout 退出当前会话
 	// (POST /app/user/signout)
 	AppUserSignout(ctx context.Context, request AppUserSignoutRequestObject) (AppUserSignoutResponseObject, error)
-	// Bobapprove 批准基础业务对象
+	// Auxaudithistory 查询辅助对象变更记录
+	// (POST /aux/{entity}/audit-history)
+	Auxaudithistory(ctx context.Context, request AuxaudithistoryRequestObject) (AuxaudithistoryResponseObject, error)
+	// Auxcreate 创建并立即启用辅助对象
+	// (POST /aux/{entity}/create)
+	Auxcreate(ctx context.Context, request AuxcreateRequestObject) (AuxcreateResponseObject, error)
+	// Auxdelete 删除未引用辅助对象
+	// (POST /aux/{entity}/delete)
+	Auxdelete(ctx context.Context, request AuxdeleteRequestObject) (AuxdeleteResponseObject, error)
+	// Auxdisable 停用辅助对象
+	// (POST /aux/{entity}/disable)
+	Auxdisable(ctx context.Context, request AuxdisableRequestObject) (AuxdisableResponseObject, error)
+	// Auxenable 启用辅助对象
+	// (POST /aux/{entity}/enable)
+	Auxenable(ctx context.Context, request AuxenableRequestObject) (AuxenableResponseObject, error)
+	// Auxget 读取辅助对象
+	// (POST /aux/{entity}/get)
+	Auxget(ctx context.Context, request AuxgetRequestObject) (AuxgetResponseObject, error)
+	// Auxquery 查询辅助对象
+	// (POST /aux/{entity}/query)
+	Auxquery(ctx context.Context, request AuxqueryRequestObject) (AuxqueryResponseObject, error)
+	// Auxsave 保存辅助对象新版本并立即生效
+	// (POST /aux/{entity}/save)
+	Auxsave(ctx context.Context, request AuxsaveRequestObject) (AuxsaveResponseObject, error)
+	// Auxversions 查询辅助对象版本
+	// (POST /aux/{entity}/versions)
+	Auxversions(ctx context.Context, request AuxversionsRequestObject) (AuxversionsResponseObject, error)
+	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(ctx context.Context, request BobapproveRequestObject) (BobapproveResponseObject, error)
-	// Bobaudithistory 查询基础业务对象审核历史
+	// Bobaudithistory 查询业务对象审核历史
 	// (POST /bob/{entity}/audit-history)
 	Bobaudithistory(ctx context.Context, request BobaudithistoryRequestObject) (BobaudithistoryResponseObject, error)
-	// Bobcreate 创建基础业务对象草稿
+	// Bobcreate 创建业务对象草稿
 	// (POST /bob/{entity}/create)
 	Bobcreate(ctx context.Context, request BobcreateRequestObject) (BobcreateResponseObject, error)
-	// Bobdelete 删除基础业务对象首版草稿
+	// Bobdelete 删除业务对象首版草稿
 	// (POST /bob/{entity}/delete)
 	Bobdelete(ctx context.Context, request BobdeleteRequestObject) (BobdeleteResponseObject, error)
-	// Bobedit 发起基础业务对象编辑
+	// Bobedit 发起业务对象编辑
 	// (POST /bob/{entity}/edit)
 	Bobedit(ctx context.Context, request BobeditRequestObject) (BobeditResponseObject, error)
-	// Bobget 读取基础业务对象
+	// Bobget 读取业务对象
 	// (POST /bob/{entity}/get)
 	Bobget(ctx context.Context, request BobgetRequestObject) (BobgetResponseObject, error)
-	// Bobquery 查询基础业务对象
+	// Bobquery 查询业务对象
 	// (POST /bob/{entity}/query)
 	Bobquery(ctx context.Context, request BobqueryRequestObject) (BobqueryResponseObject, error)
-	// Bobreject 驳回基础业务对象
+	// Bobreject 驳回业务对象
 	// (POST /bob/{entity}/reject)
 	Bobreject(ctx context.Context, request BobrejectRequestObject) (BobrejectResponseObject, error)
-	// Bobsave 保存基础业务对象草稿
+	// Bobsave 保存业务对象草稿
 	// (POST /bob/{entity}/save)
 	Bobsave(ctx context.Context, request BobsaveRequestObject) (BobsaveResponseObject, error)
-	// Bobsubmit 提交基础业务对象审核
+	// Bobsubmit 提交业务对象审核
 	// (POST /bob/{entity}/submit)
 	Bobsubmit(ctx context.Context, request BobsubmitRequestObject) (BobsubmitResponseObject, error)
-	// Bobversions 查询基础业务对象版本
+	// Bobversions 查询业务对象版本
 	// (POST /bob/{entity}/versions)
 	Bobversions(ctx context.Context, request BobversionsRequestObject) (BobversionsResponseObject, error)
 	// DownloadAttachment 下载业务附件
@@ -5791,6 +6611,303 @@ func (sh *strictHandler) AppUserSignout(ctx *gin.Context) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(AppUserSignoutResponseObject); ok {
 		if err := validResponse.VisitAppUserSignoutResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxaudithistory operation middleware
+func (sh *strictHandler) Auxaudithistory(ctx *gin.Context, entity AuxEntity) {
+	var request AuxaudithistoryRequestObject
+
+	request.Entity = entity
+
+	var body AuxaudithistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxaudithistory(ctx, request.(AuxaudithistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxaudithistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxaudithistoryResponseObject); ok {
+		if err := validResponse.VisitAuxaudithistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxcreate operation middleware
+func (sh *strictHandler) Auxcreate(ctx *gin.Context, entity AuxEntity) {
+	var request AuxcreateRequestObject
+
+	request.Entity = entity
+
+	var body AuxcreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxcreate(ctx, request.(AuxcreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxcreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxcreateResponseObject); ok {
+		if err := validResponse.VisitAuxcreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxdelete operation middleware
+func (sh *strictHandler) Auxdelete(ctx *gin.Context, entity AuxEntity) {
+	var request AuxdeleteRequestObject
+
+	request.Entity = entity
+
+	var body AuxdeleteJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxdelete(ctx, request.(AuxdeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxdelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxdeleteResponseObject); ok {
+		if err := validResponse.VisitAuxdeleteResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxdisable operation middleware
+func (sh *strictHandler) Auxdisable(ctx *gin.Context, entity AuxEntity) {
+	var request AuxdisableRequestObject
+
+	request.Entity = entity
+
+	var body AuxdisableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxdisable(ctx, request.(AuxdisableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxdisable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxdisableResponseObject); ok {
+		if err := validResponse.VisitAuxdisableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxenable operation middleware
+func (sh *strictHandler) Auxenable(ctx *gin.Context, entity AuxEntity) {
+	var request AuxenableRequestObject
+
+	request.Entity = entity
+
+	var body AuxenableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxenable(ctx, request.(AuxenableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxenable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxenableResponseObject); ok {
+		if err := validResponse.VisitAuxenableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxget operation middleware
+func (sh *strictHandler) Auxget(ctx *gin.Context, entity AuxEntity) {
+	var request AuxgetRequestObject
+
+	request.Entity = entity
+
+	var body AuxgetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxget(ctx, request.(AuxgetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxget")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxgetResponseObject); ok {
+		if err := validResponse.VisitAuxgetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxquery operation middleware
+func (sh *strictHandler) Auxquery(ctx *gin.Context, entity AuxEntity) {
+	var request AuxqueryRequestObject
+
+	request.Entity = entity
+
+	var body AuxqueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxquery(ctx, request.(AuxqueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxquery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxqueryResponseObject); ok {
+		if err := validResponse.VisitAuxqueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxsave operation middleware
+func (sh *strictHandler) Auxsave(ctx *gin.Context, entity AuxEntity) {
+	var request AuxsaveRequestObject
+
+	request.Entity = entity
+
+	var body AuxsaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxsave(ctx, request.(AuxsaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxsave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxsaveResponseObject); ok {
+		if err := validResponse.VisitAuxsaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Auxversions operation middleware
+func (sh *strictHandler) Auxversions(ctx *gin.Context, entity AuxEntity) {
+	var request AuxversionsRequestObject
+
+	request.Entity = entity
+
+	var body AuxversionsJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Auxversions(ctx, request.(AuxversionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Auxversions")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxversionsResponseObject); ok {
+		if err := validResponse.VisitAuxversionsResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -7661,94 +8778,106 @@ func (sh *strictHandler) WflSalesFulfillmentShortCloseUnconfirm(ctx *gin.Context
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"7F1tc9RGtv4rlO79tDXOeEk2tdffbGPAFYK9tnG2bsqV6pF6ZnrRqEVLMnZSrrJzk2BevJDE4S4BQuBC",
+	"wm5ubLJJCNiAf0ysmfGn/Qu3pNbbzEjqlmY0ka/nG3hOvz3P6e5zTp9ufSCIuKZiBSq6Jox8IKiAgBrU",
+	"IbH/N2osTSg60pet/yBFGBFUoFeFgqCAGhRGBEh/LAgEXjAQgZIwohMDFgRNrMIasEr9O4FlYUT4t6Lf",
+	"TpH+qhX96ldWCsIYLmXZmF+91dhJJMM5fB4qEY3p9m9xbdWQcgYqFb0qjPy+IOjLqlVM0wlSKnYL89gY",
+	"JxDooCTDLMcV0o7TfMateo2tWJVoKlY0aGvNmKEhBWr2v0Ws6FDRrX8CVZWRCHSEleJfNGwjz0mdU+GE",
+	"sghlrELapgQ1kSDVqk8YERq79/afre4/+9K8ct/8fMPc2fzXi9v0vwebt5rb2/u7G/sv9xqbj4+dnpub",
+	"PnZ8ePjX1Q+FlYJwGgLZYrFHnaXVzTiAhHW1fmfD6uTaI3Pnl8aVp/XVNacnc1CsKkgE8gQhmPSsR23V",
+	"hvXoymr9znb95qX93aeN77YbHz6nmNn9WnF1wl0SbHWDJ4ButwxkeaosjLzLnOp2gZXCB4JKsAqJjqCj",
+	"IRK05xNYcufTm28U4qeXq8UtpY4PDxeYs9LX9ndpy05VC54wLv0FirqwsrBS8Ac7Ay8YUKM8SBKyYAPy",
+	"dGAcZSBrsNA2NMmBiAFMAM/2Lto1dPbN7plHQGiH6GQOK+cvC1AxalYrKsGSIepDItBhBRNrVZCgCohe",
+	"s3SvIKhYs1sQCoIGdV2G1t+HalCvYsmSRaLdPlkesttr+QvSYU0oCDUINIPQgoaCrFqRIuIaHIJLKlQ0",
+	"6BYFoogNRR/SDNrnhRDyR42lU1BPxwmFYlJqV543W3TH+m9Hs4uQaAgrKcq2ser1IYLZ00jTMVnu+wBV",
+	"UIHO1oZqlmr4UwgpOqxA4krNovfd6Ucl3ckXWS4KAqfVQLURoPzJgGkhKSPZtWiSzF5PieeWVTjuLFMd",
+	"oEmIQJGuo/6Mmjw7PvX2hFAQJv48PXF2diJUjaFi7dlSoNYSxjIEivXjebh8ERMptEkVEKg4FHf8SDDW",
+	"pxR5OazalRBosyS9IGiY2GxZy4CWmDYoS0FUDVUCOpRGrdUjuHh7UzMUZkwkSILVAE0U6A4YIt+mp7QP",
+	"biVhqlkDS5N0cD4AgBCw3FEXp6LPwEVkDabv0584DdvYY1IDOuXyzTeEtHPbqzJirLNgMeXems5s4NyR",
+	"HVMlr2AWou2CMVzqhcWSoIizYZ91DDLFkGVrWWuzQHxgXHmjVqLTkl1CkojjTjBlS0A5P0aAIla5xbl7",
+	"XgLE1TqmrGtKUd1hi3PXixUdiPxoO/LTVaxwFjAIgYq4zCms6bgGyZz9A0cB36zkBKbFT+GQhzWAZD5J",
+	"pYIUmEANq4hYRjrfQJGyCBXLiDunIN6xyhhI40AFItKX36pwFakBBVQgmaipMl6GkLOhGpYgH0gKr56p",
+	"QDwPKkipzKpQ1Fp2fEZQZjpYclJRDXsdi2jQ2VgLgsqt0KoM9CQ0W/LWgj0VWPvZhRwPiVecIBEplT8Z",
+	"wPbFpiGZDOpLkjoS6Jfj5r2FlBaramb0nffeHp2bmJkcPSMUhNm50bMnRmdOvHdy8uzk7OmJE0JBGD83",
+	"Ozf1dvAv06Pjb42emjx7ytqFmC0TWAPkPFcnCdQNolCRSPGAnawBGWoqJBpWEs4C35V92/ZkeYtVMeFf",
+	"fzUViqjsxG34ShiqKqMEa6oOlhKot8GrX4uwikQZcndjEfGML1EIhjcYMoZLJ6AM0xo9QSuv03uwf5yJ",
+	"s+Y6vR6STLwlsMAZOujoWbAahuE9hksTEtLzgRb3AKNG0hHOcq0SwZ9MgmUZ0NVB8BZCO5xFFpFo/e0i",
+	"ILCKDY16k7bqCwWhbCjSkGOxhjqXY7jUk1BUfLCpi3DSGC71LJx0iAJG4YZFUhfTDr67u3QoAkg7AcvA",
+	"kPXwKI5nFk1TlZuKR7NVeJ5fBSLbiau10DHC4HgiULWmI7yY1mev1ZzTDOZ2Eqt3fVlfQ5fTgjeICHzS",
+	"RzQGvvfA9x743gPfe+B7D3zvge898L2z8L07LJbcmllxzr5jwvbuoCxHIw8dcnv+U7qjsuBAXj8eOhCJ",
+	"I6ckQssCJ6JQ0xzHMARYmysepJzYkFub07lgFWFYjVeBUoHTQNMuYiKl9FNsO0x3KwkdiAIvxvzePpS2",
+	"CluLhw6DHuJhucvj0a6NOtcK6dzRIKkhjSpwq9HRuUrGnYq3HuQHu9feRjRO5zRIUjpdSFNlsHw2cpRx",
+	"OkCwDBMOviAYGiQRoLYh40kWWroZ6JTfhTBsJmqqvkxNKSYqHYVPQiiVgHh+VNeBWLW9BgXpKPXJshNq",
+	"cLe0DpjKSIaRLGhVcPwPb4b/5ASWujlj99outHTTqdxrfoELphlYw2lDAFZHeJZGRy6uQ91kAQCf86Ta",
+	"7aUQBozcsXOnLNv23KlTE7Nzk1NnhYIwNXd6YiY0oCrKCCpukCq0yUBObGhAchrQbN6QvcdyR9w9IWLn",
+	"15Euc8zNQKokLeH3K9CL9uGE9KHQhnYcp6kjzWWnAi7d8mXD+tKW3pysH5oOdENj98GRC2t/MuWejjiG",
+	"jsKHfAZKY0AGigj7mX4ItKmyG/LwFjfJ+kOyaGnbGL1qF/qcC8hIhit4MEVQ0NUpxm84sIjhTKlQQUql",
+	"mwQ4RQdIoa4nI70ywlDvWLwNHS9Cwq11ZYNGM3rTuhe2612VKiB6D6sjXZxrBk8QAjAHh+0A6na7EKA4",
+	"Qon6nxMNdHiS4BqXelh/n8N8osEkan5rQ8KiYW2cZ3HMaXTERq9hg4iBm1nxy6Y3cG9YC4czl7rf6dGJ",
+	"MqL9TcAZbYTez0CswpRxHwKBFmFZ9mh+Oy1E9r2bqFVPuhjWs2lQycq8iVhdB5Olu8kSyiLBlm+Y0u1b",
+	"BDog54jccbHujT9yHDS0hVICFfz++B/ZN/M6xtLdREFSz6c4YgZqbWsudcwuaWguYoi9j9j1ADaO8B4H",
+	"ttnF+VBPzgFSBATDwGqN9rmVsvBBFWVSSese+VHO4LwdPs6+UhOMZya5jBMd7FTjAuOdd6QTjBO6Zbo5",
+	"l6CVsM4h5rHhxwRP4IuKjEHK0IVr5UYYsrxBw0A1hbgIYkvPsw36cowscsYmnJoZh5BbwA3Ygl2Ellt4",
+	"6CaqnFZ/ulv24xCJ1ryQJzNcU0sDMhyitlNBUA0iVoEW8geklDB1owkUIVJpQHbZucru3jYnENVKBtGg",
+	"83esVyEZolfSQ+PSbt/6mNxXs7OOw3gpOQfC3JEaO+0PEi8e8ltmKQdLhWlBsK+RK0cwVS4yNS7vI/VS",
+	"0vPeTzppzlg6l9anitHm4JkR67w6Jr2J+8Cm1Qh1OrbAEf8rG4o06lwGyDllVaBIcv5ngJvwl/t+0vS9",
+	"rmaAF83lTuuy9zYoxV5AcO+y5B1AZ3s+pyB9miAxfFW/4CdljgePNxIkOcakGs7afSAVyJ2sF9XT9siM",
+	"d5+onbFgNTwrjAtT7iduHOB+VmjeR6GhioLL5a6mNYFWbYxZGgcXqiiM0vSowuolz+hbpDvqL3R2mEcx",
+	"/UpTA3UhLUDdjP5C8kFGZyG5lwlzrtXu9cWcd9O/cZnrjoa/mUTsqE6sX02FfD+W9zlFzkvP89hwO9Bd",
+	"pJwRHuh9DCBiNAyPn/7H0F3v3v6/BGW0CG2r3v6/s6D/RgGCk0gBMno/bYgAlcvQcmrhTPQRJYMsZ2z8",
+	"eUMOntwFDo3B7rDNu2NlkQFCdbLHPXA0nJuwQ7EZdLNspE6KjJ1K0T2K6EZX6WkSayfpW/ZaC/Q8J87z",
+	"2Ph/k4XEeHPRTaaPSijyklsTnP0NsiJ+ixSieWzMQGtBghmZTJmkGEWdqMTkG81jo78PEgzOLAZnFoMz",
+	"i8GZxeDMYnBmMTizGJxZDM4sBmcWgzOLwZnF4Mzitz6z6HuYP+YNl3fK8qh93SsLxzQikMoYv9R2lsIZ",
+	"4VUJFqGmRQXu6K+JX4+NCB90buFO250tRaCeOlgaN87IbkV0Irc3eQvphskXKH2nLHcRKI0PTWYaMrTD",
+	"mrCbSw1seGybVzQI0pdnxSqsud4HPo/gqEHfc2j9ZNlpXVenFHn52P6LL5vbd4+N27L/enHb3Prq4NbH",
+	"5o2NxrdPzOvbjc0fmns3mvevHXy80Xi51fzmk8btm7+ufmjfvBVGnDb87+K9D4n6ngY1Zwlzx6WityC9",
+	"I62RsvfhwNYu0Z7Qj8819zbN2181vvzo2PjszMljdolAq1UI6Kmk0+qfhyyxoTnnq4Ntra7YJ3tl3Nnk",
+	"f07MTB8zL2+YN/7a+G7b3Nzef7ZKv2/X2NkzN643t7Z+Xf2w5TN4rd/AO0a7a177uLF7p3n/cfPVK9pN",
+	"GYnQeeDB6ePbk3OWb0Bkq/+6rmojxSJWoUItkNcwqRSdQsUa0gNvadBejk5PBj7UMyL8/rXh14Ztj1GF",
+	"ClCRMCK8/trwa6/biqJXbQUoAlUtug9SFP2HMoaQcy3BXhEwnU3WdAHuQ4DCqKq6z2b45bxi3u2NMSwt",
+	"9+xDe+w3c1Zap4a1VbV/PfH48HBUO56c90XElpljf4QvOGfeXWjR13cXVhYsi7BWA2RZGBHM9bvmt1fN",
+	"azfN6xsH36wf3Ppof/eppX2gotlRfFUVFqwGImkg9q2EhCQ4hfpFQevNiVwR0Ph29+DWw2Toi/YlBC7I",
+	"HdFsgW69FJEreOvXb+zvPGxsPq6v/0JBZsNbgToXtpZctsAGTLVcodrc3jWv3+RC1b/fycR12hM9lRmy",
+	"/tNBOQS0fve/Dm7d4IHygmVFcoJpW5wZwRl8MSBf8/7eo+b2AwagBMuQZzGdwTIcz3Ih7XzpMWdGwm1z",
+	"d6f57WfNy/+MB1NCmvt0cCyaJxy5bOBsz4XMF5hrdxqbj3nAhAoXlhPKkYXyxjYnlKytx8LxiG46PPCx",
+	"txsLwCO80fCAqIFF9mSeBZm5Re0Pk+QKxv29u+b3f2PAaGiQFEX7ceeh4HMVkYie0yCh8sHncrPYwENf",
+	"nM4Zwlv1zefmy8/NyxuO5b79SePrNQbabOvIBjl76yj47ksOrSMKaTyYPNaRNUzpqFtHPGByWEcWlvCI",
+	"W0c8ULKsIwvHytG0jnjgU+mDa0wIXbmMLKTWZ9/yGN5Yv0m3+eAm1Pz5o/rNW/EAs81PC94LR9f85NFS",
+	"pvlpYahla37mdg+neskFo3MsyEJy1js+zALM4GcdsgayVd/WHpgPN+gEpmedDLhQRUEcaFGxjDSv5VW8",
+	"vsJFNapxa9d8+QUbKGzoXEhZcodfrxJN0IPVVfPSDlvvjKXiB9DOnFspAkNC+lCVZprEAGss2ZKuoH3P",
+	"C9QgvZT2bvjwfJHiqLHk3tteyIaVUWOpLV8mjyGQVx+bV/5ubj9v/nDfvP63+u2fmltP2tTeWArjielj",
+	"Gkuef5lDanJ8+kldU/P508Z3V82NH514aYAoNjmS/VH1WHIckVySk28Pbf3rg1sP63f+Yb74IjkxzGCC",
+	"seQHEgbUpDqlScQIMyJhLHnRiAEfqY56EvERH9YwlmhII4dM5DvtIxkJLN/dWHL99hwS0ZKsm3Obi00F",
+	"IwJgLDnefw6JCF5gz+O5VYCH+s0njcvr9Tv/65ldjc179S/W2fw4ebFaLEee0MBN6XrKUJ5CiSnhUsCR",
+	"VFUSm+M6hkuuTFJaxnApY1rGcMna2uHFfLJy+bl56ROand6xkJVwKZQPPsfeYqUbx74v1OR/xgS5Mbfu",
+	"179+Zv71E/P6P9k8sRz7MVxK6dj3hZrcO/ZBZpoblxuP99icsPz5MVxK6c/3hZMTdt9y7M0HOTn45mbj",
+	"8jovM1BCeiwvtkAuWZmQUD49FvP6p82ffwly0nhxs/nqUzYbsc7jGC6lcR77wkW+ncdkGz3DeRzDpXTO",
+	"Y/ZE5PzAOBkN9OWFWB4ckYH1m/BY6+8/mre/SsZGvBs/hkup3Pi+MJFzNz6NPaUZpRpj33ZEcsmI81X6",
+	"XMd+6R2+TjeETQ47ojKGS6kjKgP/sGMv6Yio+MSUkQy1wMVhrSg5X8QrfqBb9a9YvXbMrlaS3E/n+Rd6",
+	"E3N1EsmQjoJy1YlXBGFY1KE+pOkEglorcd4rHiWkANsIaX8sov0ZQMEfwLHSsg41YaUgvMFDV9sXD+NS",
+	"TvafXW2+fOlc92+/UGyTEEmIobbToRohdJxTe0xG1MT5XfF3KSBnzY43Op9QoCOCUmo+rGL/0WMar+y/",
+	"+JqbxpCb+Qn57Lw1P+CVTVDwDnQsTVUIZL36fuQad9r+XUizljtF4zrb3LvdeHzVXHtk7vxS/5/V+r1H",
+	"gW56HXH7KkOp6L36WCwBGShijMl5BkqetCuczX54BkpjtIEc74fm1nPz1uP9l7cOHgST1GQohcLL8HGD",
+	"4GaZ4XwGSnk/7aTA1n9eqz/5KRLYsqFIXCprCQ609UHz548OLn3K0FYbVLaiWmJHXEcpnAwdRcoiVCyr",
+	"nktRPemBtj4wdz63/PR4bfXhZausJ3vU11YbWIbeYhUqSKkUgaijxdiTvTNQcoQ92cygPQx5az9903iy",
+	"x8aV71w7AG7r8XZGAB+CpA4b3/qde+b6XXPrfnPrfscRdTjiorXeyUMEWn/gQZwWcOSPqEpfv1l/un5w",
+	"acN8scqp2LGHaT642d0xze29FielMqC/TDD5lTV7NbXqz+ezeps/Nrd/SaSk8ecqPqoZ3pE8A6Up2kje",
+	"Ex55FNb+Eg6XiWtLDszbB+ar1frdRwzzlsLKNm1tuaNu1tqAxpi1BAJpOToqNwOBRPvSTWCuIPxh+PWe",
+	"xPHqXzypb2xZxvqTHxq7/2CH8haxkSCPdR4bafNYA1+vzegwLOZjt/nNaN34or6xFSBoERuhzPjv6bqn",
+	"YvEsefKeeC4J8w8T3DO8HFsLQcpoLJ+epSWij/0qdQt9gdeoc03f4XjEupPBRNyxnrJuYc57wjrXvOX+",
+	"5etUlPHFSSy6usn/7wtVhya/w2YoIrgSwZNYheL5WH6oxMDWSM3Q18/M7efJbA3WrQyLlnS3MuaxYd+Z",
+	"ACUZZk/QYbmewUkL62LGPDZSXszoy3Rp+5ZyDm9mHGyumptbB5+/2n92tf7sWUeCZwQvZaQA2flmTiQz",
+	"nlAuuTnp9C6fS9id1cbuuvnwo8aNhE5TbFR5Hhtprmj0hY9DcUWDkwRGHGoeG+muaPSFiLyHr5JRER/A",
+	"nsdGqosBfSHicFwM4OTBUHgCbb7UYD9PdQKZJs5mKGyfxJUZ0JKYlo00/oihcJlYAbEBM0l3k88s6zdI",
+	"S9DqCqXoYlkuul/1HiobchnJsuUO8wZf3inL007xk37pUavw6UwTVjo/LprDjf3g0qXmT9+bPzxq7HxD",
+	"YyoBEi6WZRYJsaZvOPTZfd6k9ZuyObRog2jXf15rPL6aDG2GjRuOd5ZfQ2n/jmzONTwN5loVE31IlLEG",
+	"h2jSVVICZq0axq0Kxmn5zLho/Y51LpO1fDIa975v7H5OT7y6oAQrZURqXXDiVHAUSWnc32puPewkJT0d",
+	"xP+gdDo6XJyOJB1Orljv6DCUrufHOa+Ko0gJNVgTUKIBGWop7dRZq+zASO3cwu2AOZeR2gk/y0JtB/0o",
+	"m6cBnBmmUifObNu0Hemjbph2g3ZCq7Qd+oFJ6pukARq4TFIGGRz7bQwbA2O0g46URPBYotFEDMzQnhHB",
+	"Z4NGUzEwQDdXeciwGyGLbii69QEK88a1+s6NY+/A0rHGy0/Nj38UCoJBZGFEKAIV2eFop7r2ks2tvYP/",
+	"3vp1dY1+7ebX1TX6MXPzs2veF/cVUIPCiP35m5VCewVtj4o5siVcCpFte0fcrddYiq7XDe47sovYiJT1",
+	"dllH1gIuSta7q+PIyvbjHR2yO9eae7fN9ac0Y7Dx3Xbjw+d+IfruRsgw9240719rXHlaX11rLxPInF9Z",
+	"WPm/AAAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

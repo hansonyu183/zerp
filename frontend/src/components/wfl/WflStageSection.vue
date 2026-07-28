@@ -39,7 +39,7 @@ function businessTime(value: string): string {
         variant="tonal"
         @click="emit('create')"
       >
-        新建{{ definition.title.replace('分批', '') }}
+        新增{{ definition.title.replace('分批', '') }}
       </v-btn>
     </v-card-title>
     <v-card-text>
@@ -139,7 +139,7 @@ function businessTime(value: string): string {
                   variant="tonal"
                   @click="emit('create-signoff', document)"
                 >
-                  创建签收
+                  新增签收
                 </v-btn>
               </td>
             </tr>

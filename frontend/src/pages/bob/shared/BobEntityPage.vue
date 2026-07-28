@@ -19,11 +19,11 @@ const reviewTarget = ref<BobListItem | null>(null)
 const reviewAction = ref<'approve' | 'reject'>('approve')
 const reviewComment = ref('')
 
-const versionsLength = computed(
-  () => Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
+const versionsLength = computed(() =>
+  Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
 )
-const auditLength = computed(
-  () => Math.max(1, Math.ceil(vm.auditTotal / vm.auditPageSize)),
+const auditLength = computed(() =>
+  Math.max(1, Math.ceil(vm.auditTotal / vm.auditPageSize)),
 )
 
 void vm.query()
@@ -44,18 +44,15 @@ function confirmEffectiveEdit(): void {
 
 async function confirmDelete(): Promise<void> {
   const row = deleteTarget.value
-  if (row && await vm.deleteObject(row)) deleteTarget.value = null
+  if (row && (await vm.deleteObject(row))) deleteTarget.value = null
 }
 
 async function confirmSubmit(): Promise<void> {
   const row = submitTarget.value
-  if (row && await vm.submitObject(row)) submitTarget.value = null
+  if (row && (await vm.submitObject(row))) submitTarget.value = null
 }
 
-function requestReview(
-  row: BobListItem,
-  action: 'approve' | 'reject',
-): void {
+function requestReview(row: BobListItem, action: 'approve' | 'reject'): void {
   reviewTarget.value = row
   reviewAction.value = action
   reviewComment.value = ''
@@ -63,10 +60,7 @@ function requestReview(
 
 async function confirmReview(): Promise<void> {
   const row = reviewTarget.value
-  if (
-    row &&
-    await vm.review(row, reviewAction.value, reviewComment.value)
-  ) {
+  if (row && (await vm.review(row, reviewAction.value, reviewComment.value))) {
     reviewTarget.value = null
     reviewComment.value = ''
   }
@@ -93,65 +87,6 @@ function closeReview(value: boolean): void {
       {{ vm.errorMessage }}
     </v-alert>
 
-    <v-expansion-panels class="mb-4" variant="accordion">
-      <v-expansion-panel>
-        <v-expansion-panel-title>
-          筛选条件
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <div class="bob-filter-grid">
-            <template v-for="field in vm.config.filters" :key="field.key">
-              <v-autocomplete
-                v-if="field.type === 'autocomplete'"
-                v-model="vm.filters[field.key]"
-                clearable
-                density="comfortable"
-                :error-messages="vm.filterReferenceError(field.key) ?? undefined"
-                item-title="title"
-                item-value="value"
-                :items="vm.filterReferenceOptions(field.key)"
-                :label="field.label"
-                :loading="vm.filterReferenceLoading(field.key)"
-                no-filter
-                variant="outlined"
-                @update:search="vm.searchFilterReference(field.key, $event ?? '')"
-              />
-              <v-select
-                v-else-if="field.type === 'select'"
-                v-model="vm.filters[field.key]"
-                clearable
-                density="comfortable"
-                item-title="title"
-                item-value="value"
-                :items="field.options ?? []"
-                :label="field.label"
-                :multiple="field.multiple"
-                variant="outlined"
-              />
-              <v-switch
-                v-else-if="field.type === 'switch'"
-                v-model="vm.filters[field.key]"
-                color="primary"
-                :label="field.label"
-              />
-              <v-text-field
-                v-else
-                v-model="vm.filters[field.key]"
-                clearable
-                density="comfortable"
-                :label="field.label"
-                variant="outlined"
-              />
-            </template>
-          </div>
-          <div class="bob-filter-actions">
-            <v-btn variant="text" @click="vm.resetFilters">重置</v-btn>
-            <v-btn color="primary" @click="vm.search">应用筛选</v-btn>
-          </div>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
-
     <BusinessObjectList
       :columns="vm.config.columns"
       :creatable="vm.canCreate"
@@ -167,12 +102,60 @@ function closeReview(value: boolean): void {
       :search-label="`${vm.config.title}关键字`"
       :sort="vm.sort"
       :total="vm.total"
+      @apply-filters="vm.search"
       @create="vm.openCreate"
       @query="vm.search"
+      @reset-filters="vm.resetFilters"
       @update:keyword="vm.keyword = $event"
       @update:page="vm.changePage"
       @update:sort="vm.changeSort"
     >
+      <template #filters>
+        <template v-for="field in vm.config.filters" :key="field.key">
+          <v-autocomplete
+            v-if="field.type === 'autocomplete'"
+            v-model="vm.filters[field.key]"
+            clearable
+            density="comfortable"
+            :error-messages="vm.filterReferenceError(field.key) ?? undefined"
+            item-title="title"
+            item-value="value"
+            :items="vm.filterReferenceOptions(field.key)"
+            :label="field.label"
+            :loading="vm.filterReferenceLoading(field.key)"
+            no-filter
+            variant="outlined"
+            @update:search="vm.searchFilterReference(field.key, $event ?? '')"
+          />
+          <v-select
+            v-else-if="field.type === 'select'"
+            v-model="vm.filters[field.key]"
+            clearable
+            density="comfortable"
+            item-title="title"
+            item-value="value"
+            :items="field.options ?? []"
+            :label="field.label"
+            :multiple="field.multiple"
+            variant="outlined"
+          />
+          <v-switch
+            v-else-if="field.type === 'switch'"
+            v-model="vm.filters[field.key]"
+            color="primary"
+            :label="field.label"
+          />
+          <v-text-field
+            v-else
+            v-model="vm.filters[field.key]"
+            clearable
+            density="comfortable"
+            :label="field.label"
+            variant="outlined"
+          />
+        </template>
+      </template>
+
       <template #cell-status="{ row }">
         <v-chip density="comfortable" size="small" variant="tonal">
           {{ getStatusText(row.currentVersion.status) }}
@@ -200,11 +183,11 @@ function closeReview(value: boolean): void {
         <v-menu
           v-if="
             vm.actionAvailability(row).delete ||
-              vm.actionAvailability(row).submit ||
-              vm.actionAvailability(row).approve ||
-              vm.actionAvailability(row).reject ||
-              vm.actionAvailability(row).versions ||
-              vm.actionAvailability(row).audit
+            vm.actionAvailability(row).submit ||
+            vm.actionAvailability(row).approve ||
+            vm.actionAvailability(row).reject ||
+            vm.actionAvailability(row).versions ||
+            vm.actionAvailability(row).audit
           "
         >
           <template #activator="{ props: activatorProps }">
@@ -291,11 +274,7 @@ function closeReview(value: boolean): void {
             关闭
           </v-btn>
           <template v-else>
-            <v-btn
-              :disabled="vm.saving"
-              variant="text"
-              @click="cancel"
-            >
+            <v-btn :disabled="vm.saving" variant="text" @click="cancel">
               取消
             </v-btn>
             <v-btn
@@ -316,7 +295,11 @@ function closeReview(value: boolean): void {
   <v-dialog
     :model-value="Boolean(effectiveEditTarget)"
     max-width="540"
-    @update:model-value="(value) => { if (!value) effectiveEditTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) effectiveEditTarget = null
+      }
+    "
   >
     <v-card rounded="xl" :title="`确认编辑有效${vm.config.title}`">
       <v-card-text>
@@ -333,7 +316,11 @@ function closeReview(value: boolean): void {
   <v-dialog
     :model-value="Boolean(deleteTarget)"
     max-width="540"
-    @update:model-value="(value) => { if (!value) deleteTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) deleteTarget = null
+      }
+    "
   >
     <v-card rounded="xl" :title="`确认删除${vm.config.title}草稿`">
       <v-card-text>
@@ -356,7 +343,11 @@ function closeReview(value: boolean): void {
   <v-dialog
     :model-value="Boolean(submitTarget)"
     max-width="540"
-    @update:model-value="(value) => { if (!value) submitTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) submitTarget = null
+      }
+    "
   >
     <v-card rounded="xl" title="确认提交审核">
       <v-card-text>
@@ -440,12 +431,15 @@ function closeReview(value: boolean): void {
               <td>{{ item.reviewComment || '—' }}</td>
               <td class="text-end">
                 <v-btn
-                  v-if="vm.historyObject && vm.actionAvailability(vm.historyObject).view"
+                  v-if="
+                    vm.historyObject &&
+                    vm.actionAvailability(vm.historyObject).view
+                  "
                   density="comfortable"
                   variant="text"
                   @click="
                     vm.historyObject &&
-                      vm.openView(vm.historyObject, item.versionId)
+                    vm.openView(vm.historyObject, item.versionId)
                   "
                 >
                   查看
@@ -522,18 +516,6 @@ function closeReview(value: boolean): void {
   color: rgb(var(--v-theme-on-background));
 }
 
-.bob-filter-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 18px;
-}
-
-.bob-filter-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
 .bob-entity-drawer {
   background: rgb(var(--v-theme-background));
 }
@@ -542,17 +524,7 @@ function closeReview(value: boolean): void {
   padding: 20px;
 }
 
-@media (max-width: 900px) {
-  .bob-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 640px) {
-  .bob-filter-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .bob-entity-drawer__content {
     padding: 12px;
   }

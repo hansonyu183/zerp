@@ -1,7 +1,6 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
   defineBobEntityConfig,
   emailPattern,
@@ -22,7 +21,6 @@ export const supplierConfig = defineBobEntityConfig({
   defaults: {
     supplierType: 'GENERAL',
     shortName: '',
-    categoryId: '',
     settlementMethodId: '',
     salespersonEmployeeId: '',
     taxNumber: '',
@@ -35,12 +33,8 @@ export const supplierConfig = defineBobEntityConfig({
   requiredKeys: ['code', 'name', 'supplierType', 'salespersonEmployeeId'],
   uppercaseKeys: ['code', 'taxNumber'],
   references: {
-    categoryId: {
-      entity: 'category',
-      label: '供应商分类',
-      filters: { targetEntity: 'supplier' },
-    },
     settlementMethodId: {
+      domain: 'aux',
       entity: 'settlement-method',
       label: '结算方式',
     },
@@ -58,8 +52,6 @@ export const supplierConfig = defineBobEntityConfig({
       required: true,
       options: supplierTypeOptions,
     },
-    text('shortName', '供应商简称', 100),
-    reference('categoryId', '供应商分类', context),
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
@@ -84,11 +76,6 @@ export const supplierConfig = defineBobEntityConfig({
         supplierTypeOptions.find((item) => item.value === value)?.title ??
         String(value),
     },
-    {
-      key: 'shortName',
-      label: '简称',
-      value: (row) => row.currentVersion.summary.shortName,
-    },
   ]),
   filters: baseFilters([
     {
@@ -97,6 +84,5 @@ export const supplierConfig = defineBobEntityConfig({
       type: 'select',
       options: supplierTypeOptions,
     },
-    categoryFilter('supplier'),
   ]),
 })

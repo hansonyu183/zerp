@@ -2,6 +2,7 @@ package bob
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -15,10 +16,20 @@ type Service struct {
 	pool                   *pgxpool.Pool
 	queries                *dbsqlc.Queries
 	afterDeleteDetailsHook func() error
+	auxiliaryResolver      AuxiliaryResolver
+}
+
+type AuxiliaryResolver interface {
+	ResolveAuxiliaryReference(context.Context, pgx.Tx, string, string, string) (AuxiliaryReference, error)
+	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool, queries: dbsqlc.New(pool)}
+}
+
+func (s *Service) SetAuxiliaryResolver(resolver AuxiliaryResolver) {
+	s.auxiliaryResolver = resolver
 }
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
@@ -109,7 +120,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = s.validateDetailReferences(ctx, qtx, entity, objectID, data); err != nil {
+	if err = s.validateDetailReferences(ctx, tx, qtx, entity, objectID, data); err != nil {
 		return MutationResult{}, err
 	}
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{
@@ -175,7 +186,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 			return MutationResult{}, domainError(ErrorConflict, "referenced category target cannot change", nil, nil)
 		}
 	}
-	if err = s.validateDetailReferences(ctx, qtx, entity, input.ObjectID, data); err != nil {
+	if err = s.validateDetailReferences(ctx, tx, qtx, entity, input.ObjectID, data); err != nil {
 		return MutationResult{}, err
 	}
 	if err = updateDetail(ctx, qtx, entity, input.VersionID, data); err != nil {
@@ -327,7 +338,7 @@ func (s *Service) Submit(ctx context.Context, entity string, input VersionRevisi
 		!slices.Contains([]string{StatusDraft, StatusRejected}, version.Status) {
 		return MutationResult{}, conflict(object, version, "version changed before submit")
 	}
-	if err = s.validateStoredDetail(ctx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
+	if err = s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
 		return MutationResult{}, err
 	}
 	rows, err := qtx.SubmitBobVersion(ctx, dbsqlc.SubmitBobVersionParams{
@@ -371,7 +382,7 @@ func (s *Service) Approve(ctx context.Context, entity string, input ReviewInput,
 	if version.SubmittedBy == nil || *version.SubmittedBy == actorID {
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
 	}
-	if err = s.validateStoredDetail(ctx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
+	if err = s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
 		return MutationResult{}, err
 	}
 	rows, err := qtx.ApproveBobVersion(ctx, dbsqlc.ApproveBobVersionParams{
@@ -585,6 +596,9 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 	if !validEntity(entity) || !validID(objectID) || !validID(versionID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid effective reference", nil, nil)
 	}
+	if auxiliaryEntity(entity) && s.auxiliaryResolver != nil {
+		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
+	}
 	row, err := s.queries.WithTx(tx).ResolveBobEffectiveReference(ctx, dbsqlc.ResolveBobEffectiveReferenceParams{
 		ObjectID: objectID, Entity: entity, VersionID: versionID,
 	})
@@ -599,10 +613,36 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 			return EffectiveReference{}, err
 		}
 	}
+	data := effectiveReferenceDetail(row)
+	if entity == EntityCustomer {
+		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "CUSTOMER_TYPE"); err != nil {
+			return EffectiveReference{}, err
+		}
+	}
+	if entity == EntityVehicle {
+		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "VEHICLE_TYPE"); err != nil {
+			return EffectiveReference{}, err
+		}
+	}
 	return EffectiveReference{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID,
-		Data: effectiveReferenceDetail(row),
+		Data: data,
 	}, nil
+}
+
+func (s *Service) validateDictionaryCode(
+	ctx context.Context, tx pgx.Tx, code, dictionaryTypeCode string,
+) error {
+	if s.auxiliaryResolver == nil {
+		// Legacy/internal callers can construct BOB in isolation. The HTTP
+		// server always configures AUX and therefore enforces dictionary codes.
+		return nil
+	}
+	reference, err := s.auxiliaryResolver.ResolveAuxiliaryCode(ctx, tx, "dictionary-item", code)
+	if err != nil || mapString(reference.Data, "dictionaryTypeCode") != dictionaryTypeCode {
+		return domainError(ErrorConflict, "dictionary item is unavailable", nil, err)
+	}
+	return nil
 }
 
 // ResolveCurrentEffectiveReference resolves an object's current effective
@@ -612,6 +652,9 @@ func (s *Service) ResolveCurrentEffectiveReference(
 ) (EffectiveReference, error) {
 	if !validEntity(entity) || !validID(objectID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid current effective reference", nil, nil)
+	}
+	if auxiliaryEntity(entity) {
+		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, "")
 	}
 	row, err := s.queries.WithTx(tx).ResolveCurrentBobEffectiveReference(
 		ctx,
@@ -663,7 +706,7 @@ func (s *Service) lockTarget(ctx context.Context, entity, objectID, versionID st
 	return tx, qtx, object, version, nil
 }
 
-func (s *Service) validateStoredDetail(ctx context.Context, q *dbsqlc.Queries, entity, objectID, versionID string) error {
+func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, versionID string) error {
 	row, err := q.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{ObjectID: objectID, Entity: entity, VersionID: versionID})
 	if err != nil {
 		return s.internal("read stored detail", err)
@@ -672,7 +715,7 @@ func (s *Service) validateStoredDetail(ctx context.Context, q *dbsqlc.Queries, e
 	if err != nil {
 		return err
 	}
-	return s.validateDetailReferences(ctx, q, entity, objectID, data)
+	return s.validateDetailReferences(ctx, tx, q, entity, objectID, data)
 }
 
 func effectiveReferenceDetail(row dbsqlc.BobVersionView) DetailView {
@@ -683,6 +726,7 @@ func effectiveReferenceDetail(row dbsqlc.BobVersionView) DetailView {
 
 func (s *Service) validateDetailReferences(
 	ctx context.Context,
+	tx pgx.Tx,
 	q *dbsqlc.Queries,
 	entity string,
 	objectID string,
@@ -693,16 +737,65 @@ func (s *Service) validateDetailReferences(
 			return err
 		}
 	}
+	if entity == EntityCustomer {
+		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "CUSTOMER_TYPE"); err != nil {
+			return err
+		}
+	}
+	if entity == EntityVehicle {
+		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "VEHICLE_TYPE"); err != nil {
+			return err
+		}
+	}
 	if data.CategoryID != "" {
-		target, err := q.LockEffectiveCategoryReference(ctx, data.CategoryID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainError(ErrorConflict, "category is not currently effective", nil, nil)
+		if entity != EntityProduct {
+			return domainError(ErrorValidation, "category is only supported for products", nil, nil)
 		}
+		if s.auxiliaryResolver != nil {
+			if _, err := s.resolveAuxiliaryReference(ctx, tx, EntityCategory, data.CategoryID, ""); err != nil {
+				return err
+			}
+		} else if _, err := q.LockEffectiveBobReference(ctx, dbsqlc.LockEffectiveBobReferenceParams{
+			ObjectID: data.CategoryID, Entity: EntityCategory,
+		}); err != nil {
+			return domainError(ErrorConflict, "category reference is unavailable", nil, err)
+		}
+	}
+	if (entity == EntityProduct || entity == EntityService) && s.auxiliaryResolver != nil {
+		inventoryUnit, err := s.resolveNamedAuxiliaryReference(
+			ctx, tx, "measurement-unit", data.InventoryUnitID, "",
+		)
 		if err != nil {
-			return s.internal("lock category reference", err)
+			return err
 		}
-		if target != entity {
-			return domainError(ErrorConflict, "category does not match entity", nil, nil)
+		if entity == EntityProduct {
+			pricingUnit, resolveErr := s.resolveNamedAuxiliaryReference(
+				ctx, tx, "measurement-unit", data.PricingUnitID, "",
+			)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			if data.ProductKind != ProductKindPackaging && pricingUnit.Code != "KG" {
+				return domainError(ErrorConflict, "goods pricing unit must be KG", nil, nil)
+			}
+			if data.ProductKind == ProductKindPackaging && pricingUnit.ObjectID != inventoryUnit.ObjectID {
+				return domainError(ErrorConflict, "packaging pricing unit must match inventory unit", nil, nil)
+			}
+			for _, spec := range data.PackagingSpecs {
+				if spec.PackagingProductObjectID == objectID {
+					return domainError(ErrorValidation, "product cannot package itself", nil, nil)
+				}
+				packaging, referenceErr := s.ResolveEffectiveReference(
+					ctx, tx, EntityProduct,
+					spec.PackagingProductObjectID, spec.PackagingProductVersionID,
+				)
+				if referenceErr != nil {
+					return referenceErr
+				}
+				if packaging.Data.ProductKind != ProductKindPackaging {
+					return domainError(ErrorConflict, "packaging specification must reference a packaging product", nil, nil)
+				}
+			}
 		}
 	}
 	type reference struct {
@@ -733,6 +826,14 @@ func (s *Service) validateDetailReferences(
 		if target.id == objectID {
 			return domainError(ErrorValidation, "object cannot reference itself", nil, nil)
 		}
+		if auxiliaryEntity(target.entity) {
+			if s.auxiliaryResolver != nil {
+				if _, err := s.resolveAuxiliaryReference(ctx, tx, target.entity, target.id, ""); err != nil {
+					return err
+				}
+				continue
+			}
+		}
 		if _, err := q.LockEffectiveBobReference(ctx, dbsqlc.LockEffectiveBobReferenceParams{
 			ObjectID: target.id, Entity: target.entity,
 		}); errors.Is(err, pgx.ErrNoRows) {
@@ -741,22 +842,79 @@ func (s *Service) validateDetailReferences(
 			return s.internal("lock "+target.entity+" reference", err)
 		}
 	}
-	if entity == EntityCategory && data.ParentID != "" {
-		if data.ParentID == objectID {
-			return domainError(ErrorValidation, "category cannot reference itself", nil, nil)
-		}
-		target, err := q.LockEffectiveCategoryReference(ctx, data.ParentID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domainError(ErrorConflict, "category parent is not currently effective", nil, nil)
-		}
-		if err != nil {
-			return s.internal("lock category parent", err)
-		}
-		if target != data.TargetEntity {
-			return domainError(ErrorConflict, "category parent target does not match", nil, nil)
-		}
-	}
 	return nil
+}
+
+func auxiliaryEntity(entity string) bool {
+	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod}, entity)
+}
+
+func auxiliaryEntityName(entity string) string {
+	if entity == EntityCategory {
+		return "product-category"
+	}
+	return entity
+}
+
+func (s *Service) resolveAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
+) (EffectiveReference, error) {
+	if s.auxiliaryResolver == nil {
+		return EffectiveReference{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
+	}
+	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(
+		ctx, tx, auxiliaryEntityName(entity), objectID, versionID,
+	)
+	if err != nil {
+		return EffectiveReference{}, domainError(ErrorConflict, auxiliaryEntityName(entity)+" reference is unavailable", nil, err)
+	}
+	data := DetailView{
+		Name:                  mapString(reference.Data, "name"),
+		ParentID:              mapString(reference.Data, "parentId"),
+		Description:           mapString(reference.Data, "description"),
+		RuleType:              mapString(reference.Data, "ruleType"),
+		MonthOffset:           int32(mapInt(reference.Data, "monthOffset")),
+		DueDays:               int32(mapInt(reference.Data, "dueDays")),
+		CutoffDay:             int32(mapInt(reference.Data, "cutoffDay")),
+		DefaultSalesSurcharge: mapString(reference.Data, "defaultSalesSurcharge"),
+	}
+	if data.RuleType == "DUE_DAYS" {
+		data.DayOffset = data.DueDays
+	}
+	return EffectiveReference{
+		ObjectID: reference.ObjectID, Entity: entity, Code: reference.Code,
+		VersionID: reference.VersionID, Data: data,
+	}, nil
+}
+
+func (s *Service) resolveNamedAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
+) (AuxiliaryReference, error) {
+	if s.auxiliaryResolver == nil {
+		return AuxiliaryReference{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
+	}
+	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
+	if err != nil {
+		return AuxiliaryReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
+	}
+	return reference, nil
+}
+
+func mapString(data map[string]any, key string) string {
+	value, _ := data[key].(string)
+	return value
+}
+
+func mapInt(data map[string]any, key string) int {
+	switch value := data[key].(type) {
+	case float64:
+		return int(value)
+	case json.Number:
+		number, _ := value.Int64()
+		return int(number)
+	default:
+		return 0
+	}
 }
 
 func (s *Service) validatePlatformReference(ctx context.Context, q *dbsqlc.Queries, platformObjectID string) error {

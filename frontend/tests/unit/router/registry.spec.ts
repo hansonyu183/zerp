@@ -31,37 +31,38 @@ function createTestRouter() {
 
 describe('permission menu registry', () => {
   it('只保留格式正确的完整权限路径并去重', () => {
-    expect(normalizePermissions([
-      '/bob/customer/query',
-      '/bob/customer/query',
-      '/bob/customer/create',
-      'bob/customer/update',
-      '/BOB/customer/query',
-      '/bob/customer',
-      null,
-    ])).toEqual([
-      '/bob/customer/query',
-      '/bob/customer/create',
-    ])
+    expect(
+      normalizePermissions([
+        '/bob/customer/query',
+        '/bob/customer/query',
+        '/bob/customer/create',
+        'bob/customer/update',
+        '/BOB/customer/query',
+        '/bob/customer',
+        null,
+      ]),
+    ).toEqual(['/bob/customer/query', '/bob/customer/create'])
     for (const invalidValue of [undefined, null, {}, 'permissions']) {
       expect(normalizePermissions(invalidValue)).toEqual([])
     }
   })
 
-  it('显示所有非 APP 权限实体，并优先使用本地注册菜单元数据', () => {
-    const menus = buildMenus(normalizePermissions([
-      '/app/user/query',
-      '/bob/customer/create',
-      '/bob/customer/query',
-      '/bob/customer/update',
-      '/bob/supplier/query',
-      '/inv/stock/create',
-    ]))
+  it('只显示前端已注册的非 APP 权限实体，并使用本地菜单元数据', () => {
+    const menus = buildMenus(
+      normalizePermissions([
+        '/app/user/query',
+        '/bob/customer/create',
+        '/bob/customer/query',
+        '/bob/customer/update',
+        '/bob/supplier/query',
+        '/inv/stock/create',
+      ]),
+    )
 
     expect(menus).toEqual([
       {
         domain: 'bob',
-        title: '基础业务对象',
+        title: '业务对象',
         icon: 'mdi-database-outline',
         order: 10,
         children: [
@@ -81,22 +82,10 @@ describe('permission menu registry', () => {
           },
         ],
       },
-      {
-        domain: 'inv',
-        title: 'Inv',
-        order: Number.MAX_SAFE_INTEGER,
-        children: [
-          {
-            entity: 'stock',
-            title: 'Stock',
-            order: Number.MAX_SAFE_INTEGER,
-            actions: ['create'],
-          },
-        ],
-      },
     ])
     expect(buildMenus(['/app/user/query'])).toEqual([])
     expect(buildMenus(['/bob/customer/create'])).toHaveLength(1)
+    expect(buildMenus(['/aux/unknown/query'])).toEqual([])
   })
 
   it('按本地领域和实体顺序生成菜单，未注册实体排在已注册实体之后', () => {
@@ -140,22 +129,27 @@ describe('permission menu registry', () => {
       },
     ]
 
-    const menus = buildMenus([
-      '/app/user/query',
-      '/vou/saleorder/query',
-      '/bob/supplier/create',
-      '/bob/customer/query',
-    ], registrations)
+    const menus = buildMenus(
+      [
+        '/app/user/query',
+        '/vou/saleorder/query',
+        '/bob/supplier/create',
+        '/bob/customer/query',
+      ],
+      registrations,
+    )
 
     expect(menus.map((domain) => domain.domain)).toEqual(['bob', 'vou'])
     expect(menus[0]?.children.map((entity) => entity.entity)).toEqual([
       'customer',
       'supplier',
     ])
-    expect(menus[1]?.children.map((entity) => entity.entity)).toEqual(['saleorder'])
+    expect(menus[1]?.children.map((entity) => entity.entity)).toEqual([
+      'saleorder',
+    ])
   })
 
-  it('为全部菜单注册路由，未注册组件使用开发中占位页', () => {
+  it('为全部已注册菜单加载真实页面路由', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/bob/customer/query',
@@ -168,7 +162,10 @@ describe('permission menu registry', () => {
     expect(registerMenuRoutes(router, menus)).toBe(2)
     expect(router.hasRoute('page:bob/customer')).toBe(true)
     expect(router.hasRoute('page:bob/supplier')).toBe(true)
-    expect(router.resolve('/bob/customer').meta.actions).toEqual(['query', 'create'])
+    expect(router.resolve('/bob/customer').meta.actions).toEqual([
+      'query',
+      'create',
+    ])
     expect(router.resolve('/bob/customer').meta.developing).toBe(false)
     expect(router.resolve('/bob/supplier').meta.actions).toEqual(['query'])
     expect(router.resolve('/bob/supplier').meta.developing).toBe(false)
@@ -181,7 +178,7 @@ describe('permission menu registry', () => {
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })
 
-  it('为 BOB 十二类实体加载真实页面组件', () => {
+  it('为 BOB 八类实体加载真实页面组件', () => {
     const entities = [
       'customer',
       'supplier',
@@ -191,21 +188,56 @@ describe('permission menu registry', () => {
       'warehouse',
       'vehicle',
       'fund-account',
-      'category',
-      'department',
-      'position',
-      'settlement-method',
     ]
     const router = createTestRouter()
-    const menus = buildMenus(
-      entities.map((entity) => `/bob/${entity}/query`),
-    )
+    const menus = buildMenus(entities.map((entity) => `/bob/${entity}/query`))
 
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
     expect(registerMenuRoutes(router, menus)).toBe(entities.length)
     for (const entity of entities) {
       expect(hasRegisteredPage('bob', entity)).toBe(true)
       expect(router.resolve(`/bob/${entity}`).meta.developing).toBe(false)
+    }
+  })
+
+  it('为 AUX 九类实体生成中文菜单并加载真实页面组件', () => {
+    const entities = [
+      'product-category',
+      'department',
+      'position',
+      'settlement-method',
+      'measurement-unit',
+      'dictionary-type',
+      'dictionary-item',
+      'income-expense-type',
+      'account-subject',
+    ]
+    const titles = [
+      '产品分类',
+      '部门',
+      '岗位',
+      '结算方式',
+      '计量单位',
+      '字典类型',
+      '字典项',
+      '收支类型',
+      '会计科目',
+    ]
+    const router = createTestRouter()
+    const menus = buildMenus(entities.map((entity) => `/aux/${entity}/query`))
+
+    expect(menus).toHaveLength(1)
+    expect(menus[0]).toMatchObject({
+      domain: 'aux',
+      title: '辅助对象',
+      order: 15,
+    })
+    expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+    expect(menus[0]?.children.map((item) => item.title)).toEqual(titles)
+    expect(registerMenuRoutes(router, menus)).toBe(entities.length)
+    for (const entity of entities) {
+      expect(hasRegisteredPage('aux', entity)).toBe(true)
+      expect(router.resolve(`/aux/${entity}`).meta.developing).toBe(false)
     }
   })
 
@@ -223,10 +255,10 @@ describe('permission menu registry', () => {
       'other-income',
     ]
 
-    expect(entities.every((entity) => hasRegisteredPage('vou', entity))).toBe(true)
-    const menus = buildMenus(
-      entities.map((entity) => `/vou/${entity}/query`),
+    expect(entities.every((entity) => hasRegisteredPage('vou', entity))).toBe(
+      true,
     )
+    const menus = buildMenus(entities.map((entity) => `/vou/${entity}/query`))
     expect(menus).toHaveLength(1)
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)

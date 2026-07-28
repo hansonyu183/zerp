@@ -3,6 +3,7 @@ import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { generateObjectCode } from '@/utils/object-code'
 import { useBobHistory } from './history'
 import { useBobReferences } from './references'
 import type {
@@ -281,6 +282,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     if (!canCreate.value) return
     editorMode.value = 'create'
     editorModel.value = config.emptyForm()
+    editorModel.value.code = generateObjectCode('bob', config.entity)
     editContext.value = null
     currentView.value = null
     editorErrorMessage.value = null

@@ -27,8 +27,8 @@ func TestValidateCreateNormalizesCodeAndEntityFields(t *testing.T) {
 			Code: "sup-01", Name: "Supplier", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
-		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", Unit: "piece"}},
-		{EntityService, CreateDetailInput{Code: "svc01", Name: "Service", Unit: "hour"}},
+		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", Unit: "件"}},
+		{EntityService, CreateDetailInput{Code: "svc01", Name: "Service", Unit: "次"}},
 		{EntityWarehouse, CreateDetailInput{Code: "wh01", Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
 			Code: "veh01", Name: "配送车", PlateNumber: " 沪a12345 ",
@@ -221,14 +221,16 @@ func TestValidateDetailCountsUnicodeCharacters(t *testing.T) {
 		t.Fatalf("201-character name error = %v", err)
 	}
 	if _, err := validateDetail(EntityProduct, DetailInput{
-		Name: "产品",
-		Unit: strings.Repeat("箱", 32),
+		Name:            "产品",
+		Unit:            strings.Repeat("箱", 32),
+		InventoryUnitID: Optional("01JAVX00000000000000000013"),
 	}); err != nil {
 		t.Fatalf("32-character unit rejected: %v", err)
 	}
 	if _, err := validateDetail(EntityProduct, DetailInput{
-		Name: "产品",
-		Unit: strings.Repeat("箱", 33),
+		Name:            "产品",
+		Unit:            strings.Repeat("箱", 33),
+		InventoryUnitID: Optional("01JAVX00000000000000000013"),
 	}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("33-character unit error = %v", err)
 	}

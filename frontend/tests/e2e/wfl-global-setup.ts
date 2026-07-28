@@ -194,7 +194,6 @@ const bobReviewerActions = new Set([
   '/bob/customer/audit-history',
   ...[
     'employee',
-    'settlement-method',
     'supplier',
     'product',
     'vehicle',
@@ -227,6 +226,14 @@ async function createEffectiveBob(
     revision: submitted.revision,
     comment: 'WFL 隔离测试自动预置',
   })
+}
+
+async function createAuxiliary(
+  operator: RealApi,
+  entity: string,
+  data: Record<string, unknown>,
+): Promise<BobMutation> {
+  return operator.post<BobMutation>(`aux/${entity}/create`, { data })
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -281,15 +288,15 @@ export default async function globalSetup(): Promise<void> {
       'employee',
       { code: code('EMP'), name: `WFL 员工 ${suffix}` },
     )
-    const settlement = await createEffectiveBob(
+    const settlement = await createAuxiliary(
       operatorSession.api,
-      reviewerSession.api,
       'settlement-method',
       {
         code: code('SET'),
         name: `WFL 结算方式 ${suffix}`,
-        ruleType: 'RELATIVE_DAYS',
-        dayOffset: 30,
+        ruleType: 'DUE_DAYS',
+        dueDays: 30,
+        defaultSalesSurcharge: '0.00',
       },
     )
     const customerCode = code('CUS')
@@ -340,8 +347,10 @@ export default async function globalSetup(): Promise<void> {
         code: solventProductCode,
         name: `WFL 溶剂桶产品 ${suffix}`,
         unit: 'KG',
-        containerType: 'SOLVENT',
-        quantityPerContainer: '180',
+        productKind: 'RAW_MATERIAL',
+        inventoryUnitId: '01JAVX00000000000000000011',
+        pricingUnitId: '01JAVX00000000000000000011',
+        pricingQuantityPerInventoryUnit: '1',
       },
     )
     const resinProductCode = code('RES')
@@ -353,8 +362,10 @@ export default async function globalSetup(): Promise<void> {
         code: resinProductCode,
         name: `WFL 树脂桶产品 ${suffix}`,
         unit: 'KG',
-        containerType: 'RESIN',
-        quantityPerContainer: '220',
+        productKind: 'RAW_MATERIAL',
+        inventoryUnitId: '01JAVX00000000000000000011',
+        pricingUnitId: '01JAVX00000000000000000011',
+        pricingQuantityPerInventoryUnit: '1',
       },
     )
     const vehicleCode = code('VEH')
@@ -366,7 +377,7 @@ export default async function globalSetup(): Promise<void> {
         code: vehicleCode,
         name: `WFL 测试车辆 ${suffix}`,
         plateNumber: `E2E-${suffix.slice(-8)}`,
-        vehicleType: 'TRUCK',
+        vehicleType: 'BOX_TRUCK',
         platformObjectId: platform.objectId,
       },
     )

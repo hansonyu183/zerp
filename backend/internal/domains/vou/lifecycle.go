@@ -95,19 +95,23 @@ func (s *Service) createDocument(
 	}
 	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%06d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
+	resolved, err := s.resolveDraft(ctx, tx, entity, draft, resolvedDraft{}, true)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err = applySettlementTerms(entity, &draft, resolved); err != nil {
+		return MutationResult{}, err
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
 		ID: documentID, Entity: entity, DocumentNo: documentNo,
 		BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
+		DueDate:          optionalDate(draft.DueDate),
 		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark,
 		ParentEntity: nullableString(parentEntity), ParentDocumentID: nullableString(parentDocumentID),
 		ActorID: actorID,
 	})
 	if err != nil {
 		return MutationResult{}, s.writeError("insert document", err)
-	}
-	resolved, err := s.resolveDraft(ctx, tx, entity, draft, resolvedDraft{}, true)
-	if err != nil {
-		return MutationResult{}, err
 	}
 	if err = s.insertDetail(ctx, q, entity, documentID, draft, resolved); err != nil {
 		return MutationResult{}, s.writeError("insert document detail", err)
@@ -169,11 +173,15 @@ func (s *Service) Save(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err = applySettlementTerms(entity, &draft, resolved); err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.updateDetail(ctx, q, entity, input.DocumentID, draft, resolved); err != nil {
 		return MutationResult{}, s.writeError("update document detail", err)
 	}
 	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
+		DueDate:          optionalDate(draft.DueDate),
 		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark, ActorID: actorID,
 		ID: input.DocumentID, Entity: entity, Revision: input.Revision,
 	})

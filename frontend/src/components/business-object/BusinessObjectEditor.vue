@@ -50,13 +50,9 @@ const emit = defineEmits<{
 }>()
 
 const formRef = ref<FormRef | null>(null)
-const advancedShown = ref(false)
 const draft = ref<Record<string, unknown>>(cloneRecord(props.modelValue))
 const record = computed(
   () => (props.editing ? draft.value : props.modelValue) as Readonly<T>,
-)
-const hasAdvancedFields = computed(() =>
-  props.fields.some((field) => field.advanced),
 )
 const renderedFields = computed(() => props.fields.filter(isFieldVisible))
 
@@ -65,7 +61,6 @@ watch(
   (editing, wasEditing) => {
     if (editing && !wasEditing) {
       draft.value = cloneRecord(props.modelValue)
-      advancedShown.value = false
       formRef.value?.resetValidation()
     } else if (!editing) {
       draft.value = cloneRecord(props.modelValue)
@@ -86,7 +81,6 @@ watch(
   (value, previousValue) => {
     if (Object.is(value, previousValue)) return
     draft.value = cloneRecord(props.modelValue)
-    advancedShown.value = false
     formRef.value?.resetValidation()
   },
 )
@@ -133,15 +127,7 @@ function isFieldDisabled(field: BusinessObjectField<T>): boolean {
 }
 
 function isFieldVisible(field: BusinessObjectField<T>): boolean {
-  if (field.visible !== undefined && !resolveFieldState(field.visible)) return false
-  if (!props.editing || !field.advanced || advancedShown.value) return true
-  const value = getDraftValue(field)
-  return typeof value === 'string' && value.trim() !== '' &&
-    value.trim().toUpperCase() !== 'CNY'
-}
-
-function toggleAdvanced(): void {
-  advancedShown.value = !advancedShown.value
+  return field.visible === undefined || resolveFieldState(field.visible)
 }
 
 function isEmpty(value: unknown): boolean {
@@ -207,12 +193,6 @@ function cancelEditing(): void {
 async function save(): Promise<void> {
   if (!props.editing || props.loading || props.saving) return
 
-  if (
-    props.fields.some((field) =>
-      field.advanced && field.required && isEmpty(getDraftValue(field)))
-  ) {
-    advancedShown.value = true
-  }
   const validation = await formRef.value?.validate()
   if (validation && !validation.valid) return
 
@@ -301,18 +281,6 @@ async function save(): Promise<void> {
         validate-on="submit lazy"
         @submit.prevent="save"
       >
-        <div
-          v-if="hasAdvancedFields"
-          class="business-object-editor__advanced-toggle"
-        >
-          <button
-            class="business-object-editor__advanced-button"
-            type="button"
-            @click="toggleAdvanced"
-          >
-            {{ advancedShown ? '收起更多设置' : '更多设置' }}
-          </button>
-        </div>
         <div
           v-for="field in renderedFields"
           :key="fieldKey(field)"
@@ -532,21 +500,6 @@ async function save(): Promise<void> {
 .business-object-editor__field--wide {
   grid-column: 1 / -1;
 }
-.business-object-editor__advanced-toggle {
-  grid-column: 1 / -1;
-  text-align: right;
-}
-.business-object-editor__advanced-button {
-  border-radius: 4px;
-  color: rgb(var(--v-theme-primary));
-  font-size: 13px;
-  padding: 6px 10px;
-}
-.business-object-editor__advanced-button:focus-visible {
-  outline: 2px solid currentcolor;
-  outline-offset: 2px;
-}
-
 .business-object-editor__label {
   margin-bottom: 6px;
   color: rgb(var(--v-theme-on-surface-variant));

@@ -1,8 +1,8 @@
-# BOB 基础业务对象领域
+# BOB 业务对象领域
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object Base）** 领域的业务模型、状态机、数据约束、事务边界和前后端职责，作为客户、供应商、员工、产品、服务、仓库、车辆、资金账户、分类、部门、岗位和结算方式等基础业务对象的统一实现规范。HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、状态机、数据约束、事务边界和前后端职责，作为客户、供应商、员工、产品、服务、仓库、车辆和资金账户等业务对象的统一实现规范。产品分类、部门、岗位、结算方式、计量单位、字典和收支类型由 AUX 领域管理。HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的生命周期、引用、并发、审核和交互语义。
 
@@ -17,10 +17,6 @@ service
 warehouse
 vehicle
 fund-account
-category
-department
-position
-settlement-method
 ```
 
 数据库内部名称可使用 `fund_account`，但 HTTP 路径、权限路径和对外 JSON 中必须始终使用 `fund-account`，不得混用。
@@ -46,42 +42,30 @@ BOB 不负责：
 
 ### 2.1 业务字段
 
-十二类实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。除创建后不可修改的 `code` 外，下表字段均随版本保存：
+八类实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。除创建后不可修改的 `code` 外，下表字段均随版本保存：
 
-| 实体                | 版本字段                                                                                                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `customer`          | `name`、`customerType`、`shortName`、`categoryId`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId` |
-| `supplier`          | `name`、`supplierType`、`shortName`、`categoryId`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId` |
-| `employee`          | `name`、`categoryId`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                 |
-| `product`           | `name`、`unit`、`containerType`、`quantityPerContainer`、`categoryId`、`specification`、`model`、`barcode`、`remark`                                                       |
-| `service`           | `name`、`unit`、`categoryId`、`description`、`remark`                                                                                                                      |
-| `warehouse`         | `name`、`categoryId`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                              |
-| `vehicle`           | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`categoryId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                  |
-| `fund-account`      | `name`、`currency`、`categoryId`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                       |
-| `category`          | `name`、`targetEntity`、`parentId`、`description`                                                                                                                          |
-| `department`        | `name`、`categoryId`、`parentId`、`description`                                                                                                                            |
-| `position`          | `name`、`categoryId`、`description`                                                                                                                                        |
-| `settlement-method` | `name`、`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset`、`description`                                                                                                |
+| 实体           | 版本字段                                                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                              |
+| `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                              |
+| `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                              |
+| `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
+| `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                        |
+| `warehouse`    | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                           |
+| `vehicle`      | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                               |
+| `fund-account` | `name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                    |
 
-`customerType` 只能为 `END_USER` 或 `DEALER`，创建缺省为 `END_USER`；`supplierType` 只能为 `GENERAL` 或 `LOGISTICS_PLATFORM`，创建缺省为 `GENERAL`。保存时省略类型字段表示保持当前值。
+`customerType` 和 `vehicleType` 保存 AUX 字典项编码；初始客户类型为 `END_USER`、`DEALER`，历史车辆类型在迁移时自动形成字典项。`supplierType` 仍是业务枚举，只能为 `GENERAL` 或 `LOGISTICS_PLATFORM`。
 
-产品的 `containerType` 只能为 `NONE`、`SOLVENT` 或 `RESIN`，创建缺省为 `NONE`。`NONE` 不允许填写 `quantityPerContainer`；桶装产品必须填写大于零且最多六位小数的每桶产品量。两个字段随产品版本保存，供 VOU/WFL 交易单据在制单时快照；后续产品版本变化不回写历史单据。
+产品类型为原材料、自制成品、定制成品或包装物。普通商品按 kg 定价，并通过换算系数连接库存单位；包装物按自身单位定价，可标记为可回收。商品的多个包装规格引用包装物产品并保存每包装内容量和默认标记。旧桶型迁移成可回收包装物及对应包装规格。
 
-客户和供应商的 `settlementMethodId` 引用当前有效的结算方式，可选维护。结算方式的 `ruleType` 为 `RELATIVE_DAYS`、`MONTH_END` 或 `FIXED_DAY`，并由月份偏移、月内日期和天数偏移共同表达结算日期规则。
+客户和供应商的 `settlementMethodId` 引用当前启用的 AUX 结算方式，可选维护。交易单据的到期日和销售加价规则见 AUX 与 VOU 文档。
 
 客户和供应商的 `salespersonEmployeeId` 必填，引用任意当前有效的员工，不附加岗位限制。创建时必须传入；保存时省略表示保持当前员工，显式 `null` 或空字符串无效。存量版本统一回填 `DEMO-EMP-001`，有存量数据但该员工不存在或当前无有效版本时迁移安全失败。
 
-结算规则约束如下：
-
-- `monthOffset` 取 `0–120`，`dayOffset` 取 `-3650–3650`；
-- `RELATIVE_DAYS` 不使用月份和月内日期，`monthOffset` 必须为 `0`，到期规则为业务日期加 `dayOffset`；
-- `MONTH_END` 不使用 `dayOfMonth`，到期规则为业务日期偏移月份后取月末，再加 `dayOffset`；
-- `FIXED_DAY` 要求 `dayOfMonth` 为 `1–31`，偏移月份没有该日时取月末，再加 `dayOffset`；
-- 全部按自然日计算。BOB 和 VOU 均不计算、保存或返回 `dueDate`。
-
 所有新增可选字段在 `save` 中采用补丁语义：省略字段保持当前值，显式传 `null` 或空字符串清空；必填的 `salespersonEmployeeId` 只能省略保持或显式替换为另一有效员工。`name`、`unit`、`currency`、车辆原有字段和 `platformObjectId` 保持既有完整保存契约。调用方不得传入不属于路径实体的字段。
 
-`code` 创建时去除首尾空白并规范化为大写，同一实体内大小写不敏感唯一。长度为 1–64，只允许字母、数字、点、下划线和连字符，首字符必须是字母或数字。`name` 长度为 1–200；`unit` 长度为 1–32；`currency` 为三位大写字母；`plateNumber` 长度为 1–32；`vehicleType` 长度为 1–64。
+`code` 创建时去除首尾空白并规范化为大写，同一实体内大小写不敏感唯一。长度为 1–64，只允许字母、数字、点、下划线和连字符，首字符必须是字母或数字。`name` 长度为 1–200；`currency` 为三位大写字母；`plateNumber` 长度为 1–32。
 
 文本长度按 Unicode 字符数计算：简称和联系人上限 100，电话 32，邮箱 254，地址 500，规格、型号及银行字段 200，说明和备注 1000。`hireDate` 使用 `YYYY-MM-DD`。`vin` 可空，非空时为排除 I、O、Q 的 17 位标准大写格式。`loadCapacityKg` 使用大于零、最多三位小数的十进制定点字符串；返回时规范化为三位小数。`accountNumber` 去除空白和连字符并规范化为大写。
 
@@ -112,13 +96,11 @@ BOB 不负责：
 
 物流平台发起编辑后，到新版本再次审核生效前没有有效版本。此期间相关车辆自身状态不变，但不能通过 `ResolveEffectiveReference` 被新的业务引用；平台重新生效后自动恢复可引用。
 
-### 2.4 分类、部门、岗位、结算方式与通用引用
+### 2.4 辅助对象与业务对象引用
 
-`category.targetEntity` 决定分类适用的实体，可取原八类实体以及 `department`、`position`，不允许取 `category`。引用分类的对象必须与其 `targetEntity` 一致。分类和部门通过 `parentId` 建立单父多级树；分类父子必须具有相同 `targetEntity`，两类树均禁止自引用和循环。岗位全局独立，不绑定部门。
+`categoryId`、`departmentId`、`positionId` 和 `settlementMethodId` 分别引用 AUX 的产品分类、部门、岗位和结算方式；`managerEmployeeId`、`salespersonEmployeeId` 仍引用 BOB 员工。创建、保存、提交和审核时，被引用对象必须存在、处于可引用状态且实体类型匹配。
 
-`categoryId`、`departmentId`、`positionId`、`managerEmployeeId`、`settlementMethodId`、`salespersonEmployeeId` 和 `parentId` 是对象 ID 引用。创建、保存、提交和审核时，被引用对象必须存在当前有效版本且实体类型匹配。分类 `targetEntity` 仅在该分类的当前及历史版本均未被任何对象或子分类引用时允许修改。
-
-这些通用引用只在写入或审核引用方时校验，不递归改变已经生效对象的可引用性。例如分类进入编辑期时，已生效产品仍可被交易引用；但新的产品草稿不能选择该分类。车辆与物流平台的严格递归有效性规则仍按 2.3 节执行。
+产品分类只允许用于产品，不再为客户、供应商、员工、服务、仓库、车辆、资金账户等对象提供含义宽泛的通用分类。AUX 对象停用或修改后不会追溯改变已经生效的 BOB 版本；新的草稿和审核操作必须按当时状态重新校验。车辆与物流平台的严格递归有效性规则仍按 2.3 节执行。
 
 ## 3. 聚合模型
 
@@ -136,23 +118,19 @@ BusinessObject (稳定身份)
 
 建议共享生命周期表，并为各实体建立类型化版本明细表：
 
-| 模型             | 建议表名                         | 用途                                     |
-| ---------------- | -------------------------------- | ---------------------------------------- |
-| 业务对象         | `bob_objects`                    | 保存稳定身份、实体类型和当前指针         |
-| 对象版本         | `bob_versions`                   | 保存版本号、状态和审核审计字段           |
-| 状态事件         | `bob_audit_events`               | 追加保存每次状态变化和意见               |
-| 客户版本明细     | `bob_customer_versions`          | 客户类型化业务字段，与版本一对一         |
-| 供应商版本明细   | `bob_supplier_versions`          | 供应商类型化业务字段，与版本一对一       |
-| 员工版本明细     | `bob_employee_versions`          | 员工类型化业务字段，与版本一对一         |
-| 产品版本明细     | `bob_product_versions`           | 产品类型化业务字段，与版本一对一         |
-| 服务版本明细     | `bob_service_versions`           | 服务类型化业务字段，与版本一对一         |
-| 仓库版本明细     | `bob_warehouse_versions`         | 仓库类型化业务字段，与版本一对一         |
-| 车辆版本明细     | `bob_vehicle_versions`           | 车辆字段及物流平台对象引用，与版本一对一 |
-| 资金账户版本明细 | `bob_fund_account_versions`      | 资金账户类型化业务字段，与版本一对一     |
-| 分类版本明细     | `bob_category_versions`          | 分类作用域和父级引用，与版本一对一       |
-| 部门版本明细     | `bob_department_versions`        | 部门分类和父级引用，与版本一对一         |
-| 岗位版本明细     | `bob_position_versions`          | 岗位分类和说明，与版本一对一             |
-| 结算方式版本明细 | `bob_settlement_method_versions` | 结算日期规则，与版本一对一               |
+| 模型             | 建议表名                    | 用途                                     |
+| ---------------- | --------------------------- | ---------------------------------------- |
+| 业务对象         | `bob_objects`               | 保存稳定身份、实体类型和当前指针         |
+| 对象版本         | `bob_versions`              | 保存版本号、状态和审核审计字段           |
+| 状态事件         | `bob_audit_events`          | 追加保存每次状态变化和意见               |
+| 客户版本明细     | `bob_customer_versions`     | 客户类型化业务字段，与版本一对一         |
+| 供应商版本明细   | `bob_supplier_versions`     | 供应商类型化业务字段，与版本一对一       |
+| 员工版本明细     | `bob_employee_versions`     | 员工类型化业务字段，与版本一对一         |
+| 产品版本明细     | `bob_product_versions`      | 产品类型化业务字段，与版本一对一         |
+| 服务版本明细     | `bob_service_versions`      | 服务类型化业务字段，与版本一对一         |
+| 仓库版本明细     | `bob_warehouse_versions`    | 仓库类型化业务字段，与版本一对一         |
+| 车辆版本明细     | `bob_vehicle_versions`      | 车辆字段及物流平台对象引用，与版本一对一 |
+| 资金账户版本明细 | `bob_fund_account_versions` | 资金账户类型化业务字段，与版本一对一     |
 
 业务字段尚未确定前，不应仅为追求通用性把全部正式字段长期存入无约束 JSONB。类型化明细表可以提供外键、唯一性、精度、长度和查询索引约束；共享表只承载所有实体一致的生命周期信息。
 
@@ -267,7 +245,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 ## 5. 领域动作
 
-十二类实体提供相同的十一个动作，共定义 132 条业务 API：
+八类实体提供相同的十一个动作，共定义 88 条业务 API：
 
 | 动作         | 路径                          | 说明                                      |
 | ------------ | ----------------------------- | ----------------------------------------- |
@@ -283,7 +261,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 | 查看版本     | `/bob/{entity}/versions`      | 查询对象全部历史版本                      |
 | 审核记录     | `/bob/{entity}/audit-history` | 查询状态与审核事件                        |
 
-每条路径都是独立 APP 权限。后端通过路由元数据绑定权限标识，禁止 Handler 自行用字符串前缀或角色名称判断权限。`category`、`department`、`position` 的 33 条权限只登记到权限目录；`settlement-method` 的 11 条权限登记后授予超级管理员，不自动授予普通角色。
+每条路径都是独立 APP 权限。后端通过路由元数据绑定权限标识，禁止 Handler 自行用字符串前缀或角色名称判断权限。迁出的辅助对象使用 `/aux/{entity}/{action}` 权限，不再登记新的 BOB 权限。
 
 ## 6. 动作语义与约束
 
@@ -331,7 +309,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 各实体必须定义允许过滤、排序和关键字匹配的字段白名单。客户端字段名和排序方向不得拼接进 SQL；`pageSize` 必须设上限。
 
-通用过滤字段为 `keyword`、`status`；类型化过滤字段包括 `customerType`、`supplierType`、`categoryId`、`departmentId`、`positionId`、`salespersonEmployeeId`、`currency`、`targetEntity`、`parentId`、`rootOnly`。后端按实体维护白名单并拒绝有值的无关筛选字段：客户支持客户类型、分类和业务员，供应商支持供应商类型、分类和业务员，员工支持分类、部门和岗位，产品、服务、仓库、车辆和岗位支持分类，资金账户支持分类和币种，分类支持目标实体、父级和只查根节点，部门支持分类、父级和只查根节点。
+通用过滤字段为 `keyword`、`status`；类型化过滤字段包括 `customerType`、`supplierType`、`categoryId`、`departmentId`、`positionId`、`salespersonEmployeeId` 和 `currency`。后端按实体维护白名单并拒绝有值的无关筛选字段：客户和供应商支持业务员，员工支持部门和岗位，产品支持产品分类，资金账户支持币种。
 
 `keyword` 在 `code`、`name` 和该实体适合展示的常用属性中匹配；车辆额外匹配 `plateNumber`，资金账户不匹配 `accountNumber`。`status` 最多包含五个合法状态。排序数组最多一个元素，字段白名单为 `updatedAt`、`code`、`name`、`status`、`version`，方向只能是 `asc` 或 `desc`；默认按 `updatedAt desc`，并以对象 ID 作为稳定次序。`pageSize` 范围为 1–100。
 
@@ -514,7 +492,7 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 
 解析车辆有效引用时，还必须在同一事务内确认 `platformObjectId` 指向的供应商存在当前 `EFFECTIVE` 版本，且该版本 `supplierType=LOGISTICS_PLATFORM`。车辆和平台对象的共享锁保持到消费方事务结束，防止校验后平台立即进入编辑状态。
 
-通用分类、部门、岗位、负责人和业务员引用在引用方的创建、保存、提交和审核阶段校验。`ResolveEffectiveReference` 不递归要求这些参考对象仍处于有效状态；只有车辆—物流平台按上一段执行递归检查。VOU 使用客户或供应商业务员作为新单据默认值时，会在同一事务内另行解析该员工的当前有效版本。资金账户有效引用不返回完整账号。
+AUX 产品分类、部门、岗位、结算方式，以及 BOB 负责人和业务员引用在引用方的创建、保存、提交和审核阶段校验。VOU 使用客户或供应商业务员作为新单据默认值时，会在同一事务内另行解析该员工的当前有效版本。资金账户有效引用不返回完整账号。
 
 仅在前端下拉框加载时有效不构成写入保证。为避免“校验后、交易写入前”发生编辑失效，交易事务应对对象行取得与 BOB 编辑更新互斥的共享锁，或采用经验证的等效数据库约束/串行化方案。
 
@@ -580,13 +558,13 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 18. 非草稿、多个版本、曾提交或审核、曾生效、revision 过期及实体不匹配时拒绝删除；
 19. BOB 车辆平台引用或任一 VOU 对象/版本快照引用存在时拒绝删除且数据保持完整；
 20. 删除与保存、编辑或提交并发时最多一个动作成功，失败及事务中途异常不留下孤儿数据。
-21. 分类、部门和岗位复用完整生命周期；分类作用域、父子同作用域以及分类/部门并发环路受到约束；
-22. 通用引用要求当前有效且实体匹配，分类还必须匹配 `targetEntity`；
-23. 分类有任一当前或历史引用时不能修改 `targetEntity`，参考对象编辑期不递归阻塞已经生效的引用方；
+21. 产品分类、部门、岗位和结算方式必须引用实体匹配且当前可用的 AUX 对象；
+22. 产品分类只能被产品引用，其他 BOB 实体不能保存通用分类；
+23. AUX 对象停用或修改不追溯改变已经生效的 BOB 版本，但阻止后续草稿保存或审核；
 24. 税号、条码、VIN 和资金账号经过规范化并满足当前版本唯一，历史版本释放后可复用；
 25. 旧请求保存时保留新增可选字段，显式 `null` 或空字符串能够清空；
 26. 资金账号只在详情和版本历史返回，查询、关键字搜索、有效引用、审计和日志不暴露完整账号；
-27. 12 类实体共注册 132 条路由，权限精确匹配且不自动授予普通角色。
+27. 8 类实体共注册 88 条路由，权限精确匹配且不自动授予普通角色。
 
 ## 13. 待决事项
 
@@ -609,7 +587,7 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 
 列表、详情、写入结果和字段类型直接使用 OpenAPI 生成类型。前端不得维护 `CustomerData`、变更结果或请求体的手写副本。
 
-客户分类、结算方式和业务员分别引用当前有效的 `category`、`settlement-method` 和 `employee` 对象；后两者只保存客户主数据默认值，不在本领域自动带入交易单据。所有写操作由后端校验权限、生命周期和 revision；删除还必须满足 4.3 节的首版草稿条件。
+结算方式和业务员分别引用当前可用的 AUX `settlement-method` 和当前有效的 BOB `employee` 对象。它们保存客户主数据默认值，由 VOU 在制单时解析并保存快照。所有写操作由后端校验权限、生命周期和 revision；删除还必须满足 4.3 节的首版草稿条件。
 
 除名称、客户类型和业务员外的客户字段可以清空；省略字段与显式清空的语义按 2.1 节执行。客户类型新建时默认为 `END_USER`，业务员必须引用有效员工且不可清空。
 
@@ -618,22 +596,17 @@ BOB 提供内部领域能力 `ResolveEffectiveReference(entity, objectId, versio
 全部实体使用 OpenAPI 定义的统一对象、版本、分页和变更结果结构，并由前端本地
 配置声明各自的展示与编辑字段。前端已注册 `customer`、`supplier`、
 `employee`、`product`、`service`、`warehouse`、`vehicle`、
-`fund-account`、`category`、`department`、`position` 和
-`settlement-method` 页面，统一使用共享 BOB 页面和 ViewModel，支持第 7 节
+`fund-account` 页面，统一使用共享 BOB 页面和 ViewModel，支持第 7 节
 的十一个动作。
 
 引用字段使用目标实体的稳定 `objectId`。编辑器和筛选器只通过目标实体
-`query` 查询 `EFFECTIVE` 对象，显示“编码 · 名称”，不使用本地假数据。
-分类引用额外按 `targetEntity` 限定，车辆物流平台额外限定
+`query` 查询可引用对象，显示“编码 · 名称”，不使用本地假数据。
+产品分类、部门、岗位和结算方式通过 AUX 查询，车辆物流平台额外限定
 `supplierType=LOGISTICS_PLATFORM`。
 
 客户和供应商的 `salespersonEmployeeId` 均为必填员工引用。创建和保存时必须
 发送该字段；前端缺少员工查询权限或员工列表加载失败时显示明确错误并阻止
 提交空引用。
-
-`settlement-method` 使用正式类型化契约，字段为 `name`、`ruleType`、
-`monthOffset`、`dayOfMonth`、`dayOffset` 和 `description`，与其他 BOB
-实体使用相同的查询、版本、审核和审计能力。
 
 ### 14.3 权限
 

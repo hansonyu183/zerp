@@ -42,15 +42,26 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		if err != nil {
 			return err
 		}
-		return q.InsertBobProductDetail(ctx, dbsqlc.InsertBobProductDetailParams{
+		conversion, err := fixedMicros(data.PricingQuantityPerInventoryUnit)
+		if err != nil {
+			return err
+		}
+		if err = q.InsertBobProductDetail(ctx, dbsqlc.InsertBobProductDetailParams{
 			VersionID: versionID, Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark),
 			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
-		})
+			ProductKind: data.ProductKind, InventoryUnitID: data.InventoryUnitID,
+			PricingUnitID:                         data.PricingUnitID,
+			PricingQuantityPerInventoryUnitMicros: conversion, Returnable: data.Returnable,
+		}); err != nil {
+			return err
+		}
+		return insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs)
 	case EntityService:
 		return q.InsertBobServiceDetail(ctx, dbsqlc.InsertBobServiceDetailParams{
-			VersionID: versionID, Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
+			VersionID: versionID, Name: data.Name, Unit: data.Unit, UnitID: data.InventoryUnitID,
+			CategoryID:  nilIfEmpty(data.CategoryID),
 			Description: nilIfEmpty(data.Description), Remark: nilIfEmpty(data.Remark),
 		})
 	case EntityWarehouse:
@@ -137,15 +148,28 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		if parseErr != nil {
 			return parseErr
 		}
+		conversion, parseErr := fixedMicros(data.PricingQuantityPerInventoryUnit)
+		if parseErr != nil {
+			return parseErr
+		}
 		rows, err = q.UpdateBobProductDetail(ctx, dbsqlc.UpdateBobProductDetailParams{
 			Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
+			ProductKind: data.ProductKind, InventoryUnitID: data.InventoryUnitID,
+			PricingUnitID:                         data.PricingUnitID,
+			PricingQuantityPerInventoryUnitMicros: conversion, Returnable: data.Returnable,
 		})
+		if err == nil && rows == 1 {
+			if err = q.DeleteBobProductPackagingSpecs(ctx, versionID); err == nil {
+				err = insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs)
+			}
+		}
 	case EntityService:
 		rows, err = q.UpdateBobServiceDetail(ctx, dbsqlc.UpdateBobServiceDetailParams{
-			Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
+			Name: data.Name, Unit: data.Unit, UnitID: data.InventoryUnitID,
+			CategoryID:  nilIfEmpty(data.CategoryID),
 			Description: nilIfEmpty(data.Description), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 		})
 	case EntityWarehouse:
@@ -209,7 +233,12 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 	case EntityEmployee:
 		return q.CopyBobEmployeeDetail(ctx, dbsqlc.CopyBobEmployeeDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityProduct:
-		return q.CopyBobProductDetail(ctx, dbsqlc.CopyBobProductDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
+		if err := q.CopyBobProductDetail(ctx, dbsqlc.CopyBobProductDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
+			return err
+		}
+		return q.CopyBobProductPackagingSpecs(ctx, dbsqlc.CopyBobProductPackagingSpecsParams{
+			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+		})
 	case EntityService:
 		return q.CopyBobServiceDetail(ctx, dbsqlc.CopyBobServiceDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityWarehouse:
@@ -231,6 +260,27 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 	}
 }
 
+func insertProductPackagingSpecs(
+	ctx context.Context, q *dbsqlc.Queries, versionID string, specs []PackagingSpecInput,
+) error {
+	for _, spec := range specs {
+		quantity, err := fixedMicros(spec.ContentQuantity)
+		if err != nil {
+			return err
+		}
+		if err = q.InsertBobProductPackagingSpec(ctx, dbsqlc.InsertBobProductPackagingSpecParams{
+			ProductVersionID:          versionID,
+			PackagingProductObjectID:  spec.PackagingProductObjectID,
+			PackagingProductVersionID: spec.PackagingProductVersionID,
+			ContentQuantityMicros:     quantity,
+			IsDefault:                 spec.IsDefault,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
 	switch entity {
 	case EntityCustomer:
@@ -240,6 +290,9 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	case EntityEmployee:
 		return q.DeleteBobEmployeeDetail(ctx, versionID)
 	case EntityProduct:
+		if err := q.DeleteBobProductPackagingSpecs(ctx, versionID); err != nil {
+			return 0, err
+		}
 		return q.DeleteBobProductDetail(ctx, versionID)
 	case EntityService:
 		return q.DeleteBobServiceDetail(ctx, versionID)

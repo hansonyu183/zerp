@@ -33,6 +33,8 @@ export interface VoucherReference extends VoucherReferenceInput {
   plateNumber?: string
   supplierType?: string
   platformObjectId?: string
+  productKind?: string
+  pricingQuantityPerInventoryUnit?: string
 }
 
 export interface VoucherProductLineDraft {
@@ -41,6 +43,7 @@ export interface VoucherProductLineDraft {
   product: VoucherReference | null
   orderedQuantity: string
   unitPrice: string
+  settlementSurcharge: string
   purchaseUnitPrice: string
   remark: string
 }
@@ -101,6 +104,8 @@ export interface VoucherReferenceView extends VoucherReferenceInput {
   unit?: string
   currency?: string
   plateNumber?: string
+  productKind?: string
+  pricingQuantityPerInventoryUnit?: string
 }
 
 export interface VoucherProductLineView {
@@ -109,6 +114,8 @@ export interface VoucherProductLineView {
   product: VoucherReferenceView
   orderedQuantity: string
   unitPrice: string
+  baseUnitPrice?: string
+  settlementSurcharge?: string
   purchaseUnitPrice?: string
   lineAmount: string
   remark?: string
@@ -150,10 +157,13 @@ export interface SettlementMethodSnapshot {
   versionId: string
   code: string
   name: string
-  ruleType: 'RELATIVE_DAYS' | 'MONTH_END' | 'FIXED_DAY'
+  ruleType: 'DUE_DAYS' | 'MONTH_END' | 'RELATIVE_DAYS' | 'FIXED_DAY'
   monthOffset: number
   dayOfMonth?: number
   dayOffset: number
+  dueDays?: number
+  cutoffDay?: number
+  defaultSalesSurcharge?: string
   description?: string
 }
 
@@ -208,6 +218,7 @@ export interface VouAtomicDocument<
 
 export interface VoucherDocumentData {
   businessDate: string
+  dueDate?: string
   currency: string
   remark?: string
   customer?: VoucherReferenceView

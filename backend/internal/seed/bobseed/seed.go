@@ -154,12 +154,12 @@ var samples = [...]sample{
 		Code: "DEMO-WH-002", Name: "临时仓（已驳回）", Address: "上海市青浦区临时仓路2号",
 	}, status: bob.StatusRejected},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
-		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "厢式货车",
+		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "BOX_TRUCK",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
 		Remark: "演示有效车辆",
 	}, status: bob.StatusEffective, platformCode: "DEMO-SUP-001"},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
-		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "厢式货车",
+		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "BOX_TRUCK",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
 	}, status: bob.StatusDraft, platformCode: "DEMO-SUP-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
@@ -290,7 +290,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			requestID(item.data.Code, "create"),
 		)
 		if err != nil {
-			return 0, fmt.Errorf("create object: %w", err)
+			return 0, fmt.Errorf("create object: %w (cause: %v)", err, errors.Unwrap(err))
 		}
 	}
 

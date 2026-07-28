@@ -29,7 +29,9 @@ func (s *Service) writeSaleDetail(
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
-		SettlementDescription: settlement.Description,
+		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
+		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
+		SettlementDescription:                settlement.Description,
 	}
 	if update {
 		rows, err := q.UpdateVouSaleOrderDetail(ctx, dbsqlc.UpdateVouSaleOrderDetailParams{
@@ -44,7 +46,9 @@ func (s *Service) writeSaleDetail(
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
-			SettlementDescription: params.SettlementDescription, DocumentID: documentID,
+			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
+			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
+			SettlementDescription:                params.SettlementDescription, DocumentID: documentID,
 		})
 		return oneRow(rows, err)
 	}
@@ -76,7 +80,9 @@ func (s *Service) writePurchaseDetail(
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
-		SettlementDescription: settlement.Description,
+		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
+		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
+		SettlementDescription:                settlement.Description,
 	}
 	if update {
 		rows, err := q.UpdateVouPurchaseOrderDetail(ctx, dbsqlc.UpdateVouPurchaseOrderDetailParams{
@@ -92,7 +98,9 @@ func (s *Service) writePurchaseDetail(
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
-			SettlementDescription: params.SettlementDescription, DocumentID: documentID,
+			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
+			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
+			SettlementDescription:                params.SettlementDescription, DocumentID: documentID,
 		})
 		return oneRow(rows, err)
 	}

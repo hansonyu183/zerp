@@ -72,6 +72,13 @@ export const containerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '树脂桶', value: 'RESIN' },
 ]
 
+export const productKindOptions: readonly BusinessObjectFieldOption[] = [
+  { title: '原材料（可销售）', value: 'RAW_MATERIAL' },
+  { title: '自制成品（固定配方）', value: 'STANDARD_FINISHED' },
+  { title: '定制成品（订单配方）', value: 'CUSTOM_FINISHED' },
+  { title: '包装物', value: 'PACKAGING' },
+]
+
 export function lengthOf(value: unknown): number {
   return typeof value === 'string' ? Array.from(value).length : 0
 }
@@ -89,7 +96,7 @@ export function patternRule(pattern: RegExp, message: string) {
 }
 
 export function commonFields(
-  context: BobFieldContext,
+  _context: BobFieldContext,
   codeLabel: string,
   nameLabel: string,
 ): BusinessObjectField<BobForm>[] {
@@ -97,9 +104,8 @@ export function commonFields(
     {
       key: 'code',
       label: codeLabel,
-      type: 'text',
+      type: 'readonly',
       required: true,
-      readonly: context.mode !== 'create',
       rules: [patternRule(codePattern, '编码格式不正确。')],
     },
     {
@@ -261,7 +267,7 @@ export function defineBobEntityConfig(
     metadata.fields(emptyContext).map((field) => String(field.key)),
   )
 
-  assertConfigKeys(metadata.entity, 'requiredKeys', metadata.requiredKeys, fieldKeys)
+  assertConfigKeys(metadata.entity, 'requiredKeys', metadata.requiredKeys, formKeys)
   assertConfigKeys(metadata.entity, 'uppercaseKeys', metadata.uppercaseKeys ?? [], formKeys)
   assertConfigKeys(metadata.entity, 'persistedKeys', metadata.persistedKeys ?? [], formKeys)
   assertConfigKeys(

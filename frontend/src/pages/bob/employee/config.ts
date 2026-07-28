@@ -1,7 +1,6 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
   defineBobEntityConfig,
   emailPattern,
@@ -18,7 +17,6 @@ export const employeeConfig = defineBobEntityConfig({
   codeLabel: '员工编码',
   nameLabel: '员工姓名',
   defaults: {
-    categoryId: '',
     departmentId: '',
     positionId: '',
     phone: '',
@@ -29,17 +27,11 @@ export const employeeConfig = defineBobEntityConfig({
   requiredKeys: ['code', 'name'],
   uppercaseKeys: ['code'],
   references: {
-    categoryId: {
-      entity: 'category',
-      label: '员工分类',
-      filters: { targetEntity: 'employee' },
-    },
-    departmentId: { entity: 'department', label: '部门' },
-    positionId: { entity: 'position', label: '岗位' },
+    departmentId: { domain: 'aux', entity: 'department', label: '部门' },
+    positionId: { domain: 'aux', entity: 'position', label: '岗位' },
   },
   fields: (context) => [
     ...commonFields(context, '员工编码', '员工姓名'),
-    reference('categoryId', '员工分类', context),
     reference('departmentId', '部门', context),
     reference('positionId', '岗位', context),
     text('phone', '联系电话', 32, {
@@ -64,18 +56,17 @@ export const employeeConfig = defineBobEntityConfig({
     },
   ]),
   filters: baseFilters([
-    categoryFilter('employee'),
     {
       key: 'departmentId',
       label: '部门',
       type: 'autocomplete',
-      reference: { entity: 'department', label: '部门' },
+      reference: { domain: 'aux', entity: 'department', label: '部门' },
     },
     {
       key: 'positionId',
       label: '岗位',
       type: 'autocomplete',
-      reference: { entity: 'position', label: '岗位' },
+      reference: { domain: 'aux', entity: 'position', label: '岗位' },
     },
   ]),
 })

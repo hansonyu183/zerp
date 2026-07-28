@@ -44,11 +44,29 @@ export function calculateDueDate(
   const date = parseDate(businessDate)
   if (!date || !settlement) return null
 
-  if (settlement.ruleType === 'RELATIVE_DAYS') {
-    return formatDate(addDays(date, settlement.dayOffset))
+  if (
+    settlement.ruleType === 'DUE_DAYS' ||
+    settlement.ruleType === 'RELATIVE_DAYS'
+  ) {
+    return formatDate(
+      addDays(
+        date,
+        settlement.ruleType === 'DUE_DAYS'
+          ? settlement.dueDays ?? 0
+          : settlement.dayOffset,
+      ),
+    )
   }
 
-  const target = shiftedMonth(date, settlement.monthOffset)
+  const cutoffMonth =
+    settlement.ruleType === 'MONTH_END' &&
+    date.getDate() > (settlement.cutoffDay ?? 31)
+      ? 1
+      : 0
+  const target = shiftedMonth(
+    date,
+    settlement.monthOffset + cutoffMonth,
+  )
   if (settlement.ruleType === 'MONTH_END') {
     return formatDate(
       addDays(new Date(target.year, target.month + 1, 0), settlement.dayOffset),

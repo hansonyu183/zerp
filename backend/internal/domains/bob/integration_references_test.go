@@ -13,13 +13,6 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	pool := integrationPool(t)
 	service := NewService(pool)
 
-	category, categoryApproved := createApprovedIntegration(t, service, EntityCategory, CreateDetailInput{
-		Code: "CC" + newID(), Name: "客户分类", TargetEntity: EntityCustomer,
-		Description: "用于客户筛选",
-	}, "common-customer-category")
-	productCategory, _ := createApprovedIntegration(t, service, EntityCategory, CreateDetailInput{
-		Code: "PC" + newID(), Name: "产品分类", TargetEntity: EntityProduct,
-	}, "common-product-category")
 	department, _ := createApprovedIntegration(t, service, EntityDepartment, CreateDetailInput{
 		Code: "DP" + newID(), Name: "运营部",
 	}, "common-department")
@@ -42,12 +35,6 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		t.Fatalf("query settlement methods page=%+v err=%v", settlementPage, err)
 	}
 
-	if _, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
-		Code: "WC" + newID(), Name: "错误分类客户", CategoryID: productCategory.ObjectID,
-		SalespersonEmployeeID: salesperson.ObjectID,
-	}}, integrationActorOne, "wrong-category-target"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("wrong category target error = %v", err)
-	}
 	if _, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
 		Code: "WS" + newID(), Name: "错误结算方式客户", SettlementMethodID: position.ObjectID,
 		SalespersonEmployeeID: salesperson.ObjectID,
@@ -73,7 +60,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	taxNumber := "TAX" + newID()
 	customer, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
 		Code: "CA" + newID(), Name: "属性客户", CustomerType: stringIntegrationPointer(CustomerTypeDealer),
-		ShortName: "属性客户简称", CategoryID: category.ObjectID, TaxNumber: taxNumber,
+		ShortName: "属性客户简称", TaxNumber: taxNumber,
 		ContactName: "联系人", ContactPhone: "+86 13800000000",
 		Email: "CONTACT@EXAMPLE.COM", Address: "上海市示例路", Remark: "新增属性",
 		SettlementMethodID:    settlementMethod.ObjectID,
@@ -91,7 +78,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}
 	view, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: customer.ObjectID})
 	if err != nil || view.Data.ShortName != "属性客户简称" || view.Data.TaxNumber != taxNumber ||
-		view.Data.Email != "contact@example.com" || view.Data.CategoryID != category.ObjectID ||
+		view.Data.Email != "contact@example.com" ||
 		view.Data.SettlementMethodID != settlementMethod.ObjectID ||
 		view.Data.SalespersonEmployeeID != salesperson.ObjectID {
 		t.Fatalf("preserved customer view=%+v err=%v", view, err)
@@ -99,7 +86,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	page, err := service.Query(t.Context(), EntityCustomer, QueryInput{
 		Page: 1, PageSize: 20,
 		Filters: QueryFilters{
-			CustomerType: CustomerTypeDealer, CategoryID: category.ObjectID,
+			CustomerType:          CustomerTypeDealer,
 			SalespersonEmployeeID: salesperson.ObjectID, Keyword: taxNumber,
 		},
 	})
@@ -230,84 +217,6 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		t.Fatalf("duplicate account error = %v", err)
 	}
 
-	categoryEdit, err := service.Edit(t.Context(), EntityCategory, ObjectRevisionInput{
-		ObjectID: category.ObjectID, ObjectRevision: categoryApproved.ObjectRevision,
-	}, integrationActorOne, "category-target-edit")
-	if err != nil {
-		t.Fatalf("edit referenced category: %v", err)
-	}
-	tx, err = pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin customer resolve during category edit: %v", err)
-	}
-	_, err = service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, customer.ObjectID, customer.VersionID)
-	_ = tx.Rollback(t.Context())
-	if err != nil {
-		t.Fatalf("category edit recursively blocked customer: %v", err)
-	}
-	if _, err = service.Save(t.Context(), EntityCategory, SaveInput{
-		ObjectID: categoryEdit.ObjectID, VersionID: categoryEdit.VersionID, Revision: categoryEdit.Revision,
-		Data: DetailInput{
-			Name: "客户分类", TargetEntity: stringIntegrationPointer(EntityProduct),
-		},
-	}, integrationActorOne, "category-target-change"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("referenced category target change error = %v", err)
-	}
-
-	categorySaved, err := service.Save(t.Context(), EntityCategory, SaveInput{
-		ObjectID: categoryEdit.ObjectID, VersionID: categoryEdit.VersionID, Revision: categoryEdit.Revision,
-		Data: DetailInput{Name: "客户分类"},
-	}, integrationActorOne, "category-restore-save")
-	if err != nil {
-		t.Fatalf("restore category draft: %v", err)
-	}
-	categorySubmitted, _ := service.Submit(t.Context(), EntityCategory, VersionRevisionInput{
-		ObjectID: categoryEdit.ObjectID, VersionID: categoryEdit.VersionID, Revision: categorySaved.Revision,
-	}, integrationActorOne, "category-restore-submit")
-	categoryRestored, err := service.Approve(t.Context(), EntityCategory, ReviewInput{
-		ObjectID: categoryEdit.ObjectID, VersionID: categoryEdit.VersionID, Revision: categorySubmitted.Revision,
-	}, integrationActorTwo, "category-restore-approve")
-	if err != nil {
-		t.Fatalf("restore category effective version: %v", err)
-	}
-
-	customerEdit, err := service.Edit(t.Context(), EntityCustomer, ObjectRevisionInput{
-		ObjectID: customer.ObjectID, ObjectRevision: approved.ObjectRevision,
-	}, integrationActorOne, "historical-category-customer-edit")
-	if err != nil {
-		t.Fatalf("edit customer before clearing category: %v", err)
-	}
-	customerSaved, err := service.Save(t.Context(), EntityCustomer, SaveInput{
-		ObjectID: customerEdit.ObjectID, VersionID: customerEdit.VersionID, Revision: customerEdit.Revision,
-		Data: DetailInput{Name: "属性客户（更新）", CategoryID: Optional("")},
-	}, integrationActorOne, "historical-category-customer-save")
-	if err != nil {
-		t.Fatalf("clear current customer category: %v", err)
-	}
-	customerSubmitted, _ := service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
-		ObjectID: customerEdit.ObjectID, VersionID: customerEdit.VersionID, Revision: customerSaved.Revision,
-	}, integrationActorOne, "historical-category-customer-submit")
-	if _, err = service.Approve(t.Context(), EntityCustomer, ReviewInput{
-		ObjectID: customerEdit.ObjectID, VersionID: customerEdit.VersionID, Revision: customerSubmitted.Revision,
-	}, integrationActorTwo, "historical-category-customer-approve"); err != nil {
-		t.Fatalf("approve customer without current category: %v", err)
-	}
-
-	categoryHistoryEdit, err := service.Edit(t.Context(), EntityCategory, ObjectRevisionInput{
-		ObjectID: category.ObjectID, ObjectRevision: categoryRestored.ObjectRevision,
-	}, integrationActorOne, "historical-category-target-edit")
-	if err != nil {
-		t.Fatalf("edit category with historical reference: %v", err)
-	}
-	if _, err = service.Save(t.Context(), EntityCategory, SaveInput{
-		ObjectID: categoryHistoryEdit.ObjectID, VersionID: categoryHistoryEdit.VersionID,
-		Revision: categoryHistoryEdit.Revision,
-		Data: DetailInput{
-			Name: "客户分类", TargetEntity: stringIntegrationPointer(EntityProduct),
-		},
-	}, integrationActorOne, "historical-category-target-save"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("historical category target change error = %v", err)
-	}
 	if approved.ObjectID == "" {
 		t.Fatal("customer approval result is empty")
 	}
@@ -375,18 +284,6 @@ func TestCommonAttributeSchemaAndPermissionsIntegration(t *testing.T) {
 		}
 	}
 
-	expected := map[string]int{}
-	actions := []string{
-		"approve", "audit-history", "create", "delete", "edit", "get",
-		"query", "reject", "save", "submit", "versions",
-	}
-	for entity, first := range map[string]int{
-		EntityCategory: 89, EntityDepartment: 100, EntityPosition: 111,
-	} {
-		for offset, action := range actions {
-			expected["/bob/"+entity+"/"+action] = first + offset
-		}
-	}
 	rows, err := pool.Query(t.Context(), `
 		SELECT id, path
 		FROM app_permissions
@@ -398,22 +295,13 @@ func TestCommonAttributeSchemaAndPermissionsIntegration(t *testing.T) {
 	defer rows.Close()
 	seen := 0
 	for rows.Next() {
-		var id, path string
-		if err = rows.Scan(&id, &path); err != nil {
-			t.Fatalf("scan common attribute permission: %v", err)
-		}
-		sequence, ok := expected[path]
-		expectedID := "01JBOB" + fmt.Sprintf("%020d", sequence)
-		if !ok || id != expectedID {
-			t.Fatalf("permission id=%s path=%s expected=%s", id, path, expectedID)
-		}
 		seen++
 	}
 	if err = rows.Err(); err != nil {
 		t.Fatalf("iterate common attribute permissions: %v", err)
 	}
-	if seen != 33 {
-		t.Fatalf("common attribute permission count = %d, want 33", seen)
+	if seen != 0 {
+		t.Fatalf("migrated BOB permission count = %d, want 0", seen)
 	}
 
 	var grants int

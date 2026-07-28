@@ -97,7 +97,7 @@ function sizeText(size: number): string {
       type="info"
       variant="tonal"
     >
-      请先创建草稿，再添加附件。
+      请先保存草稿，再添加附件。
     </v-alert>
     <v-alert
       v-if="localError || errorMessage"

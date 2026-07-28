@@ -34,6 +34,32 @@ if (
   )
 }
 
+const nginxConfig = fs.readFileSync(
+  path.join(frontendRoot, 'nginx.conf'),
+  'utf8',
+)
+if (
+  !/location \/assets\/\s*\{[\s\S]*?try_files \$uri @missing_asset;[\s\S]*?Cache-Control "public, max-age=31536000, immutable"/.test(
+    nginxConfig,
+  )
+) {
+  failures.push('nginx.conf 必须让缺失的哈希资源返回 404，并长期缓存已有资源')
+}
+if (
+  !/location @missing_asset\s*\{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"[\s\S]*?return 404;/.test(
+    nginxConfig,
+  )
+) {
+  failures.push('nginx.conf 必须禁止缓存缺失的哈希资源响应')
+}
+if (
+  !/location = \/index\.html\s*\{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"/.test(
+    nginxConfig,
+  )
+) {
+  failures.push('nginx.conf 必须禁止缓存 SPA 入口文件')
+}
+
 if (failures.length > 0) {
   process.stderr.write(
     `${failures.map((failure) => `- ${failure}`).join('\n')}\n`,

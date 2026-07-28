@@ -24,7 +24,8 @@ import {
   type DraftPayload,
 } from './form'
 import { useVoucherReferences } from './references'
-import { appendSalesChainPayload, useVoucherSalesChain } from './sales-chain'
+import { buildVoucherDraftPayload } from './payload'
+import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
@@ -341,72 +342,15 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function markReferenceChanged(key: keyof VoucherDraftForm): void {
     if (PERSONNEL_KEYS.has(key)) personnelDirty.add(key)
+    if (key === 'customer' && config.entity === 'sale-order') {
+      form.value.productLines = form.value.productLines.map((line) =>
+        ({ ...line, settlementSurcharge: '' }))
+    }
     if (key === 'fundAccount') {
       form.value.currency = form.value.fundAccount?.currency ?? ''
     }
     if (key === 'platform') form.value.vehicle = null
     if (key === 'counterpartyType') form.value.counterparty = null
-  }
-
-  function buildDraftPayload(): DraftPayload {
-    const value = form.value
-    const payload: DraftPayload = {
-      businessDate: value.businessDate,
-      currency: value.currency.trim().toUpperCase(),
-      ...(value.remark.trim() ? { remark: value.remark.trim() } : {}),
-    }
-    if (config.partyMode === 'customer' || config.partyMode === 'dual') {
-      payload.customer = inputReference(value.customer)
-    }
-    if (config.partyMode === 'supplier' || config.partyMode === 'dual') {
-      payload.supplier = inputReference(value.supplier)
-    }
-    if (config.partyMode === 'counterparty' && value.counterparty) {
-      payload.counterpartyType = value.counterpartyType
-      payload.counterparty = inputReference(value.counterparty)
-    }
-    if (config.usesEmployee) payload.employee = inputReference(value.employee)
-    if (
-      config.usesSalesperson &&
-      (!documentView.value || personnelDirty.has('salesperson'))
-    ) {
-      payload.salesperson = inputReference(value.salesperson)
-    }
-    if (
-      config.usesPurchaser &&
-      (!documentView.value || personnelDirty.has('purchaser'))
-    ) {
-      payload.purchaser = inputReference(value.purchaser)
-    }
-    if (config.usesHandler) payload.handler = inputReference(value.handler)
-    if (config.usesWarehouse)
-      payload.warehouse = inputReference(value.warehouse)
-    if (config.entity === 'sale-delivery') {
-      payload.platform = inputReference(value.platform)
-      payload.vehicle = inputReference(value.vehicle)
-    }
-    if (config.usesFundAccount)
-      payload.fundAccount = inputReference(value.fundAccount)
-    if (config.usesSourceName) payload.sourceName = value.sourceName.trim()
-    if (config.directAmount) payload.amount = value.amount.trim()
-    if (config.lineKind === 'product') {
-      payload.productLines = value.productLines.map((line) => ({
-        product: inputReference(line.product)!,
-        orderedQuantity: line.orderedQuantity.trim(),
-        unitPrice: line.unitPrice.trim(),
-        ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
-      }))
-    }
-    if (config.lineKind === 'expense') {
-      payload.expenseLines = value.expenseLines.map((line) => ({
-        category: line.category.trim(),
-        description: line.description.trim(),
-        amount: line.amount.trim(),
-        ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
-      }))
-    }
-    appendSalesChainPayload(config, value, payload)
-    return payload
   }
 
   async function save(): Promise<boolean> {
@@ -418,7 +362,12 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     saving.value = true
     workspaceError.value = null
     try {
-      const payload = buildDraftPayload()
+      const payload = buildVoucherDraftPayload(
+        config,
+        form.value,
+        Boolean(documentView.value),
+        personnelDirty,
+      )
       let result: VoucherMutationResult
       if (documentView.value) {
         const response = await apiClient.post<

@@ -11,7 +11,8 @@
   'tags':
     [
       { 'name': 'app', 'description': '访问、会话、权限和反馈' },
-      { 'name': 'bob', 'description': '基础业务对象' },
+      { 'name': 'bob', 'description': '业务对象' },
+      { 'name': 'aux', 'description': '辅助对象' },
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
       { 'name': 'led', 'description': '业务账簿' },
@@ -590,12 +591,243 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/aux/{entity}/query':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '查询辅助对象',
+              'operationId': 'auxquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/get':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '读取辅助对象',
+              'operationId': 'auxget',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/create':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '创建并立即启用辅助对象',
+              'operationId': 'auxcreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/save':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '保存辅助对象新版本并立即生效',
+              'operationId': 'auxsave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/enable':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '启用辅助对象',
+              'operationId': 'auxenable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/disable':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '停用辅助对象',
+              'operationId': 'auxdisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/delete':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '删除未引用辅助对象',
+              'operationId': 'auxdelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/versions':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '查询辅助对象版本',
+              'operationId': 'auxversions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/aux/{entity}/audit-history':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '查询辅助对象变更记录',
+              'operationId': 'auxaudithistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/bob/{entity}/query':
         {
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询基础业务对象',
+              'summary': '查询业务对象',
               'operationId': 'bobquery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -620,7 +852,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取基础业务对象',
+              'summary': '读取业务对象',
               'operationId': 'bobget',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -645,7 +877,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '创建基础业务对象草稿',
+              'summary': '创建业务对象草稿',
               'operationId': 'bobcreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -670,7 +902,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '发起基础业务对象编辑',
+              'summary': '发起业务对象编辑',
               'operationId': 'bobedit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -695,7 +927,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '保存基础业务对象草稿',
+              'summary': '保存业务对象草稿',
               'operationId': 'bobsave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -720,7 +952,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '删除基础业务对象首版草稿',
+              'summary': '删除业务对象首版草稿',
               'operationId': 'bobdelete',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -745,7 +977,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '提交基础业务对象审核',
+              'summary': '提交业务对象审核',
               'operationId': 'bobsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -772,7 +1004,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '批准基础业务对象',
+              'summary': '批准业务对象',
               'operationId': 'bobapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -797,7 +1029,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '驳回基础业务对象',
+              'summary': '驳回业务对象',
               'operationId': 'bobreject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -822,7 +1054,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询基础业务对象版本',
+              'summary': '查询业务对象版本',
               'operationId': 'bobversions',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -847,7 +1079,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询基础业务对象审核历史',
+              'summary': '查询业务对象审核历史',
               'operationId': 'bobaudithistory',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
@@ -2066,6 +2298,13 @@
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/bob.yaml#/BobEntity' },
+            },
+          'AuxEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/aux.yaml#/AuxEntity' },
             },
           'VouEntity':
             {

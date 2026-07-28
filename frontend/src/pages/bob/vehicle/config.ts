@@ -1,7 +1,6 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
   decimalPattern,
   defineBobEntityConfig,
@@ -21,7 +20,6 @@ export const vehicleConfig = defineBobEntityConfig({
     plateNumber: '',
     vehicleType: '',
     platformObjectId: '',
-    categoryId: '',
     vin: '',
     engineNumber: '',
     loadCapacityKg: '',
@@ -32,23 +30,24 @@ export const vehicleConfig = defineBobEntityConfig({
   ],
   uppercaseKeys: ['code', 'plateNumber', 'vin'],
   references: {
+    vehicleType: {
+      domain: 'aux',
+      entity: 'dictionary-item',
+      label: '车辆类型',
+      value: 'code',
+      filters: { dictionaryTypeCode: 'VEHICLE_TYPE' },
+    },
     platformObjectId: {
       entity: 'supplier',
       label: '物流平台',
       filters: { supplierType: 'LOGISTICS_PLATFORM' },
     },
-    categoryId: {
-      entity: 'category',
-      label: '车辆分类',
-      filters: { targetEntity: 'vehicle' },
-    },
   },
   fields: (context) => [
     ...commonFields(context, '车辆编码', '车辆名称'),
     text('plateNumber', '车牌号', 32, { required: true }),
-    text('vehicleType', '车辆类型', 64, { required: true }),
+    reference('vehicleType', '车辆类型', context, true),
     reference('platformObjectId', '物流平台', context, true),
-    reference('categoryId', '车辆分类', context),
     text('vin', 'VIN', 17, {
       rules: [patternRule(vinPattern, 'VIN 必须是排除 I、O、Q 的 17 位编码。')],
     }),
@@ -73,5 +72,5 @@ export const vehicleConfig = defineBobEntityConfig({
       value: (row) => row.currentVersion.summary.vehicleType,
     },
   ]),
-  filters: baseFilters([categoryFilter('vehicle')]),
+  filters: baseFilters(),
 })

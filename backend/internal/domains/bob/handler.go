@@ -62,7 +62,7 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 
 func (h *Handler) Register(router *gin.Engine) {
 	group := router.Group("/bob")
-	for _, registeredEntity := range entities {
+	for _, registeredEntity := range publicEntities {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {

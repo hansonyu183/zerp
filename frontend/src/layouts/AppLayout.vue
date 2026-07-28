@@ -20,14 +20,20 @@ const accountError = ref('')
 const accountSuccess = ref('')
 
 const profile = reactive({ displayName: '', avatarUrl: '' })
-const passwords = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+const passwords = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
 
 const visibleMenus = computed(() => session.menus)
 
 const displayName = computed(
   () => session.user?.displayName || session.user?.username || '用户',
 )
-const initials = computed(() => displayName.value.trim().slice(0, 1).toUpperCase() || 'U')
+const initials = computed(
+  () => displayName.value.trim().slice(0, 1).toUpperCase() || 'U',
+)
 const isDark = computed(() => theme.global.name.value === 'zerpDark')
 const pageTitle = computed(() => String(route.meta.title || '工作台'))
 const profileValidationError = computed(() => {
@@ -69,7 +75,8 @@ const passwordValidationError = computed(() => {
   if (passwords.currentPassword === passwords.newPassword) {
     return '新密码不能与当前密码相同。'
   }
-  if (passwords.newPassword !== passwords.confirmPassword) return '两次输入的新密码不一致。'
+  if (passwords.newPassword !== passwords.confirmPassword)
+    return '两次输入的新密码不一致。'
 
   return ''
 })
@@ -93,7 +100,8 @@ function toggleTheme(): void {
 }
 
 const savedTheme = localStorage.getItem('zerp-theme')
-if (savedTheme === 'zerpDark' || savedTheme === 'zerpLight') theme.change(savedTheme)
+if (savedTheme === 'zerpDark' || savedTheme === 'zerpLight')
+  theme.change(savedTheme)
 
 async function openProfile(): Promise<void> {
   accountError.value = ''
@@ -216,7 +224,11 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
       <template #activator="{ props }">
         <v-btn v-bind="props" class="account-button" variant="text">
           <v-avatar color="primary" size="34">
-            <v-img v-if="session.user?.avatarUrl" :src="session.user.avatarUrl" alt="用户头像" />
+            <v-img
+              v-if="session.user?.avatarUrl"
+              :src="session.user.avatarUrl"
+              alt="用户头像"
+            />
             <span v-else>{{ initials }}</span>
           </v-avatar>
           <span class="account-button__name">{{ displayName }}</span>
@@ -224,10 +236,23 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
         </v-btn>
       </template>
       <v-list min-width="220" density="comfortable">
-        <v-list-item prepend-icon="mdi-account-edit-outline" title="名称与头像" @click="openProfile" />
-        <v-list-item prepend-icon="mdi-lock-reset" title="更改密码" @click="openPassword" />
+        <v-list-item
+          prepend-icon="mdi-account-edit-outline"
+          title="名称与头像"
+          @click="openProfile"
+        />
+        <v-list-item
+          prepend-icon="mdi-lock-reset"
+          title="更改密码"
+          @click="openPassword"
+        />
         <v-divider class="my-1" />
-        <v-list-item color="error" prepend-icon="mdi-logout" title="退出登录" @click="signOut" />
+        <v-list-item
+          color="error"
+          prepend-icon="mdi-logout"
+          title="退出登录"
+          @click="signOut"
+        />
       </v-list>
     </v-menu>
   </v-app-bar>
@@ -272,10 +297,7 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
 
   <v-main class="main">
     <div class="page-heading">
-      <div>
-        <div class="page-heading__eyebrow">ZERP / {{ pageTitle }}</div>
-        <h1>{{ pageTitle }}</h1>
-      </div>
+      <div class="page-heading__breadcrumb">ZERP / {{ pageTitle }}</div>
     </div>
     <div class="page-content">
       <router-view />
@@ -286,7 +308,11 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
     :model-value="Boolean(accountSuccess)"
     color="success"
     timeout="3000"
-    @update:model-value="(value) => { if (!value) accountSuccess = '' }"
+    @update:model-value="
+      (value) => {
+        if (!value) accountSuccess = ''
+      }
+    "
   >
     {{ accountSuccess }}
   </v-snackbar>
@@ -294,10 +320,20 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-dialog v-model="profileDialog" max-width="520">
     <v-card rounded="xl" title="名称与头像">
       <v-card-text>
-        <v-alert v-if="accountError" class="mb-4" type="error" variant="tonal">{{ accountError }}</v-alert>
+        <v-alert
+          v-if="accountError"
+          class="mb-4"
+          type="error"
+          variant="tonal"
+          >{{ accountError }}</v-alert
+        >
         <div class="profile-preview">
           <v-avatar color="primary" size="64">
-            <v-img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="头像预览" />
+            <v-img
+              v-if="profile.avatarUrl"
+              :src="profile.avatarUrl"
+              alt="头像预览"
+            />
             <span v-else class="text-h5">{{ initials }}</span>
           </v-avatar>
           <span>支持填写可公开访问的 HTTPS 图片地址。</span>
@@ -333,7 +369,13 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-dialog v-model="passwordDialog" max-width="520">
     <v-card rounded="xl" title="更改密码">
       <v-card-text>
-        <v-alert v-if="accountError" class="mb-4" type="error" variant="tonal">{{ accountError }}</v-alert>
+        <v-alert
+          v-if="accountError"
+          class="mb-4"
+          type="error"
+          variant="tonal"
+          >{{ accountError }}</v-alert
+        >
         <v-text-field
           v-model="passwords.currentPassword"
           autocomplete="current-password"
@@ -376,22 +418,105 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
 </template>
 
 <style scoped>
-.topbar { border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
-.company { display: flex; gap: 11px; align-items: center; cursor: pointer; }
-.company__mark { display: grid; width: 38px; height: 38px; color: white; font-size: 21px; font-weight: 900; background: linear-gradient(145deg, #42a5f5, #1976d2); border-radius: 10px 3px 10px 3px; place-items: center; }
-.company__copy { display: flex; flex-direction: column; line-height: 1.15; }
-.company__copy strong { font-size: 17px; letter-spacing: .08em; }
-.company__copy span { margin-top: 4px; color: rgb(var(--v-theme-on-surface-variant)); font-size: 11px; }
-.account-button { height: 46px; margin-right: 10px; padding-inline: 8px 10px; text-transform: none; }
-.account-button__name { max-width: 140px; margin-left: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar { border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
-.sidebar__label { padding: 22px 22px 8px; color: rgb(var(--v-theme-on-surface-variant)); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-.sidebar__footer { padding: 18px 22px; color: rgb(var(--v-theme-on-surface-variant)); font-size: 12px; border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
-.main { min-height: 100vh; background: rgb(var(--v-theme-background)); }
-.page-heading { display: flex; align-items: center; min-height: 112px; padding: 24px clamp(20px, 4vw, 52px); background: rgb(var(--v-theme-surface)); border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
-.page-heading h1 { margin: 4px 0 0; font-size: clamp(25px, 3vw, 34px); letter-spacing: -.03em; }
-.page-heading__eyebrow { color: rgb(var(--v-theme-primary)); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.page-content { max-width: 1500px; margin: 0 auto; }
-.profile-preview { display: flex; gap: 16px; align-items: center; margin-bottom: 24px; color: rgb(var(--v-theme-on-surface-variant)); font-size: 13px; }
-@media (max-width: 600px) { .company__copy span, .account-button__name { display: none; } .page-heading { min-height: 90px; } }
+.topbar {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.company {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  cursor: pointer;
+}
+.company__mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  color: white;
+  font-size: 21px;
+  font-weight: 900;
+  background: linear-gradient(145deg, #42a5f5, #1976d2);
+  border-radius: 10px 3px 10px 3px;
+  place-items: center;
+}
+.company__copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.company__copy strong {
+  font-size: 17px;
+  letter-spacing: 0.08em;
+}
+.company__copy span {
+  margin-top: 4px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 11px;
+}
+.account-button {
+  height: 46px;
+  margin-right: 10px;
+  padding-inline: 8px 10px;
+  text-transform: none;
+}
+.account-button__name {
+  max-width: 140px;
+  margin-left: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar {
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.sidebar__label {
+  padding: 22px 22px 8px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.sidebar__footer {
+  padding: 18px 22px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 12px;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.main {
+  min-height: 100vh;
+  background: rgb(var(--v-theme-background));
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 12px clamp(20px, 4vw, 52px);
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.page-heading__breadcrumb {
+  color: rgb(var(--v-theme-primary));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.page-content {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+.profile-preview {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 24px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .company__copy span,
+  .account-button__name {
+    display: none;
+  }
+}
 </style>

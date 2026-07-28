@@ -29,6 +29,7 @@ type Querier interface {
 	CopyBobFundAccountDetail(ctx context.Context, arg CopyBobFundAccountDetailParams) error
 	CopyBobPositionDetail(ctx context.Context, arg CopyBobPositionDetailParams) error
 	CopyBobProductDetail(ctx context.Context, arg CopyBobProductDetailParams) error
+	CopyBobProductPackagingSpecs(ctx context.Context, arg CopyBobProductPackagingSpecsParams) error
 	CopyBobServiceDetail(ctx context.Context, arg CopyBobServiceDetailParams) error
 	CopyBobSettlementMethodDetail(ctx context.Context, arg CopyBobSettlementMethodDetailParams) error
 	CopyBobSupplierDetail(ctx context.Context, arg CopyBobSupplierDetailParams) error
@@ -82,6 +83,7 @@ type Querier interface {
 	DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams) (int64, error)
 	DeleteBobPositionDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobProductDetail(ctx context.Context, versionID string) (int64, error)
+	DeleteBobProductPackagingSpecs(ctx context.Context, productVersionID string) error
 	DeleteBobServiceDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobSettlementMethodDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobSupplierDetail(ctx context.Context, versionID string) (int64, error)
@@ -140,6 +142,7 @@ type Querier interface {
 	InsertBobObject(ctx context.Context, arg InsertBobObjectParams) error
 	InsertBobPositionDetail(ctx context.Context, arg InsertBobPositionDetailParams) error
 	InsertBobProductDetail(ctx context.Context, arg InsertBobProductDetailParams) error
+	InsertBobProductPackagingSpec(ctx context.Context, arg InsertBobProductPackagingSpecParams) error
 	InsertBobServiceDetail(ctx context.Context, arg InsertBobServiceDetailParams) error
 	InsertBobSettlementMethodDetail(ctx context.Context, arg InsertBobSettlementMethodDetailParams) error
 	InsertBobSupplierDetail(ctx context.Context, arg InsertBobSupplierDetailParams) error

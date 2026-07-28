@@ -2,6 +2,16 @@ import { expect, test, type Page } from '@playwright/test'
 
 const username = process.env.E2E_USERNAME!
 const password = process.env.E2E_PASSWORD!
+const bobPages = [
+  { entity: 'customer', title: '客户' },
+  { entity: 'supplier', title: '供应商' },
+  { entity: 'employee', title: '员工' },
+  { entity: 'product', title: '产品' },
+  { entity: 'service', title: '服务' },
+  { entity: 'warehouse', title: '仓库' },
+  { entity: 'vehicle', title: '车辆' },
+  { entity: 'fund-account', title: '资金账户' },
+] as const
 
 async function signIn(page: Page): Promise<void> {
   await page.goto('/signin')
@@ -36,8 +46,39 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await expect(page).toHaveURL(/\/bob\/customer/)
 }
 
-test('使用真实后端会话登录并进入系统', async ({ page }) => {
+test('登录后逐项加载八类业务对象中文菜单与真实组件', async ({
+  page,
+  isMobile,
+}) => {
   await signIn(page)
+  await page.goto('/home/dashboard')
+
+  for (const item of bobPages) {
+    if (isMobile) await page.getByLabel('切换导航').click()
+
+    const link = page.getByRole('link', {
+      name: item.title,
+      exact: true,
+    })
+    if (!await link.isVisible()) {
+      await page.getByText('业务对象', { exact: true }).click()
+    }
+
+    await expect(link).toBeVisible()
+    await link.click()
+    await expect(page).toHaveURL(new RegExp(`/bob/${item.entity}$`))
+    await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
+      `ZERP / ${item.title}`,
+    )
+    await expect(
+      page.getByRole('textbox', {
+        name: `${item.title}关键字`,
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(page.getByText('开发中...', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('页面不存在', { exact: true })).toHaveCount(0)
+  }
 })
 
 test('使用真实后端读取、保存并恢复个人资料', async ({ page }) => {

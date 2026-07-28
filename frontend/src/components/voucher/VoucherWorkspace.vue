@@ -56,6 +56,9 @@ function statusText(): string {
     CHECKED: '已核对',
     APPROVED: '已批准',
     FINALIZED: '已完成',
+    ORDERED: '已下单',
+    CONFIRMED: '已确认',
+    EXECUTED: '已执行',
   }[props.document.status]
 }
 </script>

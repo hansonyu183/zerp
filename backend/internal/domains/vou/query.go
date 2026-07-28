@@ -17,7 +17,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		return Page[ListItem]{}, err
 	}
 	params := dbsqlc.CountVouDocumentsParams{
-		Entity: entity, Statuses: query.Statuses, Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
+		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
 		DateFrom: optionalDate(query.DateFrom), DateTo: optionalDate(query.DateTo),
 	}
 	total, err := s.queries.CountVouDocuments(ctx, params)
@@ -25,7 +25,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		return Page[ListItem]{}, s.internal("count documents", err)
 	}
 	rows, err := s.queries.ListVouDocuments(ctx, dbsqlc.ListVouDocumentsParams{
-		Entity: entity, Statuses: query.Statuses, Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
+		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
 		DateFrom: optionalDate(query.DateFrom), DateTo: optionalDate(query.DateTo),
 		SortField: query.SortField, SortOrder: query.SortOrder,
 		PageOffset: int32((query.Page - 1) * query.PageSize), PageSize: int32(query.PageSize),
@@ -37,12 +37,53 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	for _, row := range rows {
 		items = append(items, ListItem{
 			DocumentID: row.ID, Entity: row.Entity, DocumentNo: row.DocumentNo,
-			Status: row.Status, Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
+			Status: documentStatus(entity, row.Status), Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
 			PartyName: row.PartyName, Currency: row.Currency, Amount: formatMoney(row.TotalAmountCents),
 			UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[ListItem]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
+}
+
+func storedStatuses(entity string, statuses []string) []string {
+	result := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		switch {
+		case entity == EntityCustomerOrder && status == StatusChecked:
+			result = append(result, "REVIEWED")
+		case entity == EntityProcurementOrder && status == "ORDERED":
+			result = append(result, StatusApproved)
+		case (entity == EntityGoodsReceipt || entity == EntitySignoffNote) && status == "CONFIRMED":
+			result = append(result, StatusApproved)
+		case entity == EntityDeliveryNote && status == "EXECUTED":
+			result = append(result, StatusApproved)
+		case (entity == EntityProcurementOrder || entity == EntityGoodsReceipt ||
+			entity == EntityDeliveryNote || entity == EntitySignoffNote) && status == StatusChecked:
+			result = append(result, "REVIEWED")
+		default:
+			result = append(result, status)
+		}
+	}
+	return result
+}
+
+func documentStatus(entity, status string) string {
+	if status == "REVIEWED" {
+		return StatusChecked
+	}
+	if status != StatusApproved {
+		return status
+	}
+	switch entity {
+	case EntityProcurementOrder:
+		return "ORDERED"
+	case EntityGoodsReceipt, EntitySignoffNote:
+		return "CONFIRMED"
+	case EntityDeliveryNote:
+		return "EXECUTED"
+	default:
+		return status
+	}
 }
 
 func (s *Service) Get(ctx context.Context, entity string, input GetInput) (DocumentView, error) {
@@ -64,7 +105,15 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Docum
 	if err != nil {
 		return DocumentView{}, s.internal("list attachments", err)
 	}
-	return documentView(document, data, attachmentViews(attachments)), nil
+	view := documentView(document, data, attachmentViews(attachments))
+	if document.ParentDocumentID != nil {
+		view.ParentDocumentID = *document.ParentDocumentID
+		if err = s.pool.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`,
+			*document.ParentDocumentID).Scan(&view.SourceDocumentNo); err != nil {
+			return DocumentView{}, s.internal("load source document", err)
+		}
+	}
+	return view, nil
 }
 
 func (s *Service) AuditHistory(ctx context.Context, entity string, input HistoryInput) (Page[AuditEventView], error) {
@@ -89,8 +138,13 @@ func (s *Service) AuditHistory(ctx context.Context, entity string, input History
 	}
 	items := make([]AuditEventView, 0, len(rows))
 	for _, row := range rows {
+		fromStatus := row.FromStatus
+		if fromStatus != nil {
+			value := documentStatus(entity, *fromStatus)
+			fromStatus = &value
+		}
 		items = append(items, AuditEventView{
-			ID: row.ID, EventType: row.EventType, FromStatus: row.FromStatus, ToStatus: row.ToStatus,
+			ID: row.ID, EventType: row.EventType, FromStatus: fromStatus, ToStatus: documentStatus(entity, row.ToStatus),
 			ActorID: row.ActorID, OccurredAt: row.OccurredAt.Time, Reason: row.Reason,
 			RequestID: row.RequestID, Summary: row.Summary,
 		})

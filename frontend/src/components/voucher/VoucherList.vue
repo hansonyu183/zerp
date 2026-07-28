@@ -70,6 +70,9 @@ const statusOptions = [
   { title: '已核对', value: 'CHECKED' },
   { title: '已批准', value: 'APPROVED' },
   { title: '已完成', value: 'FINALIZED' },
+  { title: '已下单', value: 'ORDERED' },
+  { title: '已确认', value: 'CONFIRMED' },
+  { title: '已执行', value: 'EXECUTED' },
 ]
 function statusText(status: VoucherStatus): string {
   return {
@@ -77,6 +80,9 @@ function statusText(status: VoucherStatus): string {
     CHECKED: '已核对',
     APPROVED: '已批准',
     FINALIZED: '已完成',
+    ORDERED: '已下单',
+    CONFIRMED: '已确认',
+    EXECUTED: '已执行',
   }[status]
 }
 

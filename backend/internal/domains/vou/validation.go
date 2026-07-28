@@ -80,13 +80,7 @@ func validEntity(entity string) bool {
 			return true
 		}
 	}
-	switch entity {
-	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
-		EntityDeliveryNote, EntitySignoffNote:
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func isSalesChainEntity(entity string) bool {
@@ -384,7 +378,10 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	if result.PartyObjectID != "" && !validID(result.PartyObjectID) {
 		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
 	}
-	allowedStatuses := map[string]bool{StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true}
+	allowedStatuses := map[string]bool{
+		StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true,
+		"ORDERED": true, "CONFIRMED": true, "EXECUTED": true,
+	}
 	seen := map[string]bool{}
 	for _, status := range input.Filters.Status {
 		status = strings.ToUpper(strings.TrimSpace(status))

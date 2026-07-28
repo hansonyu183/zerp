@@ -365,6 +365,38 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	if signoff.WorkflowStatus != StatusCompleted {
 		t.Fatalf("workflow status = %s", signoff.WorkflowStatus)
 	}
+	vouReader, err := voudomain.NewService(pool, resolver, bus, voudomain.AttachmentOptions{
+		Root: t.TempDir(),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	atomicDocuments := []struct {
+		entity, documentID, status, sourceNo string
+	}{
+		{voudomain.EntityCustomerOrder, created.DocumentID, voudomain.StatusApproved, ""},
+		{voudomain.EntityProcurementOrder, procurement.DocumentID, "ORDERED", created.DocumentNo},
+		{voudomain.EntityGoodsReceipt, receipt.DocumentID, "CONFIRMED", procurement.DocumentNo},
+		{voudomain.EntityDeliveryNote, delivery.DocumentID, "EXECUTED", created.DocumentNo},
+		{voudomain.EntitySignoffNote, signoff.DocumentID, "CONFIRMED", delivery.DocumentNo},
+	}
+	for _, atomic := range atomicDocuments {
+		page, queryErr := vouReader.Query(t.Context(), atomic.entity, voudomain.QueryInput{
+			Page: 1, PageSize: 20, Filters: voudomain.QueryFilters{}, Sort: []voudomain.SortInput{},
+		})
+		if queryErr != nil || page.Total != 1 || len(page.Items) != 1 ||
+			page.Items[0].DocumentID != atomic.documentID || page.Items[0].Status != atomic.status {
+			t.Fatalf("%s independent query = %+v err=%v", atomic.entity, page, queryErr)
+		}
+		document, getErr := vouReader.Get(t.Context(), atomic.entity, voudomain.GetInput{
+			DocumentID: atomic.documentID,
+		})
+		if getErr != nil || document.Status != atomic.status || document.SourceDocumentNo != atomic.sourceNo ||
+			len(document.Data.Lines) != 1 || document.Data.Lines[0].Product == nil ||
+			document.Data.Lines[0].Product.Code != "P001" {
+			t.Fatalf("%s independent document = %+v err=%v", atomic.entity, document, getErr)
+		}
+	}
 	view, err := service.Get(t.Context(), GetInput{ProcessID: created.ProcessID},
 		[]string{"/wfl/intermediary-trade/procurement-get"})
 	if err != nil || len(view.Documents) != 5 || view.Status != StatusCompleted {

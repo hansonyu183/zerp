@@ -329,6 +329,36 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toHaveCount(0)
   })
 
+  test('五类原子单据均可从业务单据菜单独立只读查看', async ({ browser }) => {
+    const page = await signedInPage(
+      browser,
+      e2eEnv('E2E_USERNAME'),
+      e2eEnv('E2E_PASSWORD'),
+    )
+    for (const entity of [
+      'customer-order',
+      'procurement-order',
+      'goods-receipt',
+      'delivery-note',
+      'signoff-note',
+    ]) {
+      await page.goto(`/vou/${entity}`)
+      await expect(page.getByText('独立页面仅供查询和查看')).toBeVisible()
+      await expect(page.getByRole('button', { name: '新建单据' })).toHaveCount(0)
+      const viewButton = page.getByLabel(/^查看 /).first()
+      await expect(viewButton).toBeVisible()
+      await viewButton.click()
+      const workspace = page.getByRole('dialog')
+      await expect(
+        workspace.getByText('新建、编辑和流转请在业务流程中完成'),
+      ).toBeVisible()
+      await expect(
+        workspace.getByRole('button', { name: /编辑|保存|核对|批准|确认|执行|下单/ }),
+      ).toHaveCount(0)
+      await workspace.getByLabel('关闭单据工作区').click()
+    }
+  })
+
   test('按下游顺序完成反向、草稿删除和双人短结', async ({ browser }) => {
     test.setTimeout(480_000)
     const operator = await signedInPage(

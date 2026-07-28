@@ -209,14 +209,23 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('销售四单迁入 WFL 后仅注册其余六类 VOU 页面', () => {
+  it('为全部十五类原子单据注册独立 VOU 页面', () => {
     const entities = [
+      'sale-order',
+      'sale-outbound',
+      'sale-delivery',
+      'sale-signoff',
       'purchase-order',
       'intermediary-sale-order',
       'receipt',
       'payment',
       'expense-reimbursement',
       'other-income',
+      'customer-order',
+      'procurement-order',
+      'goods-receipt',
+      'delivery-note',
+      'signoff-note',
     ]
 
     expect(entities.every((entity) => hasRegisteredPage('vou', entity))).toBe(true)
@@ -226,7 +235,8 @@ describe('permission menu registry', () => {
     expect(menus).toHaveLength(1)
     expect(menus[0]?.title).toBe('业务单据')
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
-    expect(buildMenus(['/vou/sale-order/query'])).toEqual([])
+    expect(hasRegisteredPage('vou', 'sale-order')).toBe(true)
+    expect(hasRegisteredPage('vou', 'customer-order')).toBe(true)
   })
 
   it('将销售履约和居间贸易注册在 VOU 与 LED 之间', () => {

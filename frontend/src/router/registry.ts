@@ -34,12 +34,6 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const hiddenLegacyPages = new Set([
-  'vou/sale-order',
-  'vou/sale-outbound',
-  'vou/sale-delivery',
-  'vou/sale-signoff',
-])
 const developingPage: PageLoader =
   () => import('@/pages/system/developing/Developing.vue')
 
@@ -174,6 +168,34 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/bob/settlement-method/SettlementMethod.vue'),
   }),
   registerPage('vou', {
+    entity: 'sale-order',
+    entityTitle: '销售订单',
+    icon: 'mdi-cart-arrow-down',
+    order: 10,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-outbound',
+    entityTitle: '销售出库单',
+    icon: 'mdi-tray-arrow-up',
+    order: 20,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-delivery',
+    entityTitle: '销售配送单',
+    icon: 'mdi-truck-delivery-outline',
+    order: 30,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'sale-signoff',
+    entityTitle: '销售签收单',
+    icon: 'mdi-clipboard-check-outline',
+    order: 40,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
     entity: 'purchase-order',
     entityTitle: '采购单',
     icon: 'mdi-cart-arrow-up',
@@ -216,6 +238,41 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-cash-multiple',
     order: 100,
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'customer-order',
+    entityTitle: '客户订单',
+    icon: 'mdi-cart-outline',
+    order: 110,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'procurement-order',
+    entityTitle: '居间采购',
+    icon: 'mdi-file-sign',
+    order: 120,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'goods-receipt',
+    entityTitle: '分批收货',
+    icon: 'mdi-tray-arrow-down',
+    order: 130,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'delivery-note',
+    entityTitle: '分批送货',
+    icon: 'mdi-truck-delivery-outline',
+    order: 140,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'signoff-note',
+    entityTitle: '客户签收',
+    icon: 'mdi-clipboard-check-outline',
+    order: 150,
+    component: () => import('@/pages/vou/shared/ManagedVoucherPage.vue'),
   }),
   registerPage('wfl', {
     entity: 'sales-fulfillment',
@@ -305,7 +362,6 @@ export function buildMenus(
     if (domain === 'app') continue
 
     const key = `${domain}/${entity}`
-    if (hiddenLegacyPages.has(key)) continue
     const actions = actionsByPage.get(key) ?? []
     if (!actions.includes(action)) actions.push(action)
     actionsByPage.set(key, actions)

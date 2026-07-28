@@ -47,6 +47,9 @@ func (s *Service) loadData(
 		return data, nil
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		return s.loadSalesChainData(ctx, document, data)
+	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
+		EntityDeliveryNote, EntitySignoffNote:
+		return s.loadManagedData(ctx, document, data)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, document.ID)
 		if err != nil {
@@ -269,7 +272,7 @@ func derefInt32(value *int32) int32 {
 func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachments []AttachmentView) DocumentView {
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
-		Status: document.Status, Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
+		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
 		Data: data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,

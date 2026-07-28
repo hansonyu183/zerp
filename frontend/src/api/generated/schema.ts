@@ -3098,7 +3098,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "purchase-order" | "intermediary-sale-order" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "purchase-order" | "intermediary-sale-order" | "receipt" | "payment" | "expense-reimbursement" | "other-income" | "customer-order" | "procurement-order" | "goods-receipt" | "delivery-note" | "signoff-note";
         VouQueryRequest: {
             page: number;
             pageSize: number;

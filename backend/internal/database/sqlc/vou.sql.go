@@ -204,6 +204,11 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_customer_order_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_procurement_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_goods_receipt_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_delivery_note_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_signoff_note_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
   )
   AND (
       $6::text = ''
@@ -226,6 +231,16 @@ WHERE d.entity = $1
           AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_customer_order_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_procurement_order_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_goods_receipt_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_delivery_note_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_signoff_note_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
   )
 `
 
@@ -1573,7 +1588,9 @@ const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.workflow_version, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.control_domain, d.auto_generated,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 po.supplier_name, iso.customer_name, r.counterparty_name,
-                p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name, '') AS party_name
+                p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name,
+                co.customer_name, pro.supplier_name, gr.supplier_name,
+                dn.customer_name, sn.customer_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
@@ -1585,6 +1602,11 @@ LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
+LEFT JOIN vou_customer_order_details co ON co.document_id = d.id
+LEFT JOIN vou_procurement_order_details pro ON pro.document_id = d.id
+LEFT JOIN vou_goods_receipt_details gr ON gr.document_id = d.id
+LEFT JOIN vou_delivery_note_details dn ON dn.document_id = d.id
+LEFT JOIN vou_signoff_note_details sn ON sn.document_id = d.id
 WHERE d.entity = $1
   AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
@@ -1600,6 +1622,11 @@ WHERE d.entity = $1
       OR r.counterparty_object_id = $5
       OR p.counterparty_object_id = $5
       OR oi.counterparty_object_id = $5
+      OR co.customer_object_id = $5
+      OR pro.supplier_object_id = $5
+      OR gr.supplier_object_id = $5
+      OR dn.customer_object_id = $5
+      OR sn.customer_object_id = $5
   )
   AND (
       $6::text = ''
@@ -1613,6 +1640,11 @@ WHERE d.entity = $1
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'
       OR p.counterparty_code ILIKE '%' || $6 || '%' OR p.counterparty_name ILIKE '%' || $6 || '%'
       OR oi.source_name ILIKE '%' || $6 || '%' OR oi.counterparty_name ILIKE '%' || $6 || '%'
+      OR co.customer_code ILIKE '%' || $6 || '%' OR co.customer_name ILIKE '%' || $6 || '%'
+      OR pro.supplier_code ILIKE '%' || $6 || '%' OR pro.supplier_name ILIKE '%' || $6 || '%'
+      OR gr.supplier_code ILIKE '%' || $6 || '%' OR gr.supplier_name ILIKE '%' || $6 || '%'
+      OR dn.customer_code ILIKE '%' || $6 || '%' OR dn.customer_name ILIKE '%' || $6 || '%'
+      OR sn.customer_code ILIKE '%' || $6 || '%' OR sn.customer_name ILIKE '%' || $6 || '%'
   )
 ORDER BY
   CASE WHEN $7::text = 'updatedAt' AND $8::text = 'asc' THEN d.updated_at END ASC,

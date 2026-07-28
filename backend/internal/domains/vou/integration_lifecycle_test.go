@@ -263,8 +263,11 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	}
 	const salesChainEntities = 3
 	const saleOrderShortCloseActions = 4
-	wantPermissions := (len(entities)-salesChainEntities)*(len(actionRoutes)-1) +
-		salesChainEntities*len(actionRoutes) + saleOrderShortCloseActions
+	const directlyRegisteredEntities = 10
+	const managedIntermediaryReadPermissions = 19
+	wantPermissions := (directlyRegisteredEntities-salesChainEntities)*(len(actionRoutes)-1) +
+		salesChainEntities*len(actionRoutes) + saleOrderShortCloseActions +
+		managedIntermediaryReadPermissions
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}

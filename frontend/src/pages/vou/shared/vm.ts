@@ -82,50 +82,50 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     () => editing.value && snapshot(form.value) !== initialForm.value,
   )
   const canQuery = computed(() => session.can(permission('query')))
-  const canCreate = computed(() => session.can(permission('create')))
+  const directlyManaged = !config.managedByWorkflow
+  const canCreate = computed(() => directlyManaged && session.can(permission('create')))
   const actionAvailability = computed<VoucherActionAvailability>(() => {
     const status = documentView.value?.status
     return {
       get: session.can(permission('get')),
-      save: status === 'DRAFT' && session.can(permission('save')),
-      check: status === 'DRAFT' && session.can(permission('check')),
-      uncheck: status === 'CHECKED' && session.can(permission('uncheck')),
-      approve: status === 'CHECKED' && session.can(permission('approve')),
-      unapprove: status === 'APPROVED' && session.can(permission('unapprove')),
-      finalize: status === 'APPROVED' && session.can(permission('finalize')),
+      save: directlyManaged && status === 'DRAFT' && session.can(permission('save')),
+      check: directlyManaged && status === 'DRAFT' && session.can(permission('check')),
+      uncheck: directlyManaged && status === 'CHECKED' && session.can(permission('uncheck')),
+      approve: directlyManaged && status === 'CHECKED' && session.can(permission('approve')),
+      unapprove: directlyManaged && status === 'APPROVED' && session.can(permission('unapprove')),
+      finalize: directlyManaged && status === 'APPROVED' && session.can(permission('finalize')),
       unfinalize:
-        status === 'FINALIZED' && session.can(permission('unfinalize')),
+        directlyManaged && status === 'FINALIZED' && session.can(permission('unfinalize')),
       delete:
-        status === 'DRAFT' &&
-        Boolean(config.sourceEntity) &&
+        directlyManaged && status === 'DRAFT' && Boolean(config.sourceEntity) &&
         session.can(permission('delete')),
       shortCloseRequest:
-        status === 'FINALIZED' &&
+        directlyManaged && status === 'FINALIZED' &&
         documentView.value?.data.fulfillmentStatus === 'OPEN' &&
         session.can(permission('short-close-request')),
       shortCloseCancel:
-        status === 'FINALIZED' &&
+        directlyManaged && status === 'FINALIZED' &&
         documentView.value?.data.fulfillmentStatus ===
           'SHORT_CLOSE_REQUESTED' &&
         session.can(permission('short-close-cancel')),
       shortCloseConfirm:
-        status === 'FINALIZED' &&
+        directlyManaged && status === 'FINALIZED' &&
         documentView.value?.data.fulfillmentStatus ===
           'SHORT_CLOSE_REQUESTED' &&
         session.can(permission('short-close-confirm')),
       shortCloseUnconfirm:
-        status === 'FINALIZED' &&
+        directlyManaged && status === 'FINALIZED' &&
         documentView.value?.data.fulfillmentStatus === 'SHORT_CLOSED' &&
         session.can(permission('short-close-unconfirm')),
       audit:
         Boolean(documentView.value) && session.can(permission('audit-history')),
       attachmentInitiate:
-        status === 'DRAFT' && session.can(permission('attachment-initiate')),
+        directlyManaged && status === 'DRAFT' && session.can(permission('attachment-initiate')),
       attachmentDownload:
         Boolean(documentView.value) &&
         session.can(permission('attachment-download')),
       attachmentRemove:
-        status === 'DRAFT' && session.can(permission('attachment-remove')),
+        directlyManaged && status === 'DRAFT' && session.can(permission('attachment-remove')),
     }
   })
   const {
@@ -165,6 +165,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function canEdit(row: VoucherListItem): boolean {
     return (
+      directlyManaged &&
       row.status === 'DRAFT' &&
       session.can(permission('get')) &&
       session.can(permission('save'))

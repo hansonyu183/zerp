@@ -49,6 +49,9 @@ const atomicStatusLabel = computed(() => {
         CHECKED: labels.value.checked,
         APPROVED: '已批准',
         FINALIZED: labels.value.finalized,
+        ORDERED: '已下单',
+        CONFIRMED: '已确认',
+        EXECUTED: '已执行',
       }[status]
     : ''
 })

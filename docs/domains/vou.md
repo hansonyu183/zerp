@@ -21,7 +21,8 @@ HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生
 
 WFL 管理的原子单据包含销售四单以及 `customer-order`、`procurement-order`、`goods-receipt`、
 `delivery-note` 和 `signoff-note`。它们复用 VOU 的编号、revision、引用快照、附件和审计，
-但不开放普通 VOU 写入口；业务规则和流转统一由 WFL 编排。
+不开放普通 VOU 写入口；业务规则和流转统一由 WFL 编排。所有原子单据仍属于 VOU，并按实体
+提供独立查询、详情、审计及适用的附件下载入口。WFL 只组织单据关系和受控写入，不替代单据本身。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
 
@@ -73,6 +74,10 @@ check uncheck approve unapprove finalize unfinalize
 audit-history
 attachment-initiate attachment-download attachment-remove
 ```
+
+流程管理实体只开放其中的只读动作：`query`、`get`、`audit-history` 和适用的
+`attachment-download`。销售履约四单保留历史写路径用于兼容，但统一拒绝并引导调用 WFL；
+居间贸易五单不创建独立写权限。
 
 ### 2.3 通用写入语义
 

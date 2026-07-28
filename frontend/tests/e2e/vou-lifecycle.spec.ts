@@ -188,6 +188,8 @@ test('销售履约按批准结果自动生成出库、配送和签收草稿', as
     stages.locator('.v-card').filter({ hasText: name }).first()
   const order = stageCard('销售订单')
   await expect(order).toContainText(/SO-\d{8}-\d{6}/)
+  const orderNo = (await order.textContent())?.match(/SO-\d{8}-\d{6}/)?.[0]
+  expect(orderNo).toBeTruthy()
   await order.getByRole('button', { name: '核对', exact: true }).click()
   await order.getByRole('button', { name: '批准', exact: true }).click()
 
@@ -226,4 +228,17 @@ test('销售履约按批准结果自动生成出库、配送和签收草稿', as
   await signoff.getByRole('button', { name: '批准', exact: true }).click()
   await signoff.getByRole('button', { name: '完成', exact: true }).click()
   await expect(signoff).toContainText('已完成')
+
+  await page.goto('/vou/sale-order')
+  await expect(page.getByText('独立页面仅供查询和查看')).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建单据' })).toHaveCount(0)
+  await page.getByText('筛选条件', { exact: true }).click()
+  await page.getByRole('textbox', { name: '单号或往来方关键字' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await page.getByLabel(`查看 ${orderNo}`).click()
+  const readOnlyWorkspace = page.getByRole('dialog')
+  await expect(
+    readOnlyWorkspace.getByText('新建、编辑和流转请在业务流程中完成'),
+  ).toBeVisible()
+  await expect(readOnlyWorkspace.getByRole('button', { name: /编辑|保存|核对|批准|完成/ })).toHaveCount(0)
 })

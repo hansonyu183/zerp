@@ -238,9 +238,10 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
-WFL 是独立于 VOU 查询的流程领域。前端通过
-`POST /wfl/{process}/{action}` 对接当前后端 WFL 契约，不把流程结果并入
-`/vou/{entity}`，也不为流程内实体注册可直接调用的旧 VOU 页面。
+WFL 是独立于 VOU 单据读取的流程组织领域。前端通过
+`POST /wfl/{process}/{action}` 完成流程创建、编排和受控写入；流程内每张原子单据仍通过
+`POST /vou/{entity}/{query|get|audit-history|attachment-download}` 提供独立只读入口。
+独立单据页不得调用 VOU 写动作，也不得绕过流程的来源关系和生命周期约束。
 
 ### 7.1 通用流程层
 
@@ -287,8 +288,9 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 ### 7.3 销售履约
 
 页面为 `/wfl/sales-fulfillment`。四个阶段在同一流程工作区展示；批准后生成的下级草稿立即
-出现在对应阶段，来源单号只读且可跳回上级单据。VOU 导航不再提供销售订单、出库、配送、签收
-四个独立新建入口。下级保存请求只发送阶段业务资料，永不发送 `sourceDocumentId`。
+出现在对应阶段，来源单号只读且可跳回上级单据。VOU 导航提供销售订单、出库、配送、签收
+四个独立只读入口，但不提供独立新建、编辑或流转。下级保存请求只发送阶段业务资料，永不发送
+`sourceDocumentId`。
 
 ### 7.4 真实后端测试
 

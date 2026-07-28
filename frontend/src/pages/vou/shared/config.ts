@@ -27,6 +27,9 @@ export const voucherStatusText: Record<VoucherStatus, string> = {
   CHECKED: '已核对',
   APPROVED: '已批准',
   FINALIZED: '已完成',
+  ORDERED: '已下单',
+  CONFIRMED: '已确认',
+  EXECUTED: '已执行',
 }
 
 export const voucherEntityConfigs: Readonly<
@@ -46,6 +49,7 @@ export const voucherEntityConfigs: Readonly<
       unfinalize: '反确认订单',
       finalized: '已确认',
     },
+    managedByWorkflow: 'sales-fulfillment',
   },
   'sale-outbound': {
     entity: 'sale-outbound',
@@ -62,6 +66,7 @@ export const voucherEntityConfigs: Readonly<
       unfinalize: '反出库',
       finalized: '已出库',
     },
+    managedByWorkflow: 'sales-fulfillment',
   },
   'sale-delivery': {
     entity: 'sale-delivery',
@@ -77,6 +82,7 @@ export const voucherEntityConfigs: Readonly<
       unfinalize: '撤销配送',
       finalized: '配送中',
     },
+    managedByWorkflow: 'sales-fulfillment',
   },
   'sale-signoff': {
     entity: 'sale-signoff',
@@ -92,6 +98,7 @@ export const voucherEntityConfigs: Readonly<
       unfinalize: '反签收',
       finalized: '已签收',
     },
+    managedByWorkflow: 'sales-fulfillment',
   },
   'purchase-order': {
     entity: 'purchase-order',
@@ -162,5 +169,55 @@ export const voucherEntityConfigs: Readonly<
     usesHandler: true,
     usesSourceName: true,
     directAmount: true,
+  },
+  'customer-order': {
+    entity: 'customer-order',
+    title: '客户订单',
+    icon: 'mdi-cart-outline',
+    order: 110,
+    partyMode: 'customer',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    managedByWorkflow: 'intermediary-trade',
+  },
+  'procurement-order': {
+    entity: 'procurement-order',
+    title: '居间采购',
+    icon: 'mdi-file-sign',
+    order: 120,
+    partyMode: 'supplier',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    managedByWorkflow: 'intermediary-trade',
+  },
+  'goods-receipt': {
+    entity: 'goods-receipt',
+    title: '分批收货',
+    icon: 'mdi-tray-arrow-down',
+    order: 130,
+    partyMode: 'supplier',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    managedByWorkflow: 'intermediary-trade',
+  },
+  'delivery-note': {
+    entity: 'delivery-note',
+    title: '分批送货',
+    icon: 'mdi-truck-delivery-outline',
+    order: 140,
+    partyMode: 'customer',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    managedByWorkflow: 'intermediary-trade',
+  },
+  'signoff-note': {
+    entity: 'signoff-note',
+    title: '客户签收',
+    icon: 'mdi-clipboard-check-outline',
+    order: 150,
+    partyMode: 'customer',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    managedByWorkflow: 'intermediary-trade',
   },
 }

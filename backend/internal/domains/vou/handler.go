@@ -88,7 +88,7 @@ func (h *Handler) Register(router *gin.Engine) {
 		for _, route := range actionRoutes {
 			action := route.action
 			handle := route.handle
-			if (entity == EntitySaleOrder || isSalesChainEntity(entity)) &&
+			if workflowManagedEntity(entity) &&
 				action != "query" && action != "get" &&
 				action != "audit-history" && action != "attachment-download" {
 				handle = (*Handler).managedSalesWriteRejected
@@ -111,7 +111,7 @@ func (h *Handler) Register(router *gin.Engine) {
 func (h *Handler) managedSalesWriteRejected(c *gin.Context, _ string) {
 	h.writeError(c, domainError(
 		ErrorValidation,
-		"销售履约单据由流程维护，请使用 /wfl/sales-fulfillment 接口",
+		"流程管理单据只能独立查看，请使用对应 WFL 接口维护",
 		nil,
 		nil,
 	))

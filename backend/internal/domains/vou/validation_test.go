@@ -87,32 +87,6 @@ func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	}
 }
 
-func TestIntermediaryRequiresPurchaseUnitPrice(t *testing.T) {
-	t.Parallel()
-	product := *refInput()
-	customer := *refInput()
-	supplier := *refInput()
-	_, err := validateDraft(EntityIntermediarySaleOrder, DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &customer, Supplier: &supplier,
-		ProductLines: []ProductLineInput{{
-			Product: product, OrderedQuantity: "1", UnitPrice: "12.00",
-		}},
-	})
-	if err == nil {
-		t.Fatal("intermediary line without purchaseUnitPrice was accepted")
-	}
-	validated, err := validateDraft(EntityIntermediarySaleOrder, DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &customer, Supplier: &supplier,
-		ProductLines: []ProductLineInput{{
-			Product: product, OrderedQuantity: "1", UnitPrice: "12.00", PurchaseUnitPrice: "10.00",
-		}},
-	})
-	if err != nil || validated.ProductLines[0].PurchaseUnitPrice == nil ||
-		*validated.ProductLines[0].PurchaseUnitPrice != 1000 {
-		t.Fatalf("validated intermediary = %+v, err=%v", validated, err)
-	}
-}
-
 func TestValidateSaleExecutionReconcilesQuantities(t *testing.T) {
 	t.Parallel()
 	valid := FinalizeInput{

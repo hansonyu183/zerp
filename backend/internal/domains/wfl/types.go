@@ -10,6 +10,7 @@ import (
 const (
 	ProcessTypeIntermediary = "INTERMEDIARY_TRADE"
 	ProcessTypeSales        = "SALES_FULFILLMENT"
+	ProcessTypePurchase     = "PURCHASE_FULFILLMENT"
 	StatusDraft             = "DRAFT"
 	StatusChecked           = "CHECKED"
 	StatusApproved          = "APPROVED"
@@ -17,13 +18,15 @@ const (
 	StatusShortRequested    = "SHORT_CLOSE_REQUESTED"
 	StatusShortClosed       = "SHORT_CLOSED"
 
-	StageCustomer    = "CUSTOMER_ORDER"
-	StageProcurement = "PROCUREMENT"
-	StageReceipt     = "RECEIPT"
-	StageDelivery    = "DELIVERY"
-	StageSignoff     = "SIGNOFF"
-	StageSaleOrder   = "SALE_ORDER"
-	StageOutbound    = "OUTBOUND"
+	StageCustomer        = "CUSTOMER_ORDER"
+	StageProcurement     = "PROCUREMENT"
+	StageReceipt         = "RECEIPT"
+	StageDelivery        = "DELIVERY"
+	StageSignoff         = "SIGNOFF"
+	StageSaleOrder       = "SALE_ORDER"
+	StageOutbound        = "OUTBOUND"
+	StagePurchaseOrder   = "PURCHASE_ORDER"
+	StagePurchaseInbound = "PURCHASE_INBOUND"
 )
 
 type ErrorKind string

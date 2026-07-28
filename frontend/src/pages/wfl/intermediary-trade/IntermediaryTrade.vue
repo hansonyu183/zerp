@@ -52,7 +52,7 @@ const workflowStatuses: Readonly<Record<string, string>> =
   intermediaryTradeDefinition.statuses
 
 const stageNames: Record<string, string> = {
-  CUSTOMER_ORDER: '客户订单',
+  CUSTOMER_ORDER: '居间订单',
   PROCUREMENT: '居间采购',
   RECEIPT: '收货',
   DELIVERY: '送货',
@@ -60,11 +60,11 @@ const stageNames: Record<string, string> = {
 }
 
 const stepItems = [
-  { value: 1, title: '客户订单', icon: 'mdi-cart-outline' },
+  { value: 1, title: '居间订单', icon: 'mdi-cart-outline' },
   { value: 2, title: '居间采购', icon: 'mdi-file-sign' },
-  { value: 3, title: '分批收货', icon: 'mdi-tray-arrow-down' },
-  { value: 4, title: '分批送货', icon: 'mdi-truck-delivery-outline' },
-  { value: 5, title: '客户签收', icon: 'mdi-clipboard-check-outline' },
+  { value: 3, title: '居间收货', icon: 'mdi-tray-arrow-down' },
+  { value: 4, title: '居间送货', icon: 'mdi-truck-delivery-outline' },
+  { value: 5, title: '居间签收', icon: 'mdi-clipboard-check-outline' },
   { value: 6, title: '审计', icon: 'mdi-history' },
 ]
 
@@ -243,7 +243,7 @@ function createSignoff(document: WflDocumentSummary): void {
     :revision="vm.document?.rootRevision"
     :status-label="workflowText(vm.document?.workflowStatus)"
     :tabs="stepItems"
-    :title="vm.document?.documentNo ?? '新建居间客户订单'"
+    :title="vm.document?.documentNo ?? '新建居间订单'"
     @close="vm.closeWorkspace"
     @reload="vm.loadDocument()"
     @update:active-tab="vm.changeActiveStep(Number($event))"
@@ -256,7 +256,7 @@ function createSignoff(document: WflDocumentSummary): void {
         <v-window-item :value="1">
           <v-card rounded="lg" variant="flat">
             <v-card-title class="intermediary-workspace__section-title">
-              <span>客户订单</span>
+              <span>居间订单</span>
               <div>
                 <template v-if="vm.orderEditing">
                   <v-btn v-if="vm.document" :disabled="Boolean(vm.actionLoading)" variant="text" @click="vm.cancelOrderEditing">取消</v-btn>
@@ -286,7 +286,7 @@ function createSignoff(document: WflDocumentSummary): void {
               <VoucherDocumentHeader
                 v-if="vm.document"
                 :document-no="vm.document.documentNo"
-                entity-label="客户订单"
+                entity-label="居间订单"
                 :revision="vm.document.documentRevision"
                 :status="vm.document.workflowStatus"
                 :status-label="workflowText(vm.document.workflowStatus)"

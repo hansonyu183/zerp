@@ -193,7 +193,7 @@ test('销售履约按批准结果自动生成出库、配送和签收草稿', as
   await order.getByRole('button', { name: '核对', exact: true }).click()
   await order.getByRole('button', { name: '批准', exact: true }).click()
 
-  const outbound = stageCard('出库')
+  const outbound = stageCard('销售出库')
   await expect(outbound).toContainText('草稿')
   await expect(outbound.getByText(/来源：/)).toBeVisible()
   await outbound.getByRole('button', { name: '编辑', exact: true }).click()
@@ -207,7 +207,7 @@ test('销售履约按批准结果自动生成出库、配送和签收草稿', as
   await outbound.getByRole('button', { name: '批准', exact: true }).click()
   await outbound.getByRole('button', { name: '完成', exact: true }).click()
 
-  const delivery = stageCard('配送')
+  const delivery = stageCard('销售送货')
   await expect(delivery).toContainText('草稿')
   await delivery.getByRole('button', { name: '编辑', exact: true }).click()
   editor = page.getByRole('dialog')
@@ -218,7 +218,7 @@ test('销售履约按批准结果自动生成出库、配送和签收草稿', as
   await delivery.getByRole('button', { name: '批准', exact: true }).click()
   await delivery.getByRole('button', { name: '完成', exact: true }).click()
 
-  const signoff = stageCard('签收')
+  const signoff = stageCard('销售签收')
   await expect(signoff).toContainText('草稿')
   await signoff.getByRole('button', { name: '编辑', exact: true }).click()
   editor = page.getByRole('dialog')

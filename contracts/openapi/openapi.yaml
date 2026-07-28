@@ -1433,7 +1433,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '保存居间贸易客户订单',
+              'summary': '保存居间订单',
               'operationId': 'wflIntermediaryTradesave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3568,7 +3568,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '读取自动生成的销售出库单',
+              'summary': '读取自动生成的销售出库',
               'operationId': 'wflSalesFulfillmentOutboundGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3592,7 +3592,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '保存销售出库单',
+              'summary': '保存销售出库',
               'operationId': 'wflSalesFulfillmentOutboundSave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3616,7 +3616,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '核对销售出库单',
+              'summary': '核对销售出库',
               'operationId': 'wflSalesFulfillmentOutboundCheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3640,7 +3640,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反核对销售出库单',
+              'summary': '反核对销售出库',
               'operationId': 'wflSalesFulfillmentOutboundUncheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3664,7 +3664,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '批准销售出库单并自动生成配送草稿',
+              'summary': '批准销售出库并自动生成送货草稿',
               'operationId': 'wflSalesFulfillmentOutboundApprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3688,7 +3688,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反批准销售出库单',
+              'summary': '反批准销售出库',
               'operationId': 'wflSalesFulfillmentOutboundUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3712,7 +3712,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '完成销售出库单',
+              'summary': '完成销售出库',
               'operationId': 'wflSalesFulfillmentOutboundFinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3736,7 +3736,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '撤销完成销售出库单',
+              'summary': '撤销完成销售出库',
               'operationId': 'wflSalesFulfillmentOutboundUnfinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3760,7 +3760,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '读取自动生成的销售配送单',
+              'summary': '读取自动生成的销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3784,7 +3784,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '保存销售配送单',
+              'summary': '保存销售送货',
               'operationId': 'wflSalesFulfillmentDeliverySave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3808,7 +3808,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '核对销售配送单',
+              'summary': '核对销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryCheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3832,7 +3832,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反核对销售配送单',
+              'summary': '反核对销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryUncheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3856,7 +3856,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '批准销售配送单并自动生成签收草稿',
+              'summary': '批准销售送货并自动生成签收草稿',
               'operationId': 'wflSalesFulfillmentDeliveryApprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3880,7 +3880,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反批准销售配送单',
+              'summary': '反批准销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3904,7 +3904,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '完成销售配送单',
+              'summary': '完成销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryFinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3928,7 +3928,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '撤销完成销售配送单',
+              'summary': '撤销完成销售送货',
               'operationId': 'wflSalesFulfillmentDeliveryUnfinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3952,7 +3952,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '读取自动生成的销售签收单',
+              'summary': '读取自动生成的销售签收',
               'operationId': 'wflSalesFulfillmentSignoffGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3976,7 +3976,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '保存销售签收单',
+              'summary': '保存销售签收',
               'operationId': 'wflSalesFulfillmentSignoffSave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4000,7 +4000,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '核对销售签收单',
+              'summary': '核对销售签收',
               'operationId': 'wflSalesFulfillmentSignoffCheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4024,7 +4024,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反核对销售签收单',
+              'summary': '反核对销售签收',
               'operationId': 'wflSalesFulfillmentSignoffUncheck',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4048,7 +4048,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '批准销售签收单',
+              'summary': '批准销售签收',
               'operationId': 'wflSalesFulfillmentSignoffApprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4072,7 +4072,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '反批准销售签收单',
+              'summary': '反批准销售签收',
               'operationId': 'wflSalesFulfillmentSignoffUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4096,7 +4096,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '完成销售签收单并更新履约余额',
+              'summary': '完成销售签收并更新履约余额',
               'operationId': 'wflSalesFulfillmentSignoffFinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4120,7 +4120,7 @@
           'post':
             {
               'tags': ['wfl'],
-              'summary': '撤销完成销售签收单',
+              'summary': '撤销完成销售签收',
               'operationId': 'wflSalesFulfillmentSignoffUnfinalize',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4132,6 +4132,714 @@
                         {
                           'schema':
                             { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/query':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询采购履约流程',
+              'operationId': 'wflPurchaseFulfillmentQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取采购履约流程',
+              'operationId': 'wflPurchaseFulfillmentGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '创建采购履约流程',
+              'operationId': 'wflPurchaseFulfillmentCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存采购订单',
+              'operationId': 'wflPurchaseFulfillmentSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询采购履约审计',
+              'operationId': 'wflPurchaseFulfillmentAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对采购订单',
+              'operationId': 'wflPurchaseFulfillmentCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对采购订单',
+              'operationId': 'wflPurchaseFulfillmentUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准采购订单',
+              'operationId': 'wflPurchaseFulfillmentApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准采购订单',
+              'operationId': 'wflPurchaseFulfillmentUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/short-close-request':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '申请采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseRequest',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/short-close-cancel':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '取消采购履约短结申请',
+              'operationId': 'wflPurchaseFulfillmentShortCloseCancel',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/short-close-confirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '确认采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/short-close-unconfirm':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销采购履约短结',
+              'operationId': 'wflPurchaseFulfillmentShortCloseUnconfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '创建采购入库草稿',
+              'operationId': 'wflPurchaseFulfillmentInboundCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '删除采购入库草稿',
+              'operationId': 'wflPurchaseFulfillmentInboundDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-check':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '核对采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundCheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-uncheck':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反核对采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundUncheck',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-finalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '最终处理采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundFinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-unfinalize':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤销最终处理采购入库',
+              'operationId': 'wflPurchaseFulfillmentInboundUnfinalize',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/order-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '发起采购订单附件上传',
+              'operationId': 'wflPurchaseFulfillmentOrderAttachmentInitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/order-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '下载采购订单附件',
+              'operationId': 'wflPurchaseFulfillmentOrderAttachmentDownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/order-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '移除采购订单附件',
+              'operationId': 'wflPurchaseFulfillmentOrderAttachmentRemove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '发起采购入库附件上传',
+              'operationId': 'wflPurchaseFulfillmentInboundAttachmentInitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-attachment-download':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '下载采购入库附件',
+              'operationId': 'wflPurchaseFulfillmentInboundAttachmentDownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/purchase-fulfillment/inbound-attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '移除采购入库附件',
+              'operationId': 'wflPurchaseFulfillmentInboundAttachmentRemove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflAttachmentRemoveRequest',
+                            },
                         },
                     },
                 },

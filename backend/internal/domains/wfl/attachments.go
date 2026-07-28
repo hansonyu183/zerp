@@ -12,7 +12,8 @@ import (
 func attachmentStage(action string) string {
 	prefix := strings.SplitN(action, "-", 2)[0]
 	return map[string]string{"procurement": StageProcurement, "receipt": StageReceipt,
-		"delivery": StageDelivery, "signoff": StageSignoff}[prefix]
+		"delivery": StageDelivery, "signoff": StageSignoff,
+		"order": StagePurchaseOrder, "inbound": StagePurchaseInbound}[prefix]
 }
 
 func (s *Service) verifyAttachmentDocument(ctx context.Context, processID, documentID, stage string, revision int64) (string, error) {

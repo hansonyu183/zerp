@@ -109,7 +109,7 @@ function remove(index: number): void {
   <section>
     <div class="intermediary-lines__header">
       <div>
-        <h3>客户订单明细</h3>
+        <h3>居间订单明细</h3>
         <span>包装设置来自产品主数据快照，本单草稿可覆盖</span>
       </div>
       <v-btn

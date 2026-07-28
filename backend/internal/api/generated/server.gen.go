@@ -129,21 +129,21 @@ func (e PageRequestSortOrder) Valid() bool {
 
 // Defines values for VouEntity.
 const (
-	CustomerOrder         VouEntity = "customer-order"
-	DeliveryNote          VouEntity = "delivery-note"
-	ExpenseReimbursement  VouEntity = "expense-reimbursement"
-	GoodsReceipt          VouEntity = "goods-receipt"
-	IntermediarySaleOrder VouEntity = "intermediary-sale-order"
-	OtherIncome           VouEntity = "other-income"
-	Payment               VouEntity = "payment"
-	ProcurementOrder      VouEntity = "procurement-order"
-	PurchaseOrder         VouEntity = "purchase-order"
-	Receipt               VouEntity = "receipt"
-	SaleDelivery          VouEntity = "sale-delivery"
-	SaleOrder             VouEntity = "sale-order"
-	SaleOutbound          VouEntity = "sale-outbound"
-	SaleSignoff           VouEntity = "sale-signoff"
-	SignoffNote           VouEntity = "signoff-note"
+	CustomerOrder        VouEntity = "customer-order"
+	DeliveryNote         VouEntity = "delivery-note"
+	ExpenseReimbursement VouEntity = "expense-reimbursement"
+	GoodsReceipt         VouEntity = "goods-receipt"
+	OtherIncome          VouEntity = "other-income"
+	Payment              VouEntity = "payment"
+	ProcurementOrder     VouEntity = "procurement-order"
+	PurchaseInbound      VouEntity = "purchase-inbound"
+	PurchaseOrder        VouEntity = "purchase-order"
+	Receipt              VouEntity = "receipt"
+	SaleDelivery         VouEntity = "sale-delivery"
+	SaleOrder            VouEntity = "sale-order"
+	SaleOutbound         VouEntity = "sale-outbound"
+	SaleSignoff          VouEntity = "sale-signoff"
+	SignoffNote          VouEntity = "signoff-note"
 )
 
 // Valid indicates whether the value is a known member of the VouEntity enum.
@@ -157,13 +157,13 @@ func (e VouEntity) Valid() bool {
 		return true
 	case GoodsReceipt:
 		return true
-	case IntermediarySaleOrder:
-		return true
 	case OtherIncome:
 		return true
 	case Payment:
 		return true
 	case ProcurementOrder:
+		return true
+	case PurchaseInbound:
 		return true
 	case PurchaseOrder:
 		return true
@@ -1260,6 +1260,93 @@ type WflIntermediaryTradeunapproveJSONRequestBody = WflActionRequest
 // WflIntermediaryTradeuncheckJSONRequestBody defines body for WflIntermediaryTradeuncheck for application/json ContentType.
 type WflIntermediaryTradeuncheckJSONRequestBody = WflActionRequest
 
+// WflPurchaseFulfillmentApproveJSONRequestBody defines body for WflPurchaseFulfillmentApprove for application/json ContentType.
+type WflPurchaseFulfillmentApproveJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentAuditHistoryJSONRequestBody defines body for WflPurchaseFulfillmentAuditHistory for application/json ContentType.
+type WflPurchaseFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
+
+// WflPurchaseFulfillmentCheckJSONRequestBody defines body for WflPurchaseFulfillmentCheck for application/json ContentType.
+type WflPurchaseFulfillmentCheckJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentCreateJSONRequestBody defines body for WflPurchaseFulfillmentCreate for application/json ContentType.
+type WflPurchaseFulfillmentCreateJSONRequestBody = WflCreateRequest
+
+// WflPurchaseFulfillmentGetJSONRequestBody defines body for WflPurchaseFulfillmentGet for application/json ContentType.
+type WflPurchaseFulfillmentGetJSONRequestBody = WflGetRequest
+
+// WflPurchaseFulfillmentInboundApproveJSONRequestBody defines body for WflPurchaseFulfillmentInboundApprove for application/json ContentType.
+type WflPurchaseFulfillmentInboundApproveJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundAttachmentDownloadJSONRequestBody defines body for WflPurchaseFulfillmentInboundAttachmentDownload for application/json ContentType.
+type WflPurchaseFulfillmentInboundAttachmentDownloadJSONRequestBody = WflAttachmentDownloadRequest
+
+// WflPurchaseFulfillmentInboundAttachmentInitiateJSONRequestBody defines body for WflPurchaseFulfillmentInboundAttachmentInitiate for application/json ContentType.
+type WflPurchaseFulfillmentInboundAttachmentInitiateJSONRequestBody = WflAttachmentInitiateRequest
+
+// WflPurchaseFulfillmentInboundAttachmentRemoveJSONRequestBody defines body for WflPurchaseFulfillmentInboundAttachmentRemove for application/json ContentType.
+type WflPurchaseFulfillmentInboundAttachmentRemoveJSONRequestBody = WflAttachmentRemoveRequest
+
+// WflPurchaseFulfillmentInboundCheckJSONRequestBody defines body for WflPurchaseFulfillmentInboundCheck for application/json ContentType.
+type WflPurchaseFulfillmentInboundCheckJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundCreateJSONRequestBody defines body for WflPurchaseFulfillmentInboundCreate for application/json ContentType.
+type WflPurchaseFulfillmentInboundCreateJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundDeleteJSONRequestBody defines body for WflPurchaseFulfillmentInboundDelete for application/json ContentType.
+type WflPurchaseFulfillmentInboundDeleteJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundFinalizeJSONRequestBody defines body for WflPurchaseFulfillmentInboundFinalize for application/json ContentType.
+type WflPurchaseFulfillmentInboundFinalizeJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundGetJSONRequestBody defines body for WflPurchaseFulfillmentInboundGet for application/json ContentType.
+type WflPurchaseFulfillmentInboundGetJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundSaveJSONRequestBody defines body for WflPurchaseFulfillmentInboundSave for application/json ContentType.
+type WflPurchaseFulfillmentInboundSaveJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundUnapproveJSONRequestBody defines body for WflPurchaseFulfillmentInboundUnapprove for application/json ContentType.
+type WflPurchaseFulfillmentInboundUnapproveJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundUncheckJSONRequestBody defines body for WflPurchaseFulfillmentInboundUncheck for application/json ContentType.
+type WflPurchaseFulfillmentInboundUncheckJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentInboundUnfinalizeJSONRequestBody defines body for WflPurchaseFulfillmentInboundUnfinalize for application/json ContentType.
+type WflPurchaseFulfillmentInboundUnfinalizeJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentOrderAttachmentDownloadJSONRequestBody defines body for WflPurchaseFulfillmentOrderAttachmentDownload for application/json ContentType.
+type WflPurchaseFulfillmentOrderAttachmentDownloadJSONRequestBody = WflAttachmentDownloadRequest
+
+// WflPurchaseFulfillmentOrderAttachmentInitiateJSONRequestBody defines body for WflPurchaseFulfillmentOrderAttachmentInitiate for application/json ContentType.
+type WflPurchaseFulfillmentOrderAttachmentInitiateJSONRequestBody = WflAttachmentInitiateRequest
+
+// WflPurchaseFulfillmentOrderAttachmentRemoveJSONRequestBody defines body for WflPurchaseFulfillmentOrderAttachmentRemove for application/json ContentType.
+type WflPurchaseFulfillmentOrderAttachmentRemoveJSONRequestBody = WflAttachmentRemoveRequest
+
+// WflPurchaseFulfillmentQueryJSONRequestBody defines body for WflPurchaseFulfillmentQuery for application/json ContentType.
+type WflPurchaseFulfillmentQueryJSONRequestBody = WflQueryRequest
+
+// WflPurchaseFulfillmentSaveJSONRequestBody defines body for WflPurchaseFulfillmentSave for application/json ContentType.
+type WflPurchaseFulfillmentSaveJSONRequestBody = WflSaveRequest
+
+// WflPurchaseFulfillmentShortCloseCancelJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseCancel for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseCancelJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseConfirm for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentShortCloseRequestJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseRequest for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseUnconfirm for application/json ContentType.
+type WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentUnapproveJSONRequestBody defines body for WflPurchaseFulfillmentUnapprove for application/json ContentType.
+type WflPurchaseFulfillmentUnapproveJSONRequestBody = WflActionRequest
+
+// WflPurchaseFulfillmentUncheckJSONRequestBody defines body for WflPurchaseFulfillmentUncheck for application/json ContentType.
+type WflPurchaseFulfillmentUncheckJSONRequestBody = WflActionRequest
+
 // WflSalesFulfillmentApproveJSONRequestBody defines body for WflSalesFulfillmentApprove for application/json ContentType.
 type WflSalesFulfillmentApproveJSONRequestBody = WflActionRequest
 
@@ -1712,7 +1799,7 @@ type ServerInterface interface {
 	// WflIntermediaryTradereceiptunconfirm 居间贸易 receipt-unconfirm
 	// (POST /wfl/intermediary-trade/receipt-unconfirm)
 	WflIntermediaryTradereceiptunconfirm(c *gin.Context)
-	// WflIntermediaryTradesave 保存居间贸易客户订单
+	// WflIntermediaryTradesave 保存居间订单
 	// (POST /wfl/intermediary-trade/save)
 	WflIntermediaryTradesave(c *gin.Context)
 	// WflIntermediaryTradeshortclosecancel 居间贸易 short-close-cancel
@@ -1766,6 +1853,93 @@ type ServerInterface interface {
 	// WflIntermediaryTradeuncheck 居间贸易 uncheck
 	// (POST /wfl/intermediary-trade/uncheck)
 	WflIntermediaryTradeuncheck(c *gin.Context)
+	// WflPurchaseFulfillmentApprove 批准采购订单
+	// (POST /wfl/purchase-fulfillment/approve)
+	WflPurchaseFulfillmentApprove(c *gin.Context)
+	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
+	// (POST /wfl/purchase-fulfillment/audit-history)
+	WflPurchaseFulfillmentAuditHistory(c *gin.Context)
+	// WflPurchaseFulfillmentCheck 核对采购订单
+	// (POST /wfl/purchase-fulfillment/check)
+	WflPurchaseFulfillmentCheck(c *gin.Context)
+	// WflPurchaseFulfillmentCreate 创建采购履约流程
+	// (POST /wfl/purchase-fulfillment/create)
+	WflPurchaseFulfillmentCreate(c *gin.Context)
+	// WflPurchaseFulfillmentGet 读取采购履约流程
+	// (POST /wfl/purchase-fulfillment/get)
+	WflPurchaseFulfillmentGet(c *gin.Context)
+	// WflPurchaseFulfillmentInboundApprove 批准采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-approve)
+	WflPurchaseFulfillmentInboundApprove(c *gin.Context)
+	// WflPurchaseFulfillmentInboundAttachmentDownload 下载采购入库附件
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-download)
+	WflPurchaseFulfillmentInboundAttachmentDownload(c *gin.Context)
+	// WflPurchaseFulfillmentInboundAttachmentInitiate 发起采购入库附件上传
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-initiate)
+	WflPurchaseFulfillmentInboundAttachmentInitiate(c *gin.Context)
+	// WflPurchaseFulfillmentInboundAttachmentRemove 移除采购入库附件
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-remove)
+	WflPurchaseFulfillmentInboundAttachmentRemove(c *gin.Context)
+	// WflPurchaseFulfillmentInboundCheck 核对采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-check)
+	WflPurchaseFulfillmentInboundCheck(c *gin.Context)
+	// WflPurchaseFulfillmentInboundCreate 创建采购入库草稿
+	// (POST /wfl/purchase-fulfillment/inbound-create)
+	WflPurchaseFulfillmentInboundCreate(c *gin.Context)
+	// WflPurchaseFulfillmentInboundDelete 删除采购入库草稿
+	// (POST /wfl/purchase-fulfillment/inbound-delete)
+	WflPurchaseFulfillmentInboundDelete(c *gin.Context)
+	// WflPurchaseFulfillmentInboundFinalize 最终处理采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-finalize)
+	WflPurchaseFulfillmentInboundFinalize(c *gin.Context)
+	// WflPurchaseFulfillmentInboundGet 读取采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-get)
+	WflPurchaseFulfillmentInboundGet(c *gin.Context)
+	// WflPurchaseFulfillmentInboundSave 保存采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-save)
+	WflPurchaseFulfillmentInboundSave(c *gin.Context)
+	// WflPurchaseFulfillmentInboundUnapprove 反批准采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-unapprove)
+	WflPurchaseFulfillmentInboundUnapprove(c *gin.Context)
+	// WflPurchaseFulfillmentInboundUncheck 反核对采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-uncheck)
+	WflPurchaseFulfillmentInboundUncheck(c *gin.Context)
+	// WflPurchaseFulfillmentInboundUnfinalize 撤销最终处理采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-unfinalize)
+	WflPurchaseFulfillmentInboundUnfinalize(c *gin.Context)
+	// WflPurchaseFulfillmentOrderAttachmentDownload 下载采购订单附件
+	// (POST /wfl/purchase-fulfillment/order-attachment-download)
+	WflPurchaseFulfillmentOrderAttachmentDownload(c *gin.Context)
+	// WflPurchaseFulfillmentOrderAttachmentInitiate 发起采购订单附件上传
+	// (POST /wfl/purchase-fulfillment/order-attachment-initiate)
+	WflPurchaseFulfillmentOrderAttachmentInitiate(c *gin.Context)
+	// WflPurchaseFulfillmentOrderAttachmentRemove 移除采购订单附件
+	// (POST /wfl/purchase-fulfillment/order-attachment-remove)
+	WflPurchaseFulfillmentOrderAttachmentRemove(c *gin.Context)
+	// WflPurchaseFulfillmentQuery 查询采购履约流程
+	// (POST /wfl/purchase-fulfillment/query)
+	WflPurchaseFulfillmentQuery(c *gin.Context)
+	// WflPurchaseFulfillmentSave 保存采购订单
+	// (POST /wfl/purchase-fulfillment/save)
+	WflPurchaseFulfillmentSave(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
+	// (POST /wfl/purchase-fulfillment/short-close-cancel)
+	WflPurchaseFulfillmentShortCloseCancel(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseConfirm 确认采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-confirm)
+	WflPurchaseFulfillmentShortCloseConfirm(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseRequest 申请采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-request)
+	WflPurchaseFulfillmentShortCloseRequest(c *gin.Context)
+	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
+	WflPurchaseFulfillmentShortCloseUnconfirm(c *gin.Context)
+	// WflPurchaseFulfillmentUnapprove 反批准采购订单
+	// (POST /wfl/purchase-fulfillment/unapprove)
+	WflPurchaseFulfillmentUnapprove(c *gin.Context)
+	// WflPurchaseFulfillmentUncheck 反核对采购订单
+	// (POST /wfl/purchase-fulfillment/uncheck)
+	WflPurchaseFulfillmentUncheck(c *gin.Context)
 	// WflSalesFulfillmentApprove 批准销售订单并自动生成出库草稿
 	// (POST /wfl/sales-fulfillment/approve)
 	WflSalesFulfillmentApprove(c *gin.Context)
@@ -1778,28 +1952,28 @@ type ServerInterface interface {
 	// WflSalesFulfillmentCreate 创建销售履约流程
 	// (POST /wfl/sales-fulfillment/create)
 	WflSalesFulfillmentCreate(c *gin.Context)
-	// WflSalesFulfillmentDeliveryApprove 批准销售配送单并自动生成签收草稿
+	// WflSalesFulfillmentDeliveryApprove 批准销售送货并自动生成签收草稿
 	// (POST /wfl/sales-fulfillment/delivery-approve)
 	WflSalesFulfillmentDeliveryApprove(c *gin.Context)
-	// WflSalesFulfillmentDeliveryCheck 核对销售配送单
+	// WflSalesFulfillmentDeliveryCheck 核对销售送货
 	// (POST /wfl/sales-fulfillment/delivery-check)
 	WflSalesFulfillmentDeliveryCheck(c *gin.Context)
-	// WflSalesFulfillmentDeliveryFinalize 完成销售配送单
+	// WflSalesFulfillmentDeliveryFinalize 完成销售送货
 	// (POST /wfl/sales-fulfillment/delivery-finalize)
 	WflSalesFulfillmentDeliveryFinalize(c *gin.Context)
-	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售配送单
+	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售送货
 	// (POST /wfl/sales-fulfillment/delivery-get)
 	WflSalesFulfillmentDeliveryGet(c *gin.Context)
-	// WflSalesFulfillmentDeliverySave 保存销售配送单
+	// WflSalesFulfillmentDeliverySave 保存销售送货
 	// (POST /wfl/sales-fulfillment/delivery-save)
 	WflSalesFulfillmentDeliverySave(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUnapprove 反批准销售配送单
+	// WflSalesFulfillmentDeliveryUnapprove 反批准销售送货
 	// (POST /wfl/sales-fulfillment/delivery-unapprove)
 	WflSalesFulfillmentDeliveryUnapprove(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUncheck 反核对销售配送单
+	// WflSalesFulfillmentDeliveryUncheck 反核对销售送货
 	// (POST /wfl/sales-fulfillment/delivery-uncheck)
 	WflSalesFulfillmentDeliveryUncheck(c *gin.Context)
-	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售配送单
+	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售送货
 	// (POST /wfl/sales-fulfillment/delivery-unfinalize)
 	WflSalesFulfillmentDeliveryUnfinalize(c *gin.Context)
 	// WflSalesFulfillmentFinalize 完成销售订单
@@ -1808,28 +1982,28 @@ type ServerInterface interface {
 	// WflSalesFulfillmentGet 读取销售履约流程
 	// (POST /wfl/sales-fulfillment/get)
 	WflSalesFulfillmentGet(c *gin.Context)
-	// WflSalesFulfillmentOutboundApprove 批准销售出库单并自动生成配送草稿
+	// WflSalesFulfillmentOutboundApprove 批准销售出库并自动生成送货草稿
 	// (POST /wfl/sales-fulfillment/outbound-approve)
 	WflSalesFulfillmentOutboundApprove(c *gin.Context)
-	// WflSalesFulfillmentOutboundCheck 核对销售出库单
+	// WflSalesFulfillmentOutboundCheck 核对销售出库
 	// (POST /wfl/sales-fulfillment/outbound-check)
 	WflSalesFulfillmentOutboundCheck(c *gin.Context)
-	// WflSalesFulfillmentOutboundFinalize 完成销售出库单
+	// WflSalesFulfillmentOutboundFinalize 完成销售出库
 	// (POST /wfl/sales-fulfillment/outbound-finalize)
 	WflSalesFulfillmentOutboundFinalize(c *gin.Context)
-	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库单
+	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库
 	// (POST /wfl/sales-fulfillment/outbound-get)
 	WflSalesFulfillmentOutboundGet(c *gin.Context)
-	// WflSalesFulfillmentOutboundSave 保存销售出库单
+	// WflSalesFulfillmentOutboundSave 保存销售出库
 	// (POST /wfl/sales-fulfillment/outbound-save)
 	WflSalesFulfillmentOutboundSave(c *gin.Context)
-	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库单
+	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库
 	// (POST /wfl/sales-fulfillment/outbound-unapprove)
 	WflSalesFulfillmentOutboundUnapprove(c *gin.Context)
-	// WflSalesFulfillmentOutboundUncheck 反核对销售出库单
+	// WflSalesFulfillmentOutboundUncheck 反核对销售出库
 	// (POST /wfl/sales-fulfillment/outbound-uncheck)
 	WflSalesFulfillmentOutboundUncheck(c *gin.Context)
-	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库单
+	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库
 	// (POST /wfl/sales-fulfillment/outbound-unfinalize)
 	WflSalesFulfillmentOutboundUnfinalize(c *gin.Context)
 	// WflSalesFulfillmentQuery 查询销售履约流程
@@ -1850,28 +2024,28 @@ type ServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(c *gin.Context)
-	// WflSalesFulfillmentSignoffApprove 批准销售签收单
+	// WflSalesFulfillmentSignoffApprove 批准销售签收
 	// (POST /wfl/sales-fulfillment/signoff-approve)
 	WflSalesFulfillmentSignoffApprove(c *gin.Context)
-	// WflSalesFulfillmentSignoffCheck 核对销售签收单
+	// WflSalesFulfillmentSignoffCheck 核对销售签收
 	// (POST /wfl/sales-fulfillment/signoff-check)
 	WflSalesFulfillmentSignoffCheck(c *gin.Context)
-	// WflSalesFulfillmentSignoffFinalize 完成销售签收单并更新履约余额
+	// WflSalesFulfillmentSignoffFinalize 完成销售签收并更新履约余额
 	// (POST /wfl/sales-fulfillment/signoff-finalize)
 	WflSalesFulfillmentSignoffFinalize(c *gin.Context)
-	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收单
+	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收
 	// (POST /wfl/sales-fulfillment/signoff-get)
 	WflSalesFulfillmentSignoffGet(c *gin.Context)
-	// WflSalesFulfillmentSignoffSave 保存销售签收单
+	// WflSalesFulfillmentSignoffSave 保存销售签收
 	// (POST /wfl/sales-fulfillment/signoff-save)
 	WflSalesFulfillmentSignoffSave(c *gin.Context)
-	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收单
+	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收
 	// (POST /wfl/sales-fulfillment/signoff-unapprove)
 	WflSalesFulfillmentSignoffUnapprove(c *gin.Context)
-	// WflSalesFulfillmentSignoffUncheck 反核对销售签收单
+	// WflSalesFulfillmentSignoffUncheck 反核对销售签收
 	// (POST /wfl/sales-fulfillment/signoff-uncheck)
 	WflSalesFulfillmentSignoffUncheck(c *gin.Context)
-	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收单
+	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收
 	// (POST /wfl/sales-fulfillment/signoff-unfinalize)
 	WflSalesFulfillmentSignoffUnfinalize(c *gin.Context)
 	// WflSalesFulfillmentUnapprove 反批准销售订单
@@ -3967,6 +4141,383 @@ func (siw *ServerInterfaceWrapper) WflIntermediaryTradeuncheck(c *gin.Context) {
 	siw.Handler.WflIntermediaryTradeuncheck(c)
 }
 
+// WflPurchaseFulfillmentApprove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentApprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentApprove(c)
+}
+
+// WflPurchaseFulfillmentAuditHistory operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentAuditHistory(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentAuditHistory(c)
+}
+
+// WflPurchaseFulfillmentCheck operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentCheck(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentCheck(c)
+}
+
+// WflPurchaseFulfillmentCreate operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentCreate(c)
+}
+
+// WflPurchaseFulfillmentGet operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentGet(c)
+}
+
+// WflPurchaseFulfillmentInboundApprove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundApprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundApprove(c)
+}
+
+// WflPurchaseFulfillmentInboundAttachmentDownload operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundAttachmentDownload(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundAttachmentDownload(c)
+}
+
+// WflPurchaseFulfillmentInboundAttachmentInitiate operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundAttachmentInitiate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundAttachmentInitiate(c)
+}
+
+// WflPurchaseFulfillmentInboundAttachmentRemove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundAttachmentRemove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundAttachmentRemove(c)
+}
+
+// WflPurchaseFulfillmentInboundCheck operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundCheck(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundCheck(c)
+}
+
+// WflPurchaseFulfillmentInboundCreate operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundCreate(c)
+}
+
+// WflPurchaseFulfillmentInboundDelete operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundDelete(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundDelete(c)
+}
+
+// WflPurchaseFulfillmentInboundFinalize operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundFinalize(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundFinalize(c)
+}
+
+// WflPurchaseFulfillmentInboundGet operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundGet(c)
+}
+
+// WflPurchaseFulfillmentInboundSave operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundSave(c)
+}
+
+// WflPurchaseFulfillmentInboundUnapprove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundUnapprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundUnapprove(c)
+}
+
+// WflPurchaseFulfillmentInboundUncheck operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundUncheck(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundUncheck(c)
+}
+
+// WflPurchaseFulfillmentInboundUnfinalize operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentInboundUnfinalize(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentInboundUnfinalize(c)
+}
+
+// WflPurchaseFulfillmentOrderAttachmentDownload operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentOrderAttachmentDownload(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentOrderAttachmentDownload(c)
+}
+
+// WflPurchaseFulfillmentOrderAttachmentInitiate operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentOrderAttachmentInitiate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentOrderAttachmentInitiate(c)
+}
+
+// WflPurchaseFulfillmentOrderAttachmentRemove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentOrderAttachmentRemove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentOrderAttachmentRemove(c)
+}
+
+// WflPurchaseFulfillmentQuery operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentQuery(c)
+}
+
+// WflPurchaseFulfillmentSave operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentSave(c)
+}
+
+// WflPurchaseFulfillmentShortCloseCancel operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseCancel(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentShortCloseCancel(c)
+}
+
+// WflPurchaseFulfillmentShortCloseConfirm operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseConfirm(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentShortCloseConfirm(c)
+}
+
+// WflPurchaseFulfillmentShortCloseRequest operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseRequest(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentShortCloseRequest(c)
+}
+
+// WflPurchaseFulfillmentShortCloseUnconfirm operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseUnconfirm(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentShortCloseUnconfirm(c)
+}
+
+// WflPurchaseFulfillmentUnapprove operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentUnapprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentUnapprove(c)
+}
+
+// WflPurchaseFulfillmentUncheck operation middleware
+func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentUncheck(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflPurchaseFulfillmentUncheck(c)
+}
+
 // WflSalesFulfillmentApprove operation middleware
 func (siw *ServerInterfaceWrapper) WflSalesFulfillmentApprove(c *gin.Context) {
 
@@ -4669,6 +5220,35 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-unapprove", wrapper.WflSalesFulfillmentSignoffUnapprove)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-finalize", wrapper.WflSalesFulfillmentSignoffFinalize)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/signoff-unfinalize", wrapper.WflSalesFulfillmentSignoffUnfinalize)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/query", wrapper.WflPurchaseFulfillmentQuery)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/get", wrapper.WflPurchaseFulfillmentGet)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/create", wrapper.WflPurchaseFulfillmentCreate)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/save", wrapper.WflPurchaseFulfillmentSave)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/audit-history", wrapper.WflPurchaseFulfillmentAuditHistory)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/check", wrapper.WflPurchaseFulfillmentCheck)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/uncheck", wrapper.WflPurchaseFulfillmentUncheck)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/approve", wrapper.WflPurchaseFulfillmentApprove)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/unapprove", wrapper.WflPurchaseFulfillmentUnapprove)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-request", wrapper.WflPurchaseFulfillmentShortCloseRequest)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-cancel", wrapper.WflPurchaseFulfillmentShortCloseCancel)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-confirm", wrapper.WflPurchaseFulfillmentShortCloseConfirm)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-unconfirm", wrapper.WflPurchaseFulfillmentShortCloseUnconfirm)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-create", wrapper.WflPurchaseFulfillmentInboundCreate)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-get", wrapper.WflPurchaseFulfillmentInboundGet)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-save", wrapper.WflPurchaseFulfillmentInboundSave)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-delete", wrapper.WflPurchaseFulfillmentInboundDelete)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-check", wrapper.WflPurchaseFulfillmentInboundCheck)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-uncheck", wrapper.WflPurchaseFulfillmentInboundUncheck)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-approve", wrapper.WflPurchaseFulfillmentInboundApprove)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-unapprove", wrapper.WflPurchaseFulfillmentInboundUnapprove)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-finalize", wrapper.WflPurchaseFulfillmentInboundFinalize)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-unfinalize", wrapper.WflPurchaseFulfillmentInboundUnfinalize)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/order-attachment-initiate", wrapper.WflPurchaseFulfillmentOrderAttachmentInitiate)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/order-attachment-download", wrapper.WflPurchaseFulfillmentOrderAttachmentDownload)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/order-attachment-remove", wrapper.WflPurchaseFulfillmentOrderAttachmentRemove)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-attachment-initiate", wrapper.WflPurchaseFulfillmentInboundAttachmentInitiate)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-attachment-download", wrapper.WflPurchaseFulfillmentInboundAttachmentDownload)
+	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/inbound-attachment-remove", wrapper.WflPurchaseFulfillmentInboundAttachmentRemove)
 }
 
 type BusinessJSONResponse BusinessEnvelope
@@ -7611,6 +8191,644 @@ func (response WflIntermediaryTradeuncheck200JSONResponse) VisitWflIntermediaryT
 	return err
 }
 
+type WflPurchaseFulfillmentApproveRequestObject struct {
+	Body *WflPurchaseFulfillmentApproveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentApproveResponseObject interface {
+	VisitWflPurchaseFulfillmentApproveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentApprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentApprove200JSONResponse) VisitWflPurchaseFulfillmentApproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentAuditHistoryRequestObject struct {
+	Body *WflPurchaseFulfillmentAuditHistoryJSONRequestBody
+}
+
+type WflPurchaseFulfillmentAuditHistoryResponseObject interface {
+	VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentAuditHistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentAuditHistory200JSONResponse) VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentCheckRequestObject struct {
+	Body *WflPurchaseFulfillmentCheckJSONRequestBody
+}
+
+type WflPurchaseFulfillmentCheckResponseObject interface {
+	VisitWflPurchaseFulfillmentCheckResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentCheck200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentCheck200JSONResponse) VisitWflPurchaseFulfillmentCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentCreateRequestObject struct {
+	Body *WflPurchaseFulfillmentCreateJSONRequestBody
+}
+
+type WflPurchaseFulfillmentCreateResponseObject interface {
+	VisitWflPurchaseFulfillmentCreateResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentCreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentCreate200JSONResponse) VisitWflPurchaseFulfillmentCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentGetRequestObject struct {
+	Body *WflPurchaseFulfillmentGetJSONRequestBody
+}
+
+type WflPurchaseFulfillmentGetResponseObject interface {
+	VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentGet200JSONResponse) VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundApproveRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundApproveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundApproveResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundApproveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundApprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundApprove200JSONResponse) VisitWflPurchaseFulfillmentInboundApproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundAttachmentDownloadRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundAttachmentDownloadJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundAttachmentDownloadResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundAttachmentDownloadResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundAttachmentDownload200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundAttachmentDownload200JSONResponse) VisitWflPurchaseFulfillmentInboundAttachmentDownloadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundAttachmentInitiateRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundAttachmentInitiateJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundAttachmentInitiateResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundAttachmentInitiateResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundAttachmentInitiate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundAttachmentInitiate200JSONResponse) VisitWflPurchaseFulfillmentInboundAttachmentInitiateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundAttachmentRemoveRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundAttachmentRemoveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundAttachmentRemoveResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundAttachmentRemoveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundAttachmentRemove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundAttachmentRemove200JSONResponse) VisitWflPurchaseFulfillmentInboundAttachmentRemoveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundCheckRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundCheckJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundCheckResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundCheckResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundCheck200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundCheck200JSONResponse) VisitWflPurchaseFulfillmentInboundCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundCreateRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundCreateJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundCreateResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundCreateResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundCreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundCreate200JSONResponse) VisitWflPurchaseFulfillmentInboundCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundDeleteRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundDeleteJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundDeleteResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundDeleteResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundDelete200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundDelete200JSONResponse) VisitWflPurchaseFulfillmentInboundDeleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundFinalizeRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundFinalizeJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundFinalizeResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundFinalizeResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundFinalize200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundFinalize200JSONResponse) VisitWflPurchaseFulfillmentInboundFinalizeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundGetRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundGetJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundGetResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundGetResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundGet200JSONResponse) VisitWflPurchaseFulfillmentInboundGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundSaveRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundSaveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundSaveResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundSaveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundSave200JSONResponse) VisitWflPurchaseFulfillmentInboundSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundUnapproveRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundUnapproveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundUnapproveResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundUnapproveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundUnapprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundUnapprove200JSONResponse) VisitWflPurchaseFulfillmentInboundUnapproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundUncheckRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundUncheckJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundUncheckResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundUncheckResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundUncheck200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundUncheck200JSONResponse) VisitWflPurchaseFulfillmentInboundUncheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentInboundUnfinalizeRequestObject struct {
+	Body *WflPurchaseFulfillmentInboundUnfinalizeJSONRequestBody
+}
+
+type WflPurchaseFulfillmentInboundUnfinalizeResponseObject interface {
+	VisitWflPurchaseFulfillmentInboundUnfinalizeResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentInboundUnfinalize200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentInboundUnfinalize200JSONResponse) VisitWflPurchaseFulfillmentInboundUnfinalizeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentOrderAttachmentDownloadRequestObject struct {
+	Body *WflPurchaseFulfillmentOrderAttachmentDownloadJSONRequestBody
+}
+
+type WflPurchaseFulfillmentOrderAttachmentDownloadResponseObject interface {
+	VisitWflPurchaseFulfillmentOrderAttachmentDownloadResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentOrderAttachmentDownload200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentOrderAttachmentDownload200JSONResponse) VisitWflPurchaseFulfillmentOrderAttachmentDownloadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentOrderAttachmentInitiateRequestObject struct {
+	Body *WflPurchaseFulfillmentOrderAttachmentInitiateJSONRequestBody
+}
+
+type WflPurchaseFulfillmentOrderAttachmentInitiateResponseObject interface {
+	VisitWflPurchaseFulfillmentOrderAttachmentInitiateResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentOrderAttachmentInitiate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentOrderAttachmentInitiate200JSONResponse) VisitWflPurchaseFulfillmentOrderAttachmentInitiateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentOrderAttachmentRemoveRequestObject struct {
+	Body *WflPurchaseFulfillmentOrderAttachmentRemoveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentOrderAttachmentRemoveResponseObject interface {
+	VisitWflPurchaseFulfillmentOrderAttachmentRemoveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentOrderAttachmentRemove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentOrderAttachmentRemove200JSONResponse) VisitWflPurchaseFulfillmentOrderAttachmentRemoveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentQueryRequestObject struct {
+	Body *WflPurchaseFulfillmentQueryJSONRequestBody
+}
+
+type WflPurchaseFulfillmentQueryResponseObject interface {
+	VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentQuery200JSONResponse) VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentSaveRequestObject struct {
+	Body *WflPurchaseFulfillmentSaveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentSaveResponseObject interface {
+	VisitWflPurchaseFulfillmentSaveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentSave200JSONResponse) VisitWflPurchaseFulfillmentSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentShortCloseCancelRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseCancelJSONRequestBody
+}
+
+type WflPurchaseFulfillmentShortCloseCancelResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseCancelResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentShortCloseCancel200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentShortCloseCancel200JSONResponse) VisitWflPurchaseFulfillmentShortCloseCancelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentShortCloseConfirmRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody
+}
+
+type WflPurchaseFulfillmentShortCloseConfirmResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseConfirmResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentShortCloseConfirm200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentShortCloseConfirm200JSONResponse) VisitWflPurchaseFulfillmentShortCloseConfirmResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentShortCloseRequestRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseRequestJSONRequestBody
+}
+
+type WflPurchaseFulfillmentShortCloseRequestResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseRequestResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentShortCloseRequest200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentShortCloseRequest200JSONResponse) VisitWflPurchaseFulfillmentShortCloseRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentShortCloseUnconfirmRequestObject struct {
+	Body *WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody
+}
+
+type WflPurchaseFulfillmentShortCloseUnconfirmResponseObject interface {
+	VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentShortCloseUnconfirm200JSONResponse) VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentUnapproveRequestObject struct {
+	Body *WflPurchaseFulfillmentUnapproveJSONRequestBody
+}
+
+type WflPurchaseFulfillmentUnapproveResponseObject interface {
+	VisitWflPurchaseFulfillmentUnapproveResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentUnapprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentUnapprove200JSONResponse) VisitWflPurchaseFulfillmentUnapproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflPurchaseFulfillmentUncheckRequestObject struct {
+	Body *WflPurchaseFulfillmentUncheckJSONRequestBody
+}
+
+type WflPurchaseFulfillmentUncheckResponseObject interface {
+	VisitWflPurchaseFulfillmentUncheckResponse(w http.ResponseWriter) error
+}
+
+type WflPurchaseFulfillmentUncheck200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflPurchaseFulfillmentUncheck200JSONResponse) VisitWflPurchaseFulfillmentUncheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type WflSalesFulfillmentApproveRequestObject struct {
 	Body *WflSalesFulfillmentApproveJSONRequestBody
 }
@@ -8804,7 +10022,7 @@ type StrictServerInterface interface {
 	// WflIntermediaryTradereceiptunconfirm 居间贸易 receipt-unconfirm
 	// (POST /wfl/intermediary-trade/receipt-unconfirm)
 	WflIntermediaryTradereceiptunconfirm(ctx context.Context, request WflIntermediaryTradereceiptunconfirmRequestObject) (WflIntermediaryTradereceiptunconfirmResponseObject, error)
-	// WflIntermediaryTradesave 保存居间贸易客户订单
+	// WflIntermediaryTradesave 保存居间订单
 	// (POST /wfl/intermediary-trade/save)
 	WflIntermediaryTradesave(ctx context.Context, request WflIntermediaryTradesaveRequestObject) (WflIntermediaryTradesaveResponseObject, error)
 	// WflIntermediaryTradeshortclosecancel 居间贸易 short-close-cancel
@@ -8858,6 +10076,93 @@ type StrictServerInterface interface {
 	// WflIntermediaryTradeuncheck 居间贸易 uncheck
 	// (POST /wfl/intermediary-trade/uncheck)
 	WflIntermediaryTradeuncheck(ctx context.Context, request WflIntermediaryTradeuncheckRequestObject) (WflIntermediaryTradeuncheckResponseObject, error)
+	// WflPurchaseFulfillmentApprove 批准采购订单
+	// (POST /wfl/purchase-fulfillment/approve)
+	WflPurchaseFulfillmentApprove(ctx context.Context, request WflPurchaseFulfillmentApproveRequestObject) (WflPurchaseFulfillmentApproveResponseObject, error)
+	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
+	// (POST /wfl/purchase-fulfillment/audit-history)
+	WflPurchaseFulfillmentAuditHistory(ctx context.Context, request WflPurchaseFulfillmentAuditHistoryRequestObject) (WflPurchaseFulfillmentAuditHistoryResponseObject, error)
+	// WflPurchaseFulfillmentCheck 核对采购订单
+	// (POST /wfl/purchase-fulfillment/check)
+	WflPurchaseFulfillmentCheck(ctx context.Context, request WflPurchaseFulfillmentCheckRequestObject) (WflPurchaseFulfillmentCheckResponseObject, error)
+	// WflPurchaseFulfillmentCreate 创建采购履约流程
+	// (POST /wfl/purchase-fulfillment/create)
+	WflPurchaseFulfillmentCreate(ctx context.Context, request WflPurchaseFulfillmentCreateRequestObject) (WflPurchaseFulfillmentCreateResponseObject, error)
+	// WflPurchaseFulfillmentGet 读取采购履约流程
+	// (POST /wfl/purchase-fulfillment/get)
+	WflPurchaseFulfillmentGet(ctx context.Context, request WflPurchaseFulfillmentGetRequestObject) (WflPurchaseFulfillmentGetResponseObject, error)
+	// WflPurchaseFulfillmentInboundApprove 批准采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-approve)
+	WflPurchaseFulfillmentInboundApprove(ctx context.Context, request WflPurchaseFulfillmentInboundApproveRequestObject) (WflPurchaseFulfillmentInboundApproveResponseObject, error)
+	// WflPurchaseFulfillmentInboundAttachmentDownload 下载采购入库附件
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-download)
+	WflPurchaseFulfillmentInboundAttachmentDownload(ctx context.Context, request WflPurchaseFulfillmentInboundAttachmentDownloadRequestObject) (WflPurchaseFulfillmentInboundAttachmentDownloadResponseObject, error)
+	// WflPurchaseFulfillmentInboundAttachmentInitiate 发起采购入库附件上传
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-initiate)
+	WflPurchaseFulfillmentInboundAttachmentInitiate(ctx context.Context, request WflPurchaseFulfillmentInboundAttachmentInitiateRequestObject) (WflPurchaseFulfillmentInboundAttachmentInitiateResponseObject, error)
+	// WflPurchaseFulfillmentInboundAttachmentRemove 移除采购入库附件
+	// (POST /wfl/purchase-fulfillment/inbound-attachment-remove)
+	WflPurchaseFulfillmentInboundAttachmentRemove(ctx context.Context, request WflPurchaseFulfillmentInboundAttachmentRemoveRequestObject) (WflPurchaseFulfillmentInboundAttachmentRemoveResponseObject, error)
+	// WflPurchaseFulfillmentInboundCheck 核对采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-check)
+	WflPurchaseFulfillmentInboundCheck(ctx context.Context, request WflPurchaseFulfillmentInboundCheckRequestObject) (WflPurchaseFulfillmentInboundCheckResponseObject, error)
+	// WflPurchaseFulfillmentInboundCreate 创建采购入库草稿
+	// (POST /wfl/purchase-fulfillment/inbound-create)
+	WflPurchaseFulfillmentInboundCreate(ctx context.Context, request WflPurchaseFulfillmentInboundCreateRequestObject) (WflPurchaseFulfillmentInboundCreateResponseObject, error)
+	// WflPurchaseFulfillmentInboundDelete 删除采购入库草稿
+	// (POST /wfl/purchase-fulfillment/inbound-delete)
+	WflPurchaseFulfillmentInboundDelete(ctx context.Context, request WflPurchaseFulfillmentInboundDeleteRequestObject) (WflPurchaseFulfillmentInboundDeleteResponseObject, error)
+	// WflPurchaseFulfillmentInboundFinalize 最终处理采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-finalize)
+	WflPurchaseFulfillmentInboundFinalize(ctx context.Context, request WflPurchaseFulfillmentInboundFinalizeRequestObject) (WflPurchaseFulfillmentInboundFinalizeResponseObject, error)
+	// WflPurchaseFulfillmentInboundGet 读取采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-get)
+	WflPurchaseFulfillmentInboundGet(ctx context.Context, request WflPurchaseFulfillmentInboundGetRequestObject) (WflPurchaseFulfillmentInboundGetResponseObject, error)
+	// WflPurchaseFulfillmentInboundSave 保存采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-save)
+	WflPurchaseFulfillmentInboundSave(ctx context.Context, request WflPurchaseFulfillmentInboundSaveRequestObject) (WflPurchaseFulfillmentInboundSaveResponseObject, error)
+	// WflPurchaseFulfillmentInboundUnapprove 反批准采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-unapprove)
+	WflPurchaseFulfillmentInboundUnapprove(ctx context.Context, request WflPurchaseFulfillmentInboundUnapproveRequestObject) (WflPurchaseFulfillmentInboundUnapproveResponseObject, error)
+	// WflPurchaseFulfillmentInboundUncheck 反核对采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-uncheck)
+	WflPurchaseFulfillmentInboundUncheck(ctx context.Context, request WflPurchaseFulfillmentInboundUncheckRequestObject) (WflPurchaseFulfillmentInboundUncheckResponseObject, error)
+	// WflPurchaseFulfillmentInboundUnfinalize 撤销最终处理采购入库
+	// (POST /wfl/purchase-fulfillment/inbound-unfinalize)
+	WflPurchaseFulfillmentInboundUnfinalize(ctx context.Context, request WflPurchaseFulfillmentInboundUnfinalizeRequestObject) (WflPurchaseFulfillmentInboundUnfinalizeResponseObject, error)
+	// WflPurchaseFulfillmentOrderAttachmentDownload 下载采购订单附件
+	// (POST /wfl/purchase-fulfillment/order-attachment-download)
+	WflPurchaseFulfillmentOrderAttachmentDownload(ctx context.Context, request WflPurchaseFulfillmentOrderAttachmentDownloadRequestObject) (WflPurchaseFulfillmentOrderAttachmentDownloadResponseObject, error)
+	// WflPurchaseFulfillmentOrderAttachmentInitiate 发起采购订单附件上传
+	// (POST /wfl/purchase-fulfillment/order-attachment-initiate)
+	WflPurchaseFulfillmentOrderAttachmentInitiate(ctx context.Context, request WflPurchaseFulfillmentOrderAttachmentInitiateRequestObject) (WflPurchaseFulfillmentOrderAttachmentInitiateResponseObject, error)
+	// WflPurchaseFulfillmentOrderAttachmentRemove 移除采购订单附件
+	// (POST /wfl/purchase-fulfillment/order-attachment-remove)
+	WflPurchaseFulfillmentOrderAttachmentRemove(ctx context.Context, request WflPurchaseFulfillmentOrderAttachmentRemoveRequestObject) (WflPurchaseFulfillmentOrderAttachmentRemoveResponseObject, error)
+	// WflPurchaseFulfillmentQuery 查询采购履约流程
+	// (POST /wfl/purchase-fulfillment/query)
+	WflPurchaseFulfillmentQuery(ctx context.Context, request WflPurchaseFulfillmentQueryRequestObject) (WflPurchaseFulfillmentQueryResponseObject, error)
+	// WflPurchaseFulfillmentSave 保存采购订单
+	// (POST /wfl/purchase-fulfillment/save)
+	WflPurchaseFulfillmentSave(ctx context.Context, request WflPurchaseFulfillmentSaveRequestObject) (WflPurchaseFulfillmentSaveResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
+	// (POST /wfl/purchase-fulfillment/short-close-cancel)
+	WflPurchaseFulfillmentShortCloseCancel(ctx context.Context, request WflPurchaseFulfillmentShortCloseCancelRequestObject) (WflPurchaseFulfillmentShortCloseCancelResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseConfirm 确认采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-confirm)
+	WflPurchaseFulfillmentShortCloseConfirm(ctx context.Context, request WflPurchaseFulfillmentShortCloseConfirmRequestObject) (WflPurchaseFulfillmentShortCloseConfirmResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseRequest 申请采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-request)
+	WflPurchaseFulfillmentShortCloseRequest(ctx context.Context, request WflPurchaseFulfillmentShortCloseRequestRequestObject) (WflPurchaseFulfillmentShortCloseRequestResponseObject, error)
+	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
+	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
+	WflPurchaseFulfillmentShortCloseUnconfirm(ctx context.Context, request WflPurchaseFulfillmentShortCloseUnconfirmRequestObject) (WflPurchaseFulfillmentShortCloseUnconfirmResponseObject, error)
+	// WflPurchaseFulfillmentUnapprove 反批准采购订单
+	// (POST /wfl/purchase-fulfillment/unapprove)
+	WflPurchaseFulfillmentUnapprove(ctx context.Context, request WflPurchaseFulfillmentUnapproveRequestObject) (WflPurchaseFulfillmentUnapproveResponseObject, error)
+	// WflPurchaseFulfillmentUncheck 反核对采购订单
+	// (POST /wfl/purchase-fulfillment/uncheck)
+	WflPurchaseFulfillmentUncheck(ctx context.Context, request WflPurchaseFulfillmentUncheckRequestObject) (WflPurchaseFulfillmentUncheckResponseObject, error)
 	// WflSalesFulfillmentApprove 批准销售订单并自动生成出库草稿
 	// (POST /wfl/sales-fulfillment/approve)
 	WflSalesFulfillmentApprove(ctx context.Context, request WflSalesFulfillmentApproveRequestObject) (WflSalesFulfillmentApproveResponseObject, error)
@@ -8870,28 +10175,28 @@ type StrictServerInterface interface {
 	// WflSalesFulfillmentCreate 创建销售履约流程
 	// (POST /wfl/sales-fulfillment/create)
 	WflSalesFulfillmentCreate(ctx context.Context, request WflSalesFulfillmentCreateRequestObject) (WflSalesFulfillmentCreateResponseObject, error)
-	// WflSalesFulfillmentDeliveryApprove 批准销售配送单并自动生成签收草稿
+	// WflSalesFulfillmentDeliveryApprove 批准销售送货并自动生成签收草稿
 	// (POST /wfl/sales-fulfillment/delivery-approve)
 	WflSalesFulfillmentDeliveryApprove(ctx context.Context, request WflSalesFulfillmentDeliveryApproveRequestObject) (WflSalesFulfillmentDeliveryApproveResponseObject, error)
-	// WflSalesFulfillmentDeliveryCheck 核对销售配送单
+	// WflSalesFulfillmentDeliveryCheck 核对销售送货
 	// (POST /wfl/sales-fulfillment/delivery-check)
 	WflSalesFulfillmentDeliveryCheck(ctx context.Context, request WflSalesFulfillmentDeliveryCheckRequestObject) (WflSalesFulfillmentDeliveryCheckResponseObject, error)
-	// WflSalesFulfillmentDeliveryFinalize 完成销售配送单
+	// WflSalesFulfillmentDeliveryFinalize 完成销售送货
 	// (POST /wfl/sales-fulfillment/delivery-finalize)
 	WflSalesFulfillmentDeliveryFinalize(ctx context.Context, request WflSalesFulfillmentDeliveryFinalizeRequestObject) (WflSalesFulfillmentDeliveryFinalizeResponseObject, error)
-	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售配送单
+	// WflSalesFulfillmentDeliveryGet 读取自动生成的销售送货
 	// (POST /wfl/sales-fulfillment/delivery-get)
 	WflSalesFulfillmentDeliveryGet(ctx context.Context, request WflSalesFulfillmentDeliveryGetRequestObject) (WflSalesFulfillmentDeliveryGetResponseObject, error)
-	// WflSalesFulfillmentDeliverySave 保存销售配送单
+	// WflSalesFulfillmentDeliverySave 保存销售送货
 	// (POST /wfl/sales-fulfillment/delivery-save)
 	WflSalesFulfillmentDeliverySave(ctx context.Context, request WflSalesFulfillmentDeliverySaveRequestObject) (WflSalesFulfillmentDeliverySaveResponseObject, error)
-	// WflSalesFulfillmentDeliveryUnapprove 反批准销售配送单
+	// WflSalesFulfillmentDeliveryUnapprove 反批准销售送货
 	// (POST /wfl/sales-fulfillment/delivery-unapprove)
 	WflSalesFulfillmentDeliveryUnapprove(ctx context.Context, request WflSalesFulfillmentDeliveryUnapproveRequestObject) (WflSalesFulfillmentDeliveryUnapproveResponseObject, error)
-	// WflSalesFulfillmentDeliveryUncheck 反核对销售配送单
+	// WflSalesFulfillmentDeliveryUncheck 反核对销售送货
 	// (POST /wfl/sales-fulfillment/delivery-uncheck)
 	WflSalesFulfillmentDeliveryUncheck(ctx context.Context, request WflSalesFulfillmentDeliveryUncheckRequestObject) (WflSalesFulfillmentDeliveryUncheckResponseObject, error)
-	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售配送单
+	// WflSalesFulfillmentDeliveryUnfinalize 撤销完成销售送货
 	// (POST /wfl/sales-fulfillment/delivery-unfinalize)
 	WflSalesFulfillmentDeliveryUnfinalize(ctx context.Context, request WflSalesFulfillmentDeliveryUnfinalizeRequestObject) (WflSalesFulfillmentDeliveryUnfinalizeResponseObject, error)
 	// WflSalesFulfillmentFinalize 完成销售订单
@@ -8900,28 +10205,28 @@ type StrictServerInterface interface {
 	// WflSalesFulfillmentGet 读取销售履约流程
 	// (POST /wfl/sales-fulfillment/get)
 	WflSalesFulfillmentGet(ctx context.Context, request WflSalesFulfillmentGetRequestObject) (WflSalesFulfillmentGetResponseObject, error)
-	// WflSalesFulfillmentOutboundApprove 批准销售出库单并自动生成配送草稿
+	// WflSalesFulfillmentOutboundApprove 批准销售出库并自动生成送货草稿
 	// (POST /wfl/sales-fulfillment/outbound-approve)
 	WflSalesFulfillmentOutboundApprove(ctx context.Context, request WflSalesFulfillmentOutboundApproveRequestObject) (WflSalesFulfillmentOutboundApproveResponseObject, error)
-	// WflSalesFulfillmentOutboundCheck 核对销售出库单
+	// WflSalesFulfillmentOutboundCheck 核对销售出库
 	// (POST /wfl/sales-fulfillment/outbound-check)
 	WflSalesFulfillmentOutboundCheck(ctx context.Context, request WflSalesFulfillmentOutboundCheckRequestObject) (WflSalesFulfillmentOutboundCheckResponseObject, error)
-	// WflSalesFulfillmentOutboundFinalize 完成销售出库单
+	// WflSalesFulfillmentOutboundFinalize 完成销售出库
 	// (POST /wfl/sales-fulfillment/outbound-finalize)
 	WflSalesFulfillmentOutboundFinalize(ctx context.Context, request WflSalesFulfillmentOutboundFinalizeRequestObject) (WflSalesFulfillmentOutboundFinalizeResponseObject, error)
-	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库单
+	// WflSalesFulfillmentOutboundGet 读取自动生成的销售出库
 	// (POST /wfl/sales-fulfillment/outbound-get)
 	WflSalesFulfillmentOutboundGet(ctx context.Context, request WflSalesFulfillmentOutboundGetRequestObject) (WflSalesFulfillmentOutboundGetResponseObject, error)
-	// WflSalesFulfillmentOutboundSave 保存销售出库单
+	// WflSalesFulfillmentOutboundSave 保存销售出库
 	// (POST /wfl/sales-fulfillment/outbound-save)
 	WflSalesFulfillmentOutboundSave(ctx context.Context, request WflSalesFulfillmentOutboundSaveRequestObject) (WflSalesFulfillmentOutboundSaveResponseObject, error)
-	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库单
+	// WflSalesFulfillmentOutboundUnapprove 反批准销售出库
 	// (POST /wfl/sales-fulfillment/outbound-unapprove)
 	WflSalesFulfillmentOutboundUnapprove(ctx context.Context, request WflSalesFulfillmentOutboundUnapproveRequestObject) (WflSalesFulfillmentOutboundUnapproveResponseObject, error)
-	// WflSalesFulfillmentOutboundUncheck 反核对销售出库单
+	// WflSalesFulfillmentOutboundUncheck 反核对销售出库
 	// (POST /wfl/sales-fulfillment/outbound-uncheck)
 	WflSalesFulfillmentOutboundUncheck(ctx context.Context, request WflSalesFulfillmentOutboundUncheckRequestObject) (WflSalesFulfillmentOutboundUncheckResponseObject, error)
-	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库单
+	// WflSalesFulfillmentOutboundUnfinalize 撤销完成销售出库
 	// (POST /wfl/sales-fulfillment/outbound-unfinalize)
 	WflSalesFulfillmentOutboundUnfinalize(ctx context.Context, request WflSalesFulfillmentOutboundUnfinalizeRequestObject) (WflSalesFulfillmentOutboundUnfinalizeResponseObject, error)
 	// WflSalesFulfillmentQuery 查询销售履约流程
@@ -8942,28 +10247,28 @@ type StrictServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(ctx context.Context, request WflSalesFulfillmentShortCloseUnconfirmRequestObject) (WflSalesFulfillmentShortCloseUnconfirmResponseObject, error)
-	// WflSalesFulfillmentSignoffApprove 批准销售签收单
+	// WflSalesFulfillmentSignoffApprove 批准销售签收
 	// (POST /wfl/sales-fulfillment/signoff-approve)
 	WflSalesFulfillmentSignoffApprove(ctx context.Context, request WflSalesFulfillmentSignoffApproveRequestObject) (WflSalesFulfillmentSignoffApproveResponseObject, error)
-	// WflSalesFulfillmentSignoffCheck 核对销售签收单
+	// WflSalesFulfillmentSignoffCheck 核对销售签收
 	// (POST /wfl/sales-fulfillment/signoff-check)
 	WflSalesFulfillmentSignoffCheck(ctx context.Context, request WflSalesFulfillmentSignoffCheckRequestObject) (WflSalesFulfillmentSignoffCheckResponseObject, error)
-	// WflSalesFulfillmentSignoffFinalize 完成销售签收单并更新履约余额
+	// WflSalesFulfillmentSignoffFinalize 完成销售签收并更新履约余额
 	// (POST /wfl/sales-fulfillment/signoff-finalize)
 	WflSalesFulfillmentSignoffFinalize(ctx context.Context, request WflSalesFulfillmentSignoffFinalizeRequestObject) (WflSalesFulfillmentSignoffFinalizeResponseObject, error)
-	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收单
+	// WflSalesFulfillmentSignoffGet 读取自动生成的销售签收
 	// (POST /wfl/sales-fulfillment/signoff-get)
 	WflSalesFulfillmentSignoffGet(ctx context.Context, request WflSalesFulfillmentSignoffGetRequestObject) (WflSalesFulfillmentSignoffGetResponseObject, error)
-	// WflSalesFulfillmentSignoffSave 保存销售签收单
+	// WflSalesFulfillmentSignoffSave 保存销售签收
 	// (POST /wfl/sales-fulfillment/signoff-save)
 	WflSalesFulfillmentSignoffSave(ctx context.Context, request WflSalesFulfillmentSignoffSaveRequestObject) (WflSalesFulfillmentSignoffSaveResponseObject, error)
-	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收单
+	// WflSalesFulfillmentSignoffUnapprove 反批准销售签收
 	// (POST /wfl/sales-fulfillment/signoff-unapprove)
 	WflSalesFulfillmentSignoffUnapprove(ctx context.Context, request WflSalesFulfillmentSignoffUnapproveRequestObject) (WflSalesFulfillmentSignoffUnapproveResponseObject, error)
-	// WflSalesFulfillmentSignoffUncheck 反核对销售签收单
+	// WflSalesFulfillmentSignoffUncheck 反核对销售签收
 	// (POST /wfl/sales-fulfillment/signoff-uncheck)
 	WflSalesFulfillmentSignoffUncheck(ctx context.Context, request WflSalesFulfillmentSignoffUncheckRequestObject) (WflSalesFulfillmentSignoffUncheckResponseObject, error)
-	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收单
+	// WflSalesFulfillmentSignoffUnfinalize 撤销完成销售签收
 	// (POST /wfl/sales-fulfillment/signoff-unfinalize)
 	WflSalesFulfillmentSignoffUnfinalize(ctx context.Context, request WflSalesFulfillmentSignoffUnfinalizeRequestObject) (WflSalesFulfillmentSignoffUnfinalizeResponseObject, error)
 	// WflSalesFulfillmentUnapprove 反批准销售订单
@@ -13070,6 +14375,905 @@ func (sh *strictHandler) WflIntermediaryTradeuncheck(ctx *gin.Context) {
 	}
 }
 
+// WflPurchaseFulfillmentApprove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentApprove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentApproveRequestObject
+
+	var body WflPurchaseFulfillmentApproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentApprove(ctx, request.(WflPurchaseFulfillmentApproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentApprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentApproveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentApproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentAuditHistory operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentAuditHistory(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentAuditHistoryRequestObject
+
+	var body WflPurchaseFulfillmentAuditHistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentAuditHistory(ctx, request.(WflPurchaseFulfillmentAuditHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentAuditHistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentAuditHistoryResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentAuditHistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentCheck operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentCheck(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentCheckRequestObject
+
+	var body WflPurchaseFulfillmentCheckJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentCheck(ctx, request.(WflPurchaseFulfillmentCheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentCheck")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentCheckResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentCheckResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentCreate operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentCreate(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentCreateRequestObject
+
+	var body WflPurchaseFulfillmentCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentCreate(ctx, request.(WflPurchaseFulfillmentCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentCreateResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentGet operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentGet(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentGetRequestObject
+
+	var body WflPurchaseFulfillmentGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentGet(ctx, request.(WflPurchaseFulfillmentGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentGetResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundApprove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundApprove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundApproveRequestObject
+
+	var body WflPurchaseFulfillmentInboundApproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundApprove(ctx, request.(WflPurchaseFulfillmentInboundApproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundApprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundApproveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundApproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundAttachmentDownload operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundAttachmentDownload(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundAttachmentDownloadRequestObject
+
+	var body WflPurchaseFulfillmentInboundAttachmentDownloadJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundAttachmentDownload(ctx, request.(WflPurchaseFulfillmentInboundAttachmentDownloadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundAttachmentDownload")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundAttachmentDownloadResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundAttachmentDownloadResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundAttachmentInitiate operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundAttachmentInitiate(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundAttachmentInitiateRequestObject
+
+	var body WflPurchaseFulfillmentInboundAttachmentInitiateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundAttachmentInitiate(ctx, request.(WflPurchaseFulfillmentInboundAttachmentInitiateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundAttachmentInitiate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundAttachmentInitiateResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundAttachmentInitiateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundAttachmentRemove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundAttachmentRemove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundAttachmentRemoveRequestObject
+
+	var body WflPurchaseFulfillmentInboundAttachmentRemoveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundAttachmentRemove(ctx, request.(WflPurchaseFulfillmentInboundAttachmentRemoveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundAttachmentRemove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundAttachmentRemoveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundAttachmentRemoveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundCheck operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundCheck(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundCheckRequestObject
+
+	var body WflPurchaseFulfillmentInboundCheckJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundCheck(ctx, request.(WflPurchaseFulfillmentInboundCheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundCheck")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundCheckResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundCheckResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundCreate operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundCreate(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundCreateRequestObject
+
+	var body WflPurchaseFulfillmentInboundCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundCreate(ctx, request.(WflPurchaseFulfillmentInboundCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundCreateResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundDelete operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundDelete(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundDeleteRequestObject
+
+	var body WflPurchaseFulfillmentInboundDeleteJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundDelete(ctx, request.(WflPurchaseFulfillmentInboundDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundDeleteResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundDeleteResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundFinalize operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundFinalize(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundFinalizeRequestObject
+
+	var body WflPurchaseFulfillmentInboundFinalizeJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundFinalize(ctx, request.(WflPurchaseFulfillmentInboundFinalizeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundFinalize")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundFinalizeResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundFinalizeResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundGet operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundGet(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundGetRequestObject
+
+	var body WflPurchaseFulfillmentInboundGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundGet(ctx, request.(WflPurchaseFulfillmentInboundGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundGetResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundSave operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundSave(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundSaveRequestObject
+
+	var body WflPurchaseFulfillmentInboundSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundSave(ctx, request.(WflPurchaseFulfillmentInboundSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundSaveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundUnapprove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundUnapprove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundUnapproveRequestObject
+
+	var body WflPurchaseFulfillmentInboundUnapproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundUnapprove(ctx, request.(WflPurchaseFulfillmentInboundUnapproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundUnapprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundUnapproveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundUnapproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundUncheck operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundUncheck(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundUncheckRequestObject
+
+	var body WflPurchaseFulfillmentInboundUncheckJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundUncheck(ctx, request.(WflPurchaseFulfillmentInboundUncheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundUncheck")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundUncheckResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundUncheckResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentInboundUnfinalize operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentInboundUnfinalize(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentInboundUnfinalizeRequestObject
+
+	var body WflPurchaseFulfillmentInboundUnfinalizeJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentInboundUnfinalize(ctx, request.(WflPurchaseFulfillmentInboundUnfinalizeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentInboundUnfinalize")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentInboundUnfinalizeResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentInboundUnfinalizeResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentOrderAttachmentDownload operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentOrderAttachmentDownload(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentOrderAttachmentDownloadRequestObject
+
+	var body WflPurchaseFulfillmentOrderAttachmentDownloadJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentOrderAttachmentDownload(ctx, request.(WflPurchaseFulfillmentOrderAttachmentDownloadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentOrderAttachmentDownload")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentOrderAttachmentDownloadResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentOrderAttachmentDownloadResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentOrderAttachmentInitiate operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentOrderAttachmentInitiate(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentOrderAttachmentInitiateRequestObject
+
+	var body WflPurchaseFulfillmentOrderAttachmentInitiateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentOrderAttachmentInitiate(ctx, request.(WflPurchaseFulfillmentOrderAttachmentInitiateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentOrderAttachmentInitiate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentOrderAttachmentInitiateResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentOrderAttachmentInitiateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentOrderAttachmentRemove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentOrderAttachmentRemove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentOrderAttachmentRemoveRequestObject
+
+	var body WflPurchaseFulfillmentOrderAttachmentRemoveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentOrderAttachmentRemove(ctx, request.(WflPurchaseFulfillmentOrderAttachmentRemoveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentOrderAttachmentRemove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentOrderAttachmentRemoveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentOrderAttachmentRemoveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentQuery operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentQuery(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentQueryRequestObject
+
+	var body WflPurchaseFulfillmentQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentQuery(ctx, request.(WflPurchaseFulfillmentQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentQueryResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentSave operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentSave(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentSaveRequestObject
+
+	var body WflPurchaseFulfillmentSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentSave(ctx, request.(WflPurchaseFulfillmentSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentSaveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentShortCloseCancel operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseCancel(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseCancelRequestObject
+
+	var body WflPurchaseFulfillmentShortCloseCancelJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentShortCloseCancel(ctx, request.(WflPurchaseFulfillmentShortCloseCancelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseCancel")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseCancelResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseCancelResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentShortCloseConfirm operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseConfirm(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseConfirmRequestObject
+
+	var body WflPurchaseFulfillmentShortCloseConfirmJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentShortCloseConfirm(ctx, request.(WflPurchaseFulfillmentShortCloseConfirmRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseConfirm")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseConfirmResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseConfirmResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentShortCloseRequest operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseRequest(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseRequestRequestObject
+
+	var body WflPurchaseFulfillmentShortCloseRequestJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentShortCloseRequest(ctx, request.(WflPurchaseFulfillmentShortCloseRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseRequest")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseRequestResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseRequestResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentShortCloseUnconfirm operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentShortCloseUnconfirm(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentShortCloseUnconfirmRequestObject
+
+	var body WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentShortCloseUnconfirm(ctx, request.(WflPurchaseFulfillmentShortCloseUnconfirmRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentShortCloseUnconfirm")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseUnconfirmResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentUnapprove operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentUnapprove(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentUnapproveRequestObject
+
+	var body WflPurchaseFulfillmentUnapproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentUnapprove(ctx, request.(WflPurchaseFulfillmentUnapproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentUnapprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentUnapproveResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentUnapproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflPurchaseFulfillmentUncheck operation middleware
+func (sh *strictHandler) WflPurchaseFulfillmentUncheck(ctx *gin.Context) {
+	var request WflPurchaseFulfillmentUncheckRequestObject
+
+	var body WflPurchaseFulfillmentUncheckJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflPurchaseFulfillmentUncheck(ctx, request.(WflPurchaseFulfillmentUncheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflPurchaseFulfillmentUncheck")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflPurchaseFulfillmentUncheckResponseObject); ok {
+		if err := validResponse.VisitWflPurchaseFulfillmentUncheckResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // WflSalesFulfillmentApprove operation middleware
 func (sh *strictHandler) WflSalesFulfillmentApprove(ctx *gin.Context) {
 	var request WflSalesFulfillmentApproveRequestObject
@@ -14284,120 +16488,127 @@ func (sh *strictHandler) WflSalesFulfillmentUnfinalize(ctx *gin.Context) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"7H1rc9RGuv9Xcen/f7U1jgnJbu3xO+6hNhtYG5xTJ0Wd0kg9M1o0kmhJJk7KVSabBEPw4iwOuwRYYg4h",
-	"nM2JTTYJFxvCh4k1M361X+GU1K3b6NbdGhlxpt+Bp59W9+/Xl6d/T18+FCS9a+ga0CxTmP5QMEQodoEF",
-	"oPe/g3rziGYp1oL7H0UTpgVDtDpCQ9DELhCmBYB+bAgQnLMVCGRh2oI2aAim1AFd0bX6/xC0hGnh/02F",
-	"35lCv5pTYfaLiw3hqKKCU/pZoGV8zPJ+y/tWV9HeBlrb6gjTrzcEa8FwzUwLKlrb+8KcbldZnTD7Rfdr",
-	"EJiGrpkAIWmbigZM79+SrllAs9x/ioahKpJoKbo29UdT96pOiB3O8Ig2D1TdAOibMjAlqBhufsK00N++",
-	"s/NkaefJl87ldefairO19q9nN9F/d9duDDY3d7ZXdp6/6K89mHjr1KmTE/v37ftl6SNhsSG8BUTVhXFE",
-	"hUXZzWBA0orau7XiFvLC187W4/7lR72lC7gkp4DU0RRJVI9AqMORlWgo27QSXV7q3drsXb+4s/2o/+1m",
-	"/6OnCDOvXIt+m/C7ySEIRAvMgHM2MFHRZFlxcxLVk1A3ALQUtyG0RNUEDcGI/OlDQRYtkdJElCTd1qx3",
-	"vHb7oaDZqio2VeC316Gm3wjS290mgGQWsgxxey1M2xS1swehqEkd4uTEJW+KUNJlsrSSaIG2DheOy2TJ",
-	"ifPVNUuUyNHG6U92dI3CQNEAPOX9QmJhQwg0aYEwsWnpXYrcZXHhROv3uoaGgJYOu6IlTAuKZr2x3x0u",
-	"0+0VzQJtAIMMWiawUu1T0gNDhFYXaBYhd7G+SpAedEVFJUuptRUNUPSUjgLBYdEiQ1bVRfmQaIiSYi38",
-	"rk1k0hU1sQ3gka6h6gsAEALU1WWgEqbUrA4VWxppRzBESE6pQdxdDFW0aBhy07vVOtH8I5CIi6Ob3mhM",
-	"mPycLXpz/0kAD/m9mcgQgq4Iz5IltVVA3IdNUQWmAaCpa5RNxwSWpQK3M/4eWB1dJjXr6JB8jDQNICkt",
-	"PHmTWdjubE8xilkibAMr9PgIDN6naFW2plhECedBR5EomJtXSABZjLqp76HJDHfNM0Fi3WvxicSex5FM",
-	"1XA9mcNABayejB7pYIlqoR9nwLxiYsqjQ81v3kwdaiBd8nkAzaDP5gMWlDVRsmg2kRJk4HVEVqx6oEVc",
-	"wayaBD0FaHbXa1TYcRDC3ie4cykaTgSvQrItWe7vAM4rkvu38yIEHd02gRA0faEhtGxNnsRuqBC6akJ0",
-	"7hfCUVeIDkOTXW8cipQ7xOmg3jwGqiCApSllAPuWYlo6XKigkIbYBnjlq3Rdzl5P6xVuqlnlA5RSfB+l",
-	"3L9vXyPXLrs5eV+NZJtRbbe9gfNstZb0bhcv8grHy1yE9mQASR0vGkElMvCZFef5ipGvGPmKka8Y+YqR",
-	"rxj5ipGvGKteMSbckNr6TnlL1Dlk4q9nKvCrX17NU6s8HOuh9aWR10Iyq+Y6lqhVZbSysLhdYJp4XZIC",
-	"rMcVCVJY0fBzw4WLZpGG1aGOqLXBSdE0z+tQZlx8eK6S5WeSWhENnM/5fbgqQxnGzVOrgeJJugpY109y",
-	"OgG0bpA/cydnOwC7iokasPdJxQJdMzUp/oMIobiQK1zFizf8jWycTpsAMq6kFNNQxYV3MmuZ1wagrgLK",
-	"yjcE2wQwA9QhZIKUjVgxI4UKi5CGzZGuYS0gD6YQlYTxUQDkpiidPWBZotTx/GxNsRTmICeO2vpTWgKm",
-	"lqKCTBbMjrj/179J/wnrGolRmkLaCL7diBUTZx58/gwRTDOgq7Ou692CkAyNOF1egcoEpMWQc9rWHeh6",
-	"ERXx4OljQkOYPX3s2JHZU8dPvCM0hBOn3joyk6rnSaoCNAvP8KmfjMT/U/WwkyJahKbMPe4qwJ8TMmZ+",
-	"S7FUgr4Z0S+RRViuSCmGq5NShsYQ2nmcMgudLZwBUdsK06aVZWgrB105TEu0bLO4DDhd2vePM87pCkHV",
-	"lfQqvw3kg6IqahJ7r/Y3VNF0QvNEyxcJgsFNdv9AJ4EO1THINq2meygnD2vIjQCmDApKiegvsWIZ1Tlh",
-	"AE3R2uwasBTVDIIBOs9xTxQjMXjblj4PIHGra9maPLqvK9o80Cw8d4wmS0OE1gizgyWicdGwQATmaLUx",
-	"oH6xIyJvViP6gw1YewTboOS2hKNQ7xI1D/fvp3SypAoEkr8mIfc2ZF2y3YnzHT0nhpox0Zu6DSUQaj35",
-	"w2ZQ8aBaez1+uiWGFkFjzqAbqBmBZiijMcR310RTwguxFAct4Yi62fqZnCnsQ8STAK5tRrufAboBGHUf",
-	"CEQzw7McUf/GX8gsexnVaiRFTCvZSbFdlXuTMbryzlKus6SyCHV3bci47JsXLRGehirG2t9Lv3/fm79t",
-	"EATY4lJKJIPX9/+2Ubg5P1GXch1FkUfexZVCodbz5pg1O1ppLqOKo1fsRgAbgbxHgG11Op8ykjgAgyCY",
-	"BlZc7fMzLcJHaWvHNdblUahyRvvtvv1vFnTcuJ4Zsf3Nm8VdPkPsNPKE8eR5EIp6At+mTFwCZVIUh5jT",
-	"7VATPKyf11RdZJQufC83w5ElFQ0j2TTyFMRYyasVfQlqltljKbtmxRJyDNyIL1hCWo7xUEZVZm0/5Yb9",
-	"PESyW95en6PqevtR0+rexEFXYjXE2y8HYKA5vMyNqFGrNKSjZc3sndEdY5k7xOpe02Czct3L+b4BNBO8",
-	"7bY51nVLTmuOxmWKYsI5G46IgyJxRw8X7AyBxtayNfkA3iZec8o6oiar9e8B/l622pcTnSUo1QPot8V6",
-	"i3Eg/wFvxktfOOFTDnUH0IZSRzTBaU2xTkJFSh/VR7DtMHVjW9YXh1WM4MTIMPLRbEhGCr+6te+AOcBF",
-	"tlzWvRam0tb0VqtU94TAza2gt+XBpbS1Amsk67ulJKl9LHUi/0aywCQNE2V6ON/rDr/MjOY5VhTLQHSO",
-	"HonsbT3+mbKaN33/FFvNixkevKt1QReZT6fO6bbfq8qJwwUr4tEvezNqkzxx6U4IkyhA0MD/sa2mjuLC",
-	"3v9loCrzwHOyvf/jcVkIJ8TA3i0j7AJZEeHCZCxnCCSgGGiv0gI+eolXIJMQKN2mDU2A/65bHQAnFU3S",
-	"kYyBF35BXgbUJRuig5r+39q6LpuT4Vf8Qk9qugWEYDJB/03bBjan20cVTVSVD1jFAKXVAu7yFcxkB/wK",
-	"2oGieciT78LBVBEbvDKuOW5ZpNNVFfspUHMfcQlwOyQm7JWYCcqMSMxbDHO7UnaJMopRarNXQa/ew71g",
-	"MehJ4rdzuv1/Zk/PWbCQuXPeEx5P5G7PCbaKUkTS+B6Dl7EhZ063Z4A7IIGKvLFKNuxkxSdydu/M6fbe",
-	"ntnn0QkeneDRCR6d4NEJHp3g0QkeneDRCR6d4NEJHp3g0Yk9jE409j5ckHP9ybst9YB3UqqKVWiGalpQ",
-	"f3koJkMo5xpQl4BpZql06Ffq60IztILkPI+/nfxSFuoveTdvPmA59SPd9xur40vd98vYoHK3C1fR2ire",
-	"U5zXSIdoTSBWaudxrCVUuPO4BM8MXYSN5ZFzkt37qtv7nDquk0bd322pzFEhpiEroxC1vQCAeWQmiQi9",
-	"21JLRITyYzCVxka8+A0ocxaKEJ6qJPlX3Bka6cCVNzjMWmIbVBM3HoXPk+rim0CyoWItzEod0PV9Fv2s",
-	"Ag7Y6PKg+FtAb1mWcUJTFyZ2nn052Lw9cchL+69nN52Nv+/e+MRZXel/89C5utlf+37wYnWwfmX3k5X+",
-	"843B/U/7N6//svSRtxdHmMbfCB+c+gBA4z9NYGKU/d5gKL8D6EIOE7aCJ7HiRUIlQa86DV6sOTf/3v/y",
-	"44lDszNHJzyLyFc7QES7cvBX/33STTZ5Cr+nNfTVRW/jS0tPfvI/jsycnHAurTirf+5/u+msbe48WUIP",
-	"R/W3XjgrVwcbG78sfRR7Xyr+uNQEKq5z5ZP+9q3B+oPBzz+jYqqKBPBtQriMvz9+SmgINlTd8luWYU5P",
-	"TekG0NCa/TUdtqew0VRXsSIXN6FSHjh5PFznCdPC66/te22fJ6gaQBMNRZgW3nht32tveMOL1fEawJRo",
-	"GFP+7UdT4a1Mkwr2hb15REct3G3Con/Zq3DAMPw7mkK7wCw4KnhQlxdG9oJV8QVti/Ee4o5nw8+S7d+3",
-	"L+s7QbrgqbFYzxGm34v3mffOxNrre2cWzzQE0+52RbggTAvO8m3nm8+cK9edqyu795d3b3y8s/3IbX1i",
-	"2/SC3IYhnHE/kEkD9BxRShKw0V5REHeWa0VA/5vt3Rv36NCXPI+UCHKctFqg4x5yreDtXV3d2brXX3vQ",
-	"W36MQC6Gt43uzy7E1k1XLbCR6btWqA42t52r14lQDS8TKMT1ZJD0WGXIhvfU1RDQ3u0/7d5YJYHynLv2",
-	"IATTW6dUBGf0epp69fs7Xw827xYACnUVkAymM7oKDlU5kCavFa6Zk3DT2d4afPOXwaV/5oMpKyYKBxeg",
-	"eRinqwbO4VMI9QLzwq3+2gMSMIFGhOURbWyhXN0khLJo6nFxHNNJhwS+4unGBXCMJxoSEE1xvrgzz4qV",
-	"LYuGb8GqFYw7L2473/2tAEbbBHBK8l4SmIzejZSJ6GkTQJQ+ejd7FRN46vMGNUN4o7f21Hl+zbm0gj33",
-	"zU/7X10oQLvYO/JArt47il4yVkPvCEGaDyaJd+RWUx5374gETALvyMUSjLl3RAJlkXfk4tgeT++IBD4D",
-	"3e5ZCKGfriIPKX7HaB3ljeXraJqPTkKDnz7uXb+RD3Cx++nCe2583U+SVlrofroYmtW6n7Wdw1G7JIIR",
-	"hwWLkJwNwodVgBl9Q6hqIOPt7cJd594K6sAo1lkAl9LWFAK0ULKKWl7sCtY9hQu1qP6Nbef5F8VA6bZF",
-	"hJSb7tVvV1QddHdpybm4Vdjumnpz6kPg7TVfdLGFuaHJg3rTT+OdfRa7AB3Ufi+9TmGSqfBddrecVVCR",
-	"eKm7XvPOpafOxU+dO1v99SW0tcDZfDr4fj3CSlNvprJiy4o12UG7xvK5cVP6CWtJ0NDetxp6BkmGnI31",
-	"3ldPnD9/6lz9ZzFbRev/g3ozWPvXkKAaR6aRbJDkZ7Byqf/gRTEzMlBBATM4SS2ZOeyVrabMfLV7416S",
-	"md371/uXlkn5AbJi5bLjJaglN0dkpZ77Dpyrnw9+epxkpv/s+uDnz4s5yRU6DupNJHLUkJF6bwRhcQMK",
-	"1vQH9aa/nq8bHTXXAljIQCdWc9nASbifTLlu+e8fnJt/Z+EkX685qDexVlNDPqJb/2so87D7XKbd7BbM",
-	"6jhJLXnJeKC/hhs2s5YtxRThzeVmLklBIr6qHNEc07+03Lv1P6n0tBQVmJEd4+aUjE/qTn1ouV9ZdMuO",
-	"XbM4Vf6R3nAnNzVjRxUVoLogxpKoZdCmSxawJk0LArEbpy8449NUNBG9NT10Amb4eiQhrMBEc8ECprDY",
-	"EN4kIW3oXaU8rXHnyWeD58/xOY/hneQeCZmE2MYwHYadQsdpY8RkZHWfX039igHyoj7yZvLsDKoRkJn5",
-	"cM3+bcQ0Xt559hUxjSlHMij5TB6X4LwWExTd/J5LU8d7mf2DzDEOvdwusIzo2DSvsIMXN/sPPnMufO1s",
-	"Pe7911LvzteRYgYF8cuqAnkquA1rqoleV8+eSd8GcpDaT1zNrJh8672Os+LGU+fGg53nN3bvRqMTKpBT",
-	"4S1YAUfBrTK0PfxedW2B7f10offwx0xgW7YmEzVZNyFvrXcHP328e/HzgtbqgVrcUN1kY95GEZwFbTR4",
-	"VJ6ooQapeWu962xdc777W0FrDeEtbrJB2nEfWz1gC9qtbgBN0dpTomQp87nxwLeBjBMHaSuD9lU4m/Lj",
-	"/f7DF8W4ksXEI+DGQ+MVAVx/IQLh27t1x1m+7WysDzbWE4HtdMQld7xTJyFw/0CCODLA6ce0SV+93nu0",
-	"vHtxxXm2RNiwcwNuIbjVbS6u7YYmfPgq0n4LwSRvrNU3Uzf/et6nsPbDYPMxVSPNj7SEqFa4OfZtIJ9A",
-	"H6l57ISowXovBBC5uF5K7t7edX5e6t3+usC9RbAWu7ZeunF3az1Ac9xaCER5IVuVmwGijMpSRphrCL/e",
-	"98ZIdLzeFw97Kxuus/7w+/72P4qlvHndptgJO6fbrDthw/fyqgqJ5bwvWMM9sTgqtvJFb2UjQtC8bqcy",
-	"E16k5EfF8lkK0gfJa0lY9rW8NfQWopQhLR/F0qjoK76OLEZf5BqyWtP3atxelmSQiruiO8xizAV3l9Wa",
-	"t9pfecZEGZlO4tJV5uzAnlBVf3ElylCGuJLBk9QB0tlcflAK7mswM/TVE2fzKZ2vUXSWw6WF7SzHnvBS",
-	"+7McdGwUnd+Y023G8xt7wsbQ05I1PMCxu7bkrG3sXvt558lnvSdPEns8M3hp4fetc5kJEtWSm+Enuus1",
-	"ct1a6m8vO/c+7q9SrpVyxeQ53WY5vbEnfNT79AYdCQXy05xus53b2BMi6q5a0VGRr1vP6TbTCYE9IaLm",
-	"KjclDx0dWpOSqptgEoUJc1mZFVVwAsoAzrp2h1yzQ8iKT/RsEUlvoh9s3HVWvujf+a6/fQ3JOpTM6VpL",
-	"QQ+eUlGHzfhShlkOWN8YbNxDxEWppKMPhs9c0NDnI8K7HpNyWpY1W2PsdqcDQ84c9aC5wt7lbI0klhSm",
-	"4uwwTWksoSRbK5bd/DScFvpOwyK52RqRnBBJxpmhXTn95d7u2lKUlqjCkErR+ZY6pWgWgF0gKyJcmLSg",
-	"KIPiKPm7LfV4xOyUaxUOdFVgn3hWtl6d4vtPdv/64+DHJ72/XZsIgfABP99SCwAnC+ekwl79Btjk24Z1",
-	"3OcSoSAjRlNIQ8G0kQa/P4uMeZv3YSCHuiAEk4p1lXdrJ943reMdWRHIez9d6D/4jAZyGajKPIALk1Rb",
-	"bdKI8HNK3YNTVU94NfbRxHqFj9MECutPRFAqxVrxDhsy1ip+ATD3we5Xh7UISqVYK9pbQ8ZZpQ8G5jys",
-	"/erwFSBEzxaDA+DbckcgRsYktUcQWjK4BgELFbsIrx4NPiD0PBTty8jjIdiwwXmIgcnCA3gfSDYrEb4x",
-	"Z2IYThYqcjde5NFQ3bm+lAfOXwESEB70BORH+vMYqPDM2qvYCzAc9AwUiut5JISqO+chDicbFaWmhtCc",
-	"05GElIIQ6lmh0tmg5jckl5KwDKhLNgTecrq0ihXJjAtZ+f0jAlUZLSuDPjY5K5U+rmgR0sciamXQx6Jr",
-	"pZLHpS0C4ujVrShtDL5bxJw7b8Os0MtcMWMGpStKBxe7knxQ611RaxbJK2LPVa8kIfTCV9Sa2rWOGHPN",
-	"JUEGpewSNTVUUWLvGciad4wEoIxs0OtgEWsuhQ1zQauGRW2ZBLFIBlwTSyGEQRaLm5cbrnx7zkkKqBSc",
-	"FJyRTGOhyuu63m2ptb+uq5Q+BoEEFGME2hjOiOti+d0Dw1RGE0uhjE0PS1DGtTACylh0sBTKWDSwBGFc",
-	"/yogi1778qlicNGwKXfOokzQ612BYdHxxjwOghOOnIUYmCw8MGiOPg1cb4yzQK01+pYsOiO25RpjnAR6",
-	"fdG3pNYWsSHXFWMEUGqKvhm9goUtuXoVRZ9WufLtmFQrbMwVqyESGNSqiGkJx8jWuGuU5ILeOaIfjKod",
-	"her+bnTsrO3d3vLjxK0ZxZBT3BWVSoBr75lL/p1RY94DUhBl5YNlSIoQwsekFEYYRiWaW53yKYHB7U6c",
-	"kgSmjJQwTt0hKXz2TqWFbQZX2preapWPfOCMeOSjgDAEU5nIRwplbJGPBGU88kFAGUvkI4UylshHgjAe",
-	"+Sggiz7y4VPFsMzHpnyRH2WCPvIRGDJ5CZgD7iAMscDuGrBEPnwaeOQjzgJ15MO3ZIl8YFse+YiTQB/5",
-	"8C2pIx/YkEc+YgRQRj58MwaxEVnyyEcUfdrIh2/HFPnAxjzyMUQCQ+QjYlrCMeLaSRoX9M4RwTXWaSxE",
-	"77Uec/ijUFDAzjAI8dEngDx/1DFFFZiTLVttKarqrvqJbjSeda2OhkYHxriFo2vXozfiO08fDS7+w7n8",
-	"oL92p7e86lzccrauJZ4SK+SB+KLjBBuu5Vv8nmPEifP91/2t++ieYwr4iwedYdgPje2Ig265z3gUohDo",
-	"Yq0hgfS4324cbdkFR1+SgIcXrjKM9IexMR/x8VORn6zsLl1IDvr9737urT2iHvQprlfNYoYPQzFeWMAv",
-	"fn8jB/+j4ascY+h7blzpLa+OgIIi3S0L/WNgPHduoCvDYiPQlx+PgIdCBS6LiNlxVeDQvr8RQE+mN2Th",
-	"f3q8ZYerK6mzNBsP7JPx6XHWIfznr0bCQak5+XT0rawxdIy8567Kzs1MDHBvaJVxXUzrAR0b35tSSy2H",
-	"ddtq6rYmMy2HT2BjvhzGHHhaZ3I5jMYb6uVwwA39DOwzw5fDMV5YwGca+H38+QSwOgIKaCcDH32+HE4s",
-	"h0vxQL0c9ongy+Gy0LMth338+XI4bZZm44F9MubL4dHMyIzL4ZAGvhxeKjs3F1/YNwz/H8b7vr5SqzTq",
-	"iXd2nE+dM0oOlAfNE5C75odc60NjfM786vXeo+VoW+/f+a6/fa2/9sNg8zErGQTbP3PYGOPtn/31jcHG",
-	"vSQdjESQnC3PJmJmjI+Wo/Y/MiLItkRnU3F6rDdFIw+oHBn++VaGRdkssuWiKWIA7RWinKqJz6xmgM91",
-	"0bLQMy3BMPpcFV0dIsB5+qh388fe9YdoPNp5fmP37m0GVmiVUkwIF0oTQmmZvkG/XEOGXCYtCTybSorR",
-	"5yLpiGZlFo004IBLpE9HwUCZ6ZkLpEMCKQsVbEMRH4MS58moMKcfePiIw354iXGY4ePL0PiSBbz3ETgP",
-	"oOl9QwamBBXDrZhL3uqV3tbqxLugOdF//rnzyQ9CQ7ChKkwLU6KhCO43cXbDloONF7t/3fhl6cLOsy8H",
-	"m7d/WbrQu/2n3Rurzl+uOFdXdu8vCw1BE7tAmHY5EBYbiU/f2eqvL+08+dK5vO5sPh18vx5aNPVmigVO",
-	"u/JFb2UjTDuv25lpgxgJTutCkpV28OP9/sMXYVoVyGlpt64MXtx0lh+hq7L63272P3oaGrUUFZgpZoMX",
-	"q4P1K/3Lj3pLF4ZtgqZuCotnFv83AAD//w==",
+	"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",
+	"X3rc654ftgmauiksnV763wAAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

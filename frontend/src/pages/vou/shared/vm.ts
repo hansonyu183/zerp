@@ -410,9 +410,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         product: inputReference(line.product)!,
         orderedQuantity: line.orderedQuantity.trim(),
         unitPrice: line.unitPrice.trim(),
-        ...(config.entity === 'intermediary-sale-order'
-          ? { purchaseUnitPrice: line.purchaseUnitPrice.trim() }
-          : {}),
         ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       }))
     }

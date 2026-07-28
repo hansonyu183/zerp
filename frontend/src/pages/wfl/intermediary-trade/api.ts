@@ -241,7 +241,7 @@ function rootDocument(
   const root = process.documents.find(
     (document) => document.stage === 'CUSTOMER_ORDER',
   )
-  if (!root) throw new Error('流程响应缺少客户订单根单')
+  if (!root) throw new Error('流程响应缺少居间订单根单')
   return root
 }
 
@@ -492,7 +492,7 @@ async function receiptData(processId: string, draft: IntermediaryReceiptDraft) {
   const procurementSummary = process.documents.find(
     (document) => document.stage === 'PROCUREMENT',
   )
-  if (!procurementSummary) throw new Error('流程缺少采购单，不能创建收货单。')
+  if (!procurementSummary) throw new Error('流程缺少居间采购，不能创建居间收货。')
   const procurement = (
     await post<
       IntermediaryDocumentWire,

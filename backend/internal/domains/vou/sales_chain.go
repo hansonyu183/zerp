@@ -198,7 +198,7 @@ func (s *Service) saveSalesChain(
 	if err != nil {
 		return MutationResult{}, s.internal("read saved sales workflow document", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, "SAVED", StatusDraft, actorID, requestID,
 		map[string]any{"revision": result.Revision},
 	); err != nil {

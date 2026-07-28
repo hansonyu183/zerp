@@ -40,6 +40,7 @@ type Service struct {
 	events   eventPublisher
 	files    attachmentService
 	sales    salesVoucherService
+	purchase purchaseVoucherService
 	logger   *slog.Logger
 }
 
@@ -59,6 +60,10 @@ func (s *Service) SetAttachmentService(files attachmentService) {
 
 func (s *Service) SetSalesVoucherService(sales salesVoucherService) {
 	s.sales = sales
+}
+
+func (s *Service) SetPurchaseVoucherService(purchase purchaseVoucherService) {
+	s.purchase = purchase
 }
 
 type fixedCustomerLine struct {

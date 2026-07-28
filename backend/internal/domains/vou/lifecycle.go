@@ -29,6 +29,15 @@ func (s *Service) CreateManagedSalesOrder(
 	return s.createDocument(ctx, EntitySaleOrder, input, actorID, requestID, true)
 }
 
+// CreateManagedPurchaseOrder is the only write entry point for purchase orders.
+func (s *Service) CreateManagedPurchaseOrder(
+	ctx context.Context,
+	input CreateInput,
+	actorID, requestID string,
+) (MutationResult, error) {
+	return s.createDocument(ctx, EntityPurchaseOrder, input, actorID, requestID, true)
+}
+
 func (s *Service) createDocument(
 	ctx context.Context,
 	entity string,
@@ -39,8 +48,8 @@ func (s *Service) createDocument(
 	if isSalesChainEntity(entity) {
 		return s.createSalesChain(ctx, entity, input, actorID, requestID)
 	}
-	if managed && entity != EntitySaleOrder {
-		return MutationResult{}, domainError(ErrorValidation, "invalid managed sales root", nil, nil)
+	if managed && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
+		return MutationResult{}, domainError(ErrorValidation, "invalid managed workflow root", nil, nil)
 	}
 	draft, err := validateDraft(entity, input.Data)
 	if err != nil {
@@ -96,9 +105,12 @@ func (s *Service) createDocument(
 		return MutationResult{}, s.writeError("audit create", err)
 	}
 	if managed {
-		if err = s.createSalesWorkflow(
-			ctx, tx, documentID, documentNo, actorID, requestID,
-		); err != nil {
+		if entity == EntitySaleOrder {
+			err = s.createSalesWorkflow(ctx, tx, documentID, documentNo, actorID, requestID)
+		} else {
+			err = s.createPurchaseWorkflow(ctx, tx, documentID, documentNo, actorID, requestID)
+		}
+		if err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -166,7 +178,7 @@ func (s *Service) Save(
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit save", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, "SAVED", StatusDraft, actorID, requestID,
 		map[string]any{"revision": revision},
 	); err != nil {
@@ -224,7 +236,7 @@ func (s *Service) Check(
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit check", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, "CHECKED", StatusChecked, actorID, requestID, nil,
 	); err != nil {
 		return MutationResult{}, err
@@ -301,7 +313,7 @@ func (s *Service) forwardTransition(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, event, to, actorID, requestID, summary,
 	); err != nil {
 		return MutationResult{}, err
@@ -341,6 +353,19 @@ func (s *Service) reverseTransition(
 			return MutationResult{}, err
 		}
 	}
+	if managedPurchaseDocument(document) && document.Entity == EntityPurchaseOrder &&
+		from == StatusApproved && to == StatusChecked {
+		var children int64
+		if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_purchase_inbound_details
+			WHERE source_order_id=$1`, document.ID).Scan(&children); err != nil {
+			return MutationResult{}, err
+		}
+		if children != 0 {
+			return MutationResult{}, domainError(
+				ErrorConflict, "purchase order has inbound documents", nil, nil,
+			)
+		}
+	}
 	var revision int64
 	var event string
 	switch {
@@ -366,7 +391,7 @@ func (s *Service) reverseTransition(
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit reverse transition", err)
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, event, to, actorID, requestID, nil,
 	); err != nil {
 		return MutationResult{}, err

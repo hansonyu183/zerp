@@ -101,8 +101,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
-          AND (x.customer_object_id = sqlc.arg(party_object_id) OR x.supplier_object_id = sqlc.arg(party_object_id)))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
@@ -125,8 +124,8 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id
           AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_intermediary_sale_order_details x WHERE x.document_id = d.id
-          AND (x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
@@ -148,7 +147,7 @@ WHERE d.entity = sqlc.arg(entity)
 -- name: ListVouDocuments :many
 SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
-                po.supplier_name, iso.customer_name, r.counterparty_name,
+                po.supplier_name, pi.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name,
                 co.customer_name, pro.supplier_name, gr.supplier_name,
                 dn.customer_name, sn.customer_name, '') AS party_name
@@ -158,7 +157,7 @@ LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
 LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
-LEFT JOIN vou_intermediary_sale_order_details iso ON iso.document_id = d.id
+LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
@@ -179,7 +178,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR sd.customer_object_id = sqlc.arg(party_object_id)
       OR ss.customer_object_id = sqlc.arg(party_object_id)
       OR po.supplier_object_id = sqlc.arg(party_object_id)
-      OR iso.customer_object_id = sqlc.arg(party_object_id) OR iso.supplier_object_id = sqlc.arg(party_object_id)
+      OR pi.supplier_object_id = sqlc.arg(party_object_id)
       OR r.counterparty_object_id = sqlc.arg(party_object_id)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
@@ -197,7 +196,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR sd.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR sd.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR ss.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR ss.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR po.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR po.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR iso.customer_name ILIKE '%' || sqlc.arg(keyword) || '%' OR iso.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR pi.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR pi.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR r.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR r.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -316,109 +315,51 @@ WHERE document_id = sqlc.arg(document_id);
 -- name: GetVouPurchaseOrderDetail :one
 SELECT * FROM vou_purchase_order_details WHERE document_id = sqlc.arg(document_id);
 
--- name: SetVouPurchaseOrderExecution :execrows
-UPDATE vou_purchase_order_details
-SET inbound_date = sqlc.arg(inbound_date), difference_reason = sqlc.narg(difference_reason)
-WHERE document_id = sqlc.arg(document_id);
-
--- name: ClearVouPurchaseOrderExecution :execrows
-UPDATE vou_purchase_order_details SET inbound_date = NULL, difference_reason = NULL
-WHERE document_id = sqlc.arg(document_id);
-
--- name: InsertVouIntermediarySaleOrderDetail :exec
-INSERT INTO vou_intermediary_sale_order_details (
-    document_id, customer_object_id, customer_version_id, customer_code, customer_name,
+-- name: InsertVouPurchaseInboundDetail :exec
+INSERT INTO vou_purchase_inbound_details (
+    document_id, source_order_id,
     supplier_object_id, supplier_version_id, supplier_code, supplier_name,
-    salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name,
-    purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name,
-    contact_name, contact_phone, delivery_address,
-    customer_settlement_method_object_id, customer_settlement_method_version_id,
-    customer_settlement_method_code, customer_settlement_method_name,
-    customer_settlement_rule_type, customer_settlement_month_offset,
-    customer_settlement_day_of_month, customer_settlement_day_offset,
-    customer_settlement_description,
-    supplier_settlement_method_object_id, supplier_settlement_method_version_id,
-    supplier_settlement_method_code, supplier_settlement_method_name,
-    supplier_settlement_rule_type, supplier_settlement_month_offset,
-    supplier_settlement_day_of_month, supplier_settlement_day_offset,
-    supplier_settlement_description
+    warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name
 ) VALUES (
-    sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_version_id),
-    sqlc.arg(customer_code), sqlc.arg(customer_name), sqlc.arg(supplier_object_id),
-    sqlc.arg(supplier_version_id), sqlc.arg(supplier_code), sqlc.arg(supplier_name),
-    sqlc.arg(salesperson_object_id), sqlc.arg(salesperson_version_id),
-    sqlc.arg(salesperson_code), sqlc.arg(salesperson_name),
-    sqlc.arg(purchaser_object_id), sqlc.arg(purchaser_version_id),
-    sqlc.arg(purchaser_code), sqlc.arg(purchaser_name),
-    sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(delivery_address),
-    sqlc.arg(customer_settlement_method_object_id),
-    sqlc.arg(customer_settlement_method_version_id),
-    sqlc.arg(customer_settlement_method_code), sqlc.arg(customer_settlement_method_name),
-    sqlc.arg(customer_settlement_rule_type), sqlc.arg(customer_settlement_month_offset),
-    sqlc.narg(customer_settlement_day_of_month), sqlc.arg(customer_settlement_day_offset),
-    sqlc.narg(customer_settlement_description),
-    sqlc.arg(supplier_settlement_method_object_id),
-    sqlc.arg(supplier_settlement_method_version_id),
-    sqlc.arg(supplier_settlement_method_code), sqlc.arg(supplier_settlement_method_name),
-    sqlc.arg(supplier_settlement_rule_type), sqlc.arg(supplier_settlement_month_offset),
-    sqlc.narg(supplier_settlement_day_of_month), sqlc.arg(supplier_settlement_day_offset),
-    sqlc.narg(supplier_settlement_description)
+    sqlc.arg(document_id), sqlc.arg(source_order_id),
+    sqlc.arg(supplier_object_id), sqlc.arg(supplier_version_id),
+    sqlc.arg(supplier_code), sqlc.arg(supplier_name),
+    sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_version_id),
+    sqlc.arg(warehouse_code), sqlc.arg(warehouse_name)
 );
 
--- name: UpdateVouIntermediarySaleOrderDetail :execrows
-UPDATE vou_intermediary_sale_order_details
-SET customer_object_id = sqlc.arg(customer_object_id), customer_version_id = sqlc.arg(customer_version_id),
-    customer_code = sqlc.arg(customer_code), customer_name = sqlc.arg(customer_name),
-    supplier_object_id = sqlc.arg(supplier_object_id), supplier_version_id = sqlc.arg(supplier_version_id),
-    supplier_code = sqlc.arg(supplier_code), supplier_name = sqlc.arg(supplier_name),
-    salesperson_object_id = sqlc.arg(salesperson_object_id),
-    salesperson_version_id = sqlc.arg(salesperson_version_id),
-    salesperson_code = sqlc.arg(salesperson_code), salesperson_name = sqlc.arg(salesperson_name),
-    purchaser_object_id = sqlc.arg(purchaser_object_id),
-    purchaser_version_id = sqlc.arg(purchaser_version_id),
-    purchaser_code = sqlc.arg(purchaser_code), purchaser_name = sqlc.arg(purchaser_name),
-    contact_name = sqlc.narg(contact_name), contact_phone = sqlc.narg(contact_phone),
-    delivery_address = sqlc.narg(delivery_address),
-    customer_settlement_method_object_id = sqlc.arg(customer_settlement_method_object_id),
-    customer_settlement_method_version_id = sqlc.arg(customer_settlement_method_version_id),
-    customer_settlement_method_code = sqlc.arg(customer_settlement_method_code),
-    customer_settlement_method_name = sqlc.arg(customer_settlement_method_name),
-    customer_settlement_rule_type = sqlc.arg(customer_settlement_rule_type),
-    customer_settlement_month_offset = sqlc.arg(customer_settlement_month_offset),
-    customer_settlement_day_of_month = sqlc.narg(customer_settlement_day_of_month),
-    customer_settlement_day_offset = sqlc.arg(customer_settlement_day_offset),
-    customer_settlement_description = sqlc.narg(customer_settlement_description),
-    supplier_settlement_method_object_id = sqlc.arg(supplier_settlement_method_object_id),
-    supplier_settlement_method_version_id = sqlc.arg(supplier_settlement_method_version_id),
-    supplier_settlement_method_code = sqlc.arg(supplier_settlement_method_code),
-    supplier_settlement_method_name = sqlc.arg(supplier_settlement_method_name),
-    supplier_settlement_rule_type = sqlc.arg(supplier_settlement_rule_type),
-    supplier_settlement_month_offset = sqlc.arg(supplier_settlement_month_offset),
-    supplier_settlement_day_of_month = sqlc.narg(supplier_settlement_day_of_month),
-    supplier_settlement_day_offset = sqlc.arg(supplier_settlement_day_offset),
-    supplier_settlement_description = sqlc.narg(supplier_settlement_description)
+-- name: GetVouPurchaseInboundDetail :one
+SELECT * FROM vou_purchase_inbound_details
 WHERE document_id = sqlc.arg(document_id);
 
--- name: GetVouIntermediarySaleOrderDetail :one
-SELECT * FROM vou_intermediary_sale_order_details WHERE document_id = sqlc.arg(document_id);
-
--- name: SetVouIntermediarySaleOrderExecution :execrows
-UPDATE vou_intermediary_sale_order_details
-SET outbound_date = sqlc.arg(outbound_date), signoff_date = sqlc.arg(signoff_date),
-    platform_object_id = sqlc.arg(platform_object_id), platform_version_id = sqlc.arg(platform_version_id),
-    platform_code = sqlc.arg(platform_code), platform_name = sqlc.arg(platform_name),
-    vehicle_object_id = sqlc.arg(vehicle_object_id), vehicle_version_id = sqlc.arg(vehicle_version_id),
-    vehicle_code = sqlc.arg(vehicle_code), vehicle_name = sqlc.arg(vehicle_name),
-    vehicle_plate_number = sqlc.arg(vehicle_plate_number), difference_reason = sqlc.narg(difference_reason)
+-- name: UpdateVouPurchaseInboundWarehouse :execrows
+UPDATE vou_purchase_inbound_details
+SET warehouse_object_id = sqlc.arg(warehouse_object_id),
+    warehouse_version_id = sqlc.arg(warehouse_version_id),
+    warehouse_code = sqlc.arg(warehouse_code),
+    warehouse_name = sqlc.arg(warehouse_name)
 WHERE document_id = sqlc.arg(document_id);
 
--- name: ClearVouIntermediarySaleOrderExecution :execrows
-UPDATE vou_intermediary_sale_order_details
-SET outbound_date = NULL, signoff_date = NULL,
-    platform_object_id = NULL, platform_version_id = NULL, platform_code = NULL, platform_name = NULL,
-    vehicle_object_id = NULL, vehicle_version_id = NULL, vehicle_code = NULL, vehicle_name = NULL,
-    vehicle_plate_number = NULL, difference_reason = NULL
-WHERE document_id = sqlc.arg(document_id);
+-- name: DeleteVouPurchaseInboundLines :exec
+DELETE FROM vou_purchase_inbound_lines WHERE document_id = sqlc.arg(document_id);
+
+-- name: InsertVouPurchaseInboundLine :exec
+INSERT INTO vou_purchase_inbound_lines (
+    id, document_id, source_order_line_id, line_no,
+    product_object_id, product_version_id, product_code, product_name, product_unit,
+    quantity_micros, unit_price_cents, line_amount_cents, remark
+) VALUES (
+    sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(source_order_line_id), sqlc.arg(line_no),
+    sqlc.arg(product_object_id), sqlc.arg(product_version_id),
+    sqlc.arg(product_code), sqlc.arg(product_name), sqlc.arg(product_unit),
+    sqlc.arg(quantity_micros), sqlc.arg(unit_price_cents),
+    sqlc.arg(line_amount_cents), sqlc.narg(remark)
+);
+
+-- name: ListVouPurchaseInboundLines :many
+SELECT * FROM vou_purchase_inbound_lines
+WHERE document_id = sqlc.arg(document_id)
+ORDER BY line_no;
 
 -- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
@@ -558,13 +499,7 @@ SET outbound_qty_micros = sqlc.arg(outbound_qty_micros),
     rejected_qty_micros = sqlc.arg(rejected_qty_micros),
     loss_qty_micros = sqlc.arg(loss_qty_micros)
 WHERE id = sqlc.arg(id) AND document_id = sqlc.arg(document_id)
-  AND document_entity IN ('sale-order', 'intermediary-sale-order');
-
--- name: SetVouPurchaseLineExecution :execrows
-UPDATE vou_product_lines
-SET inbound_qty_micros = sqlc.arg(inbound_qty_micros)
-WHERE id = sqlc.arg(id) AND document_id = sqlc.arg(document_id)
-  AND document_entity = 'purchase-order';
+  AND document_entity = 'sale-order';
 
 -- name: ClearVouProductLineExecution :exec
 UPDATE vou_product_lines

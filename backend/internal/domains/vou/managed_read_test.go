@@ -47,14 +47,12 @@ func TestManagedDocumentStatusFiltersMapToStoredLifecycle(t *testing.T) {
 func TestWorkflowManagedEntityCoversBothProcesses(t *testing.T) {
 	for _, entity := range []string{
 		EntitySaleOrder, EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff,
+		EntityPurchaseOrder, EntityPurchaseInbound,
 		EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
 		EntityDeliveryNote, EntitySignoffNote,
 	} {
 		if !workflowManagedEntity(entity) {
 			t.Errorf("%s is not workflow-managed", entity)
 		}
-	}
-	if workflowManagedEntity(EntityPurchaseOrder) {
-		t.Fatal("purchase-order must remain directly managed")
 	}
 }

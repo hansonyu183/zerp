@@ -513,7 +513,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :product-error="vm.referenceError('product')"
             :product-loading="vm.referenceLoading('product')"
             :product-options="vm.referenceOptions('product')"
-            :purchase-price-required="vm.config.entity === 'intermediary-sale-order'"
+            :purchase-price-required="false"
             @product-search="vm.searchReference('product', $event)"
           />
           <VoucherExpenseLinesEditor
@@ -577,7 +577,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             class="voucher-form__chain-summary"
           >
             <v-alert type="info" variant="tonal">
-              本配送单承接出库单 {{ vm.form.sourceDocumentNo }} 的全部出库明细。
+              本销售送货承接销售出库 {{ vm.form.sourceDocumentNo }} 的全部出库明细。
             </v-alert>
           </div>
           <div

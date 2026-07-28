@@ -525,7 +525,7 @@ func (s *Service) shortCloseMutation(
 	}); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.touchSalesWorkflow(
+	if err = s.touchWorkflow(
 		ctx, tx, document, event, StatusFinalized, actorID, requestID,
 		map[string]any{"fulfillmentStatus": next},
 	); err != nil {

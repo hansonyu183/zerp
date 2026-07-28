@@ -4,7 +4,7 @@ export type VoucherEntity =
   | 'sale-delivery'
   | 'sale-signoff'
   | 'purchase-order'
-  | 'intermediary-sale-order'
+  | 'purchase-inbound'
   | 'receipt'
   | 'payment'
   | 'expense-reimbursement'
@@ -409,7 +409,10 @@ export interface VoucherEntityConfig {
   usesEmployee?: boolean
   usesSourceName?: boolean
   directAmount?: boolean
-  managedByWorkflow?: 'sales-fulfillment' | 'intermediary-trade'
+  managedByWorkflow?:
+    | 'sales-fulfillment'
+    | 'purchase-fulfillment'
+    | 'intermediary-trade'
 }
 
 export interface VoucherActionAvailability {

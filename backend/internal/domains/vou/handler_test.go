@@ -127,7 +127,7 @@ func TestHandlerUsesExactVOUPermissionPath(t *testing.T) {
 		return authorization.Principal{ActorID: testObjectID}, nil
 	})
 	router := newVOUTestRouter(service, authorizer)
-	request := httptest.NewRequest(http.MethodPost, "/vou/intermediary-sale-order/query",
+	request := httptest.NewRequest(http.MethodPost, "/vou/purchase-inbound/query",
 		strings.NewReader(`{"page":1,"pageSize":20,"filters":{},"sort":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -135,10 +135,10 @@ func TestHandlerUsesExactVOUPermissionPath(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if permission != "/vou/intermediary-sale-order/query" {
+	if permission != "/vou/purchase-inbound/query" {
 		t.Fatalf("permission = %q", permission)
 	}
-	if service.queryCalls != 1 || service.entity != EntityIntermediarySaleOrder {
+	if service.queryCalls != 1 || service.entity != EntityPurchaseInbound {
 		t.Fatalf("query calls=%d entity=%q", service.queryCalls, service.entity)
 	}
 }

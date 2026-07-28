@@ -965,7 +965,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存居间贸易客户订单 */
+        /** 保存居间订单 */
         post: operations["wflIntermediaryTradesave"];
         delete?: never;
         options?: never;
@@ -2461,7 +2461,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 读取自动生成的销售出库单 */
+        /** 读取自动生成的销售出库 */
         post: operations["wflSalesFulfillmentOutboundGet"];
         delete?: never;
         options?: never;
@@ -2478,7 +2478,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存销售出库单 */
+        /** 保存销售出库 */
         post: operations["wflSalesFulfillmentOutboundSave"];
         delete?: never;
         options?: never;
@@ -2495,7 +2495,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 核对销售出库单 */
+        /** 核对销售出库 */
         post: operations["wflSalesFulfillmentOutboundCheck"];
         delete?: never;
         options?: never;
@@ -2512,7 +2512,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反核对销售出库单 */
+        /** 反核对销售出库 */
         post: operations["wflSalesFulfillmentOutboundUncheck"];
         delete?: never;
         options?: never;
@@ -2529,7 +2529,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准销售出库单并自动生成配送草稿 */
+        /** 批准销售出库并自动生成送货草稿 */
         post: operations["wflSalesFulfillmentOutboundApprove"];
         delete?: never;
         options?: never;
@@ -2546,7 +2546,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反批准销售出库单 */
+        /** 反批准销售出库 */
         post: operations["wflSalesFulfillmentOutboundUnapprove"];
         delete?: never;
         options?: never;
@@ -2563,7 +2563,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 完成销售出库单 */
+        /** 完成销售出库 */
         post: operations["wflSalesFulfillmentOutboundFinalize"];
         delete?: never;
         options?: never;
@@ -2580,7 +2580,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 撤销完成销售出库单 */
+        /** 撤销完成销售出库 */
         post: operations["wflSalesFulfillmentOutboundUnfinalize"];
         delete?: never;
         options?: never;
@@ -2597,7 +2597,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 读取自动生成的销售配送单 */
+        /** 读取自动生成的销售送货 */
         post: operations["wflSalesFulfillmentDeliveryGet"];
         delete?: never;
         options?: never;
@@ -2614,7 +2614,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存销售配送单 */
+        /** 保存销售送货 */
         post: operations["wflSalesFulfillmentDeliverySave"];
         delete?: never;
         options?: never;
@@ -2631,7 +2631,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 核对销售配送单 */
+        /** 核对销售送货 */
         post: operations["wflSalesFulfillmentDeliveryCheck"];
         delete?: never;
         options?: never;
@@ -2648,7 +2648,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反核对销售配送单 */
+        /** 反核对销售送货 */
         post: operations["wflSalesFulfillmentDeliveryUncheck"];
         delete?: never;
         options?: never;
@@ -2665,7 +2665,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准销售配送单并自动生成签收草稿 */
+        /** 批准销售送货并自动生成签收草稿 */
         post: operations["wflSalesFulfillmentDeliveryApprove"];
         delete?: never;
         options?: never;
@@ -2682,7 +2682,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反批准销售配送单 */
+        /** 反批准销售送货 */
         post: operations["wflSalesFulfillmentDeliveryUnapprove"];
         delete?: never;
         options?: never;
@@ -2699,7 +2699,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 完成销售配送单 */
+        /** 完成销售送货 */
         post: operations["wflSalesFulfillmentDeliveryFinalize"];
         delete?: never;
         options?: never;
@@ -2716,7 +2716,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 撤销完成销售配送单 */
+        /** 撤销完成销售送货 */
         post: operations["wflSalesFulfillmentDeliveryUnfinalize"];
         delete?: never;
         options?: never;
@@ -2733,7 +2733,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 读取自动生成的销售签收单 */
+        /** 读取自动生成的销售签收 */
         post: operations["wflSalesFulfillmentSignoffGet"];
         delete?: never;
         options?: never;
@@ -2750,7 +2750,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存销售签收单 */
+        /** 保存销售签收 */
         post: operations["wflSalesFulfillmentSignoffSave"];
         delete?: never;
         options?: never;
@@ -2767,7 +2767,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 核对销售签收单 */
+        /** 核对销售签收 */
         post: operations["wflSalesFulfillmentSignoffCheck"];
         delete?: never;
         options?: never;
@@ -2784,7 +2784,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反核对销售签收单 */
+        /** 反核对销售签收 */
         post: operations["wflSalesFulfillmentSignoffUncheck"];
         delete?: never;
         options?: never;
@@ -2801,7 +2801,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准销售签收单 */
+        /** 批准销售签收 */
         post: operations["wflSalesFulfillmentSignoffApprove"];
         delete?: never;
         options?: never;
@@ -2818,7 +2818,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 反批准销售签收单 */
+        /** 反批准销售签收 */
         post: operations["wflSalesFulfillmentSignoffUnapprove"];
         delete?: never;
         options?: never;
@@ -2835,7 +2835,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 完成销售签收单并更新履约余额 */
+        /** 完成销售签收并更新履约余额 */
         post: operations["wflSalesFulfillmentSignoffFinalize"];
         delete?: never;
         options?: never;
@@ -2852,8 +2852,501 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 撤销完成销售签收单 */
+        /** 撤销完成销售签收 */
         post: operations["wflSalesFulfillmentSignoffUnfinalize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询采购履约流程 */
+        post: operations["wflPurchaseFulfillmentQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取采购履约流程 */
+        post: operations["wflPurchaseFulfillmentGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建采购履约流程 */
+        post: operations["wflPurchaseFulfillmentCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存采购订单 */
+        post: operations["wflPurchaseFulfillmentSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/audit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询采购履约审计 */
+        post: operations["wflPurchaseFulfillmentAuditHistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 核对采购订单 */
+        post: operations["wflPurchaseFulfillmentCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/uncheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反核对采购订单 */
+        post: operations["wflPurchaseFulfillmentUncheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准采购订单 */
+        post: operations["wflPurchaseFulfillmentApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准采购订单 */
+        post: operations["wflPurchaseFulfillmentUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/short-close-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 申请采购履约短结 */
+        post: operations["wflPurchaseFulfillmentShortCloseRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/short-close-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消采购履约短结申请 */
+        post: operations["wflPurchaseFulfillmentShortCloseCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/short-close-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认采购履约短结 */
+        post: operations["wflPurchaseFulfillmentShortCloseConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/short-close-unconfirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 撤销采购履约短结 */
+        post: operations["wflPurchaseFulfillmentShortCloseUnconfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建采购入库草稿 */
+        post: operations["wflPurchaseFulfillmentInboundCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除采购入库草稿 */
+        post: operations["wflPurchaseFulfillmentInboundDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 核对采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-uncheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反核对采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundUncheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 最终处理采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundFinalize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-unfinalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 撤销最终处理采购入库 */
+        post: operations["wflPurchaseFulfillmentInboundUnfinalize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/order-attachment-initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发起采购订单附件上传 */
+        post: operations["wflPurchaseFulfillmentOrderAttachmentInitiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/order-attachment-download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 下载采购订单附件 */
+        post: operations["wflPurchaseFulfillmentOrderAttachmentDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/order-attachment-remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 移除采购订单附件 */
+        post: operations["wflPurchaseFulfillmentOrderAttachmentRemove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-attachment-initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发起采购入库附件上传 */
+        post: operations["wflPurchaseFulfillmentInboundAttachmentInitiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-attachment-download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 下载采购入库附件 */
+        post: operations["wflPurchaseFulfillmentInboundAttachmentDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/purchase-fulfillment/inbound-attachment-remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 移除采购入库附件 */
+        post: operations["wflPurchaseFulfillmentInboundAttachmentRemove"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3098,7 +3591,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "purchase-order" | "intermediary-sale-order" | "receipt" | "payment" | "expense-reimbursement" | "other-income" | "customer-order" | "procurement-order" | "goods-receipt" | "delivery-note" | "signoff-note";
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "purchase-order" | "purchase-inbound" | "receipt" | "payment" | "expense-reimbursement" | "other-income" | "customer-order" | "procurement-order" | "goods-receipt" | "delivery-note" | "signoff-note";
         VouQueryRequest: {
             page: number;
             pageSize: number;
@@ -6296,6 +6789,470 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentAuditHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentUncheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentShortCloseRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentShortCloseCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentShortCloseConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentShortCloseUnconfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundUncheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundFinalize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundUnfinalize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflActionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentOrderAttachmentInitiate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentInitiateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentOrderAttachmentDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentDownloadRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentOrderAttachmentRemove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentRemoveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundAttachmentInitiate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentInitiateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundAttachmentDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentDownloadRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflPurchaseFulfillmentInboundAttachmentRemove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflAttachmentRemoveRequest"];
             };
         };
         responses: {

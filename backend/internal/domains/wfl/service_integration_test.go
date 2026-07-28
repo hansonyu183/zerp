@@ -133,7 +133,7 @@ func TestIntermediaryTradeIndependentDocumentsIntegration(t *testing.T) {
 	}
 	var permissionCount int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain='wfl'`).
-		Scan(&permissionCount); err != nil || permissionCount != 96 {
+		Scan(&permissionCount); err != nil || permissionCount != 125 {
 		t.Fatalf("WFL permissions = %d err=%v", permissionCount, err)
 	}
 	created, err := service.Create(t.Context(), CreateInput{Data: CustomerOrderInput{

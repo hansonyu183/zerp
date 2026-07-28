@@ -4,8 +4,9 @@
 
 WFL（Workflow）负责跨多张 VOU 原子单据的流程编排。当前流程类型为：
 
-- `INTERMEDIARY_TRADE`：客户订单、采购、收货、送货和签收；
-- `SALES_FULFILLMENT`：销售订单、销售出库、销售配送和销售签收。
+- `INTERMEDIARY_TRADE`：居间订单、居间采购、居间收货、居间送货和居间签收；
+- `SALES_FULFILLMENT`：销售订单、销售出库、销售送货和销售签收；
+- `PURCHASE_FULFILLMENT`：采购订单和分批采购入库。
 
 流程定义版本为 `1`。
 流程定义由代码注册，数据库只保存流程实例、阶段单据关联和追加式审计，不提供动态 BPM 配置。
@@ -21,19 +22,19 @@ LED 只消费 VOU 原子单据完成及反向事件。WFL、VOU、LED 使用同�
 
 | 阶段     | VOU 实体            | 编号                  |
 | -------- | ------------------- | --------------------- |
-| 客户订单 | `customer-order`    | `CO-YYYYMMDD-######`  |
-| 采购     | `procurement-order` | `PRO-YYYYMMDD-######` |
-| 收货     | `goods-receipt`     | `GR-YYYYMMDD-######`  |
-| 送货     | `delivery-note`     | `DN-YYYYMMDD-######`  |
-| 签收     | `signoff-note`      | `SN-YYYYMMDD-######`  |
+| 居间订单 | `customer-order`    | `CO-YYYYMMDD-######`  |
+| 居间采购 | `procurement-order` | `PRO-YYYYMMDD-######` |
+| 居间收货 | `goods-receipt`     | `GR-YYYYMMDD-######`  |
+| 居间送货 | `delivery-note`     | `DN-YYYYMMDD-######`  |
+| 居间签收 | `signoff-note`      | `SN-YYYYMMDD-######`  |
 
 所有受管单据的 `controlDomain` 为 `WFL`。`parentDocumentId` 是服务端只读属性：
 
 ```text
-采购单 -> 客户订单
-收货单 -> 采购单
-送货单 -> 客户订单
-签收单 -> 送货单
+居间采购 -> 居间订单
+居间收货 -> 居间采购
+居间送货 -> 居间订单
+居间签收 -> 居间送货
 ```
 
 底层 VOU 状态使用 `DRAFT -> REVIEWED -> APPROVED`。WFL 将 `REVIEWED` 显示为 `CHECKED`，
@@ -49,7 +50,7 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
                          \-> SHORT_CLOSE_REQUESTED -> SHORT_CLOSED
 ```
 
-- 一个流程只能有一张有效采购单，收货、送货和签收可多张。
+- 一个流程只能有一张有效居间采购，居间收货、居间送货和居间签收可多张。
 - 采购数量不得超过客户订购量；正数采购行必须填写采购价。
 - 累计确认收货不得超过已下单采购量。
 - 某日可送量为该日及之前确认收货减已执行送货加已确认拒收。
@@ -69,8 +70,8 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 | --------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | `query`         | 无                                                                       | 可选 `page`、`pageSize`、`keyword`、`statuses`；分页默认 1/20、最大 100 |
 | `get`           | `processId`                                                              | 返回完整流程、授权后的单据正文和余额                                    |
-| `create`        | `data`                                                                   | `data` 为客户订单草稿                                                   |
-| `save`          | `processId`、`processRevision`、`documentId`、`documentRevision`、`data` | 只保存根客户订单草稿                                                    |
+| `create`        | `data`                                                                   | `data` 为居间订单草稿                                                   |
+| `save`          | `processId`、`processRevision`、`documentId`、`documentRevision`、`data` | 只保存根居间订单草稿                                                    |
 | `audit-history` | `processId`                                                              | 可选 `page`、`pageSize`，默认 1/20、最大 100                            |
 
 根流程动作：
@@ -111,7 +112,7 @@ DRAFT -> CHECKED -> APPROVED -> COMPLETED
 ```
 
 状态只允许 `DRAFT`、`CHECKED`、`APPROVED`、`COMPLETED`、`SHORT_CLOSE_REQUESTED`、
-`SHORT_CLOSED`，同一状态不能重复。创建流程时只传客户订单草稿：
+`SHORT_CLOSED`，同一状态不能重复。创建流程时只传居间订单草稿：
 
 ```json
 {
@@ -261,24 +262,24 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 
 | 阶段     | 实体                | 数量     |
 | -------- | ------------------- | -------- |
-| 客户订单 | `customer-order`    | 根单一张 |
+| 居间订单 | `customer-order`    | 根单一张 |
 | 居间采购 | `procurement-order` | 最多一张 |
-| 收货     | `goods-receipt`     | 可多张   |
-| 送货     | `delivery-note`     | 可多张   |
-| 签收     | `signoff-note`      | 可多张   |
+| 居间收货 | `goods-receipt`     | 可多张   |
+| 居间送货 | `delivery-note`     | 可多张   |
+| 居间签收 | `signoff-note`      | 可多张   |
 
-查询只发送 `page`、`pageSize`、可选 `keyword` 和 `statuses`。客户订单创建业务
-明细字段为 `data.lines`。采购和送货行的 `sourceLineId` 指向客户订单行；收货行
+查询只发送 `page`、`pageSize`、可选 `keyword` 和 `statuses`。居间订单创建业务
+明细字段为 `data.lines`。采购和送货行的 `sourceLineId` 指向居间订单行；收货行
 指向采购行；签收行指向送货行。创建收货、签收前必须分别通过
 `procurement-get`、`delivery-get` 取得真实来源行；签收请求不发送
 `deliveryChildId`。
 
-创建和保存时，客户订单的 `businessDate`、`currency` 位于请求 `data` 中；读取
+创建和保存时，居间订单的 `businessDate`、`currency` 位于请求 `data` 中；读取
 `ProcessView` 时，它们和 `amount` 一样位于各 `DocumentSummary` 顶层。各阶段
 业务快照及备注位于 `DocumentSummary.data`，前端按真实响应重建可编辑草稿。
 
 采购正文和余额中的 `procurementQuantity` 可能因权限被省略。省略表示无权限，
-不是零；前端不得推断供应商、采购价或采购数量。客户订单没有附件动作，只有采购、
+不是零；前端不得推断供应商、采购价或采购数量。居间订单没有附件动作，只有采购、
 收货、送货和签收阶段提供附件。
 
 核对人与本阶段最终操作人必须不同。前端在已知同一用户时禁用最终动作并说明原因，
@@ -288,11 +289,28 @@ WFL 动作值和权限路径始终使用后端 kebab-case 字面量。所有写�
 ### 7.3 销售履约
 
 页面为 `/wfl/sales-fulfillment`。四个阶段在同一流程工作区展示；批准后生成的下级草稿立即
-出现在对应阶段，来源单号只读且可跳回上级单据。VOU 导航提供销售订单、出库、配送、签收
+出现在对应阶段，来源单号只读且可跳回上级单据。VOU 导航提供销售订单、销售出库、销售送货、销售签收
 四个独立只读入口，但不提供独立新建、编辑或流转。下级保存请求只发送阶段业务资料，永不发送
 `sourceDocumentId`。
 
-### 7.4 真实后端测试
+### 7.4 采购履约
+
+页面为 `/wfl/purchase-fulfillment`，根单为 `purchase-order`，子单为可重复的
+`purchase-inbound`。订单按 `DRAFT -> CHECKED -> APPROVED -> COMPLETED` 流转；
+批准后才能创建入库。入库按 `DRAFT -> CHECKED -> APPROVED -> FINALIZED` 流转，
+所有反向动作要求原因。
+
+创建或保存入库时，服务端锁定父订单并把所有未删除入库草稿、已核对、已批准和已最终处理
+数量一起计入占用；任一订单行累计数量不得超过订购量。入库只读继承供应商和采购单价，
+计划仓库默认带入但可改为实际仓库。全部数量最终入库后订单自动完成，撤销任一最终入库后
+自动重新打开。不足量且无未完成入库时可由一人申请、另一人确认短结；短结后禁止继续入库，
+反短结恢复。
+
+采购订单和采购入库均通过 VOU 菜单独立只读查看。订单、入库的新建、编辑、附件及生命周期
+动作仅通过 `/wfl/purchase-fulfillment/{action}`；采购入库最终处理发布库存入库和供应商应付，
+反最终处理发布反向流水。
+
+### 7.5 真实后端测试
 
 WFL Playwright 不拦截业务请求。默认复用 `E2E_USERNAME`、
 `E2E_REVIEWER_USERNAME` 双账号及 `E2E_VOU_*` 有效基础资料，在桌面和移动项目

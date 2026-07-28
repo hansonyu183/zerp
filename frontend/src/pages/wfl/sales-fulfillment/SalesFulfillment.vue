@@ -135,7 +135,7 @@ const statusText: Record<string, string> = {
 const stageText: Record<Stage, string> = {
   SALE_ORDER: '销售订单',
   OUTBOUND: '销售出库',
-  DELIVERY: '销售配送',
+  DELIVERY: '销售送货',
   SIGNOFF: '销售签收',
 }
 

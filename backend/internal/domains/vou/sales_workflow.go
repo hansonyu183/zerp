@@ -32,6 +32,9 @@ func (s *Service) validateManagedSalesParentStatus(
 	document dbsqlc.VouDocument,
 	targetStatus string,
 ) error {
+	if managedPurchaseDocument(document) {
+		return s.validateManagedPurchaseParentStatus(ctx, tx, document, targetStatus)
+	}
 	if !managedSalesDocument(document) || document.ParentDocumentID == nil {
 		return nil
 	}
@@ -64,6 +67,22 @@ func (s *Service) validateManagedSalesReady(
 	tx pgx.Tx,
 	document dbsqlc.VouDocument,
 ) error {
+	if managedPurchaseDocument(document) {
+		if document.Entity == EntityPurchaseOrder {
+			return nil
+		}
+		var ready bool
+		err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=$1
+		)`, document.ID).Scan(&ready)
+		if err != nil {
+			return s.internal("validate purchase inbound readiness", err)
+		}
+		if !ready {
+			return domainError(ErrorConflict, "purchase inbound has no lines", nil, nil)
+		}
+		return nil
+	}
 	if !managedSalesDocument(document) || document.Entity == EntitySaleOrder {
 		return nil
 	}

@@ -1,0 +1,339 @@
+package wfl
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/jackc/pgx/v5"
+)
+
+type purchaseVoucherService interface {
+	Query(context.Context, string, voudomain.QueryInput) (voudomain.Page[voudomain.ListItem], error)
+	Get(context.Context, string, voudomain.GetInput) (voudomain.DocumentView, error)
+	CreateManagedPurchaseOrder(context.Context, voudomain.CreateInput, string, string) (voudomain.MutationResult, error)
+	CreatePurchaseInbound(context.Context, voudomain.CreateInput, string, string) (voudomain.MutationResult, error)
+	Save(context.Context, string, voudomain.SaveInput, string, string) (voudomain.MutationResult, error)
+	SavePurchaseInbound(context.Context, voudomain.SaveInput, string, string) (voudomain.MutationResult, error)
+	DeletePurchaseInbound(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	Check(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
+	Uncheck(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
+	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	Finalize(context.Context, string, voudomain.FinalizeInput, string, string) (voudomain.MutationResult, error)
+	Unfinalize(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	PurchaseShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	PurchaseShortCloseCancel(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	PurchaseShortCloseConfirm(context.Context, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
+	PurchaseShortCloseUnconfirm(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+}
+
+func (s *Service) PurchaseCreate(
+	ctx context.Context, input SalesCreateInput, actorID, requestID string,
+) (MutationResult, error) {
+	if s.purchase == nil {
+		return MutationResult{}, internal("purchase voucher service is unavailable", nil)
+	}
+	result, err := s.purchase.CreateManagedPurchaseOrder(
+		ctx, voudomain.CreateInput{Data: input.Data}, actorID, requestID,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return s.purchaseMutation(ctx, result)
+}
+
+func (s *Service) PurchaseSave(
+	ctx context.Context, input SalesSaveInput, actorID, requestID string,
+) (MutationResult, error) {
+	if err := s.verifyPurchaseDocument(
+		ctx, input.ProcessID, input.ProcessRevision, input.DocumentID, StagePurchaseOrder,
+	); err != nil {
+		return MutationResult{}, err
+	}
+	result, err := s.purchase.Save(ctx, voudomain.EntityPurchaseOrder, voudomain.SaveInput{
+		DocumentID: input.DocumentID, Revision: input.DocumentRevision, Data: input.Data,
+	}, actorID, requestID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return s.purchaseMutation(ctx, result)
+}
+
+func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[ProcessView], error) {
+	query, err := validateQuery(input)
+	if err != nil {
+		return Page[ProcessView]{}, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT p.id
+		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
+		WHERE p.process_type=$1 AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
+		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))
+		ORDER BY p.updated_at DESC,p.id DESC LIMIT $4 OFFSET $5`,
+		ProcessTypePurchase, query.keyword, query.statuses, query.pageSize, query.offset)
+	if err != nil {
+		return Page[ProcessView]{}, internal("query purchase workflows", err)
+	}
+	defer rows.Close()
+	items := make([]ProcessView, 0)
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return Page[ProcessView]{}, err
+		}
+		item, getErr := s.PurchaseGet(ctx, GetInput{ProcessID: id})
+		if getErr != nil {
+			return Page[ProcessView]{}, getErr
+		}
+		items = append(items, item)
+	}
+	var total int64
+	err = s.pool.QueryRow(ctx, `SELECT count(*)
+		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
+		WHERE p.process_type=$1 AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
+		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))`,
+		ProcessTypePurchase, query.keyword, query.statuses).Scan(&total)
+	if err != nil {
+		return Page[ProcessView]{}, err
+	}
+	return Page[ProcessView]{
+		Items: items, Total: total, Page: query.page, PageSize: query.pageSize,
+	}, nil
+}
+
+func (s *Service) PurchaseGet(ctx context.Context, input GetInput) (ProcessView, error) {
+	if s.purchase == nil || !validID(input.ProcessID) {
+		return ProcessView{}, validation("invalid purchase workflow", nil)
+	}
+	var view ProcessView
+	err := s.pool.QueryRow(ctx, `SELECT p.id,p.process_type,p.definition_version,p.status,p.revision,
+		p.root_document_id,d.document_no,p.created_at,p.created_by,p.updated_at,p.updated_by
+		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
+		WHERE p.id=$1 AND p.process_type=$2`, input.ProcessID, ProcessTypePurchase).
+		Scan(&view.ProcessID, &view.ProcessType, &view.DefinitionVersion, &view.Status,
+			&view.Revision, &view.RootDocumentID, &view.RootDocumentNo,
+			&view.CreatedAt, &view.CreatedBy, &view.UpdatedAt, &view.UpdatedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return view, validation("purchase workflow not found", nil)
+	}
+	if err != nil {
+		return view, internal("get purchase workflow", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT x.document_id,d.entity,x.stage
+		FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
+		WHERE x.process_id=$1
+		ORDER BY CASE x.stage WHEN 'PURCHASE_ORDER' THEN 1 ELSE 2 END,x.sequence_no`,
+		input.ProcessID)
+	if err != nil {
+		return view, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, entity, stage string
+		if err = rows.Scan(&id, &entity, &stage); err != nil {
+			return view, err
+		}
+		document, getErr := s.purchase.Get(ctx, entity, voudomain.GetInput{DocumentID: id})
+		if getErr != nil {
+			return view, getErr
+		}
+		view.Documents = append(view.Documents, DocumentSummary{
+			DocumentID: document.DocumentID, DocumentNo: document.DocumentNo,
+			Entity: entity, Stage: stage, Status: document.Status, Revision: document.Revision,
+			BusinessDate: document.Data.BusinessDate, Currency: document.Data.Currency,
+			Amount: document.Amount, Data: document.Data, Attachments: document.Attachments,
+			CreatedAt: document.CreatedAt, CreatedBy: document.CreatedBy,
+			ReviewedAt: document.CheckedAt, ReviewedBy: document.CheckedBy,
+			ApprovedAt: document.ApprovedAt, ApprovedBy: document.ApprovedBy,
+			ParentDocumentID: document.ParentDocumentID,
+			SourceDocumentNo: document.SourceDocumentNo,
+			Lines:            document.Data.ProductLines,
+		})
+	}
+	view.CurrentStage = StagePurchaseOrder
+	if view.Status == StatusApproved {
+		view.CurrentStage = StagePurchaseInbound
+	}
+	if view.Status == StatusCompleted || view.Status == StatusShortClosed {
+		view.CurrentStage = ""
+	}
+	return view, rows.Err()
+}
+
+func (s *Service) PurchaseAction(
+	ctx context.Context, action string, input ActionInput, actorID, requestID string,
+) (any, error) {
+	if s.purchase == nil || !validID(input.ProcessID) || input.ProcessRevision < 1 {
+		return nil, validation("invalid purchase workflow action", nil)
+	}
+	if action == "inbound-create" {
+		if err := s.verifyPurchaseProcess(ctx, input.ProcessID, input.ProcessRevision); err != nil {
+			return nil, err
+		}
+		var data voudomain.DraftInput
+		if err := json.Unmarshal(input.Data, &data); err != nil {
+			return nil, validation("invalid purchase inbound data", nil)
+		}
+		data.SourceDocumentID = input.ProcessID
+		result, err := s.purchase.CreatePurchaseInbound(
+			ctx, voudomain.CreateInput{Data: data}, actorID, requestID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return s.purchaseMutation(ctx, result)
+	}
+	root := !strings.HasPrefix(action, "inbound-")
+	entity, stage, operation := voudomain.EntityPurchaseOrder, StagePurchaseOrder, action
+	documentID := input.DocumentID
+	if root {
+		documentID = input.ProcessID
+	} else {
+		entity, stage = voudomain.EntityPurchaseInbound, StagePurchaseInbound
+		operation = strings.TrimPrefix(action, "inbound-")
+	}
+	if operation == "get" {
+		if err := s.verifyPurchaseDocument(ctx, input.ProcessID, 0, documentID, stage); err != nil {
+			return nil, err
+		}
+		return s.purchase.Get(ctx, entity, voudomain.GetInput{DocumentID: documentID})
+	}
+	if err := s.verifyPurchaseDocument(
+		ctx, input.ProcessID, input.ProcessRevision, documentID, stage,
+	); err != nil {
+		return nil, err
+	}
+	var result voudomain.MutationResult
+	var err error
+	switch operation {
+	case "save":
+		var data voudomain.DraftInput
+		if err = json.Unmarshal(input.Data, &data); err != nil {
+			return nil, validation("invalid purchase data", nil)
+		}
+		save := voudomain.SaveInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Data: data,
+		}
+		if entity == voudomain.EntityPurchaseInbound {
+			result, err = s.purchase.SavePurchaseInbound(ctx, save, actorID, requestID)
+		} else {
+			result, err = s.purchase.Save(ctx, entity, save, actorID, requestID)
+		}
+	case "delete":
+		result, err = s.purchase.DeletePurchaseInbound(ctx, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "check":
+		result, err = s.purchase.Check(ctx, entity, voudomain.DocumentRevisionInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
+		}, actorID, requestID)
+	case "uncheck":
+		result, err = s.purchase.Uncheck(ctx, entity, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "approve":
+		result, err = s.purchase.Approve(ctx, entity, voudomain.DocumentRevisionInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
+		}, actorID, requestID)
+	case "unapprove":
+		result, err = s.purchase.Unapprove(ctx, entity, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "finalize":
+		result, err = s.purchase.Finalize(ctx, entity, voudomain.FinalizeInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
+		}, actorID, requestID)
+	case "unfinalize":
+		result, err = s.purchase.Unfinalize(ctx, entity, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "short-close-request":
+		result, err = s.purchase.PurchaseShortCloseRequest(ctx, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "short-close-cancel":
+		result, err = s.purchase.PurchaseShortCloseCancel(ctx, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	case "short-close-confirm":
+		result, err = s.purchase.PurchaseShortCloseConfirm(ctx, voudomain.DocumentRevisionInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
+		}, actorID, requestID)
+	case "short-close-unconfirm":
+		result, err = s.purchase.PurchaseShortCloseUnconfirm(ctx, voudomain.ReverseInput{
+			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		}, actorID, requestID)
+	default:
+		return nil, validation("invalid purchase workflow action", nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if operation == "delete" {
+		var value MutationResult
+		err = s.pool.QueryRow(ctx, `SELECT id,revision,status FROM wfl_process_instances
+			WHERE id=$1 AND process_type=$2`, input.ProcessID, ProcessTypePurchase).
+			Scan(&value.ProcessID, &value.ProcessRevision, &value.WorkflowStatus)
+		if err != nil {
+			return nil, internal("read purchase workflow after delete", err)
+		}
+		value.DocumentID, value.DocumentNo = result.DocumentID, result.DocumentNo
+		value.DocumentRevision, value.DocumentStatus = result.Revision, result.Status
+		return value, nil
+	}
+	return s.purchaseMutation(ctx, result)
+}
+
+func (s *Service) verifyPurchaseProcess(
+	ctx context.Context, processID string, revision int64,
+) error {
+	var actual int64
+	err := s.pool.QueryRow(ctx, `SELECT revision FROM wfl_process_instances
+		WHERE id=$1 AND process_type=$2`, processID, ProcessTypePurchase).Scan(&actual)
+	if err != nil || actual != revision {
+		return conflict("purchase workflow changed", map[string]any{"revision": actual})
+	}
+	return nil
+}
+
+func (s *Service) verifyPurchaseDocument(
+	ctx context.Context, processID string, revision int64, documentID, stage string,
+) error {
+	if revision > 0 {
+		if err := s.verifyPurchaseProcess(ctx, processID, revision); err != nil {
+			return err
+		}
+	}
+	var exists bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM wfl_process_documents
+		WHERE process_id=$1 AND document_id=$2 AND stage=$3
+	)`, processID, documentID, stage).Scan(&exists)
+	if err != nil || !exists {
+		return validation("purchase workflow document not found", nil)
+	}
+	return nil
+}
+
+func (s *Service) purchaseMutation(
+	ctx context.Context, result voudomain.MutationResult,
+) (MutationResult, error) {
+	var value MutationResult
+	err := s.pool.QueryRow(ctx, `SELECT p.id,p.revision,p.status,
+		COALESCE(d.parent_document_id,'')
+		FROM wfl_process_instances p
+		JOIN wfl_process_documents x ON x.process_id=p.id
+		JOIN vou_documents d ON d.id=x.document_id
+		WHERE x.document_id=$1 AND p.process_type=$2`,
+		result.DocumentID, ProcessTypePurchase).
+		Scan(&value.ProcessID, &value.ProcessRevision, &value.WorkflowStatus,
+			&value.ParentDocumentID)
+	if err != nil {
+		return value, internal("read purchase workflow mutation", err)
+	}
+	value.DocumentID, value.DocumentNo = result.DocumentID, result.DocumentNo
+	value.DocumentRevision, value.DocumentStatus = result.Revision, result.Status
+	return value, nil
+}

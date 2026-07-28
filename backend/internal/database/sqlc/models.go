@@ -844,60 +844,6 @@ type VouGoodsReceiptLine struct {
 	Remark                  *string `db:"remark" json:"remark"`
 }
 
-type VouIntermediarySaleOrderDetail struct {
-	DocumentID                        string      `db:"document_id" json:"document_id"`
-	Entity                            string      `db:"entity" json:"entity"`
-	CustomerObjectID                  string      `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                 string      `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                      string      `db:"customer_code" json:"customer_code"`
-	CustomerName                      string      `db:"customer_name" json:"customer_name"`
-	SupplierObjectID                  string      `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID                 string      `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode                      string      `db:"supplier_code" json:"supplier_code"`
-	SupplierName                      string      `db:"supplier_name" json:"supplier_name"`
-	OutboundDate                      pgtype.Date `db:"outbound_date" json:"outbound_date"`
-	SignoffDate                       pgtype.Date `db:"signoff_date" json:"signoff_date"`
-	PlatformObjectID                  *string     `db:"platform_object_id" json:"platform_object_id"`
-	PlatformVersionID                 *string     `db:"platform_version_id" json:"platform_version_id"`
-	PlatformCode                      *string     `db:"platform_code" json:"platform_code"`
-	PlatformName                      *string     `db:"platform_name" json:"platform_name"`
-	VehicleObjectID                   *string     `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID                  *string     `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode                       *string     `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                       *string     `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                *string     `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	DifferenceReason                  *string     `db:"difference_reason" json:"difference_reason"`
-	SalespersonObjectID               *string     `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID              *string     `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode                   *string     `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName                   *string     `db:"salesperson_name" json:"salesperson_name"`
-	PurchaserObjectID                 *string     `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID                *string     `db:"purchaser_version_id" json:"purchaser_version_id"`
-	PurchaserCode                     *string     `db:"purchaser_code" json:"purchaser_code"`
-	PurchaserName                     *string     `db:"purchaser_name" json:"purchaser_name"`
-	ContactName                       *string     `db:"contact_name" json:"contact_name"`
-	ContactPhone                      *string     `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress                   *string     `db:"delivery_address" json:"delivery_address"`
-	CustomerSettlementMethodObjectID  *string     `db:"customer_settlement_method_object_id" json:"customer_settlement_method_object_id"`
-	CustomerSettlementMethodVersionID *string     `db:"customer_settlement_method_version_id" json:"customer_settlement_method_version_id"`
-	CustomerSettlementMethodCode      *string     `db:"customer_settlement_method_code" json:"customer_settlement_method_code"`
-	CustomerSettlementMethodName      *string     `db:"customer_settlement_method_name" json:"customer_settlement_method_name"`
-	CustomerSettlementRuleType        *string     `db:"customer_settlement_rule_type" json:"customer_settlement_rule_type"`
-	CustomerSettlementMonthOffset     *int32      `db:"customer_settlement_month_offset" json:"customer_settlement_month_offset"`
-	CustomerSettlementDayOfMonth      *int32      `db:"customer_settlement_day_of_month" json:"customer_settlement_day_of_month"`
-	CustomerSettlementDayOffset       *int32      `db:"customer_settlement_day_offset" json:"customer_settlement_day_offset"`
-	CustomerSettlementDescription     *string     `db:"customer_settlement_description" json:"customer_settlement_description"`
-	SupplierSettlementMethodObjectID  *string     `db:"supplier_settlement_method_object_id" json:"supplier_settlement_method_object_id"`
-	SupplierSettlementMethodVersionID *string     `db:"supplier_settlement_method_version_id" json:"supplier_settlement_method_version_id"`
-	SupplierSettlementMethodCode      *string     `db:"supplier_settlement_method_code" json:"supplier_settlement_method_code"`
-	SupplierSettlementMethodName      *string     `db:"supplier_settlement_method_name" json:"supplier_settlement_method_name"`
-	SupplierSettlementRuleType        *string     `db:"supplier_settlement_rule_type" json:"supplier_settlement_rule_type"`
-	SupplierSettlementMonthOffset     *int32      `db:"supplier_settlement_month_offset" json:"supplier_settlement_month_offset"`
-	SupplierSettlementDayOfMonth      *int32      `db:"supplier_settlement_day_of_month" json:"supplier_settlement_day_of_month"`
-	SupplierSettlementDayOffset       *int32      `db:"supplier_settlement_day_offset" json:"supplier_settlement_day_offset"`
-	SupplierSettlementDescription     *string     `db:"supplier_settlement_description" json:"supplier_settlement_description"`
-}
-
 type VouNumberCounter struct {
 	Entity       string      `db:"entity" json:"entity"`
 	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
@@ -996,34 +942,65 @@ type VouProductLine struct {
 	PurchaseUnitPriceCents *int64  `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
 }
 
+type VouPurchaseInboundDetail struct {
+	DocumentID         string `db:"document_id" json:"document_id"`
+	Entity             string `db:"entity" json:"entity"`
+	SourceOrderID      string `db:"source_order_id" json:"source_order_id"`
+	SupplierObjectID   string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID  string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode       string `db:"supplier_code" json:"supplier_code"`
+	SupplierName       string `db:"supplier_name" json:"supplier_name"`
+	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+}
+
+type VouPurchaseInboundLine struct {
+	ID                string  `db:"id" json:"id"`
+	DocumentID        string  `db:"document_id" json:"document_id"`
+	SourceOrderLineID string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo            int32   `db:"line_no" json:"line_no"`
+	ProductObjectID   string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID  string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode       string  `db:"product_code" json:"product_code"`
+	ProductName       string  `db:"product_name" json:"product_name"`
+	ProductUnit       string  `db:"product_unit" json:"product_unit"`
+	QuantityMicros    int64   `db:"quantity_micros" json:"quantity_micros"`
+	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark            *string `db:"remark" json:"remark"`
+}
+
 type VouPurchaseOrderDetail struct {
-	DocumentID                string      `db:"document_id" json:"document_id"`
-	Entity                    string      `db:"entity" json:"entity"`
-	SupplierObjectID          string      `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID         string      `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode              string      `db:"supplier_code" json:"supplier_code"`
-	SupplierName              string      `db:"supplier_name" json:"supplier_name"`
-	InboundDate               pgtype.Date `db:"inbound_date" json:"inbound_date"`
-	DifferenceReason          *string     `db:"difference_reason" json:"difference_reason"`
-	PurchaserObjectID         *string     `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID        *string     `db:"purchaser_version_id" json:"purchaser_version_id"`
-	PurchaserCode             *string     `db:"purchaser_code" json:"purchaser_code"`
-	PurchaserName             *string     `db:"purchaser_name" json:"purchaser_name"`
-	WarehouseObjectID         *string     `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID        *string     `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode             *string     `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName             *string     `db:"warehouse_name" json:"warehouse_name"`
-	ContactName               *string     `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string     `db:"contact_phone" json:"contact_phone"`
-	SettlementMethodObjectID  *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string     `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string     `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string     `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType        *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDescription     *string     `db:"settlement_description" json:"settlement_description"`
+	DocumentID                string  `db:"document_id" json:"document_id"`
+	Entity                    string  `db:"entity" json:"entity"`
+	SupplierObjectID          string  `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID         string  `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode              string  `db:"supplier_code" json:"supplier_code"`
+	SupplierName              string  `db:"supplier_name" json:"supplier_name"`
+	PurchaserObjectID         *string `db:"purchaser_object_id" json:"purchaser_object_id"`
+	PurchaserVersionID        *string `db:"purchaser_version_id" json:"purchaser_version_id"`
+	PurchaserCode             *string `db:"purchaser_code" json:"purchaser_code"`
+	PurchaserName             *string `db:"purchaser_name" json:"purchaser_name"`
+	WarehouseObjectID         *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID        *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode             *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName             *string `db:"warehouse_name" json:"warehouse_name"`
+	ContactName               *string `db:"contact_name" json:"contact_name"`
+	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
+	SettlementMethodObjectID  *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodVersionID *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodCode      *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName      *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType        *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset     *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth      *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset       *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDescription     *string `db:"settlement_description" json:"settlement_description"`
+	FulfillmentStatus         string  `db:"fulfillment_status" json:"fulfillment_status"`
+	ShortCloseRequestedBy     *string `db:"short_close_requested_by" json:"short_close_requested_by"`
+	ShortCloseReason          *string `db:"short_close_reason" json:"short_close_reason"`
 }
 
 type VouReceiptDetail struct {

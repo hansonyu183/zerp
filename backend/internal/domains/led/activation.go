@@ -16,31 +16,9 @@ func (s *Service) preflightActivation(
 	documents []dbsqlc.VouDocument,
 	cutoverDate time.Time,
 ) error {
-	missingPrices := make([]string, 0)
-	for _, document := range documents {
-		if document.Entity != voudomain.EntityIntermediarySaleOrder ||
-			document.BusinessDate.Time.Before(cutoverDate) {
-			continue
-		}
-		lines, err := q.ListVouProductLines(ctx, document.ID)
-		if err != nil {
-			return s.internal("preflight intermediary prices", err)
-		}
-		for _, line := range lines {
-			if line.PurchaseUnitPriceCents == nil {
-				missingPrices = append(missingPrices, document.DocumentNo)
-				break
-			}
-		}
-	}
-	if len(missingPrices) > 0 {
-		return domainError(
-			ErrorConflict,
-			"executed intermediary documents are missing purchaseUnitPrice",
-			map[string]any{"documentNos": missingPrices},
-			nil,
-		)
-	}
+	_ = q
+	_ = cutoverDate
+	_ = documents
 	return nil
 }
 

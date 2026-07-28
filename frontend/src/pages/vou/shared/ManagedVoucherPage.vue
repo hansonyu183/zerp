@@ -26,9 +26,11 @@ if (!config?.managedByWorkflow) {
 const vm = reactive(useVoucherEntityViewModel(config))
 void vm.query()
 
-const workflowTitle = computed(() =>
-  config.managedByWorkflow === 'sales-fulfillment' ? '销售履约' : '居间贸易',
-)
+const workflowTitle = computed(() => {
+  if (config.managedByWorkflow === 'sales-fulfillment') return '销售履约'
+  if (config.managedByWorkflow === 'purchase-fulfillment') return '采购履约'
+  return '居间贸易'
+})
 const document = computed(() => vm.documentView)
 const data = computed(() => document.value?.data)
 const lines = computed(() => data.value?.lines ?? data.value?.productLines ?? data.value?.signoffLines ?? [])

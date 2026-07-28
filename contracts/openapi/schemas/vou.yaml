@@ -9,7 +9,7 @@
           'sale-delivery',
           'sale-signoff',
           'purchase-order',
-          'intermediary-sale-order',
+          'purchase-inbound',
           'receipt',
           'payment',
           'expense-reimbursement',

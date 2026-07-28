@@ -182,148 +182,45 @@ func (s *Service) postPurchase(
 	posting postingContext,
 ) error {
 	doc := posting.Document
-	detail, err := q.GetVouPurchaseOrderDetail(ctx, doc.ID)
+	detail, err := q.GetVouPurchaseInboundDetail(ctx, doc.ID)
 	if err != nil {
 		return s.internal("read purchase ledger detail", err)
 	}
-	includeInventory, err := requireEffectiveDate(posting, detail.InboundDate)
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
 	if err != nil {
 		return err
 	}
-	includeParty, err := requireEffectiveDate(posting, doc.BusinessDate)
-	if err != nil {
-		return err
+	if !include {
+		return nil
 	}
-	lines, err := q.ListVouProductLines(ctx, doc.ID)
+	lines, err := q.ListVouPurchaseInboundLines(ctx, doc.ID)
 	if err != nil {
 		return s.internal("read purchase ledger lines", err)
 	}
 	for _, line := range lines {
-		if line.InboundQtyMicros == nil {
-			return domainError(
-				ErrorConflict,
-				"executed purchase is missing inbound quantity",
-				map[string]any{"documentNo": doc.DocumentNo},
-				nil,
-			)
+		if err = lockInventoryDimension(ctx, tx, detail.WarehouseObjectID, line.ProductObjectID); err != nil {
+			return s.internal("lock purchase inventory", err)
 		}
-		if includeInventory {
-			if detail.WarehouseObjectID == nil || detail.WarehouseVersionID == nil ||
-				detail.WarehouseCode == nil || detail.WarehouseName == nil {
-				return domainError(
-					ErrorConflict,
-					"executed purchase is missing warehouse data",
-					map[string]any{"documentNo": doc.DocumentNo},
-					nil,
-				)
-			}
-			if err = lockInventoryDimension(ctx, tx, *detail.WarehouseObjectID, line.ProductObjectID); err != nil {
-				return s.internal("lock purchase inventory", err)
-			}
-			if err = q.InsertLedInventoryEntry(ctx, inventoryParams(
-				posting,
-				doc,
-				line,
-				detail.InboundDate,
-				*detail.WarehouseObjectID,
-				*detail.WarehouseVersionID,
-				*detail.WarehouseCode,
-				*detail.WarehouseName,
-				*line.InboundQtyMicros,
-			)); err != nil {
-				return s.writeError("post purchase inventory", err)
-			}
-		}
-		if includeParty {
-			amount, amountErr := lineAmountCents(*line.InboundQtyMicros, line.UnitPriceCents)
-			if amountErr != nil {
-				return domainError(
-					ErrorConflict,
-					"invalid purchase ledger amount",
-					map[string]any{"documentNo": doc.DocumentNo},
-					amountErr,
-				)
-			}
-			if err = q.InsertLedPartyEntry(ctx, partyParams(
-				posting,
-				doc,
-				line.ID,
-				doc.BusinessDate,
-				detail.SupplierObjectID,
-				detail.SupplierVersionID,
-				detail.SupplierCode,
-				detail.SupplierName,
-				"supplier",
-				-amount,
-			)); err != nil {
-				return s.writeError("post purchase payable", err)
-			}
-		}
-	}
-	return nil
-}
-
-func (s *Service) postIntermediarySale(ctx context.Context, q *dbsqlc.Queries, posting postingContext) error {
-	doc := posting.Document
-	detail, err := q.GetVouIntermediarySaleOrderDetail(ctx, doc.ID)
-	if err != nil {
-		return s.internal("read intermediary ledger detail", err)
-	}
-	include, err := requireEffectiveDate(posting, doc.BusinessDate)
-	if err != nil || !include {
-		return err
-	}
-	lines, err := q.ListVouProductLines(ctx, doc.ID)
-	if err != nil {
-		return s.internal("read intermediary ledger lines", err)
-	}
-	for _, line := range lines {
-		if line.SignedQtyMicros == nil || *line.SignedQtyMicros == 0 {
-			continue
-		}
-		if line.PurchaseUnitPriceCents == nil {
-			return domainError(
-				ErrorConflict,
-				"intermediary purchaseUnitPrice is missing",
-				map[string]any{"documentNo": doc.DocumentNo},
-				nil,
-			)
-		}
-		saleAmount, amountErr := lineAmountCents(*line.SignedQtyMicros, line.UnitPriceCents)
-		if amountErr != nil {
-			return domainError(ErrorConflict, "invalid intermediary sale amount", nil, amountErr)
-		}
-		purchaseAmount, amountErr := lineAmountCents(*line.SignedQtyMicros, *line.PurchaseUnitPriceCents)
-		if amountErr != nil {
-			return domainError(ErrorConflict, "invalid intermediary purchase amount", nil, amountErr)
+		if err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+			SourceLineID: line.ID, SourceRevision: posting.SourceRevision,
+			EffectiveDate: doc.BusinessDate, OccurredAt: posting.OccurredAt,
+			ActorID: posting.ActorID, RequestID: posting.RequestID,
+			WarehouseObjectID: detail.WarehouseObjectID, WarehouseVersionID: detail.WarehouseVersionID,
+			WarehouseCode: detail.WarehouseCode, WarehouseName: detail.WarehouseName,
+			ProductObjectID: line.ProductObjectID, ProductVersionID: line.ProductVersionID,
+			ProductCode: line.ProductCode, ProductName: line.ProductName, ProductUnit: line.ProductUnit,
+			QuantityDeltaMicros: line.QuantityMicros,
+		}); err != nil {
+			return s.writeError("post purchase inventory", err)
 		}
 		if err = q.InsertLedPartyEntry(ctx, partyParams(
-			posting,
-			doc,
-			line.ID,
-			doc.BusinessDate,
-			detail.CustomerObjectID,
-			detail.CustomerVersionID,
-			detail.CustomerCode,
-			detail.CustomerName,
-			"customer",
-			saleAmount,
+			posting, doc, line.ID, doc.BusinessDate,
+			detail.SupplierObjectID, detail.SupplierVersionID,
+			detail.SupplierCode, detail.SupplierName, "supplier", -line.LineAmountCents,
 		)); err != nil {
-			return s.writeError("post intermediary receivable", err)
-		}
-		if err = q.InsertLedPartyEntry(ctx, partyParams(
-			posting,
-			doc,
-			line.ID,
-			doc.BusinessDate,
-			detail.SupplierObjectID,
-			detail.SupplierVersionID,
-			detail.SupplierCode,
-			detail.SupplierName,
-			"supplier",
-			-purchaseAmount,
-		)); err != nil {
-			return s.writeError("post intermediary payable", err)
+			return s.writeError("post purchase payable", err)
 		}
 	}
 	return nil

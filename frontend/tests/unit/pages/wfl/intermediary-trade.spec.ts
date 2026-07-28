@@ -159,7 +159,7 @@ function processView(options: { procurementVisible?: boolean } = {}) {
         data: {
           customer: reference('customer', 'C001'),
           salesperson: reference('employee', 'E001'),
-          remark: '客户订单备注',
+          remark: '居间订单备注',
         },
         lines: [
           {
@@ -375,7 +375,7 @@ describe('WFL 居间贸易后端契约', () => {
     expect(stageDefinition('SIGNOFF').semanticFinalStatus).toBe('CONFIRMED')
   })
 
-  it('创建客户订单使用 data.lines 且不发送旧版本字段', async () => {
+  it('创建居间订单使用 data.lines 且不发送旧版本字段', async () => {
     mockedApi.post.mockResolvedValueOnce({ data: mutationResult })
 
     await intermediaryWorkflowApi.create({
@@ -383,7 +383,7 @@ describe('WFL 居间贸易后端契约', () => {
       currency: 'CNY',
       customer: reference('customer', 'C001'),
       salesperson: null,
-      remark: '客户订单备注',
+      remark: '居间订单备注',
       productLines: [
         {
           key: 'line-1',
@@ -668,7 +668,7 @@ describe('WFL 居间贸易后端契约', () => {
     ])
     expect(data.balances?.lines[0]).not.toHaveProperty('procurementQuantity')
     expect(data.data.currency).toBe('CNY')
-    expect(data.data.remark).toBe('客户订单备注')
+    expect(data.data.remark).toBe('居间订单备注')
   })
 
   it('双人控制拦截同一核对人，后端冲突保留 requestId 并提示刷新', async () => {

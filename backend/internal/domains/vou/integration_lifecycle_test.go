@@ -27,17 +27,6 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		{EntitySaleOrder, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer, ProductLines: productLine,
 		}},
-		{EntityPurchaseOrder, DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier, ProductLines: productLine,
-			Warehouse: &refs.warehouse,
-		}},
-		{EntityIntermediarySaleOrder, DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-			Supplier: &refs.supplier, ProductLines: []ProductLineInput{{
-				Product: refs.product, OrderedQuantity: "10.5", UnitPrice: "12.34",
-				PurchaseUnitPrice: "10.00", Remark: "商品明细备注",
-			}},
-		}},
 		{EntityReceipt, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
@@ -90,29 +79,6 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				t.Fatalf("approve: %v", err)
 			}
 			execute := FinalizeInput{DocumentID: created.DocumentID, Revision: approved.Revision}
-			if test.entity == EntityIntermediarySaleOrder {
-				view, getErr := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-				if getErr != nil {
-					t.Fatalf("get lines: %v", getErr)
-				}
-				execute.OutboundDate, execute.SignoffDate = "2026-07-25", "2026-07-26"
-				execute.Platform, execute.Vehicle = &refs.platform, &refs.vehicle
-				execute.SaleLines = []SaleExecutionLineInput{{
-					LineID: view.Data.ProductLines[0].LineID, OutboundQuantity: "10",
-					SignedQuantity: "8", RejectedQuantity: "1", LossQuantity: "1",
-				}}
-				execute.DifferenceReason = "少交 0.5"
-			} else if test.entity == EntityPurchaseOrder {
-				view, getErr := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-				if getErr != nil {
-					t.Fatalf("get lines: %v", getErr)
-				}
-				execute.InboundDate = "2026-07-25"
-				execute.PurchaseLines = []PurchaseExecutionLineInput{{
-					LineID: view.Data.ProductLines[0].LineID, InboundQuantity: "10",
-				}}
-				execute.DifferenceReason = "少收 0.5"
-			}
 			executed, err := service.Finalize(t.Context(), test.entity, execute,
 				integrationActorOne, "vou-execute")
 			if err != nil {
@@ -138,25 +104,6 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					*view.Data.SettlementMethod.DayOfMonth != 15 ||
 					view.Data.ProductLines[0].Remark != "商品明细备注" {
 					t.Fatalf("sale attribute snapshots = %+v", view.Data)
-				}
-			case EntityPurchaseOrder:
-				if view.Data.Purchaser == nil || view.Data.Warehouse == nil ||
-					view.Data.Purchaser.ObjectID != refs.employee.ObjectID ||
-					view.Data.ContactName != "供应商联系人" ||
-					view.Data.ContactPhone != "13900000000" ||
-					view.Data.SettlementMethod == nil ||
-					view.Data.ProductLines[0].Remark != "商品明细备注" {
-					t.Fatalf("purchase attribute snapshots = %+v", view.Data)
-				}
-			case EntityIntermediarySaleOrder:
-				if view.Data.Salesperson == nil || view.Data.Purchaser == nil ||
-					view.Data.Salesperson.ObjectID != refs.employee.ObjectID ||
-					view.Data.Purchaser.ObjectID != refs.employee.ObjectID ||
-					view.Data.Warehouse != nil ||
-					view.Data.CustomerSettlementMethod == nil ||
-					view.Data.SupplierSettlementMethod == nil ||
-					view.Data.ProductLines[0].Remark != "商品明细备注" {
-					t.Fatalf("intermediary attribute snapshots = %+v", view.Data)
 				}
 			case EntityReceipt, EntityPayment, EntityOtherIncome:
 				if view.Data.Handler == nil {
@@ -261,14 +208,33 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	const salesChainEntities = 3
-	const saleOrderShortCloseActions = 4
-	const directlyRegisteredEntities = 10
-	const managedIntermediaryReadPermissions = 19
-	wantPermissions := (directlyRegisteredEntities-salesChainEntities)*(len(actionRoutes)-1) +
-		salesChainEntities*len(actionRoutes) + saleOrderShortCloseActions +
-		managedIntermediaryReadPermissions
+	wantPermissions := 146
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
+	}
+	var legacyTable *string
+	if err := pool.QueryRow(t.Context(),
+		"select to_regclass('public.vou_intermediary_sale_order_details')::text",
+	).Scan(&legacyTable); err != nil {
+		t.Fatalf("check legacy intermediary table: %v", err)
+	}
+	if legacyTable != nil {
+		t.Fatalf("legacy intermediary table still exists: %s", *legacyTable)
+	}
+	var legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions int
+	if err := pool.QueryRow(t.Context(), `SELECT
+		count(*) FILTER (WHERE entity='intermediary-sale-order'),
+		count(*) FILTER (WHERE domain='vou' AND entity='purchase-order'
+			AND action NOT IN ('query','get','audit-history','attachment-download')),
+		count(*) FILTER (WHERE domain='wfl' AND entity='purchase-fulfillment')
+		FROM app_permissions`).Scan(
+		&legacyPermissions, &purchaseWritePermissions, &purchaseWorkflowPermissions,
+	); err != nil {
+		t.Fatalf("check migrated permissions: %v", err)
+	}
+	if legacyPermissions != 0 || purchaseWritePermissions != 0 ||
+		purchaseWorkflowPermissions != 29 {
+		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
+			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)
 	}
 }

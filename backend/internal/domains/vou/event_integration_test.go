@@ -283,7 +283,7 @@ func TestVOUExecutedSubscriberFailureRollsBackEverythingIntegration(t *testing.T
 	}
 }
 
-func TestVOUUnexecutedSubscriberFailureRestoresExecutionIntegration(t *testing.T) {
+func TestVOUUnfinalizedSubscriberFailureRestoresDocumentIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
@@ -291,44 +291,35 @@ func TestVOUUnexecutedSubscriberFailureRestoresExecutionIntegration(t *testing.T
 	refs := prepareReferences(t, pool)
 	service := integrationServiceWithEvents(t, pool, txevent.NewBus())
 
-	created, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "2", UnitPrice: "50.00",
-		}},
+	created, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
+		Handler: &refs.employee, Amount: "100.00",
 	}}, integrationActorOne, "event-purchase-create")
 	if err != nil {
 		t.Fatalf("create purchase: %v", err)
 	}
-	reviewed, err := service.Check(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+	reviewed, err := service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: created.Revision,
 	}, integrationActorOne, "event-purchase-review")
 	if err != nil {
 		t.Fatalf("review purchase: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+	approved, err := service.Approve(t.Context(), EntityReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: reviewed.Revision,
 	}, integrationActorOne, "event-purchase-approve")
 	if err != nil {
 		t.Fatalf("approve purchase: %v", err)
 	}
-	view, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: created.DocumentID})
-	if err != nil {
-		t.Fatalf("get purchase: %v", err)
-	}
-	executed, err := service.Finalize(t.Context(), EntityPurchaseOrder, FinalizeInput{
-		DocumentID: created.DocumentID, Revision: approved.Revision, InboundDate: "2026-07-25",
-		PurchaseLines: []PurchaseExecutionLineInput{{
-			LineID: view.Data.ProductLines[0].LineID, InboundQuantity: "2",
-		}},
+	executed, err := service.Finalize(t.Context(), EntityReceipt, FinalizeInput{
+		DocumentID: created.DocumentID, Revision: approved.Revision,
 	}, integrationActorOne, "event-purchase-execute")
 	if err != nil {
 		t.Fatalf("execute purchase: %v", err)
 	}
 
 	bus := txevent.NewBus()
-	if err = bus.Subscribe(DocumentUnfinalizedTopic(EntityPurchaseOrder), "reversal-writer",
+	if err = bus.Subscribe(DocumentUnfinalizedTopic(EntityReceipt), "reversal-writer",
 		func(ctx context.Context, tx pgx.Tx, event txevent.Event) error {
 			_, execErr := tx.Exec(ctx, `
 				INSERT INTO txevent_vou_test_effects (id, document_id, topic)
@@ -337,7 +328,7 @@ func TestVOUUnexecutedSubscriberFailureRestoresExecutionIntegration(t *testing.T
 		}); err != nil {
 		t.Fatalf("subscribe reversal writer: %v", err)
 	}
-	if err = bus.Subscribe(DocumentUnfinalizedTopic(EntityPurchaseOrder), "reversal-failure",
+	if err = bus.Subscribe(DocumentUnfinalizedTopic(EntityReceipt), "reversal-failure",
 		func(context.Context, pgx.Tx, txevent.Event) error {
 			return errors.New("cannot reverse ledger")
 		}); err != nil {
@@ -345,7 +336,7 @@ func TestVOUUnexecutedSubscriberFailureRestoresExecutionIntegration(t *testing.T
 	}
 	service.events = bus
 
-	_, err = service.Unfinalize(t.Context(), EntityPurchaseOrder, ReverseInput{
+	_, err = service.Unfinalize(t.Context(), EntityReceipt, ReverseInput{
 		DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "回滚测试",
 	}, integrationActorOne, "event-purchase-unexecute")
 	var domainErr *DomainError
@@ -356,15 +347,6 @@ func TestVOUUnexecutedSubscriberFailureRestoresExecutionIntegration(t *testing.T
 	if status != StatusFinalized || revision != executed.Revision {
 		t.Fatalf("document state after unexecute rollback = %s/%d, want %s/%d",
 			status, revision, StatusFinalized, executed.Revision)
-	}
-	var inbound *int64
-	if err = pool.QueryRow(t.Context(),
-		`SELECT inbound_qty_micros FROM vou_product_lines WHERE document_id = $1`, created.DocumentID,
-	).Scan(&inbound); err != nil {
-		t.Fatalf("read inbound quantity: %v", err)
-	}
-	if inbound == nil || *inbound != 2_000_000 {
-		t.Fatalf("inbound quantity after rollback = %v", inbound)
 	}
 	if count := auditCount(t, pool, created.DocumentID); count != 4 {
 		t.Fatalf("audit count after unexecute rollback = %d, want 4", count)

@@ -75,11 +75,11 @@ async function openOrder(page: Page, documentNo: string): Promise<Locator> {
 async function openStageTab(
   workspace: Locator,
   name:
-    | '客户订单'
+    | '居间订单'
     | '居间采购'
-    | '分批收货'
-    | '分批送货'
-    | '客户签收'
+    | '居间收货'
+    | '居间送货'
+    | '居间签收'
     | '审计',
 ): Promise<void> {
   const tab = workspace.getByRole('tab', { name })
@@ -181,7 +181,7 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     })
     await expect(orderCheck).toBeEnabled()
     await orderCheck.click()
-    await expectWorkflowStatus(workspace, /客户订单已核对 · r\d+/)
+    await expectWorkflowStatus(workspace, /居间订单已核对 · r\d+/)
 
     workspace = await openOrder(reviewer, documentNo)
     await workspace.getByRole('button', { name: '批准', exact: true }).click()
@@ -227,8 +227,8 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
-    await openStageTab(workspace, '分批收货')
-    await workspace.getByRole('button', { name: '新建收货' }).click()
+    await openStageTab(workspace, '居间收货')
+    await workspace.getByRole('button', { name: '新建居间收货' }).click()
     dialog = operator.getByRole('dialog').last()
     const receiptRows = dialog.locator('tbody tr')
     await receiptRows.nth(0).locator('input').nth(0).fill('360')
@@ -249,15 +249,15 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
-    await openStageTab(workspace, '分批收货')
+    await openStageTab(workspace, '居间收货')
     await workspace.getByRole('button', { name: '确认', exact: true }).click()
     await expect(
       workspace.getByRole('button', { name: '反确认', exact: true }),
     ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
-    await openStageTab(workspace, '分批送货')
-    await workspace.getByRole('button', { name: '新建送货' }).click()
+    await openStageTab(workspace, '居间送货')
+    await workspace.getByRole('button', { name: '新建居间送货' }).click()
     await selectReference(
       operator,
       '物流平台',
@@ -277,26 +277,26 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
-    await openStageTab(workspace, '分批送货')
+    await openStageTab(workspace, '居间送货')
     await workspace.getByRole('button', { name: '执行', exact: true }).click()
     await expect(
       workspace.getByRole('button', { name: '反执行', exact: true }),
     ).toBeVisible()
 
     workspace = await openOrder(operator, documentNo)
-    await openStageTab(workspace, '分批送货')
+    await openStageTab(workspace, '居间送货')
     await workspace.getByRole('button', { name: '创建签收', exact: true }).click()
     dialog = operator.getByRole('dialog').last()
     await dialog.getByRole('button', { name: '保存草稿' }).click()
     await dialog.getByRole('button', { name: '关闭' }).click()
-    await openStageTab(workspace, '客户签收')
+    await openStageTab(workspace, '居间签收')
     await workspace.getByRole('button', { name: '核对', exact: true }).click()
     await expect(
       workspace.getByRole('button', { name: '反核对', exact: true }),
     ).toBeVisible()
 
     workspace = await openOrder(reviewer, documentNo)
-    await openStageTab(workspace, '客户签收')
+    await openStageTab(workspace, '居间签收')
     await workspace.getByRole('button', { name: '确认', exact: true }).click()
     await expectWorkflowStatus(workspace, /已完成 · r\d+/)
 
@@ -373,7 +373,7 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     )
 
     let workspace = await openOrder(operator, completedDocumentNo)
-    await openStageTab(workspace, '分批送货')
+    await openStageTab(workspace, '居间送货')
     await workspace.getByRole('button', { name: '反执行', exact: true }).click()
     const blockedDialog = operator.getByRole('dialog').filter({
       hasText: '填写操作原因',
@@ -384,17 +384,17 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await blockedDialog.getByRole('button', { name: '取消' }).click()
     await waitWorkspaceIdle(workspace)
 
-    await openStageTab(workspace, '客户签收')
+    await openStageTab(workspace, '居间签收')
     await runReasonAction(operator, workspace, '反确认', '验证签收反确认')
     await runReasonAction(operator, workspace, '反核对', '验证签收反核对')
     await runReasonAction(operator, workspace, '删除', '删除签收草稿')
 
-    await openStageTab(workspace, '分批送货')
+    await openStageTab(workspace, '居间送货')
     await runReasonAction(operator, workspace, '反执行', '验证送货反执行')
     await runReasonAction(operator, workspace, '反核对', '验证送货反核对')
     await runReasonAction(operator, workspace, '删除', '删除送货草稿')
 
-    await openStageTab(workspace, '分批收货')
+    await openStageTab(workspace, '居间收货')
     await runReasonAction(operator, workspace, '反确认', '验证收货反确认')
     await runReasonAction(operator, workspace, '反核对', '验证收货反核对')
     await workspace.getByLabel(/^打开 GR-/).click()
@@ -434,29 +434,27 @@ test.describe('WFL 居间贸易五阶段真实后端', () => {
     await expectWorkflowStatus(workspace, /履约中 · r\d+/)
   })
 
-  test('全部下游删除后客户订单可反批准和反核对', async ({ browser }) => {
+  test('全部下游删除后居间订单可反批准和反核对', async ({ browser }) => {
     const operator = await signedInPage(
       browser,
       e2eEnv('E2E_USERNAME'),
       e2eEnv('E2E_PASSWORD'),
     )
     const workspace = await openOrder(operator, completedDocumentNo)
-    await openStageTab(workspace, '客户订单')
-    await runReasonAction(operator, workspace, '反批准', '验证客户订单反批准')
-    await runReasonAction(operator, workspace, '反核对', '验证客户订单反核对')
-    await expectWorkflowStatus(workspace, /客户订单草稿 · r\d+/)
+    await openStageTab(workspace, '居间订单')
+    await runReasonAction(operator, workspace, '反批准', '验证居间订单反批准')
+    await runReasonAction(operator, workspace, '反核对', '验证居间订单反核对')
+    await expectWorkflowStatus(workspace, /居间订单草稿 · r\d+/)
   })
 })
 
-test('历史 V1 居间销售单仍是纯 VOU 页面', async ({ browser }) => {
+test('旧居间销售 URL 进入未找到页面', async ({ browser }) => {
   const page = await signedInPage(
     browser,
     e2eEnv('E2E_USERNAME'),
     e2eEnv('E2E_PASSWORD'),
   )
   await page.goto('/vou/intermediary-sale-order')
-  const pageHeading = page.getByRole('heading', { name: '居间销售单' })
-  await expect(pageHeading).toHaveCount(1)
-  await expect(pageHeading).toBeVisible()
-  await expect(page.getByRole('button', { name: '新建流程' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '页面不存在' })).toBeVisible()
+  await expect(page.locator('.code')).toHaveText('404')
 })

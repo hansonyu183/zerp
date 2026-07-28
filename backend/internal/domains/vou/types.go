@@ -6,21 +6,21 @@ import (
 )
 
 const (
-	EntitySaleOrder             = "sale-order"
-	EntitySaleOutbound          = "sale-outbound"
-	EntitySaleDelivery          = "sale-delivery"
-	EntitySaleSignoff           = "sale-signoff"
-	EntityPurchaseOrder         = "purchase-order"
-	EntityIntermediarySaleOrder = "intermediary-sale-order"
-	EntityReceipt               = "receipt"
-	EntityPayment               = "payment"
-	EntityExpenseReimbursement  = "expense-reimbursement"
-	EntityOtherIncome           = "other-income"
-	EntityCustomerOrder         = "customer-order"
-	EntityProcurementOrder      = "procurement-order"
-	EntityGoodsReceipt          = "goods-receipt"
-	EntityDeliveryNote          = "delivery-note"
-	EntitySignoffNote           = "signoff-note"
+	EntitySaleOrder            = "sale-order"
+	EntitySaleOutbound         = "sale-outbound"
+	EntitySaleDelivery         = "sale-delivery"
+	EntitySaleSignoff          = "sale-signoff"
+	EntityPurchaseOrder        = "purchase-order"
+	EntityPurchaseInbound      = "purchase-inbound"
+	EntityReceipt              = "receipt"
+	EntityPayment              = "payment"
+	EntityExpenseReimbursement = "expense-reimbursement"
+	EntityOtherIncome          = "other-income"
+	EntityCustomerOrder        = "customer-order"
+	EntityProcurementOrder     = "procurement-order"
+	EntityGoodsReceipt         = "goods-receipt"
+	EntityDeliveryNote         = "delivery-note"
+	EntitySignoffNote          = "signoff-note"
 
 	StatusDraft               = "DRAFT"
 	StatusChecked             = "CHECKED"
@@ -37,7 +37,7 @@ var entities = [...]string{
 	EntitySaleDelivery,
 	EntitySaleSignoff,
 	EntityPurchaseOrder,
-	EntityIntermediarySaleOrder,
+	EntityPurchaseInbound,
 	EntityReceipt,
 	EntityPayment,
 	EntityExpenseReimbursement,
@@ -52,6 +52,7 @@ var entities = [...]string{
 func workflowManagedEntity(entity string) bool {
 	switch entity {
 	case EntitySaleOrder, EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff,
+		EntityPurchaseOrder, EntityPurchaseInbound,
 		EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
 		EntityDeliveryNote, EntitySignoffNote:
 		return true

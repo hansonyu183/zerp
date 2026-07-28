@@ -250,6 +250,12 @@
                                 { 'type': 'string', 'nullable': true },
                               'quantityPerContainer':
                                 { 'type': 'string', 'nullable': true },
+                              'formula':
+                                {
+                                  'type': 'object',
+                                  'allOf': [{ '$ref': '#/VouFormulaInput' }],
+                                  'nullable': true,
+                                },
                             },
                         },
                     },
@@ -486,6 +492,12 @@
                                 { 'type': 'string', 'nullable': true },
                               'quantityPerContainer':
                                 { 'type': 'string', 'nullable': true },
+                              'formula':
+                                {
+                                  'type': 'object',
+                                  'allOf': [{ '$ref': '#/VouFormulaInput' }],
+                                  'nullable': true,
+                                },
                             },
                         },
                     },
@@ -544,6 +556,83 @@
                             },
                         },
                     },
+                },
+            },
+        },
+    },
+  'VouFormulaInput':
+    {
+      'type': 'object',
+      'required': ['baseOutputQuantity', 'components'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'baseOutputQuantity': { 'type': 'string' },
+          'sourceType':
+            {
+              'type': 'string',
+              'enum':
+                ['RAW_SELF', 'PRODUCT_FIXED', 'CUSTOMER_LATEST', 'MANUAL'],
+            },
+          'sourceDocumentId': { 'type': 'string' },
+          'sourceDocumentNo': { 'type': 'string' },
+          'components':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/VouFormulaComponentInput' },
+            },
+        },
+    },
+  'VouFormulaComponentInput':
+    {
+      'type': 'object',
+      'required': ['material', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'material':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'quantity': { 'type': 'string' },
+        },
+    },
+  'VouFormulaDefaultRequest':
+    {
+      'type': 'object',
+      'required': ['product'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'customer':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'product':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
                 },
             },
         },

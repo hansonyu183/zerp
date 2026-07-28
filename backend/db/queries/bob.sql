@@ -343,6 +343,63 @@ SELECT sqlc.arg(new_version_id), source.packaging_product_object_id,
 FROM bob_product_packaging_specs source
 WHERE source.product_version_id = sqlc.arg(source_version_id);
 
+-- name: DeleteBobProductFormula :exec
+DELETE FROM bob_product_formulas
+WHERE product_version_id = sqlc.arg(product_version_id);
+
+-- name: InsertBobProductFormula :exec
+INSERT INTO bob_product_formulas (
+    product_version_id, base_output_quantity_micros
+) VALUES (
+    sqlc.arg(product_version_id), sqlc.arg(base_output_quantity_micros)
+);
+
+-- name: InsertBobProductFormulaLine :exec
+INSERT INTO bob_product_formula_lines (
+    product_version_id, line_no, material_object_id, material_version_id,
+    quantity_micros
+) VALUES (
+    sqlc.arg(product_version_id), sqlc.arg(line_no),
+    sqlc.arg(material_object_id), sqlc.arg(material_version_id),
+    sqlc.arg(quantity_micros)
+);
+
+-- name: CopyBobProductFormula :exec
+INSERT INTO bob_product_formulas (
+    product_version_id, base_output_quantity_micros
+)
+SELECT sqlc.arg(new_version_id), source.base_output_quantity_micros
+FROM bob_product_formulas source
+WHERE source.product_version_id = sqlc.arg(source_version_id);
+
+-- name: CopyBobProductFormulaLines :exec
+INSERT INTO bob_product_formula_lines (
+    product_version_id, line_no, material_object_id, material_version_id,
+    quantity_micros
+)
+SELECT sqlc.arg(new_version_id), source.line_no, source.material_object_id,
+       source.material_version_id, source.quantity_micros
+FROM bob_product_formula_lines source
+WHERE source.product_version_id = sqlc.arg(source_version_id);
+
+-- name: GetBobProductFormula :one
+SELECT base_output_quantity_micros
+FROM bob_product_formulas
+WHERE product_version_id = sqlc.arg(product_version_id);
+
+-- name: ListBobProductFormulaLines :many
+SELECT line.line_no, line.material_object_id, line.material_version_id,
+       object.code AS material_code, detail.name AS material_name,
+       detail.unit AS material_unit, detail.product_kind AS material_product_kind,
+       line.quantity_micros
+FROM bob_product_formula_lines line
+JOIN bob_objects object
+  ON object.id = line.material_object_id AND object.entity = 'product'
+JOIN bob_product_versions detail
+  ON detail.version_id = line.material_version_id
+WHERE line.product_version_id = sqlc.arg(product_version_id)
+ORDER BY line.line_no;
+
 -- name: LockBobObject :one
 SELECT id, entity, code, current_version_id, effective_version_id, next_version_no, revision, updated_at
 FROM bob_objects
@@ -744,6 +801,7 @@ WHERE entity = sqlc.arg(entity) AND version_id = current_version_id
   AND (sqlc.arg(position_id)::text = '' OR position_id = sqlc.arg(position_id))
   AND (sqlc.arg(salesperson_employee_id)::text = '' OR salesperson_employee_id = sqlc.arg(salesperson_employee_id))
   AND (sqlc.arg(currency)::text = '' OR currency = sqlc.arg(currency))
+  AND (sqlc.arg(product_kind)::text = '' OR product_kind = sqlc.arg(product_kind))
   AND (sqlc.arg(target_entity)::text = '' OR target_entity = sqlc.arg(target_entity))
   AND (sqlc.arg(parent_id)::text = '' OR parent_id = sqlc.arg(parent_id))
   AND (NOT sqlc.arg(root_only)::boolean OR parent_id = '')
@@ -781,6 +839,7 @@ WHERE entity = sqlc.arg(entity) AND version_id = current_version_id
   AND (sqlc.arg(position_id)::text = '' OR position_id = sqlc.arg(position_id))
   AND (sqlc.arg(salesperson_employee_id)::text = '' OR salesperson_employee_id = sqlc.arg(salesperson_employee_id))
   AND (sqlc.arg(currency)::text = '' OR currency = sqlc.arg(currency))
+  AND (sqlc.arg(product_kind)::text = '' OR product_kind = sqlc.arg(product_kind))
   AND (sqlc.arg(target_entity)::text = '' OR target_entity = sqlc.arg(target_entity))
   AND (sqlc.arg(parent_id)::text = '' OR parent_id = sqlc.arg(parent_id))
   AND (NOT sqlc.arg(root_only)::boolean OR parent_id = '')

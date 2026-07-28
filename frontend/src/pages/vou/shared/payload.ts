@@ -4,6 +4,7 @@ import type {
 } from '@/components/voucher'
 import { inputReference, type DraftPayload } from './form'
 import { appendSalesChainPayload } from './sales-chain'
+import { formulaPayload } from '@/components/formula'
 
 export function buildVoucherDraftPayload(
   config: VoucherEntityConfig,
@@ -62,6 +63,9 @@ export function buildVoucherDraftPayload(
         ? { settlementSurcharge: (line.settlementSurcharge ?? '').trim() }
         : {}),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+      ...(config.entity === 'sale-order' && line.formula
+        ? { formula: formulaPayload(line.formula) }
+        : {}),
     }))
   }
   if (config.lineKind === 'expense') {

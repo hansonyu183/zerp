@@ -3,8 +3,10 @@ package bob
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/jackc/pgx/v5"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -57,7 +59,10 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		}); err != nil {
 			return err
 		}
-		return insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs)
+		if err = insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs); err != nil {
+			return err
+		}
+		return insertProductFormula(ctx, q, versionID, data.Formula)
 	case EntityService:
 		return q.InsertBobServiceDetail(ctx, dbsqlc.InsertBobServiceDetailParams{
 			VersionID: versionID, Name: data.Name, Unit: data.Unit, UnitID: data.InventoryUnitID,
@@ -165,6 +170,12 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			if err = q.DeleteBobProductPackagingSpecs(ctx, versionID); err == nil {
 				err = insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs)
 			}
+			if err == nil {
+				err = q.DeleteBobProductFormula(ctx, versionID)
+			}
+			if err == nil {
+				err = insertProductFormula(ctx, q, versionID, data.Formula)
+			}
 		}
 	case EntityService:
 		rows, err = q.UpdateBobServiceDetail(ctx, dbsqlc.UpdateBobServiceDetailParams{
@@ -236,7 +247,17 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 		if err := q.CopyBobProductDetail(ctx, dbsqlc.CopyBobProductDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
 			return err
 		}
-		return q.CopyBobProductPackagingSpecs(ctx, dbsqlc.CopyBobProductPackagingSpecsParams{
+		if err := q.CopyBobProductPackagingSpecs(ctx, dbsqlc.CopyBobProductPackagingSpecsParams{
+			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+		}); err != nil {
+			return err
+		}
+		if err := q.CopyBobProductFormula(ctx, dbsqlc.CopyBobProductFormulaParams{
+			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+		}); err != nil {
+			return err
+		}
+		return q.CopyBobProductFormulaLines(ctx, dbsqlc.CopyBobProductFormulaLinesParams{
 			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
 		})
 	case EntityService:
@@ -281,6 +302,68 @@ func insertProductPackagingSpecs(
 	return nil
 }
 
+func insertProductFormula(
+	ctx context.Context, q *dbsqlc.Queries, versionID string, formula *ProductFormula,
+) error {
+	if formula == nil {
+		return nil
+	}
+	baseQuantity, err := fixedMicros(formula.BaseOutputQuantity)
+	if err != nil {
+		return err
+	}
+	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{
+		ProductVersionID: versionID, BaseOutputQuantityMicros: baseQuantity,
+	}); err != nil {
+		return err
+	}
+	for index, component := range formula.Components {
+		quantity, quantityErr := fixedMicros(component.Quantity)
+		if quantityErr != nil {
+			return quantityErr
+		}
+		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{
+			ProductVersionID: versionID, LineNo: int32(index + 1),
+			MaterialObjectID: component.Material.ObjectID, MaterialVersionID: component.Material.VersionID,
+			QuantityMicros: quantity,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func loadProductFormula(
+	ctx context.Context, q *dbsqlc.Queries, versionID string,
+) (*ProductFormula, error) {
+	baseQuantity, err := q.GetBobProductFormula(ctx, versionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListBobProductFormulaLines(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	result := &ProductFormula{
+		BaseOutputQuantity: formatMicros(baseQuantity),
+		Components:         make([]ProductFormulaComponent, 0, len(rows)),
+	}
+	for _, row := range rows {
+		result.Components = append(result.Components, ProductFormulaComponent{
+			Material: FormulaMaterialReference{
+				ObjectID: row.MaterialObjectID, VersionID: row.MaterialVersionID,
+				Code: row.MaterialCode, Name: row.MaterialName, Unit: row.MaterialUnit,
+				ProductKind: row.MaterialProductKind,
+			},
+			Quantity: formatMicros(row.QuantityMicros),
+		})
+	}
+	return result, nil
+}
+
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
 	switch entity {
 	case EntityCustomer:
@@ -291,6 +374,9 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		return q.DeleteBobEmployeeDetail(ctx, versionID)
 	case EntityProduct:
 		if err := q.DeleteBobProductPackagingSpecs(ctx, versionID); err != nil {
+			return 0, err
+		}
+		if err := q.DeleteBobProductFormula(ctx, versionID); err != nil {
 			return 0, err
 		}
 		return q.DeleteBobProductDetail(ctx, versionID)

@@ -769,6 +769,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/formula-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解析销售订单行默认配方 */
+        post: operations["vouSaleOrderFormulaDefault"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/create": {
         parameters: {
             query?: never;
@@ -1711,6 +1728,17 @@ export interface components {
             contentQuantity: string;
             isDefault: boolean;
         };
+        BobProductFormulaComponentInput: {
+            material: {
+                objectId: string;
+                versionId: string;
+            };
+            quantity: string;
+        };
+        BobProductFormulaInput: {
+            baseOutputQuantity: string;
+            components: components["schemas"]["BobProductFormulaComponentInput"][];
+        };
         BobCreateRequest: {
             data: {
                 code: string | null;
@@ -1755,6 +1783,7 @@ export interface components {
                 pricingQuantityPerInventoryUnit?: string | null;
                 returnable?: boolean | null;
                 packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
+                formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
         BobEditRequest: {
@@ -1810,6 +1839,7 @@ export interface components {
                 pricingQuantityPerInventoryUnit?: string | null;
                 returnable?: boolean | null;
                 packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
+                formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
         BobDeleteRequest: {
@@ -1861,8 +1891,33 @@ export interface components {
         VouGetRequest: {
             documentId: string;
         };
+        VouFormulaDefaultRequest: {
+            customer?: {
+                objectId: string;
+                versionId: string;
+            };
+            product: {
+                objectId: string;
+                versionId: string;
+            };
+        };
         /** @enum {string} */
         VouCreatableEntity: "sale-order" | "purchase-order" | "purchase-inbound" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouFormulaComponentInput: {
+            material: {
+                objectId: string;
+                versionId: string;
+            };
+            quantity: string;
+        };
+        VouFormulaInput: {
+            baseOutputQuantity: string;
+            /** @enum {string} */
+            sourceType?: "RAW_SELF" | "PRODUCT_FIXED" | "CUSTOMER_LATEST" | "MANUAL";
+            sourceDocumentId?: string;
+            sourceDocumentNo?: string;
+            components: components["schemas"]["VouFormulaComponentInput"][];
+        };
         VouCreateRequest: {
             parentEntity?: components["schemas"]["VouEntity"];
             parentDocumentId?: string;
@@ -1930,6 +1985,7 @@ export interface components {
                     remark?: string;
                     containerType?: string | null;
                     quantityPerContainer?: string | null;
+                    formula?: components["schemas"]["VouFormulaInput"] | null;
                 }[];
                 expenseLines?: {
                     category: string;
@@ -2018,6 +2074,7 @@ export interface components {
                     remark?: string;
                     containerType?: string | null;
                     quantityPerContainer?: string | null;
+                    formula?: components["schemas"]["VouFormulaInput"] | null;
                 }[];
                 expenseLines?: {
                     category: string;
@@ -2993,6 +3050,24 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VouGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouSaleOrderFormulaDefault: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouFormulaDefaultRequest"];
             };
         };
         responses: {

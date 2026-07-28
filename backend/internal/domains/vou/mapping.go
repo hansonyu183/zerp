@@ -2,9 +2,12 @@ package vou
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -206,9 +209,46 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 		item.RejectedQuantity = formatOptionalQuantity(row.RejectedQtyMicros)
 		item.LossQuantity = formatOptionalQuantity(row.LossQtyMicros)
 		item.InboundQuantity = formatOptionalQuantity(row.InboundQtyMicros)
+		item.Formula, err = loadSaleOrderFormula(ctx, q, row.ID)
+		if err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func loadSaleOrderFormula(
+	ctx context.Context, q *dbsqlc.Queries, productLineID string,
+) (*FormulaView, error) {
+	header, err := q.GetVouSaleOrderFormula(ctx, productLineID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListVouSaleOrderFormulaLines(ctx, productLineID)
+	if err != nil {
+		return nil, err
+	}
+	result := &FormulaView{
+		BaseOutputQuantity: formatQuantity(header.BaseOutputQuantityMicros),
+		SourceType:         header.SourceType, SourceDocumentID: deref(header.SourceDocumentID),
+		SourceDocumentNo: deref(header.SourceDocumentNo),
+		Components:       make([]FormulaComponentView, 0, len(rows)),
+	}
+	for _, row := range rows {
+		material := *reference(
+			row.MaterialObjectID, row.MaterialVersionID, bobdomain.EntityProduct,
+			row.MaterialCode, row.MaterialName, row.MaterialUnit, "", "",
+		)
+		material.ProductKind = bobdomain.ProductKindRawMaterial
+		result.Components = append(result.Components, FormulaComponentView{
+			Material: material, Quantity: formatQuantity(row.QuantityMicros),
+		})
+	}
+	return result, nil
 }
 
 func reference(objectID, versionID, entity, code, name, unit, currency, plate string) *ReferenceView {

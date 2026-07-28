@@ -328,6 +328,45 @@ func (q *Queries) FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocume
 	return revision, err
 }
 
+const findLatestCustomerSaleOrderFormula = `-- name: FindLatestCustomerSaleOrderFormula :one
+SELECT formula.product_line_id, formula.base_output_quantity_micros,
+       document.id AS source_document_id, document.document_no AS source_document_no
+FROM vou_documents document
+JOIN vou_sale_order_details detail ON detail.document_id = document.id
+JOIN vou_product_lines product_line ON product_line.document_id = document.id
+JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
+WHERE document.entity = 'sale-order'
+  AND document.status IN ('CHECKED', 'APPROVED', 'FINALIZED')
+  AND detail.customer_object_id = $1
+  AND product_line.product_object_id = $2
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1
+`
+
+type FindLatestCustomerSaleOrderFormulaParams struct {
+	CustomerObjectID string `db:"customer_object_id" json:"customer_object_id"`
+	ProductObjectID  string `db:"product_object_id" json:"product_object_id"`
+}
+
+type FindLatestCustomerSaleOrderFormulaRow struct {
+	ProductLineID            string `db:"product_line_id" json:"product_line_id"`
+	BaseOutputQuantityMicros int64  `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+	SourceDocumentID         string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo         string `db:"source_document_no" json:"source_document_no"`
+}
+
+func (q *Queries) FindLatestCustomerSaleOrderFormula(ctx context.Context, arg FindLatestCustomerSaleOrderFormulaParams) (FindLatestCustomerSaleOrderFormulaRow, error) {
+	row := q.db.QueryRow(ctx, findLatestCustomerSaleOrderFormula, arg.CustomerObjectID, arg.ProductObjectID)
+	var i FindLatestCustomerSaleOrderFormulaRow
+	err := row.Scan(
+		&i.ProductLineID,
+		&i.BaseOutputQuantityMicros,
+		&i.SourceDocumentID,
+		&i.SourceDocumentNo,
+	)
+	return i, err
+}
+
 const getReadyVouAttachment = `-- name: GetReadyVouAttachment :one
 SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.created_at, f.created_by, a.document_id, d.entity
 FROM vou_files f
@@ -631,6 +670,26 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.SettlementDueDays,
 		&i.SettlementCutoffDay,
 		&i.SettlementDefaultSalesSurchargeCents,
+	)
+	return i, err
+}
+
+const getVouSaleOrderFormula = `-- name: GetVouSaleOrderFormula :one
+SELECT product_line_id, source_type, source_document_id, source_document_no,
+       base_output_quantity_micros
+FROM vou_sale_order_formulas
+WHERE product_line_id = $1
+`
+
+func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error) {
+	row := q.db.QueryRow(ctx, getVouSaleOrderFormula, productLineID)
+	var i VouSaleOrderFormula
+	err := row.Scan(
+		&i.ProductLineID,
+		&i.SourceType,
+		&i.SourceDocumentID,
+		&i.SourceDocumentNo,
+		&i.BaseOutputQuantityMicros,
 	)
 	return i, err
 }
@@ -1357,6 +1416,72 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 	return err
 }
 
+const insertVouSaleOrderFormula = `-- name: InsertVouSaleOrderFormula :exec
+INSERT INTO vou_sale_order_formulas (
+    product_line_id, source_type, source_document_id, source_document_no,
+    base_output_quantity_micros
+) VALUES (
+    $1, $2,
+    $3, $4,
+    $5
+)
+`
+
+type InsertVouSaleOrderFormulaParams struct {
+	ProductLineID            string  `db:"product_line_id" json:"product_line_id"`
+	SourceType               string  `db:"source_type" json:"source_type"`
+	SourceDocumentID         *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo         *string `db:"source_document_no" json:"source_document_no"`
+	BaseOutputQuantityMicros int64   `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+}
+
+func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSaleOrderFormulaParams) error {
+	_, err := q.db.Exec(ctx, insertVouSaleOrderFormula,
+		arg.ProductLineID,
+		arg.SourceType,
+		arg.SourceDocumentID,
+		arg.SourceDocumentNo,
+		arg.BaseOutputQuantityMicros,
+	)
+	return err
+}
+
+const insertVouSaleOrderFormulaLine = `-- name: InsertVouSaleOrderFormulaLine :exec
+INSERT INTO vou_sale_order_formula_lines (
+    product_line_id, line_no, material_object_id, material_version_id,
+    material_code, material_name, material_unit, quantity_micros
+) VALUES (
+    $1, $2, $3,
+    $4, $5,
+    $6, $7, $8
+)
+`
+
+type InsertVouSaleOrderFormulaLineParams struct {
+	ProductLineID     string `db:"product_line_id" json:"product_line_id"`
+	LineNo            int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode      string `db:"material_code" json:"material_code"`
+	MaterialName      string `db:"material_name" json:"material_name"`
+	MaterialUnit      string `db:"material_unit" json:"material_unit"`
+	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouSaleOrderFormulaLine,
+		arg.ProductLineID,
+		arg.LineNo,
+		arg.MaterialObjectID,
+		arg.MaterialVersionID,
+		arg.MaterialCode,
+		arg.MaterialName,
+		arg.MaterialUnit,
+		arg.QuantityMicros,
+	)
+	return err
+}
+
 const listAllVouStorageKeys = `-- name: ListAllVouStorageKeys :many
 SELECT storage_key FROM vou_files
 `
@@ -1792,6 +1917,52 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
 			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouSaleOrderFormulaLines = `-- name: ListVouSaleOrderFormulaLines :many
+SELECT line_no, material_object_id, material_version_id, material_code,
+       material_name, material_unit, quantity_micros
+FROM vou_sale_order_formula_lines
+WHERE product_line_id = $1
+ORDER BY line_no
+`
+
+type ListVouSaleOrderFormulaLinesRow struct {
+	LineNo            int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode      string `db:"material_code" json:"material_code"`
+	MaterialName      string `db:"material_name" json:"material_name"`
+	MaterialUnit      string `db:"material_unit" json:"material_unit"`
+	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error) {
+	rows, err := q.db.Query(ctx, listVouSaleOrderFormulaLines, productLineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouSaleOrderFormulaLinesRow{}
+	for rows.Next() {
+		var i ListVouSaleOrderFormulaLinesRow
+		if err := rows.Scan(
+			&i.LineNo,
+			&i.MaterialObjectID,
+			&i.MaterialVersionID,
+			&i.MaterialCode,
+			&i.MaterialName,
+			&i.MaterialUnit,
+			&i.QuantityMicros,
 		); err != nil {
 			return nil, err
 		}

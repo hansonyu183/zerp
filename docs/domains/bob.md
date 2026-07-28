@@ -44,20 +44,22 @@ BOB 不负责：
 
 八类实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。除创建后不可修改的 `code` 外，下表字段均随版本保存：
 
-| 实体           | 版本字段                                                                                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                              |
-| `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                              |
-| `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                              |
-| `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
-| `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                        |
-| `warehouse`    | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                           |
-| `vehicle`      | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                               |
-| `fund-account` | `name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                    |
+| 实体           | 版本字段                                                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
+| `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
+| `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                         |
+| `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
+| `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                   |
+| `warehouse`    | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                                      |
+| `vehicle`      | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                                          |
+| `fund-account` | `name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                               |
 
 `customerType` 和 `vehicleType` 保存 AUX 字典项编码；初始客户类型为 `END_USER`、`DEALER`，历史车辆类型在迁移时自动形成字典项。`supplierType` 仍是业务枚举，只能为 `GENERAL` 或 `LOGISTICS_PLATFORM`。
 
 产品类型为原材料、自制成品、定制成品或包装物。普通商品按 kg 定价，并通过换算系数连接库存单位；包装物按自身单位定价，可标记为可回收。商品的多个包装规格引用包装物产品并保存每包装内容量和默认标记。旧桶型迁移成可回收包装物及对应包装规格。
+
+自制成品必须维护版本化固定配方。固定配方由基准产量和一至两百行原料组成，每行只能引用一个已生效的原材料，原料不可重复且数量必须大于零。配方随产品版本复制和生效；新版本修改不影响旧版本或已经生成的销售订单配方快照。原材料、定制成品和包装物不维护产品固定配方。
 
 客户和供应商的 `settlementMethodId` 引用当前启用的 AUX 结算方式，可选维护。交易单据的到期日和销售加价规则见 AUX 与 VOU 文档。
 

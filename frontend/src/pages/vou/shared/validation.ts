@@ -70,6 +70,28 @@ export function validateVoucherDraft(
       const key = `${line.product.objectId}/${line.product.versionId}`
       if (seen.has(key)) return `第 ${index + 1} 行 · 产品：不能重复添加。`
       seen.add(key)
+      if (
+        config.entity === 'sale-order' &&
+        line.product.productKind !== 'PACKAGING'
+      ) {
+        if (
+          !line.formula ||
+          !isQuantity(line.formula.baseOutputQuantity) ||
+          line.formula.components.length === 0 ||
+          line.formula.components.some(
+            (component) =>
+              !component.material || !isQuantity(component.quantity),
+          )
+        ) {
+          return `第 ${index + 1} 行 · 配方：请完整填写基准产量和原材料用量。`
+        }
+        const materialIds = line.formula.components.map(
+          (component) => component.material!.objectId,
+        )
+        if (new Set(materialIds).size !== materialIds.length) {
+          return `第 ${index + 1} 行 · 配方：原材料不能重复。`
+        }
+      }
     }
     if (!sumMoney(lineAmounts)) return '单据总金额超出允许范围。'
   }

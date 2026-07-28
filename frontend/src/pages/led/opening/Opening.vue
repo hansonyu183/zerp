@@ -140,6 +140,7 @@ async function saveOpening(): Promise<void> {
                                 vm.warehouseReferences.errorMessage
                               "
                               label="仓库"
+                              table
                               :loading="vm.warehouseReferences.loading"
                               :options="vm.warehouseReferences.options"
                               @search="vm.warehouseReferences.search"
@@ -151,6 +152,7 @@ async function saveOpening(): Promise<void> {
                               :disabled="!vm.editable.value"
                               :error-message="vm.productReferences.errorMessage"
                               label="商品"
+                              table
                               :loading="vm.productReferences.loading"
                               :options="vm.productReferences.options"
                               @search="vm.productReferences.search"
@@ -222,6 +224,7 @@ async function saveOpening(): Promise<void> {
                               :disabled="!vm.editable.value"
                               :error-message="vm.fundReferences.errorMessage"
                               label="资金账户"
+                              table
                               :loading="vm.fundReferences.loading"
                               :options="vm.fundReferences.options"
                               @search="vm.fundReferences.search"
@@ -236,7 +239,9 @@ async function saveOpening(): Promise<void> {
                                 { title: '透支', value: 'OVERDRAFT' },
                               ]"
                               label="余额类型"
-                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              variant="underlined"
                             />
                           </td>
                           <td>
@@ -312,7 +317,9 @@ async function saveOpening(): Promise<void> {
                                 { title: '供应商', value: 'supplier' },
                               ]"
                               label="往来方类型"
-                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              variant="underlined"
                               @update:model-value="row.counterparty = null"
                             />
                           </td>
@@ -322,6 +329,7 @@ async function saveOpening(): Promise<void> {
                               :disabled="!vm.editable.value"
                               :error-message="vm.partyReferences.errorMessage"
                               label="往来方"
+                              table
                               :loading="vm.partyReferences.loading"
                               :options="
                                 vm.partyReferences.options.filter(
@@ -341,7 +349,9 @@ async function saveOpening(): Promise<void> {
                                 { title: '应付', value: 'PAYABLE' },
                               ]"
                               label="余额类型"
-                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              variant="underlined"
                             />
                           </td>
                           <td>
@@ -415,6 +425,7 @@ async function saveOpening(): Promise<void> {
                                 vm.customerReferences.errorMessage
                               "
                               label="客户"
+                              table
                               :loading="vm.customerReferences.loading"
                               :options="vm.customerReferences.options"
                               @search="vm.customerReferences.search"
@@ -429,7 +440,9 @@ async function saveOpening(): Promise<void> {
                                 { title: '树脂桶', value: 'RESIN' },
                               ]"
                               label="空桶类型"
-                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              variant="underlined"
                             />
                           </td>
                           <td>

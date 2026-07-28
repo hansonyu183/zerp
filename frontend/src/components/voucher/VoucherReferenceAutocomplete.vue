@@ -4,22 +4,27 @@ import type { VoucherReference } from './types'
 
 defineOptions({ name: 'VoucherReferenceAutocomplete' })
 
-const props = withDefaults(defineProps<{
-  modelValue: VoucherReference | null
-  options: readonly VoucherReference[]
-  label: string
-  loading?: boolean
-  disabled?: boolean
-  required?: boolean
-  clearable?: boolean
-  errorMessage?: string | null
-}>(), {
-  loading: false,
-  disabled: false,
-  required: false,
-  clearable: true,
-  errorMessage: null,
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: VoucherReference | null
+    options: readonly VoucherReference[]
+    label: string
+    loading?: boolean
+    disabled?: boolean
+    required?: boolean
+    clearable?: boolean
+    errorMessage?: string | null
+    table?: boolean
+  }>(),
+  {
+    loading: false,
+    disabled: false,
+    required: false,
+    clearable: true,
+    errorMessage: null,
+    table: false,
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: VoucherReference | null]
@@ -44,6 +49,7 @@ function title(item: VoucherReference): string {
 <template>
   <v-autocomplete
     :clearable="clearable && !required"
+    :density="table ? 'compact' : 'comfortable'"
     :disabled="disabled || Boolean(errorMessage)"
     :error-messages="errorMessage ? [errorMessage] : []"
     :item-title="title"
@@ -51,10 +57,13 @@ function title(item: VoucherReference): string {
     :label="label"
     :loading="loading"
     :model-value="modelValue"
+    :hide-details="table"
     no-filter
     return-object
-    :rules="required ? [(value: unknown) => Boolean(value) || `请选择${label}。`] : []"
-    variant="outlined"
+    :rules="
+      required ? [(value: unknown) => Boolean(value) || `请选择${label}。`] : []
+    "
+    :variant="table ? 'underlined' : 'outlined'"
     @update:model-value="emit('update:modelValue', $event ?? null)"
     @update:search="emit('search', $event ?? '')"
   >

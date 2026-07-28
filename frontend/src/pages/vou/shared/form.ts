@@ -7,6 +7,7 @@ import type {
   VoucherReferenceView,
 } from '@/components/voucher'
 import { localDate } from '@/utils/date'
+import { formulaFromPayload, type FormulaPayload } from '@/components/formula'
 
 export interface DraftPayload {
   businessDate: string
@@ -33,6 +34,7 @@ export interface DraftPayload {
     settlementSurcharge?: string
     purchaseUnitPrice?: string
     remark?: string
+    formula?: FormulaPayload
   }>
   expenseLines?: Array<{
     category: string
@@ -74,26 +76,33 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     amount: '',
     parentDocumentId: '',
     parentDocumentNo: '',
-    productLines: config.lineKind === 'product'
-      ? [{
-        key: crypto.randomUUID(),
-        product: null,
-        orderedQuantity: '',
-        unitPrice: '',
-        settlementSurcharge: '',
-        purchaseUnitPrice: '',
-        remark: '',
-      }]
-      : [],
-    expenseLines: config.lineKind === 'expense'
-      ? [{
-        key: crypto.randomUUID(),
-        category: '',
-        description: '',
-        amount: '',
-        remark: '',
-      }]
-      : [],
+    productLines:
+      config.lineKind === 'product'
+        ? [
+            {
+              key: crypto.randomUUID(),
+              product: null,
+              orderedQuantity: '',
+              unitPrice: '',
+              settlementSurcharge: '',
+              purchaseUnitPrice: '',
+              remark: '',
+              formula: null,
+            },
+          ]
+        : [],
+    expenseLines:
+      config.lineKind === 'expense'
+        ? [
+            {
+              key: crypto.randomUUID(),
+              category: '',
+              description: '',
+              amount: '',
+              remark: '',
+            },
+          ]
+        : [],
     salesChainLines: [],
   }
 }
@@ -122,9 +131,12 @@ export function formFromDocument(
     remark: data.remark ?? '',
     customer: formReference(data.customer),
     supplier: formReference(data.supplier),
-    counterpartyType: data.counterparty?.entity === 'supplier'
-      ? 'supplier'
-      : data.counterparty ? 'customer' : '',
+    counterpartyType:
+      data.counterparty?.entity === 'supplier'
+        ? 'supplier'
+        : data.counterparty
+          ? 'customer'
+          : '',
     counterparty: formReference(data.counterparty),
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),
@@ -147,6 +159,7 @@ export function formFromDocument(
       settlementSurcharge: line.settlementSurcharge ?? '',
       purchaseUnitPrice: line.purchaseUnitPrice ?? '',
       remark: line.remark ?? '',
+      formula: formulaFromPayload(line.formula),
     })),
     expenseLines: (data.expenseLines ?? []).map((line) => ({
       key: line.lineId,
@@ -156,37 +169,38 @@ export function formFromDocument(
       amount: line.amount,
       remark: line.remark ?? '',
     })),
-    salesChainLines: document.entity === 'sale-signoff'
-      ? (data.signoffLines ?? []).map((line) => ({
-        key: line.lineId,
-        sourceLineId: line.sourceLineId,
-        productCode: line.product.code,
-        productName: line.product.name,
-        productUnit: line.product.unit ?? '',
-        availableQuantity: '',
-        outboundQuantity: line.outboundQuantity,
-        quantity: '',
-        signedQuantity: line.signedQuantity,
-        rejectedQuantity: line.rejectedQuantity,
-        lossQuantity: line.lossQuantity,
-        remark: line.remark ?? '',
-      }))
-      : document.entity === 'sale-outbound'
-        ? (data.productLines ?? []).map((line) => ({
-          key: line.lineId,
-          sourceLineId: line.sourceLineId ?? line.lineId,
-          productCode: line.product.code,
-          productName: line.product.name,
-          productUnit: line.product.unit ?? '',
-          availableQuantity: line.quantity ?? line.orderedQuantity,
-          outboundQuantity: '',
-          quantity: line.quantity ?? line.orderedQuantity,
-          signedQuantity: '',
-          rejectedQuantity: '',
-          lossQuantity: '',
-          remark: line.remark ?? '',
-        }))
-        : [],
+    salesChainLines:
+      document.entity === 'sale-signoff'
+        ? (data.signoffLines ?? []).map((line) => ({
+            key: line.lineId,
+            sourceLineId: line.sourceLineId,
+            productCode: line.product.code,
+            productName: line.product.name,
+            productUnit: line.product.unit ?? '',
+            availableQuantity: '',
+            outboundQuantity: line.outboundQuantity,
+            quantity: '',
+            signedQuantity: line.signedQuantity,
+            rejectedQuantity: line.rejectedQuantity,
+            lossQuantity: line.lossQuantity,
+            remark: line.remark ?? '',
+          }))
+        : document.entity === 'sale-outbound'
+          ? (data.productLines ?? []).map((line) => ({
+              key: line.lineId,
+              sourceLineId: line.sourceLineId ?? line.lineId,
+              productCode: line.product.code,
+              productName: line.product.name,
+              productUnit: line.product.unit ?? '',
+              availableQuantity: line.quantity ?? line.orderedQuantity,
+              outboundQuantity: '',
+              quantity: line.quantity ?? line.orderedQuantity,
+              signedQuantity: '',
+              rejectedQuantity: '',
+              lossQuantity: '',
+              remark: line.remark ?? '',
+            }))
+          : [],
   }
 }
 

@@ -27,6 +27,9 @@ func (s *handlerServiceStub) Query(_ context.Context, entity string, input Query
 func (*handlerServiceStub) Get(context.Context, string, GetInput) (DocumentView, error) {
 	return DocumentView{}, nil
 }
+func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error) {
+	return FormulaDefaultView{}, nil
+}
 func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
@@ -101,6 +104,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 			if route.action == "create" && !publicCreateEntity(entity) {
 				continue
 			}
+			if route.action == "formula-default" && entity != EntitySaleOrder {
+				continue
+			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
 		}
 	}
@@ -114,7 +120,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3+2; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3-(len(entities)-1)+2; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

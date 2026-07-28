@@ -141,6 +141,7 @@ type DetailInput struct {
 	PricingQuantityPerInventoryUnit OptionalString        `json:"pricingQuantityPerInventoryUnit,omitempty"`
 	Returnable                      *bool                 `json:"returnable,omitempty"`
 	PackagingSpecs                  *[]PackagingSpecInput `json:"packagingSpecs,omitempty"`
+	Formula                         *ProductFormula       `json:"formula,omitempty"`
 }
 
 type CreateDetailInput struct {
@@ -193,6 +194,7 @@ type CreateDetailInput struct {
 	PricingQuantityPerInventoryUnit string               `json:"pricingQuantityPerInventoryUnit,omitempty"`
 	Returnable                      bool                 `json:"returnable,omitempty"`
 	PackagingSpecs                  []PackagingSpecInput `json:"packagingSpecs,omitempty"`
+	Formula                         *ProductFormula      `json:"formula,omitempty"`
 }
 
 type PackagingSpecInput struct {
@@ -202,6 +204,25 @@ type PackagingSpecInput struct {
 	PackagingProductName      string `json:"packagingProductName,omitempty"`
 	ContentQuantity           string `json:"contentQuantity"`
 	IsDefault                 bool   `json:"isDefault"`
+}
+
+type ProductFormula struct {
+	BaseOutputQuantity string                    `json:"baseOutputQuantity"`
+	Components         []ProductFormulaComponent `json:"components"`
+}
+
+type ProductFormulaComponent struct {
+	Material FormulaMaterialReference `json:"material"`
+	Quantity string                   `json:"quantity"`
+}
+
+type FormulaMaterialReference struct {
+	ObjectID    string `json:"objectId"`
+	VersionID   string `json:"versionId"`
+	Code        string `json:"code,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Unit        string `json:"unit,omitempty"`
+	ProductKind string `json:"productKind,omitempty"`
 }
 
 // OptionalString distinguishes an omitted field from an explicit null or
@@ -278,6 +299,7 @@ type QueryFilters struct {
 	PositionID            string   `json:"positionId,omitempty"`
 	SalespersonEmployeeID string   `json:"salespersonEmployeeId,omitempty"`
 	Currency              string   `json:"currency,omitempty"`
+	ProductKind           string   `json:"productKind,omitempty"`
 	TargetEntity          string   `json:"targetEntity,omitempty"`
 	ParentID              string   `json:"parentId,omitempty"`
 	RootOnly              bool     `json:"rootOnly,omitempty"`
@@ -381,6 +403,7 @@ type DetailView struct {
 	PricingQuantityPerInventoryUnit string               `json:"pricingQuantityPerInventoryUnit,omitempty"`
 	Returnable                      bool                 `json:"returnable,omitempty"`
 	PackagingSpecs                  []PackagingSpecInput `json:"packagingSpecs,omitempty"`
+	Formula                         *ProductFormula      `json:"formula,omitempty"`
 }
 
 type MutationResult struct {

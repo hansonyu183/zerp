@@ -33,9 +33,8 @@ describe('product packaging contract', () => {
         'packagingSpecs',
       ]),
     )
-    expect(
-      productKind?.onChange?.('PACKAGING', form),
-    ).toEqual({
+    expect(productKind?.onChange?.('PACKAGING', form)).toEqual({
+      formula: null,
       pricingUnitId: '',
       pricingQuantityPerInventoryUnit: '1',
     })

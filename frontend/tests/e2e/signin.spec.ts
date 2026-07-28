@@ -149,6 +149,11 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({ pa
     await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
       `ZERP / ${title}`,
     )
+    const controls = page.locator('.entity-list-controls')
+    await expect(controls).toHaveCount(1)
+    await expect(
+      controls.getByRole('button', { name: '查询', exact: true }),
+    ).toBeVisible()
     await expect(page.locator('main h1')).toHaveCount(0)
   }
 })

@@ -102,12 +102,29 @@ describe('EntityListControls', () => {
     const wrapper = mountControls(true)
     const buttons = wrapper.findAll('button')
 
-    for (const label of ['新增', '重置', '应用筛选']) {
+    for (const label of ['查询', '新增', '重置', '应用筛选']) {
       expect(
         buttons
           .find((button) => button.text() === label)
           ?.attributes('disabled'),
       ).toBeDefined()
     }
+  })
+
+  it('支持没有关键字输入的纯筛选列表', () => {
+    const wrapper = mount(EntityListControls, {
+      props: {
+        searchable: false,
+      },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VTextField: VTextFieldStub,
+        },
+      },
+    })
+
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.text()).toContain('查询')
   })
 })

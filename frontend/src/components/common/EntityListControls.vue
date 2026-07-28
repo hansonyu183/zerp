@@ -2,18 +2,23 @@
 defineOptions({ name: 'EntityListControls' })
 
 interface Props {
-  keyword: string
+  keyword?: string
   loading?: boolean
   searchLabel?: string
   creatable?: boolean
   filterable?: boolean
+  queryable?: boolean
+  searchable?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
+  keyword: '',
   loading: false,
   searchLabel: '关键字',
   creatable: false,
   filterable: false,
+  queryable: true,
+  searchable: true,
 })
 
 const emit = defineEmits<{
@@ -23,6 +28,10 @@ const emit = defineEmits<{
   resetFilters: []
   applyFilters: []
 }>()
+
+function query(): void {
+  if (props.queryable && !props.loading) emit('query')
+}
 </script>
 
 <template>
@@ -41,7 +50,7 @@ const emit = defineEmits<{
           <div class="entity-list-controls__filter-actions">
             <slot name="filter-actions">
               <v-btn
-                :disabled="loading"
+                :disabled="!queryable || loading"
                 variant="text"
                 @click="emit('resetFilters')"
               >
@@ -49,6 +58,7 @@ const emit = defineEmits<{
               </v-btn>
               <v-btn
                 color="primary"
+                :disabled="!queryable"
                 :loading="loading"
                 @click="emit('applyFilters')"
               >
@@ -60,8 +70,14 @@ const emit = defineEmits<{
       </v-expansion-panel>
     </v-expansion-panels>
 
-    <div class="entity-list-controls__toolbar">
+    <div
+      class="entity-list-controls__toolbar"
+      :class="{
+        'entity-list-controls__toolbar--without-search': !searchable,
+      }"
+    >
       <v-text-field
+        v-if="searchable"
         :model-value="keyword"
         clearable
         density="comfortable"
@@ -69,14 +85,15 @@ const emit = defineEmits<{
         :label="searchLabel"
         prepend-inner-icon="mdi-magnify"
         variant="outlined"
-        @keyup.enter="emit('query')"
+        @keyup.enter="query"
         @update:model-value="emit('update:keyword', $event ?? '')"
       />
       <v-btn
         color="primary"
+        :disabled="!queryable"
         prepend-icon="mdi-refresh"
         :loading="loading"
-        @click="emit('query')"
+        @click="query"
       >
         查询
       </v-btn>
@@ -118,6 +135,11 @@ const emit = defineEmits<{
   gap: 12px;
   align-items: center;
   margin-bottom: 18px;
+}
+
+.entity-list-controls__toolbar--without-search {
+  grid-template-columns: auto auto;
+  justify-content: start;
 }
 
 @media (max-width: 900px) {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import { formatLocalDateTime } from '@/utils/date'
 import type { WflProcessListRow } from './types'
 
@@ -36,55 +37,33 @@ const lastPage = computed(() =>
 
 <template>
   <div>
-    <div class="wfl-list__heading">
-      <slot name="heading" />
-      <v-btn
-        v-if="canCreate"
-        color="primary"
-        :disabled="loading"
-        prepend-icon="mdi-plus"
-        @click="emit('create')"
-      >
-        新建流程
-      </v-btn>
-    </div>
-    <v-expansion-panels class="mb-4" variant="accordion">
-      <v-expansion-panel>
-        <v-expansion-panel-title>筛选条件</v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <div class="wfl-list__filters">
-            <v-text-field
-              clearable
-              label="流程单号关键字"
-              :model-value="keyword"
-              variant="outlined"
-              @update:model-value="emit('update:keyword', $event ?? '')"
-            />
-            <v-select
-              chips
-              clearable
-              label="流程状态"
-              :items="statusOptions"
-              :model-value="statuses"
-              multiple
-              variant="outlined"
-              @update:model-value="emit('update:statuses', [...$event])"
-            />
-          </div>
-          <div class="wfl-list__filter-actions">
-            <v-btn variant="text" @click="emit('reset')">重置</v-btn>
-            <v-btn
-              color="primary"
-              :disabled="!canQuery"
-              :loading="loading"
-              @click="emit('query')"
-            >
-              查询
-            </v-btn>
-          </div>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
+    <slot name="heading" />
+    <EntityListControls
+      :creatable="canCreate"
+      filterable
+      :keyword="keyword"
+      :loading="loading"
+      :queryable="canQuery"
+      search-label="流程单号关键字"
+      @apply-filters="emit('query')"
+      @create="emit('create')"
+      @query="emit('query')"
+      @reset-filters="emit('reset')"
+      @update:keyword="emit('update:keyword', $event)"
+    >
+      <template #filters>
+        <v-select
+          chips
+          clearable
+          label="流程状态"
+          :items="statusOptions"
+          :model-value="statuses"
+          multiple
+          variant="outlined"
+          @update:model-value="emit('update:statuses', [...$event])"
+        />
+      </template>
+    </EntityListControls>
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
       <div class="wfl-list__table-wrap">
@@ -109,7 +88,8 @@ const lastPage = computed(() =>
               <td>{{ statusText(row.status) }}</td>
               <td>{{ stageText(row.currentStage) }}</td>
               <td class="text-end">
-                {{ row.amount }}<template v-if="row.currency"> {{ row.currency }}</template>
+                {{ row.amount
+                }}<template v-if="row.currency"> {{ row.currency }}</template>
               </td>
               <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end">
@@ -150,30 +130,10 @@ const lastPage = computed(() =>
 </template>
 
 <style scoped>
-.wfl-list__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
+.wfl-list__table-wrap {
+  overflow-x: auto;
 }
-.wfl-list__filters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.wfl-list__filter-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.wfl-list__table-wrap { overflow-x: auto; }
-.wfl-list__table { min-width: 1050px; }
-@media (max-width: 900px) {
-  .wfl-list__heading {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .wfl-list__filters { grid-template-columns: 1fr; }
+.wfl-list__table {
+  min-width: 1050px;
 }
 </style>

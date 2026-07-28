@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import { useSessionStore } from '@/stores/session'
 
 interface DocumentLink {
@@ -138,19 +139,13 @@ onMounted(query)
 
 <template>
   <v-container fluid class="pa-4 pa-md-7">
-    <div class="d-flex flex-wrap align-center justify-end ga-3 mb-5">
-      <div class="d-flex ga-2">
-        <v-text-field
-          v-model="keyword"
-          label="单号"
-          density="compact"
-          hide-details
-          clearable
-          @keyup.enter="query"
-        />
-        <v-btn color="primary" :loading="loading" @click="query">查询</v-btn>
-      </div>
-    </div>
+    <EntityListControls
+      :keyword="keyword"
+      :loading="loading"
+      search-label="流程单号关键字"
+      @query="query"
+      @update:keyword="keyword = $event"
+    />
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
       {{ errorMessage }}

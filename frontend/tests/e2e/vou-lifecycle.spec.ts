@@ -103,7 +103,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   const fixture = vouFixture()
   await signIn(page)
   await page.goto('/vou/receipt')
-  await page.getByRole('button', { name: '新建单据' }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')
 
   await selectReference(page, '客户', fixture.customer, workspace)
@@ -159,7 +159,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await signIn(page)
 
   await page.goto('/vou/sale-order')
-  await page.getByRole('button', { name: '新建单据' }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')
   await expect(workspace.getByLabel('币种')).not.toBeVisible()
   await workspace.getByRole('button', { name: '更多设置' }).click()
@@ -215,5 +215,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     'readonly',
     '',
   )
-  await expect(page.getByRole('button', { name: '新建单据' })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '新增', exact: true }),
+  ).toHaveCount(0)
 })

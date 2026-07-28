@@ -8,45 +8,49 @@ import type {
   VoucherStatus,
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'VoucherList' })
 
-const props = withDefaults(defineProps<{
-  rows: readonly VoucherListItem[]
-  total: number
-  page: number
-  pageSize: number
-  keyword: string
-  statuses: readonly VoucherStatus[]
-  dateFrom: string
-  dateTo: string
-  sort: VoucherSort
-  loading?: boolean
-  queryable?: boolean
-  creatable?: boolean
-  canView?: (row: VoucherListItem) => boolean
-  canEdit?: (row: VoucherListItem) => boolean
-  emptyText?: string
-  partyEnabled?: boolean
-  partyLabel?: string
-  party: VoucherReference | null
-  partyOptions?: readonly VoucherReference[]
-  partyLoading?: boolean
-  partyError?: string | null
-}>(), {
-  loading: false,
-  queryable: true,
-  creatable: false,
-  canView: () => true,
-  canEdit: () => false,
-  emptyText: '暂无单据',
-  partyEnabled: false,
-  partyLabel: '往来方',
-  partyOptions: () => [],
-  partyLoading: false,
-  partyError: null,
-})
+const props = withDefaults(
+  defineProps<{
+    rows: readonly VoucherListItem[]
+    total: number
+    page: number
+    pageSize: number
+    keyword: string
+    statuses: readonly VoucherStatus[]
+    dateFrom: string
+    dateTo: string
+    sort: VoucherSort
+    loading?: boolean
+    queryable?: boolean
+    creatable?: boolean
+    canView?: (row: VoucherListItem) => boolean
+    canEdit?: (row: VoucherListItem) => boolean
+    emptyText?: string
+    partyEnabled?: boolean
+    partyLabel?: string
+    party: VoucherReference | null
+    partyOptions?: readonly VoucherReference[]
+    partyLoading?: boolean
+    partyError?: string | null
+  }>(),
+  {
+    loading: false,
+    queryable: true,
+    creatable: false,
+    canView: () => true,
+    canEdit: () => false,
+    emptyText: '暂无单据',
+    partyEnabled: false,
+    partyLabel: '往来方',
+    partyOptions: () => [],
+    partyLoading: false,
+    partyError: null,
+  },
+)
 
 const emit = defineEmits<{
   'update:keyword': [value: string]
@@ -89,109 +93,79 @@ function statusText(status: VoucherStatus): string {
 function changeSort(field: VoucherSort['field']): void {
   emit('update:sort', {
     field,
-    order: props.sort.field === field && props.sort.order === 'asc'
-      ? 'desc'
-      : 'asc',
+    order:
+      props.sort.field === field && props.sort.order === 'asc' ? 'desc' : 'asc',
   })
 }
 
 function changeStatuses(value: unknown): void {
   emit(
     'update:statuses',
-    Array.isArray(value) ? value as VoucherStatus[] : [],
+    Array.isArray(value) ? (value as VoucherStatus[]) : [],
   )
 }
 </script>
 
 <template>
   <section class="voucher-list">
-    <v-expansion-panels class="mb-4" variant="accordion">
-      <v-expansion-panel>
-        <v-expansion-panel-title>筛选条件</v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <div class="voucher-list__filter-grid">
-            <v-text-field
-              clearable
-              hide-details
-              label="单号或往来方关键字"
-              :model-value="keyword"
-              prepend-inner-icon="mdi-magnify"
-              variant="outlined"
-              @keyup.enter="emit('query')"
-              @update:model-value="emit('update:keyword', $event ?? '')"
-            />
-            <v-select
-              chips
-              clearable
-              hide-details
-              item-title="title"
-              item-value="value"
-              :items="statusOptions"
-              label="状态"
-              :model-value="statuses"
-              multiple
-              variant="outlined"
-              @update:model-value="changeStatuses"
-            />
-            <v-text-field
-              hide-details
-              label="业务日期起"
-              :model-value="dateFrom"
-              type="date"
-              variant="outlined"
-              @update:model-value="emit('update:dateFrom', $event ?? '')"
-            />
-            <v-text-field
-              hide-details
-              label="业务日期止"
-              :model-value="dateTo"
-              type="date"
-              variant="outlined"
-              @update:model-value="emit('update:dateTo', $event ?? '')"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="partyEnabled"
-              :error-message="partyError"
-              :label="partyLabel"
-              :loading="partyLoading"
-              :model-value="party"
-              :options="partyOptions"
-              @search="emit('party-search', $event)"
-              @update:model-value="emit('update:party', $event)"
-            />
-          </div>
-          <div class="voucher-list__filter-actions">
-            <v-btn :disabled="!queryable" variant="text" @click="emit('reset')">重置</v-btn>
-            <v-btn
-              color="primary"
-              :disabled="!queryable"
-              :loading="loading"
-              prepend-icon="mdi-magnify"
-              @click="emit('query')"
-            >
-              查询
-            </v-btn>
-          </div>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
+    <EntityListControls
+      :creatable="creatable"
+      filterable
+      :keyword="keyword"
+      :loading="loading"
+      :queryable="queryable"
+      search-label="单号或往来方关键字"
+      @apply-filters="emit('query')"
+      @create="emit('create')"
+      @query="emit('query')"
+      @reset-filters="emit('reset')"
+      @update:keyword="emit('update:keyword', $event)"
+    >
+      <template #filters>
+        <v-select
+          chips
+          clearable
+          hide-details
+          item-title="title"
+          item-value="value"
+          :items="statusOptions"
+          label="状态"
+          :model-value="statuses"
+          multiple
+          variant="outlined"
+          @update:model-value="changeStatuses"
+        />
+        <v-text-field
+          hide-details
+          label="业务日期起"
+          :model-value="dateFrom"
+          type="date"
+          variant="outlined"
+          @update:model-value="emit('update:dateFrom', $event ?? '')"
+        />
+        <v-text-field
+          hide-details
+          label="业务日期止"
+          :model-value="dateTo"
+          type="date"
+          variant="outlined"
+          @update:model-value="emit('update:dateTo', $event ?? '')"
+        />
+        <VoucherReferenceAutocomplete
+          v-if="partyEnabled"
+          :error-message="partyError"
+          :label="partyLabel"
+          :loading="partyLoading"
+          :model-value="party"
+          :options="partyOptions"
+          @search="emit('party-search', $event)"
+          @update:model-value="emit('update:party', $event)"
+        />
+      </template>
+    </EntityListControls>
 
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
-      <v-card-title class="voucher-list__toolbar">
-        <span>单据列表</span>
-        <v-spacer />
-        <v-btn
-          v-if="creatable"
-          color="primary"
-          :disabled="loading"
-          prepend-icon="mdi-plus"
-          variant="tonal"
-          @click="emit('create')"
-        >
-          新建单据
-        </v-btn>
-      </v-card-title>
       <div class="voucher-list__table-wrap">
         <v-table class="voucher-list__table">
           <thead>
@@ -238,7 +212,9 @@ function changeStatuses(value: unknown): void {
               <td>{{ row.businessDate }}</td>
               <td>{{ row.partyName || '—' }}</td>
               <td>
-                <v-chip size="small" variant="tonal">{{ statusText(row.status) }}</v-chip>
+                <v-chip size="small" variant="tonal">{{
+                  statusText(row.status)
+                }}</v-chip>
               </td>
               <td>{{ row.currency }}</td>
               <td class="text-end">{{ row.amount }}</td>
@@ -268,7 +244,9 @@ function changeStatuses(value: unknown): void {
         </v-table>
       </div>
       <v-card-actions class="justify-end">
-        <span class="text-caption mr-2">共 {{ total }} 条，第 {{ page }} 页</span>
+        <span class="text-caption mr-2"
+          >共 {{ total }} 条，第 {{ page }} 页</span
+        >
         <v-btn
           aria-label="上一页"
           :disabled="page <= 1 || loading"
@@ -289,30 +267,10 @@ function changeStatuses(value: unknown): void {
 </template>
 
 <style scoped>
-.voucher-list__filter-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(160px, 1fr));
-  gap: 12px;
-  align-items: center;
+.voucher-list__table-wrap {
+  overflow-x: auto;
 }
-.voucher-list__filter-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-.voucher-list__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.voucher-list__table-wrap { overflow-x: auto; }
-.voucher-list__table { min-width: 980px; }
-@media (max-width: 960px) {
-  .voucher-list__filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 600px) {
-  .voucher-list__filter-grid { grid-template-columns: 1fr; }
-  .voucher-list__filter-actions { flex-wrap: wrap; }
+.voucher-list__table {
+  min-width: 980px;
 }
 </style>

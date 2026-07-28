@@ -17,7 +17,8 @@ interface ExpansionState {
   toggle: () => void
 }
 
-const expansionStateKey: InjectionKey<ExpansionState> = Symbol('expansion-state')
+const expansionStateKey: InjectionKey<ExpansionState> =
+  Symbol('expansion-state')
 
 const VExpansionPanelsStub = defineComponent({
   name: 'VExpansionPanels',
@@ -187,7 +188,8 @@ describe('VoucherList', () => {
 
   it('通过表头按自然升序开始并再次切换方向', async () => {
     const wrapper = mountList()
-    const numberHeader = wrapper.findAll('th')
+    const numberHeader = wrapper
+      .findAll('th')
       .find((heading) => heading.text() === '单号')
 
     await numberHeader?.get('button').trigger('click')
@@ -200,7 +202,8 @@ describe('VoucherList', () => {
       [{ field: 'documentNo', order: 'desc' }],
     ])
     expect(
-      wrapper.findAll('th')
+      wrapper
+        .findAll('th')
         .find((heading) => heading.text() === '单号')
         ?.attributes('aria-sort'),
     ).toBe('descending')
@@ -252,7 +255,7 @@ describe('VoucherList', () => {
     const wrapper = mountList({ creatable: true })
     const createButton = wrapper
       .findAll('button')
-      .find((button) => button.text() === '新建单据')
+      .find((button) => button.text() === '新增')
 
     expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
     expect(createButton?.exists()).toBe(true)
@@ -264,7 +267,7 @@ describe('VoucherList', () => {
 
     await wrapper.setProps({ creatable: false, loading: false })
     expect(
-      wrapper.findAll('button').some((button) => button.text() === '新建单据'),
+      wrapper.findAll('button').some((button) => button.text() === '新增'),
     ).toBe(false)
   })
 })

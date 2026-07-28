@@ -19,6 +19,20 @@ api_image="zerp-production-api:${release_sha}"
 web_image="zerp-production-web:${release_sha}"
 dry_run=${PRODUCTION_DRY_RUN:-0}
 
+refresh_controller() {
+  controller="${runtime_root}/production-watch.sh"
+  candidate="${controller}.new"
+  if cp "${repo_root}/scripts/production-watch.sh" "${candidate}" &&
+     sh -n "${candidate}" &&
+     chmod 700 "${candidate}" &&
+     mv "${candidate}" "${controller}"; then
+    echo "Production deploy controller updated"
+  else
+    rm -f "${candidate}"
+    echo "Warning: production deploy controller update failed" >&2
+  fi
+}
+
 test -f "${env_file}" || {
   echo "Missing production environment: ${env_file}" >&2
   exit 1
@@ -154,6 +168,7 @@ printf '%s\n' "${release_sha}" > "${runtime_root}/current-sha.new"
 mv "${runtime_root}/current-sha.new" "${runtime_root}/current-sha"
 printf '%s\n' success > "${release_root}/status"
 date -u '+%Y-%m-%dT%H:%M:%SZ' > "${release_root}/deployed-at"
+refresh_controller
 trap - HUP INT TERM
 
 release_number=0

@@ -9,7 +9,7 @@ frontend/             Vue 3、TypeScript、Vite、Vuetify
 backend/              Go、Gin、pgx、sqlc、Goose
 contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与前后端职责说明
-scripts/              联调和自包含 E2E 编排
+scripts/              联调、测试、预览与发布编排
 tools/                独立版本的构建工具
 .github/workflows/    全栈质量门禁
 ```
@@ -50,7 +50,7 @@ make dev-down
 | `make generate`          | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
 | `make generate-check`    | 验证生成物已提交且无漂移               |
 | `make check`             | 运行前端与后端质量门禁                 |
-| `make pre-push`          | 运行推送前门禁，代码变更包含隔离 E2E   |
+| `make pre-push`          | 按变更影响运行分层推送前门禁           |
 | `make test`              | 运行前后端测试                         |
 | `make e2e`               | 启动隔离全栈并运行真实 API Playwright  |
 | `make build`             | 构建前端、后端及容器镜像               |
@@ -67,14 +67,13 @@ make dev-down
 
 ## 契约工作流
 
-`contracts/openapi/openapi.yaml` 及其引用文件是 HTTP 线协议的唯一来源。修改契约后必须运行：
+`contracts/openapi/openapi.yaml` 及其引用文件是 HTTP 线协议的唯一来源。修改契约后运行：
 
 ```bash
 make generate
-git diff --exit-code
 ```
 
-生成物包括：
+生成物必须与契约源文件一同提交；形成可验收提交后运行 `make pre-push` 检查生成漂移和全栈行为。生成物包括：
 
 - `contracts/openapi/dist/openapi.yaml`
 - `backend/internal/api/generated/server.gen.go`
@@ -104,7 +103,7 @@ git diff --exit-code
 
 ### 固定外网开发预览
 
-人工验收使用独立 Compose 项目 `zerp-fullstack-preview`，构建当前工作区代码并持久保留测试数据。桌面、手机和本机统一访问：
+人工验收使用独立 Compose 项目 `zerp-fullstack-preview`，并持久保留测试数据。桌面、手机和本机统一访问：
 
 ```text
 https://zerp-preview.bytesucceed.com
@@ -112,7 +111,7 @@ https://zerp-preview.bytesucceed.com
 
 首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、随机初始化密码、迁移数据库并初始化管理员和 BOB 演示数据。该环境不复用 E2E 数据，也不会被 `make e2e` 清理。完整生命周期、Cloudflare Tunnel 配置和验收方法见固定预览运维说明。
 
-可验收提交通过本地门禁后，使用 `make preview-deploy PREVIEW_REF=<commit>` 从隔离工作树更新固定预览。推送、PR 门禁、合并与自动上线规则见开发与发布规范。
+临时检查可用 `make preview-up` 构建当前工作区；有应用影响的可验收提交通过本地门禁后，使用 `make preview-deploy PREVIEW_REF=<commit>` 从隔离工作树更新固定预览。推送、PR 门禁、合并与自动上线规则见开发与发布规范。
 
 ## 文档
 
@@ -124,7 +123,6 @@ https://zerp-preview.bytesucceed.com
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)
 - [开发、PR 与自动上线规范](docs/operations/development-release.md)
-- [迁移与上线切换](docs/operations/monorepo-cutover.md)
 
 ## 安全
 

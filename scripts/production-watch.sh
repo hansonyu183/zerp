@@ -88,7 +88,6 @@ check_ready() {
 for required_check in ${required_checks}; do
   check_ready "${required_check}" || exit 0
 done
-check_ready "Cloudflare Pages" || exit 0
 
 deployment_id=$(
   jq -n --arg ref "${target_sha}" \
@@ -109,32 +108,23 @@ set_deployment_status() {
   fi
 }
 
+git -C "${repository_root}" worktree add --detach "${source_root}" "${target_sha}"
+
 if [ -n "${current_sha}" ] &&
    git -C "${repository_root}" merge-base --is-ancestor "${current_sha}" "${target_sha}"; then
   changed_files=$(git -C "${repository_root}" diff --name-only "${current_sha}..${target_sha}")
-  application_change=false
-  for changed_file in ${changed_files}; do
-    case "${changed_file}" in
-      AGENTS.md | README.md | docs/* | *.md | .github/*)
-        ;;
-      *)
-        application_change=true
-        break
-        ;;
-    esac
-  done
-
-  if [ "${application_change}" = "false" ]; then
+  impact=$(printf '%s\n' "${changed_files}" | "${source_root}/scripts/change-impact.sh" --paths)
+  if [ "${impact}" != "application" ]; then
     mark_processed "${target_sha}"
     clear_failed
-    set_deployment_status success "No application changes"
-    echo "Production no-op for documentation-only commit ${target_sha}"
+    set_deployment_status success "No application changes (${impact})"
+    echo "Production no-op for ${impact} commit ${target_sha}"
     exit 0
   fi
 fi
 
+check_ready "Cloudflare Pages" || exit 0
 set_deployment_status in_progress "Deploying ${target_sha}"
-git -C "${repository_root}" worktree add --detach "${source_root}" "${target_sha}"
 
 if ZERP_PRODUCTION_STATE_ROOT="${ZERP_PRODUCTION_STATE_ROOT:-/Users/hansonyu/code/zerp}" \
    ZERP_PRODUCTION_RUNTIME_ROOT="${runtime_root}" \

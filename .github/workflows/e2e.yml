@@ -20,11 +20,27 @@ jobs:
     name: e2e-evidence
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      impact: ${{ steps.change_impact.outputs.value }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Classify change impact
+        id: change_impact
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            impact=$(scripts/change-impact.sh "$BASE_SHA...$HEAD_SHA")
+          else
+            impact=application
+          fi
+          echo "value=$impact" >> "$GITHUB_OUTPUT"
+          echo "Change impact: $impact"
       - name: Reject stacked pull requests
         if: github.event_name == 'pull_request'
         env:
@@ -47,7 +63,7 @@ jobs:
 
   e2e_shard:
     name: e2e-${{ matrix.project }}
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && needs.e2e_evidence.outputs.impact == 'application'
     needs: e2e_evidence
     strategy:
       fail-fast: false
@@ -126,10 +142,11 @@ jobs:
       - name: Require successful E2E evidence and shards
         env:
           EVENT_NAME: ${{ github.event_name }}
+          CHANGE_IMPACT: ${{ needs.e2e_evidence.outputs.impact }}
           EVIDENCE_RESULT: ${{ needs.e2e_evidence.result }}
           SHARD_RESULT: ${{ needs.e2e_shard.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
-          if [ "$EVENT_NAME" != "push" ]; then
+          if [ "$EVENT_NAME" != "push" ] && [ "$CHANGE_IMPACT" = "application" ]; then
             test "$SHARD_RESULT" = "success"
           fi

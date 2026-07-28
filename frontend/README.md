@@ -36,7 +36,7 @@ pnpm test:e2e
 pnpm check
 ```
 
-提交前的全仓门禁仍以根目录 `make generate-check` 和 `make check` 为准。
+以上命令用于模块开发期反馈；形成可验收提交后，在根目录统一运行 `make pre-push`。
 
 ## 目录与页面
 
@@ -108,7 +108,7 @@ Playwright 核心流程必须连接根目录 `make e2e` 创建的隔离全栈，
 正式支持两种前端部署：
 
 - 同源 Web：容器构建把 API 基址设为 `/api/`，Nginx 代理 API 和文件请求；
-- Cloudflare Pages：使用 `pnpm build:web`，产物为 `frontend/dist`，浏览器直连配置的 HTTPS API。
+- Cloudflare Pages：从仓库根目录运行 `pnpm build`，产物为根目录 `dist/`，浏览器直连配置的 HTTPS API。
 
 环境变量、Origin、Cookie、本地代理和 E2E 端口见[前端 API 配置手册](../docs/operations/frontend-api-configuration.md)。
 

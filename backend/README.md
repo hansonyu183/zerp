@@ -57,7 +57,7 @@ curl http://localhost:8080/readyz
 | `make compose-up`          | 启动后端 API 与 PostgreSQL     |
 | `make compose-down`        | 停止后端 Compose               |
 
-根目录的 `make generate` 会同时生成 OpenAPI 客户端、服务端类型和 sqlc；提交前以根目录 `make generate-check`、`make check` 为准。
+根目录的 `make generate` 会同时生成 OpenAPI 客户端、服务端类型和 sqlc。模块命令用于开发期反馈；形成可验收提交后，在根目录统一运行 `make pre-push`。
 
 ## 配置
 

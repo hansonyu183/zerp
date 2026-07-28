@@ -1,6 +1,6 @@
 # 固定外网开发预览
 
-固定预览用于人工验收当前工作区代码，独立于开发、生产形态和 E2E。桌面、手机和本机统一访问：
+固定预览独立于开发、生产形态和 E2E：`preview-up` 用于临时检查当前工作区，`preview-deploy` 用于人工验收准确提交。桌面、手机和本机统一访问：
 
 ```text
 https://zerp-preview.bytesucceed.com
@@ -55,7 +55,7 @@ brew services info colima
 
 用户登录 macOS 后，Colima 会自动启动；预览的 DB、API 和 Web 容器使用 `restart: unless-stopped`，会在 Docker 就绪后恢复。Cloudflare Tunnel 由独立的系统 launchd 服务保持常驻。
 
-固定预览保持为稳定构建，不自动监听工作区文件。日常临时检查可运行 `make preview-up` 构建当前工作区；进入标准 PR 流程时必须运行 `make preview-deploy PREVIEW_REF=<commit>`，确保预览只包含已经提交并通过本地门禁的准确版本。两种方式都不会删除 PostgreSQL 或附件卷中的人工测试数据，只有 `make preview-reset` 会清空预览数据。
+固定预览保持为稳定构建，不自动监听工作区文件。日常临时检查可运行 `make preview-up` 构建当前工作区；有应用影响的变更进入标准 PR 流程时必须运行 `make preview-deploy PREVIEW_REF=<commit>`，确保预览只包含已经提交并通过本地门禁的准确版本。文档和验证工具变更无需部署应用预览。两种预览方式都不会删除 PostgreSQL 或附件卷中的人工测试数据，只有 `make preview-reset` 会清空预览数据。
 
 `make preview-down` 用于有意停止预览。它会删除容器，因此即使 Colima 常驻也不会自动恢复预览；需要再次运行 `make preview-up`。
 
@@ -73,13 +73,13 @@ brew services info colima
 
 ## 5. 验收
 
+有应用影响的变更进入标准 PR 流程时执行：
+
 ```bash
 docker compose --env-file backend/.env.preview.example \
   -p zerp-fullstack-preview \
   -f compose.yaml -f compose.preview.yaml config --quiet
 sh -n backend/scripts/init-preview-env.sh scripts/preview.sh
-make generate-check
-make check
 make pre-push
 make preview-deploy PREVIEW_REF=<commit>
 make preview-status

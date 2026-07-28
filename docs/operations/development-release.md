@@ -1,6 +1,6 @@
 # 开发、PR 与自动上线规范
 
-本规范覆盖从可验收提交到正式上线的完整路径。业务代码只能从受保护的 `main` merge commit 上线；固定预览和生产发布不得构建包含未提交修改的开发工作区。
+本规范覆盖从可验收提交到正式上线的完整路径。代码和配置只能从受保护的 `main` merge commit 上线；固定预览和生产发布不得构建包含未提交修改的开发工作区。
 
 ## 1. 开发与推送
 
@@ -8,15 +8,26 @@
 
 ```bash
 make pre-push
+```
+
+有应用影响的变更继续执行：
+
+```bash
 make preview-deploy PREVIEW_REF=HEAD
 make preview-status
 ```
 
-`pre-push` 要求工作树干净。纯文档变更只运行格式和差异检查；其他变更运行生成检查、前后端质量门禁和隔离全栈 E2E。任何失败都必须修复并形成新提交，不得推送红色分支。
+`pre-push` 要求工作树干净，并按 `scripts/change-impact.sh` 分层：
+
+- 文档变更运行差异、格式和文档完整性检查；
+- 本地门禁、文档检查器和 CI 工作流等验证工具变更，额外运行 Shell、Actionlint 和门禁行为检查；
+- 应用、契约、依赖、构建、数据库、运行配置及发布脚本等应用影响变更，运行生成检查、前后端质量门禁和隔离全栈 E2E，并发布固定预览供人工验收。
+
+任何失败都必须修复并形成新提交，不得推送红色分支。PR CI 使用相同分类，保留原有必需检查名，但文档和验证工具变更不启动无关的前后端、容器或 E2E 重任务。
 
 本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 BuildKit 的 GitHub Actions 层缓存，并把桌面和手机 Playwright 项目放在两个隔离 runner 上并行执行；最终仍汇总为原有的 `e2e` 必需检查。
 
-预览验收通过后推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会在重任务前校验目标分支、当前 `main` ancestry 和其他未合并 PR head，避免无效的重复全量门禁。
+本地门禁及适用的预览验收通过后，推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `main` ancestry、其他未合并 PR head 和变更影响，再决定是否启动重任务。
 
 PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功，之后才可人工合并。`backend` 内部将生成检查、测试/竞态检查和静态/安全检查并行执行，再汇总为原有的必需检查名。禁止直接推送、强推或自动合并 `main`。
 
@@ -34,7 +45,7 @@ PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全�
 6. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；
 7. 验证 Pages 的精确 commit 标记、`https://zerp.bytesucceed.com` 与 `https://zerp-api.bytesucceed.com`，并写回 GitHub Production Deployment 状态。
 
-发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。纯文档或 CI 配置提交记录为成功 no-op，不重建应用；代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
+发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。代理复用 `scripts/change-impact.sh`：文档和验证工具提交不等待已跳过的 Pages 检查，直接记录为成功 no-op；应用发布成功后自动更新已安装的控制器脚本。代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
 
 ## 3. 生产隔离与凭证
 

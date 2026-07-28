@@ -18,34 +18,34 @@ if [ -z "${changed_files}" ]; then
   exit 0
 fi
 
-docs_only=true
-for changed_file in ${changed_files}; do
-  case "${changed_file}" in
-    AGENTS.md | README.md | docs/* | *.md)
-      ;;
-    *)
-      docs_only=false
-      break
-      ;;
-  esac
-done
-
+impact=$(scripts/change-impact.sh "${base_ref}...HEAD")
 git diff --check "${base_ref}...HEAD"
 
-if [ "${docs_only}" = "true" ]; then
-  printf '%s\n' "${changed_files}" |
-    while IFS= read -r changed_file; do
-      if [ -e "${changed_file}" ] || [ -L "${changed_file}" ]; then
-        pnpm exec prettier --check "${changed_file}"
-      fi
-    done
-  echo "Documentation-only pre-push gate passed"
-  exit 0
-fi
-
-make generate-check
-make check
-make e2e
+case "${impact}" in
+  docs)
+    printf '%s\n' "${changed_files}" |
+      while IFS= read -r changed_file; do
+        if [ -e "${changed_file}" ] || [ -L "${changed_file}" ]; then
+          pnpm exec prettier --check "${changed_file}"
+        fi
+      done
+    pnpm docs:check
+    ;;
+  validation)
+    pnpm format:check
+    pnpm docs:check
+    scripts/validation-check.sh
+    ;;
+  application)
+    make generate-check
+    make check
+    make e2e
+    ;;
+  *)
+    echo "Unsupported change impact: ${impact}" >&2
+    exit 1
+    ;;
+esac
 
 if [ -n "$(git status --porcelain)" ]; then
   echo "pre-push checks changed tracked or untracked files" >&2
@@ -53,4 +53,4 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-echo "Full pre-push gate passed"
+echo "Pre-push gate passed: ${impact}"

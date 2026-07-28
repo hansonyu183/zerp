@@ -50,7 +50,7 @@ make dev-down
 | `make generate`          | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
 | `make generate-check`    | 验证生成物已提交且无漂移               |
 | `make check`             | 运行前端与后端质量门禁                 |
-| `make pre-push`          | 运行推送前门禁，代码变更包含隔离 E2E   |
+| `make pre-push`          | 按变更影响运行分层推送前门禁           |
 | `make test`              | 运行前后端测试                         |
 | `make e2e`               | 启动隔离全栈并运行真实 API Playwright  |
 | `make build`             | 构建前端、后端及容器镜像               |
@@ -111,7 +111,7 @@ https://zerp-preview.bytesucceed.com
 
 首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、随机初始化密码、迁移数据库并初始化管理员和 BOB 演示数据。该环境不复用 E2E 数据，也不会被 `make e2e` 清理。完整生命周期、Cloudflare Tunnel 配置和验收方法见固定预览运维说明。
 
-临时检查可用 `make preview-up` 构建当前工作区；非纯文档的可验收提交通过本地门禁后，使用 `make preview-deploy PREVIEW_REF=<commit>` 从隔离工作树更新固定预览。推送、PR 门禁、合并与自动上线规则见开发与发布规范。
+临时检查可用 `make preview-up` 构建当前工作区；有应用影响的可验收提交通过本地门禁后，使用 `make preview-deploy PREVIEW_REF=<commit>` 从隔离工作树更新固定预览。推送、PR 门禁、合并与自动上线规则见开发与发布规范。
 
 ## 文档
 

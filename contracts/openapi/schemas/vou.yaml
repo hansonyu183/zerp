@@ -242,6 +242,8 @@
                                 },
                               'orderedQuantity': { 'type': 'string' },
                               'unitPrice': { 'type': 'string' },
+                              'settlementSurcharge':
+                                { 'type': 'string', 'nullable': true },
                               'purchaseUnitPrice': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                               'containerType':
@@ -476,6 +478,8 @@
                                 },
                               'orderedQuantity': { 'type': 'string' },
                               'unitPrice': { 'type': 'string' },
+                              'settlementSurcharge':
+                                { 'type': 'string', 'nullable': true },
                               'purchaseUnitPrice': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                               'containerType':

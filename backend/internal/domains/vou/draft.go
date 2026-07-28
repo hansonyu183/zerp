@@ -2,6 +2,9 @@ package vou
 
 import (
 	"context"
+	"math"
+	"math/big"
+	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -82,6 +85,115 @@ func (s *Service) resolveDraft(
 	return result, nil
 }
 
+func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDraft) error {
+	var settlement *bobdomain.EffectiveReference
+	switch entity {
+	case EntitySaleOrder:
+		settlement = refs.CustomerSettlement
+	case EntityPurchaseOrder:
+		settlement = refs.SupplierSettlement
+	default:
+		return nil
+	}
+	if settlement == nil {
+		return domainError(ErrorConflict, "settlement method is required", nil, nil)
+	}
+	dueDate, err := calculateDueDate(draft.BusinessDate, settlement.Data)
+	if err != nil {
+		return err
+	}
+	draft.DueDate = &dueDate
+	defaultSurcharge := int64(0)
+	if entity == EntitySaleOrder {
+		defaultSurchargeValue := settlement.Data.DefaultSalesSurcharge
+		if defaultSurchargeValue == "" {
+			defaultSurchargeValue = "0.00"
+		}
+		defaultSurcharge, err = parseFixed(defaultSurchargeValue, 2, true)
+		if err != nil {
+			return domainError(ErrorConflict, "settlement surcharge is invalid", nil, err)
+		}
+	}
+	var total int64
+	for index := range draft.ProductLines {
+		line := &draft.ProductLines[index]
+		product := refs.Products[index].Data
+		if entity != EntitySaleOrder || product.ProductKind == bobdomain.ProductKindPackaging {
+			line.SettlementSurcharge = 0
+		} else if !line.SurchargeProvided {
+			line.SettlementSurcharge = defaultSurcharge
+		}
+		if line.BaseUnitPrice > math.MaxInt64-line.SettlementSurcharge {
+			return domainError(ErrorValidation, "unit price is out of range", nil, nil)
+		}
+		line.UnitPrice = line.BaseUnitPrice + line.SettlementSurcharge
+		pricingQuantity, quantityErr := pricingQuantityMicros(line.Quantity, product)
+		if quantityErr != nil {
+			return quantityErr
+		}
+		line.LineAmount, err = lineAmountCents(pricingQuantity, line.UnitPrice)
+		if err != nil || total > math.MaxInt64-line.LineAmount {
+			return domainError(ErrorValidation, "amount is out of range", nil, err)
+		}
+		total += line.LineAmount
+	}
+	draft.TotalAmount = total
+	return nil
+}
+
+func pricingQuantityMicros(inventoryQuantity int64, product bobdomain.DetailView) (int64, error) {
+	conversionValue := product.PricingQuantityPerInventoryUnit
+	if conversionValue == "" {
+		conversionValue = "1"
+	}
+	conversion, err := parseFixed(conversionValue, 6, false)
+	if err != nil {
+		return 0, domainError(ErrorConflict, "product pricing conversion is invalid", nil, err)
+	}
+	value := new(big.Int).Mul(big.NewInt(inventoryQuantity), big.NewInt(conversion))
+	value.Quo(value, big.NewInt(1_000_000))
+	if !value.IsInt64() || value.Sign() <= 0 {
+		return 0, domainError(ErrorValidation, "pricing quantity is out of range", nil, nil)
+	}
+	return value.Int64(), nil
+}
+
+func calculateDueDate(businessDate time.Time, settlement bobdomain.DetailView) (time.Time, error) {
+	switch settlement.RuleType {
+	case "DUE_DAYS":
+		return businessDate.AddDate(0, 0, int(settlement.DueDays)), nil
+	case bobdomain.SettlementRuleRelativeDays:
+		return businessDate.AddDate(0, 0, int(settlement.DayOffset)), nil
+	case "MONTH_END":
+		extraMonth := 0
+		cutoffDay := settlement.CutoffDay
+		if cutoffDay == 0 {
+			cutoffDay = 31
+		}
+		if businessDate.Day() > int(cutoffDay) {
+			extraMonth = 1
+		}
+		firstOfTargetMonth := time.Date(
+			businessDate.Year(), businessDate.Month(), 1,
+			0, 0, 0, 0, businessDate.Location(),
+		).AddDate(0, int(settlement.MonthOffset)+extraMonth, 0)
+		return firstOfTargetMonth.AddDate(0, 1, -1).AddDate(0, 0, int(settlement.DayOffset)), nil
+	case bobdomain.SettlementRuleFixedDay:
+		firstOfTargetMonth := time.Date(
+			businessDate.Year(), businessDate.Month(), 1,
+			0, 0, 0, 0, businessDate.Location(),
+		).AddDate(0, int(settlement.MonthOffset), 0)
+		lastDay := firstOfTargetMonth.AddDate(0, 1, -1).Day()
+		day := int(*settlement.DayOfMonth)
+		if day > lastDay {
+			day = lastDay
+		}
+		return firstOfTargetMonth.AddDate(0, 0, day-1+int(settlement.DayOffset)), nil
+	default:
+		return time.Time{}, domainError(ErrorConflict, "unsupported settlement rule", nil, nil)
+	}
+}
+
 func (s *Service) insertDetail(
 	ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft validatedDraft, refs resolvedDraft,
 ) error {
@@ -132,7 +244,11 @@ func (s *Service) replaceLines(
 				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
 				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit,
-				OrderedQtyMicros: line.Quantity, UnitPriceCents: line.UnitPrice, LineAmountCents: line.LineAmount,
+				ProductKind:                           ref.Data.ProductKind,
+				PricingQuantityPerInventoryUnitMicros: fixedMicrosOrOne(ref.Data.PricingQuantityPerInventoryUnit),
+				OrderedQtyMicros:                      line.Quantity, BaseUnitPriceCents: line.BaseUnitPrice,
+				SettlementSurchargeCents: line.SettlementSurcharge,
+				UnitPriceCents:           line.UnitPrice, LineAmountCents: line.LineAmount,
 				PurchaseUnitPriceCents: line.PurchaseUnitPrice, Remark: line.Remark,
 			}); err != nil {
 				return err
@@ -154,6 +270,14 @@ func (s *Service) replaceLines(
 		}
 	}
 	return nil
+}
+
+func fixedMicrosOrOne(value string) int64 {
+	parsed, err := parseFixed(value, 6, false)
+	if err != nil {
+		return 1_000_000
+	}
+	return parsed
 }
 
 func (s *Service) validateStoredAttributes(

@@ -15,6 +15,8 @@ import type {
   BobForm,
   BobObjectView,
   BobReferenceConfig,
+  AuxReferenceObject,
+  AuxReferenceQueryItem,
   ReferenceQueryItem,
 } from './types'
 
@@ -105,19 +107,27 @@ export function useBobReferences(
         if (typeof value !== 'string' || !value) return
         const state = referenceState(`editor:${key}`)
         if (state.options.some((option) => option.value === value)) return
+        if (reference.value === 'code') {
+          state.options = [...state.options, { title: value, value }]
+          return
+        }
 
-        if (!session.can(`/bob/${reference.entity}/get`)) {
+        const domain = reference.domain ?? 'bob'
+        if (!session.can(`/${domain}/${reference.entity}/get`)) {
           state.options = [...state.options, { title: value, value }]
           return
         }
         try {
           const { data } = await apiClient.post<
-            BobObjectView,
+            BobObjectView | AuxReferenceObject,
             { objectId: string }
-          >(`bob/${reference.entity}/get`, { objectId: value })
+          >(`${domain}/${reference.entity}/get` as never, { objectId: value })
+          const name = domain === 'aux'
+            ? (data as AuxReferenceObject).currentVersion.data.name
+            : (data as BobObjectView).data.name
           state.options = [
             ...state.options.filter((option) => option.value !== value),
-            { title: `${data.code} · ${data.data.name}`, value },
+            { title: `${data.code} · ${name}`, value },
           ]
         } catch {
           state.options = [...state.options, { title: value, value }]
@@ -145,7 +155,8 @@ export function useBobReferences(
     form: Readonly<BobForm>,
   ): Promise<void> {
     const state = referenceState(stateKey)
-    if (!session.can(`/bob/${reference.entity}/query`)) {
+    const domain = reference.domain ?? 'bob'
+    if (!session.can(`/${domain}/${reference.entity}/query`)) {
       state.errorMessage = `缺少${reference.label}查询权限。`
       return
     }
@@ -157,15 +168,17 @@ export function useBobReferences(
     try {
       const keywordFilter = keywordValue.trim()
       const { data } = await apiClient.post<
-        PageResult<ReferenceQueryItem>,
+        PageResult<ReferenceQueryItem | AuxReferenceQueryItem>,
         PageRequest
-      >(`bob/${reference.entity}/query`, {
+      >(`${domain}/${reference.entity}/query` as never, {
         page: 1,
         pageSize: 20,
         filters: {
           ...resolveReferenceFilters(reference, form),
           ...(keywordFilter ? { keyword: keywordFilter } : {}),
-          status: ['EFFECTIVE'],
+          ...(domain === 'bob'
+            ? { status: ['EFFECTIVE'] }
+            : { enabled: true }),
         },
         sort: [{ field: 'name', order: 'asc' }],
       })
@@ -175,8 +188,12 @@ export function useBobReferences(
       state.options = [
         ...selected,
         ...(data.items ?? []).map((item) => ({
-          title: `${item.code} · ${item.currentVersion.summary.name}`,
-          value: item.objectId,
+          title: `${item.code} · ${
+            domain === 'aux'
+              ? (item as AuxReferenceQueryItem).currentVersion.data.name
+              : (item as ReferenceQueryItem).currentVersion.summary.name
+          }`,
+          value: reference.value === 'code' ? item.code : item.objectId,
         })),
       ].filter((option, index, all) =>
         all.findIndex((candidate) => candidate.value === option.value) === index

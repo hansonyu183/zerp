@@ -188,7 +188,10 @@ describe('shared VOU entity view model', () => {
         return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
       })
 
-      expect(await vm.save()).toBe(true)
+      expect(
+        await vm.save(),
+        `${config.entity}: ${vm.workspaceError.value ?? 'unknown error'}`,
+      ).toBe(true)
       const data = captured?.data as Record<string, unknown>
       expect(data).not.toHaveProperty('dueDate')
       expect(data).not.toHaveProperty('outboundDate')

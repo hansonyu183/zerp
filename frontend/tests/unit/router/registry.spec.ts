@@ -61,7 +61,7 @@ describe('permission menu registry', () => {
     expect(menus).toEqual([
       {
         domain: 'bob',
-        title: '基础业务对象',
+        title: '业务对象',
         icon: 'mdi-database-outline',
         order: 10,
         children: [
@@ -181,7 +181,7 @@ describe('permission menu registry', () => {
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })
 
-  it('为 BOB 十二类实体加载真实页面组件', () => {
+  it('为 BOB 八类实体加载真实页面组件', () => {
     const entities = [
       'customer',
       'supplier',
@@ -191,10 +191,6 @@ describe('permission menu registry', () => {
       'warehouse',
       'vehicle',
       'fund-account',
-      'category',
-      'department',
-      'position',
-      'settlement-method',
     ]
     const router = createTestRouter()
     const menus = buildMenus(

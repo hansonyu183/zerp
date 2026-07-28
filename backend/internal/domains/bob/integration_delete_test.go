@@ -38,10 +38,6 @@ func TestDeletePermissionCatalogIntegration(t *testing.T) {
 		{EntityWarehouse, 86},
 		{EntityVehicle, 87},
 		{EntityFundAccount, 88},
-		{EntityCategory, 92},
-		{EntityDepartment, 103},
-		{EntityPosition, 114},
-		{EntitySettlementMethod, 125},
 	}
 	index := 0
 	for rows.Next() {

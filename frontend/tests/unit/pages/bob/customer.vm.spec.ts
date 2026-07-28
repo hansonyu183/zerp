@@ -25,7 +25,6 @@ const customerForm = {
   name: '华东客户',
   customerType: 'DEALER',
   shortName: '华东',
-  categoryId: 'CAT-1',
   settlementMethodId: 'SM-1',
   salespersonEmployeeId: 'EMP-1',
   taxNumber: 'TAX-001',
@@ -97,7 +96,6 @@ describe('customer shared BOB configuration and view model', () => {
       name: '',
       customerType: 'END_USER',
       shortName: '',
-      categoryId: '',
       settlementMethodId: '',
       salespersonEmployeeId: '',
       taxNumber: '',
@@ -113,14 +111,13 @@ describe('customer shared BOB configuration and view model', () => {
       'customerType',
       'salespersonEmployeeId',
     ])
-    expect(customerConfig.references?.categoryId).toMatchObject({
-      entity: 'category',
-      filters: { targetEntity: 'customer' },
+    expect(customerConfig.references?.settlementMethodId).toMatchObject({
+      domain: 'aux',
+      entity: 'settlement-method',
     })
     expect(customerConfig.filters.map((field) => field.key)).toEqual([
       'status',
       'customerType',
-      'categoryId',
       'salespersonEmployeeId',
     ])
     expect(customerConfig.columns.map((column) => column.label)).toEqual([
@@ -140,7 +137,6 @@ describe('customer shared BOB configuration and view model', () => {
     vm.keyword.value = '  华东  '
     vm.filters.value.status = ['DRAFT', 'EFFECTIVE']
     vm.filters.value.customerType = 'DEALER'
-    vm.filters.value.categoryId = 'CAT-1'
     vm.filters.value.salespersonEmployeeId = 'EMP-1'
 
     await vm.query()
@@ -152,16 +148,15 @@ describe('customer shared BOB configuration and view model', () => {
         keyword: '华东',
         status: ['DRAFT', 'EFFECTIVE'],
         customerType: 'DEALER',
-        categoryId: 'CAT-1',
         salespersonEmployeeId: 'EMP-1',
       },
       sort: [{ field: 'updatedAt', order: 'desc' }],
     })
   })
 
-  it('客户分类搜索限定当前实体并只查询有效对象', async () => {
+  it('结算方式从 AUX 查询启用对象', async () => {
     vi.useFakeTimers()
-    useSessionStore().permissions = ['/bob/category/query']
+    useSessionStore().permissions = ['/aux/settlement-method/query']
     mockedApiClient.post.mockResolvedValueOnce({
       data: {
         items: [],
@@ -172,16 +167,15 @@ describe('customer shared BOB configuration and view model', () => {
     })
     const vm = useCustomerViewModel()
 
-    vm.searchEditorReference('categoryId', '重点', customerForm)
+    vm.searchEditorReference('settlementMethodId', '月结', customerForm)
     await vi.advanceTimersByTimeAsync(300)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/category/query', {
+    expect(mockedApiClient.post).toHaveBeenCalledWith('aux/settlement-method/query', {
       page: 1,
       pageSize: 20,
       filters: {
-        targetEntity: 'customer',
-        keyword: '重点',
-        status: ['EFFECTIVE'],
+        keyword: '月结',
+        enabled: true,
       },
       sort: [{ field: 'name', order: 'asc' }],
     })
@@ -209,7 +203,6 @@ describe('customer shared BOB configuration and view model', () => {
       code: ' cus-002 ',
       name: ' 新客户 ',
       shortName: '',
-      categoryId: '',
       settlementMethodId: '',
       taxNumber: '',
       contactName: '',
@@ -262,7 +255,6 @@ describe('customer shared BOB configuration and view model', () => {
     await vm.save({
       ...customerForm,
       shortName: '',
-      categoryId: '',
       settlementMethodId: '',
       contactName: '',
       contactPhone: '',
@@ -282,7 +274,6 @@ describe('customer shared BOB configuration and view model', () => {
           name: '华东客户',
           customerType: 'DEALER',
           shortName: '',
-          categoryId: '',
           settlementMethodId: '',
           salespersonEmployeeId: 'EMP-1',
           taxNumber: 'TAX-001',

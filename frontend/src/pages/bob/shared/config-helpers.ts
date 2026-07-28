@@ -72,6 +72,13 @@ export const containerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '树脂桶', value: 'RESIN' },
 ]
 
+export const productKindOptions: readonly BusinessObjectFieldOption[] = [
+  { title: '原材料（可销售）', value: 'RAW_MATERIAL' },
+  { title: '自制成品（固定配方）', value: 'STANDARD_FINISHED' },
+  { title: '定制成品（订单配方）', value: 'CUSTOM_FINISHED' },
+  { title: '包装物', value: 'PACKAGING' },
+]
+
 export function lengthOf(value: unknown): number {
   return typeof value === 'string' ? Array.from(value).length : 0
 }

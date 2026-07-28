@@ -4,6 +4,7 @@ package vou
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -73,7 +74,7 @@ func createApprovedBOB(
 	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
 		integrationActorOne, "vou-ref-create")
 	if err != nil {
-		t.Fatalf("create %s reference: %v", entity, err)
+		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
 	}
 	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,

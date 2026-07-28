@@ -29,7 +29,7 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
 
   const customerLink = page.getByRole('link', { name: /客户/ })
   if (!await customerLink.isVisible()) {
-    await page.getByText('基础业务对象').click()
+    await page.getByText('业务对象', { exact: true }).click()
   }
   await expect(customerLink).toBeVisible()
   await customerLink.click()
@@ -111,8 +111,8 @@ test('移动端首次进入仪表盘时导航抽屉默认关闭', async ({ page,
     const openBox = await page.locator('.sidebar').boundingBox()
     return openBox?.x ?? -999
   }).toBeGreaterThanOrEqual(0)
-  await expect(page.getByText('基础业务对象')).toBeVisible()
-  await page.getByText('基础业务对象').click()
+  await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
+  await page.getByText('业务对象', { exact: true }).click()
   await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()
   await expect(page.getByText('系统能力')).toHaveCount(0)
 })

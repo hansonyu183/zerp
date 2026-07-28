@@ -55,6 +55,39 @@ export function calculateLineAmount(
   return cents > 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
 }
 
+export function calculatePricedLineAmount(
+  inventoryQuantity: string,
+  unitPrice: string,
+  pricingQuantityPerInventoryUnit = '1',
+): string | null {
+  const quantityMicros = parseFixed(inventoryQuantity, 6)
+  const conversionMicros = parseFixed(
+    pricingQuantityPerInventoryUnit,
+    6,
+  )
+  const priceCents = parseFixed(unitPrice, 2)
+  if (
+    quantityMicros === null ||
+    conversionMicros === null ||
+    priceCents === null
+  ) return null
+  const pricingQuantityMicros =
+    (quantityMicros * conversionMicros) / 1_000_000n
+  const product = pricingQuantityMicros * priceCents
+  const divisor = 1_000_000n
+  let cents = product / divisor
+  if ((product % divisor) * 2n >= divisor) cents += 1n
+  return cents > 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
+}
+
+export function addMoney(left: string, right?: string): string | null {
+  const leftCents = parseFixed(left, 2)
+  const rightCents = parseFixed(right || '0', 2, true)
+  if (leftCents === null || rightCents === null) return null
+  const total = leftCents + rightCents
+  return total <= MAX_INT64 ? formatMoneyCents(total) : null
+}
+
 export function sumMoney(values: readonly string[]): string | null {
   let total = 0n
   for (const value of values) {

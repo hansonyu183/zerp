@@ -13,6 +13,7 @@ func (s *Service) loadData(
 ) (DocumentDataView, error) {
 	data := DocumentDataView{
 		BusinessDate: formatDate(document.BusinessDate), Currency: document.Currency, Remark: deref(document.Remark),
+		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
 	case EntitySaleOrder:
@@ -32,7 +33,9 @@ func (s *Service) loadData(
 			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
-			detail.SettlementDayOffset, detail.SettlementDescription,
+			detail.SettlementDayOffset, detail.SettlementDueDays,
+			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
+			detail.SettlementDescription,
 		)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
 		if err != nil {
@@ -67,7 +70,9 @@ func (s *Service) loadData(
 			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
-			detail.SettlementDayOffset, detail.SettlementDescription,
+			detail.SettlementDayOffset, detail.SettlementDueDays,
+			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
+			detail.SettlementDescription,
 		)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
 		if err == nil {
@@ -183,10 +188,16 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 			LineID: row.ID, LineNo: row.LineNo,
 			Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
 				row.ProductCode, row.ProductName, row.ProductUnit, "", ""),
-			OrderedQuantity: formatQuantity(row.OrderedQtyMicros),
-			UnitPrice:       formatMoney(row.UnitPriceCents), LineAmount: formatMoney(row.LineAmountCents),
-			Remark: deref(row.Remark),
+			OrderedQuantity:     formatQuantity(row.OrderedQtyMicros),
+			UnitPrice:           formatMoney(row.UnitPriceCents),
+			BaseUnitPrice:       formatMoney(row.BaseUnitPriceCents),
+			SettlementSurcharge: formatMoney(row.SettlementSurchargeCents),
+			LineAmount:          formatMoney(row.LineAmountCents),
+			Remark:              deref(row.Remark),
 		}
+		item.Product.ProductKind = row.ProductKind
+		item.Product.PricingQuantityPerInventoryUnit =
+			formatQuantity(row.PricingQuantityPerInventoryUnitMicros)
 		if row.PurchaseUnitPriceCents != nil {
 			item.PurchaseUnitPrice = formatMoney(*row.PurchaseUnitPriceCents)
 		}
@@ -222,7 +233,8 @@ func optionalReference(
 
 func settlementView(
 	objectID, versionID, code, name, ruleType *string,
-	monthOffset, dayOfMonth, dayOffset *int32,
+	monthOffset, dayOfMonth, dayOffset, dueDays, cutoffDay *int32,
+	defaultSalesSurchargeCents int64,
 	description *string,
 ) *SettlementMethodSnapshotView {
 	if objectID == nil {
@@ -232,6 +244,8 @@ func settlementView(
 		ObjectID: deref(objectID), VersionID: deref(versionID), Code: deref(code), Name: deref(name),
 		RuleType: deref(ruleType), MonthOffset: derefInt32(monthOffset),
 		DayOfMonth: dayOfMonth, DayOffset: derefInt32(dayOffset), Description: deref(description),
+		DueDays: derefInt32(dueDays), CutoffDay: derefInt32(cutoffDay),
+		DefaultSalesSurcharge: formatMoney(defaultSalesSurchargeCents),
 	}
 }
 

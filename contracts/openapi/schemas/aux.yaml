@@ -1,0 +1,143 @@
+AuxEntity:
+  type: string
+  enum:
+    - product-category
+    - department
+    - position
+    - settlement-method
+    - dictionary-type
+    - dictionary-item
+    - measurement-unit
+    - income-expense-type
+    - account-subject
+
+AuxData:
+  type: object
+  additionalProperties: true
+
+AuxCreateData:
+  allOf:
+    - $ref: '#/AuxData'
+    - type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+AuxCreateRequest:
+  type: object
+  additionalProperties: false
+  required: [data]
+  properties:
+    data:
+      $ref: '#/AuxCreateData'
+
+AuxSaveRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId, revision, data]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+    code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    data:
+      $ref: '#/AuxData'
+
+AuxRevisionRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId, revision]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+AuxGetRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    versionId:
+      type: string
+      minLength: 26
+      maxLength: 26
+
+AuxQueryRequest:
+  type: object
+  additionalProperties: false
+  required: [page, pageSize]
+  properties:
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 200
+    filters:
+      type: object
+      additionalProperties: false
+      properties:
+        keyword: { type: string }
+        enabled: { type: boolean }
+        parentId: { type: string }
+        rootOnly: { type: boolean }
+        dictionaryTypeCode: { type: string }
+        direction:
+          type: string
+          enum: [INCOME, EXPENSE]
+    sort:
+      type: array
+      maxItems: 1
+      items:
+        type: object
+        additionalProperties: false
+        required: [field, order]
+        properties:
+          field:
+            type: string
+            enum: [updatedAt, code, name, version]
+          order:
+            type: string
+            enum: [asc, desc]
+
+AuxHistoryRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId, page, pageSize]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 200

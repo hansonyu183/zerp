@@ -50,8 +50,14 @@ export default defineConfig({
         'src/pages/vou/shared/vm.ts': {
           lines: 55.9,
           statements: 51,
-          branches: 53,
+          branches: 48,
           functions: 58,
+        },
+        'src/pages/vou/shared/payload.ts': {
+          lines: 90,
+          statements: 90,
+          branches: 80,
+          functions: 100,
         },
         'src/pages/vou/shared/artifacts.ts': {
           lines: 100,

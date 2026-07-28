@@ -290,7 +290,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			requestID(item.data.Code, "create"),
 		)
 		if err != nil {
-			return 0, fmt.Errorf("create object: %w", err)
+			return 0, fmt.Errorf("create object: %w (cause: %v)", err, errors.Unwrap(err))
 		}
 	}
 

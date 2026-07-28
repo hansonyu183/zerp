@@ -49,17 +49,21 @@ INSERT INTO bob_employee_versions (
 -- name: InsertBobProductDetail :exec
 INSERT INTO bob_product_versions (
     version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark
+    category_id, specification, model, barcode, remark, product_kind,
+    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
+    returnable
 ) VALUES (
     sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(container_type),
     sqlc.narg(quantity_per_container_micros), sqlc.narg(category_id),
-    sqlc.narg(specification), sqlc.narg(model), sqlc.narg(barcode), sqlc.narg(remark)
+    sqlc.narg(specification), sqlc.narg(model), sqlc.narg(barcode), sqlc.narg(remark),
+    sqlc.arg(product_kind), sqlc.arg(inventory_unit_id), sqlc.arg(pricing_unit_id),
+    sqlc.arg(pricing_quantity_per_inventory_unit_micros), sqlc.arg(returnable)
 );
 
 -- name: InsertBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, category_id, description, remark)
+INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
 VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.narg(category_id),
+    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(unit_id), sqlc.narg(category_id),
     sqlc.narg(description), sqlc.narg(remark)
 );
 
@@ -152,16 +156,19 @@ FROM bob_employee_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 -- name: CopyBobProductDetail :exec
 INSERT INTO bob_product_versions (
     version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark
+    category_id, specification, model, barcode, remark, product_kind,
+    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
+    returnable
 )
 SELECT sqlc.arg(new_version_id), d.name, d.unit, d.container_type, d.quantity_per_container_micros,
        d.category_id, d.specification,
-       d.model, d.barcode, d.remark
+       d.model, d.barcode, d.remark, d.product_kind, d.inventory_unit_id,
+       d.pricing_unit_id, d.pricing_quantity_per_inventory_unit_micros, d.returnable
 FROM bob_product_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, category_id, description, remark)
-SELECT sqlc.arg(new_version_id), d.name, d.unit, d.category_id, d.description, d.remark
+INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
+SELECT sqlc.arg(new_version_id), d.name, d.unit, d.unit_id, d.category_id, d.description, d.remark
 FROM bob_service_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobWarehouseDetail :exec
@@ -248,12 +255,18 @@ SET name = sqlc.arg(name), unit = sqlc.arg(unit), container_type = sqlc.arg(cont
     quantity_per_container_micros = sqlc.narg(quantity_per_container_micros),
     category_id = sqlc.narg(category_id),
     specification = sqlc.narg(specification), model = sqlc.narg(model),
-    barcode = sqlc.narg(barcode), remark = sqlc.narg(remark)
+    barcode = sqlc.narg(barcode), remark = sqlc.narg(remark),
+    product_kind = sqlc.arg(product_kind),
+    inventory_unit_id = sqlc.arg(inventory_unit_id),
+    pricing_unit_id = sqlc.arg(pricing_unit_id),
+    pricing_quantity_per_inventory_unit_micros = sqlc.arg(pricing_quantity_per_inventory_unit_micros),
+    returnable = sqlc.arg(returnable)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobServiceDetail :execrows
 UPDATE bob_service_versions
-SET name = sqlc.arg(name), unit = sqlc.arg(unit), category_id = sqlc.narg(category_id),
+SET name = sqlc.arg(name), unit = sqlc.arg(unit), unit_id = sqlc.arg(unit_id),
+    category_id = sqlc.narg(category_id),
     description = sqlc.narg(description), remark = sqlc.narg(remark)
 WHERE version_id = sqlc.arg(version_id);
 
@@ -305,6 +318,30 @@ SET name = sqlc.arg(name), rule_type = sqlc.arg(rule_type),
     month_offset = sqlc.arg(month_offset), day_of_month = sqlc.narg(day_of_month),
     day_offset = sqlc.arg(day_offset), description = sqlc.narg(description)
 WHERE version_id = sqlc.arg(version_id);
+
+-- name: DeleteBobProductPackagingSpecs :exec
+DELETE FROM bob_product_packaging_specs
+WHERE product_version_id = sqlc.arg(product_version_id);
+
+-- name: InsertBobProductPackagingSpec :exec
+INSERT INTO bob_product_packaging_specs (
+    product_version_id, packaging_product_object_id, packaging_product_version_id,
+    content_quantity_micros, is_default
+) VALUES (
+    sqlc.arg(product_version_id), sqlc.arg(packaging_product_object_id),
+    sqlc.arg(packaging_product_version_id), sqlc.arg(content_quantity_micros),
+    sqlc.arg(is_default)
+);
+
+-- name: CopyBobProductPackagingSpecs :exec
+INSERT INTO bob_product_packaging_specs (
+    product_version_id, packaging_product_object_id, packaging_product_version_id,
+    content_quantity_micros, is_default
+)
+SELECT sqlc.arg(new_version_id), source.packaging_product_object_id,
+       source.packaging_product_version_id, source.content_quantity_micros, source.is_default
+FROM bob_product_packaging_specs source
+WHERE source.product_version_id = sqlc.arg(source_version_id);
 
 -- name: LockBobObject :one
 SELECT id, entity, code, current_version_id, effective_version_id, next_version_no, revision, updated_at

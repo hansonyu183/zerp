@@ -79,6 +79,7 @@ type ProductLineInput struct {
 	Product              ReferenceInput `json:"product"`
 	OrderedQuantity      string         `json:"orderedQuantity"`
 	UnitPrice            string         `json:"unitPrice"`
+	SettlementSurcharge  *string        `json:"settlementSurcharge,omitempty"`
 	PurchaseUnitPrice    string         `json:"purchaseUnitPrice,omitempty"`
 	Remark               string         `json:"remark,omitempty"`
 	ContainerType        *string        `json:"containerType,omitempty"`
@@ -234,14 +235,16 @@ type AttachmentRemoveInput struct {
 }
 
 type ReferenceView struct {
-	ObjectID    string `json:"objectId"`
-	VersionID   string `json:"versionId"`
-	Entity      string `json:"entity"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Unit        string `json:"unit,omitempty"`
-	Currency    string `json:"currency,omitempty"`
-	PlateNumber string `json:"plateNumber,omitempty"`
+	ObjectID                        string `json:"objectId"`
+	VersionID                       string `json:"versionId"`
+	Entity                          string `json:"entity"`
+	Code                            string `json:"code"`
+	Name                            string `json:"name"`
+	Unit                            string `json:"unit,omitempty"`
+	Currency                        string `json:"currency,omitempty"`
+	PlateNumber                     string `json:"plateNumber,omitempty"`
+	ProductKind                     string `json:"productKind,omitempty"`
+	PricingQuantityPerInventoryUnit string `json:"pricingQuantityPerInventoryUnit,omitempty"`
 }
 
 type ProductLineView struct {
@@ -250,6 +253,8 @@ type ProductLineView struct {
 	Product              ReferenceView `json:"product"`
 	OrderedQuantity      string        `json:"orderedQuantity"`
 	UnitPrice            string        `json:"unitPrice"`
+	BaseUnitPrice        string        `json:"baseUnitPrice"`
+	SettlementSurcharge  string        `json:"settlementSurcharge"`
 	PurchaseUnitPrice    string        `json:"purchaseUnitPrice,omitempty"`
 	LineAmount           string        `json:"lineAmount"`
 	Remark               string        `json:"remark,omitempty"`
@@ -306,15 +311,18 @@ type ExpenseLineView struct {
 }
 
 type SettlementMethodSnapshotView struct {
-	ObjectID    string `json:"objectId"`
-	VersionID   string `json:"versionId"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	RuleType    string `json:"ruleType"`
-	MonthOffset int32  `json:"monthOffset"`
-	DayOfMonth  *int32 `json:"dayOfMonth,omitempty"`
-	DayOffset   int32  `json:"dayOffset"`
-	Description string `json:"description,omitempty"`
+	ObjectID              string `json:"objectId"`
+	VersionID             string `json:"versionId"`
+	Code                  string `json:"code"`
+	Name                  string `json:"name"`
+	RuleType              string `json:"ruleType"`
+	MonthOffset           int32  `json:"monthOffset"`
+	DayOfMonth            *int32 `json:"dayOfMonth,omitempty"`
+	DayOffset             int32  `json:"dayOffset"`
+	DueDays               int32  `json:"dueDays,omitempty"`
+	CutoffDay             int32  `json:"cutoffDay,omitempty"`
+	DefaultSalesSurcharge string `json:"defaultSalesSurcharge"`
+	Description           string `json:"description,omitempty"`
 }
 
 type AttachmentView struct {
@@ -331,6 +339,7 @@ type AttachmentView struct {
 
 type DocumentDataView struct {
 	BusinessDate              string                        `json:"businessDate"`
+	DueDate                   string                        `json:"dueDate,omitempty"`
 	Currency                  string                        `json:"currency"`
 	Remark                    string                        `json:"remark,omitempty"`
 	Customer                  *ReferenceView                `json:"customer,omitempty"`

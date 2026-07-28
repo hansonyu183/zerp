@@ -17,12 +17,15 @@ const dateLayout = "2006-01-02"
 var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type fixedProductLine struct {
-	Product           ReferenceInput
-	Quantity          int64
-	UnitPrice         int64
-	PurchaseUnitPrice *int64
-	LineAmount        int64
-	Remark            *string
+	Product             ReferenceInput
+	BaseUnitPrice       int64
+	SettlementSurcharge int64
+	SurchargeProvided   bool
+	Quantity            int64
+	UnitPrice           int64
+	PurchaseUnitPrice   *int64
+	LineAmount          int64
+	Remark              *string
 }
 
 type fixedExpenseLine struct {
@@ -33,6 +36,7 @@ type fixedExpenseLine struct {
 
 type validatedDraft struct {
 	BusinessDate                                            time.Time
+	DueDate                                                 *time.Time
 	Currency                                                string
 	Remark                                                  *string
 	Customer, Supplier, Counterparty, Employee, FundAccount *ReferenceInput
@@ -265,7 +269,15 @@ func validateProductLines(lines []ProductLineInput, requirePurchasePrice bool) (
 		} else if strings.TrimSpace(line.PurchaseUnitPrice) != "" {
 			return nil, 0, domainError(ErrorValidation, "purchaseUnitPrice only applies to intermediary sale lines", nil, nil)
 		}
-		amount, err := lineAmountCents(quantity, price)
+		surcharge := int64(0)
+		surchargeProvided := line.SettlementSurcharge != nil
+		if surchargeProvided {
+			surcharge, err = parseFixed(*line.SettlementSurcharge, 2, true)
+			if err != nil {
+				return nil, 0, domainError(ErrorValidation, "invalid settlement surcharge", nil, err)
+			}
+		}
+		amount, err := lineAmountCents(quantity, price+surcharge)
 		if err != nil || total > math.MaxInt64-amount {
 			return nil, 0, domainError(ErrorValidation, "amount out of range", nil, err)
 		}
@@ -275,7 +287,9 @@ func validateProductLines(lines []ProductLineInput, requirePurchasePrice bool) (
 			return nil, 0, err
 		}
 		result = append(result, fixedProductLine{
-			Product: line.Product, Quantity: quantity, UnitPrice: price,
+			Product: line.Product, Quantity: quantity, BaseUnitPrice: price,
+			SettlementSurcharge: surcharge, SurchargeProvided: surchargeProvided,
+			UnitPrice:         price + surcharge,
 			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark,
 		})
 	}

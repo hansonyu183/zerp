@@ -12,10 +12,6 @@
           'warehouse',
           'vehicle',
           'fund-account',
-          'category',
-          'department',
-          'position',
-          'settlement-method',
         ],
     },
   'BobQueryRequest': { '$ref': '../schemas/common.yaml#/PageRequest' },
@@ -50,7 +46,6 @@
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
                   'platformObjectId': { 'type': 'string', 'nullable': true },
-                  'targetEntity': { 'type': 'string', 'nullable': true },
                   'shortName': { 'type': 'string', 'nullable': true },
                   'categoryId': { 'type': 'string', 'nullable': true },
                   'taxNumber': { 'type': 'string', 'nullable': true },
@@ -75,18 +70,32 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
-                  'parentId': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
-                  'ruleType': { 'type': 'string', 'nullable': true },
-                  'containerType': { 'type': 'string', 'nullable': true },
-                  'quantityPerContainer':
+                  'productKind':
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'RAW_MATERIAL',
+                          'STANDARD_FINISHED',
+                          'CUSTOM_FINISHED',
+                          'PACKAGING',
+                        ],
+                      'nullable': true,
+                    },
+                  'inventoryUnitId': { 'type': 'string', 'nullable': true },
+                  'pricingUnitId': { 'type': 'string', 'nullable': true },
+                  'pricingQuantityPerInventoryUnit':
                     { 'type': 'string', 'nullable': true },
-                  'monthOffset': { 'type': 'integer', 'format': 'int32' },
-                  'dayOfMonth':
-                    { 'type': 'integer', 'format': 'int32', 'nullable': true },
-                  'dayOffset': { 'type': 'integer', 'format': 'int32' },
+                  'returnable': { 'type': 'boolean', 'nullable': true },
+                  'packagingSpecs':
+                    {
+                      'type': 'array',
+                      'nullable': true,
+                      'items': { '$ref': '#/BobPackagingSpecInput' },
+                    },
                 },
             },
         },
@@ -127,7 +136,6 @@
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
                   'platformObjectId': { 'type': 'string', 'nullable': true },
-                  'targetEntity': { 'type': 'string', 'nullable': true },
                   'shortName': { 'type': 'string', 'nullable': true },
                   'categoryId': { 'type': 'string', 'nullable': true },
                   'taxNumber': { 'type': 'string', 'nullable': true },
@@ -152,20 +160,53 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
-                  'parentId': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
-                  'ruleType': { 'type': 'string', 'nullable': true },
-                  'containerType': { 'type': 'string', 'nullable': true },
-                  'quantityPerContainer':
+                  'productKind':
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'RAW_MATERIAL',
+                          'STANDARD_FINISHED',
+                          'CUSTOM_FINISHED',
+                          'PACKAGING',
+                        ],
+                      'nullable': true,
+                    },
+                  'inventoryUnitId': { 'type': 'string', 'nullable': true },
+                  'pricingUnitId': { 'type': 'string', 'nullable': true },
+                  'pricingQuantityPerInventoryUnit':
                     { 'type': 'string', 'nullable': true },
-                  'monthOffset': { 'type': 'integer', 'format': 'int32' },
-                  'dayOfMonth':
-                    { 'type': 'integer', 'format': 'int32', 'nullable': true },
-                  'dayOffset': { 'type': 'integer', 'format': 'int32' },
+                  'returnable': { 'type': 'boolean', 'nullable': true },
+                  'packagingSpecs':
+                    {
+                      'type': 'array',
+                      'nullable': true,
+                      'items': { '$ref': '#/BobPackagingSpecInput' },
+                    },
                 },
             },
+        },
+    },
+  'BobPackagingSpecInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'packagingProductObjectId',
+          'packagingProductVersionId',
+          'contentQuantity',
+          'isDefault',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'packagingProductObjectId': { 'type': 'string' },
+          'packagingProductVersionId': { 'type': 'string' },
+          'contentQuantity': { 'type': 'string' },
+          'isDefault': { 'type': 'boolean' },
         },
     },
   'BobDeleteRequest':

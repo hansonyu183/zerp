@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { getBobEntityConfig } from '@/pages/bob/shared/config'
 
 describe('product packaging contract', () => {
-  it('产品始终提供 PR #11 包装字段与保存回读键', () => {
+  it('产品提供类型、计价换算和包装物属性', () => {
     const config = getBobEntityConfig('product')
     const form = config.emptyForm()
     const fields = config.fields({
@@ -11,33 +11,45 @@ describe('product packaging contract', () => {
       referenceLoading: {},
       referenceErrors: {},
     })
-    const container = fields.find((field) => field.key === 'containerType')
-    const quantity = fields.find((field) => field.key === 'quantityPerContainer')
+    const productKind = fields.find((field) => field.key === 'productKind')
+    const conversion = fields.find(
+      (field) => field.key === 'pricingQuantityPerInventoryUnit',
+    )
+    const returnable = fields.find((field) => field.key === 'returnable')
 
     expect(form).toMatchObject({
-      containerType: 'NONE',
-      quantityPerContainer: '',
+      productKind: 'RAW_MATERIAL',
+      pricingQuantityPerInventoryUnit: '1',
+      returnable: false,
+      packagingSpecs: [],
     })
     expect(config.detailKeys).toEqual(
-      expect.arrayContaining(['containerType', 'quantityPerContainer']),
+      expect.arrayContaining([
+        'productKind',
+        'inventoryUnitId',
+        'pricingUnitId',
+        'pricingQuantityPerInventoryUnit',
+        'returnable',
+        'packagingSpecs',
+      ]),
     )
-    expect(config.persistedKeys).toEqual([
-      'containerType',
-      'quantityPerContainer',
-    ])
     expect(
-      container?.onChange?.('NONE', {
-        ...form,
-        quantityPerContainer: '180',
-      }),
-    ).toEqual({ quantityPerContainer: '' })
+      productKind?.onChange?.('PACKAGING', form),
+    ).toEqual({
+      pricingUnitId: '',
+      pricingQuantityPerInventoryUnit: '1',
+    })
     expect(
-      typeof quantity?.visible === 'function' &&
-        quantity.visible({ ...form, containerType: 'SOLVENT' }),
+      typeof conversion?.visible === 'function' &&
+        conversion.visible({ ...form, productKind: 'RAW_MATERIAL' }),
     ).toBe(true)
     expect(
-      typeof quantity?.visible === 'function' &&
-        quantity.visible({ ...form, containerType: 'NONE' }),
+      typeof conversion?.visible === 'function' &&
+        conversion.visible({ ...form, productKind: 'PACKAGING' }),
     ).toBe(false)
+    expect(
+      typeof returnable?.visible === 'function' &&
+        returnable.visible({ ...form, productKind: 'PACKAGING' }),
+    ).toBe(true)
   })
 })

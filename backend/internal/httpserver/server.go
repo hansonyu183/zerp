@@ -15,12 +15,14 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/githubissues"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapigin "github.com/oapi-codegen/gin-middleware"
 )
@@ -31,11 +33,43 @@ type databasePinger interface {
 	Ping(context.Context) error
 }
 
+type auxiliaryReferenceAdapter struct {
+	service *auxdomain.Service
+}
+
+func (adapter auxiliaryReferenceAdapter) ResolveAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
+) (bobdomain.AuxiliaryReference, error) {
+	reference, err := adapter.service.Resolve(ctx, tx, entity, objectID, versionID)
+	if err != nil {
+		return bobdomain.AuxiliaryReference{}, err
+	}
+	return bobdomain.AuxiliaryReference{
+		ObjectID: reference.ObjectID, VersionID: reference.VersionID,
+		Entity: reference.Entity, Code: reference.Code, Data: reference.Data,
+	}, nil
+}
+
+func (adapter auxiliaryReferenceAdapter) ResolveAuxiliaryCode(
+	ctx context.Context, tx pgx.Tx, entity, code string,
+) (bobdomain.AuxiliaryReference, error) {
+	reference, err := adapter.service.ResolveCode(ctx, tx, entity, code)
+	if err != nil {
+		return bobdomain.AuxiliaryReference{}, err
+	}
+	return bobdomain.AuxiliaryReference{
+		ObjectID: reference.ObjectID, VersionID: reference.VersionID,
+		Entity: reference.Entity, Code: reference.Code, Data: reference.Data,
+	}, nil
+}
+
 func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, *appdomain.FeedbackPublisher, error) {
 	if err := validateFeedbackRuntimeConfig(cfg); err != nil {
 		return nil, nil, err
 	}
 	bobService := bobdomain.NewService(db)
+	auxService := auxdomain.NewService(db)
+	bobService.SetAuxiliaryResolver(auxiliaryReferenceAdapter{service: auxService})
 	eventBus := txevent.NewBus()
 	vouService, err := voudomain.NewService(db, bobService, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
@@ -69,6 +103,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		appdomain.NewHandler(appService, cfg, logger).Register(router)
 		authorizer := appAuthorizer{service: appService, cfg: cfg}
 		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
+		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)
 		leddomain.NewHandler(ledService, authorizer, logger).Register(router)

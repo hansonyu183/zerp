@@ -1,5 +1,6 @@
 import {
-  calculateLineAmount,
+  calculatePricedLineAmount,
+  addMoney,
   isMoney,
   isQuantity,
   sumMoney,
@@ -55,12 +56,15 @@ export function validateVoucherDraft(
       if (
         !line.product ||
         !isQuantity(line.orderedQuantity) ||
-        !isMoney(line.unitPrice)
+        !isMoney(line.unitPrice) ||
+        ((line.settlementSurcharge ?? '') !== '' &&
+          !isMoney(line.settlementSurcharge ?? '', true))
       )
         return `第 ${index + 1} 行 · 产品/数量/单价：请完整填写有效值。`
-      const lineAmount = calculateLineAmount(
+      const lineAmount = calculatePricedLineAmount(
         line.orderedQuantity,
-        line.unitPrice,
+        addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
+        line.product.pricingQuantityPerInventoryUnit ?? '1',
       )
       if (!lineAmount) return `第 ${index + 1} 行 · 金额：超出允许范围。`
       lineAmounts.push(lineAmount)

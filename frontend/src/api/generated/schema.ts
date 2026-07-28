@@ -395,6 +395,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/aux/{entity}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询辅助对象 */
+        post: operations["auxquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取辅助对象 */
+        post: operations["auxget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建并立即启用辅助对象 */
+        post: operations["auxcreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存辅助对象新版本并立即生效 */
+        post: operations["auxsave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用辅助对象 */
+        post: operations["auxenable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用辅助对象 */
+        post: operations["auxdisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除未引用辅助对象 */
+        post: operations["auxdelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询辅助对象版本 */
+        post: operations["auxversions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/{entity}/audit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询辅助对象变更记录 */
+        post: operations["auxaudithistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/{entity}/query": {
         parameters: {
             query?: never;
@@ -404,7 +557,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 查询基础业务对象 */
+        /** 查询业务对象 */
         post: operations["bobquery"];
         delete?: never;
         options?: never;
@@ -421,7 +574,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 读取基础业务对象 */
+        /** 读取业务对象 */
         post: operations["bobget"];
         delete?: never;
         options?: never;
@@ -438,7 +591,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 创建基础业务对象草稿 */
+        /** 创建业务对象草稿 */
         post: operations["bobcreate"];
         delete?: never;
         options?: never;
@@ -455,7 +608,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 发起基础业务对象编辑 */
+        /** 发起业务对象编辑 */
         post: operations["bobedit"];
         delete?: never;
         options?: never;
@@ -472,7 +625,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存基础业务对象草稿 */
+        /** 保存业务对象草稿 */
         post: operations["bobsave"];
         delete?: never;
         options?: never;
@@ -489,7 +642,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 删除基础业务对象首版草稿 */
+        /** 删除业务对象首版草稿 */
         post: operations["bobdelete"];
         delete?: never;
         options?: never;
@@ -506,7 +659,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 提交基础业务对象审核 */
+        /** 提交业务对象审核 */
         post: operations["bobsubmit"];
         delete?: never;
         options?: never;
@@ -523,7 +676,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准基础业务对象 */
+        /** 批准业务对象 */
         post: operations["bobapprove"];
         delete?: never;
         options?: never;
@@ -540,7 +693,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 驳回基础业务对象 */
+        /** 驳回业务对象 */
         post: operations["bobreject"];
         delete?: never;
         options?: never;
@@ -557,7 +710,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 查询基础业务对象版本 */
+        /** 查询业务对象版本 */
         post: operations["bobversions"];
         delete?: never;
         options?: never;
@@ -574,7 +727,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 查询基础业务对象审核历史 */
+        /** 查询业务对象审核历史 */
         post: operations["bobaudithistory"];
         delete?: never;
         options?: never;
@@ -1495,10 +1648,68 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "category" | "department" | "position" | "settlement-method";
+        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject";
+        AuxQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters?: {
+                keyword?: string;
+                enabled?: boolean;
+                parentId?: string;
+                rootOnly?: boolean;
+                dictionaryTypeCode?: string;
+                /** @enum {string} */
+                direction?: "INCOME" | "EXPENSE";
+            };
+            sort?: {
+                /** @enum {string} */
+                field: "updatedAt" | "code" | "name" | "version";
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        AuxGetRequest: {
+            objectId: string;
+            versionId?: string;
+        };
+        AuxData: {
+            [key: string]: unknown;
+        };
+        AuxCreateData: components["schemas"]["AuxData"] & {
+            code: string;
+            name: string;
+        };
+        AuxCreateRequest: {
+            data: components["schemas"]["AuxCreateData"];
+        };
+        AuxSaveRequest: {
+            objectId: string;
+            /** Format: int64 */
+            revision: number;
+            code?: string;
+            data: components["schemas"]["AuxData"];
+        };
+        AuxRevisionRequest: {
+            objectId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        AuxHistoryRequest: {
+            objectId: string;
+            page: number;
+            pageSize: number;
+        };
+        /** @enum {string} */
+        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
         BobGetRequest: {
             objectId: string;
             versionId?: string;
+        };
+        BobPackagingSpecInput: {
+            packagingProductObjectId: string;
+            packagingProductVersionId: string;
+            contentQuantity: string;
+            isDefault: boolean;
         };
         BobCreateRequest: {
             data: {
@@ -1511,7 +1722,6 @@ export interface components {
                 plateNumber?: string | null;
                 vehicleType?: string | null;
                 platformObjectId?: string | null;
-                targetEntity?: string | null;
                 shortName?: string | null;
                 categoryId?: string | null;
                 taxNumber?: string | null;
@@ -1536,18 +1746,15 @@ export interface components {
                 bankName?: string | null;
                 bankBranch?: string | null;
                 accountNumber?: string | null;
-                parentId?: string | null;
                 settlementMethodId?: string | null;
                 salespersonEmployeeId?: string | null;
-                ruleType?: string | null;
-                containerType?: string | null;
-                quantityPerContainer?: string | null;
-                /** Format: int32 */
-                monthOffset?: number;
-                /** Format: int32 */
-                dayOfMonth?: number | null;
-                /** Format: int32 */
-                dayOffset?: number;
+                /** @enum {string|null} */
+                productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
+                inventoryUnitId?: string | null;
+                pricingUnitId?: string | null;
+                pricingQuantityPerInventoryUnit?: string | null;
+                returnable?: boolean | null;
+                packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
             };
         };
         BobEditRequest: {
@@ -1570,7 +1777,6 @@ export interface components {
                 plateNumber?: string | null;
                 vehicleType?: string | null;
                 platformObjectId?: string | null;
-                targetEntity?: string | null;
                 shortName?: string | null;
                 categoryId?: string | null;
                 taxNumber?: string | null;
@@ -1595,18 +1801,15 @@ export interface components {
                 bankName?: string | null;
                 bankBranch?: string | null;
                 accountNumber?: string | null;
-                parentId?: string | null;
                 settlementMethodId?: string | null;
                 salespersonEmployeeId?: string | null;
-                ruleType?: string | null;
-                containerType?: string | null;
-                quantityPerContainer?: string | null;
-                /** Format: int32 */
-                monthOffset?: number;
-                /** Format: int32 */
-                dayOfMonth?: number | null;
-                /** Format: int32 */
-                dayOffset?: number;
+                /** @enum {string|null} */
+                productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
+                inventoryUnitId?: string | null;
+                pricingUnitId?: string | null;
+                pricingQuantityPerInventoryUnit?: string | null;
+                returnable?: boolean | null;
+                packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
             };
         };
         BobDeleteRequest: {
@@ -1722,6 +1925,7 @@ export interface components {
                     };
                     orderedQuantity: string;
                     unitPrice: string;
+                    settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
                     remark?: string;
                     containerType?: string | null;
@@ -1809,6 +2013,7 @@ export interface components {
                     };
                     orderedQuantity: string;
                     unitPrice: string;
+                    settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
                     remark?: string;
                     containerType?: string | null;
@@ -2019,6 +2224,7 @@ export interface components {
     };
     parameters: {
         BobEntity: components["schemas"]["BobEntity"];
+        AuxEntity: components["schemas"]["AuxEntity"];
         VouEntity: components["schemas"]["VouEntity"];
         VouCreatableEntity: components["schemas"]["VouCreatableEntity"];
         FileToken: string;
@@ -2391,6 +2597,168 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FeedbackGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxcreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxsave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxenable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxdisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxdelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxversions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    auxaudithistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["AuxEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxHistoryRequest"];
             };
         };
         responses: {

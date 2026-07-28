@@ -381,7 +381,7 @@ func (q *Queries) GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAtta
 }
 
 const getVouDocument = `-- name: GetVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 `
@@ -419,6 +419,7 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 		&i.CompletedAt,
 		&i.ParentDocumentID,
 		&i.ParentEntity,
+		&i.DueDate,
 	)
 	return i, err
 }
@@ -525,7 +526,7 @@ func (q *Queries) GetVouPurchaseInboundDetail(ctx context.Context, documentID st
 }
 
 const getVouPurchaseOrderDetail = `-- name: GetVouPurchaseOrderDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason FROM vou_purchase_order_details WHERE document_id = $1
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents FROM vou_purchase_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error) {
@@ -560,6 +561,9 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 		&i.FulfillmentStatus,
 		&i.ShortCloseRequestedBy,
 		&i.ShortCloseReason,
+		&i.SettlementDueDays,
+		&i.SettlementCutoffDay,
+		&i.SettlementDefaultSalesSurchargeCents,
 	)
 	return i, err
 }
@@ -592,7 +596,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -624,6 +628,9 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.FulfillmentStatus,
 		&i.ShortCloseRequestedBy,
 		&i.ShortCloseReason,
+		&i.SettlementDueDays,
+		&i.SettlementCutoffDay,
+		&i.SettlementDefaultSalesSurchargeCents,
 	)
 	return i, err
 }
@@ -669,13 +676,13 @@ func (q *Queries) InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEve
 
 const insertVouDocument = `-- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
-    id, entity, document_no, business_date, currency, total_amount_cents, remark,
+    id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,
     parent_entity, parent_document_id, created_by, updated_by
 ) VALUES (
-    $1, $2, $3, $4,
-    $5, $6, $7,
-    $8, $9,
-    $10, $10
+    $1, $2, $3, $4, $5,
+    $6, $7, $8,
+    $9, $10,
+    $11, $11
 )
 `
 
@@ -684,6 +691,7 @@ type InsertVouDocumentParams struct {
 	Entity           string      `db:"entity" json:"entity"`
 	DocumentNo       string      `db:"document_no" json:"document_no"`
 	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
 	Currency         string      `db:"currency" json:"currency"`
 	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string     `db:"remark" json:"remark"`
@@ -698,6 +706,7 @@ func (q *Queries) InsertVouDocument(ctx context.Context, arg InsertVouDocumentPa
 		arg.Entity,
 		arg.DocumentNo,
 		arg.BusinessDate,
+		arg.DueDate,
 		arg.Currency,
 		arg.TotalAmountCents,
 		arg.Remark,
@@ -966,32 +975,40 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 const insertVouProductLine = `-- name: InsertVouProductLine :exec
 INSERT INTO vou_product_lines (
     id, document_id, document_entity, line_no, product_object_id, product_version_id,
-    product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents,
+    product_code, product_name, product_unit, ordered_qty_micros,
+    product_kind, pricing_quantity_per_inventory_unit_micros,
+    base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
     $8, $9, $10,
     $11, $12,
-    $13, $14
+    $13, $14,
+    $15, $16,
+    $17, $18
 )
 `
 
 type InsertVouProductLineParams struct {
-	ID                     string  `db:"id" json:"id"`
-	DocumentID             string  `db:"document_id" json:"document_id"`
-	DocumentEntity         string  `db:"document_entity" json:"document_entity"`
-	LineNo                 int32   `db:"line_no" json:"line_no"`
-	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID       string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode            string  `db:"product_code" json:"product_code"`
-	ProductName            string  `db:"product_name" json:"product_name"`
-	ProductUnit            string  `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros       int64   `db:"ordered_qty_micros" json:"ordered_qty_micros"`
-	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents        int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	PurchaseUnitPriceCents *int64  `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
-	Remark                 *string `db:"remark" json:"remark"`
+	ID                                    string  `db:"id" json:"id"`
+	DocumentID                            string  `db:"document_id" json:"document_id"`
+	DocumentEntity                        string  `db:"document_entity" json:"document_entity"`
+	LineNo                                int32   `db:"line_no" json:"line_no"`
+	ProductObjectID                       string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID                      string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode                           string  `db:"product_code" json:"product_code"`
+	ProductName                           string  `db:"product_name" json:"product_name"`
+	ProductUnit                           string  `db:"product_unit" json:"product_unit"`
+	OrderedQtyMicros                      int64   `db:"ordered_qty_micros" json:"ordered_qty_micros"`
+	ProductKind                           string  `db:"product_kind" json:"product_kind"`
+	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	BaseUnitPriceCents                    int64   `db:"base_unit_price_cents" json:"base_unit_price_cents"`
+	SettlementSurchargeCents              int64   `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents                       int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	PurchaseUnitPriceCents                *int64  `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
+	Remark                                *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error {
@@ -1006,6 +1023,10 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 		arg.ProductName,
 		arg.ProductUnit,
 		arg.OrderedQtyMicros,
+		arg.ProductKind,
+		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.BaseUnitPriceCents,
+		arg.SettlementSurchargeCents,
 		arg.UnitPriceCents,
 		arg.LineAmountCents,
 		arg.PurchaseUnitPriceCents,
@@ -1115,6 +1136,8 @@ INSERT INTO vou_purchase_order_details (
     settlement_method_object_id, settlement_method_version_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
+    settlement_due_days, settlement_cutoff_day,
+    settlement_default_sales_surcharge_cents,
     settlement_description
 ) VALUES (
     $1, $2, $3,
@@ -1128,35 +1151,40 @@ INSERT INTO vou_purchase_order_details (
     $18, $19,
     $20, $21,
     $22, $23,
-    $24
+    $24, $25,
+    $26,
+    $27
 )
 `
 
 type InsertVouPurchaseOrderDetailParams struct {
-	DocumentID                string  `db:"document_id" json:"document_id"`
-	SupplierObjectID          string  `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID         string  `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode              string  `db:"supplier_code" json:"supplier_code"`
-	SupplierName              string  `db:"supplier_name" json:"supplier_name"`
-	PurchaserObjectID         *string `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID        *string `db:"purchaser_version_id" json:"purchaser_version_id"`
-	PurchaserCode             *string `db:"purchaser_code" json:"purchaser_code"`
-	PurchaserName             *string `db:"purchaser_name" json:"purchaser_name"`
-	WarehouseObjectID         *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID        *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode             *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName             *string `db:"warehouse_name" json:"warehouse_name"`
-	ContactName               *string `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
-	SettlementMethodObjectID  *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType        *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDescription     *string `db:"settlement_description" json:"settlement_description"`
+	DocumentID                           string  `db:"document_id" json:"document_id"`
+	SupplierObjectID                     string  `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID                    string  `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode                         string  `db:"supplier_code" json:"supplier_code"`
+	SupplierName                         string  `db:"supplier_name" json:"supplier_name"`
+	PurchaserObjectID                    *string `db:"purchaser_object_id" json:"purchaser_object_id"`
+	PurchaserVersionID                   *string `db:"purchaser_version_id" json:"purchaser_version_id"`
+	PurchaserCode                        *string `db:"purchaser_code" json:"purchaser_code"`
+	PurchaserName                        *string `db:"purchaser_name" json:"purchaser_name"`
+	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
+	ContactName                          *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
+	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 }
 
 func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVouPurchaseOrderDetailParams) error {
@@ -1184,6 +1212,9 @@ func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVo
 		arg.SettlementMonthOffset,
 		arg.SettlementDayOfMonth,
 		arg.SettlementDayOffset,
+		arg.SettlementDueDays,
+		arg.SettlementCutoffDay,
+		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementDescription,
 	)
 	return err
@@ -1250,6 +1281,8 @@ INSERT INTO vou_sale_order_details (
     settlement_method_object_id, settlement_method_version_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
+    settlement_due_days, settlement_cutoff_day,
+    settlement_default_sales_surcharge_cents,
     settlement_description
 ) VALUES (
     $1, $2, $3,
@@ -1261,32 +1294,37 @@ INSERT INTO vou_sale_order_details (
     $15, $16,
     $17, $18,
     $19, $20,
-    $21
+    $21, $22,
+    $23,
+    $24
 )
 `
 
 type InsertVouSaleOrderDetailParams struct {
-	DocumentID                string  `db:"document_id" json:"document_id"`
-	CustomerObjectID          string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID         string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode              string  `db:"customer_code" json:"customer_code"`
-	CustomerName              string  `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID       *string `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID      *string `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode           *string `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName           *string `db:"salesperson_name" json:"salesperson_name"`
-	ContactName               *string `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress           *string `db:"delivery_address" json:"delivery_address"`
-	SettlementMethodObjectID  *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType        *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDescription     *string `db:"settlement_description" json:"settlement_description"`
+	DocumentID                           string  `db:"document_id" json:"document_id"`
+	CustomerObjectID                     string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                    string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                         string  `db:"customer_code" json:"customer_code"`
+	CustomerName                         string  `db:"customer_name" json:"customer_name"`
+	SalespersonObjectID                  *string `db:"salesperson_object_id" json:"salesperson_object_id"`
+	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
+	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
+	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
+	ContactName                          *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
+	DeliveryAddress                      *string `db:"delivery_address" json:"delivery_address"`
+	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 }
 
 func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error {
@@ -1311,6 +1349,9 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 		arg.SettlementMonthOffset,
 		arg.SettlementDayOfMonth,
 		arg.SettlementDayOffset,
+		arg.SettlementDueDays,
+		arg.SettlementCutoffDay,
+		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementDescription,
 	)
 	return err
@@ -1481,7 +1522,7 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 }
 
 const listVouDocuments = `-- name: ListVouDocuments :many
-SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity,
+SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 po.supplier_name, pi.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name,
@@ -1579,6 +1620,7 @@ type ListVouDocumentsRow struct {
 	CompletedAt      pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
 	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
+	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
 	PartyName        string             `db:"party_name" json:"party_name"`
 }
 
@@ -1627,6 +1669,7 @@ func (q *Queries) ListVouDocuments(ctx context.Context, arg ListVouDocumentsPara
 			&i.CompletedAt,
 			&i.ParentDocumentID,
 			&i.ParentEntity,
+			&i.DueDate,
 			&i.PartyName,
 		); err != nil {
 			return nil, err
@@ -1673,7 +1716,7 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 }
 
 const listVouProductLines = `-- name: ListVouProductLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, product_kind, pricing_quantity_per_inventory_unit_micros FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error) {
@@ -1705,6 +1748,10 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.InboundQtyMicros,
 			&i.Remark,
 			&i.PurchaseUnitPriceCents,
+			&i.BaseUnitPriceCents,
+			&i.SettlementSurchargeCents,
+			&i.ProductKind,
+			&i.PricingQuantityPerInventoryUnitMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -1886,7 +1933,7 @@ func (q *Queries) LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAt
 }
 
 const lockVouDocument = `-- name: LockVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 FOR UPDATE
@@ -1925,6 +1972,7 @@ func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams
 		&i.CompletedAt,
 		&i.ParentDocumentID,
 		&i.ParentEntity,
+		&i.DueDate,
 	)
 	return i, err
 }
@@ -2113,16 +2161,17 @@ func (q *Queries) UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDo
 
 const updateVouDraft = `-- name: UpdateVouDraft :one
 UPDATE vou_documents
-SET business_date = $1, currency = $2,
-    total_amount_cents = $3, remark = $4,
-    revision = revision + 1, updated_at = now(), updated_by = $5
-WHERE id = $6 AND entity = $7
-  AND revision = $8 AND status = 'DRAFT'
+SET business_date = $1, due_date = $2, currency = $3,
+    total_amount_cents = $4, remark = $5,
+    revision = revision + 1, updated_at = now(), updated_by = $6
+WHERE id = $7 AND entity = $8
+  AND revision = $9 AND status = 'DRAFT'
 RETURNING revision
 `
 
 type UpdateVouDraftParams struct {
 	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
 	Currency         string      `db:"currency" json:"currency"`
 	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string     `db:"remark" json:"remark"`
@@ -2135,6 +2184,7 @@ type UpdateVouDraftParams struct {
 func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error) {
 	row := q.db.QueryRow(ctx, updateVouDraft,
 		arg.BusinessDate,
+		arg.DueDate,
 		arg.Currency,
 		arg.TotalAmountCents,
 		arg.Remark,
@@ -2346,35 +2396,41 @@ SET supplier_object_id = $1, supplier_version_id = $2,
     settlement_month_offset = $20,
     settlement_day_of_month = $21,
     settlement_day_offset = $22,
-    settlement_description = $23
-WHERE document_id = $24
+    settlement_due_days = $23,
+    settlement_cutoff_day = $24,
+    settlement_default_sales_surcharge_cents = $25,
+    settlement_description = $26
+WHERE document_id = $27
 `
 
 type UpdateVouPurchaseOrderDetailParams struct {
-	SupplierObjectID          string  `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID         string  `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode              string  `db:"supplier_code" json:"supplier_code"`
-	SupplierName              string  `db:"supplier_name" json:"supplier_name"`
-	PurchaserObjectID         *string `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID        *string `db:"purchaser_version_id" json:"purchaser_version_id"`
-	PurchaserCode             *string `db:"purchaser_code" json:"purchaser_code"`
-	PurchaserName             *string `db:"purchaser_name" json:"purchaser_name"`
-	WarehouseObjectID         *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID        *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode             *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName             *string `db:"warehouse_name" json:"warehouse_name"`
-	ContactName               *string `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
-	SettlementMethodObjectID  *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType        *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDescription     *string `db:"settlement_description" json:"settlement_description"`
-	DocumentID                string  `db:"document_id" json:"document_id"`
+	SupplierObjectID                     string  `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID                    string  `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode                         string  `db:"supplier_code" json:"supplier_code"`
+	SupplierName                         string  `db:"supplier_name" json:"supplier_name"`
+	PurchaserObjectID                    *string `db:"purchaser_object_id" json:"purchaser_object_id"`
+	PurchaserVersionID                   *string `db:"purchaser_version_id" json:"purchaser_version_id"`
+	PurchaserCode                        *string `db:"purchaser_code" json:"purchaser_code"`
+	PurchaserName                        *string `db:"purchaser_name" json:"purchaser_name"`
+	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
+	ContactName                          *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
+	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
+	DocumentID                           string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error) {
@@ -2401,6 +2457,9 @@ func (q *Queries) UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVo
 		arg.SettlementMonthOffset,
 		arg.SettlementDayOfMonth,
 		arg.SettlementDayOffset,
+		arg.SettlementDueDays,
+		arg.SettlementCutoffDay,
+		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementDescription,
 		arg.DocumentID,
 	)
@@ -2479,32 +2538,38 @@ SET customer_object_id = $1, customer_version_id = $2,
     settlement_month_offset = $17,
     settlement_day_of_month = $18,
     settlement_day_offset = $19,
-    settlement_description = $20
-WHERE document_id = $21
+    settlement_due_days = $20,
+    settlement_cutoff_day = $21,
+    settlement_default_sales_surcharge_cents = $22,
+    settlement_description = $23
+WHERE document_id = $24
 `
 
 type UpdateVouSaleOrderDetailParams struct {
-	CustomerObjectID          string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID         string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode              string  `db:"customer_code" json:"customer_code"`
-	CustomerName              string  `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID       *string `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID      *string `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode           *string `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName           *string `db:"salesperson_name" json:"salesperson_name"`
-	ContactName               *string `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress           *string `db:"delivery_address" json:"delivery_address"`
-	SettlementMethodObjectID  *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType        *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDescription     *string `db:"settlement_description" json:"settlement_description"`
-	DocumentID                string  `db:"document_id" json:"document_id"`
+	CustomerObjectID                     string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                    string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                         string  `db:"customer_code" json:"customer_code"`
+	CustomerName                         string  `db:"customer_name" json:"customer_name"`
+	SalespersonObjectID                  *string `db:"salesperson_object_id" json:"salesperson_object_id"`
+	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
+	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
+	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
+	ContactName                          *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
+	DeliveryAddress                      *string `db:"delivery_address" json:"delivery_address"`
+	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
+	DocumentID                           string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error) {
@@ -2528,6 +2593,9 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		arg.SettlementMonthOffset,
 		arg.SettlementDayOfMonth,
 		arg.SettlementDayOffset,
+		arg.SettlementDueDays,
+		arg.SettlementCutoffDay,
+		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementDescription,
 		arg.DocumentID,
 	)

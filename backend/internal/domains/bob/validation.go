@@ -56,9 +56,34 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		RuleType:    input.RuleType,
 		MonthOffset: input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
+		ProductKind: input.ProductKind, InventoryUnitID: input.InventoryUnitID,
+		PricingUnitID:                   input.PricingUnitID,
+		PricingQuantityPerInventoryUnit: input.PricingQuantityPerInventoryUnit,
+		Returnable:                      input.Returnable, PackagingSpecs: input.PackagingSpecs,
 	}
 	if entity == EntityProduct && data.ContainerType == "" {
 		data.ContainerType = ContainerTypeNone
+	}
+	if entity == EntityProduct {
+		if data.ProductKind == "" {
+			data.ProductKind = ProductKindRawMaterial
+		}
+		if data.InventoryUnitID == "" {
+			data.InventoryUnitID = legacyUnitID(data.Unit)
+		}
+		if data.PricingUnitID == "" {
+			data.PricingUnitID = "01JAVX00000000000000000011"
+		}
+		if data.PricingQuantityPerInventoryUnit == "" {
+			if slices.Contains([]string{"吨", "ton", "t"}, strings.ToLower(strings.TrimSpace(data.Unit))) {
+				data.PricingQuantityPerInventoryUnit = "1000"
+			} else {
+				data.PricingQuantityPerInventoryUnit = "1"
+			}
+		}
+	}
+	if entity == EntityService && data.InventoryUnitID == "" {
+		data.InventoryUnitID = legacyUnitID(data.Unit)
 	}
 	data, err := validateDetailData(entity, data)
 	return data, code, err
@@ -76,6 +101,15 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	result.MonthOffset = input.MonthOffset
 	result.DayOfMonth = input.DayOfMonth
 	result.DayOffset = input.DayOffset
+	if input.ProductKind != nil {
+		result.ProductKind = *input.ProductKind
+	}
+	if input.Returnable != nil {
+		result.Returnable = *input.Returnable
+	}
+	if input.PackagingSpecs != nil {
+		result.PackagingSpecs = slices.Clone(*input.PackagingSpecs)
+	}
 	if input.ContainerType != nil {
 		result.ContainerType = *input.ContainerType
 	}
@@ -121,6 +155,9 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
 	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
+	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
+	mergeOptional(input.PricingUnitID, &result.PricingUnitID)
+	mergeOptional(input.PricingQuantityPerInventoryUnit, &result.PricingQuantityPerInventoryUnit)
 	return result
 }
 
@@ -139,6 +176,9 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	}
 	if entity == EntityProduct {
 		current.ContainerType = ContainerTypeNone
+		current.ProductKind = ProductKindRawMaterial
+		current.PricingUnitID = "01JAVX00000000000000000011"
+		current.PricingQuantityPerInventoryUnit = "1"
 	}
 	return validateDetailData(entity, mergeDetailInput(current, input))
 }
@@ -152,21 +192,23 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntitySupplier:
-		allow("shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntityEmployee:
-		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
+		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("categoryId", "specification", "model", "barcode", "remark", "quantityPerContainer")
+		allow("categoryId", "specification", "model", "barcode", "remark", "quantityPerContainer",
+			"inventoryUnitId", "pricingUnitId", "pricingQuantityPerInventoryUnit",
+			"productKind", "returnable", "packagingSpecs")
 	case EntityService:
-		allow("categoryId", "description", "remark")
+		allow("description", "remark", "inventoryUnitId")
 	case EntityWarehouse:
-		allow("categoryId", "address", "contactName", "contactPhone", "managerEmployeeId", "remark")
+		allow("address", "contactName", "contactPhone", "managerEmployeeId", "remark")
 	case EntityVehicle:
-		allow("categoryId", "vin", "engineNumber", "loadCapacityKg", "remark")
+		allow("vin", "engineNumber", "loadCapacityKg", "remark")
 	case EntityFundAccount:
-		allow("categoryId", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
+		allow("accountName", "bankName", "bankBranch", "accountNumber", "remark")
 	case EntityCategory:
 		allow("parentId", "description")
 	case EntityDepartment:
@@ -192,8 +234,14 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"accountName": input.AccountName.Set, "bankName": input.BankName.Set,
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
-		"salespersonEmployeeId": input.SalespersonEmployeeID.Set,
-		"quantityPerContainer":  input.QuantityPerContainer.Set,
+		"salespersonEmployeeId":           input.SalespersonEmployeeID.Set,
+		"quantityPerContainer":            input.QuantityPerContainer.Set,
+		"inventoryUnitId":                 input.InventoryUnitID.Set,
+		"pricingUnitId":                   input.PricingUnitID.Set,
+		"pricingQuantityPerInventoryUnit": input.PricingQuantityPerInventoryUnit.Set,
+		"productKind":                     input.ProductKind != nil,
+		"returnable":                      input.Returnable != nil,
+		"packagingSpecs":                  input.PackagingSpecs != nil,
 	}
 	for field, present := range provided {
 		if present && !allowed[field] {
@@ -228,20 +276,21 @@ func normalizeDetail(input *DetailView) {
 		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
 		&input.VehicleType,
-		&input.QuantityPerContainer,
+		&input.QuantityPerContainer, &input.PricingQuantityPerInventoryUnit,
 	} {
 		trim(value)
 	}
 	for _, value := range []*string{
-		&input.Currency, &input.SupplierType, &input.CustomerType, &input.PlateNumber,
+		&input.Currency, &input.SupplierType, &input.CustomerType, &input.PlateNumber, &input.VehicleType,
 		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType,
-		&input.ContainerType,
+		&input.ContainerType, &input.ProductKind,
 	} {
 		*value = strings.ToUpper(strings.TrimSpace(*value))
 	}
 	for _, value := range []*string{
 		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
 		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
+		&input.InventoryUnitID, &input.PricingUnitID,
 	} {
 		trim(value)
 	}
@@ -250,6 +299,12 @@ func normalizeDetail(input *DetailView) {
 	input.AccountNumber = normalizeAccountNumber(input.AccountNumber)
 	if input.LoadCapacityKG != "" {
 		input.LoadCapacityKG = normalizeLoadCapacity(input.LoadCapacityKG)
+	}
+	for index := range input.PackagingSpecs {
+		spec := &input.PackagingSpecs[index]
+		spec.PackagingProductObjectID = strings.TrimSpace(spec.PackagingProductObjectID)
+		spec.PackagingProductVersionID = strings.TrimSpace(spec.PackagingProductVersionID)
+		spec.ContentQuantity = strings.TrimSpace(spec.ContentQuantity)
 	}
 }
 
@@ -314,15 +369,15 @@ func validateEntityFields(entity string, input DetailView) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("customerType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
-		if !validCustomerType(input.CustomerType) {
-			return domainError(ErrorValidation, "invalid customer type", nil, nil)
+		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		if !codePattern.MatchString(input.CustomerType) {
+			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
 		}
 		if input.SalespersonEmployeeID == "" {
 			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
 		}
 	case EntitySupplier:
-		allow("supplierType", "shortName", "categoryId", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		allow("supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 		if !validSupplierType(input.SupplierType) {
 			return domainError(ErrorValidation, "invalid supplier type", nil, nil)
 		}
@@ -330,31 +385,38 @@ func validateEntityFields(entity string, input DetailView) error {
 			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
 		}
 	case EntityEmployee:
-		allow("categoryId", "departmentId", "positionId", "phone", "email", "hireDate", "remark")
+		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark")
+		allow("unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark",
+			"productKind", "inventoryUnitId", "pricingUnitId", "pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs")
 		if !runeLengthBetween(input.Unit, 1, 32) {
 			return domainError(ErrorValidation, "invalid unit", nil, nil)
 		}
 		if err := validateProductContainer(input); err != nil {
 			return err
 		}
+		if err := validateProductModel(input); err != nil {
+			return err
+		}
 	case EntityService:
-		allow("unit", "categoryId", "description", "remark")
+		allow("unit", "inventoryUnitId", "description", "remark")
 		if !runeLengthBetween(input.Unit, 1, 32) {
 			return domainError(ErrorValidation, "invalid unit", nil, nil)
 		}
+		if !validID(input.InventoryUnitID) {
+			return domainError(ErrorValidation, "invalid service unit reference", nil, nil)
+		}
 	case EntityWarehouse:
-		allow("categoryId", "address", "contactName", "contactPhone", "managerEmployeeId", "remark")
+		allow("address", "contactName", "contactPhone", "managerEmployeeId", "remark")
 	case EntityVehicle:
-		allow("categoryId", "plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark")
+		allow("plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark")
 		if !runeLengthBetween(input.PlateNumber, 1, 32) ||
 			!runeLengthBetween(input.VehicleType, 1, 64) ||
 			!validID(input.PlatformObjectID) {
 			return domainError(ErrorValidation, "invalid vehicle fields", nil, nil)
 		}
 	case EntityFundAccount:
-		allow("categoryId", "currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
+		allow("currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
 		if !currencyPattern.MatchString(input.Currency) {
 			return domainError(ErrorValidation, "invalid currency", nil, nil)
 		}
@@ -384,6 +446,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	for _, id := range []string{
 		input.CategoryID, input.DepartmentID, input.PositionID, input.ManagerEmployeeID,
 		input.ParentID, input.SettlementMethodID, input.SalespersonEmployeeID,
+		input.InventoryUnitID, input.PricingUnitID,
 	} {
 		if id != "" && !validID(id) {
 			return domainError(ErrorValidation, "invalid reference id", nil, nil)
@@ -413,7 +476,25 @@ func detailFieldValues(input DetailView) map[string]string {
 		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
 		"dayOffset":     numericField(input.DayOffset),
 		"containerType": input.ContainerType, "quantityPerContainer": input.QuantityPerContainer,
+		"productKind": input.ProductKind, "inventoryUnitId": input.InventoryUnitID,
+		"pricingUnitId":                   input.PricingUnitID,
+		"pricingQuantityPerInventoryUnit": input.PricingQuantityPerInventoryUnit,
+		"returnable":                      boolField(input.Returnable), "packagingSpecs": sliceField(len(input.PackagingSpecs)),
 	}
+}
+
+func boolField(value bool) string {
+	if value {
+		return "true"
+	}
+	return ""
+}
+
+func sliceField(length int) string {
+	if length > 0 {
+		return "present"
+	}
+	return ""
 }
 
 func validateProductContainer(input DetailView) error {
@@ -430,6 +511,67 @@ func validateProductContainer(input DetailView) error {
 		return domainError(ErrorValidation, "invalid container type", nil, nil)
 	}
 	return nil
+}
+
+func validateProductModel(input DetailView) error {
+	if !slices.Contains([]string{
+		ProductKindRawMaterial, ProductKindStandardFinished,
+		ProductKindCustomFinished, ProductKindPackaging,
+	}, input.ProductKind) {
+		return domainError(ErrorValidation, "invalid product kind", nil, nil)
+	}
+	if !validID(input.InventoryUnitID) || !validID(input.PricingUnitID) {
+		return domainError(ErrorValidation, "invalid product unit reference", nil, nil)
+	}
+	if _, err := fixedMicros(input.PricingQuantityPerInventoryUnit); err != nil {
+		return domainError(ErrorValidation, "invalid pricing conversion", nil, err)
+	}
+	if input.ProductKind != ProductKindPackaging && input.Returnable {
+		return domainError(ErrorValidation, "only packaging products can be returnable", nil, nil)
+	}
+	if input.ProductKind == ProductKindPackaging && len(input.PackagingSpecs) > 0 {
+		return domainError(ErrorValidation, "packaging products cannot contain packaging specifications", nil, nil)
+	}
+	seen := make(map[string]bool, len(input.PackagingSpecs))
+	defaults := 0
+	for _, spec := range input.PackagingSpecs {
+		if !validID(spec.PackagingProductObjectID) || !validID(spec.PackagingProductVersionID) {
+			return domainError(ErrorValidation, "invalid packaging product reference", nil, nil)
+		}
+		if seen[spec.PackagingProductObjectID] {
+			return domainError(ErrorValidation, "duplicate packaging product", nil, nil)
+		}
+		seen[spec.PackagingProductObjectID] = true
+		if _, err := fixedMicros(spec.ContentQuantity); err != nil {
+			return domainError(ErrorValidation, "invalid packaging content quantity", nil, err)
+		}
+		if spec.IsDefault {
+			defaults++
+		}
+	}
+	if defaults > 1 {
+		return domainError(ErrorValidation, "only one packaging specification can be default", nil, nil)
+	}
+	return nil
+}
+
+func legacyUnitID(unit string) string {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "kg":
+		return "01JAVX00000000000000000011"
+	case "件", "piece", "unit":
+		return "01JAVX00000000000000000013"
+	case "年":
+		return "01JAVX00000000000000000015"
+	case "次", "occurrence":
+		return "01JAVX00000000000000000017"
+	case "小时", "hour":
+		return "01JAVX00000000000000000025"
+	case "吨", "ton", "t":
+		return "01JAVX00000000000000000027"
+	default:
+		return ""
+	}
 }
 
 func validateSettlementRule(input DetailView) error {
@@ -563,15 +705,17 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	var unexpected bool
 	switch entity {
 	case EntityCustomer:
-		unexpected = hasUnexpected("customerType", "categoryId", "salespersonEmployeeId")
+		unexpected = hasUnexpected("customerType", "salespersonEmployeeId")
 	case EntitySupplier:
-		unexpected = hasUnexpected("supplierType", "categoryId", "salespersonEmployeeId")
+		unexpected = hasUnexpected("supplierType", "salespersonEmployeeId")
 	case EntityEmployee:
-		unexpected = hasUnexpected("categoryId", "departmentId", "positionId")
-	case EntityProduct, EntityService, EntityWarehouse, EntityVehicle:
+		unexpected = hasUnexpected("departmentId", "positionId")
+	case EntityProduct:
 		unexpected = hasUnexpected("categoryId")
+	case EntityService, EntityWarehouse, EntityVehicle:
+		unexpected = hasUnexpected()
 	case EntityFundAccount:
-		unexpected = hasUnexpected("categoryId", "currency")
+		unexpected = hasUnexpected("currency")
 	case EntityCategory:
 		unexpected = hasUnexpected("targetEntity", "parentId", "rootOnly")
 	case EntityDepartment:

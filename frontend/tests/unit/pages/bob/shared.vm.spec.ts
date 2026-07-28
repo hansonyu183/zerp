@@ -35,6 +35,12 @@ function row(status: BobStatus = 'DRAFT'): BobListItem {
       summary: {
         name: '标准产品',
         unit: '件',
+        productKind: 'RAW_MATERIAL',
+        inventoryUnitId: 'UNIT-PIECE',
+        pricingUnitId: 'UNIT-KG',
+        pricingQuantityPerInventoryUnit: '1',
+        returnable: false,
+        packagingSpecs: [],
         categoryId: '',
         specification: '',
         model: 'M1',
@@ -63,6 +69,12 @@ function objectView(versionId = 'VER-1'): BobObjectView {
     data: {
       name: '标准产品',
       unit: '件',
+      productKind: 'RAW_MATERIAL',
+      inventoryUnitId: 'UNIT-PIECE',
+      pricingUnitId: 'UNIT-KG',
+      pricingQuantityPerInventoryUnit: '1',
+      returnable: false,
+      packagingSpecs: [],
       categoryId: '',
       specification: '',
       model: 'M1',
@@ -123,7 +135,6 @@ function supplierObjectView(): BobObjectView {
       name: '示例供应商',
       supplierType: 'GENERAL',
       shortName: '',
-      categoryId: '',
       settlementMethodId: '',
       salespersonEmployeeId: 'EMP-1',
       taxNumber: '',
@@ -153,20 +164,16 @@ describe('shared BOB entity configuration and view model', () => {
     vi.useRealTimers()
   })
 
-  it('定义全部十二类实体和完整状态筛选', () => {
+  it('定义全部八类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '简称', '版本', '状态', '更新'],
       supplier: ['编码', '名称', '类型', '简称', '版本', '状态', '更新'],
       employee: ['编码', '姓名', '电话', '入职', '版本', '状态', '更新'],
-      product: ['编码', '名称', '单位', '型号', '版本', '状态', '更新'],
+      product: ['编码', '名称', '类型', '库存单位', '型号', '版本', '状态', '更新'],
       service: ['编码', '名称', '单位', '说明', '版本', '状态', '更新'],
       warehouse: ['编码', '名称', '地址', '联系人', '版本', '状态', '更新'],
       vehicle: ['编码', '名称', '车牌', '类型', '版本', '状态', '更新'],
       'fund-account': ['编码', '名称', '币种', '银行', '版本', '状态', '更新'],
-      category: ['编码', '名称', '实体', '版本', '状态', '更新'],
-      department: ['编码', '名称', '版本', '状态', '更新'],
-      position: ['编码', '名称', '版本', '状态', '更新'],
-      'settlement-method': ['编码', '名称', '规则', '版本', '状态', '更新'],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {
@@ -182,33 +189,15 @@ describe('shared BOB entity configuration and view model', () => {
     expect(statusOptions).toHaveLength(5)
   })
 
-  it('按结算规则切换条件字段并清理不适用值', () => {
-    const config = getBobEntityConfig('settlement-method')
-    const context = {
-      mode: 'create' as const,
-      referenceOptions: {},
-      referenceLoading: {},
-      referenceErrors: {},
+  it('迁出的辅助对象不再注册为 BOB 页面', () => {
+    for (const entity of [
+      'category',
+      'department',
+      'position',
+      'settlement-method',
+    ]) {
+      expect(() => getBobEntityConfig(entity)).toThrow()
     }
-    const fields = config.fields(context)
-    const ruleType = fields.find((field) => field.key === 'ruleType')
-    const monthOffset = fields.find((field) => field.key === 'monthOffset')
-    const dayOfMonth = fields.find((field) => field.key === 'dayOfMonth')
-
-    expect(ruleType?.onChange?.('RELATIVE_DAYS', config.emptyForm())).toEqual({
-      monthOffset: 0,
-      dayOfMonth: null,
-    })
-    expect(monthOffset?.visible).toBeTypeOf('function')
-    expect(
-      typeof monthOffset?.visible === 'function' &&
-        monthOffset.visible({ ...config.emptyForm(), ruleType: 'RELATIVE_DAYS' }),
-    ).toBe(false)
-    expect(
-      typeof dayOfMonth?.visible === 'function' &&
-        dayOfMonth.visible({ ...config.emptyForm(), ruleType: 'FIXED_DAY' }),
-    ).toBe(true)
-    expect(dayOfMonth).toMatchObject({ min: 1, max: 31 })
   })
 
   it('供应商要求不可清空的业务员引用，并在引用不可用时阻止提交', async () => {
@@ -351,7 +340,6 @@ describe('shared BOB entity configuration and view model', () => {
           name: '示例供应商',
           supplierType: 'GENERAL',
           shortName: '',
-          categoryId: '',
           settlementMethodId: '',
           salespersonEmployeeId: 'EMP-2',
           taxNumber: '',
@@ -441,6 +429,12 @@ describe('shared BOB entity configuration and view model', () => {
       code: ' prd-2 ',
       name: ' 新产品 ',
       unit: ' 件 ',
+      productKind: 'RAW_MATERIAL',
+      inventoryUnitId: 'UNIT-PIECE',
+      pricingUnitId: 'UNIT-KG',
+      pricingQuantityPerInventoryUnit: '1',
+      returnable: false,
+      packagingSpecs: [],
       categoryId: '',
       specification: '',
       model: '',
@@ -451,7 +445,19 @@ describe('shared BOB entity configuration and view model', () => {
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       1,
       'bob/product/create',
-      { data: { code: 'PRD-2', name: '新产品', unit: '件' } },
+      {
+        data: {
+          code: 'PRD-2',
+          name: '新产品',
+          unit: '件',
+          productKind: 'RAW_MATERIAL',
+          inventoryUnitId: 'UNIT-PIECE',
+          pricingUnitId: 'UNIT-KG',
+          pricingQuantityPerInventoryUnit: '1',
+          returnable: false,
+          packagingSpecs: [],
+        },
+      },
     )
 
     vi.clearAllMocks()
@@ -464,6 +470,12 @@ describe('shared BOB entity configuration and view model', () => {
       code: 'PRD-1',
       name: '标准产品',
       unit: '件',
+      productKind: 'RAW_MATERIAL',
+      inventoryUnitId: 'UNIT-PIECE',
+      pricingUnitId: 'UNIT-KG',
+      pricingQuantityPerInventoryUnit: '1',
+      returnable: false,
+      packagingSpecs: [],
       categoryId: '',
       specification: '',
       model: '',
@@ -481,6 +493,12 @@ describe('shared BOB entity configuration and view model', () => {
         data: {
           name: '标准产品',
           unit: '件',
+          productKind: 'RAW_MATERIAL',
+          inventoryUnitId: 'UNIT-PIECE',
+          pricingUnitId: 'UNIT-KG',
+          pricingQuantityPerInventoryUnit: '1',
+          returnable: false,
+          packagingSpecs: [],
           categoryId: '',
           specification: '',
           model: '',
@@ -553,14 +571,13 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('关联对象搜索带有效状态和实体约束', async () => {
     vi.useFakeTimers()
-    grant('product', 'category')
-    useSessionStore().permissions = ['/bob/category/query']
+    useSessionStore().permissions = ['/aux/product-category/query']
     mockedApiClient.post.mockResolvedValueOnce({
       data: {
         items: [{
           objectId: 'CAT-1',
           code: 'CAT-1',
-          currentVersion: { summary: { name: '产品分类' } },
+          currentVersion: { data: { name: '产品分类' } },
         }],
         total: 1,
         page: 1,
@@ -581,14 +598,13 @@ describe('shared BOB entity configuration and view model', () => {
     await vi.advanceTimersByTimeAsync(300)
 
     expect(mockedApiClient.post).toHaveBeenCalledWith(
-      'bob/category/query',
+      'aux/product-category/query',
       {
         page: 1,
         pageSize: 20,
         filters: {
-          targetEntity: 'product',
           keyword: '分类',
-          status: ['EFFECTIVE'],
+          enabled: true,
         },
         sort: [{ field: 'name', order: 'asc' }],
       },

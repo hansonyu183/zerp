@@ -1,9 +1,7 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
-  customerTypeOptions,
   defineBobEntityConfig,
   emailPattern,
   patternRule,
@@ -22,7 +20,6 @@ export const customerConfig = defineBobEntityConfig({
   defaults: {
     customerType: 'END_USER',
     shortName: '',
-    categoryId: '',
     settlementMethodId: '',
     salespersonEmployeeId: '',
     taxNumber: '',
@@ -35,12 +32,15 @@ export const customerConfig = defineBobEntityConfig({
   requiredKeys: ['code', 'name', 'customerType', 'salespersonEmployeeId'],
   uppercaseKeys: ['code', 'taxNumber'],
   references: {
-    categoryId: {
-      entity: 'category',
-      label: '客户分类',
-      filters: { targetEntity: 'customer' },
+    customerType: {
+      domain: 'aux',
+      entity: 'dictionary-item',
+      label: '客户类型',
+      value: 'code',
+      filters: { dictionaryTypeCode: 'CUSTOMER_TYPE' },
     },
     settlementMethodId: {
+      domain: 'aux',
       entity: 'settlement-method',
       label: '结算方式',
     },
@@ -51,15 +51,8 @@ export const customerConfig = defineBobEntityConfig({
   },
   fields: (context) => [
     ...commonFields(context, '客户编码', '客户名称'),
-    {
-      key: 'customerType',
-      label: '客户类型',
-      type: 'select',
-      required: true,
-      options: customerTypeOptions,
-    },
+    reference('customerType', '客户类型', context, true),
     text('shortName', '客户简称', 100),
-    reference('categoryId', '客户分类', context),
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
@@ -80,9 +73,7 @@ export const customerConfig = defineBobEntityConfig({
       key: 'customerType',
       label: '类型',
       value: (row) => row.currentVersion.summary.customerType,
-      format: (value) =>
-        customerTypeOptions.find((item) => item.value === value)?.title ??
-        String(value),
+      format: (value) => String(value),
     },
     {
       key: 'shortName',
@@ -94,10 +85,15 @@ export const customerConfig = defineBobEntityConfig({
     {
       key: 'customerType',
       label: '客户类型',
-      type: 'select',
-      options: customerTypeOptions,
+      type: 'autocomplete',
+      reference: {
+        domain: 'aux',
+        entity: 'dictionary-item',
+        label: '客户类型',
+        value: 'code',
+        filters: { dictionaryTypeCode: 'CUSTOMER_TYPE' },
+      },
     },
-    categoryFilter('customer'),
     {
       key: 'salespersonEmployeeId',
       label: '业务员',

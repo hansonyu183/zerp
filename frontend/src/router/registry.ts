@@ -37,7 +37,7 @@ const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
 const developingPage: PageLoader =
   () => import('@/pages/system/developing/Developing.vue')
 
-type DomainId = 'bob' | 'vou' | 'wfl' | 'led'
+type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -49,9 +49,14 @@ type EntityRegistration = Omit<
 
 const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
   bob: {
-    domainTitle: '基础业务对象',
+    domainTitle: '业务对象',
     domainIcon: 'mdi-database-outline',
     domainOrder: 10,
+  },
+  aux: {
+    domainTitle: '辅助对象',
+    domainIcon: 'mdi-shape-plus-outline',
+    domainOrder: 15,
   },
   vou: {
     domainTitle: '业务单据',
@@ -138,34 +143,75 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
-  registerPage('bob', {
-    entity: 'category',
-    entityTitle: '分类',
+  registerPage('aux', {
+    entity: 'product-category',
+    entityTitle: '产品分类',
     icon: 'mdi-shape-outline',
-    order: 90,
-    component: () => import('@/pages/bob/category/Category.vue'),
+    order: 10,
+    component: () =>
+      import('@/pages/aux/product-category/ProductCategory.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'department',
     entityTitle: '部门',
     icon: 'mdi-office-building-outline',
-    order: 100,
-    component: () => import('@/pages/bob/department/Department.vue'),
+    order: 20,
+    component: () => import('@/pages/aux/department/Department.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'position',
     entityTitle: '岗位',
     icon: 'mdi-briefcase-account-outline',
-    order: 110,
-    component: () => import('@/pages/bob/position/Position.vue'),
+    order: 30,
+    component: () => import('@/pages/aux/position/Position.vue'),
   }),
-  registerPage('bob', {
+  registerPage('aux', {
     entity: 'settlement-method',
     entityTitle: '结算方式',
     icon: 'mdi-calendar-clock-outline',
-    order: 120,
+    order: 40,
     component: () =>
-      import('@/pages/bob/settlement-method/SettlementMethod.vue'),
+      import('@/pages/aux/settlement-method/SettlementMethod.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'measurement-unit',
+    entityTitle: '计量单位',
+    icon: 'mdi-ruler-square',
+    order: 50,
+    component: () =>
+      import('@/pages/aux/measurement-unit/MeasurementUnit.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'dictionary-type',
+    entityTitle: '字典类型',
+    icon: 'mdi-book-alphabet',
+    order: 60,
+    component: () =>
+      import('@/pages/aux/dictionary-type/DictionaryType.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'dictionary-item',
+    entityTitle: '字典项',
+    icon: 'mdi-format-list-bulleted-type',
+    order: 70,
+    component: () =>
+      import('@/pages/aux/dictionary-item/DictionaryItem.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'income-expense-type',
+    entityTitle: '收支类型',
+    icon: 'mdi-swap-vertical',
+    order: 80,
+    component: () =>
+      import('@/pages/aux/income-expense-type/IncomeExpenseType.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'account-subject',
+    entityTitle: '会计科目',
+    icon: 'mdi-file-tree-outline',
+    order: 90,
+    component: () =>
+      import('@/pages/aux/account-subject/AccountSubject.vue'),
   }),
   registerPage('vou', {
     entity: 'sale-order',

@@ -1,7 +1,6 @@
 import {
   baseColumns,
   baseFilters,
-  categoryFilter,
   commonFields,
   defineBobEntityConfig,
   patternRule,
@@ -17,7 +16,6 @@ export const warehouseConfig = defineBobEntityConfig({
   codeLabel: '仓库编码',
   nameLabel: '仓库名称',
   defaults: {
-    categoryId: '',
     address: '',
     contactName: '',
     contactPhone: '',
@@ -27,16 +25,10 @@ export const warehouseConfig = defineBobEntityConfig({
   requiredKeys: ['code', 'name'],
   uppercaseKeys: ['code'],
   references: {
-    categoryId: {
-      entity: 'category',
-      label: '仓库分类',
-      filters: { targetEntity: 'warehouse' },
-    },
     managerEmployeeId: { entity: 'employee', label: '管理员工' },
   },
   fields: (context) => [
     ...commonFields(context, '仓库编码', '仓库名称'),
-    reference('categoryId', '仓库分类', context),
     reference('managerEmployeeId', '管理员工', context),
     textarea('address', '地址', 500),
     text('contactName', '联系人', 100),
@@ -57,5 +49,5 @@ export const warehouseConfig = defineBobEntityConfig({
       value: (row) => row.currentVersion.summary.contactName,
     },
   ]),
-  filters: baseFilters([categoryFilter('warehouse')]),
+  filters: baseFilters(),
 })

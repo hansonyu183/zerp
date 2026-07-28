@@ -195,6 +195,15 @@ export function useVoucherReferences(
                 ...(typeof summary.platformObjectId === 'string'
                   ? { platformObjectId: summary.platformObjectId }
                   : {}),
+                ...(typeof summary.productKind === 'string'
+                  ? { productKind: summary.productKind }
+                  : {}),
+                ...(typeof summary.pricingQuantityPerInventoryUnit === 'string'
+                  ? {
+                      pricingQuantityPerInventoryUnit:
+                        summary.pricingQuantityPerInventoryUnit,
+                    }
+                  : {}),
               },
             ]
           })

@@ -561,6 +561,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :product-loading="vm.referenceLoading('product')"
             :product-options="vm.referenceOptions('product')"
             :purchase-price-required="false"
+            :settlement-surcharge-enabled="vm.config.entity === 'sale-order'"
             @product-search="vm.searchReference('product', $event)"
           />
           <VoucherExpenseLinesEditor

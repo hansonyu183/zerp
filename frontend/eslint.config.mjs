@@ -74,15 +74,6 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/pages/wfl/intermediary-trade/vm.ts'],
-    rules: {
-      'max-lines': [
-        'error',
-        { max: 925, skipBlankLines: true, skipComments: true },
-      ],
-    },
-  },
-  {
     files: ['src/pages/vou/shared/vm.ts'],
     rules: {
       'max-lines': [
@@ -119,26 +110,11 @@ export default tseslint.config(
       'src/pages/vou/shared/artifacts.ts',
       'src/pages/vou/shared/form.ts',
       'src/pages/vou/shared/references.ts',
-      'src/pages/wfl/intermediary-trade/attachments.ts',
-      'src/pages/wfl/intermediary-trade/audit.ts',
-      'src/pages/wfl/intermediary-trade/drafts.ts',
-      'src/pages/wfl/intermediary-trade/model.ts',
-      'src/pages/wfl/intermediary-trade/references.ts',
-      'src/pages/wfl/intermediary-trade/validation.ts',
     ],
     rules: {
       'max-lines': [
         'error',
         { max: 450, skipBlankLines: true, skipComments: true },
-      ],
-    },
-  },
-  {
-    files: ['src/pages/wfl/intermediary-trade/api.ts'],
-    rules: {
-      'max-lines': [
-        'error',
-        { max: 800, skipBlankLines: true, skipComments: true },
       ],
     },
   },

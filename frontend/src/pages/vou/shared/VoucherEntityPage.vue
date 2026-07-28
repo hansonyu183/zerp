@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { getErrorMessage } from '@/api/types'
 import {
   calculateDueDate,
   parseFixed,
@@ -33,6 +35,7 @@ const props = withDefaults(
   },
 )
 const vm = reactive(props.model)
+const route = useRoute()
 const labels = computed(() => lifecycleLabels(vm.config))
 
 const workspaceTitle = computed(
@@ -61,32 +64,58 @@ const partyLabel = computed(() => {
   if (vm.config.partyMode === 'supplier') return '供应商'
   return '往来方'
 })
-const businessDateLabel = computed(() => (({
-  'sale-order': '订单日期',
-  'sale-outbound': '出库日期',
-  'sale-delivery': '配送日期',
-  'sale-signoff': '签收日期',
-} as Record<string, string>)[vm.config.entity] ?? '业务日期'))
+const businessDateLabel = computed(
+  () =>
+    (
+      ({
+        'sale-order': '订单日期',
+        'sale-outbound': '出库日期',
+        'sale-delivery': '配送日期',
+        'sale-signoff': '签收日期',
+      }) as Record<string, string>
+    )[vm.config.entity] ?? '业务日期',
+)
 const basicInfoPanel = ref<string | undefined>('basic')
 const showCurrency = ref(false)
-const currencyVisible = computed(() =>
-  showCurrency.value ||
-  vm.form.currency.trim().toUpperCase() !== 'CNY' ||
-  Boolean(vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种')),
+const currencyVisible = computed(
+  () =>
+    showCurrency.value ||
+    vm.form.currency.trim().toUpperCase() !== 'CNY' ||
+    Boolean(
+      vm.errorMessage?.includes('币种') || vm.workspaceError?.includes('币种'),
+    ),
 )
-const sourceDocumentNo = computed(() =>
-  vm.documentView?.data.sourceDocumentNo || vm.form.sourceDocumentId || '由系统生成',
+const parentDocumentNo = computed(
+  () =>
+    vm.documentView?.parentDocumentNo ||
+    vm.form.parentDocumentNo ||
+    '由系统生成',
 )
 const secondaryOpen = ref(false)
 const secondaryAction = ref<
-  'delete' | 'short-close-request' | 'short-close-cancel' |
-  'short-close-unconfirm'
+  | 'delete'
+  | 'short-close-request'
+  | 'short-close-cancel'
+  | 'short-close-unconfirm'
 >('delete')
 const secondaryTitle = ref('')
 const secondaryReason = ref('')
 
 if (props.autoQuery) {
   void vm.query()
+}
+const linkedDocumentId = route.query.documentId
+if (typeof linkedDocumentId === 'string' && linkedDocumentId) {
+  vm.workspaceOpen = true
+  vm.workspaceLoading = true
+  void vm
+    .loadDocument(linkedDocumentId)
+    .catch((error: unknown) => {
+      vm.workspaceError = getErrorMessage(error)
+    })
+    .finally(() => {
+      vm.workspaceLoading = false
+    })
 }
 
 function updateReference(
@@ -145,7 +174,9 @@ async function confirmSecondary(): Promise<void> {
 
 function formatQuantityMicros(value: bigint): string {
   const whole = value / 1_000_000n
-  const fraction = String(value % 1_000_000n).padStart(6, '0').replace(/0+$/, '')
+  const fraction = String(value % 1_000_000n)
+    .padStart(6, '0')
+    .replace(/0+$/, '')
   return fraction ? `${whole}.${fraction}` : String(whole)
 }
 
@@ -153,21 +184,19 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
   const outbound = parseFixed(line.outboundQuantity, 6, true)
   const signed = parseFixed(line.signedQuantity, 6, true)
   const rejected = parseFixed(line.rejectedQuantity, 6, true)
-  line.lossQuantity = outbound !== null && signed !== null && rejected !== null &&
+  line.lossQuantity =
+    outbound !== null &&
+    signed !== null &&
+    rejected !== null &&
     signed + rejected <= outbound
-    ? formatQuantityMicros(outbound - signed - rejected)
-    : ''
+      ? formatQuantityMicros(outbound - signed - rejected)
+      : ''
 }
 </script>
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <v-alert
-      v-if="vm.errorMessage"
-      class="mb-4"
-      type="error"
-      variant="tonal"
-    >
+    <v-alert v-if="vm.errorMessage" class="mb-4" type="error" variant="tonal">
       {{ vm.errorMessage }}
     </v-alert>
     <VoucherList
@@ -318,189 +347,207 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             <v-expansion-panel value="basic">
               <v-expansion-panel-title>基本信息</v-expansion-panel-title>
               <v-expansion-panel-text>
-          <div class="voucher-form__grid">
-            <v-text-field
-              v-model="vm.form.businessDate"
-              :disabled="!vm.editing"
-              :label="businessDateLabel"
-              type="date"
-              variant="outlined"
-            />
-            <v-text-field
-              v-if="currencyVisible"
-              v-model="vm.form.currency"
-              :disabled="!vm.editing || vm.config.usesFundAccount || Boolean(vm.config.sourceEntity)"
-              label="币种"
-              maxlength="3"
-              variant="outlined"
-              @update:model-value="vm.form.currency = ($event ?? '').toUpperCase()"
-            />
-            <v-text-field
-              v-if="vm.config.sourceEntity"
-              label="来源单据"
-              :model-value="sourceDocumentNo"
-              readonly
-              variant="outlined"
-            />
-            <div class="voucher-form__more-settings">
-              <v-btn
-                size="small"
-                variant="text"
-                @click="showCurrency = !showCurrency"
-              >
-                {{ showCurrency ? '隐藏币种' : '更多设置' }}
-              </v-btn>
-            </div>
+                <div class="voucher-form__grid">
+                  <v-text-field
+                    v-model="vm.form.businessDate"
+                    :disabled="!vm.editing"
+                    :label="businessDateLabel"
+                    type="date"
+                    variant="outlined"
+                  />
+                  <v-text-field
+                    v-if="currencyVisible"
+                    v-model="vm.form.currency"
+                    :disabled="
+                      !vm.editing ||
+                      vm.config.usesFundAccount ||
+                      Boolean(vm.config.parentEntity)
+                    "
+                    label="币种"
+                    maxlength="3"
+                    variant="outlined"
+                    @update:model-value="
+                      vm.form.currency = ($event ?? '').toUpperCase()
+                    "
+                  />
+                  <v-text-field
+                    v-if="vm.config.parentEntity"
+                    label="来源单据"
+                    :model-value="parentDocumentNo"
+                    readonly
+                    variant="outlined"
+                  />
+                  <div class="voucher-form__more-settings">
+                    <v-btn
+                      size="small"
+                      variant="text"
+                      @click="showCurrency = !showCurrency"
+                    >
+                      {{ showCurrency ? '隐藏币种' : '更多设置' }}
+                    </v-btn>
+                  </div>
 
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.partyMode === 'customer' || vm.config.partyMode === 'dual'"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('customer')"
-              label="客户"
-              :model-value="vm.form.customer"
-              required
-              @search="search('customer', $event)"
-              @update:model-value="updateReference('customer', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.partyMode === 'supplier' || vm.config.partyMode === 'dual'"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('supplier')"
-              label="普通供应商"
-              :model-value="vm.form.supplier"
-              required
-              @search="search('supplier', $event)"
-              @update:model-value="updateReference('supplier', $event)"
-            />
+                  <VoucherReferenceAutocomplete
+                    v-if="
+                      vm.config.partyMode === 'customer' ||
+                      vm.config.partyMode === 'dual'
+                    "
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('customer')"
+                    label="客户"
+                    :model-value="vm.form.customer"
+                    required
+                    @search="search('customer', $event)"
+                    @update:model-value="updateReference('customer', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="
+                      vm.config.partyMode === 'supplier' ||
+                      vm.config.partyMode === 'dual'
+                    "
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('supplier')"
+                    label="普通供应商"
+                    :model-value="vm.form.supplier"
+                    required
+                    @search="search('supplier', $event)"
+                    @update:model-value="updateReference('supplier', $event)"
+                  />
 
-            <v-select
-              v-if="vm.config.partyMode === 'counterparty'"
-              :disabled="!vm.editing"
-              item-title="title"
-              item-value="value"
-              :items="[
-                { title: '客户', value: 'customer' },
-                { title: '供应商', value: 'supplier' },
-              ]"
-              label="往来方类型"
-              :model-value="vm.form.counterpartyType"
-              variant="outlined"
-              @update:model-value="changeCounterpartyType($event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.partyMode === 'counterparty'"
-              :disabled="!vm.editing || !vm.form.counterpartyType"
-              v-bind="referenceProps('counterparty')"
-              :label="vm.form.counterpartyType === 'supplier' ? '供应商' : '客户'"
-              :model-value="vm.form.counterparty"
-              :required="vm.config.entity !== 'other-income'"
-              @search="search('counterparty', $event)"
-              @update:model-value="updateReference('counterparty', $event)"
-            />
+                  <v-select
+                    v-if="vm.config.partyMode === 'counterparty'"
+                    :disabled="!vm.editing"
+                    item-title="title"
+                    item-value="value"
+                    :items="[
+                      { title: '客户', value: 'customer' },
+                      { title: '供应商', value: 'supplier' },
+                    ]"
+                    label="往来方类型"
+                    :model-value="vm.form.counterpartyType"
+                    variant="outlined"
+                    @update:model-value="changeCounterpartyType($event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.partyMode === 'counterparty'"
+                    :disabled="!vm.editing || !vm.form.counterpartyType"
+                    v-bind="referenceProps('counterparty')"
+                    :label="
+                      vm.form.counterpartyType === 'supplier'
+                        ? '供应商'
+                        : '客户'
+                    "
+                    :model-value="vm.form.counterparty"
+                    :required="vm.config.entity !== 'other-income'"
+                    @search="search('counterparty', $event)"
+                    @update:model-value="
+                      updateReference('counterparty', $event)
+                    "
+                  />
 
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesSalesperson"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('salesperson')"
-              label="业务员（新建时可使用客户默认值）"
-              :model-value="vm.form.salesperson"
-              @search="search('salesperson', $event)"
-              @update:model-value="updateReference('salesperson', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesPurchaser"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('purchaser')"
-              label="采购员（新建时可使用供应商默认值）"
-              :model-value="vm.form.purchaser"
-              @search="search('purchaser', $event)"
-              @update:model-value="updateReference('purchaser', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesWarehouse"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('warehouse')"
-              label="仓库"
-              :model-value="vm.form.warehouse"
-              required
-              @search="search('warehouse', $event)"
-              @update:model-value="updateReference('warehouse', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.entity === 'sale-delivery'"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('platform')"
-              label="物流平台"
-              :model-value="vm.form.platform"
-              required
-              @search="search('platform', $event)"
-              @update:model-value="updateReference('platform', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.entity === 'sale-delivery'"
-              :disabled="!vm.editing || !vm.form.platform"
-              v-bind="referenceProps('vehicle')"
-              label="配送车辆"
-              :model-value="vm.form.vehicle"
-              required
-              @search="search('vehicle', $event)"
-              @update:model-value="updateReference('vehicle', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesEmployee"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('employee')"
-              label="员工"
-              :model-value="vm.form.employee"
-              required
-              @search="search('employee', $event)"
-              @update:model-value="updateReference('employee', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesHandler"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('handler')"
-              label="经办人"
-              :model-value="vm.form.handler"
-              required
-              @search="search('handler', $event)"
-              @update:model-value="updateReference('handler', $event)"
-            />
-            <VoucherReferenceAutocomplete
-              v-if="vm.config.usesFundAccount"
-              :disabled="!vm.editing"
-              v-bind="referenceProps('fundAccount')"
-              label="资金账户"
-              :model-value="vm.form.fundAccount"
-              required
-              @search="search('fundAccount', $event)"
-              @update:model-value="updateReference('fundAccount', $event)"
-            />
-            <v-text-field
-              v-if="vm.config.usesSourceName"
-              v-model="vm.form.sourceName"
-              :disabled="!vm.editing"
-              label="来源名称"
-              maxlength="200"
-              variant="outlined"
-            />
-            <v-text-field
-              v-if="vm.config.directAmount"
-              v-model="vm.form.amount"
-              :disabled="!vm.editing"
-              inputmode="decimal"
-              label="金额"
-              variant="outlined"
-            />
-            <v-textarea
-              v-model="vm.form.remark"
-              class="voucher-form__wide"
-              counter="1000"
-              :disabled="!vm.editing"
-              label="备注"
-              variant="outlined"
-            />
-          </div>
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesSalesperson"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('salesperson')"
+                    label="业务员（新建时可使用客户默认值）"
+                    :model-value="vm.form.salesperson"
+                    @search="search('salesperson', $event)"
+                    @update:model-value="updateReference('salesperson', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesPurchaser"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('purchaser')"
+                    label="采购员（新建时可使用供应商默认值）"
+                    :model-value="vm.form.purchaser"
+                    @search="search('purchaser', $event)"
+                    @update:model-value="updateReference('purchaser', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesWarehouse"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('warehouse')"
+                    label="仓库"
+                    :model-value="vm.form.warehouse"
+                    required
+                    @search="search('warehouse', $event)"
+                    @update:model-value="updateReference('warehouse', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.entity === 'sale-delivery'"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('platform')"
+                    label="物流平台"
+                    :model-value="vm.form.platform"
+                    required
+                    @search="search('platform', $event)"
+                    @update:model-value="updateReference('platform', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.entity === 'sale-delivery'"
+                    :disabled="!vm.editing || !vm.form.platform"
+                    v-bind="referenceProps('vehicle')"
+                    label="配送车辆"
+                    :model-value="vm.form.vehicle"
+                    required
+                    @search="search('vehicle', $event)"
+                    @update:model-value="updateReference('vehicle', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesEmployee"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('employee')"
+                    label="员工"
+                    :model-value="vm.form.employee"
+                    required
+                    @search="search('employee', $event)"
+                    @update:model-value="updateReference('employee', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesHandler"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('handler')"
+                    label="经办人"
+                    :model-value="vm.form.handler"
+                    required
+                    @search="search('handler', $event)"
+                    @update:model-value="updateReference('handler', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesFundAccount"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('fundAccount')"
+                    label="资金账户"
+                    :model-value="vm.form.fundAccount"
+                    required
+                    @search="search('fundAccount', $event)"
+                    @update:model-value="updateReference('fundAccount', $event)"
+                  />
+                  <v-text-field
+                    v-if="vm.config.usesSourceName"
+                    v-model="vm.form.sourceName"
+                    :disabled="!vm.editing"
+                    label="来源名称"
+                    maxlength="200"
+                    variant="outlined"
+                  />
+                  <v-text-field
+                    v-if="vm.config.directAmount"
+                    v-model="vm.form.amount"
+                    :disabled="!vm.editing"
+                    inputmode="decimal"
+                    label="金额"
+                    variant="outlined"
+                  />
+                  <v-textarea
+                    v-model="vm.form.remark"
+                    class="voucher-form__wide"
+                    counter="1000"
+                    :disabled="!vm.editing"
+                    label="备注"
+                    variant="outlined"
+                  />
+                </div>
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
@@ -522,7 +569,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :editable="vm.editing"
           />
           <div
-            v-if="vm.config.entity === 'sale-outbound' && vm.form.salesChainLines.length"
+            v-if="
+              vm.config.entity === 'sale-outbound' &&
+              vm.form.salesChainLines.length
+            "
             class="voucher-form__chain-table"
           >
             <h3>出库明细</h3>
@@ -537,8 +587,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(line, index) in vm.form.salesChainLines" :key="line.key">
-                  <td>{{ line.productCode }} · {{ line.productName }} {{ line.productUnit }}</td>
+                <tr
+                  v-for="(line, index) in vm.form.salesChainLines"
+                  :key="line.key"
+                >
+                  <td>
+                    {{ line.productCode }} · {{ line.productName }}
+                    {{ line.productUnit }}
+                  </td>
                   <td>{{ line.availableQuantity }}</td>
                   <td>
                     <v-text-field
@@ -573,15 +629,21 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             </v-table>
           </div>
           <div
-            v-if="vm.config.entity === 'sale-delivery' && vm.form.sourceDocumentId"
+            v-if="
+              vm.config.entity === 'sale-delivery' && vm.form.parentDocumentId
+            "
             class="voucher-form__chain-summary"
           >
             <v-alert type="info" variant="tonal">
-              本销售送货承接销售出库 {{ vm.form.sourceDocumentNo }} 的全部出库明细。
+              本销售送货承接销售出库
+              {{ vm.form.parentDocumentNo }} 的全部出库明细。
             </v-alert>
           </div>
           <div
-            v-if="vm.config.entity === 'sale-signoff' && vm.form.salesChainLines.length"
+            v-if="
+              vm.config.entity === 'sale-signoff' &&
+              vm.form.salesChainLines.length
+            "
             class="voucher-form__chain-table"
           >
             <h3>签收明细</h3>
@@ -598,7 +660,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               </thead>
               <tbody>
                 <tr v-for="line in vm.form.salesChainLines" :key="line.key">
-                  <td>{{ line.productCode }} · {{ line.productName }} {{ line.productUnit }}</td>
+                  <td>
+                    {{ line.productCode }} · {{ line.productName }}
+                    {{ line.productUnit }}
+                  </td>
                   <td>{{ line.outboundQuantity }}</td>
                   <td>
                     <v-text-field
@@ -641,45 +706,80 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             <v-divider class="my-5" />
             <h3>业务快照与处理结果</h3>
             <div class="voucher-form__snapshot-grid">
-              <div><strong>金额</strong><span>{{ vm.documentView.amount }}</span></div>
-              <div><strong>联系人</strong><span>{{ vm.documentView.data.contactName || '—' }}</span></div>
-              <div><strong>联系电话</strong><span>{{ vm.documentView.data.contactPhone || '—' }}</span></div>
-              <div><strong>送货地址</strong><span>{{ vm.documentView.data.deliveryAddress || '—' }}</span></div>
+              <div>
+                <strong>金额</strong><span>{{ vm.documentView.amount }}</span>
+              </div>
+              <div>
+                <strong>联系人</strong
+                ><span>{{ vm.documentView.data.contactName || '—' }}</span>
+              </div>
+              <div>
+                <strong>联系电话</strong
+                ><span>{{ vm.documentView.data.contactPhone || '—' }}</span>
+              </div>
+              <div>
+                <strong>送货地址</strong
+                ><span>{{ vm.documentView.data.deliveryAddress || '—' }}</span>
+              </div>
               <div v-if="vm.documentView.data.settlementMethod">
                 <strong>结算方式</strong>
                 <span>
                   {{ vm.documentView.data.settlementMethod.name }} · 到期
-                  {{ calculateDueDate(vm.documentView.data.businessDate, vm.documentView.data.settlementMethod) }}
+                  {{
+                    calculateDueDate(
+                      vm.documentView.data.businessDate,
+                      vm.documentView.data.settlementMethod,
+                    )
+                  }}
                 </span>
               </div>
               <div v-if="vm.documentView.data.customerSettlementMethod">
                 <strong>客户结算</strong>
                 <span>
-                  {{ vm.documentView.data.customerSettlementMethod.name }} · 到期
-                  {{ calculateDueDate(vm.documentView.data.businessDate, vm.documentView.data.customerSettlementMethod) }}
+                  {{ vm.documentView.data.customerSettlementMethod.name }} ·
+                  到期
+                  {{
+                    calculateDueDate(
+                      vm.documentView.data.businessDate,
+                      vm.documentView.data.customerSettlementMethod,
+                    )
+                  }}
                 </span>
               </div>
               <div v-if="vm.documentView.data.supplierSettlementMethod">
                 <strong>供应商结算</strong>
                 <span>
-                  {{ vm.documentView.data.supplierSettlementMethod.name }} · 到期
-                  {{ calculateDueDate(vm.documentView.data.businessDate, vm.documentView.data.supplierSettlementMethod) }}
+                  {{ vm.documentView.data.supplierSettlementMethod.name }} ·
+                  到期
+                  {{
+                    calculateDueDate(
+                      vm.documentView.data.businessDate,
+                      vm.documentView.data.supplierSettlementMethod,
+                    )
+                  }}
                 </span>
               </div>
               <div v-if="vm.documentView.data.outboundDate">
                 <strong>出库/签收</strong>
-                <span>{{ vm.documentView.data.outboundDate }} / {{ vm.documentView.data.signoffDate }}</span>
+                <span
+                  >{{ vm.documentView.data.outboundDate }} /
+                  {{ vm.documentView.data.signoffDate }}</span
+                >
               </div>
               <div v-if="vm.documentView.data.inboundDate">
-                <strong>入库日期</strong><span>{{ vm.documentView.data.inboundDate }}</span>
+                <strong>入库日期</strong
+                ><span>{{ vm.documentView.data.inboundDate }}</span>
               </div>
               <div v-if="vm.documentView.data.platform">
                 <strong>物流平台/车辆</strong>
-                <span>{{ vm.documentView.data.platform.name }} / {{ vm.documentView.data.vehicle?.plateNumber }}</span>
+                <span
+                  >{{ vm.documentView.data.platform.name }} /
+                  {{ vm.documentView.data.vehicle?.plateNumber }}</span
+                >
               </div>
-              <div v-if="vm.documentView.data.sourceDocumentNo">
+              <div v-if="vm.documentView.parentDocumentNo">
                 <strong>来源单据</strong>
-                <span>{{ vm.documentView.data.sourceDocumentNo }}</span>
+                <span>{{ vm.documentView.parentDocumentNo }}</span>
               </div>
               <div v-if="vm.documentView.data.fulfillmentStatus">
                 <strong>履约状态</strong>
@@ -766,7 +866,9 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
           label="原因"
           :rules="[
             (value: string) => Boolean(value?.trim()) || '请输入原因。',
-            (value: string) => Array.from(value ?? '').length <= 1000 || '原因不能超过 1000 字。',
+            (value: string) =>
+              Array.from(value ?? '').length <= 1000 ||
+              '原因不能超过 1000 字。',
           ]"
           variant="outlined"
         />
@@ -776,7 +878,9 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
         <v-btn variant="text" @click="secondaryOpen = false">取消</v-btn>
         <v-btn
           color="warning"
-          :disabled="!secondaryReason.trim() || Array.from(secondaryReason).length > 1000"
+          :disabled="
+            !secondaryReason.trim() || Array.from(secondaryReason).length > 1000
+          "
           @click="confirmSecondary"
         >
           确认
@@ -787,20 +891,64 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 </template>
 
 <style scoped>
-.voucher-page__workspace-actions { display: flex; align-items: center; gap: 8px; margin-right: 12px; }
-.voucher-form__basic-panel { margin-bottom: 4px; }
-.voucher-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
-.voucher-form__more-settings { grid-column: 1 / -1; text-align: right; }
-.voucher-form__wide { grid-column: 1 / -1; }
-.voucher-form__snapshot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
-.voucher-form__snapshot-grid div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; }
-.voucher-form__snapshot-grid span { color: rgb(var(--v-theme-on-surface-variant)); }
-.voucher-form__chain-table { margin-top: 18px; overflow-x: auto; }
-.voucher-form__chain-table h3 { margin-bottom: 12px; }
-.voucher-form__chain-table :deep(.v-input) { min-width: 120px; }
-.voucher-form__chain-summary { margin-top: 18px; }
+.voucher-page__workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 12px;
+}
+.voucher-form__basic-panel {
+  margin-bottom: 4px;
+}
+.voucher-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+.voucher-form__more-settings {
+  grid-column: 1 / -1;
+  text-align: right;
+}
+.voucher-form__wide {
+  grid-column: 1 / -1;
+}
+.voucher-form__snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.voucher-form__snapshot-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+}
+.voucher-form__snapshot-grid span {
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+.voucher-form__chain-table {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+.voucher-form__chain-table h3 {
+  margin-bottom: 12px;
+}
+.voucher-form__chain-table :deep(.v-input) {
+  min-width: 120px;
+}
+.voucher-form__chain-summary {
+  margin-top: 18px;
+}
 @media (max-width: 800px) {
-  .voucher-form__grid, .voucher-form__snapshot-grid { grid-template-columns: 1fr; }
-  .voucher-form__wide { grid-column: auto; }
+  .voucher-form__grid,
+  .voucher-form__snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+  .voucher-form__wide {
+    grid-column: auto;
+  }
 }
 </style>

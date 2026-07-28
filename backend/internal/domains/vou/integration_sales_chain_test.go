@@ -81,7 +81,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 		}},
 	}, true)
 	if outboundView.DocumentNo[:3] != "SOB" ||
-		outboundView.Data.SourceDocumentID != order.DocumentID ||
+		outboundView.ParentDocumentID != order.DocumentID ||
 		outboundView.Data.ProductLines[0].Quantity != "6.0" {
 		t.Fatalf("outbound view = %+v", outboundView)
 	}
@@ -91,7 +91,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 		Platform: &refs.platform, Vehicle: &refs.vehicle,
 	}, true)
 	if deliveryView.DocumentNo[:2] != "SD" ||
-		deliveryView.Data.SourceDocumentID != outboundOne.DocumentID {
+		deliveryView.ParentDocumentID != outboundOne.DocumentID {
 		t.Fatalf("delivery view = %+v", deliveryView)
 	}
 	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{

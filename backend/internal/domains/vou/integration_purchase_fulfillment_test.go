@@ -98,21 +98,19 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
 		DocumentID: draft.DocumentID, Revision: draft.Revision, Reason: "重新拆分",
 	}, integrationActorOne, "inbound-delete"); err != nil {
-		domainErr, _ := err.(*DomainError)
-		t.Fatalf("delete inbound draft: %v cause=%v", err, domainErr.Cause)
+		t.Fatalf("delete inbound draft: %v", err)
 	}
 	second := createInbound("6", "inbound-two")
 	finalizedSecond := finalizeInbound(second, "inbound-two")
 
-	var fulfillment, processStatus string
-	if err = pool.QueryRow(t.Context(), `SELECT o.fulfillment_status,p.status
-		FROM vou_purchase_order_details o
-		JOIN wfl_process_instances p ON p.root_document_id=o.document_id
-		WHERE o.document_id=$1`, order.DocumentID).Scan(&fulfillment, &processStatus); err != nil {
+	var fulfillment string
+	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
+		FROM vou_purchase_order_details
+		WHERE document_id=$1`, order.DocumentID).Scan(&fulfillment); err != nil {
 		t.Fatalf("read completion: %v", err)
 	}
-	if fulfillment != "FULFILLED" || processStatus != StatusCompleted {
-		t.Fatalf("completion = %s/%s", fulfillment, processStatus)
+	if fulfillment != "FULFILLED" {
+		t.Fatalf("completion = %s", fulfillment)
 	}
 	if _, err = service.Unfinalize(t.Context(), EntityPurchaseInbound, ReverseInput{
 		DocumentID: second.DocumentID, Revision: finalizedSecond.Revision, Reason: "验收撤回",

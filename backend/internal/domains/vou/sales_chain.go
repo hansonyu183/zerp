@@ -27,7 +27,6 @@ type fixedSignoffLine struct {
 
 type salesSource struct {
 	ID, Number, Entity, Status, Currency  string
-	ControlDomain                         string
 	BusinessDate                          time.Time
 	Total                                 int64
 	CustomerObjectID, CustomerVersionID   string
@@ -42,7 +41,7 @@ func validateChainHeader(data DraftInput) (time.Time, *string, error) {
 		return time.Time{}, nil, domainError(ErrorValidation, "invalid businessDate", nil, nil)
 	}
 	if !validID(strings.TrimSpace(data.SourceDocumentID)) {
-		return time.Time{}, nil, domainError(ErrorValidation, "invalid sourceDocumentId", nil, nil)
+		return time.Time{}, nil, domainError(ErrorValidation, "invalid parent document", nil, nil)
 	}
 	remark := optionalText(data.Remark)
 	if remark != nil && len([]rune(*remark)) > 1000 {
@@ -242,29 +241,29 @@ func (s *Service) lockSalesSource(
 	var err error
 	switch entity {
 	case EntitySaleOrder:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName)
 	case EntitySaleOutbound:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
 			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
 			FROM vou_documents d JOIN vou_sale_outbound_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-outbound' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleDelivery:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.control_domain,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
 			o.warehouse_object_id,o.warehouse_version_id,o.warehouse_code,o.warehouse_name
 			FROM vou_documents d JOIN vou_sale_delivery_details x ON x.document_id=d.id
 			JOIN vou_sale_outbound_details o ON o.document_id=x.source_outbound_id
 			WHERE d.id=$1 AND d.entity='sale-delivery' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &source.ControlDomain, &date, &source.Currency, &source.Total,
+			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	}
@@ -275,10 +274,7 @@ func (s *Service) lockSalesSource(
 		return source, s.internal("lock sales source", err)
 	}
 	source.BusinessDate = date
-	ready := source.Status == StatusFinalized
-	if source.ControlDomain == "WFL" {
-		ready = source.Status == StatusApproved || source.Status == StatusFinalized
-	}
+	ready := source.Status == StatusApproved || source.Status == StatusFinalized
 	if !ready {
 		return source, domainError(ErrorConflict, "source document is not approved", nil, nil)
 	}
@@ -305,9 +301,10 @@ func (s *Service) insertChainDocument(
 	id := newID()
 	number := fmt.Sprintf("%s-%s-%06d", entityPrefix(entity), date.Format("20060102"), counter)
 	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,parent_document_id,business_date,currency,total_amount_cents,remark,
-		created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)`,
-		id, entity, number, parentID, date, currency, total, remark, actorID)
+		id,entity,document_no,parent_entity,parent_document_id,business_date,currency,
+		total_amount_cents,remark,created_by,updated_by
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
+		id, entity, number, salesParentEntity(entity), parentID, date, currency, total, remark, actorID)
 	if err != nil {
 		return "", "", s.writeError("insert sales-chain document", err)
 	}
@@ -449,7 +446,7 @@ func (s *Service) writeSaleOutbound(
 	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
 		DocumentID: id, Entity: EntitySaleOutbound, Event: event, From: stringPtr(StatusDraft),
 		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"sourceDocumentId": source.ID},
+		Summary: map[string]any{"parentDocumentId": source.ID},
 	}); err != nil {
 		return MutationResult{}, err
 	}
@@ -536,7 +533,7 @@ func (s *Service) writeSaleDelivery(
 	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
 		DocumentID: id, Entity: EntitySaleDelivery, Event: event, From: stringPtr(StatusDraft),
 		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"sourceDocumentId": source.ID},
+		Summary: map[string]any{"parentDocumentId": source.ID},
 	}); err != nil {
 		return MutationResult{}, err
 	}
@@ -657,7 +654,7 @@ func (s *Service) writeSaleSignoff(
 	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
 		DocumentID: id, Entity: EntitySaleSignoff, Event: event, From: stringPtr(StatusDraft),
 		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"sourceDocumentId": source.ID},
+		Summary: map[string]any{"parentDocumentId": source.ID},
 	}); err != nil {
 		return MutationResult{}, err
 	}

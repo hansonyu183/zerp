@@ -35,16 +35,6 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 			return err
 		}
 	}
-	for _, entity := range []string{voudomain.EntityGoodsReceipt, voudomain.EntitySignoffNote} {
-		if err := bus.Subscribe(voudomain.ManagedDocumentFinalizedTopic(entity),
-			"led-wfl-posting", s.HandleManagedDocument); err != nil {
-			return err
-		}
-		if err := bus.Subscribe(voudomain.ManagedDocumentReversedTopic(entity),
-			"led-wfl-reversal", s.HandleManagedDocument); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -83,9 +73,6 @@ func (s *Service) Activate(
 	if err = s.replayVouDocuments(
 		ctx, tx, q, generationID, control.CutoverDate.Time, documents, actorID, requestID,
 	); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.replayManagedDocuments(ctx, tx, generationID, control.CutoverDate.Time, requestID); err != nil {
 		return MutationResult{}, err
 	}
 	revision, err := s.finalizeActivation(

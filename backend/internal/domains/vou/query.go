@@ -46,44 +46,11 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 }
 
 func storedStatuses(entity string, statuses []string) []string {
-	result := make([]string, 0, len(statuses))
-	for _, status := range statuses {
-		switch {
-		case entity == EntityCustomerOrder && status == StatusChecked:
-			result = append(result, "REVIEWED")
-		case entity == EntityProcurementOrder && status == "ORDERED":
-			result = append(result, StatusApproved)
-		case (entity == EntityGoodsReceipt || entity == EntitySignoffNote) && status == "CONFIRMED":
-			result = append(result, StatusApproved)
-		case entity == EntityDeliveryNote && status == "EXECUTED":
-			result = append(result, StatusApproved)
-		case (entity == EntityProcurementOrder || entity == EntityGoodsReceipt ||
-			entity == EntityDeliveryNote || entity == EntitySignoffNote) && status == StatusChecked:
-			result = append(result, "REVIEWED")
-		default:
-			result = append(result, status)
-		}
-	}
-	return result
+	return statuses
 }
 
-func documentStatus(entity, status string) string {
-	if status == "REVIEWED" {
-		return StatusChecked
-	}
-	if status != StatusApproved {
-		return status
-	}
-	switch entity {
-	case EntityProcurementOrder:
-		return "ORDERED"
-	case EntityGoodsReceipt, EntitySignoffNote:
-		return "CONFIRMED"
-	case EntityDeliveryNote:
-		return "EXECUTED"
-	default:
-		return status
-	}
+func documentStatus(_ string, status string) string {
+	return status
 }
 
 func (s *Service) Get(ctx context.Context, entity string, input GetInput) (DocumentView, error) {
@@ -108,9 +75,12 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Docum
 	view := documentView(document, data, attachmentViews(attachments))
 	if document.ParentDocumentID != nil {
 		view.ParentDocumentID = *document.ParentDocumentID
-		if err = s.pool.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`,
-			*document.ParentDocumentID).Scan(&view.SourceDocumentNo); err != nil {
-			return DocumentView{}, s.internal("load source document", err)
+		if document.ParentEntity != nil {
+			view.ParentEntity = *document.ParentEntity
+		}
+		if err = s.pool.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1 AND entity=$2`,
+			*document.ParentDocumentID, view.ParentEntity).Scan(&view.ParentDocumentNo); err != nil {
+			return DocumentView{}, s.internal("load parent document", err)
 		}
 	}
 	return view, nil

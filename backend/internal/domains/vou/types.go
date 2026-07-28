@@ -16,19 +16,13 @@ const (
 	EntityPayment              = "payment"
 	EntityExpenseReimbursement = "expense-reimbursement"
 	EntityOtherIncome          = "other-income"
-	EntityCustomerOrder        = "customer-order"
-	EntityProcurementOrder     = "procurement-order"
-	EntityGoodsReceipt         = "goods-receipt"
-	EntityDeliveryNote         = "delivery-note"
-	EntitySignoffNote          = "signoff-note"
-
-	StatusDraft               = "DRAFT"
-	StatusChecked             = "CHECKED"
-	StatusApproved            = "APPROVED"
-	StatusFinalized           = "FINALIZED"
-	StatusCompleted           = "COMPLETED"
-	StatusShortCloseRequested = "SHORT_CLOSE_REQUESTED"
-	StatusShortClosed         = "SHORT_CLOSED"
+	StatusDraft                = "DRAFT"
+	StatusChecked              = "CHECKED"
+	StatusApproved             = "APPROVED"
+	StatusFinalized            = "FINALIZED"
+	StatusCompleted            = "COMPLETED"
+	StatusShortCloseRequested  = "SHORT_CLOSE_REQUESTED"
+	StatusShortClosed          = "SHORT_CLOSED"
 )
 
 var entities = [...]string{
@@ -42,19 +36,12 @@ var entities = [...]string{
 	EntityPayment,
 	EntityExpenseReimbursement,
 	EntityOtherIncome,
-	EntityCustomerOrder,
-	EntityProcurementOrder,
-	EntityGoodsReceipt,
-	EntityDeliveryNote,
-	EntitySignoffNote,
 }
 
-func workflowManagedEntity(entity string) bool {
+func publicCreateEntity(entity string) bool {
 	switch entity {
-	case EntitySaleOrder, EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff,
-		EntityPurchaseOrder, EntityPurchaseInbound,
-		EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
-		EntityDeliveryNote, EntitySignoffNote:
+	case EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
+		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
 		return true
 	default:
 		return false
@@ -122,7 +109,7 @@ type DraftInput struct {
 	BusinessDate     string                    `json:"businessDate"`
 	Currency         string                    `json:"currency"`
 	Remark           string                    `json:"remark,omitempty"`
-	SourceDocumentID string                    `json:"sourceDocumentId,omitempty"`
+	SourceDocumentID string                    `json:"-"`
 	Customer         *ReferenceInput           `json:"customer,omitempty"`
 	Supplier         *ReferenceInput           `json:"supplier,omitempty"`
 	CounterpartyType string                    `json:"counterpartyType,omitempty"`
@@ -144,7 +131,9 @@ type DraftInput struct {
 }
 
 type CreateInput struct {
-	Data DraftInput `json:"data"`
+	ParentEntity     string     `json:"parentEntity,omitempty"`
+	ParentDocumentID string     `json:"parentDocumentId,omitempty"`
+	Data             DraftInput `json:"data"`
 }
 
 type SaveInput struct {
@@ -368,9 +357,6 @@ type DocumentDataView struct {
 	Platform                  *ReferenceView                `json:"platform,omitempty"`
 	Vehicle                   *ReferenceView                `json:"vehicle,omitempty"`
 	DifferenceReason          string                        `json:"differenceReason,omitempty"`
-	SourceDocumentID          string                        `json:"sourceDocumentId,omitempty"`
-	SourceDocumentNo          string                        `json:"sourceDocumentNo,omitempty"`
-	SourceEntity              string                        `json:"sourceEntity,omitempty"`
 	SignoffLines              []SaleSignoffLineView         `json:"signoffLines,omitempty"`
 	FulfillmentStatus         string                        `json:"fulfillmentStatus,omitempty"`
 	SignedQuantity            string                        `json:"signedQuantity,omitempty"`
@@ -405,8 +391,9 @@ type DocumentView struct {
 	ApprovedBy       *string          `json:"approvedBy,omitempty"`
 	FinalizedAt      *time.Time       `json:"finalizedAt,omitempty"`
 	FinalizedBy      *string          `json:"finalizedBy,omitempty"`
+	ParentEntity     string           `json:"parentEntity,omitempty"`
 	ParentDocumentID string           `json:"parentDocumentId,omitempty"`
-	SourceDocumentNo string           `json:"sourceDocumentNo,omitempty"`
+	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`
 }
 
 type MutationResult struct {

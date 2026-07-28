@@ -20,7 +20,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		t, pool,
 		signoutPath,
 		"/vou/sale-order/query", "/vou/sale-order/get",
-		"/wfl/intermediary-trade/query", "/wfl/intermediary-trade/get",
+		"/wfl/sales-fulfillment/query", "/wfl/sales-fulfillment/get",
 	)
 	slices.Sort(catalogPermissionIDs)
 	catalogRole, catalogErr := service.CreateRole(t.Context(), CreateRoleInput{

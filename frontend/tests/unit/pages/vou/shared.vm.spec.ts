@@ -141,7 +141,7 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines all fifteen atomic document entities', () => {
+  it('defines all ten atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',
       'sale-outbound',
@@ -153,22 +153,15 @@ describe('shared VOU entity view model', () => {
       'payment',
       'expense-reimbursement',
       'other-income',
-      'customer-order',
-      'procurement-order',
-      'goods-receipt',
-      'delivery-note',
-      'signoff-note',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
-    expect(voucherEntityConfigs['sale-order'].managedByWorkflow).toBe('sales-fulfillment')
-    expect(voucherEntityConfigs['purchase-order'].managedByWorkflow).toBe('purchase-fulfillment')
-    expect(voucherEntityConfigs['purchase-inbound'].managedByWorkflow).toBe('purchase-fulfillment')
-    expect(voucherEntityConfigs['customer-order'].managedByWorkflow).toBe('intermediary-trade')
+    expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe('sale-order')
+    expect(voucherEntityConfigs['purchase-inbound'].parentEntity).toBe('purchase-order')
   })
 
   it('builds entity-specific create payloads without dueDate or unrelated fields', async () => {
     for (const config of Object.values(voucherEntityConfigs).filter(
-      (item) => !item.sourceEntity,
+      (item) => !item.parentEntity,
     )) {
       vi.clearAllMocks()
       useSessionStore().permissions = [`/vou/${config.entity}/create`]
@@ -285,10 +278,11 @@ describe('shared VOU entity view model', () => {
     vm.form.value.salesChainLines[0].quantity = '4'
     expect(await vm.save()).toBe(true)
     expect(captured).toEqual({
+      parentEntity: 'sale-order',
+      parentDocumentId: 'ORDER-1',
       data: {
         businessDate: '2026-07-25',
         currency: 'CNY',
-        sourceDocumentId: 'ORDER-1',
         warehouse: {
           objectId: 'warehouse-object',
           versionId: 'warehouse-version',
@@ -303,7 +297,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('keeps workflow-managed documents read-only even with legacy write permissions', async () => {
+  it('uses exact VOU write permissions for atomic documents', async () => {
     const config = voucherEntityConfigs['sale-order']
     useSessionStore().permissions = [
       '/vou/sale-order/query',
@@ -315,7 +309,21 @@ describe('shared VOU entity view model', () => {
       '/vou/sale-order/attachment-remove',
     ]
     const vm = useVoucherEntityViewModel(config)
-    expect(vm.canCreate.value).toBe(false)
+    mockedPost.mockResolvedValue({
+      data: documentView(config, vm.form.value),
+    })
+    await vm.openDocument({
+      documentId: 'DOCUMENT-1',
+      entity: config.entity,
+      documentNo: 'SO-1',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-24',
+      currency: 'CNY',
+      amount: '10.00',
+      updatedAt: '2026-07-24T00:00:00Z',
+    })
+    expect(vm.canCreate.value).toBe(true)
     expect(vm.canEdit({
       documentId: 'DOCUMENT-1',
       entity: config.entity,
@@ -326,11 +334,11 @@ describe('shared VOU entity view model', () => {
       currency: 'CNY',
       amount: '10.00',
       updatedAt: '2026-07-24T00:00:00Z',
-    })).toBe(false)
-    expect(vm.actionAvailability.value.save).toBe(false)
-    expect(vm.actionAvailability.value.check).toBe(false)
-    expect(vm.actionAvailability.value.attachmentInitiate).toBe(false)
-    expect(vm.actionAvailability.value.attachmentRemove).toBe(false)
+    })).toBe(true)
+    expect(vm.actionAvailability.value.save).toBe(true)
+    expect(vm.actionAvailability.value.check).toBe(true)
+    expect(vm.actionAvailability.value.attachmentInitiate).toBe(true)
+    expect(vm.actionAvailability.value.attachmentRemove).toBe(true)
   })
 
   it('only exposes matching effective BOB object and version pairs', async () => {

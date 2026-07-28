@@ -26,7 +26,7 @@ export function useVoucherSalesChain(
   }
 
   async function searchSourceDocuments(keyword: string): Promise<void> {
-    if (!config.sourceEntity) return
+    if (!config.parentEntity) return
     const sequence = ++sourceSequence
     sourceLoading.value = true
     sourceError.value = null
@@ -34,7 +34,7 @@ export function useVoucherSalesChain(
       const { data } = await apiClient.post<
         PageResult<VoucherListItem>,
         PageRequest
-      >(`vou/${config.sourceEntity}/query`, {
+      >(`vou/${config.parentEntity}/query`, {
         page: 1,
         pageSize: 50,
         filters: {
@@ -55,19 +55,19 @@ export function useVoucherSalesChain(
   async function selectSourceDocument(
     documentId: string | null,
   ): Promise<void> {
-    form.value.sourceDocumentId = documentId ?? ''
-    form.value.sourceDocumentNo =
+    form.value.parentDocumentId = documentId ?? ''
+    form.value.parentDocumentNo =
       sourceOptions.value.find((item) => item.documentId === documentId)
         ?.documentNo ?? ''
     form.value.salesChainLines = []
-    if (!documentId || !config.sourceEntity) return
+    if (!documentId || !config.parentEntity) return
     sourceLoading.value = true
     sourceError.value = null
     try {
       const { data } = await apiClient.post<
         VoucherDocumentView,
         { documentId: string }
-      >(`vou/${config.sourceEntity}/get`, { documentId })
+      >(`vou/${config.parentEntity}/get`, { documentId })
       form.value.currency = data.data.currency
       if (config.entity === 'sale-outbound') {
         form.value.salesChainLines = (data.data.productLines ?? [])
@@ -133,7 +133,7 @@ export function validateSalesChainDraft(
   config: VoucherEntityConfig,
   value: VoucherDraftForm,
 ): string | null {
-  if (config.sourceEntity && !value.sourceDocumentId) return '请选择来源单据。'
+  if (config.parentEntity && !value.parentDocumentId) return '请选择来源单据。'
   if (
     config.entity === 'sale-delivery' &&
     (!value.platform || !value.vehicle)
@@ -174,7 +174,6 @@ export function appendSalesChainPayload(
   value: VoucherDraftForm,
   payload: DraftPayload,
 ): void {
-  if (config.sourceEntity) payload.sourceDocumentId = value.sourceDocumentId
   if (config.entity === 'sale-outbound') {
     payload.sourceLines = value.salesChainLines.map((line) => ({
       sourceLineId: line.sourceLineId,

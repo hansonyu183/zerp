@@ -162,6 +162,53 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 	}
 }
 
+func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	parent, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
+		Handler: &refs.employee, Amount: "100.00",
+	}}, integrationActorOne, "parent-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := service.Create(t.Context(), EntityPayment, CreateInput{
+		ParentEntity: EntityReceipt, ParentDocumentID: parent.DocumentID,
+		Data: DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
+			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
+			Handler: &refs.employee, Amount: "80.00",
+		},
+	}, integrationActorOne, "child-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.Get(t.Context(), EntityPayment, GetInput{DocumentID: child.DocumentID})
+	if err != nil || view.ParentEntity != EntityReceipt ||
+		view.ParentDocumentID != parent.DocumentID ||
+		view.ParentDocumentNo != parent.DocumentNo {
+		t.Fatalf("parent view=%+v err=%v", view, err)
+	}
+	if _, err = service.Create(t.Context(), EntityPayment, CreateInput{
+		ParentEntity: EntitySaleOrder, ParentDocumentID: parent.DocumentID,
+		Data: DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
+			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
+			Handler: &refs.employee, Amount: "10.00",
+		},
+	}, integrationActorOne, "mismatched-parent"); err == nil {
+		t.Fatal("mismatched parent entity was accepted")
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_documents
+		SET parent_entity=NULL,parent_document_id=NULL WHERE id=$1`, child.DocumentID); err == nil {
+		t.Fatal("parent relation was mutable")
+	}
+}
+
 func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
@@ -208,7 +255,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 146
+	wantPermissions := 147
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -232,8 +279,8 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
-	if legacyPermissions != 0 || purchaseWritePermissions != 0 ||
-		purchaseWorkflowPermissions != 29 {
+	if legacyPermissions != 0 || purchaseWritePermissions != 11 ||
+		purchaseWorkflowPermissions != 7 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)
 	}

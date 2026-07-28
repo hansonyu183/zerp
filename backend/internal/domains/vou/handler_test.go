@@ -98,6 +98,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	wanted := map[string]string{}
 	for _, entity := range entities {
 		for _, route := range actionRoutes {
+			if route.action == "create" && !publicCreateEntity(entity) {
+				continue
+			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
 		}
 	}
@@ -111,7 +114,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)+6; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3+2; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

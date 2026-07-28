@@ -47,9 +47,6 @@ func (s *Service) loadData(
 		return data, nil
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		return s.loadSalesChainData(ctx, document, data)
-	case EntityCustomerOrder, EntityProcurementOrder, EntityGoodsReceipt,
-		EntityDeliveryNote, EntitySignoffNote:
-		return s.loadManagedData(ctx, document, data)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, document.ID)
 		if err != nil {
@@ -90,13 +87,6 @@ func (s *Service) loadData(
 			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
 			detail.WarehouseCode, detail.WarehouseName, "", "", "",
 		)
-		data.SourceDocumentID = detail.SourceOrderID
-		var sourceNo string
-		if err = s.pool.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`,
-			detail.SourceOrderID).Scan(&sourceNo); err != nil {
-			return data, err
-		}
-		data.SourceDocumentNo, data.SourceEntity = sourceNo, EntityPurchaseOrder
 		rows, err := q.ListVouPurchaseInboundLines(ctx, document.ID)
 		if err != nil {
 			return data, err

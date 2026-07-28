@@ -29,10 +29,6 @@ type applicationService interface {
 	Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error)
 	Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
-	ShortCloseRequest(context.Context, ReverseInput, string, string) (MutationResult, error)
-	ShortCloseCancel(context.Context, ReverseInput, string, string) (MutationResult, error)
-	ShortCloseConfirm(context.Context, DocumentRevisionInput, string, string) (MutationResult, error)
-	ShortCloseUnconfirm(context.Context, ReverseInput, string, string) (MutationResult, error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
 	CreateDownload(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
@@ -86,39 +82,19 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {
+			if route.action == "create" && !publicCreateEntity(entity) {
+				continue
+			}
 			action := route.action
 			handle := route.handle
-			if workflowManagedEntity(entity) &&
-				action != "query" && action != "get" &&
-				action != "audit-history" && action != "attachment-download" {
-				handle = (*Handler).managedSalesWriteRejected
-			}
 			path := "/vou/" + entity + "/" + action
 			entityGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
 				handle(h, c, entity)
 			})
 		}
 	}
-	saleOrder := group.Group("/" + EntitySaleOrder)
-	saleOrder.POST("/short-close-request", h.authorize("/vou/sale-order/short-close-request"), h.managedSalesWriteRejectedRoute)
-	saleOrder.POST("/short-close-cancel", h.authorize("/vou/sale-order/short-close-cancel"), h.managedSalesWriteRejectedRoute)
-	saleOrder.POST("/short-close-confirm", h.authorize("/vou/sale-order/short-close-confirm"), h.managedSalesWriteRejectedRoute)
-	saleOrder.POST("/short-close-unconfirm", h.authorize("/vou/sale-order/short-close-unconfirm"), h.managedSalesWriteRejectedRoute)
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
-}
-
-func (h *Handler) managedSalesWriteRejected(c *gin.Context, _ string) {
-	h.writeError(c, domainError(
-		ErrorValidation,
-		"流程管理单据只能独立查看，请使用对应 WFL 接口维护",
-		nil,
-		nil,
-	))
-}
-
-func (h *Handler) managedSalesWriteRejectedRoute(c *gin.Context) {
-	h.managedSalesWriteRejected(c, EntitySaleOrder)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {

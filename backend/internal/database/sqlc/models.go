@@ -650,6 +650,18 @@ type LedPartyEntry struct {
 	AmountDeltaCents      int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
 }
 
+type MigrationWflRolePermission struct {
+	RoleID    string  `db:"role_id" json:"role_id"`
+	Entity    string  `db:"entity" json:"entity"`
+	Action    string  `db:"action" json:"action"`
+	CreatedBy *string `db:"created_by" json:"created_by"`
+}
+
+type RemovedIntermediaryFile struct {
+	ID         string `db:"id" json:"id"`
+	StorageKey string `db:"storage_key" json:"storage_key"`
+}
+
 type VouAuditEvent struct {
 	ID              string             `db:"id" json:"id"`
 	DocumentID      string             `db:"document_id" json:"document_id"`
@@ -667,77 +679,6 @@ type VouAuditEvent struct {
 	ChildID         *string            `db:"child_id" json:"child_id"`
 	ChildNo         *string            `db:"child_no" json:"child_no"`
 	ChildStatus     *string            `db:"child_status" json:"child_status"`
-}
-
-type VouCustomerOrderDetail struct {
-	DocumentID            string  `db:"document_id" json:"document_id"`
-	Entity                string  `db:"entity" json:"entity"`
-	CustomerObjectID      string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID     string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode          string  `db:"customer_code" json:"customer_code"`
-	CustomerName          string  `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID   string  `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID  string  `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode       string  `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName       string  `db:"salesperson_name" json:"salesperson_name"`
-	ContactName           *string `db:"contact_name" json:"contact_name"`
-	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress       *string `db:"delivery_address" json:"delivery_address"`
-	SettlementObjectID    string  `db:"settlement_object_id" json:"settlement_object_id"`
-	SettlementVersionID   string  `db:"settlement_version_id" json:"settlement_version_id"`
-	SettlementCode        string  `db:"settlement_code" json:"settlement_code"`
-	SettlementName        string  `db:"settlement_name" json:"settlement_name"`
-	SettlementRuleType    string  `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth  *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-}
-
-type VouCustomerOrderLine struct {
-	ID                         string  `db:"id" json:"id"`
-	DocumentID                 string  `db:"document_id" json:"document_id"`
-	LineNo                     int32   `db:"line_no" json:"line_no"`
-	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID           string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode                string  `db:"product_code" json:"product_code"`
-	ProductName                string  `db:"product_name" json:"product_name"`
-	ProductUnit                string  `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros           int64   `db:"ordered_qty_micros" json:"ordered_qty_micros"`
-	SaleUnitPriceCents         int64   `db:"sale_unit_price_cents" json:"sale_unit_price_cents"`
-	LineAmountCents            int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	ContainerType              string  `db:"container_type" json:"container_type"`
-	QuantityPerContainerMicros *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
-	Remark                     *string `db:"remark" json:"remark"`
-}
-
-type VouDeliveryNoteDetail struct {
-	DocumentID                string `db:"document_id" json:"document_id"`
-	Entity                    string `db:"entity" json:"entity"`
-	CustomerObjectID          string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID         string `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode              string `db:"customer_code" json:"customer_code"`
-	CustomerName              string `db:"customer_name" json:"customer_name"`
-	PlatformObjectID          string `db:"platform_object_id" json:"platform_object_id"`
-	PlatformVersionID         string `db:"platform_version_id" json:"platform_version_id"`
-	PlatformCode              string `db:"platform_code" json:"platform_code"`
-	PlatformName              string `db:"platform_name" json:"platform_name"`
-	VehicleObjectID           string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID          string `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode               string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName               string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber        string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	ExpectedSolventContainers int64  `db:"expected_solvent_containers" json:"expected_solvent_containers"`
-	ExpectedResinContainers   int64  `db:"expected_resin_containers" json:"expected_resin_containers"`
-}
-
-type VouDeliveryNoteLine struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	SourceCustomerLineID string  `db:"source_customer_line_id" json:"source_customer_line_id"`
-	QuantityMicros       int64   `db:"quantity_micros" json:"quantity_micros"`
-	SaleUnitPriceCents   int64   `db:"sale_unit_price_cents" json:"sale_unit_price_cents"`
-	LineAmountCents      int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark               *string `db:"remark" json:"remark"`
 }
 
 type VouDocument struct {
@@ -760,13 +701,11 @@ type VouDocument struct {
 	ApprovedBy       *string            `db:"approved_by" json:"approved_by"`
 	ExecutedAt       pgtype.Timestamptz `db:"executed_at" json:"executed_at"`
 	ExecutedBy       *string            `db:"executed_by" json:"executed_by"`
-	WorkflowVersion  int16              `db:"workflow_version" json:"workflow_version"`
 	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
 	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
 	CompletedAt      pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
-	ControlDomain    string             `db:"control_domain" json:"control_domain"`
-	AutoGenerated    bool               `db:"auto_generated" json:"auto_generated"`
+	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
 }
 
 type VouDocumentAttachment struct {
@@ -824,26 +763,6 @@ type VouFile struct {
 	CreatedBy       string             `db:"created_by" json:"created_by"`
 }
 
-type VouGoodsReceiptDetail struct {
-	DocumentID        string `db:"document_id" json:"document_id"`
-	Entity            string `db:"entity" json:"entity"`
-	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
-	SupplierName      string `db:"supplier_name" json:"supplier_name"`
-}
-
-type VouGoodsReceiptLine struct {
-	ID                      string  `db:"id" json:"id"`
-	DocumentID              string  `db:"document_id" json:"document_id"`
-	SourceProcurementLineID string  `db:"source_procurement_line_id" json:"source_procurement_line_id"`
-	SourceCustomerLineID    string  `db:"source_customer_line_id" json:"source_customer_line_id"`
-	QuantityMicros          int64   `db:"quantity_micros" json:"quantity_micros"`
-	PurchaseUnitPriceCents  int64   `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
-	LineAmountCents         int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark                  *string `db:"remark" json:"remark"`
-}
-
 type VouNumberCounter struct {
 	Entity       string      `db:"entity" json:"entity"`
 	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
@@ -885,39 +804,6 @@ type VouPaymentDetail struct {
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
 	HandlerName           *string `db:"handler_name" json:"handler_name"`
-}
-
-type VouProcurementOrderDetail struct {
-	DocumentID            string  `db:"document_id" json:"document_id"`
-	Entity                string  `db:"entity" json:"entity"`
-	SupplierObjectID      string  `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID     string  `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode          string  `db:"supplier_code" json:"supplier_code"`
-	SupplierName          string  `db:"supplier_name" json:"supplier_name"`
-	PurchaserObjectID     string  `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID    string  `db:"purchaser_version_id" json:"purchaser_version_id"`
-	PurchaserCode         string  `db:"purchaser_code" json:"purchaser_code"`
-	PurchaserName         string  `db:"purchaser_name" json:"purchaser_name"`
-	ContactName           *string `db:"contact_name" json:"contact_name"`
-	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
-	SettlementObjectID    string  `db:"settlement_object_id" json:"settlement_object_id"`
-	SettlementVersionID   string  `db:"settlement_version_id" json:"settlement_version_id"`
-	SettlementCode        string  `db:"settlement_code" json:"settlement_code"`
-	SettlementName        string  `db:"settlement_name" json:"settlement_name"`
-	SettlementRuleType    string  `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth  *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-}
-
-type VouProcurementOrderLine struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	SourceCustomerLineID string  `db:"source_customer_line_id" json:"source_customer_line_id"`
-	QuantityMicros       int64   `db:"quantity_micros" json:"quantity_micros"`
-	UnitPriceCents       *int64  `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents      *int64  `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark               *string `db:"remark" json:"remark"`
 }
 
 type VouProductLine struct {
@@ -1129,31 +1015,6 @@ type VouSaleSignoffLine struct {
 	RejectedQtyMicros    int64   `db:"rejected_qty_micros" json:"rejected_qty_micros"`
 	LossQtyMicros        int64   `db:"loss_qty_micros" json:"loss_qty_micros"`
 	UnitPriceCents       int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents      int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark               *string `db:"remark" json:"remark"`
-}
-
-type VouSignoffNoteDetail struct {
-	DocumentID                string  `db:"document_id" json:"document_id"`
-	Entity                    string  `db:"entity" json:"entity"`
-	CustomerObjectID          string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID         string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode              string  `db:"customer_code" json:"customer_code"`
-	CustomerName              string  `db:"customer_name" json:"customer_name"`
-	ReturnedSolventContainers int64   `db:"returned_solvent_containers" json:"returned_solvent_containers"`
-	ReturnedResinContainers   int64   `db:"returned_resin_containers" json:"returned_resin_containers"`
-	ContainerDifferenceReason *string `db:"container_difference_reason" json:"container_difference_reason"`
-}
-
-type VouSignoffNoteLine struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	SourceDeliveryLineID string  `db:"source_delivery_line_id" json:"source_delivery_line_id"`
-	SourceCustomerLineID string  `db:"source_customer_line_id" json:"source_customer_line_id"`
-	SignedQtyMicros      int64   `db:"signed_qty_micros" json:"signed_qty_micros"`
-	RejectedQtyMicros    int64   `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	LossQtyMicros        int64   `db:"loss_qty_micros" json:"loss_qty_micros"`
-	SaleUnitPriceCents   int64   `db:"sale_unit_price_cents" json:"sale_unit_price_cents"`
 	LineAmountCents      int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark               *string `db:"remark" json:"remark"`
 }

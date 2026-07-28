@@ -209,7 +209,7 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('为全部十五类原子单据注册独立 VOU 页面', () => {
+  it('为全部十类原子单据注册独立 VOU 页面', () => {
     const entities = [
       'sale-order',
       'sale-outbound',
@@ -221,11 +221,6 @@ describe('permission menu registry', () => {
       'payment',
       'expense-reimbursement',
       'other-income',
-      'customer-order',
-      'procurement-order',
-      'goods-receipt',
-      'delivery-note',
-      'signoff-note',
     ]
 
     expect(entities.every((entity) => hasRegisteredPage('vou', entity))).toBe(true)
@@ -246,26 +241,20 @@ describe('permission menu registry', () => {
       '往来付款',
       '费用报销',
       '其他收入',
-      '居间订单',
-      '居间采购',
-      '居间收货',
-      '居间送货',
-      '居间签收',
     ])
     expect(hasRegisteredPage('vou', 'sale-order')).toBe(true)
-    expect(hasRegisteredPage('vou', 'customer-order')).toBe(true)
+    expect(hasRegisteredPage('vou', 'customer-order')).toBe(false)
     expect(hasRegisteredPage('vou', 'intermediary-sale-order')).toBe(false)
   })
 
-  it('将销售履约和居间贸易注册在 VOU 与 LED 之间', () => {
-    expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(true)
+  it('将销售与采购履约注册在 VOU 与 LED 之间', () => {
+    expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(false)
     expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(true)
     expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(true)
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
       '/led/opening/get',
-      '/wfl/intermediary-trade/query',
       '/wfl/purchase-fulfillment/query',
       '/wfl/sales-fulfillment/query',
       '/vou/purchase-order/query',
@@ -287,12 +276,6 @@ describe('permission menu registry', () => {
           entity: 'purchase-fulfillment',
           title: '采购履约',
           order: 20,
-          actions: ['query'],
-        },
-        {
-          entity: 'intermediary-trade',
-          title: '居间贸易',
-          order: 30,
           actions: ['query'],
         },
       ],

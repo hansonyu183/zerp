@@ -9,11 +9,6 @@ export type VoucherEntity =
   | 'payment'
   | 'expense-reimbursement'
   | 'other-income'
-  | 'customer-order'
-  | 'procurement-order'
-  | 'goods-receipt'
-  | 'delivery-note'
-  | 'signoff-note'
 
 export type VoucherStatus =
   | 'DRAFT'
@@ -92,8 +87,8 @@ export interface VoucherDraftForm {
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
-  sourceDocumentId: string
-  sourceDocumentNo: string
+  parentDocumentId: string
+  parentDocumentNo: string
   productLines: VoucherProductLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
@@ -174,18 +169,7 @@ export interface VoucherAttachment {
   createdBy: string
 }
 
-export type WflManagedVoucherEntity =
-  | 'sale-order'
-  | 'sale-outbound'
-  | 'sale-delivery'
-  | 'sale-signoff'
-  | 'customer-order'
-  | 'procurement-order'
-  | 'goods-receipt'
-  | 'delivery-note'
-  | 'signoff-note'
-
-export type VouAtomicEntity = VoucherEntity | WflManagedVoucherEntity
+export type VouAtomicEntity = VoucherEntity
 
 export interface VouAtomicDocument<
   TData = unknown,
@@ -197,7 +181,9 @@ export interface VouAtomicDocument<
   entity: VouAtomicEntity
   status: TStatus
   revision: number
+  parentEntity?: VoucherEntity
   parentDocumentId?: string
+  parentDocumentNo?: string
   businessDate: string
   currency: string
   amount: string
@@ -248,9 +234,6 @@ export interface VoucherDocumentData {
   platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
   differenceReason?: string
-  sourceDocumentId?: string
-  sourceDocumentNo?: string
-  sourceEntity?: VoucherEntity
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?: 'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
   signedQuantity?: string
@@ -302,8 +285,9 @@ export interface VoucherDocumentView {
   approvedBy?: string
   finalizedAt?: string
   finalizedBy?: string
+  parentEntity?: VoucherEntity
   parentDocumentId?: string
-  sourceDocumentNo?: string
+  parentDocumentNo?: string
 }
 
 export interface VoucherListItem {
@@ -400,7 +384,7 @@ export interface VoucherEntityConfig {
   lineKind: VoucherLineKind
   finalizationKind: VoucherFinalizationKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
-  sourceEntity?: VoucherEntity
+  parentEntity?: VoucherEntity
   usesSalesperson?: boolean
   usesPurchaser?: boolean
   usesWarehouse?: boolean
@@ -409,10 +393,6 @@ export interface VoucherEntityConfig {
   usesEmployee?: boolean
   usesSourceName?: boolean
   directAmount?: boolean
-  managedByWorkflow?:
-    | 'sales-fulfillment'
-    | 'purchase-fulfillment'
-    | 'intermediary-trade'
 }
 
 export interface VoucherActionAvailability {

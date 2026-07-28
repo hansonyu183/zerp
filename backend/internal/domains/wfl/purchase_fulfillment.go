@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
@@ -121,8 +122,13 @@ func (s *Service) PurchaseGet(ctx context.Context, input GetInput) (ProcessView,
 	if err != nil {
 		return view, internal("get purchase workflow", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT x.document_id,d.entity,x.stage
-		FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
+	rows, err := s.pool.Query(ctx, `SELECT x.document_id,d.document_no,d.entity,x.stage,
+		d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,
+		d.created_at,d.created_by,d.reviewed_at,d.reviewed_by,d.approved_at,d.approved_by,
+		COALESCE(d.parent_entity,''),COALESCE(d.parent_document_id,''),COALESCE(parent.document_no,'')
+		FROM wfl_process_documents x
+		JOIN vou_documents d ON d.id=x.document_id
+		LEFT JOIN vou_documents parent ON parent.id=d.parent_document_id
 		WHERE x.process_id=$1
 		ORDER BY CASE x.stage WHEN 'PURCHASE_ORDER' THEN 1 ELSE 2 END,x.sequence_no`,
 		input.ProcessID)
@@ -131,26 +137,21 @@ func (s *Service) PurchaseGet(ctx context.Context, input GetInput) (ProcessView,
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, entity, stage string
-		if err = rows.Scan(&id, &entity, &stage); err != nil {
+		var item DocumentSummary
+		var businessDate time.Time
+		var amount int64
+		if err = rows.Scan(
+			&item.DocumentID, &item.DocumentNo, &item.Entity, &item.Stage,
+			&item.Status, &item.Revision, &businessDate, &item.Currency, &amount,
+			&item.CreatedAt, &item.CreatedBy, &item.ReviewedAt, &item.ReviewedBy,
+			&item.ApprovedAt, &item.ApprovedBy,
+			&item.ParentEntity, &item.ParentDocumentID, &item.ParentDocumentNo,
+		); err != nil {
 			return view, err
 		}
-		document, getErr := s.purchase.Get(ctx, entity, voudomain.GetInput{DocumentID: id})
-		if getErr != nil {
-			return view, getErr
-		}
-		view.Documents = append(view.Documents, DocumentSummary{
-			DocumentID: document.DocumentID, DocumentNo: document.DocumentNo,
-			Entity: entity, Stage: stage, Status: document.Status, Revision: document.Revision,
-			BusinessDate: document.Data.BusinessDate, Currency: document.Data.Currency,
-			Amount: document.Amount, Data: document.Data, Attachments: document.Attachments,
-			CreatedAt: document.CreatedAt, CreatedBy: document.CreatedBy,
-			ReviewedAt: document.CheckedAt, ReviewedBy: document.CheckedBy,
-			ApprovedAt: document.ApprovedAt, ApprovedBy: document.ApprovedBy,
-			ParentDocumentID: document.ParentDocumentID,
-			SourceDocumentNo: document.SourceDocumentNo,
-			Lines:            document.Data.ProductLines,
-		})
+		item.BusinessDate = documentLinkDate(businessDate)
+		item.Amount = documentLinkAmount(amount)
+		view.Documents = append(view.Documents, item)
 	}
 	view.CurrentStage = StagePurchaseOrder
 	if view.Status == StatusApproved {

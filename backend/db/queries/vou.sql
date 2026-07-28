@@ -7,10 +7,13 @@ RETURNING last_value;
 
 -- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
-    id, entity, document_no, business_date, currency, total_amount_cents, remark, created_by, updated_by
+    id, entity, document_no, business_date, currency, total_amount_cents, remark,
+    parent_entity, parent_document_id, created_by, updated_by
 ) VALUES (
     sqlc.arg(id), sqlc.arg(entity), sqlc.arg(document_no), sqlc.arg(business_date),
-    sqlc.arg(currency), sqlc.arg(total_amount_cents), sqlc.narg(remark), sqlc.arg(actor_id), sqlc.arg(actor_id)
+    sqlc.arg(currency), sqlc.arg(total_amount_cents), sqlc.narg(remark),
+    sqlc.narg(parent_entity), sqlc.narg(parent_document_id),
+    sqlc.arg(actor_id), sqlc.arg(actor_id)
 );
 
 -- name: LockVouDocument :one
@@ -105,11 +108,6 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_customer_order_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_procurement_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_goods_receipt_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_delivery_note_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_signoff_note_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -132,25 +130,14 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_customer_order_details x WHERE x.document_id = d.id
-          AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_procurement_order_details x WHERE x.document_id = d.id
-          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_goods_receipt_details x WHERE x.document_id = d.id
-          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_delivery_note_details x WHERE x.document_id = d.id
-          AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
-      OR EXISTS (SELECT 1 FROM vou_signoff_note_details x WHERE x.document_id = d.id
-          AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
   );
 
 -- name: ListVouDocuments :many
 SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 po.supplier_name, pi.supplier_name, r.counterparty_name,
-                p.counterparty_name, er.employee_name, oi.counterparty_name, oi.source_name,
-                co.customer_name, pro.supplier_name, gr.supplier_name,
-                dn.customer_name, sn.customer_name, '') AS party_name
+                p.counterparty_name, er.employee_name, oi.counterparty_name,
+                oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
@@ -162,11 +149,6 @@ LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
-LEFT JOIN vou_customer_order_details co ON co.document_id = d.id
-LEFT JOIN vou_procurement_order_details pro ON pro.document_id = d.id
-LEFT JOIN vou_goods_receipt_details gr ON gr.document_id = d.id
-LEFT JOIN vou_delivery_note_details dn ON dn.document_id = d.id
-LEFT JOIN vou_signoff_note_details sn ON sn.document_id = d.id
 WHERE d.entity = sqlc.arg(entity)
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
@@ -182,11 +164,6 @@ WHERE d.entity = sqlc.arg(entity)
       OR r.counterparty_object_id = sqlc.arg(party_object_id)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
-      OR co.customer_object_id = sqlc.arg(party_object_id)
-      OR pro.supplier_object_id = sqlc.arg(party_object_id)
-      OR gr.supplier_object_id = sqlc.arg(party_object_id)
-      OR dn.customer_object_id = sqlc.arg(party_object_id)
-      OR sn.customer_object_id = sqlc.arg(party_object_id)
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -200,11 +177,6 @@ WHERE d.entity = sqlc.arg(entity)
       OR r.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR r.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR co.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR co.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR pro.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR pro.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR gr.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR gr.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR dn.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR dn.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
-      OR sn.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR sn.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN d.updated_at END ASC,

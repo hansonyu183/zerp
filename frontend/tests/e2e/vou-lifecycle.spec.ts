@@ -153,92 +153,67 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
-test('销售履约按批准结果自动生成出库、配送和签收草稿', async ({ page }) => {
+test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
 
-  await page.goto('/wfl/sales-fulfillment')
-  await page.getByRole('button', { name: '新建销售履约' }).click()
-  let editor = page.getByRole('dialog')
-  await expect(editor.getByLabel('币种')).not.toBeVisible()
-  await editor.getByRole('button', { name: '更多设置' }).click()
-  await expect(editor.getByLabel('币种')).toHaveValue('CNY')
-  await selectReference(page, '客户', fixture.customer, editor)
-  await selectReference(page, /业务员/, fixture.employee, editor)
-  await selectReference(page, '产品', fixture.product, editor)
+  await page.goto('/vou/sale-order')
+  await page.getByRole('button', { name: '新建单据' }).click()
+  const workspace = page.locator('.voucher-workspace')
+  await expect(workspace.getByLabel('币种')).not.toBeVisible()
+  await workspace.getByRole('button', { name: '更多设置' }).click()
+  await expect(workspace.getByLabel('币种')).toHaveValue('CNY')
+  await selectReference(page, '客户', fixture.customer, workspace)
+  await selectReference(page, /业务员/, fixture.employee, workspace)
+  await selectReference(page, '产品', fixture.product, workspace)
 
-  const draftLine = editor.locator('.voucher-lines__table tbody tr').first()
+  const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
   const originalLineHeight = await draftLine.evaluate(
     (element) => element.getBoundingClientRect().height,
   )
-  await editor.getByRole('button', { name: '保存', exact: true }).click()
+  await workspace.getByRole('button', { name: '创建草稿' }).click()
   await expect(page.getByText(/第 1 行/)).toBeVisible()
-  await expect.poll(
-    () => draftLine.evaluate((element) => element.getBoundingClientRect().height),
-  ).toBe(originalLineHeight)
+  await expect
+    .poll(() =>
+      draftLine.evaluate((element) => element.getBoundingClientRect().height),
+    )
+    .toBe(originalLineHeight)
   const draftInputs = draftLine.locator('input')
   await draftInputs.nth(1).fill('2')
   await draftInputs.nth(2).fill('12.50')
   await expect(draftLine).toContainText('25.00')
-  await editor.getByRole('button', { name: '保存', exact: true }).click()
-
-  const stages = page.locator('.sales-fulfillment__stages')
-  const stageCard = (name: string) =>
-    stages.locator('.v-card').filter({ hasText: name }).first()
-  const order = stageCard('销售订单')
-  await expect(order).toContainText(/SO-\d{8}-\d{6}/)
-  const orderNo = (await order.textContent())?.match(/SO-\d{8}-\d{6}/)?.[0]
+  await workspace.getByRole('button', { name: '创建草稿' }).click()
+  await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/)
+  const orderNo = (
+    await workspace.locator('.voucher-document-header__number').textContent()
+  )?.trim()
   expect(orderNo).toBeTruthy()
-  await order.getByRole('button', { name: '核对', exact: true }).click()
-  await order.getByRole('button', { name: '批准', exact: true }).click()
+  await workspace.getByRole('button', { name: '取消编辑' }).click()
+  await workspace.getByRole('button', { name: '核对', exact: true }).click()
+  await expect(workspace.getByText('已核对', { exact: true })).toBeVisible()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
-  const outbound = stageCard('销售出库')
-  await expect(outbound).toContainText('草稿')
-  await expect(outbound.getByText(/来源：/)).toBeVisible()
-  await outbound.getByRole('button', { name: '编辑', exact: true }).click()
-  editor = page.getByRole('dialog')
-  await expect(editor.getByLabel('来源单据')).toHaveAttribute('readonly', '')
-  await selectReference(page, '仓库', fixture.warehouse, editor)
-  await editor.getByRole('button', { name: '保存', exact: true }).click()
-
-  await order.getByRole('button', { name: '完成', exact: true }).click()
-  await outbound.getByRole('button', { name: '核对', exact: true }).click()
-  await outbound.getByRole('button', { name: '批准', exact: true }).click()
-  await outbound.getByRole('button', { name: '完成', exact: true }).click()
-
-  const delivery = stageCard('销售送货')
-  await expect(delivery).toContainText('草稿')
-  await delivery.getByRole('button', { name: '编辑', exact: true }).click()
-  editor = page.getByRole('dialog')
-  await selectReference(page, '物流平台', fixture.platform, editor)
-  await selectReference(page, '车辆', fixture.vehicle, editor)
-  await editor.getByRole('button', { name: '保存', exact: true }).click()
-  await delivery.getByRole('button', { name: '核对', exact: true }).click()
-  await delivery.getByRole('button', { name: '批准', exact: true }).click()
-  await delivery.getByRole('button', { name: '完成', exact: true }).click()
-
-  const signoff = stageCard('销售签收')
-  await expect(signoff).toContainText('草稿')
-  await signoff.getByRole('button', { name: '编辑', exact: true }).click()
-  editor = page.getByRole('dialog')
-  await expect(editor.getByLabel('来源单据')).toHaveAttribute('readonly', '')
-  await editor.getByRole('button', { name: '保存', exact: true }).click()
-  await signoff.getByRole('button', { name: '核对', exact: true }).click()
-  await signoff.getByRole('button', { name: '批准', exact: true }).click()
-  await signoff.getByRole('button', { name: '完成', exact: true }).click()
-  await expect(signoff).toContainText('已完成')
-
-  await page.goto('/vou/sale-order')
-  await expect(page.getByText('独立页面仅供查询和查看')).toBeVisible()
-  await expect(page.getByRole('button', { name: '新建单据' })).toHaveCount(0)
-  await page.getByText('筛选条件', { exact: true }).click()
-  await page.getByRole('textbox', { name: '单号或往来方关键字' }).fill(orderNo!)
+  await page.goto('/wfl/sales-fulfillment')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  await page.getByLabel(`查看 ${orderNo}`).click()
-  const readOnlyWorkspace = page.getByRole('dialog')
-  await expect(
-    readOnlyWorkspace.getByText('新建、编辑和流转请在业务流程中完成'),
-  ).toBeVisible()
-  await expect(readOnlyWorkspace.getByRole('button', { name: /编辑|保存|核对|批准|完成/ })).toHaveCount(0)
+  const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
+  await expect(processRow).toHaveCount(1)
+  await processRow.getByRole('button', { name: '查看组合' }).click()
+  const composition = page.getByRole('dialog')
+  await expect(composition).toContainText(orderNo!)
+  const outbound = composition
+    .locator('tbody tr')
+    .filter({ hasText: 'OUTBOUND' })
+  await expect(outbound).toContainText(/^.*SOB-\d{8}-\d{6}.*DRAFT.*$/)
+
+  await outbound.click()
+  const outboundWorkspace = page.locator('.voucher-workspace')
+  await expect(outboundWorkspace).toBeVisible()
+  await expect(outboundWorkspace.getByLabel('来源单据')).toHaveAttribute(
+    'readonly',
+    '',
+  )
+  await expect(page.getByRole('button', { name: '新建单据' })).toHaveCount(0)
 })

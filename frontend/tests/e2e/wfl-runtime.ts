@@ -15,7 +15,6 @@ export interface E2ECredentials {
 
 export interface WflBootstrapState {
   reviewer: E2ECredentials
-  redacted: E2ECredentials
   fixtures: {
     customer: string
     supplier: string
@@ -46,8 +45,6 @@ export function readWflBootstrapState(): WflBootstrapState {
   if (
     !state.reviewer?.username ||
     !state.reviewer.password ||
-    !state.redacted?.username ||
-    !state.redacted.password ||
     !state.fixtures?.customer ||
     !state.fixtures.supplier ||
     !state.fixtures.employee ||
@@ -93,11 +90,4 @@ export function wflFixtures(): WflFixtures {
     )
   }
   return fixtures
-}
-
-export function redactedCredentials(): E2ECredentials | null {
-  if (wflBootstrapEnabled()) return readWflBootstrapState().redacted
-  const username = e2eEnv('E2E_WFL_REDACTED_USERNAME')
-  const password = e2eEnv('E2E_WFL_REDACTED_PASSWORD')
-  return username && password ? { username, password } : null
 }

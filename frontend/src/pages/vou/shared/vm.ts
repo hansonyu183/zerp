@@ -5,6 +5,7 @@ import {
   type VoucherActionAvailability,
   type VoucherDocumentView,
   type VoucherDraftForm,
+  type VoucherEntity,
   type VoucherEntityConfig,
   type VoucherExecutionForm,
   type VoucherListItem,
@@ -82,50 +83,34 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     () => editing.value && snapshot(form.value) !== initialForm.value,
   )
   const canQuery = computed(() => session.can(permission('query')))
-  const directlyManaged = !config.managedByWorkflow
-  const canCreate = computed(() => directlyManaged && session.can(permission('create')))
+  const canCreate = computed(() => session.can(permission('create')))
   const actionAvailability = computed<VoucherActionAvailability>(() => {
     const status = documentView.value?.status
     return {
       get: session.can(permission('get')),
-      save: directlyManaged && status === 'DRAFT' && session.can(permission('save')),
-      check: directlyManaged && status === 'DRAFT' && session.can(permission('check')),
-      uncheck: directlyManaged && status === 'CHECKED' && session.can(permission('uncheck')),
-      approve: directlyManaged && status === 'CHECKED' && session.can(permission('approve')),
-      unapprove: directlyManaged && status === 'APPROVED' && session.can(permission('unapprove')),
-      finalize: directlyManaged && status === 'APPROVED' && session.can(permission('finalize')),
+      save: status === 'DRAFT' && session.can(permission('save')),
+      check: status === 'DRAFT' && session.can(permission('check')),
+      uncheck: status === 'CHECKED' && session.can(permission('uncheck')),
+      approve: status === 'CHECKED' && session.can(permission('approve')),
+      unapprove: status === 'APPROVED' && session.can(permission('unapprove')),
+      finalize: status === 'APPROVED' && session.can(permission('finalize')),
       unfinalize:
-        directlyManaged && status === 'FINALIZED' && session.can(permission('unfinalize')),
+        status === 'FINALIZED' && session.can(permission('unfinalize')),
       delete:
-        directlyManaged && status === 'DRAFT' && Boolean(config.sourceEntity) &&
-        session.can(permission('delete')),
-      shortCloseRequest:
-        directlyManaged && status === 'FINALIZED' &&
-        documentView.value?.data.fulfillmentStatus === 'OPEN' &&
-        session.can(permission('short-close-request')),
-      shortCloseCancel:
-        directlyManaged && status === 'FINALIZED' &&
-        documentView.value?.data.fulfillmentStatus ===
-          'SHORT_CLOSE_REQUESTED' &&
-        session.can(permission('short-close-cancel')),
-      shortCloseConfirm:
-        directlyManaged && status === 'FINALIZED' &&
-        documentView.value?.data.fulfillmentStatus ===
-          'SHORT_CLOSE_REQUESTED' &&
-        session.can(permission('short-close-confirm')),
-      shortCloseUnconfirm:
-        directlyManaged && status === 'FINALIZED' &&
-        documentView.value?.data.fulfillmentStatus === 'SHORT_CLOSED' &&
-        session.can(permission('short-close-unconfirm')),
+        status === 'DRAFT' && session.can(permission('delete')),
+      shortCloseRequest: false,
+      shortCloseCancel: false,
+      shortCloseConfirm: false,
+      shortCloseUnconfirm: false,
       audit:
         Boolean(documentView.value) && session.can(permission('audit-history')),
       attachmentInitiate:
-        directlyManaged && status === 'DRAFT' && session.can(permission('attachment-initiate')),
+        status === 'DRAFT' && session.can(permission('attachment-initiate')),
       attachmentDownload:
         Boolean(documentView.value) &&
         session.can(permission('attachment-download')),
       attachmentRemove:
-        directlyManaged && status === 'DRAFT' && session.can(permission('attachment-remove')),
+        status === 'DRAFT' && session.can(permission('attachment-remove')),
     }
   })
   const {
@@ -165,7 +150,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function canEdit(row: VoucherListItem): boolean {
     return (
-      directlyManaged &&
       row.status === 'DRAFT' &&
       session.can(permission('get')) &&
       session.can(permission('save'))
@@ -260,7 +244,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     attachmentError.value = null
     auditEvents.value = []
     workspaceOpen.value = true
-    if (config.sourceEntity) void searchSourceDocuments('')
+    if (config.parentEntity) void searchSourceDocuments('')
   }
 
   async function openDocument(
@@ -291,13 +275,13 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     >(`vou/${config.entity}/get`, { documentId: id })
     documentView.value = data
     form.value = formFromDocument(data)
-    if (data.data.sourceDocumentId && data.data.sourceDocumentNo) {
+    if (data.parentDocumentId && data.parentDocumentNo) {
       sourceOptions.value = [
         {
-          documentId: data.data.sourceDocumentId,
+          documentId: data.parentDocumentId,
           entity:
-            data.data.sourceEntity ?? config.sourceEntity ?? config.entity,
-          documentNo: data.data.sourceDocumentNo,
+            data.parentEntity ?? config.parentEntity ?? config.entity,
+          documentNo: data.parentDocumentNo,
           status: 'FINALIZED',
           revision: 0,
           businessDate: data.data.businessDate,
@@ -306,7 +290,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           updatedAt: data.updatedAt,
         },
         ...sourceOptions.value.filter(
-          (item) => item.documentId !== data.data.sourceDocumentId,
+          (item) => item.documentId !== data.parentDocumentId,
         ),
       ]
     }
@@ -449,8 +433,20 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       } else {
         const response = await apiClient.post<
           VoucherMutationResult,
-          { data: DraftPayload }
-        >(`vou/${config.entity}/create`, { data: payload })
+          {
+            parentEntity?: VoucherEntity
+            parentDocumentId?: string
+            data: DraftPayload
+          }
+        >(`vou/${config.entity}/create`, {
+          ...(config.parentEntity && form.value.parentDocumentId
+            ? {
+                parentEntity: config.parentEntity,
+                parentDocumentId: form.value.parentDocumentId,
+              }
+            : {}),
+          data: payload,
+        })
         result = response.data
       }
       await loadDocument(result.documentId)
@@ -570,11 +566,12 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       'short-close-unconfirm': 'shortCloseUnconfirm',
     }[action] as keyof VoucherActionAvailability
     if (!actionAvailability.value[availabilityKey]) return
+    if (action !== 'delete') return
     actionLoading.value = action
     workspaceError.value = null
     try {
       await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/${action}`,
+        `vou/${config.entity}/delete`,
         {
           documentId: current.documentId,
           revision: current.revision,

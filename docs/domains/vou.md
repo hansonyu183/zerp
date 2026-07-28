@@ -19,10 +19,8 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-WFL 管理的原子单据包含销售四单、采购订单与采购入库，以及 `customer-order`、`procurement-order`、`goods-receipt`、
-`delivery-note` 和 `signoff-note`。它们复用 VOU 的编号、revision、引用快照、附件和审计，
-不开放普通 VOU 写入口；业务规则和流转统一由 WFL 编排。所有原子单据仍属于 VOU，并按实体
-提供独立查询、详情、审计及适用的附件下载入口。WFL 只组织单据关系和受控写入，不替代单据本身。
+十类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
 
@@ -381,47 +379,41 @@ request ID；反向事件还携带原因。订阅者通过同一个 `pgx.Tx` 查
 - 附件大小、类型、哈希、令牌、路径和权限规则可验证；
 - 迁移、sqlc 生成、单元测试、数据库集成测试、vet、build、race、Compose 健康检查全部通过。
 
-## 8. WFL 受管单据
+## 8. 上级单据与 WFL 组合
 
-WFL 可复用本域的编号、状态、审计、附件和精确数值基础设施，但受管单据不可通过
-`/vou/*` 写入。居间贸易流程由 `customer-order`、`procurement-order`、`goods-receipt`、
-`delivery-note`、`signoff-note` 五类独立原子单据组成。
+所有单据统一提供可空的 `parentEntity + parentDocumentId`。两者必须同时为空或同时存在；
+创建时校验上级实体和 ID 匹配、上级存在且不能自引用，创建后不可修改。VOU 不限制固定父子
+实体组合，也不保存流程 ID、控制域、自动生成标记或完整来源链。父单号按需关联查询。
 
-这些单据使用 `parentDocumentId` 保存直接业务来源，并以 `controlDomain=WFL` 标记唯一写入方。
-完整流程、状态、权限和数量契约以 [WFL 文档](wfl.md) 为准。
+VOU 在同一事务内发布创建、保存、状态变化和删除事件。WFL 可据此维护组合，但不能以流程
+归属或流程角色拒绝已获得 VOU API 权限的用户。完整组合规则见 [WFL 文档](wfl.md)。
 
 ## 9. 前端职责与交互约束
 
 本节保留前端页面、状态和交互层必须遵守的领域约束；HTTP 线协议以根目录 OpenAPI 为准。
 
-VOU 前端对接后端 `POST /vou/{entity}/{action}` 契约，提供七类独立单据的查询、制单、审核、批准、执行、反向流转、附件和审计界面。后端领域文档和实际请求/响应类型是业务规则来源；本文只记录前端映射和交互边界。
+VOU 前端对接后端 `POST /vou/{entity}/{action}` 契约，提供十类独立单据的查询、制单、审核、批准、执行、反向流转、附件和审计界面。后端领域文档和实际请求/响应类型是业务规则来源；本文只记录前端映射和交互边界。
 
 VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附件和审计展示。
-旧 `/vou/intermediary-sale-order` 不再注册，访问进入未找到页面。采购订单和采购入库在 VOU
-菜单中独立只读查看；两者的新建、编辑、附件和流转只允许通过采购履约。居间贸易和采购履约
-的完整写入规则见 [wfl.md](./wfl.md)。
+旧居间单据和 `/wfl/intermediary-trade` 均不再注册，访问进入未找到页面。所有保留单据均按
+VOU 权限提供完整能力；销售出库、销售送货和销售签收不注册公开创建 API，由 WFL 事件订阅
+自动创建。采购入库允许人工创建。
 
 ### 9.1 实体与页面
 
-| 实体                    | 页面     |
-| ----------------------- | -------- |
-| `sale-order`            | 销售订单 |
-| `sale-outbound`         | 销售出库 |
-| `sale-delivery`         | 销售送货 |
-| `sale-signoff`          | 销售签收 |
-| `purchase-order`        | 采购订单 |
-| `purchase-inbound`      | 采购入库 |
-| `receipt`               | 往来收款 |
-| `payment`               | 往来付款 |
-| `expense-reimbursement` | 费用报销 |
-| `other-income`          | 其他收入 |
-| `customer-order`        | 居间订单 |
-| `procurement-order`     | 居间采购 |
-| `goods-receipt`         | 居间收货 |
-| `delivery-note`         | 居间送货 |
-| `signoff-note`          | 居间签收 |
-
-实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
+| 实体                                                                                         | 页面     |
+| -------------------------------------------------------------------------------------------- | -------- |
+| `sale-order`                                                                                 | 销售订单 |
+| `sale-outbound`                                                                              | 销售出库 |
+| `sale-delivery`                                                                              | 销售送货 |
+| `sale-signoff`                                                                               | 销售签收 |
+| `purchase-order`                                                                             | 采购订单 |
+| `purchase-inbound`                                                                           | 采购入库 |
+| `receipt`                                                                                    | 往来收款 |
+| `payment`                                                                                    | 往来付款 |
+| `expense-reimbursement`                                                                      | 费用报销 |
+| `other-income`                                                                               | 其他收入 |
+| 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。 |
 
 ### 9.2 通用交互
 

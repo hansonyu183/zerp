@@ -47,7 +47,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err != nil {
 		return nil, nil, err
 	}
-	wflService.SetAttachmentService(vouService)
 	wflService.SetSalesVoucherService(vouService)
 	wflService.SetPurchaseVoucherService(vouService)
 	appService := appdomain.NewService(db, cfg, logger)

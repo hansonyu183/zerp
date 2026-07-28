@@ -87,6 +87,10 @@ WHERE entity IN (
     'delivery-note', 'signoff-note'
 );
 
+-- The deleted legacy graph uses deferred foreign-key triggers. Flush every
+-- queued check before dropping its detail tables in this transaction.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 DROP TABLE vou_signoff_note_lines;
 DROP TABLE vou_signoff_note_details;
 DROP TABLE vou_delivery_note_lines;

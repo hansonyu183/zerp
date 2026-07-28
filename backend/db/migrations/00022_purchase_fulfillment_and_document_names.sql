@@ -77,6 +77,11 @@ DELETE FROM vou_intermediary_sale_order_details;
 DELETE FROM vou_documents WHERE entity = 'intermediary-sale-order';
 DELETE FROM vou_number_counters WHERE entity = 'intermediary-sale-order';
 
+-- The legacy snapshot contains rows, so the deletes above enqueue deferred
+-- foreign-key trigger events. Flush them before dropping the referenced detail
+-- table in the same Goose transaction.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 DROP TRIGGER vou_intermediary_sale_order_detail_ck
     ON vou_intermediary_sale_order_details;
 DROP TABLE vou_intermediary_sale_order_details;

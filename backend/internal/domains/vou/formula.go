@@ -48,6 +48,9 @@ func (s *Service) FormulaDefault(
 			)
 		}
 		formula := formulaFromProduct(product.Data.Formula)
+		if err = s.refreshFormulaMaterials(ctx, tx, formula); err != nil {
+			return FormulaDefaultView{}, err
+		}
 		return FormulaDefaultView{SourceType: "PRODUCT_FIXED", Formula: formula}, nil
 	case bobdomain.ProductKindCustomFinished:
 		if input.Customer == nil {
@@ -74,6 +77,9 @@ func (s *Service) FormulaDefault(
 		if loadErr != nil {
 			return FormulaDefaultView{}, s.internal("load latest customer formula", loadErr)
 		}
+		if err = s.refreshFormulaMaterials(ctx, tx, formula); err != nil {
+			return FormulaDefaultView{}, err
+		}
 		formula.SourceType = "CUSTOMER_LATEST"
 		formula.SourceDocumentID = latest.SourceDocumentID
 		formula.SourceDocumentNo = latest.SourceDocumentNo
@@ -84,6 +90,37 @@ func (s *Service) FormulaDefault(
 	default:
 		return FormulaDefaultView{}, domainError(ErrorConflict, "unsupported product kind", nil, nil)
 	}
+}
+
+func (s *Service) refreshFormulaMaterials(
+	ctx context.Context, tx pgx.Tx, formula *FormulaView,
+) error {
+	for index := range formula.Components {
+		material, err := s.resolver.ResolveCurrentEffectiveReference(
+			ctx,
+			tx,
+			bobdomain.EntityProduct,
+			formula.Components[index].Material.ObjectID,
+		)
+		if err != nil {
+			return domainError(
+				ErrorConflict,
+				"formula material is not currently effective",
+				nil,
+				err,
+			)
+		}
+		if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+			return domainError(
+				ErrorConflict,
+				"formula component must reference a raw material",
+				nil,
+				nil,
+			)
+		}
+		formula.Components[index].Material = referenceView(material)
+	}
+	return nil
 }
 
 func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {

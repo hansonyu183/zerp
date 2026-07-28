@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  packagingSpecsFromPayload,
+  packagingSpecsPayload,
+} from '@/components/packaging'
 import { getBobEntityConfig } from '@/pages/bob/shared/config'
 
 describe('product packaging contract', () => {
@@ -35,6 +39,7 @@ describe('product packaging contract', () => {
     )
     expect(productKind?.onChange?.('PACKAGING', form)).toEqual({
       formula: null,
+      packagingSpecs: [],
       pricingUnitId: '',
       pricingQuantityPerInventoryUnit: '1',
     })
@@ -50,5 +55,32 @@ describe('product packaging contract', () => {
       typeof returnable?.visible === 'function' &&
         returnable.visible({ ...form, productKind: 'PACKAGING' }),
     ).toBe(true)
+  })
+
+  it('包装规格在编辑模型与请求负载之间只保留契约字段', () => {
+    const draft = packagingSpecsFromPayload([
+      {
+        packagingProductObjectId: 'PACKAGING-OBJECT',
+        packagingProductVersionId: 'PACKAGING-VERSION',
+        packagingProductCode: 'PAIL-20L',
+        packagingProductName: '20L 包装桶',
+        contentQuantity: '20.0',
+        isDefault: true,
+      },
+    ])
+
+    expect(draft[0]?.packagingProduct).toMatchObject({
+      objectId: 'PACKAGING-OBJECT',
+      code: 'PAIL-20L',
+      name: '20L 包装桶',
+    })
+    expect(packagingSpecsPayload(draft)).toEqual([
+      {
+        packagingProductObjectId: 'PACKAGING-OBJECT',
+        packagingProductVersionId: 'PACKAGING-VERSION',
+        contentQuantity: '20.0',
+        isDefault: true,
+      },
+    ])
   })
 })

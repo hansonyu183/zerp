@@ -3,10 +3,12 @@
 package aux
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
@@ -109,6 +111,52 @@ func TestAuxiliaryLifecycleReferencesAndValidationIntegration(t *testing.T) {
 		},
 	}}, integrationActor, "aux-invalid-settlement"); !errorKind(err, ErrorValidation) {
 		t.Fatalf("invalid settlement error = %v", err)
+	}
+}
+
+func TestAuxiliaryWritesUseTransactionDomainLockIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	service := NewService(pool)
+	blocker, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin blocker transaction: %v", err)
+	}
+	defer blocker.Rollback(t.Context()) //nolint:errcheck
+	if err = lockAuxiliaryWrites(t.Context(), blocker); err != nil {
+		t.Fatalf("lock auxiliary writes: %v", err)
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		_, createErr := service.Create(
+			context.Background(),
+			EntityPosition,
+			CreateInput{Data: CreateData{
+				Code: "LOCK-" + ulidSuffix(),
+				Data: map[string]any{"name": "并发岗位"},
+			}},
+			integrationActor,
+			"aux-domain-lock-create",
+		)
+		result <- createErr
+	}()
+
+	select {
+	case createErr := <-result:
+		t.Fatalf("concurrent AUX write bypassed transaction lock: %v", createErr)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err = blocker.Rollback(t.Context()); err != nil {
+		t.Fatalf("release blocker transaction: %v", err)
+	}
+	select {
+	case createErr := <-result:
+		if createErr != nil {
+			t.Fatalf("create after lock release: %v", createErr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("AUX write remained blocked after transaction ended")
 	}
 }
 

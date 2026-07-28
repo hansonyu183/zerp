@@ -235,17 +235,30 @@ func (s *Service) resolveDraftProducts(
 			return domainError(ErrorConflict, "unsupported product kind", nil, nil)
 		}
 		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
-		for _, component := range line.Formula.Components {
-			material, materialErr := s.resolveReference(
-				ctx, tx, bobdomain.EntityProduct, &component.Material,
+		for componentIndex := range line.Formula.Components {
+			component := &line.Formula.Components[componentIndex]
+			material, materialErr := s.resolver.ResolveCurrentEffectiveReference(
+				ctx,
+				tx,
+				bobdomain.EntityProduct,
+				component.Material.ObjectID,
 			)
 			if materialErr != nil {
-				return materialErr
+				return domainError(
+					ErrorConflict,
+					"formula material is not currently effective",
+					nil,
+					materialErr,
+				)
 			}
 			if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
 				return domainError(ErrorConflict, "formula component must reference a raw material", nil, nil)
 			}
-			materials = append(materials, *material)
+			component.Material = ReferenceInput{
+				ObjectID:  material.ObjectID,
+				VersionID: material.VersionID,
+			}
+			materials = append(materials, material)
 		}
 		result.FormulaMaterials = append(result.FormulaMaterials, materials)
 	}

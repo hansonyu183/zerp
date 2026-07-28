@@ -1,4 +1,10 @@
-import { computed, reactive, ref } from 'vue'
+import {
+  computed,
+  getCurrentScope,
+  onScopeDispose,
+  reactive,
+  ref,
+} from 'vue'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
@@ -32,6 +38,11 @@ interface AuxPage {
   pageSize: number
 }
 
+interface ReferenceOption {
+  title: string
+  value: string
+}
+
 export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const session = useSessionStore()
   const rows = ref<AuxListItem[]>([])
@@ -51,11 +62,17 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     ...config.defaults(),
   })
   const referenceOptions = reactive<
-    Record<string, { title: string; value: string }[]>
+    Record<string, ReferenceOption[]>
   >({})
-  const referenceLoading = ref(false)
+  const referenceLoading = reactive<Record<string, boolean>>({})
+  const referenceSequences = new Map<string, number>()
+  const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   const canCreate = computed(() => session.can(`/aux/${config.entity}/create`))
+  const canSave = computed(() => session.can(`/aux/${config.entity}/save`))
+  const canEnable = computed(() => session.can(`/aux/${config.entity}/enable`))
+  const canDisable = computed(() => session.can(`/aux/${config.entity}/disable`))
+  const canDelete = computed(() => session.can(`/aux/${config.entity}/delete`))
   const editorFields = computed<
     readonly BusinessObjectField<Record<string, unknown>>[]
   >(() => [
@@ -76,7 +93,9 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
       options: field.reference
         ? referenceOptions[field.key] ?? []
         : field.options,
-      loading: field.type === 'reference' && referenceLoading.value,
+      loading:
+        field.type === 'reference' &&
+        Boolean(referenceLoading[field.key]),
       visible: field.visible
         ? (record: Readonly<Record<string, unknown>>) =>
             field.visible?.(record as Record<string, unknown>) ?? true
@@ -126,40 +145,129 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     await query()
   }
 
-  async function loadReferences(): Promise<void> {
-    const fields = config.fields.filter((field) => field.reference)
-    if (!fields.length) return
-    referenceLoading.value = true
-    try {
-      await Promise.all(
-        fields.map(async (field) => {
-          const reference = field.reference
-          if (!reference) return
-          const result = await apiClient.post<AuxPage>(
-            `aux/${reference.entity}/query` as ApiPostPath,
-            {
-              page: 1,
-              pageSize: 200,
-              filters: { enabled: true },
-              sort: [{ field: 'code', order: 'asc' }],
-            } as never,
-          )
-          referenceOptions[field.key] = result.data.items
-            .filter((item) => item.objectId !== editing.value?.objectId)
-            .map((item) => ({
-              title: `${item.code} · ${String(item.currentVersion.data.name ?? '')}`,
-              value: reference.value === 'code' ? item.code : item.objectId,
-            }))
-        }),
-      )
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      referenceLoading.value = false
+  function referenceOption(
+    item: Pick<AuxListItem, 'objectId' | 'code' | 'currentVersion'>,
+    valueKind: 'objectId' | 'code',
+  ): ReferenceOption {
+    return {
+      title: `${item.code} · ${String(item.currentVersion.data.name ?? '')}`,
+      value: valueKind === 'code' ? item.code : item.objectId,
     }
   }
 
+  async function selectedReferenceOption(
+    field: (typeof config.fields)[number],
+    selectedValue: string,
+  ): Promise<ReferenceOption | null> {
+    const reference = field.reference
+    if (!reference || !selectedValue) return null
+    if (reference.value === 'objectId') {
+      const result = await apiClient.post<AuxListItem>(
+        `aux/${reference.entity}/get` as ApiPostPath,
+        { objectId: selectedValue } as never,
+      )
+      return referenceOption(result.data, reference.value)
+    }
+    const result = await apiClient.post<AuxPage>(
+      `aux/${reference.entity}/query` as ApiPostPath,
+      {
+        page: 1,
+        pageSize: 20,
+        filters: { keyword: selectedValue },
+        sort: [{ field: 'code', order: 'asc' }],
+      } as never,
+    )
+    const selected = result.data.items.find(
+      (item) => item.code === selectedValue,
+    )
+    return selected ? referenceOption(selected, reference.value) : null
+  }
+
+  async function loadReference(
+    field: (typeof config.fields)[number],
+    keyword: string,
+  ): Promise<void> {
+    const reference = field.reference
+    if (!reference) return
+    const sequence = (referenceSequences.get(field.key) ?? 0) + 1
+    referenceSequences.set(field.key, sequence)
+    referenceLoading[field.key] = true
+    try {
+      const result = await apiClient.post<AuxPage>(
+        `aux/${reference.entity}/query` as ApiPostPath,
+        {
+          page: 1,
+          pageSize: 100,
+          filters: {
+            enabled: true,
+            ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+          },
+          sort: [{ field: 'code', order: 'asc' }],
+        } as never,
+      )
+      const selectedValue = String(editorModel.value[field.key] ?? '')
+      let selected = referenceOptions[field.key]?.find(
+        (option) => option.value === selectedValue,
+      )
+      if (
+        selectedValue &&
+        !selected &&
+        !result.data.items.some(
+          (item) =>
+            (reference.value === 'code' ? item.code : item.objectId) ===
+            selectedValue,
+        )
+      ) {
+        selected =
+          (await selectedReferenceOption(field, selectedValue)) ?? undefined
+      }
+      if (referenceSequences.get(field.key) !== sequence) return
+      const fetched = result.data.items
+        .filter((item) => item.objectId !== editing.value?.objectId)
+        .map((item) => referenceOption(item, reference.value))
+      referenceOptions[field.key] = selected
+        ? [
+            selected,
+            ...fetched.filter(
+              (option) => option.value !== selected?.value,
+            ),
+          ]
+        : fetched
+    } catch (error) {
+      if (referenceSequences.get(field.key) === sequence) {
+        errorMessage.value = getErrorMessage(error)
+      }
+    } finally {
+      if (referenceSequences.get(field.key) === sequence) {
+        referenceLoading[field.key] = false
+      }
+    }
+  }
+
+  async function loadReferences(): Promise<void> {
+    await Promise.all(
+      config.fields
+        .filter((field) => field.reference)
+        .map((field) => loadReference(field, '')),
+    )
+  }
+
+  function searchEditorReference(fieldKey: string, keyword: string): void {
+    const field = config.fields.find((item) => item.key === fieldKey)
+    if (!field?.reference) return
+    const previous = referenceTimers.get(fieldKey)
+    if (previous) clearTimeout(previous)
+    referenceTimers.set(
+      fieldKey,
+      setTimeout(() => {
+        referenceTimers.delete(fieldKey)
+        void loadReference(field, keyword)
+      }, 250),
+    )
+  }
+
   function openCreate(): void {
+    if (!canCreate.value) return
     editing.value = null
     editorModel.value = {
       code: generateObjectCode('aux', config.entity),
@@ -171,6 +279,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   }
 
   function openEdit(row: AuxListItem): void {
+    if (!canSave.value) return
     editing.value = row
     editorModel.value = {
       code: row.code,
@@ -188,6 +297,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   }
 
   async function save(value: Record<string, unknown>): Promise<void> {
+    if (editing.value ? !canSave.value : !canCreate.value) return
     saving.value = true
     errorMessage.value = null
     try {
@@ -215,6 +325,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   }
 
   async function changeEnabled(row: AuxListItem): Promise<void> {
+    if (row.enabled ? !canDisable.value : !canEnable.value) return
     errorMessage.value = null
     try {
       await apiClient.post(path(row.enabled ? 'disable' : 'enable'), {
@@ -228,6 +339,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   }
 
   async function deleteObject(row: AuxListItem): Promise<void> {
+    if (!canDelete.value) return
     errorMessage.value = null
     try {
       await apiClient.post(path('delete'), {
@@ -238,6 +350,13 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     }
+  }
+
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      for (const timer of referenceTimers.values()) clearTimeout(timer)
+      referenceTimers.clear()
+    })
   }
 
   return {
@@ -259,6 +378,10 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     referenceOptions,
     referenceLoading,
     canCreate,
+    canSave,
+    canEnable,
+    canDisable,
+    canDelete,
     query,
     search,
     resetFilters,
@@ -266,6 +389,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     openCreate,
     openEdit,
     closeEditor,
+    searchEditorReference,
     save,
     changeEnabled,
     deleteObject,

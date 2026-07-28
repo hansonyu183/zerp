@@ -76,6 +76,7 @@ export const productConfig = defineBobEntityConfig({
           ? {
               pricingUnitId: '',
               pricingQuantityPerInventoryUnit: '1',
+              packagingSpecs: [],
               formula: null,
             }
           : {
@@ -106,7 +107,10 @@ export const productConfig = defineBobEntityConfig({
       key: 'packagingSpecs',
       label: '包装规格',
       type: 'readonly',
-      visible: () => false,
+      visible: (record: Readonly<BobForm>) =>
+        record.productKind !== 'PACKAGING',
+      format: (value: unknown) =>
+        `${Array.isArray(value) ? value.length : 0} 项`,
     } satisfies BusinessObjectField<BobForm>,
     {
       ...reference('inventoryUnitId', '库存单位', context, true),

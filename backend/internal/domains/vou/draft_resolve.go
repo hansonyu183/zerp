@@ -2,7 +2,9 @@ package vou
 
 import (
 	"context"
+	"errors"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5"
 )
@@ -163,15 +165,89 @@ func (s *Service) resolveSettlement(
 func (s *Service) resolveDraftProducts(
 	ctx context.Context,
 	tx pgx.Tx,
+	entity string,
 	draft validatedDraft,
 	result *resolvedDraft,
 ) error {
-	for _, line := range draft.ProductLines {
+	q := s.queries.WithTx(tx)
+	for index := range draft.ProductLines {
+		line := &draft.ProductLines[index]
 		product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &line.Product)
 		if err != nil {
 			return err
 		}
 		result.Products = append(result.Products, *product)
+		if entity != EntitySaleOrder {
+			result.FormulaMaterials = append(result.FormulaMaterials, nil)
+			continue
+		}
+		switch product.Data.ProductKind {
+		case bobdomain.ProductKindPackaging:
+			if line.Formula != nil {
+				return domainError(ErrorValidation, "packaging products cannot contain a formula", nil, nil)
+			}
+			result.FormulaMaterials = append(result.FormulaMaterials, nil)
+			continue
+		case bobdomain.ProductKindRawMaterial:
+			line.Formula = &fixedFormula{
+				BaseOutputQuantity: 1_000_000, SourceType: "RAW_SELF",
+				Components: []fixedFormulaComponent{{
+					Material: line.Product, Quantity: 1_000_000,
+				}},
+			}
+		case bobdomain.ProductKindStandardFinished:
+			if product.Data.Formula == nil {
+				return domainError(
+					ErrorConflict, "standard finished product formula is not configured", nil, nil,
+				)
+			}
+			if line.Formula == nil {
+				return domainError(ErrorValidation, "standard finished product formula is required", nil, nil)
+			}
+			line.Formula.SourceType = "PRODUCT_FIXED"
+			line.Formula.SourceDocumentID = ""
+			line.Formula.SourceDocumentNo = ""
+		case bobdomain.ProductKindCustomFinished:
+			if line.Formula == nil {
+				return domainError(ErrorValidation, "custom finished product formula is required", nil, nil)
+			}
+			line.Formula.SourceType = "MANUAL"
+			if draft.Customer != nil {
+				latest, latestErr := q.FindLatestCustomerSaleOrderFormula(
+					ctx, dbsqlc.FindLatestCustomerSaleOrderFormulaParams{
+						CustomerObjectID: draft.Customer.ObjectID,
+						ProductObjectID:  product.ObjectID,
+					},
+				)
+				if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
+					return s.internal("read latest customer formula", latestErr)
+				}
+				if latestErr == nil &&
+					latest.SourceDocumentID == line.Formula.SourceDocumentID &&
+					latest.SourceDocumentNo == line.Formula.SourceDocumentNo {
+					line.Formula.SourceType = "CUSTOMER_LATEST"
+				} else {
+					line.Formula.SourceDocumentID = ""
+					line.Formula.SourceDocumentNo = ""
+				}
+			}
+		default:
+			return domainError(ErrorConflict, "unsupported product kind", nil, nil)
+		}
+		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
+		for _, component := range line.Formula.Components {
+			material, materialErr := s.resolveReference(
+				ctx, tx, bobdomain.EntityProduct, &component.Material,
+			)
+			if materialErr != nil {
+				return materialErr
+			}
+			if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+				return domainError(ErrorConflict, "formula component must reference a raw material", nil, nil)
+			}
+			materials = append(materials, *material)
+		}
+		result.FormulaMaterials = append(result.FormulaMaterials, materials)
 	}
 	return nil
 }

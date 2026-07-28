@@ -27,6 +27,7 @@ import { useVoucherReferences } from './references'
 import { buildVoucherDraftPayload } from './payload'
 import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
+import { useVoucherFormula } from './formula'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
 
@@ -58,6 +59,12 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const workspaceError = ref<string | null>(null)
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = ref<VoucherDraftForm>(emptyForm(config))
+  const {
+    changeLineProduct,
+    resolveLineFormula,
+    refreshCustomFormulas,
+    updateLineFormula,
+  } = useVoucherFormula(config, form)
   const initialForm = ref(snapshot(form.value))
   const personnelDirty = new Set<string>()
 
@@ -97,8 +104,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       finalize: status === 'APPROVED' && session.can(permission('finalize')),
       unfinalize:
         status === 'FINALIZED' && session.can(permission('unfinalize')),
-      delete:
-        status === 'DRAFT' && session.can(permission('delete')),
+      delete: status === 'DRAFT' && session.can(permission('delete')),
       shortCloseRequest: false,
       shortCloseCancel: false,
       shortCloseConfirm: false,
@@ -280,8 +286,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       sourceOptions.value = [
         {
           documentId: data.parentDocumentId,
-          entity:
-            data.parentEntity ?? config.parentEntity ?? config.entity,
+          entity: data.parentEntity ?? config.parentEntity ?? config.entity,
           documentNo: data.parentDocumentNo,
           status: 'FINALIZED',
           revision: 0,
@@ -343,8 +348,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   function markReferenceChanged(key: keyof VoucherDraftForm): void {
     if (PERSONNEL_KEYS.has(key)) personnelDirty.add(key)
     if (key === 'customer' && config.entity === 'sale-order') {
-      form.value.productLines = form.value.productLines.map((line) =>
-        ({ ...line, settlementSurcharge: '' }))
+      void refreshCustomFormulas()
     }
     if (key === 'fundAccount') {
       form.value.currency = form.value.fundAccount?.currency ?? ''
@@ -596,6 +600,9 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     cancelEditing,
     closeWorkspace,
     markReferenceChanged,
+    changeLineProduct,
+    resolveLineFormula,
+    updateLineFormula,
     save,
     lifecycleAction,
     finalize,

@@ -46,6 +46,9 @@ export interface VoucherProductLineDraft {
   settlementSurcharge: string
   purchaseUnitPrice: string
   remark: string
+  formula: ProductFormulaDraft | null
+  formulaLoading?: boolean
+  formulaError?: string
 }
 
 export interface VoucherExpenseLineDraft {
@@ -127,6 +130,16 @@ export interface VoucherProductLineView {
   sourceLineId?: string
   quantity?: string
   availableQuantity?: string
+  formula?: {
+    baseOutputQuantity: string
+    sourceType?: string
+    sourceDocumentId?: string
+    sourceDocumentNo?: string
+    components: Array<{
+      material: FormulaMaterialReference
+      quantity: string
+    }>
+  }
 }
 
 export interface VoucherSaleSignoffLineView {
@@ -246,7 +259,8 @@ export interface VoucherDocumentData {
   vehicle?: VoucherReferenceView
   differenceReason?: string
   signoffLines?: VoucherSaleSignoffLineView[]
-  fulfillmentStatus?: 'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
+  fulfillmentStatus?:
+    'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
   signedQuantity?: string
   inTransitQuantity?: string
   remainingQuantity?: string
@@ -425,3 +439,7 @@ export interface VoucherActionAvailability {
   attachmentDownload: boolean
   attachmentRemove: boolean
 }
+import type {
+  FormulaMaterialReference,
+  ProductFormulaDraft,
+} from '@/components/formula'

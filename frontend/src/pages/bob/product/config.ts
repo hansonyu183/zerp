@@ -26,6 +26,7 @@ export const productConfig = defineBobEntityConfig({
     pricingQuantityPerInventoryUnit: '1',
     returnable: false,
     packagingSpecs: [],
+    formula: null,
     categoryId: '',
     specification: '',
     model: '',
@@ -47,6 +48,7 @@ export const productConfig = defineBobEntityConfig({
     'pricingQuantityPerInventoryUnit',
     'returnable',
     'packagingSpecs',
+    'formula',
   ],
   uppercaseKeys: ['code', 'barcode'],
   references: {
@@ -71,10 +73,27 @@ export const productConfig = defineBobEntityConfig({
       options: productKindOptions,
       onChange: (value: unknown) =>
         value === 'PACKAGING'
-          ? { pricingUnitId: '', pricingQuantityPerInventoryUnit: '1' }
+          ? {
+              pricingUnitId: '',
+              pricingQuantityPerInventoryUnit: '1',
+              formula: null,
+            }
           : {
               pricingUnitId: '01JAVX00000000000000000011',
               returnable: false,
+              ...(value === 'STANDARD_FINISHED' ? {} : { formula: null }),
+            },
+    } satisfies BusinessObjectField<BobForm>,
+    {
+      key: 'formula',
+      label: '固定配方',
+      type: 'text',
+      required: true,
+      visible: (record: Readonly<BobForm>) =>
+        record.productKind === 'STANDARD_FINISHED',
+      format: (value: unknown) => {
+        const formula = value as { components?: unknown[] } | null
+        return formula ? `${formula.components?.length ?? 0} 项原料` : '待维护'
       },
     } satisfies BusinessObjectField<BobForm>,
     {
@@ -144,7 +163,11 @@ export const productConfig = defineBobEntityConfig({
       label: '库存单位',
       value: (row) => row.currentVersion.summary.unit,
     },
-    { key: 'model', label: '型号', value: (row) => row.currentVersion.summary.model },
+    {
+      key: 'model',
+      label: '型号',
+      value: (row) => row.currentVersion.summary.model,
+    },
   ]),
   filters: baseFilters([
     {

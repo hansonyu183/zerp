@@ -433,6 +433,46 @@ func (q *Queries) CopyBobProductDetail(ctx context.Context, arg CopyBobProductDe
 	return err
 }
 
+const copyBobProductFormula = `-- name: CopyBobProductFormula :exec
+INSERT INTO bob_product_formulas (
+    product_version_id, base_output_quantity_micros
+)
+SELECT $1, source.base_output_quantity_micros
+FROM bob_product_formulas source
+WHERE source.product_version_id = $2
+`
+
+type CopyBobProductFormulaParams struct {
+	NewVersionID    string `db:"new_version_id" json:"new_version_id"`
+	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
+}
+
+func (q *Queries) CopyBobProductFormula(ctx context.Context, arg CopyBobProductFormulaParams) error {
+	_, err := q.db.Exec(ctx, copyBobProductFormula, arg.NewVersionID, arg.SourceVersionID)
+	return err
+}
+
+const copyBobProductFormulaLines = `-- name: CopyBobProductFormulaLines :exec
+INSERT INTO bob_product_formula_lines (
+    product_version_id, line_no, material_object_id, material_version_id,
+    quantity_micros
+)
+SELECT $1, source.line_no, source.material_object_id,
+       source.material_version_id, source.quantity_micros
+FROM bob_product_formula_lines source
+WHERE source.product_version_id = $2
+`
+
+type CopyBobProductFormulaLinesParams struct {
+	NewVersionID    string `db:"new_version_id" json:"new_version_id"`
+	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
+}
+
+func (q *Queries) CopyBobProductFormulaLines(ctx context.Context, arg CopyBobProductFormulaLinesParams) error {
+	_, err := q.db.Exec(ctx, copyBobProductFormulaLines, arg.NewVersionID, arg.SourceVersionID)
+	return err
+}
+
 const copyBobProductPackagingSpecs = `-- name: CopyBobProductPackagingSpecs :exec
 INSERT INTO bob_product_packaging_specs (
     product_version_id, packaging_product_object_id, packaging_product_version_id,
@@ -578,29 +618,30 @@ WHERE entity = $1 AND version_id = current_version_id
   AND ($7::text = '' OR position_id = $7)
   AND ($8::text = '' OR salesperson_employee_id = $8)
   AND ($9::text = '' OR currency = $9)
-  AND ($10::text = '' OR target_entity = $10)
-  AND ($11::text = '' OR parent_id = $11)
-  AND (NOT $12::boolean OR parent_id = '')
+  AND ($10::text = '' OR product_kind = $10)
+  AND ($11::text = '' OR target_entity = $11)
+  AND ($12::text = '' OR parent_id = $12)
+  AND (NOT $13::boolean OR parent_id = '')
   AND (
-      $13::text = ''
-      OR code ILIKE '%' || $13 || '%'
-      OR name ILIKE '%' || $13 || '%'
-      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $13 || '%')
-      OR short_name ILIKE '%' || $13 || '%'
-      OR tax_number ILIKE '%' || $13 || '%'
-      OR contact_name ILIKE '%' || $13 || '%'
-      OR contact_phone ILIKE '%' || $13 || '%'
-      OR email ILIKE '%' || $13 || '%'
-      OR address ILIKE '%' || $13 || '%'
-      OR phone ILIKE '%' || $13 || '%'
-      OR specification ILIKE '%' || $13 || '%'
-      OR model ILIKE '%' || $13 || '%'
-      OR barcode ILIKE '%' || $13 || '%'
-      OR vin ILIKE '%' || $13 || '%'
-      OR engine_number ILIKE '%' || $13 || '%'
-      OR account_name ILIKE '%' || $13 || '%'
-      OR bank_name ILIKE '%' || $13 || '%'
-      OR bank_branch ILIKE '%' || $13 || '%'
+      $14::text = ''
+      OR code ILIKE '%' || $14 || '%'
+      OR name ILIKE '%' || $14 || '%'
+      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
+      OR short_name ILIKE '%' || $14 || '%'
+      OR tax_number ILIKE '%' || $14 || '%'
+      OR contact_name ILIKE '%' || $14 || '%'
+      OR contact_phone ILIKE '%' || $14 || '%'
+      OR email ILIKE '%' || $14 || '%'
+      OR address ILIKE '%' || $14 || '%'
+      OR phone ILIKE '%' || $14 || '%'
+      OR specification ILIKE '%' || $14 || '%'
+      OR model ILIKE '%' || $14 || '%'
+      OR barcode ILIKE '%' || $14 || '%'
+      OR vin ILIKE '%' || $14 || '%'
+      OR engine_number ILIKE '%' || $14 || '%'
+      OR account_name ILIKE '%' || $14 || '%'
+      OR bank_name ILIKE '%' || $14 || '%'
+      OR bank_branch ILIKE '%' || $14 || '%'
   )
 `
 
@@ -614,6 +655,7 @@ type CountBobObjectsParams struct {
 	PositionID            string   `db:"position_id" json:"position_id"`
 	SalespersonEmployeeID string   `db:"salesperson_employee_id" json:"salesperson_employee_id"`
 	Currency              string   `db:"currency" json:"currency"`
+	ProductKind           string   `db:"product_kind" json:"product_kind"`
 	TargetEntity          string   `db:"target_entity" json:"target_entity"`
 	ParentID              string   `db:"parent_id" json:"parent_id"`
 	RootOnly              bool     `db:"root_only" json:"root_only"`
@@ -631,6 +673,7 @@ func (q *Queries) CountBobObjects(ctx context.Context, arg CountBobObjectsParams
 		arg.PositionID,
 		arg.SalespersonEmployeeID,
 		arg.Currency,
+		arg.ProductKind,
 		arg.TargetEntity,
 		arg.ParentID,
 		arg.RootOnly,
@@ -827,6 +870,16 @@ func (q *Queries) DeleteBobProductDetail(ctx context.Context, versionID string) 
 	return result.RowsAffected(), nil
 }
 
+const deleteBobProductFormula = `-- name: DeleteBobProductFormula :exec
+DELETE FROM bob_product_formulas
+WHERE product_version_id = $1
+`
+
+func (q *Queries) DeleteBobProductFormula(ctx context.Context, productVersionID string) error {
+	_, err := q.db.Exec(ctx, deleteBobProductFormula, productVersionID)
+	return err
+}
+
 const deleteBobProductPackagingSpecs = `-- name: DeleteBobProductPackagingSpecs :exec
 DELETE FROM bob_product_packaging_specs
 WHERE product_version_id = $1
@@ -914,6 +967,19 @@ func (q *Queries) FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectID
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getBobProductFormula = `-- name: GetBobProductFormula :one
+SELECT base_output_quantity_micros
+FROM bob_product_formulas
+WHERE product_version_id = $1
+`
+
+func (q *Queries) GetBobProductFormula(ctx context.Context, productVersionID string) (int64, error) {
+	row := q.db.QueryRow(ctx, getBobProductFormula, productVersionID)
+	var base_output_quantity_micros int64
+	err := row.Scan(&base_output_quantity_micros)
+	return base_output_quantity_micros, err
 }
 
 const getBobVersionView = `-- name: GetBobVersionView :one
@@ -1326,6 +1392,54 @@ func (q *Queries) InsertBobProductDetail(ctx context.Context, arg InsertBobProdu
 	return err
 }
 
+const insertBobProductFormula = `-- name: InsertBobProductFormula :exec
+INSERT INTO bob_product_formulas (
+    product_version_id, base_output_quantity_micros
+) VALUES (
+    $1, $2
+)
+`
+
+type InsertBobProductFormulaParams struct {
+	ProductVersionID         string `db:"product_version_id" json:"product_version_id"`
+	BaseOutputQuantityMicros int64  `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+}
+
+func (q *Queries) InsertBobProductFormula(ctx context.Context, arg InsertBobProductFormulaParams) error {
+	_, err := q.db.Exec(ctx, insertBobProductFormula, arg.ProductVersionID, arg.BaseOutputQuantityMicros)
+	return err
+}
+
+const insertBobProductFormulaLine = `-- name: InsertBobProductFormulaLine :exec
+INSERT INTO bob_product_formula_lines (
+    product_version_id, line_no, material_object_id, material_version_id,
+    quantity_micros
+) VALUES (
+    $1, $2,
+    $3, $4,
+    $5
+)
+`
+
+type InsertBobProductFormulaLineParams struct {
+	ProductVersionID  string `db:"product_version_id" json:"product_version_id"`
+	LineNo            int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
+	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) InsertBobProductFormulaLine(ctx context.Context, arg InsertBobProductFormulaLineParams) error {
+	_, err := q.db.Exec(ctx, insertBobProductFormulaLine,
+		arg.ProductVersionID,
+		arg.LineNo,
+		arg.MaterialObjectID,
+		arg.MaterialVersionID,
+		arg.QuantityMicros,
+	)
+	return err
+}
+
 const insertBobProductPackagingSpec = `-- name: InsertBobProductPackagingSpec :exec
 INSERT INTO bob_product_packaging_specs (
     product_version_id, packaging_product_object_id, packaging_product_version_id,
@@ -1666,43 +1780,44 @@ WHERE entity = $1 AND version_id = current_version_id
   AND ($7::text = '' OR position_id = $7)
   AND ($8::text = '' OR salesperson_employee_id = $8)
   AND ($9::text = '' OR currency = $9)
-  AND ($10::text = '' OR target_entity = $10)
-  AND ($11::text = '' OR parent_id = $11)
-  AND (NOT $12::boolean OR parent_id = '')
+  AND ($10::text = '' OR product_kind = $10)
+  AND ($11::text = '' OR target_entity = $11)
+  AND ($12::text = '' OR parent_id = $12)
+  AND (NOT $13::boolean OR parent_id = '')
   AND (
-      $13::text = ''
-      OR code ILIKE '%' || $13 || '%'
-      OR name ILIKE '%' || $13 || '%'
-      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $13 || '%')
-      OR short_name ILIKE '%' || $13 || '%'
-      OR tax_number ILIKE '%' || $13 || '%'
-      OR contact_name ILIKE '%' || $13 || '%'
-      OR contact_phone ILIKE '%' || $13 || '%'
-      OR email ILIKE '%' || $13 || '%'
-      OR address ILIKE '%' || $13 || '%'
-      OR phone ILIKE '%' || $13 || '%'
-      OR specification ILIKE '%' || $13 || '%'
-      OR model ILIKE '%' || $13 || '%'
-      OR barcode ILIKE '%' || $13 || '%'
-      OR vin ILIKE '%' || $13 || '%'
-      OR engine_number ILIKE '%' || $13 || '%'
-      OR account_name ILIKE '%' || $13 || '%'
-      OR bank_name ILIKE '%' || $13 || '%'
-      OR bank_branch ILIKE '%' || $13 || '%'
+      $14::text = ''
+      OR code ILIKE '%' || $14 || '%'
+      OR name ILIKE '%' || $14 || '%'
+      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
+      OR short_name ILIKE '%' || $14 || '%'
+      OR tax_number ILIKE '%' || $14 || '%'
+      OR contact_name ILIKE '%' || $14 || '%'
+      OR contact_phone ILIKE '%' || $14 || '%'
+      OR email ILIKE '%' || $14 || '%'
+      OR address ILIKE '%' || $14 || '%'
+      OR phone ILIKE '%' || $14 || '%'
+      OR specification ILIKE '%' || $14 || '%'
+      OR model ILIKE '%' || $14 || '%'
+      OR barcode ILIKE '%' || $14 || '%'
+      OR vin ILIKE '%' || $14 || '%'
+      OR engine_number ILIKE '%' || $14 || '%'
+      OR account_name ILIKE '%' || $14 || '%'
+      OR bank_name ILIKE '%' || $14 || '%'
+      OR bank_branch ILIKE '%' || $14 || '%'
   )
 ORDER BY
-  CASE WHEN $14::text = 'updatedAt' AND $15::text = 'asc' THEN object_updated_at END ASC,
-  CASE WHEN $14::text = 'updatedAt' AND $15::text = 'desc' THEN object_updated_at END DESC,
-  CASE WHEN $14::text = 'code' AND $15::text = 'asc' THEN code END ASC,
-  CASE WHEN $14::text = 'code' AND $15::text = 'desc' THEN code END DESC,
-  CASE WHEN $14::text = 'name' AND $15::text = 'asc' THEN name END ASC,
-  CASE WHEN $14::text = 'name' AND $15::text = 'desc' THEN name END DESC,
-  CASE WHEN $14::text = 'status' AND $15::text = 'asc' THEN status END ASC,
-  CASE WHEN $14::text = 'status' AND $15::text = 'desc' THEN status END DESC,
-  CASE WHEN $14::text = 'version' AND $15::text = 'asc' THEN version_no END ASC,
-  CASE WHEN $14::text = 'version' AND $15::text = 'desc' THEN version_no END DESC,
+  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'asc' THEN object_updated_at END ASC,
+  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'desc' THEN object_updated_at END DESC,
+  CASE WHEN $15::text = 'code' AND $16::text = 'asc' THEN code END ASC,
+  CASE WHEN $15::text = 'code' AND $16::text = 'desc' THEN code END DESC,
+  CASE WHEN $15::text = 'name' AND $16::text = 'asc' THEN name END ASC,
+  CASE WHEN $15::text = 'name' AND $16::text = 'desc' THEN name END DESC,
+  CASE WHEN $15::text = 'status' AND $16::text = 'asc' THEN status END ASC,
+  CASE WHEN $15::text = 'status' AND $16::text = 'desc' THEN status END DESC,
+  CASE WHEN $15::text = 'version' AND $16::text = 'asc' THEN version_no END ASC,
+  CASE WHEN $15::text = 'version' AND $16::text = 'desc' THEN version_no END DESC,
   object_id DESC
-LIMIT $17 OFFSET $16
+LIMIT $18 OFFSET $17
 `
 
 type ListBobObjectsParams struct {
@@ -1715,6 +1830,7 @@ type ListBobObjectsParams struct {
 	PositionID            string   `db:"position_id" json:"position_id"`
 	SalespersonEmployeeID string   `db:"salesperson_employee_id" json:"salesperson_employee_id"`
 	Currency              string   `db:"currency" json:"currency"`
+	ProductKind           string   `db:"product_kind" json:"product_kind"`
 	TargetEntity          string   `db:"target_entity" json:"target_entity"`
 	ParentID              string   `db:"parent_id" json:"parent_id"`
 	RootOnly              bool     `db:"root_only" json:"root_only"`
@@ -1736,6 +1852,7 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 		arg.PositionID,
 		arg.SalespersonEmployeeID,
 		arg.Currency,
+		arg.ProductKind,
 		arg.TargetEntity,
 		arg.ParentID,
 		arg.RootOnly,
@@ -1822,6 +1939,60 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.PricingQuantityPerInventoryUnitMicros,
 			&i.Returnable,
 			&i.PackagingSpecs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobProductFormulaLines = `-- name: ListBobProductFormulaLines :many
+SELECT line.line_no, line.material_object_id, line.material_version_id,
+       object.code AS material_code, detail.name AS material_name,
+       detail.unit AS material_unit, detail.product_kind AS material_product_kind,
+       line.quantity_micros
+FROM bob_product_formula_lines line
+JOIN bob_objects object
+  ON object.id = line.material_object_id AND object.entity = 'product'
+JOIN bob_product_versions detail
+  ON detail.version_id = line.material_version_id
+WHERE line.product_version_id = $1
+ORDER BY line.line_no
+`
+
+type ListBobProductFormulaLinesRow struct {
+	LineNo              int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID    string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID   string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode        string `db:"material_code" json:"material_code"`
+	MaterialName        string `db:"material_name" json:"material_name"`
+	MaterialUnit        string `db:"material_unit" json:"material_unit"`
+	MaterialProductKind string `db:"material_product_kind" json:"material_product_kind"`
+	QuantityMicros      int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productVersionID string) ([]ListBobProductFormulaLinesRow, error) {
+	rows, err := q.db.Query(ctx, listBobProductFormulaLines, productVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobProductFormulaLinesRow{}
+	for rows.Next() {
+		var i ListBobProductFormulaLinesRow
+		if err := rows.Scan(
+			&i.LineNo,
+			&i.MaterialObjectID,
+			&i.MaterialVersionID,
+			&i.MaterialCode,
+			&i.MaterialName,
+			&i.MaterialUnit,
+			&i.MaterialProductKind,
+			&i.QuantityMicros,
 		); err != nil {
 			return nil, err
 		}

@@ -4,18 +4,23 @@ import type { LedgerReference } from './types'
 
 defineOptions({ name: 'LedgerReferenceAutocomplete' })
 
-const props = withDefaults(defineProps<{
-  modelValue: LedgerReference | null
-  options: readonly LedgerReference[]
-  label: string
-  loading?: boolean
-  disabled?: boolean
-  errorMessage?: string | null
-}>(), {
-  loading: false,
-  disabled: false,
-  errorMessage: null,
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: LedgerReference | null
+    options: readonly LedgerReference[]
+    label: string
+    loading?: boolean
+    disabled?: boolean
+    errorMessage?: string | null
+    table?: boolean
+  }>(),
+  {
+    loading: false,
+    disabled: false,
+    errorMessage: null,
+    table: false,
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: LedgerReference | null]
@@ -41,7 +46,7 @@ function title(item: LedgerReference): string {
 <template>
   <v-autocomplete
     clearable
-    density="comfortable"
+    :density="table ? 'compact' : 'comfortable'"
     :disabled="disabled"
     :error-messages="errorMessage ? [errorMessage] : []"
     :item-title="title"
@@ -49,9 +54,10 @@ function title(item: LedgerReference): string {
     :label="label"
     :loading="loading"
     :model-value="modelValue"
+    :hide-details="table"
     no-filter
     return-object
-    variant="outlined"
+    :variant="table ? 'underlined' : 'outlined'"
     @update:model-value="emit('update:modelValue', $event ?? null)"
     @update:search="emit('search', $event ?? '')"
   >

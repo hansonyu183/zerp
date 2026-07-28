@@ -46,13 +46,13 @@ func TestValidateLineRemarkBoundaries(t *testing.T) {
 	if _, _, err := validateProductLines([]ProductLineInput{{
 		Product: product, OrderedQuantity: "1", UnitPrice: "1.00",
 		Remark: strings.Repeat("注", 1000),
-	}}, false); err != nil {
+	}}, false, false); err != nil {
 		t.Fatalf("1000-character product remark rejected: %v", err)
 	}
 	if _, _, err := validateProductLines([]ProductLineInput{{
 		Product: product, OrderedQuantity: "1", UnitPrice: "1.00",
 		Remark: strings.Repeat("注", 1001),
-	}}, false); err == nil {
+	}}, false, false); err == nil {
 		t.Fatalf("1001-character product remark error = %v", err)
 	}
 	if _, _, err := validateExpenseLines([]ExpenseLineInput{{
@@ -84,6 +84,56 @@ func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("purchase accepted duplicate product")
+	}
+}
+
+func TestValidateFormulaRules(t *testing.T) {
+	t.Parallel()
+	formula := &FormulaInput{
+		BaseOutputQuantity: "100",
+		SourceType:         "customer_latest",
+		SourceDocumentID:   testObjectID,
+		SourceDocumentNo:   "SO-20260728-000001",
+		Components: []FormulaComponentInput{{
+			Material: *refInput(),
+			Quantity: "25.5",
+		}},
+	}
+	validated, err := validateFormula(formula, true)
+	if err != nil {
+		t.Fatalf("valid formula rejected: %v", err)
+	}
+	if validated.SourceType != "CUSTOMER_LATEST" ||
+		validated.BaseOutputQuantity != 100_000_000 ||
+		validated.Components[0].Quantity != 25_500_000 {
+		t.Fatalf("formula normalization = %+v", validated)
+	}
+	if _, err = validateFormula(formula, false); err == nil {
+		t.Fatal("purchase formula accepted")
+	}
+
+	duplicate := *formula
+	duplicate.SourceType = "MANUAL"
+	duplicate.SourceDocumentID = ""
+	duplicate.SourceDocumentNo = ""
+	duplicate.Components = append(
+		[]FormulaComponentInput(nil),
+		formula.Components...,
+	)
+	duplicate.Components = append(duplicate.Components, FormulaComponentInput{
+		Material: ReferenceInput{
+			ObjectID:  testObjectID,
+			VersionID: "01J00000000000000000000003",
+		},
+		Quantity: "1",
+	})
+	if _, err = validateFormula(&duplicate, true); err == nil {
+		t.Fatal("duplicate formula material accepted")
+	}
+
+	formula.SourceDocumentID = ""
+	if _, err = validateFormula(formula, true); err == nil {
+		t.Fatal("latest formula without source document accepted")
 	}
 }
 

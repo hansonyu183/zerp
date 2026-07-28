@@ -111,14 +111,34 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
   if (config.lineKind === 'product') {
+    const product = {
+      ...reference('product'),
+      productKind: 'RAW_MATERIAL',
+      unit: 'kg',
+    }
     form.productLines = [
       {
         key: 'line',
-        product: reference('product'),
+        product,
         orderedQuantity: '2.5',
         unitPrice: '4.00',
         purchaseUnitPrice: '',
         remark: '',
+        ...(config.entity === 'sale-order'
+          ? {
+              formula: {
+                baseOutputQuantity: '1',
+                sourceType: 'RAW_SELF',
+                components: [
+                  {
+                    key: 'formula-line',
+                    material: product,
+                    quantity: '1',
+                  },
+                ],
+              },
+            }
+          : {}),
       },
     ]
   }
@@ -155,8 +175,12 @@ describe('shared VOU entity view model', () => {
       'other-income',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
-    expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe('sale-order')
-    expect(voucherEntityConfigs['purchase-inbound'].parentEntity).toBe('purchase-order')
+    expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(
+      'sale-order',
+    )
+    expect(voucherEntityConfigs['purchase-inbound'].parentEntity).toBe(
+      'purchase-order',
+    )
   })
 
   it('builds entity-specific create payloads without dueDate or unrelated fields', async () => {
@@ -207,6 +231,23 @@ describe('shared VOU entity view model', () => {
           data.productLines as Array<Record<string, unknown>>
         )[0]
         expect(productLine).not.toHaveProperty('purchaseUnitPrice')
+        if (config.entity === 'sale-order') {
+          expect(productLine.formula).toEqual({
+            baseOutputQuantity: '1',
+            sourceType: 'RAW_SELF',
+            components: [
+              {
+                material: {
+                  objectId: 'product-object',
+                  versionId: 'product-version',
+                },
+                quantity: '1',
+              },
+            ],
+          })
+        } else {
+          expect(productLine).not.toHaveProperty('formula')
+        }
       }
     }
   })
@@ -327,17 +368,19 @@ describe('shared VOU entity view model', () => {
       updatedAt: '2026-07-24T00:00:00Z',
     })
     expect(vm.canCreate.value).toBe(true)
-    expect(vm.canEdit({
-      documentId: 'DOCUMENT-1',
-      entity: config.entity,
-      documentNo: 'SO-1',
-      status: 'DRAFT',
-      revision: 1,
-      businessDate: '2026-07-24',
-      currency: 'CNY',
-      amount: '10.00',
-      updatedAt: '2026-07-24T00:00:00Z',
-    })).toBe(true)
+    expect(
+      vm.canEdit({
+        documentId: 'DOCUMENT-1',
+        entity: config.entity,
+        documentNo: 'SO-1',
+        status: 'DRAFT',
+        revision: 1,
+        businessDate: '2026-07-24',
+        currency: 'CNY',
+        amount: '10.00',
+        updatedAt: '2026-07-24T00:00:00Z',
+      }),
+    ).toBe(true)
     expect(vm.actionAvailability.value.save).toBe(true)
     expect(vm.actionAvailability.value.check).toBe(true)
     expect(vm.actionAvailability.value.attachmentInitiate).toBe(true)

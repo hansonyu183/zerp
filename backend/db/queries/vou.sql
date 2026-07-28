@@ -482,6 +482,53 @@ INSERT INTO vou_product_lines (
 -- name: ListVouProductLines :many
 SELECT * FROM vou_product_lines WHERE document_id = sqlc.arg(document_id) ORDER BY line_no;
 
+-- name: InsertVouSaleOrderFormula :exec
+INSERT INTO vou_sale_order_formulas (
+    product_line_id, source_type, source_document_id, source_document_no,
+    base_output_quantity_micros
+) VALUES (
+    sqlc.arg(product_line_id), sqlc.arg(source_type),
+    sqlc.narg(source_document_id), sqlc.narg(source_document_no),
+    sqlc.arg(base_output_quantity_micros)
+);
+
+-- name: InsertVouSaleOrderFormulaLine :exec
+INSERT INTO vou_sale_order_formula_lines (
+    product_line_id, line_no, material_object_id, material_version_id,
+    material_code, material_name, material_unit, quantity_micros
+) VALUES (
+    sqlc.arg(product_line_id), sqlc.arg(line_no), sqlc.arg(material_object_id),
+    sqlc.arg(material_version_id), sqlc.arg(material_code),
+    sqlc.arg(material_name), sqlc.arg(material_unit), sqlc.arg(quantity_micros)
+);
+
+-- name: GetVouSaleOrderFormula :one
+SELECT product_line_id, source_type, source_document_id, source_document_no,
+       base_output_quantity_micros
+FROM vou_sale_order_formulas
+WHERE product_line_id = sqlc.arg(product_line_id);
+
+-- name: ListVouSaleOrderFormulaLines :many
+SELECT line_no, material_object_id, material_version_id, material_code,
+       material_name, material_unit, quantity_micros
+FROM vou_sale_order_formula_lines
+WHERE product_line_id = sqlc.arg(product_line_id)
+ORDER BY line_no;
+
+-- name: FindLatestCustomerSaleOrderFormula :one
+SELECT formula.product_line_id, formula.base_output_quantity_micros,
+       document.id AS source_document_id, document.document_no AS source_document_no
+FROM vou_documents document
+JOIN vou_sale_order_details detail ON detail.document_id = document.id
+JOIN vou_product_lines product_line ON product_line.document_id = document.id
+JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
+WHERE document.entity = 'sale-order'
+  AND document.status IN ('CHECKED', 'APPROVED', 'FINALIZED')
+  AND detail.customer_object_id = sqlc.arg(customer_object_id)
+  AND product_line.product_object_id = sqlc.arg(product_object_id)
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1;
+
 -- name: SetVouSaleLineExecution :execrows
 UPDATE vou_product_lines
 SET outbound_qty_micros = sqlc.arg(outbound_qty_micros),

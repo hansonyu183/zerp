@@ -5,6 +5,7 @@ import (
 	"math"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -26,6 +27,20 @@ type fixedProductLine struct {
 	PurchaseUnitPrice   *int64
 	LineAmount          int64
 	Remark              *string
+	Formula             *fixedFormula
+}
+
+type fixedFormula struct {
+	BaseOutputQuantity int64
+	SourceType         string
+	SourceDocumentID   string
+	SourceDocumentNo   string
+	Components         []fixedFormulaComponent
+}
+
+type fixedFormulaComponent struct {
+	Material ReferenceInput
+	Quantity int64
 }
 
 type fixedExpenseLine struct {
@@ -135,7 +150,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
 			return validatedDraft{}, err
 		}
-		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
+		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false, true)
 	case EntityPurchaseOrder:
 		if err = requireOnlyDraftRefs(input, false, true, false, false, false, true, false, true, false, false); err != nil {
 			return validatedDraft{}, err
@@ -149,7 +164,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
 			return validatedDraft{}, err
 		}
-		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false)
+		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false, false)
 	case EntityReceipt, EntityPayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
@@ -235,7 +250,9 @@ func requireOnlyDraftRefs(
 	return nil
 }
 
-func validateProductLines(lines []ProductLineInput, requirePurchasePrice bool) ([]fixedProductLine, int64, error) {
+func validateProductLines(
+	lines []ProductLineInput, requirePurchasePrice, allowFormula bool,
+) ([]fixedProductLine, int64, error) {
 	if len(lines) == 0 || len(lines) > 200 {
 		return nil, 0, domainError(ErrorValidation, "productLines must contain 1 to 200 items", nil, nil)
 	}
@@ -286,14 +303,73 @@ func validateProductLines(lines []ProductLineInput, requirePurchasePrice bool) (
 		if err != nil {
 			return nil, 0, err
 		}
+		formula, err := validateFormula(line.Formula, allowFormula)
+		if err != nil {
+			return nil, 0, err
+		}
 		result = append(result, fixedProductLine{
 			Product: line.Product, Quantity: quantity, BaseUnitPrice: price,
 			SettlementSurcharge: surcharge, SurchargeProvided: surchargeProvided,
 			UnitPrice:         price + surcharge,
-			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark,
+			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark, Formula: formula,
 		})
 	}
 	return result, total, nil
+}
+
+func validateFormula(input *FormulaInput, allowed bool) (*fixedFormula, error) {
+	if input == nil {
+		return nil, nil
+	}
+	if !allowed {
+		return nil, domainError(ErrorValidation, "formula only applies to sale order lines", nil, nil)
+	}
+	baseQuantity, err := quantityMicros(input.BaseOutputQuantity, false)
+	if err != nil {
+		return nil, domainError(ErrorValidation, "invalid formula base output quantity", nil, err)
+	}
+	if len(input.Components) == 0 || len(input.Components) > 200 {
+		return nil, domainError(ErrorValidation, "formula must contain 1 to 200 components", nil, nil)
+	}
+	sourceType := strings.ToUpper(strings.TrimSpace(input.SourceType))
+	if sourceType == "" {
+		sourceType = "MANUAL"
+	}
+	if !slices.Contains([]string{"RAW_SELF", "PRODUCT_FIXED", "CUSTOMER_LATEST", "MANUAL"}, sourceType) {
+		return nil, domainError(ErrorValidation, "invalid formula source", nil, nil)
+	}
+	sourceDocumentID := strings.TrimSpace(input.SourceDocumentID)
+	sourceDocumentNo := strings.TrimSpace(input.SourceDocumentNo)
+	if sourceType == "CUSTOMER_LATEST" {
+		if !validID(sourceDocumentID) || sourceDocumentNo == "" {
+			return nil, domainError(ErrorValidation, "invalid formula source document", nil, nil)
+		}
+	} else if sourceDocumentID != "" || sourceDocumentNo != "" {
+		return nil, domainError(ErrorValidation, "formula source document is not allowed", nil, nil)
+	}
+	seen := make(map[string]bool, len(input.Components))
+	components := make([]fixedFormulaComponent, 0, len(input.Components))
+	for _, component := range input.Components {
+		if err = validateReference(&component.Material, "formula material", true); err != nil {
+			return nil, err
+		}
+		if seen[component.Material.ObjectID] {
+			return nil, domainError(ErrorValidation, "duplicate formula material", nil, nil)
+		}
+		seen[component.Material.ObjectID] = true
+		quantity, quantityErr := quantityMicros(component.Quantity, false)
+		if quantityErr != nil {
+			return nil, domainError(ErrorValidation, "invalid formula material quantity", nil, quantityErr)
+		}
+		components = append(components, fixedFormulaComponent{
+			Material: component.Material, Quantity: quantity,
+		})
+	}
+	return &fixedFormula{
+		BaseOutputQuantity: baseQuantity, SourceType: sourceType,
+		SourceDocumentID: sourceDocumentID, SourceDocumentNo: sourceDocumentNo,
+		Components: components,
+	}, nil
 }
 
 func validateExpenseLines(lines []ExpenseLineInput) ([]fixedExpenseLine, int64, error) {

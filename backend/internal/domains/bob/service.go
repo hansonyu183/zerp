@@ -67,6 +67,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
+		ProductKind:  filters.ProductKind,
 		TargetEntity: filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
 	}
 	total, err := s.queries.CountBobObjects(ctx, countParams)
@@ -79,6 +80,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
+		ProductKind:  filters.ProductKind,
 		TargetEntity: filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
 		PageOffset: offset, PageSize: int32(input.PageSize),
 	})
@@ -105,7 +107,14 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("get object", err)
 	}
-	return objectView(row), nil
+	result := objectView(row)
+	if entity == EntityProduct {
+		result.Data.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
+		if err != nil {
+			return ObjectView{}, s.internal("read product formula", err)
+		}
+	}
+	return result, nil
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
@@ -171,6 +180,12 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, s.internal("read current detail", readErr)
 	}
 	current := detailView(row)
+	if entity == EntityProduct {
+		current.Formula, readErr = loadProductFormula(ctx, qtx, input.VersionID)
+		if readErr != nil {
+			return MutationResult{}, s.internal("read current product formula", readErr)
+		}
+	}
 	data, err := validateDetailData(entity, mergeDetailInput(current, input.Data))
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
@@ -614,6 +629,12 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 		}
 	}
 	data := effectiveReferenceDetail(row)
+	if entity == EntityProduct {
+		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
+		if err != nil {
+			return EffectiveReference{}, s.internal("read effective product formula", err)
+		}
+	}
 	if entity == EntityCustomer {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "CUSTOMER_TYPE"); err != nil {
 			return EffectiveReference{}, err
@@ -671,9 +692,16 @@ func (s *Service) ResolveCurrentEffectiveReference(
 			return EffectiveReference{}, err
 		}
 	}
+	data := effectiveReferenceDetail(row)
+	if entity == EntityProduct {
+		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
+		if err != nil {
+			return EffectiveReference{}, s.internal("read current effective product formula", err)
+		}
+	}
 	return EffectiveReference{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID,
-		Data: effectiveReferenceDetail(row),
+		Data: data,
 	}, nil
 }
 
@@ -711,7 +739,14 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 	if err != nil {
 		return s.internal("read stored detail", err)
 	}
-	data, err := validateDetailData(entity, detailView(row))
+	data := detailView(row)
+	if entity == EntityProduct {
+		data.Formula, err = loadProductFormula(ctx, q, versionID)
+		if err != nil {
+			return s.internal("read stored product formula", err)
+		}
+	}
+	data, err = validateDetailData(entity, data)
 	if err != nil {
 		return err
 	}
@@ -759,6 +794,23 @@ func (s *Service) validateDetailReferences(
 			ObjectID: data.CategoryID, Entity: EntityCategory,
 		}); err != nil {
 			return domainError(ErrorConflict, "category reference is unavailable", nil, err)
+		}
+	}
+	if entity == EntityProduct && data.Formula != nil {
+		for _, component := range data.Formula.Components {
+			if component.Material.ObjectID == objectID {
+				return domainError(ErrorValidation, "product formula cannot reference itself", nil, nil)
+			}
+			material, referenceErr := s.ResolveEffectiveReference(
+				ctx, tx, EntityProduct,
+				component.Material.ObjectID, component.Material.VersionID,
+			)
+			if referenceErr != nil {
+				return referenceErr
+			}
+			if material.Data.ProductKind != ProductKindRawMaterial {
+				return domainError(ErrorConflict, "formula component must reference a raw material", nil, nil)
+			}
 		}
 	}
 	if (entity == EntityProduct || entity == EntityService) && s.auxiliaryResolver != nil {

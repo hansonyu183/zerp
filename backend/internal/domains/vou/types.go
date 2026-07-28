@@ -84,6 +84,25 @@ type ProductLineInput struct {
 	Remark               string         `json:"remark,omitempty"`
 	ContainerType        *string        `json:"containerType,omitempty"`
 	QuantityPerContainer *string        `json:"quantityPerContainer,omitempty"`
+	Formula              *FormulaInput  `json:"formula,omitempty"`
+}
+
+type FormulaInput struct {
+	BaseOutputQuantity string                  `json:"baseOutputQuantity"`
+	SourceType         string                  `json:"sourceType,omitempty"`
+	SourceDocumentID   string                  `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo   string                  `json:"sourceDocumentNo,omitempty"`
+	Components         []FormulaComponentInput `json:"components"`
+}
+
+type FormulaComponentInput struct {
+	Material ReferenceInput `json:"material"`
+	Quantity string         `json:"quantity"`
+}
+
+type FormulaDefaultInput struct {
+	Customer *ReferenceInput `json:"customer,omitempty"`
+	Product  ReferenceInput  `json:"product"`
 }
 
 type SourceQuantityLineInput struct {
@@ -268,6 +287,27 @@ type ProductLineView struct {
 	SourceLineID         string        `json:"sourceLineId,omitempty"`
 	Quantity             string        `json:"quantity,omitempty"`
 	AvailableQuantity    string        `json:"availableQuantity,omitempty"`
+	Formula              *FormulaView  `json:"formula,omitempty"`
+}
+
+type FormulaView struct {
+	BaseOutputQuantity string                 `json:"baseOutputQuantity"`
+	SourceType         string                 `json:"sourceType"`
+	SourceDocumentID   string                 `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo   string                 `json:"sourceDocumentNo,omitempty"`
+	Components         []FormulaComponentView `json:"components"`
+}
+
+type FormulaComponentView struct {
+	Material ReferenceView `json:"material"`
+	Quantity string        `json:"quantity"`
+}
+
+type FormulaDefaultView struct {
+	SourceType       string       `json:"sourceType"`
+	SourceDocumentID string       `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo string       `json:"sourceDocumentNo,omitempty"`
+	Formula          *FormulaView `json:"formula,omitempty"`
 }
 
 type SaleSignoffLineView struct {

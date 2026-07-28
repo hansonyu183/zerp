@@ -299,6 +299,19 @@ type BobPositionVersion struct {
 	Description    *string `db:"description" json:"description"`
 }
 
+type BobProductFormula struct {
+	ProductVersionID         string `db:"product_version_id" json:"product_version_id"`
+	BaseOutputQuantityMicros int64  `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+}
+
+type BobProductFormulaLine struct {
+	ProductVersionID  string `db:"product_version_id" json:"product_version_id"`
+	LineNo            int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
+	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
 type BobProductPackagingSpec struct {
 	ProductVersionID          string `db:"product_version_id" json:"product_version_id"`
 	PackagingProductObjectID  string `db:"packaging_product_object_id" json:"packaging_product_object_id"`
@@ -1025,6 +1038,25 @@ type VouSaleOrderDetail struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+}
+
+type VouSaleOrderFormula struct {
+	ProductLineID            string  `db:"product_line_id" json:"product_line_id"`
+	SourceType               string  `db:"source_type" json:"source_type"`
+	SourceDocumentID         *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo         *string `db:"source_document_no" json:"source_document_no"`
+	BaseOutputQuantityMicros int64   `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+}
+
+type VouSaleOrderFormulaLine struct {
+	ProductLineID     string `db:"product_line_id" json:"product_line_id"`
+	LineNo            int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode      string `db:"material_code" json:"material_code"`
+	MaterialName      string `db:"material_name" json:"material_name"`
+	MaterialUnit      string `db:"material_unit" json:"material_unit"`
+	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
 }
 
 type VouSaleOutboundDetail struct {

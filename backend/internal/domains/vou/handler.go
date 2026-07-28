@@ -20,6 +20,7 @@ const principalContextKey = "vouPrincipal"
 type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[ListItem], error)
 	Get(context.Context, string, GetInput) (DocumentView, error)
+	FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
@@ -51,6 +52,7 @@ type actionRoute struct {
 var actionRoutes = [...]actionRoute{
 	{action: "query", handle: (*Handler).query},
 	{action: "get", handle: (*Handler).get},
+	{action: "formula-default", handle: (*Handler).formulaDefault},
 	{action: "create", handle: (*Handler).create},
 	{action: "save", handle: (*Handler).save},
 	{action: "check", handle: (*Handler).check},
@@ -85,6 +87,9 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "create" && !publicCreateEntity(entity) {
 				continue
 			}
+			if route.action == "formula-default" && entity != EntitySaleOrder {
+				continue
+			}
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
@@ -95,6 +100,18 @@ func (h *Handler) Register(router *gin.Engine) {
 	}
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
+}
+
+func (h *Handler) formulaDefault(c *gin.Context, entity string) {
+	if entity != EntitySaleOrder {
+		h.result(c, FormulaDefaultView{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input FormulaDefaultInput
+	if h.bind(c, &input) {
+		result, err := h.service.FormulaDefault(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {

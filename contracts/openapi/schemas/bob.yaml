@@ -96,6 +96,12 @@
                       'nullable': true,
                       'items': { '$ref': '#/BobPackagingSpecInput' },
                     },
+                  'formula':
+                    {
+                      'type': 'object',
+                      'allOf': [{ '$ref': '#/BobProductFormulaInput' }],
+                      'nullable': true,
+                    },
                 },
             },
         },
@@ -186,6 +192,12 @@
                       'nullable': true,
                       'items': { '$ref': '#/BobPackagingSpecInput' },
                     },
+                  'formula':
+                    {
+                      'type': 'object',
+                      'allOf': [{ '$ref': '#/BobProductFormulaInput' }],
+                      'nullable': true,
+                    },
                 },
             },
         },
@@ -207,6 +219,44 @@
           'packagingProductVersionId': { 'type': 'string' },
           'contentQuantity': { 'type': 'string' },
           'isDefault': { 'type': 'boolean' },
+        },
+    },
+  'BobProductFormulaInput':
+    {
+      'type': 'object',
+      'required': ['baseOutputQuantity', 'components'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'baseOutputQuantity': { 'type': 'string' },
+          'components':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/BobProductFormulaComponentInput' },
+            },
+        },
+    },
+  'BobProductFormulaComponentInput':
+    {
+      'type': 'object',
+      'required': ['material', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'material':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'quantity': { 'type': 'string' },
         },
     },
   'BobDeleteRequest':

@@ -16,6 +16,7 @@ type resolvedDraft struct {
 	Salesperson, Purchaser, Handler, Warehouse              *bobdomain.EffectiveReference
 	CustomerSettlement, SupplierSettlement                  *bobdomain.EffectiveReference
 	Products                                                []bobdomain.EffectiveReference
+	FormulaMaterials                                        [][]bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedPersonnel(
@@ -79,7 +80,7 @@ func (s *Service) resolveDraft(
 	if err := s.resolveDraftSettlements(ctx, tx, entity, &result); err != nil {
 		return result, err
 	}
-	if err := s.resolveDraftProducts(ctx, tx, draft, &result); err != nil {
+	if err := s.resolveDraftProducts(ctx, tx, entity, draft, &result); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -240,8 +241,9 @@ func (s *Service) replaceLines(
 		}
 		for index, line := range draft.ProductLines {
 			ref := refs.Products[index]
+			lineID := newID()
 			if err := q.InsertVouProductLine(ctx, dbsqlc.InsertVouProductLineParams{
-				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
+				ID: lineID, DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
 				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit,
 				ProductKind:                           ref.Data.ProductKind,
@@ -252,6 +254,29 @@ func (s *Service) replaceLines(
 				PurchaseUnitPriceCents: line.PurchaseUnitPrice, Remark: line.Remark,
 			}); err != nil {
 				return err
+			}
+			if entity == EntitySaleOrder && line.Formula != nil {
+				if err := q.InsertVouSaleOrderFormula(ctx, dbsqlc.InsertVouSaleOrderFormulaParams{
+					ProductLineID: lineID, SourceType: line.Formula.SourceType,
+					SourceDocumentID:         stringPointer(line.Formula.SourceDocumentID),
+					SourceDocumentNo:         stringPointer(line.Formula.SourceDocumentNo),
+					BaseOutputQuantityMicros: line.Formula.BaseOutputQuantity,
+				}); err != nil {
+					return err
+				}
+				for componentIndex, component := range line.Formula.Components {
+					material := refs.FormulaMaterials[index][componentIndex]
+					if err := q.InsertVouSaleOrderFormulaLine(
+						ctx, dbsqlc.InsertVouSaleOrderFormulaLineParams{
+							ProductLineID: lineID, LineNo: int32(componentIndex + 1),
+							MaterialObjectID: material.ObjectID, MaterialVersionID: material.VersionID,
+							MaterialCode: material.Code, MaterialName: material.Data.Name,
+							MaterialUnit: material.Data.Unit, QuantityMicros: component.Quantity,
+						},
+					); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -270,6 +295,13 @@ func (s *Service) replaceLines(
 		}
 	}
 	return nil
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func fixedMicrosOrOne(value string) int64 {

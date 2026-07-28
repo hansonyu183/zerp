@@ -1149,6 +1149,33 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/formula-default':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '解析销售订单行默认配方',
+              'operationId': 'vouSaleOrderFormulaDefault',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouFormulaDefaultRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/vou/{entity}/create':
         {
           'post':

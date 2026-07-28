@@ -160,6 +160,64 @@ func TestValidateProductContainerRules(t *testing.T) {
 	}
 }
 
+func TestValidateStandardFinishedProductFormula(t *testing.T) {
+	t.Parallel()
+	valid := CreateDetailInput{
+		Code:                            "P-FINISHED",
+		Name:                            "固定配方成品",
+		Unit:                            "kg",
+		ProductKind:                     ProductKindStandardFinished,
+		InventoryUnitID:                 "01JAVX00000000000000000011",
+		PricingUnitID:                   "01JAVX00000000000000000011",
+		PricingQuantityPerInventoryUnit: "1",
+		Formula: &ProductFormula{
+			BaseOutputQuantity: "100",
+			Components: []ProductFormulaComponent{{
+				Material: FormulaMaterialReference{
+					ObjectID:  "01J00000000000000000000031",
+					VersionID: "01J00000000000000000000032",
+				},
+				Quantity: "25.5",
+			}},
+		},
+	}
+	data, _, err := validateCreate(EntityProduct, valid)
+	if err != nil {
+		t.Fatalf("valid standard formula rejected: %v", err)
+	}
+	if data.Formula == nil || data.Formula.BaseOutputQuantity != "100" {
+		t.Fatalf("formula not preserved: %+v", data.Formula)
+	}
+
+	missing := valid
+	missing.Formula = nil
+	if _, _, err = validateCreate(EntityProduct, missing); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("missing standard formula error = %v", err)
+	}
+
+	rawWithFormula := valid
+	rawWithFormula.ProductKind = ProductKindRawMaterial
+	if _, _, err = validateCreate(EntityProduct, rawWithFormula); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("raw material formula error = %v", err)
+	}
+
+	duplicate := valid
+	duplicate.Formula = cloneProductFormula(valid.Formula)
+	duplicate.Formula.Components = append(
+		duplicate.Formula.Components,
+		ProductFormulaComponent{
+			Material: FormulaMaterialReference{
+				ObjectID:  "01J00000000000000000000031",
+				VersionID: "01J00000000000000000000033",
+			},
+			Quantity: "1",
+		},
+	)
+	if _, _, err = validateCreate(EntityProduct, duplicate); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("duplicate formula material error = %v", err)
+	}
+}
+
 func TestValidateDetailRejectsCrossEntityFields(t *testing.T) {
 	tests := []struct {
 		name   string

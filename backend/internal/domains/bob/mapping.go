@@ -38,7 +38,7 @@ func detailFields(entity string) []string {
 		return []string{"name", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
 		return []string{"name", "unit", "productKind", "inventoryUnitId", "pricingUnitId",
-			"pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs",
+			"pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs", "formula",
 			"categoryId", "specification", "model", "barcode", "remark"}
 	case EntityService:
 		return []string{"name", "unit", "inventoryUnitId", "description", "remark"}

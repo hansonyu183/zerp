@@ -5,6 +5,10 @@ import {
   BusinessObjectList,
 } from '@/components/business-object'
 import { formatLocalDateTime } from '@/utils/date'
+import {
+  FormulaEditorDialog,
+  type ProductFormulaDraft,
+} from '@/components/formula'
 import { getStatusText } from './config'
 import type { BobEntityViewModel } from './vm'
 import type { BobListItem } from './types'
@@ -18,6 +22,12 @@ const submitTarget = ref<BobListItem | null>(null)
 const reviewTarget = ref<BobListItem | null>(null)
 const reviewAction = ref<'approve' | 'reject'>('approve')
 const reviewComment = ref('')
+const formulaOpen = ref(false)
+const formulaModel = ref<ProductFormulaDraft | null>(null)
+const formulaEditable = ref(false)
+const formulaProductName = ref('')
+const formulaProductUnit = ref('')
+let formulaSetter: ((value: ProductFormulaDraft) => void) | null = null
 
 const versionsLength = computed(() =>
   Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
@@ -71,6 +81,27 @@ function closeReview(value: boolean): void {
     reviewTarget.value = null
     reviewComment.value = ''
   }
+}
+
+function openFormula(
+  value: unknown,
+  record: Readonly<Record<string, unknown>>,
+  editable: boolean,
+  setValue?: (value: unknown) => void,
+): void {
+  formulaModel.value = value
+    ? structuredClone(value as ProductFormulaDraft)
+    : null
+  formulaEditable.value = editable
+  formulaProductName.value = String(record.name ?? '自制成品')
+  formulaProductUnit.value = String(record.unit ?? '')
+  formulaSetter = setValue ? (formula) => setValue(formula) : null
+  formulaOpen.value = true
+}
+
+function saveFormula(value: ProductFormulaDraft): void {
+  formulaModel.value = value
+  formulaSetter?.(value)
 }
 </script>
 
@@ -288,9 +319,39 @@ function closeReview(value: boolean): void {
             </v-btn>
           </template>
         </template>
+        <template #input-formula="{ record, setValue, value }">
+          <div class="business-object-editor__label">固定配方</div>
+          <v-btn
+            prepend-icon="mdi-flask-outline"
+            variant="tonal"
+            @click="openFormula(value, record, true, setValue)"
+          >
+            {{ value ? '编辑固定配方' : '维护固定配方' }}
+          </v-btn>
+        </template>
+        <template #display-formula="{ record, value }">
+          <div class="business-object-editor__label">固定配方</div>
+          <v-btn
+            prepend-icon="mdi-flask-outline"
+            variant="text"
+            @click="openFormula(value, record, false)"
+          >
+            查看固定配方
+          </v-btn>
+        </template>
       </BusinessObjectEditor>
     </div>
   </v-navigation-drawer>
+
+  <FormulaEditorDialog
+    v-model:open="formulaOpen"
+    :editable="formulaEditable"
+    :model-value="formulaModel"
+    :product-name="formulaProductName"
+    :product-unit="formulaProductUnit"
+    source-type="PRODUCT_FIXED"
+    @save="saveFormula"
+  />
 
   <v-dialog
     :model-value="Boolean(effectiveEditTarget)"

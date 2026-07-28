@@ -22,6 +22,7 @@ import {
 } from '@/components/voucher'
 import { lifecycleLabels } from './config'
 import type { VoucherEntityViewModel } from './vm'
+import CompactTableField from '@/components/common/CompactTableField.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -526,12 +527,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             v-if="vm.config.lineKind === 'product'"
             v-model="vm.form.productLines"
             :editable="vm.editing"
+            :formula-enabled="vm.config.entity === 'sale-order'"
             :product-error="vm.referenceError('product')"
             :product-loading="vm.referenceLoading('product')"
             :product-options="vm.referenceOptions('product')"
             :purchase-price-required="false"
             :settlement-surcharge-enabled="vm.config.entity === 'sale-order'"
             @product-search="vm.searchReference('product', $event)"
+            @product-change="vm.changeLineProduct"
           />
           <VoucherExpenseLinesEditor
             v-if="vm.config.lineKind === 'expense'"
@@ -567,22 +570,16 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   </td>
                   <td>{{ line.availableQuantity }}</td>
                   <td>
-                    <v-text-field
+                    <CompactTableField
                       v-model="line.quantity"
                       :disabled="!vm.editing"
-                      density="compact"
-                      hide-details="auto"
                       inputmode="decimal"
-                      variant="outlined"
                     />
                   </td>
                   <td>
-                    <v-text-field
+                    <CompactTableField
                       v-model="line.remark"
                       :disabled="!vm.editing"
-                      density="compact"
-                      hide-details
-                      variant="outlined"
                     />
                   </td>
                   <td v-if="vm.editing">
@@ -636,35 +633,26 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   </td>
                   <td>{{ line.outboundQuantity }}</td>
                   <td>
-                    <v-text-field
+                    <CompactTableField
                       v-model="line.signedQuantity"
                       :disabled="!vm.editing"
-                      density="compact"
-                      hide-details="auto"
                       inputmode="decimal"
-                      variant="outlined"
                       @update:model-value="updateSignoffLoss(line)"
                     />
                   </td>
                   <td>
-                    <v-text-field
+                    <CompactTableField
                       v-model="line.rejectedQuantity"
                       :disabled="!vm.editing"
-                      density="compact"
-                      hide-details="auto"
                       inputmode="decimal"
-                      variant="outlined"
                       @update:model-value="updateSignoffLoss(line)"
                     />
                   </td>
                   <td>{{ line.lossQuantity || '—' }}</td>
                   <td>
-                    <v-text-field
+                    <CompactTableField
                       v-model="line.remark"
                       :disabled="!vm.editing"
-                      density="compact"
-                      hide-details
-                      variant="outlined"
                     />
                   </td>
                 </tr>

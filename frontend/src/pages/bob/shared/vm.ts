@@ -4,6 +4,11 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { generateObjectCode } from '@/utils/object-code'
+import {
+  formulaFromPayload,
+  formulaPayload,
+  type ProductFormulaDraft,
+} from '@/components/formula'
 import { useBobHistory } from './history'
 import { useBobReferences } from './references'
 import type {
@@ -68,9 +73,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const editContext = ref<BobEditContext | null>(null)
   const currentView = ref<BobObjectView | null>(null)
 
-  const canCreate = computed(
-    () => session.can(`/bob/${config.entity}/create`),
-  )
+  const canCreate = computed(() => session.can(`/bob/${config.entity}/create`))
   const editorTitle = computed(() => {
     if (editorMode.value === 'create') return `新增${config.title}`
     if (editorMode.value === 'edit') return `编辑${config.title}`
@@ -91,20 +94,20 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return `/bob/${config.entity}/${action}`
   }
 
-  function actionAvailability(row: Readonly<BobListItem>): BobActionAvailability {
+  function actionAvailability(
+    row: Readonly<BobListItem>,
+  ): BobActionAvailability {
     const status = row.currentVersion.status
     return {
       view: session.can(permission('get')),
-      edit: (
-        (status === 'DRAFT' || status === 'REJECTED') &&
-        session.can(permission('get')) &&
-        session.can(permission('save'))
-      ) || (
-        status === 'EFFECTIVE' &&
-        session.can(permission('get')) &&
-        session.can(permission('edit')) &&
-        session.can(permission('save'))
-      ),
+      edit:
+        ((status === 'DRAFT' || status === 'REJECTED') &&
+          session.can(permission('get')) &&
+          session.can(permission('save'))) ||
+        (status === 'EFFECTIVE' &&
+          session.can(permission('get')) &&
+          session.can(permission('edit')) &&
+          session.can(permission('save'))),
       delete:
         session.can(permission('delete')) &&
         status === 'DRAFT' &&
@@ -113,10 +116,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       submit:
         session.can(permission('submit')) &&
         (status === 'DRAFT' || status === 'REJECTED'),
-      approve:
-        session.can(permission('approve')) && status === 'PENDING',
-      reject:
-        session.can(permission('reject')) && status === 'PENDING',
+      approve: session.can(permission('approve')) && status === 'PENDING',
+      reject: session.can(permission('reject')) && status === 'PENDING',
       versions: session.can(permission('versions')),
       audit: session.can(permission('audit-history')),
     }
@@ -177,11 +178,11 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         sort: [{ ...sort.value }],
       })
       rows.value = Array.isArray(data.items) ? data.items : []
-      total.value = typeof data.total === 'number' ? data.total : rows.value.length
+      total.value =
+        typeof data.total === 'number' ? data.total : rows.value.length
       page.value = typeof data.page === 'number' ? data.page : page.value
-      pageSize.value = typeof data.pageSize === 'number'
-        ? data.pageSize
-        : pageSize.value
+      pageSize.value =
+        typeof data.pageSize === 'number' ? data.pageSize : pageSize.value
     } catch (error) {
       rows.value = []
       total.value = 0
@@ -230,7 +231,9 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     if (config.entity === 'fund-account') {
       const accountNumber = normalized.accountNumber
       if (typeof accountNumber === 'string') {
-        normalized.accountNumber = accountNumber.replace(/[\s-]+/g, '').toUpperCase()
+        normalized.accountNumber = accountNumber
+          .replace(/[\s-]+/g, '')
+          .toUpperCase()
       }
     }
     return normalized
@@ -242,17 +245,33 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     const data: Record<string, unknown> = {}
     for (const key of allowedKeys) {
       const value = normalized[key]
-      if (!config.requiredKeys.includes(key) && (value === '' || value === null)) {
+      if (
+        !config.requiredKeys.includes(key) &&
+        (value === '' || value === null)
+      ) {
         continue
       }
       data[key] = value
+    }
+    if (config.entity === 'product') {
+      data.formula = formulaPayload(
+        normalized.formula as ProductFormulaDraft | null,
+      )
     }
     return data
   }
 
   function saveData(form: BobForm): Record<string, unknown> {
     const normalized = normalizeForm(form)
-    return Object.fromEntries(config.detailKeys.map((key) => [key, normalized[key]]))
+    const data = Object.fromEntries(
+      config.detailKeys.map((key) => [key, normalized[key]]),
+    )
+    if (config.entity === 'product') {
+      data.formula = formulaPayload(
+        normalized.formula as ProductFormulaDraft | null,
+      )
+    }
+    return data
   }
 
   function formFromView(view: BobObjectView): BobForm {
@@ -260,6 +279,11 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     form.code = view.code
     for (const key of config.detailKeys) {
       form[key] = view.data[key] ?? form[key] ?? ''
+    }
+    if (config.entity === 'product') {
+      form.formula = formulaFromPayload(
+        view.data.formula as Parameters<typeof formulaFromPayload>[0],
+      )
     }
     return form
   }
@@ -291,10 +315,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     preloadEditorReferences(editorModel.value)
   }
 
-  async function openView(
-    row: BobListItem,
-    versionId?: string,
-  ): Promise<void> {
+  async function openView(row: BobListItem, versionId?: string): Promise<void> {
     if (!session.can(permission('get')) || editorLoading.value) return
     editorMode.value = 'view'
     editorLoading.value = true
@@ -386,10 +407,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         const result = await apiClient.post<
           BobMutationResult,
           { data: Record<string, unknown> }
-        >(
-          `bob/${config.entity}/create`,
-          { data: createData(form) },
-        )
+        >(`bob/${config.entity}/create`, { data: createData(form) })
         mutation = result.data
       } else {
         const context = editContext.value
@@ -412,12 +430,30 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         )
         const normalized = normalizeForm(form)
         const missing = config.persistedKeys?.find(
-          (key) => (persisted.data[key] ?? '') !== (normalized[key] ?? ''),
+          (key) =>
+            JSON.stringify(
+              key === 'formula'
+                ? (formulaPayload(
+                    formulaFromPayload(
+                      persisted.data[key] as Parameters<
+                        typeof formulaFromPayload
+                      >[0],
+                    ),
+                  ) ?? '')
+                : (persisted.data[key] ?? ''),
+            ) !==
+            JSON.stringify(
+              key === 'formula'
+                ? (formulaPayload(
+                    normalized[key] as ProductFormulaDraft | null,
+                  ) ?? '')
+                : (normalized[key] ?? ''),
+            ),
         )
         if (missing) {
-          const label = editorFields.value.find(
-            (field) => field.key === missing,
-          )?.label ?? missing
+          const label =
+            editorFields.value.find((field) => field.key === missing)?.label ??
+            missing
           throw new Error(`后端尚未保存${label}，请确认 V2 契约已经部署。`)
         }
       }
@@ -443,12 +479,15 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     errorMessage.value = null
     try {
       if (action === 'delete') {
-        await apiClient.post<null, {
-          objectId: string
-          objectRevision: number
-          versionId: string
-          revision: number
-        }>(`bob/${config.entity}/delete`, {
+        await apiClient.post<
+          null,
+          {
+            objectId: string
+            objectRevision: number
+            versionId: string
+            revision: number
+          }
+        >(`bob/${config.entity}/delete`, {
           objectId: row.objectId,
           objectRevision: row.objectRevision,
           versionId: row.currentVersion.versionId,

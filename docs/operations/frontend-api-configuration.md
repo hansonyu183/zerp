@@ -32,11 +32,11 @@ docker compose --env-file backend/.env.example build web api migrate
 
 Pages 构建配置：
 
-| 配置                   | 值               |
-| ---------------------- | ---------------- |
-| Root directory         | `/`              |
-| Build command          | `pnpm build:web` |
-| Build output directory | `frontend/dist`  |
+| 配置                   | 值           |
+| ---------------------- | ------------ |
+| Root directory         | `/`          |
+| Build command          | `pnpm build` |
+| Build output directory | `dist`       |
 
 前端通过构建时变量直连目标 HTTPS API：
 

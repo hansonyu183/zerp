@@ -1,6 +1,6 @@
 # 固定外网开发预览
 
-固定预览用于人工验收当前工作区代码，独立于开发、生产形态和 E2E。桌面、手机和本机统一访问：
+固定预览独立于开发、生产形态和 E2E：`preview-up` 用于临时检查当前工作区，`preview-deploy` 用于人工验收准确提交。桌面、手机和本机统一访问：
 
 ```text
 https://zerp-preview.bytesucceed.com
@@ -73,13 +73,13 @@ brew services info colima
 
 ## 5. 验收
 
+非纯文档变更进入标准 PR 流程时执行：
+
 ```bash
 docker compose --env-file backend/.env.preview.example \
   -p zerp-fullstack-preview \
   -f compose.yaml -f compose.preview.yaml config --quiet
 sh -n backend/scripts/init-preview-env.sh scripts/preview.sh
-make generate-check
-make check
 make pre-push
 make preview-deploy PREVIEW_REF=<commit>
 make preview-status

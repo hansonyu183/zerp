@@ -35,7 +35,9 @@ git diff --check "${base_ref}...HEAD"
 if [ "${docs_only}" = "true" ]; then
   printf '%s\n' "${changed_files}" |
     while IFS= read -r changed_file; do
-      pnpm exec prettier --check "${changed_file}"
+      if [ -e "${changed_file}" ] || [ -L "${changed_file}" ]; then
+        pnpm exec prettier --check "${changed_file}"
+      fi
     done
   echo "Documentation-only pre-push gate passed"
   exit 0

@@ -200,10 +200,20 @@ export function useVoucherProduction(
       line.materials = replacement.materials
     } catch (error) {
       const line = form.value.productionLines[index]
-      if (line?.key === current.key) line.formulaError = getErrorMessage(error)
+      if (
+        line?.key === current.key &&
+        requestVersions.get(current.key) === version
+      ) {
+        line.formulaError = getErrorMessage(error)
+      }
     } finally {
       const line = form.value.productionLines[index]
-      if (line?.key === current.key) line.formulaLoading = false
+      if (
+        line?.key === current.key &&
+        requestVersions.get(current.key) === version
+      ) {
+        line.formulaLoading = false
+      }
     }
   }
 

@@ -1,14 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VoucherReference } from '@/components/voucher'
 import { emptyForm } from '@/pages/vou/shared/form'
 import { buildVoucherDraftPayload } from '@/pages/vou/shared/payload'
 import {
+  emptyProductionLine,
   productionLineFromFormula,
   productionSuggestedQuantity,
   recalculateProductionLine,
+  useVoucherProduction,
 } from '@/pages/vou/shared/production'
 import { validateVoucherDraft } from '@/pages/vou/shared/validation'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
+
+const mockedPost = vi.hoisted(() => vi.fn())
+
+vi.mock('@/api/client', () => ({
+  apiClient: { post: mockedPost },
+}))
 
 const product: VoucherReference = {
   objectId: 'product-1',
@@ -35,6 +44,10 @@ const warehouse: VoucherReference = {
 }
 
 describe('production voucher helpers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('rounds suggested material quantity half up to six decimals', () => {
     expect(productionSuggestedQuantity('1', '3', '1', '0')).toBe('0.333333')
     expect(productionSuggestedQuantity('1', '6', '1', '0')).toBe('0.166667')
@@ -112,5 +125,61 @@ describe('production voucher helpers', () => {
     line.materials[0]!.actualQuantity = '14'
     form.productionLines = [line]
     expect(validateVoucherDraft(config, form)).toContain('必须说明原因')
+  })
+
+  it('ignores a stale formula failure while the latest request is pending', async () => {
+    const config = voucherEntityConfigs['self-production']
+    const form = ref(emptyForm(config))
+    form.value.productionLines = [emptyProductionLine()]
+    const newerProduct: VoucherReference = {
+      ...product,
+      objectId: 'product-2',
+      versionId: 'product-version-2',
+      code: 'FG-002',
+      name: '新成品',
+    }
+    let rejectOld!: (reason?: unknown) => void
+    let resolveNew!: (value: unknown) => void
+    mockedPost
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectOld = reject
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveNew = resolve
+          }),
+      )
+
+    const production = useVoucherProduction(config, form)
+    const oldRequest = production.changeProductionProduct(0, product)
+    const newRequest = production.changeProductionProduct(0, newerProduct)
+
+    rejectOld(new Error('stale request failed'))
+    await oldRequest
+    expect(form.value.productionLines[0]).toMatchObject({
+      product: newerProduct,
+      formulaError: '',
+      formulaLoading: true,
+    })
+
+    resolveNew({
+      data: {
+        formula: {
+          baseOutputQuantity: '1',
+          components: [{ material, quantity: '2' }],
+        },
+      },
+    })
+    await newRequest
+    expect(form.value.productionLines[0]).toMatchObject({
+      product: newerProduct,
+      formulaError: '',
+      formulaLoading: false,
+      materials: [{ formulaQuantity: '2' }],
+    })
   })
 })

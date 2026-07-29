@@ -418,6 +418,9 @@ func (s *Service) prepareProductionOutput(
 			)
 		}
 		formula, err = productProductionFormula(product.Data.Formula)
+		if err == nil {
+			err = s.refreshProductionFormulaMaterials(ctx, tx, &formula)
+		}
 	}
 	if err != nil {
 		return fixedProductionOutput{}, err
@@ -594,6 +597,37 @@ func productProductionFormula(input *bobdomain.ProductFormula) (productionFormul
 		)
 	}
 	return result, nil
+}
+
+func (s *Service) refreshProductionFormulaMaterials(
+	ctx context.Context, tx pgx.Tx, formula *productionFormula,
+) error {
+	for index := range formula.Components {
+		material, err := s.resolver.ResolveCurrentEffectiveReference(
+			ctx,
+			tx,
+			bobdomain.EntityProduct,
+			formula.Components[index].Material.ObjectID,
+		)
+		if err != nil {
+			return domainError(
+				ErrorConflict,
+				"formula material is not currently effective",
+				nil,
+				err,
+			)
+		}
+		if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+			return domainError(
+				ErrorConflict,
+				"formula component must reference a raw material",
+				nil,
+				nil,
+			)
+		}
+		formula.Components[index].Material = referenceView(material)
+	}
+	return nil
 }
 
 func productionSuggestedQuantity(

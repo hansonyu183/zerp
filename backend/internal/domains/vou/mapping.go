@@ -53,6 +53,10 @@ func (s *Service) loadData(
 		return data, nil
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		return s.loadSalesChainData(ctx, document, data)
+	case EntitySaleReturn:
+		return s.loadSaleReturnData(ctx, q, document, data)
+	case EntityPurchaseReturn:
+		return s.loadPurchaseReturnData(ctx, document, data)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, document.ID)
 		if err != nil {
@@ -100,6 +104,16 @@ func (s *Service) loadData(
 			return data, err
 		}
 		for _, row := range rows {
+			var returned int64
+			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(quantity_micros),0)
+				FROM vou_purchase_return_lines WHERE source_inbound_line_id=$1`, row.ID).
+				Scan(&returned); err != nil {
+				return data, err
+			}
+			returnable := row.QuantityMicros - returned
+			if returnable < 0 {
+				returnable = 0
+			}
 			data.ProductLines = append(data.ProductLines, ProductLineView{
 				LineID: row.ID, LineNo: row.LineNo,
 				SourceLineID: row.SourceOrderLineID,
@@ -107,10 +121,11 @@ func (s *Service) loadData(
 					row.ProductObjectID, row.ProductVersionID, "product",
 					row.ProductCode, row.ProductName, row.ProductUnit, "", "",
 				),
-				OrderedQuantity: formatQuantity(row.QuantityMicros),
-				UnitPrice:       formatMoney(row.UnitPriceCents),
-				LineAmount:      formatMoney(row.LineAmountCents),
-				Remark:          deref(row.Remark),
+				OrderedQuantity:    formatQuantity(row.QuantityMicros),
+				UnitPrice:          formatMoney(row.UnitPriceCents),
+				LineAmount:         formatMoney(row.LineAmountCents),
+				Remark:             deref(row.Remark),
+				ReturnableQuantity: formatQuantity(returnable),
 			})
 		}
 		return data, nil

@@ -10,8 +10,10 @@ const (
 	EntitySaleOutbound         = "sale-outbound"
 	EntitySaleDelivery         = "sale-delivery"
 	EntitySaleSignoff          = "sale-signoff"
+	EntitySaleReturn           = "sale-return"
 	EntityPurchaseOrder        = "purchase-order"
 	EntityPurchaseInbound      = "purchase-inbound"
+	EntityPurchaseReturn       = "purchase-return"
 	EntityReceipt              = "receipt"
 	EntityPayment              = "payment"
 	EntityExpenseReimbursement = "expense-reimbursement"
@@ -21,6 +23,7 @@ const (
 	StatusApproved             = "APPROVED"
 	StatusFinalized            = "FINALIZED"
 	StatusCompleted            = "COMPLETED"
+	StatusReturning            = "RETURNING"
 	StatusShortCloseRequested  = "SHORT_CLOSE_REQUESTED"
 	StatusShortClosed          = "SHORT_CLOSED"
 )
@@ -30,8 +33,10 @@ var entities = [...]string{
 	EntitySaleOutbound,
 	EntitySaleDelivery,
 	EntitySaleSignoff,
+	EntitySaleReturn,
 	EntityPurchaseOrder,
 	EntityPurchaseInbound,
+	EntityPurchaseReturn,
 	EntityReceipt,
 	EntityPayment,
 	EntityExpenseReimbursement,
@@ -41,7 +46,7 @@ var entities = [...]string{
 func publicCreateEntity(entity string) bool {
 	switch entity {
 	case EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
-		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
+		EntitySaleReturn, EntityPurchaseReturn, EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
 		return true
 	default:
 		return false
@@ -118,6 +123,12 @@ type SaleSignoffLineInput struct {
 	Remark           string `json:"remark,omitempty"`
 }
 
+type ReturnLineInput struct {
+	SourceLineID string `json:"sourceLineId"`
+	Quantity     string `json:"quantity"`
+	Remark       string `json:"remark,omitempty"`
+}
+
 type ExpenseLineInput struct {
 	Category    string `json:"category"`
 	Description string `json:"description"`
@@ -129,6 +140,7 @@ type DraftInput struct {
 	BusinessDate     string                    `json:"businessDate"`
 	Currency         string                    `json:"currency"`
 	Remark           string                    `json:"remark,omitempty"`
+	ReturnReason     string                    `json:"returnReason,omitempty"`
 	SourceDocumentID string                    `json:"-"`
 	Customer         *ReferenceInput           `json:"customer,omitempty"`
 	Supplier         *ReferenceInput           `json:"supplier,omitempty"`
@@ -148,6 +160,7 @@ type DraftInput struct {
 	ExpenseLines     []ExpenseLineInput        `json:"expenseLines,omitempty"`
 	SourceLines      []SourceQuantityLineInput `json:"sourceLines,omitempty"`
 	SignoffLines     []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
+	ReturnLines      []ReturnLineInput         `json:"returnLines,omitempty"`
 }
 
 type CreateInput struct {
@@ -287,6 +300,7 @@ type ProductLineView struct {
 	SourceLineID         string        `json:"sourceLineId,omitempty"`
 	Quantity             string        `json:"quantity,omitempty"`
 	AvailableQuantity    string        `json:"availableQuantity,omitempty"`
+	ReturnableQuantity   string        `json:"returnableQuantity,omitempty"`
 	Formula              *FormulaView  `json:"formula,omitempty"`
 }
 
@@ -311,17 +325,18 @@ type FormulaDefaultView struct {
 }
 
 type SaleSignoffLineView struct {
-	LineID           string        `json:"lineId"`
-	LineNo           int32         `json:"lineNo"`
-	SourceLineID     string        `json:"sourceLineId"`
-	Product          ReferenceView `json:"product"`
-	OutboundQuantity string        `json:"outboundQuantity"`
-	SignedQuantity   string        `json:"signedQuantity"`
-	RejectedQuantity string        `json:"rejectedQuantity"`
-	LossQuantity     string        `json:"lossQuantity"`
-	UnitPrice        string        `json:"unitPrice"`
-	LineAmount       string        `json:"lineAmount"`
-	Remark           string        `json:"remark,omitempty"`
+	LineID             string        `json:"lineId"`
+	LineNo             int32         `json:"lineNo"`
+	SourceLineID       string        `json:"sourceLineId"`
+	Product            ReferenceView `json:"product"`
+	OutboundQuantity   string        `json:"outboundQuantity"`
+	SignedQuantity     string        `json:"signedQuantity"`
+	RejectedQuantity   string        `json:"rejectedQuantity"`
+	LossQuantity       string        `json:"lossQuantity"`
+	UnitPrice          string        `json:"unitPrice"`
+	LineAmount         string        `json:"lineAmount"`
+	Remark             string        `json:"remark,omitempty"`
+	ReturnableQuantity string        `json:"returnableQuantity,omitempty"`
 }
 
 type ManagedLineView struct {
@@ -339,6 +354,9 @@ type ManagedLineView struct {
 	ContainerType        string         `json:"containerType,omitempty"`
 	QuantityPerContainer string         `json:"quantityPerContainer,omitempty"`
 	Remark               string         `json:"remark,omitempty"`
+	SourceDocumentID     string         `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo     string         `json:"sourceDocumentNo,omitempty"`
+	ReturnKind           string         `json:"returnKind,omitempty"`
 }
 
 type ExpenseLineView struct {
@@ -382,6 +400,8 @@ type DocumentDataView struct {
 	DueDate                   string                        `json:"dueDate,omitempty"`
 	Currency                  string                        `json:"currency"`
 	Remark                    string                        `json:"remark,omitempty"`
+	ReturnReason              string                        `json:"returnReason,omitempty"`
+	ReturnKind                string                        `json:"returnKind,omitempty"`
 	Customer                  *ReferenceView                `json:"customer,omitempty"`
 	Supplier                  *ReferenceView                `json:"supplier,omitempty"`
 	Counterparty              *ReferenceView                `json:"counterparty,omitempty"`

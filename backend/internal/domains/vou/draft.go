@@ -325,6 +325,8 @@ func (s *Service) validateStoredAttributes(
 		missing = detail.SalespersonObjectID == nil || detail.SettlementMethodObjectID == nil
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		return s.validateSalesChainStored(ctx, entity, documentID)
+	case EntitySaleReturn, EntityPurchaseReturn:
+		return nil
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, documentID)
 		if err != nil {

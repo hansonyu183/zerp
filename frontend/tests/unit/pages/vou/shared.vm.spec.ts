@@ -8,6 +8,7 @@ import type {
   VoucherReference,
 } from '@/components/voucher'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
+import { buildVoucherDraftPayload } from '@/pages/vou/shared/payload'
 import { useVoucherEntityViewModel } from '@/pages/vou/shared/vm'
 import { useSessionStore } from '@/stores/session'
 
@@ -161,14 +162,16 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines all ten atomic document entities', () => {
+  it('defines all twelve atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',
       'sale-outbound',
       'sale-delivery',
       'sale-signoff',
+      'sale-return',
       'purchase-order',
       'purchase-inbound',
+      'purchase-return',
       'receipt',
       'payment',
       'expense-reimbursement',
@@ -250,6 +253,72 @@ describe('shared VOU entity view model', () => {
         }
       }
     }
+  })
+
+  it('builds manual and automatic sales return payloads', () => {
+    const config = voucherEntityConfigs['sale-return']
+    const form = useVoucherEntityViewModel(config).form.value
+    form.businessDate = '2026-07-29'
+    form.warehouse = reference('warehouse')
+    form.returnReason = '客户售后退货'
+    form.returnKind = 'AFTER_SALE'
+    form.salesChainLines = [
+      {
+        key: 'RETURN-1',
+        sourceLineId: 'SIGNOFF-LINE-1',
+        productCode: 'P-1',
+        productName: '产品一',
+        productUnit: '件',
+        availableQuantity: '3',
+        outboundQuantity: '',
+        quantity: '2',
+        signedQuantity: '',
+        rejectedQuantity: '',
+        lossQuantity: '',
+        remark: '包装完整',
+      },
+      {
+        key: 'RETURN-2',
+        sourceLineId: 'SIGNOFF-LINE-2',
+        productCode: 'P-2',
+        productName: '产品二',
+        productUnit: '件',
+        availableQuantity: '1',
+        outboundQuantity: '',
+        quantity: '1',
+        signedQuantity: '',
+        rejectedQuantity: '',
+        lossQuantity: '',
+        remark: '',
+      },
+    ]
+
+    expect(buildVoucherDraftPayload(config, form, false, new Set())).toEqual({
+      businessDate: '2026-07-29',
+      currency: 'CNY',
+      warehouse: {
+        objectId: 'warehouse-object',
+        versionId: 'warehouse-version',
+      },
+      returnReason: '客户售后退货',
+      returnLines: [
+        {
+          sourceLineId: 'SIGNOFF-LINE-1',
+          quantity: '2',
+          remark: '包装完整',
+        },
+        {
+          sourceLineId: 'SIGNOFF-LINE-2',
+          quantity: '1',
+        },
+      ],
+    })
+
+    form.returnKind = 'REFUSAL'
+    form.returnReason = '客户拒收'
+    expect(
+      buildVoucherDraftPayload(config, form, true, new Set()),
+    ).not.toHaveProperty('returnLines')
   })
 
   it('loads a finalized order and creates an outbound batch with source lines', async () => {

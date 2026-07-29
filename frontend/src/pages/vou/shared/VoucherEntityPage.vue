@@ -2,6 +2,8 @@
 import { computed, nextTick, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
+import { apiClient } from '@/api/client'
+import { useSessionStore } from '@/stores/session'
 import {
   resolveDueDate,
   parseFixed,
@@ -17,6 +19,7 @@ import {
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
   type VoucherDraftForm,
+  type VoucherDocumentView,
   type VoucherReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
@@ -37,6 +40,7 @@ const props = withDefaults(
 )
 const vm = reactive(props.model)
 const route = useRoute()
+const session = useSessionStore()
 const labels = computed(() => lifecycleLabels(vm.config))
 
 const workspaceTitle = computed(
@@ -108,6 +112,89 @@ if (typeof linkedDocumentId === 'string' && linkedDocumentId) {
     .finally(() => {
       vm.workspaceLoading = false
     })
+}
+
+const returnSourceQuery = route.query.sourceDocumentIds
+if (
+  (vm.config.entity === 'sale-return' ||
+    vm.config.entity === 'purchase-return') &&
+  typeof returnSourceQuery === 'string' &&
+  returnSourceQuery
+) {
+  const sourceIds = [...new Set(returnSourceQuery.split(',').filter(Boolean))]
+  if (
+    sourceIds.length &&
+    session.can(`/vou/${vm.config.entity}/create`)
+  ) {
+    vm.openCreate()
+    vm.workspaceLoading = true
+    Promise.all(
+      sourceIds.map(async (documentId) => {
+        const response = await apiClient.post<
+          VoucherDocumentView,
+          { documentId: string }
+        >(
+          vm.config.entity === 'sale-return'
+            ? 'vou/sale-signoff/get'
+            : 'vou/purchase-inbound/get',
+          { documentId },
+        )
+        return response.data
+      }),
+    )
+      .then((sources) => {
+        vm.form.returnKind =
+          vm.config.entity === 'sale-return' ? 'AFTER_SALE' : ''
+        vm.form.warehouse = sources[0]?.data.warehouse
+          ? { ...sources[0].data.warehouse }
+          : null
+        vm.form.salesChainLines = sources.flatMap((source) =>
+          (vm.config.entity === 'sale-return'
+            ? source.data.signoffLines ?? []
+            : source.data.productLines ?? []
+          )
+            .filter((line) =>
+              Number(
+                'signedQuantity' in line
+                  ? (line.returnableQuantity ?? line.signedQuantity ?? '')
+                  : (line.returnableQuantity ?? line.orderedQuantity),
+              ) > 0,
+            )
+            .map((line) => ({
+              key: crypto.randomUUID(),
+              sourceLineId: line.lineId,
+              productCode: line.product.code,
+              productName: line.product.name,
+              productUnit: line.product.unit ?? '',
+              availableQuantity: String(
+                line.returnableQuantity ??
+                  ('signedQuantity' in line
+                    ? line.signedQuantity
+                    : line.orderedQuantity) ??
+                  '',
+              ),
+              outboundQuantity: '',
+              quantity: String(
+                line.returnableQuantity ??
+                  ('signedQuantity' in line
+                    ? line.signedQuantity
+                    : line.orderedQuantity) ??
+                  '',
+              ),
+              signedQuantity: '',
+              rejectedQuantity: '',
+              lossQuantity: '',
+              remark: '',
+            })),
+        )
+      })
+      .catch((error: unknown) => {
+        vm.workspaceError = getErrorMessage(error)
+      })
+      .finally(() => {
+        vm.workspaceLoading = false
+      })
+  }
 }
 
 function updateReference(
@@ -194,7 +281,11 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     <VoucherList
       :can-edit="vm.canEdit"
       :can-view="vm.canView"
-      :creatable="vm.canCreate"
+      :creatable="
+        vm.canCreate &&
+        vm.config.entity !== 'sale-return' &&
+        vm.config.entity !== 'purchase-return'
+      "
       :date-from="vm.filters.dateFrom"
       :date-to="vm.filters.dateTo"
       :keyword="vm.filters.keyword"
@@ -278,6 +369,36 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
           :status="vm.documentView.status"
           @action="vm.lifecycleAction"
         />
+        <v-btn
+          v-if="
+            vm.config.entity === 'sale-signoff' &&
+            vm.documentView?.status === 'FINALIZED' &&
+            session.can('/vou/sale-return/create')
+          "
+          :to="{
+            path: '/vou/sale-return',
+            query: { sourceDocumentIds: vm.documentView.documentId },
+          }"
+          prepend-icon="mdi-keyboard-return"
+          variant="tonal"
+        >
+          发起退货
+        </v-btn>
+        <v-btn
+          v-if="
+            vm.config.entity === 'purchase-inbound' &&
+            vm.documentView?.status === 'FINALIZED' &&
+            session.can('/vou/purchase-return/create')
+          "
+          :to="{
+            path: '/vou/purchase-return',
+            query: { sourceDocumentIds: vm.documentView.documentId },
+          }"
+          prepend-icon="mdi-keyboard-return"
+          variant="tonal"
+        >
+          发起退货
+        </v-btn>
         <v-btn
           v-if="!vm.editing && vm.actionAvailability.delete"
           color="error"
@@ -510,6 +631,19 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     variant="outlined"
                   />
                   <v-textarea
+                    v-if="
+                      vm.config.entity === 'sale-return' ||
+                      vm.config.entity === 'purchase-return'
+                    "
+                    v-model="vm.form.returnReason"
+                    class="voucher-form__wide"
+                    counter="1000"
+                    :disabled="!vm.editing"
+                    label="退货原因"
+                    required
+                    variant="outlined"
+                  />
+                  <v-textarea
                     v-model="vm.form.remark"
                     class="voucher-form__wide"
                     counter="1000"
@@ -541,6 +675,75 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             v-model="vm.form.expenseLines"
             :editable="vm.editing"
           />
+          <div
+            v-if="
+              (vm.config.entity === 'sale-return' ||
+                vm.config.entity === 'purchase-return') &&
+              vm.form.salesChainLines.length
+            "
+            class="voucher-form__chain-table"
+          >
+            <h3>退货明细</h3>
+            <v-alert
+              v-if="vm.form.returnKind === 'REFUSAL'"
+              class="mb-3"
+              type="info"
+              variant="tonal"
+            >
+              本单由签收拒收自动生成，来源和数量不可修改。
+            </v-alert>
+            <v-table>
+              <thead>
+                <tr>
+                  <th>产品</th>
+                  <th>可退</th>
+                  <th>退货数量</th>
+                  <th>备注</th>
+                  <th
+                    v-if="vm.editing && vm.form.returnKind !== 'REFUSAL'"
+                  ></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(line, index) in vm.form.salesChainLines"
+                  :key="line.key"
+                >
+                  <td>
+                    {{ line.productCode }} · {{ line.productName }}
+                    {{ line.productUnit }}
+                  </td>
+                  <td>{{ line.availableQuantity || '—' }}</td>
+                  <td>
+                    <CompactTableField
+                      v-model="line.quantity"
+                      :disabled="
+                        !vm.editing || vm.form.returnKind === 'REFUSAL'
+                      "
+                      inputmode="decimal"
+                    />
+                  </td>
+                  <td>
+                    <CompactTableField
+                      v-model="line.remark"
+                      :disabled="
+                        !vm.editing || vm.form.returnKind === 'REFUSAL'
+                      "
+                    />
+                  </td>
+                  <td v-if="vm.editing && vm.form.returnKind !== 'REFUSAL'">
+                    <v-btn
+                      aria-label="移除此退货明细"
+                      icon="mdi-delete-outline"
+                      size="small"
+                      variant="text"
+                      @click="vm.form.salesChainLines.splice(index, 1)"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
           <div
             v-if="
               vm.config.entity === 'sale-outbound' &&

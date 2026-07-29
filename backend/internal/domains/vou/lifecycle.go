@@ -34,6 +34,12 @@ func (s *Service) Create(
 		input.Data.SourceDocumentID = parentDocumentID
 		return s.CreatePurchaseInbound(ctx, input, actorID, requestID)
 	}
+	if entity == EntitySaleReturn {
+		return s.CreateSaleReturn(ctx, input, actorID, requestID)
+	}
+	if entity == EntityPurchaseReturn {
+		return s.CreatePurchaseReturn(ctx, input, actorID, requestID)
+	}
 	return s.createDocument(ctx, entity, input, actorID, requestID)
 }
 
@@ -144,6 +150,12 @@ func (s *Service) Save(
 ) (MutationResult, error) {
 	if isSalesChainEntity(entity) {
 		return s.saveSalesChain(ctx, entity, input, actorID, requestID)
+	}
+	if entity == EntitySaleReturn {
+		return s.SaveSaleReturn(ctx, input, actorID, requestID)
+	}
+	if entity == EntityPurchaseReturn {
+		return s.SavePurchaseReturn(ctx, input, actorID, requestID)
 	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err

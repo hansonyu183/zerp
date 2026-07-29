@@ -13,6 +13,7 @@ export interface DraftPayload {
   businessDate: string
   currency: string
   remark?: string
+  returnReason?: string
   customer?: VoucherReferenceInput
   supplier?: VoucherReferenceInput
   counterpartyType?: string
@@ -53,6 +54,11 @@ export interface DraftPayload {
     rejectedQuantity: string
     remark?: string
   }>
+  returnLines?: Array<{
+    sourceLineId: string
+    quantity: string
+    remark?: string
+  }>
 }
 
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
@@ -60,6 +66,8 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     businessDate: localDate(),
     currency: 'CNY',
     remark: '',
+    returnReason: '',
+    returnKind: '',
     customer: null,
     supplier: null,
     counterpartyType: config.partyMode === 'counterparty' ? 'customer' : '',
@@ -129,6 +137,8 @@ export function formFromDocument(
     businessDate: data.businessDate,
     currency: data.currency,
     remark: data.remark ?? '',
+    returnReason: data.returnReason ?? '',
+    returnKind: data.returnKind ?? '',
     customer: formReference(data.customer),
     supplier: formReference(data.supplier),
     counterpartyType:
@@ -200,7 +210,23 @@ export function formFromDocument(
               lossQuantity: '',
               remark: line.remark ?? '',
             }))
-          : [],
+          : document.entity === 'sale-return' ||
+              document.entity === 'purchase-return'
+            ? (data.lines ?? []).map((line) => ({
+                key: line.lineId,
+                sourceLineId: line.sourceLineId ?? '',
+                productCode: line.product?.code ?? '',
+                productName: line.product?.name ?? '',
+                productUnit: line.product?.unit ?? '',
+                availableQuantity: '',
+                outboundQuantity: '',
+                quantity: line.quantity ?? '',
+                signedQuantity: '',
+                rejectedQuantity: '',
+                lossQuantity: '',
+                remark: line.remark ?? '',
+              }))
+            : [],
   }
 }
 

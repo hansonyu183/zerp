@@ -18,6 +18,7 @@ const (
 	salesStageOutbound = "OUTBOUND"
 	salesStageDelivery = "DELIVERY"
 	salesStageSignoff  = "SIGNOFF"
+	salesStageReturn   = "RETURN"
 )
 
 func salesParentEntity(entity string) string {
@@ -32,7 +33,8 @@ func salesParentEntity(entity string) string {
 }
 
 func managedSalesDocument(document dbsqlc.VouDocument) bool {
-	return document.Entity == EntitySaleOrder || isSalesChainEntity(document.Entity)
+	return document.Entity == EntitySaleOrder || isSalesChainEntity(document.Entity) ||
+		document.Entity == EntitySaleReturn
 }
 
 func (s *Service) validateManagedSalesParentStatus(
@@ -81,14 +83,19 @@ func (s *Service) validateManagedSalesReady(
 			return nil
 		}
 		var ready bool
+		table := "vou_purchase_inbound_lines"
+		message := "purchase inbound has no lines"
+		if document.Entity == EntityPurchaseReturn {
+			table, message = "vou_purchase_return_lines", "purchase return has no lines"
+		}
 		err := tx.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=$1
+			SELECT 1 FROM `+table+` WHERE document_id=$1
 		)`, document.ID).Scan(&ready)
 		if err != nil {
 			return s.internal("validate purchase inbound readiness", err)
 		}
 		if !ready {
-			return domainError(ErrorConflict, "purchase inbound has no lines", nil, nil)
+			return domainError(ErrorConflict, message, nil, nil)
 		}
 		return nil
 	}
@@ -218,10 +225,30 @@ func (s *Service) salesWorkflowStatus(
 	}
 	switch fulfillment {
 	case "FULFILLED":
+		var pending bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
+			WHERE x.process_id=$1 AND x.stage='RETURN' AND d.status<>'FINALIZED'
+		)`, processID).Scan(&pending); err != nil {
+			return "", err
+		}
+		if pending {
+			return "RETURNING", nil
+		}
 		return StatusCompleted, nil
 	case "SHORT_CLOSE_REQUESTED":
 		return StatusShortCloseRequested, nil
 	case "SHORT_CLOSED":
+		var pending bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
+			WHERE x.process_id=$1 AND x.stage='RETURN' AND d.status<>'FINALIZED'
+		)`, processID).Scan(&pending); err != nil {
+			return "", err
+		}
+		if pending {
+			return "RETURNING", nil
+		}
 		return StatusShortClosed, nil
 	}
 	switch documentStatus {
@@ -296,6 +323,7 @@ func salesStage(entity string) string {
 		EntitySaleOutbound: salesStageOutbound,
 		EntitySaleDelivery: salesStageDelivery,
 		EntitySaleSignoff:  salesStageSignoff,
+		EntitySaleReturn:   salesStageReturn,
 	}[entity]
 }
 

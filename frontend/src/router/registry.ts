@@ -34,8 +34,8 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const developingPage: PageLoader =
-  () => import('@/pages/system/developing/Developing.vue')
+const developingPage: PageLoader = () =>
+  import('@/pages/system/developing/Developing.vue')
 
 type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
@@ -237,38 +237,52 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/sale-signoff/SaleSignoff.vue'),
   }),
   registerPage('vou', {
+    entity: 'sale-return',
+    entityTitle: '销售退货',
+    icon: 'mdi-keyboard-return',
+    order: 50,
+    component: () => import('@/pages/vou/sale-return/SaleReturn.vue'),
+  }),
+  registerPage('vou', {
     entity: 'purchase-order',
     entityTitle: '采购订单',
     icon: 'mdi-cart-arrow-up',
-    order: 50,
+    order: 60,
     component: () => import('@/pages/vou/purchase-order/PurchaseOrder.vue'),
   }),
   registerPage('vou', {
     entity: 'purchase-inbound',
     entityTitle: '采购入库',
     icon: 'mdi-tray-arrow-down',
-    order: 60,
+    order: 70,
     component: () => import('@/pages/vou/purchase-inbound/PurchaseInbound.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'purchase-return',
+    entityTitle: '采购退货',
+    icon: 'mdi-keyboard-return',
+    order: 75,
+    component: () => import('@/pages/vou/purchase-return/PurchaseReturn.vue'),
   }),
   registerPage('vou', {
     entity: 'receipt',
     entityTitle: '往来收款',
     icon: 'mdi-cash-plus',
-    order: 70,
+    order: 80,
     component: () => import('@/pages/vou/receipt/Receipt.vue'),
   }),
   registerPage('vou', {
     entity: 'payment',
     entityTitle: '往来付款',
     icon: 'mdi-cash-minus',
-    order: 80,
+    order: 90,
     component: () => import('@/pages/vou/payment/Payment.vue'),
   }),
   registerPage('vou', {
     entity: 'expense-reimbursement',
     entityTitle: '费用报销',
     icon: 'mdi-receipt-text-outline',
-    order: 90,
+    order: 100,
     component: () =>
       import('@/pages/vou/expense-reimbursement/ExpenseReimbursement.vue'),
   }),
@@ -276,7 +290,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
     entity: 'other-income',
     entityTitle: '其他收入',
     icon: 'mdi-cash-multiple',
-    order: 100,
+    order: 110,
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
   }),
   registerPage('wfl', {
@@ -400,13 +414,12 @@ export function buildMenus(
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
     const registration = registrationsByPage.get(key)
-    const domainRegistration = registration ??
-      registrationsByDomain.get(domainId)
+    const domainRegistration =
+      registration ?? registrationsByDomain.get(domainId)
     const existingDomain = domains.get(domainId)
     const domain = existingDomain ?? {
       domain: domainId,
-      title: domainRegistration?.domainTitle ??
-        formatIdentifierTitle(domainId),
+      title: domainRegistration?.domainTitle ?? formatIdentifierTitle(domainId),
       ...(domainRegistration?.domainIcon
         ? { icon: domainRegistration.domainIcon }
         : {}),

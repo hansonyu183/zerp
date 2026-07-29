@@ -16,11 +16,13 @@ const (
 	StatusCompleted      = "COMPLETED"
 	StatusShortRequested = "SHORT_CLOSE_REQUESTED"
 	StatusShortClosed    = "SHORT_CLOSED"
+	StatusReturning      = "RETURNING"
 
 	StageSaleOrder       = "SALE_ORDER"
 	StageOutbound        = "OUTBOUND"
 	StageDelivery        = "DELIVERY"
 	StageSignoff         = "SIGNOFF"
+	StageReturn          = "RETURN"
 	StagePurchaseOrder   = "PURCHASE_ORDER"
 	StagePurchaseInbound = "PURCHASE_INBOUND"
 )

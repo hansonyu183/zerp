@@ -16,7 +16,9 @@ import (
 var vouEntities = [...]string{
 	voudomain.EntitySaleOutbound,
 	voudomain.EntitySaleSignoff,
+	voudomain.EntitySaleReturn,
 	voudomain.EntityPurchaseInbound,
+	voudomain.EntityPurchaseReturn,
 	voudomain.EntityReceipt,
 	voudomain.EntityPayment,
 	voudomain.EntityExpenseReimbursement,
@@ -187,8 +189,12 @@ func (s *Service) postDocument(
 		return s.postSaleOutbound(ctx, tx, q, posting)
 	case voudomain.EntitySaleSignoff:
 		return s.postSaleSignoff(ctx, tx, q, posting)
+	case voudomain.EntitySaleReturn:
+		return s.postSaleReturn(ctx, tx, q, posting)
 	case voudomain.EntityPurchaseInbound:
 		return s.postPurchase(ctx, tx, q, posting)
+	case voudomain.EntityPurchaseReturn:
+		return s.postPurchaseReturn(ctx, tx, q, posting)
 	case voudomain.EntityReceipt:
 		return s.postReceipt(ctx, q, posting)
 	case voudomain.EntityPayment:

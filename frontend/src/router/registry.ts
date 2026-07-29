@@ -356,6 +356,17 @@ export const pageRegistry: Readonly<Record<string, PageRegistration>> =
 
 const registeredRouteNames = new Set<string>()
 
+function hasSameActions(
+  current: unknown,
+  expected: readonly string[],
+): boolean {
+  return (
+    Array.isArray(current) &&
+    current.length === expected.length &&
+    current.every((action, index) => action === expected[index])
+  )
+}
+
 export function normalizePermissions(value: unknown): string[] {
   if (!Array.isArray(value)) return []
 
@@ -477,7 +488,18 @@ export function registerMenuRoutes(
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
-      if (router.hasRoute(routeName)) continue
+      const currentRoute = router
+        .getRoutes()
+        .find((route) => route.name === routeName)
+      const developing = !registration
+      const routeIsCurrent =
+        currentRoute?.meta.title === entity.title &&
+        currentRoute.meta.developing === developing &&
+        hasSameActions(currentRoute.meta.actions, entity.actions)
+
+      registeredRouteNames.add(routeName)
+      if (routeIsCurrent) continue
+      if (currentRoute) router.removeRoute(routeName)
 
       router.addRoute('app', {
         path: key,
@@ -487,10 +509,9 @@ export function registerMenuRoutes(
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
-          developing: !registration,
+          developing,
         },
       })
-      registeredRouteNames.add(routeName)
       added += 1
     }
   }

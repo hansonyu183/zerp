@@ -219,15 +219,59 @@ describe('permission menu registry', () => {
       'vehicle',
       'fund-account',
     ]
+    const titles = [
+      '客户',
+      '供应商',
+      '员工',
+      '产品',
+      '服务',
+      '仓库',
+      '车辆',
+      '资金账户',
+    ]
     const router = createTestRouter()
     const menus = buildMenus(entities.map((entity) => `/bob/${entity}/query`))
 
     expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
+    expect(menus[0]?.children.map((item) => item.title)).toEqual(titles)
     expect(registerMenuRoutes(router, menus)).toBe(entities.length)
-    for (const entity of entities) {
+    for (const [index, entity] of entities.entries()) {
       expect(hasRegisteredPage('bob', entity)).toBe(true)
-      expect(router.resolve(`/bob/${entity}`).meta.developing).toBe(false)
+      expect(router.resolve(`/bob/${entity}`).meta).toMatchObject({
+        developing: false,
+        title: titles[index],
+      })
     }
+
+    registerMenuRoutes(router, [])
+  })
+
+  it('权限动作变化时更新已有动态路由的元数据', () => {
+    const router = createTestRouter()
+
+    expect(
+      registerMenuRoutes(router, buildMenus(['/bob/customer/query'])),
+    ).toBe(1)
+    expect(router.resolve('/bob/customer').meta.actions).toEqual(['query'])
+
+    expect(
+      registerMenuRoutes(
+        router,
+        buildMenus(['/bob/customer/create', '/bob/customer/save']),
+      ),
+    ).toBe(1)
+    expect(router.resolve('/bob/customer').meta.actions).toEqual([
+      'create',
+      'save',
+    ])
+    expect(
+      registerMenuRoutes(
+        router,
+        buildMenus(['/bob/customer/create', '/bob/customer/save']),
+      ),
+    ).toBe(0)
+
+    registerMenuRoutes(router, [])
   })
 
   it('为 AUX 九类实体生成中文菜单并加载真实页面组件', () => {

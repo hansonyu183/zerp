@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
-import { registerMenuRoutes, resolveFirstMenuPath } from '@/router/registry'
+import { resolveFirstMenuPath } from '@/router/registry'
 import { useSessionStore } from '@/stores/session'
 
 export function useSignInViewModel() {
@@ -32,7 +32,6 @@ export function useSignInViewModel() {
         username: username.value.trim(),
         password: password.value,
       })
-      registerMenuRoutes(router, session.menus)
 
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
       const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//')

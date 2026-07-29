@@ -3,7 +3,7 @@ import { computed, nextTick, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
 import {
-  calculateDueDate,
+  resolveDueDate,
   parseFixed,
   toVouAtomicDocument,
   VoucherAttachmentPanel,
@@ -684,7 +684,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                 <span>
                   {{ vm.documentView.data.settlementMethod.name }} · 到期
                   {{
-                    calculateDueDate(
+                    resolveDueDate(
+                      vm.documentView.data.dueDate,
                       vm.documentView.data.businessDate,
                       vm.documentView.data.settlementMethod,
                     )
@@ -697,7 +698,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   {{ vm.documentView.data.customerSettlementMethod.name }} ·
                   到期
                   {{
-                    calculateDueDate(
+                    resolveDueDate(
+                      vm.documentView.data.dueDate,
                       vm.documentView.data.businessDate,
                       vm.documentView.data.customerSettlementMethod,
                     )
@@ -710,7 +712,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   {{ vm.documentView.data.supplierSettlementMethod.name }} ·
                   到期
                   {{
-                    calculateDueDate(
+                    resolveDueDate(
+                      vm.documentView.data.dueDate,
                       vm.documentView.data.businessDate,
                       vm.documentView.data.supplierSettlementMethod,
                     )

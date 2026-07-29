@@ -33,6 +33,9 @@ export interface PageRegistration {
 
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
+const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
+const developingPage: PageLoader =
+  () => import('@/pages/system/developing/Developing.vue')
 
 type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
@@ -384,27 +387,38 @@ export function buildMenus(
       registration,
     ]),
   )
+  const registrationsByDomain = new Map<string, PageRegistration>()
+
+  for (const registration of sortedRegistrations) {
+    if (registration.domain === 'app') continue
+    if (!registrationsByDomain.has(registration.domain)) {
+      registrationsByDomain.set(registration.domain, registration)
+    }
+  }
   const domains = new Map<string, MenuDomain>()
 
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
     const registration = registrationsByPage.get(key)
-    if (!registration || registration.domain === 'app') continue
-
+    const domainRegistration = registration ??
+      registrationsByDomain.get(domainId)
     const existingDomain = domains.get(domainId)
     const domain = existingDomain ?? {
       domain: domainId,
-      title: registration.domainTitle,
-      ...(registration.domainIcon ? { icon: registration.domainIcon } : {}),
-      order: registration.domainOrder,
+      title: domainRegistration?.domainTitle ??
+        formatIdentifierTitle(domainId),
+      ...(domainRegistration?.domainIcon
+        ? { icon: domainRegistration.domainIcon }
+        : {}),
+      order: domainRegistration?.domainOrder ?? FALLBACK_ORDER,
       children: [],
     }
 
     domain.children.push({
       entity: entityId,
-      title: registration.entityTitle,
-      ...(registration.icon ? { icon: registration.icon } : {}),
-      order: registration.order,
+      title: registration?.entityTitle ?? formatIdentifierTitle(entityId),
+      ...(registration?.icon ? { icon: registration.icon } : {}),
+      order: registration?.order ?? FALLBACK_ORDER,
       actions,
     })
     domains.set(domainId, domain)
@@ -424,6 +438,14 @@ export function buildMenus(
     )
 }
 
+function formatIdentifierTitle(identifier: string): string {
+  return identifier
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
+}
+
 export function hasRegisteredPage(domain: string, entity: string): boolean {
   return `${domain}/${entity}` in pageRegistry
 }
@@ -439,7 +461,6 @@ export function registerMenuRoutes(
     for (const entity of domain.children) {
       const key = `${domain.domain}/${entity.entity}`
       const registration = pageRegistry[key]
-      if (!registration) continue
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
@@ -448,12 +469,12 @@ export function registerMenuRoutes(
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component: registration.component,
+        component: registration?.component ?? developingPage,
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
-          developing: false,
+          developing: !registration,
         },
       })
       registeredRouteNames.add(routeName)

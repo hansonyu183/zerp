@@ -79,3 +79,11 @@ export function calculateDueDate(
     addDays(new Date(target.year, target.month, day), settlement.dayOffset),
   )
 }
+
+export function resolveDueDate(
+  dueDate: string | undefined,
+  businessDate: string,
+  settlement: SettlementMethodSnapshot | undefined,
+): string | null {
+  return dueDate || calculateDueDate(businessDate, settlement)
+}

@@ -195,8 +195,9 @@ POST /led/container/balance
 ```
 
 - `objectId` 按实体匹配仓库/商品、资金账户、往来方或客户任一相关对象；
-- `sourceEntity` 可为 `opening`、七类普通 VOU 实体、`intermediary-receipt` 或
-  `intermediary-signoff`；
+- `sourceEntity` 可为 `opening` 或七类当前记账 VOU 实体。后端继续接受
+  `intermediary-receipt`、`intermediary-signoff` 两个历史值以兼容旧客户端，但迁移已删除
+  对应流水，当前页面不再提供这两个筛选项；
 - inventory/fund 的 `direction` 只允许 `IN`、`OUT`，party 只允许 `DEBIT`、`CREDIT`，
   container 不接受方向过滤；
 - `documentNo` 最多 200 个 Unicode 字符；
@@ -239,8 +240,9 @@ requestId 和摘要。
 
 ## 6. WFL 履约扩展
 
-LED 只订阅当前十类 VOU 原子单据的最终处理与反最终处理事件。已删除的居间流程和五类居间
-单据不再作为流水来源；迁移同时删除其既有 LED 流水。
+LED 只订阅七类会记账 VOU 原子单据的最终处理与反最终处理事件：销售出库、销售签收、
+采购入库、往来收款、往来付款、费用报销和其他收入。已删除的居间流程和五类居间单据不再
+作为流水来源；迁移同时删除其既有 LED 流水。
 
 采购履约中，`purchase-order` 不记账；`purchase-inbound` 最终处理时按实际仓库和数量增加库存，
 并按订单继承的采购单价贷记供应商。反最终处理追加反向流水，订单自动完成或重新打开不产生流水。
@@ -249,7 +251,7 @@ LED 只订阅当前十类 VOU 原子单据的最终处理与反最终处理事�
 
 - 期初保存、首次启用、重开、取消和修改启用日均满足 revision 与原子性；
 - 需要记账的 VOU/WFL 原子单据按映射生成正确流水，执行和反执行与 VOU 保持同事务；
-- 居间收货、居间签收和采购入库生成各自正确的往来与库存流水；
+- 七类会记账 VOU 单据生成各自正确的库存、资金和往来流水；
 - 任一历史时点负库存均阻止销售执行、采购反执行或账簿重建；
 - active generation 切换原子完成，旧 generation 和生命周期审计保留；
 - 查询严格执行分页、过滤、排序和 as-of 日期契约；

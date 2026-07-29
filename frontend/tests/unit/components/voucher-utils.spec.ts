@@ -5,6 +5,7 @@ import {
   isMoney,
   isQuantity,
   parseFixed,
+  resolveDueDate,
   sumMoney,
   toVouAtomicDocument,
 } from '@/components/voucher'
@@ -55,6 +56,16 @@ describe('VOU decimal and settlement helpers', () => {
       monthOffset: 1,
       dayOfMonth: 31,
     })).toBe('2026-02-28')
+    expect(resolveDueDate('2026-03-15', '2024-02-28', {
+      ...base,
+      ruleType: 'RELATIVE_DAYS',
+      dayOffset: 1,
+    })).toBe('2026-03-15')
+    expect(resolveDueDate(undefined, '2024-02-28', {
+      ...base,
+      ruleType: 'RELATIVE_DAYS',
+      dayOffset: 1,
+    })).toBe('2024-02-29')
   })
 
   it('adapts an existing VOU response to the atomic document contract', () => {

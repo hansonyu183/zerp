@@ -16,6 +16,7 @@
 
 - [APP：应用访问与权限](../docs/domains/app.md)
 - [BOB：基础业务对象](../docs/domains/bob.md)
+- [AUX：辅助对象](../docs/domains/aux.md)
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
 - [LED：业务账簿](../docs/domains/led.md)

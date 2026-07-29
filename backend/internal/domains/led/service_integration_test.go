@@ -4,6 +4,7 @@ package led
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -55,6 +56,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_sale_return_lines, vou_sale_return_details,
+			vou_purchase_return_lines, vou_purchase_return_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
 			vou_purchase_inbound_lines, vou_purchase_inbound_details,
@@ -377,6 +379,53 @@ func TestLEDInventoryPostingStrictBalanceAndReversalIntegration(t *testing.T) {
 	}
 }
 
+func TestLEDPurchaseReturnPostsStockOutAndReducesPayableIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	inboundApproved, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "5", "10.00")
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.FinalizeInput{
+		DocumentID: inboundApproved.DocumentID, Revision: inboundApproved.Revision,
+	}, integrationActorOne, "purchase-return-source-finalize"); err != nil {
+		t.Fatalf("finalize purchase return source: %v", err)
+	}
+	inbound, err := vouchers.Get(t.Context(), voudomain.EntityPurchaseInbound,
+		voudomain.GetInput{DocumentID: inboundApproved.DocumentID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	returnApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityPurchaseReturn,
+		voudomain.DraftInput{
+			BusinessDate: "2026-07-24", Warehouse: &refs.warehouse,
+			ReturnReason: "质量退货",
+			ReturnLines: []voudomain.ReturnLineInput{{
+				SourceLineID: inbound.Data.ProductLines[0].LineID, Quantity: "2",
+			}},
+		})
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityPurchaseReturn, voudomain.FinalizeInput{
+		DocumentID: returnApproved.DocumentID, Revision: returnApproved.Revision,
+	}, integrationActorOne, "purchase-return-finalize"); err != nil {
+		t.Fatalf("finalize purchase return: %v (cause: %v)", err, errors.Unwrap(err))
+	}
+	inventory, err := ledger.InventoryBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	})
+	if err != nil || len(inventory.Items) != 1 || inventory.Items[0].Quantity != "3.0" {
+		t.Fatalf("purchase return inventory = %+v, err=%v", inventory, err)
+	}
+	party, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	})
+	if err != nil || len(party.Items) != 1 || party.Items[0].Amount != "30.00" ||
+		party.Items[0].BalanceType != "PAYABLE" {
+		t.Fatalf("purchase return payable = %+v, err=%v", party, err)
+	}
+}
+
 func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
@@ -486,9 +535,9 @@ func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *
 
 	afterSaleApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
 		BusinessDate: "2026-07-26", Warehouse: &refs.warehouse, ReturnReason: "客户售后退货",
-		ReturnLines: []voudomain.SaleReturnLineInput{{
-			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID,
-			Quantity:            "2",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID,
+			Quantity:     "2",
 		}},
 	})
 	afterSale, err := vouchers.Finalize(t.Context(), voudomain.EntitySaleReturn, voudomain.FinalizeInput{

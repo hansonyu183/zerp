@@ -32,15 +32,15 @@ export function validateVoucherDraft(
   if (config.usesEmployee && !value.employee) return '请选择员工。'
   if (config.usesWarehouse && !value.warehouse) return '请选择仓库。'
   if (
-    config.entity === 'sale-return' &&
+    (config.entity === 'sale-return' || config.entity === 'purchase-return') &&
     (!value.returnReason.trim() ||
       Array.from(value.returnReason.trim()).length > 1000)
   ) {
     return '退货原因必填且不能超过 1000 字。'
   }
   if (
-    config.entity === 'sale-return' &&
-    value.returnKind !== 'REFUSAL' &&
+    (config.entity === 'sale-return' || config.entity === 'purchase-return') &&
+    (config.entity === 'purchase-return' || value.returnKind !== 'REFUSAL') &&
     (value.salesChainLines.length === 0 ||
       value.salesChainLines.some(
         (line) => !line.sourceLineId || !isQuantity(line.quantity),

@@ -134,6 +134,22 @@ export const voucherEntityConfigs: Readonly<
     usesWarehouse: true,
     parentEntity: 'purchase-order',
   },
+  'purchase-return': {
+    entity: 'purchase-return',
+    title: '采购退货',
+    icon: 'mdi-keyboard-return',
+    order: 75,
+    partyMode: 'none',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+    usesWarehouse: true,
+    parentEntity: 'purchase-order',
+    lifecycleLabels: {
+      finalize: '退货出库',
+      unfinalize: '撤销退货',
+      finalized: '已退货',
+    },
+  },
   receipt: {
     entity: 'receipt',
     title: '往来收款',

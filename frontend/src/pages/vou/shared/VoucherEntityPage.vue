@@ -116,12 +116,16 @@ if (typeof linkedDocumentId === 'string' && linkedDocumentId) {
 
 const returnSourceQuery = route.query.sourceDocumentIds
 if (
-  vm.config.entity === 'sale-return' &&
+  (vm.config.entity === 'sale-return' ||
+    vm.config.entity === 'purchase-return') &&
   typeof returnSourceQuery === 'string' &&
   returnSourceQuery
 ) {
   const sourceIds = [...new Set(returnSourceQuery.split(',').filter(Boolean))]
-  if (sourceIds.length && session.can('/vou/sale-return/create')) {
+  if (
+    sourceIds.length &&
+    session.can(`/vou/${vm.config.entity}/create`)
+  ) {
     vm.openCreate()
     vm.workspaceLoading = true
     Promise.all(
@@ -129,27 +133,54 @@ if (
         const response = await apiClient.post<
           VoucherDocumentView,
           { documentId: string }
-        >('vou/sale-signoff/get', { documentId })
+        >(
+          vm.config.entity === 'sale-return'
+            ? 'vou/sale-signoff/get'
+            : 'vou/purchase-inbound/get',
+          { documentId },
+        )
         return response.data
       }),
     )
       .then((sources) => {
-        vm.form.returnKind = 'AFTER_SALE'
+        vm.form.returnKind =
+          vm.config.entity === 'sale-return' ? 'AFTER_SALE' : ''
         vm.form.warehouse = sources[0]?.data.warehouse
           ? { ...sources[0].data.warehouse }
           : null
         vm.form.salesChainLines = sources.flatMap((source) =>
-          (source.data.signoffLines ?? [])
-            .filter((line) => Number(line.signedQuantity) > 0)
+          (vm.config.entity === 'sale-return'
+            ? source.data.signoffLines ?? []
+            : source.data.productLines ?? []
+          )
+            .filter((line) =>
+              Number(
+                'signedQuantity' in line
+                  ? (line.returnableQuantity ?? line.signedQuantity ?? '')
+                  : (line.returnableQuantity ?? line.orderedQuantity),
+              ) > 0,
+            )
             .map((line) => ({
               key: crypto.randomUUID(),
               sourceLineId: line.lineId,
               productCode: line.product.code,
               productName: line.product.name,
               productUnit: line.product.unit ?? '',
-              availableQuantity: line.signedQuantity,
+              availableQuantity: String(
+                line.returnableQuantity ??
+                  ('signedQuantity' in line
+                    ? line.signedQuantity
+                    : line.orderedQuantity) ??
+                  '',
+              ),
               outboundQuantity: '',
-              quantity: line.signedQuantity,
+              quantity: String(
+                line.returnableQuantity ??
+                  ('signedQuantity' in line
+                    ? line.signedQuantity
+                    : line.orderedQuantity) ??
+                  '',
+              ),
               signedQuantity: '',
               rejectedQuantity: '',
               lossQuantity: '',
@@ -250,7 +281,11 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     <VoucherList
       :can-edit="vm.canEdit"
       :can-view="vm.canView"
-      :creatable="vm.canCreate && vm.config.entity !== 'sale-return'"
+      :creatable="
+        vm.canCreate &&
+        vm.config.entity !== 'sale-return' &&
+        vm.config.entity !== 'purchase-return'
+      "
       :date-from="vm.filters.dateFrom"
       :date-to="vm.filters.dateTo"
       :keyword="vm.filters.keyword"
@@ -342,6 +377,21 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
           "
           :to="{
             path: '/vou/sale-return',
+            query: { sourceDocumentIds: vm.documentView.documentId },
+          }"
+          prepend-icon="mdi-keyboard-return"
+          variant="tonal"
+        >
+          发起退货
+        </v-btn>
+        <v-btn
+          v-if="
+            vm.config.entity === 'purchase-inbound' &&
+            vm.documentView?.status === 'FINALIZED' &&
+            session.can('/vou/purchase-return/create')
+          "
+          :to="{
+            path: '/vou/purchase-return',
             query: { sourceDocumentIds: vm.documentView.documentId },
           }"
           prepend-icon="mdi-keyboard-return"
@@ -581,7 +631,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     variant="outlined"
                   />
                   <v-textarea
-                    v-if="vm.config.entity === 'sale-return'"
+                    v-if="
+                      vm.config.entity === 'sale-return' ||
+                      vm.config.entity === 'purchase-return'
+                    "
                     v-model="vm.form.returnReason"
                     class="voucher-form__wide"
                     counter="1000"
@@ -624,7 +677,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
           />
           <div
             v-if="
-              vm.config.entity === 'sale-return' &&
+              (vm.config.entity === 'sale-return' ||
+                vm.config.entity === 'purchase-return') &&
               vm.form.salesChainLines.length
             "
             class="voucher-form__chain-table"

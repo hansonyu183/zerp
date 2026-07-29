@@ -258,6 +258,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/purchase-inbound/PurchaseInbound.vue'),
   }),
   registerPage('vou', {
+    entity: 'purchase-return',
+    entityTitle: '采购退货',
+    icon: 'mdi-keyboard-return',
+    order: 75,
+    component: () => import('@/pages/vou/purchase-return/PurchaseReturn.vue'),
+  }),
+  registerPage('vou', {
     entity: 'receipt',
     entityTitle: '往来收款',
     icon: 'mdi-cash-plus',

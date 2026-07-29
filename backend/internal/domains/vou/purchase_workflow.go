@@ -18,10 +18,12 @@ const (
 	purchaseWorkflowType = "PURCHASE_FULFILLMENT"
 	purchaseStageOrder   = "PURCHASE_ORDER"
 	purchaseStageInbound = "PURCHASE_INBOUND"
+	purchaseStageReturn  = "PURCHASE_RETURN"
 )
 
 func managedPurchaseDocument(document dbsqlc.VouDocument) bool {
-	return document.Entity == EntityPurchaseOrder || document.Entity == EntityPurchaseInbound
+	return document.Entity == EntityPurchaseOrder || document.Entity == EntityPurchaseInbound ||
+		document.Entity == EntityPurchaseReturn
 }
 
 func (s *Service) validateManagedPurchaseParentStatus(
@@ -34,7 +36,7 @@ func (s *Service) validateManagedPurchaseParentStatus(
 		return nil
 	}
 	if document.ParentDocumentID == nil {
-		return domainError(ErrorConflict, "purchase inbound has no source order", nil, nil)
+		return domainError(ErrorConflict, "purchase document has no source order", nil, nil)
 	}
 	var status, fulfillment string
 	err := tx.QueryRow(ctx, `SELECT d.status,o.fulfillment_status
@@ -44,6 +46,14 @@ func (s *Service) validateManagedPurchaseParentStatus(
 		Scan(&status, &fulfillment)
 	if err != nil {
 		return s.internal("read purchase order status", err)
+	}
+	if document.Entity == EntityPurchaseReturn {
+		if status != StatusApproved || fulfillment == "SHORT_CLOSE_REQUESTED" {
+			return domainError(ErrorConflict, "purchase order is not returnable", map[string]any{
+				"status": status, "fulfillmentStatus": fulfillment, "targetStatus": targetStatus,
+			}, nil)
+		}
+		return nil
 	}
 	if status != StatusApproved || fulfillment != "OPEN" {
 		return domainError(ErrorConflict, "purchase order is not open", map[string]any{
@@ -100,6 +110,8 @@ func (s *Service) touchPurchaseWorkflow(
 	stage := purchaseStageOrder
 	if document.Entity == EntityPurchaseInbound {
 		stage = purchaseStageInbound
+	} else if document.Entity == EntityPurchaseReturn {
+		stage = purchaseStageReturn
 	}
 	return s.insertPurchaseWorkflowAudit(ctx, tx, processID, event, stringPtr(previous), next,
 		stage, document.ID, document.DocumentNo, documentStatus, actorID, requestID, summary)
@@ -116,6 +128,18 @@ func (s *Service) purchaseWorkflowStatus(
 		WHERE p.id=$1`, processID).Scan(&status, &fulfillment)
 	if err != nil {
 		return "", s.internal("derive purchase workflow status", err)
+	}
+	var pendingReturns bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM vou_purchase_return_details r
+		JOIN vou_documents d ON d.id=r.document_id
+		WHERE r.source_order_id=(SELECT root_document_id FROM wfl_process_instances WHERE id=$1)
+		  AND d.status<>'FINALIZED'
+	)`, processID).Scan(&pendingReturns); err != nil {
+		return "", err
+	}
+	if pendingReturns && (fulfillment == "FULFILLED" || fulfillment == "SHORT_CLOSED") {
+		return StatusReturning, nil
 	}
 	switch fulfillment {
 	case "FULFILLED":
@@ -152,6 +176,28 @@ func (s *Service) insertPurchaseWorkflowAudit(
 	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		newID(), processID, event, from, to, stage, documentID, documentNo,
 		documentStatus, actorID, requestID, encoded)
+	return err
+}
+
+func (s *Service) linkPurchaseWorkflowDocument(
+	ctx context.Context, tx pgx.Tx, orderID, documentID, stage string,
+) error {
+	var processID string
+	if err := tx.QueryRow(ctx, `SELECT process_id FROM wfl_process_documents
+		WHERE document_id=$1`, orderID).Scan(&processID); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	var sequence int32
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(max(sequence_no),0)+1
+		FROM wfl_process_documents WHERE process_id=$1 AND stage=$2`,
+		processID, stage).Scan(&sequence); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO wfl_process_documents(
+		process_id,document_id,stage,sequence_no
+	) VALUES($1,$2,$3,$4)`, processID, documentID, stage, sequence)
 	return err
 }
 
@@ -373,6 +419,16 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, domainError(ErrorConflict,
 			"purchase inbound with attachments cannot be deleted", nil, nil)
 	}
+	var hasReturns bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM vou_purchase_return_lines WHERE source_inbound_id=$1
+	)`, input.DocumentID).Scan(&hasReturns); err != nil {
+		return MutationResult{}, err
+	}
+	if hasReturns {
+		return MutationResult{}, domainError(ErrorConflict,
+			"purchase inbound has return documents", nil, nil)
+	}
 	var processID string
 	if err = tx.QueryRow(ctx, `SELECT process_id FROM wfl_process_documents
 		WHERE document_id=$1`, input.DocumentID).Scan(&processID); errors.Is(err, pgx.ErrNoRows) {
@@ -500,6 +556,20 @@ func (s *Service) purchaseShortClose(
 				nil,
 			)
 		}
+		var pendingReturns bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM vou_purchase_return_details r
+			JOIN vou_documents d ON d.id=r.document_id
+			WHERE r.source_order_id=$1 AND d.status<>'FINALIZED'
+		)`, documentID).Scan(&pendingReturns)
+		if err != nil {
+			return MutationResult{}, err
+		}
+		if pendingReturns {
+			return MutationResult{}, domainError(
+				ErrorConflict, "purchase order has unfinished return documents", nil, nil,
+			)
+		}
 	}
 	next := ""
 	requestedBy := detail.ShortCloseRequestedBy
@@ -513,7 +583,11 @@ func (s *Service) purchaseShortClose(
 		err = tx.QueryRow(ctx, `SELECT EXISTS (
 			SELECT 1 FROM vou_product_lines o WHERE o.document_id=$1
 			  AND o.ordered_qty_micros > COALESCE((
-				SELECT sum(i.quantity_micros) FROM vou_purchase_inbound_lines i
+				SELECT sum(i.quantity_micros) - COALESCE((
+					SELECT sum(r.quantity_micros) FROM vou_purchase_return_lines r
+					JOIN vou_documents rd ON rd.id=r.document_id
+					WHERE r.source_order_line_id=o.id AND rd.status='FINALIZED'
+				),0) FROM vou_purchase_inbound_lines i
 				JOIN vou_documents d ON d.id=i.document_id
 				JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
 				WHERE x.source_order_id=$1 AND i.source_order_line_id=o.id
@@ -690,7 +764,11 @@ func (s *Service) validateAndReserveInboundLines(
 			return nil, 0, domainError(ErrorValidation, "invalid inbound quantity", nil, parseErr)
 		}
 		var reserved int64
-		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0)
+		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0) - COALESCE((
+				SELECT sum(r.quantity_micros) FROM vou_purchase_return_lines r
+				JOIN vou_documents d ON d.id=r.document_id
+				WHERE r.source_order_line_id=$2 AND d.status='FINALIZED'
+			),0)
 			FROM vou_purchase_inbound_lines l
 			JOIN vou_purchase_inbound_details x ON x.document_id=l.document_id
 			WHERE x.source_order_id=$1 AND l.source_order_line_id=$2
@@ -738,7 +816,13 @@ func (s *Service) setPurchaseOrderBalances(
 	ctx context.Context, orderID string, data *DocumentDataView,
 ) error {
 	rows, err := s.pool.Query(ctx, `SELECT order_line.id, order_line.ordered_qty_micros,
-		COALESCE(sum(inbound_line.quantity_micros), 0)::bigint
+		COALESCE(sum(inbound_line.quantity_micros), 0)::bigint - COALESCE((
+			SELECT sum(return_line.quantity_micros)
+			FROM vou_purchase_return_lines return_line
+			JOIN vou_documents return_doc ON return_doc.id=return_line.document_id
+			WHERE return_line.source_order_line_id=order_line.id
+			  AND return_doc.status='FINALIZED'
+		),0)::bigint
 		FROM vou_product_lines order_line
 		LEFT JOIN vou_purchase_inbound_lines inbound_line
 			ON inbound_line.source_order_line_id = order_line.id
@@ -775,18 +859,26 @@ func (s *Service) setPurchaseOrderBalances(
 }
 
 func (s *Service) refreshPurchaseOrderFulfillment(
-	ctx context.Context, tx pgx.Tx, inboundID, actorID string,
+	ctx context.Context, tx pgx.Tx, documentID, actorID string,
 ) error {
 	var orderID string
-	if err := tx.QueryRow(ctx, `SELECT source_order_id FROM vou_purchase_inbound_details
-		WHERE document_id=$1`, inboundID).Scan(&orderID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT source_order_id FROM (
+		SELECT document_id,source_order_id FROM vou_purchase_inbound_details
+		UNION ALL
+		SELECT document_id,source_order_id FROM vou_purchase_return_details
+	) source WHERE document_id=$1`, documentID).Scan(&orderID); err != nil {
 		return err
 	}
 	var complete bool
 	err := tx.QueryRow(ctx, `SELECT NOT EXISTS (
 		SELECT 1 FROM vou_product_lines o
 		WHERE o.document_id=$1 AND o.ordered_qty_micros > COALESCE((
-			SELECT sum(i.quantity_micros)
+			SELECT sum(i.quantity_micros) - COALESCE((
+				SELECT sum(r.quantity_micros)
+				FROM vou_purchase_return_lines r
+				JOIN vou_documents rd ON rd.id=r.document_id
+				WHERE r.source_order_line_id=o.id AND rd.status='FINALIZED'
+			),0)
 			FROM vou_purchase_inbound_lines i
 			JOIN vou_documents d ON d.id=i.document_id
 			JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
@@ -801,8 +893,9 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 	if complete {
 		status = "FULFILLED"
 	}
-	_, err = tx.Exec(ctx, `UPDATE vou_purchase_order_details SET fulfillment_status=$1
-		WHERE document_id=$2 AND fulfillment_status IN ('OPEN','FULFILLED')`, status, orderID)
+	_, err = tx.Exec(ctx, `UPDATE vou_purchase_order_details SET fulfillment_status=$1,
+		short_close_requested_by=NULL,short_close_reason=NULL
+		WHERE document_id=$2`, status, orderID)
 	if err == nil {
 		_, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET
 			status=CASE WHEN $1 THEN 'COMPLETED' ELSE 'APPROVED' END,

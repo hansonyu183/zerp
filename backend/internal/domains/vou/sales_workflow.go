@@ -83,14 +83,19 @@ func (s *Service) validateManagedSalesReady(
 			return nil
 		}
 		var ready bool
+		table := "vou_purchase_inbound_lines"
+		message := "purchase inbound has no lines"
+		if document.Entity == EntityPurchaseReturn {
+			table, message = "vou_purchase_return_lines", "purchase return has no lines"
+		}
 		err := tx.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=$1
+			SELECT 1 FROM `+table+` WHERE document_id=$1
 		)`, document.ID).Scan(&ready)
 		if err != nil {
 			return s.internal("validate purchase inbound readiness", err)
 		}
 		if !ready {
-			return domainError(ErrorConflict, "purchase inbound has no lines", nil, nil)
+			return domainError(ErrorConflict, message, nil, nil)
 		}
 		return nil
 	}

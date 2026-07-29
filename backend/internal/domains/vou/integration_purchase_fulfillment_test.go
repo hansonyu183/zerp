@@ -92,7 +92,7 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	}}, integrationActorOne, "inbound-over"); err == nil {
 		t.Fatal("cumulative inbound overage was accepted")
 	}
-	finalizeInbound(first, "inbound-one")
+	finalizedFirst := finalizeInbound(first, "inbound-one")
 
 	draft := createInbound("6", "inbound-draft")
 	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
@@ -111,6 +111,73 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	}
 	if fulfillment != "FULFILLED" {
 		t.Fatalf("completion = %s", fulfillment)
+	}
+	firstView, err := service.Get(t.Context(), EntityPurchaseInbound, GetInput{
+		DocumentID: first.DocumentID,
+	})
+	if err != nil {
+		t.Fatalf("get first inbound: %v", err)
+	}
+	purchaseReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
+		ReturnReason: "供应商质量退货",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "2",
+		}},
+	}}, integrationActorOne, "purchase-return-create")
+	if err != nil {
+		t.Fatalf("create purchase return: %v", err)
+	}
+	returnChecked, err := service.Check(t.Context(), EntityPurchaseReturn, DocumentRevisionInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: purchaseReturn.Revision,
+	}, integrationActorOne, "purchase-return-check")
+	if err != nil {
+		t.Fatalf("check purchase return: %v", err)
+	}
+	returnApproved, err := service.Approve(t.Context(), EntityPurchaseReturn, DocumentRevisionInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnChecked.Revision,
+	}, integrationActorOne, "purchase-return-approve")
+	if err != nil {
+		t.Fatalf("approve purchase return: %v", err)
+	}
+	returnFinalized, err := service.Finalize(t.Context(), EntityPurchaseReturn, FinalizeInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnApproved.Revision,
+	}, integrationActorOne, "purchase-return-finalize")
+	if err != nil {
+		t.Fatalf("finalize purchase return: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
+		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
+		Scan(&fulfillment); err != nil || fulfillment != "OPEN" {
+		t.Fatalf("purchase return did not reopen order: %s, err=%v", fulfillment, err)
+	}
+	replacement := createInbound("2", "replacement-inbound")
+	if _, err = service.Unfinalize(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnFinalized.Revision,
+		Reason: "尝试撤销",
+	}, integrationActorOne, "purchase-return-unfinalize-blocked"); err == nil {
+		t.Fatal("purchase return reversal ignored replacement inbound reservation")
+	}
+	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
+		DocumentID: replacement.DocumentID, Revision: replacement.Revision, Reason: "释放替代入库",
+	}, integrationActorOne, "replacement-delete"); err != nil {
+		t.Fatalf("delete replacement inbound: %v", err)
+	}
+	if _, err = service.Unfinalize(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnFinalized.Revision,
+		Reason: "撤销采购退货",
+	}, integrationActorOne, "purchase-return-unfinalize"); err != nil {
+		t.Fatalf("unfinalize purchase return: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
+		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
+		Scan(&fulfillment); err != nil || fulfillment != "FULFILLED" {
+		t.Fatalf("purchase return reversal did not complete order: %s, err=%v", fulfillment, err)
+	}
+	if _, err = service.Unfinalize(t.Context(), EntityPurchaseInbound, ReverseInput{
+		DocumentID: first.DocumentID, Revision: finalizedFirst.Revision, Reason: "来源有退货",
+	}, integrationActorOne, "source-inbound-unfinalize-blocked"); err == nil {
+		t.Fatal("source inbound with purchase return was unfinalized")
 	}
 	if _, err = service.Unfinalize(t.Context(), EntityPurchaseInbound, ReverseInput{
 		DocumentID: second.DocumentID, Revision: finalizedSecond.Revision, Reason: "验收撤回",

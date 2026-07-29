@@ -279,6 +279,79 @@ func (s *Service) postPurchase(
 	return nil
 }
 
+func (s *Service) postPurchaseReturn(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *dbsqlc.Queries,
+	posting postingContext,
+) error {
+	doc := posting.Document
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	var supplierID, supplierVersion, supplierCode, supplierName string
+	var warehouseID, warehouseVersion, warehouseCode, warehouseName string
+	err = tx.QueryRow(ctx, `SELECT supplier_object_id,supplier_version_id,supplier_code,supplier_name,
+		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+		FROM vou_purchase_return_details WHERE document_id=$1`, doc.ID).Scan(
+		&supplierID, &supplierVersion, &supplierCode, &supplierName,
+		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName)
+	if err != nil {
+		return s.internal("read purchase return ledger detail", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
+		product_name,product_unit,quantity_micros,line_amount_cents
+		FROM vou_purchase_return_lines WHERE document_id=$1`, doc.ID)
+	if err != nil {
+		return err
+	}
+	type purchaseReturnLine struct {
+		id, productID, productVersion, productCode, productName, productUnit string
+		quantity, amount                                                     int64
+	}
+	lines := make([]purchaseReturnLine, 0)
+	for rows.Next() {
+		var line purchaseReturnLine
+		if err = rows.Scan(&line.id, &line.productID, &line.productVersion, &line.productCode,
+			&line.productName, &line.productUnit, &line.quantity, &line.amount); err != nil {
+			rows.Close()
+			return err
+		}
+		lines = append(lines, line)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, line := range lines {
+		if err = lockInventoryDimension(ctx, tx, warehouseID, line.productID); err != nil {
+			return err
+		}
+		if err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+			SourceLineID: line.id, SourceRevision: posting.SourceRevision, EffectiveDate: doc.BusinessDate,
+			OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+			WarehouseObjectID: warehouseID, WarehouseVersionID: warehouseVersion,
+			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
+			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
+			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
+			QuantityDeltaMicros: -line.quantity,
+		}); err != nil {
+			return s.writeError("post purchase return inventory", err)
+		}
+		if err = q.InsertLedPartyEntry(ctx, partyParams(
+			posting, doc, line.id, doc.BusinessDate, supplierID, supplierVersion,
+			supplierCode, supplierName, "supplier", line.amount,
+		)); err != nil {
+			return s.writeError("post purchase return payable", err)
+		}
+	}
+	return nil
+}
+
 func (s *Service) postReceipt(ctx context.Context, q *dbsqlc.Queries, posting postingContext) error {
 	doc := posting.Document
 	include, err := requireEffectiveDate(posting, doc.BusinessDate)

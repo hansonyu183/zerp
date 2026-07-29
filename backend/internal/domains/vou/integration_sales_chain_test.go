@@ -180,8 +180,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	}
 	afterSale, err := service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "客户退回",
-		ReturnLines: []SaleReturnLineInput{{
-			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "2",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "2",
 		}},
 	}}, integrationActorOne, "after-sale-return")
 	if err != nil {
@@ -189,8 +189,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	}
 	if _, err = service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "超量退货",
-		ReturnLines: []SaleReturnLineInput{{
-			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "3",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "3",
 		}},
 	}}, integrationActorOne, "over-return"); err == nil {
 		t.Fatal("cumulative after-sale over-return was accepted")

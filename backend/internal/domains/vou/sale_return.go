@@ -48,7 +48,7 @@ func validateReturnHeader(data DraftInput) (time.Time, string, error) {
 }
 
 func (s *Service) resolveReturnSource(
-	ctx context.Context, tx pgx.Tx, replacingID string, date time.Time, inputs []SaleReturnLineInput,
+	ctx context.Context, tx pgx.Tx, replacingID string, date time.Time, inputs []ReturnLineInput,
 ) (returnSource, error) {
 	var result returnSource
 	if len(inputs) == 0 || len(inputs) > 200 {
@@ -56,8 +56,8 @@ func (s *Service) resolveReturnSource(
 	}
 	seen := map[string]bool{}
 	for _, input := range inputs {
-		if !validID(input.SourceSignoffLineID) || seen[input.SourceSignoffLineID] {
-			return result, domainError(ErrorValidation, "invalid sourceSignoffLineId", nil, nil)
+		if !validID(input.SourceLineID) || seen[input.SourceLineID] {
+			return result, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
 		quantity, err := quantityMicros(input.Quantity, false)
 		if err != nil {
@@ -78,7 +78,7 @@ func (s *Service) resolveReturnSource(
 			JOIN vou_sale_signoff_details sd ON sd.document_id=sl.document_id
 			JOIN vou_documents d ON d.id=sl.document_id
 			JOIN vou_documents od ON od.id=sd.source_order_id
-			WHERE sl.id=$1 FOR UPDATE OF sl`, input.SourceSignoffLineID).Scan(
+			WHERE sl.id=$1 FOR UPDATE OF sl`, input.SourceLineID).Scan(
 			&line.signoffID, &orderID, &status, &line.signoffDate,
 			&currency, &customerID, &customerVersion, &customerCode, &customerName,
 			&line.productID, &line.productVersion, &line.productCode, &line.productName, &line.productUnit,
@@ -106,21 +106,21 @@ func (s *Service) resolveReturnSource(
 			JOIN vou_sale_return_details rd ON rd.document_id=rl.document_id
 			WHERE rl.source_signoff_line_id=$1 AND rd.return_kind='AFTER_SALE'
 			  AND rl.document_id<>COALESCE(NULLIF($2,''),'00000000000000000000000000')`,
-			input.SourceSignoffLineID, replacingID).Scan(&occupied); err != nil {
+			input.SourceLineID, replacingID).Scan(&occupied); err != nil {
 			return result, err
 		}
 		if quantity > signed-occupied {
 			return result, domainError(ErrorConflict, "return quantity exceeds available signed quantity",
-				map[string]any{"sourceSignoffLineId": input.SourceSignoffLineID}, nil)
+				map[string]any{"sourceLineId": input.SourceLineID}, nil)
 		}
-		line.sourceLineID, line.quantity, line.remark = input.SourceSignoffLineID, quantity, remark
+		line.sourceLineID, line.quantity, line.remark = input.SourceLineID, quantity, remark
 		line.amount, err = lineAmountCents(quantity, line.price)
 		if err != nil || result.total > math.MaxInt64-line.amount {
 			return result, domainError(ErrorValidation, "return amount is out of range", nil, err)
 		}
 		result.total += line.amount
 		result.lines = append(result.lines, line)
-		seen[input.SourceSignoffLineID] = true
+		seen[input.SourceLineID] = true
 	}
 	return result, nil
 }

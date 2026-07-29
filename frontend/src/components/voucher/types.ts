@@ -6,6 +6,7 @@ export type VoucherEntity =
   | 'sale-return'
   | 'purchase-order'
   | 'purchase-inbound'
+  | 'purchase-return'
   | 'receipt'
   | 'payment'
   | 'expense-reimbursement'
@@ -133,6 +134,7 @@ export interface VoucherProductLineView {
   sourceLineId?: string
   quantity?: string
   availableQuantity?: string
+  returnableQuantity?: string
   formula?: {
     baseOutputQuantity: string
     sourceType?: string
@@ -157,6 +159,7 @@ export interface VoucherSaleSignoffLineView {
   unitPrice: string
   lineAmount: string
   remark?: string
+  returnableQuantity?: string
 }
 
 export interface VoucherExpenseLineView {

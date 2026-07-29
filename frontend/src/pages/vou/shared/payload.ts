@@ -52,11 +52,14 @@ export function buildVoucherDraftPayload(
     payload.fundAccount = inputReference(value.fundAccount)
   }
   if (config.usesSourceName) payload.sourceName = value.sourceName.trim()
-  if (config.entity === 'sale-return') {
+  if (
+    config.entity === 'sale-return' ||
+    config.entity === 'purchase-return'
+  ) {
     payload.returnReason = value.returnReason.trim()
     if (value.returnKind !== 'REFUSAL') {
       payload.returnLines = value.salesChainLines.map((line) => ({
-        sourceSignoffLineId: line.sourceLineId,
+        sourceLineId: line.sourceLineId,
         quantity: line.quantity.trim(),
         ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       }))

@@ -112,8 +112,9 @@ func entityPrefix(entity string) string {
 	return map[string]string{
 		EntitySaleOrder: "SO", EntitySaleOutbound: "SOB", EntitySaleDelivery: "SD",
 		EntitySaleSignoff: "SS", EntityPurchaseOrder: "PO", EntityPurchaseInbound: "PI",
-		EntitySaleReturn: "SR",
-		EntityReceipt:    "REC", EntityPayment: "PAY", EntityExpenseReimbursement: "ER", EntityOtherIncome: "OI",
+		EntitySaleReturn:     "SR",
+		EntityPurchaseReturn: "PR",
+		EntityReceipt:        "REC", EntityPayment: "PAY", EntityExpenseReimbursement: "ER", EntityOtherIncome: "OI",
 	}[entity]
 }
 

@@ -154,6 +154,19 @@ func (s *Service) loadSalesChainData(
 			line.OutboundQuantity, line.SignedQuantity = formatQuantity(outbound), formatQuantity(signed)
 			line.RejectedQuantity, line.LossQuantity = formatQuantity(rejected), formatQuantity(loss)
 			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
+			var returned int64
+			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0)
+				FROM vou_sale_return_lines l
+				JOIN vou_sale_return_details d ON d.document_id=l.document_id
+				WHERE l.source_signoff_line_id=$1 AND d.return_kind='AFTER_SALE'`, line.LineID).
+				Scan(&returned); err != nil {
+				return data, err
+			}
+			returnable := signed - returned
+			if returnable < 0 {
+				returnable = 0
+			}
+			line.ReturnableQuantity = formatQuantity(returnable)
 			data.SignoffLines = append(data.SignoffLines, line)
 		}
 		return data, rows.Err()
@@ -444,6 +457,12 @@ func (s *Service) Delete(
 			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_return_details WHERE document_id=$1`,
 				input.DocumentID)
 		}
+	case EntityPurchaseReturn:
+		if _, err = tx.Exec(ctx, `DELETE FROM vou_purchase_return_lines WHERE document_id=$1`,
+			input.DocumentID); err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_purchase_return_details WHERE document_id=$1`,
+				input.DocumentID)
+		}
 	case EntityPurchaseOrder:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
 			DELETE FROM vou_purchase_order_details WHERE document_id=$1`, input.DocumentID)
@@ -484,6 +503,18 @@ func (s *Service) Delete(
 				return MutationResult{}, loadErr
 			}
 			if err = s.touchSalesWorkflow(
+				ctx, tx, root, "RETURN_DELETED", root.Status, actorID, requestID, nil,
+			); err != nil {
+				return MutationResult{}, err
+			}
+		} else if entity == EntityPurchaseReturn {
+			root, loadErr := s.queries.WithTx(tx).GetVouDocument(
+				ctx, dbsqlc.GetVouDocumentParams{ID: *parentID, Entity: EntityPurchaseOrder},
+			)
+			if loadErr != nil {
+				return MutationResult{}, loadErr
+			}
+			if err = s.touchPurchaseWorkflow(
 				ctx, tx, root, "RETURN_DELETED", root.Status, actorID, requestID, nil,
 			); err != nil {
 				return MutationResult{}, err

@@ -55,7 +55,7 @@ export interface DraftPayload {
     remark?: string
   }>
   returnLines?: Array<{
-    sourceSignoffLineId: string
+    sourceLineId: string
     quantity: string
     remark?: string
   }>
@@ -210,7 +210,8 @@ export function formFromDocument(
               lossQuantity: '',
               remark: line.remark ?? '',
             }))
-          : document.entity === 'sale-return'
+          : document.entity === 'sale-return' ||
+              document.entity === 'purchase-return'
             ? (data.lines ?? []).map((line) => ({
                 key: line.lineId,
                 sourceLineId: line.sourceLineId ?? '',

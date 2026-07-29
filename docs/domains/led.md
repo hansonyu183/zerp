@@ -37,10 +37,11 @@ LED 提供库存、资金、往来流水与指定日期余额，不提供会计�
 | `sale-order`            | 无                     | 无             | 无                                       |
 | `sale-outbound`         | 出库日按出库数量 `OUT` | 无             | 无                                       |
 | `sale-delivery`         | 无                     | 无             | 无                                       |
-| `sale-signoff`          | 拒收数量 `IN`          | 无             | 签收日按签收数量与销售单价借记客户       |
+| `sale-signoff`          | 无                     | 无             | 签收日按签收数量与销售单价借记客户       |
 | `sale-return`           | 退货数量 `IN`          | 无             | 事后退货按原签收价贷记客户；拒收退货无   |
 | `purchase-order`        | 无                     | 无             | 无                                       |
 | `purchase-inbound`      | 入库日按实际数量 `IN`  | 无             | 入库日按实际数量与订单采购单价贷记供应商 |
+| `purchase-return`       | 退货日按退货数量 `OUT` | 无             | 退货日按原入库价借记供应商，减少应付     |
 | `receipt`               | 无                     | 业务日期 `IN`  | 业务日期贷记往来方                       |
 | `payment`               | 无                     | 业务日期 `OUT` | 业务日期借记往来方                       |
 | `expense-reimbursement` | 无                     | 业务日期 `OUT` | 无                                       |

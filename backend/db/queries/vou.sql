@@ -106,6 +106,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_sale_return_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
@@ -127,6 +128,8 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id
           AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
@@ -138,7 +141,7 @@ WHERE d.entity = sqlc.arg(entity)
 -- name: ListVouDocuments :many
 SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
-                po.supplier_name, pi.supplier_name, r.counterparty_name,
+                po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
 FROM vou_documents d
@@ -149,6 +152,7 @@ LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
 LEFT JOIN vou_sale_return_details sr ON sr.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = d.id
+LEFT JOIN vou_purchase_return_details pr ON pr.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
@@ -166,6 +170,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR sr.customer_object_id = sqlc.arg(party_object_id)
       OR po.supplier_object_id = sqlc.arg(party_object_id)
       OR pi.supplier_object_id = sqlc.arg(party_object_id)
+      OR pr.supplier_object_id = sqlc.arg(party_object_id)
       OR r.counterparty_object_id = sqlc.arg(party_object_id)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
@@ -180,6 +185,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR sr.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR sr.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR po.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR po.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR pi.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR pi.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR pr.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR pr.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR r.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR r.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'

@@ -162,7 +162,7 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines all eleven atomic document entities', () => {
+  it('defines all twelve atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',
       'sale-outbound',
@@ -171,6 +171,7 @@ describe('shared VOU entity view model', () => {
       'sale-return',
       'purchase-order',
       'purchase-inbound',
+      'purchase-return',
       'receipt',
       'payment',
       'expense-reimbursement',
@@ -302,12 +303,12 @@ describe('shared VOU entity view model', () => {
       returnReason: '客户售后退货',
       returnLines: [
         {
-          sourceSignoffLineId: 'SIGNOFF-LINE-1',
+          sourceLineId: 'SIGNOFF-LINE-1',
           quantity: '2',
           remark: '包装完整',
         },
         {
-          sourceSignoffLineId: 'SIGNOFF-LINE-2',
+          sourceLineId: 'SIGNOFF-LINE-2',
           quantity: '1',
         },
       ],

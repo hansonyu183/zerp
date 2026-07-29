@@ -128,6 +128,28 @@ function createSaleReturn(): void {
   })
 }
 
+function createPurchaseReturn(): void {
+  if (
+    props.processEntity !== 'purchase-fulfillment' ||
+    !selected.value ||
+    !session.can('/vou/purchase-return/create')
+  )
+    return
+  const sourceDocumentIds = selected.value.documents
+    .filter(
+      (document) =>
+        document.entity === 'purchase-inbound' &&
+        document.status === 'FINALIZED',
+    )
+    .map((document) => document.documentId)
+    .join(',')
+  if (!sourceDocumentIds) return
+  void router.push({
+    path: '/vou/purchase-return',
+    query: { sourceDocumentIds },
+  })
+}
+
 async function shortClose(action: string): Promise<void> {
   if (!selected.value || !session.can(permission(action))) return
   const reason =
@@ -255,6 +277,21 @@ onMounted(query)
             "
             prepend-icon="mdi-keyboard-return"
             @click="createSaleReturn"
+          >
+            发起退货
+          </v-btn>
+          <v-btn
+            v-if="
+              processEntity === 'purchase-fulfillment' &&
+              session.can('/vou/purchase-return/create') &&
+              selected.documents.some(
+                (document) =>
+                  document.entity === 'purchase-inbound' &&
+                  document.status === 'FINALIZED',
+              )
+            "
+            prepend-icon="mdi-keyboard-return"
+            @click="createPurchaseReturn"
           >
             发起退货
           </v-btn>

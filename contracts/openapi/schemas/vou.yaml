@@ -11,6 +11,7 @@
           'sale-return',
           'purchase-order',
           'purchase-inbound',
+          'purchase-return',
           'receipt',
           'payment',
           'expense-reimbursement',
@@ -26,6 +27,7 @@
           'sale-return',
           'purchase-order',
           'purchase-inbound',
+          'purchase-return',
           'receipt',
           'payment',
           'expense-reimbursement',
@@ -323,11 +325,11 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceSignoffLineId', 'quantity'],
+                          'required': ['sourceLineId', 'quantity'],
                           'additionalProperties': false,
                           'properties':
                             {
-                              'sourceSignoffLineId': { 'type': 'string' },
+                              'sourceLineId': { 'type': 'string' },
                               'quantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
@@ -582,11 +584,11 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceSignoffLineId', 'quantity'],
+                          'required': ['sourceLineId', 'quantity'],
                           'additionalProperties': false,
                           'properties':
                             {
-                              'sourceSignoffLineId': { 'type': 'string' },
+                              'sourceLineId': { 'type': 'string' },
                               'quantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },

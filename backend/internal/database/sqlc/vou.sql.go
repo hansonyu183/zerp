@@ -168,6 +168,7 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_sale_return_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
@@ -184,6 +185,8 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id
+          AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_sale_return_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id
           AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
@@ -1648,7 +1651,7 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 
 const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date,
-       COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
+       COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 po.supplier_name, pi.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
@@ -1657,6 +1660,7 @@ LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
 LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
+LEFT JOIN vou_sale_return_details sr ON sr.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
@@ -1673,6 +1677,7 @@ WHERE d.entity = $1
       OR sob.customer_object_id = $5
       OR sd.customer_object_id = $5
       OR ss.customer_object_id = $5
+      OR sr.customer_object_id = $5
       OR po.supplier_object_id = $5
       OR pi.supplier_object_id = $5
       OR r.counterparty_object_id = $5
@@ -1686,6 +1691,7 @@ WHERE d.entity = $1
       OR sob.customer_code ILIKE '%' || $6 || '%' OR sob.customer_name ILIKE '%' || $6 || '%'
       OR sd.customer_code ILIKE '%' || $6 || '%' OR sd.customer_name ILIKE '%' || $6 || '%'
       OR ss.customer_code ILIKE '%' || $6 || '%' OR ss.customer_name ILIKE '%' || $6 || '%'
+      OR sr.customer_code ILIKE '%' || $6 || '%' OR sr.customer_name ILIKE '%' || $6 || '%'
       OR po.supplier_code ILIKE '%' || $6 || '%' OR po.supplier_name ILIKE '%' || $6 || '%'
       OR pi.supplier_code ILIKE '%' || $6 || '%' OR pi.supplier_name ILIKE '%' || $6 || '%'
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'

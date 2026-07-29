@@ -271,12 +271,13 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('为全部十类原子单据注册独立 VOU 页面', () => {
+  it('为全部十一类原子单据注册独立 VOU 页面', () => {
     const entities = [
       'sale-order',
       'sale-outbound',
       'sale-delivery',
       'sale-signoff',
+      'sale-return',
       'purchase-order',
       'purchase-inbound',
       'receipt',
@@ -297,6 +298,7 @@ describe('permission menu registry', () => {
       '销售出库',
       '销售送货',
       '销售签收',
+      '销售退货',
       '采购订单',
       '采购入库',
       '往来收款',

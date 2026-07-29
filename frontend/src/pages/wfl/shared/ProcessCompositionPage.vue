@@ -107,6 +107,27 @@ function openDocument(document: DocumentLink): void {
   })
 }
 
+function createSaleReturn(): void {
+  if (
+    props.processEntity !== 'sales-fulfillment' ||
+    !selected.value ||
+    !session.can('/vou/sale-return/create')
+  )
+    return
+  const sourceDocumentIds = selected.value.documents
+    .filter(
+      (document) =>
+        document.entity === 'sale-signoff' && document.status === 'FINALIZED',
+    )
+    .map((document) => document.documentId)
+    .join(',')
+  if (!sourceDocumentIds) return
+  void router.push({
+    path: '/vou/sale-return',
+    query: { sourceDocumentIds },
+  })
+}
+
 async function shortClose(action: string): Promise<void> {
   if (!selected.value || !session.can(permission(action))) return
   const reason =
@@ -222,6 +243,21 @@ onMounted(query)
           </v-table>
         </v-card-text>
         <v-card-actions>
+          <v-btn
+            v-if="
+              processEntity === 'sales-fulfillment' &&
+              session.can('/vou/sale-return/create') &&
+              selected.documents.some(
+                (document) =>
+                  document.entity === 'sale-signoff' &&
+                  document.status === 'FINALIZED',
+              )
+            "
+            prepend-icon="mdi-keyboard-return"
+            @click="createSaleReturn"
+          >
+            发起退货
+          </v-btn>
           <v-btn
             v-if="session.can(permission('short-close-request'))"
             :loading="actionLoading"

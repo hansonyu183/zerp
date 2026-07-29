@@ -55,6 +55,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_sale_return_lines, vou_sale_return_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
 			vou_purchase_inbound_lines, vou_purchase_inbound_details,

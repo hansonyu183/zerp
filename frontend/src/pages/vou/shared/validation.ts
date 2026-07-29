@@ -31,6 +31,23 @@ export function validateVoucherDraft(
   if (value.counterparty && !value.counterpartyType) return '请选择往来方类型。'
   if (config.usesEmployee && !value.employee) return '请选择员工。'
   if (config.usesWarehouse && !value.warehouse) return '请选择仓库。'
+  if (
+    config.entity === 'sale-return' &&
+    (!value.returnReason.trim() ||
+      Array.from(value.returnReason.trim()).length > 1000)
+  ) {
+    return '退货原因必填且不能超过 1000 字。'
+  }
+  if (
+    config.entity === 'sale-return' &&
+    value.returnKind !== 'REFUSAL' &&
+    (value.salesChainLines.length === 0 ||
+      value.salesChainLines.some(
+        (line) => !line.sourceLineId || !isQuantity(line.quantity),
+      ))
+  ) {
+    return '请选择有效的签收明细并填写退货数量。'
+  }
   if (config.usesFundAccount && !value.fundAccount) return '请选择资金账户。'
   if (config.usesHandler && !value.handler) return '请选择经办人。'
   if (

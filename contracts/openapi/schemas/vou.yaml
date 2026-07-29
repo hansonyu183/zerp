@@ -8,6 +8,7 @@
           'sale-outbound',
           'sale-delivery',
           'sale-signoff',
+          'sale-return',
           'purchase-order',
           'purchase-inbound',
           'receipt',
@@ -22,6 +23,7 @@
       'enum':
         [
           'sale-order',
+          'sale-return',
           'purchase-order',
           'purchase-inbound',
           'receipt',
@@ -94,6 +96,7 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
+                  'returnReason': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',
@@ -310,6 +313,22 @@
                               'sourceLineId': { 'type': 'string' },
                               'signedQuantity': { 'type': 'string' },
                               'rejectedQuantity': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'returnLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['sourceSignoffLineId', 'quantity'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceSignoffLineId': { 'type': 'string' },
+                              'quantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -336,6 +355,7 @@
                   'businessDate': { 'type': 'string', 'format': 'date' },
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
+                  'returnReason': { 'type': 'string' },
                   'customer':
                     {
                       'type': 'object',
@@ -552,6 +572,22 @@
                               'sourceLineId': { 'type': 'string' },
                               'signedQuantity': { 'type': 'string' },
                               'rejectedQuantity': { 'type': 'string' },
+                              'remark': { 'type': 'string' },
+                            },
+                        },
+                    },
+                  'returnLines':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['sourceSignoffLineId', 'quantity'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'sourceSignoffLineId': { 'type': 'string' },
+                              'quantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },

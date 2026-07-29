@@ -10,6 +10,7 @@ const (
 	EntitySaleOutbound         = "sale-outbound"
 	EntitySaleDelivery         = "sale-delivery"
 	EntitySaleSignoff          = "sale-signoff"
+	EntitySaleReturn           = "sale-return"
 	EntityPurchaseOrder        = "purchase-order"
 	EntityPurchaseInbound      = "purchase-inbound"
 	EntityReceipt              = "receipt"
@@ -30,6 +31,7 @@ var entities = [...]string{
 	EntitySaleOutbound,
 	EntitySaleDelivery,
 	EntitySaleSignoff,
+	EntitySaleReturn,
 	EntityPurchaseOrder,
 	EntityPurchaseInbound,
 	EntityReceipt,
@@ -41,7 +43,7 @@ var entities = [...]string{
 func publicCreateEntity(entity string) bool {
 	switch entity {
 	case EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
-		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
+		EntitySaleReturn, EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
 		return true
 	default:
 		return false
@@ -118,6 +120,12 @@ type SaleSignoffLineInput struct {
 	Remark           string `json:"remark,omitempty"`
 }
 
+type SaleReturnLineInput struct {
+	SourceSignoffLineID string `json:"sourceSignoffLineId"`
+	Quantity            string `json:"quantity"`
+	Remark              string `json:"remark,omitempty"`
+}
+
 type ExpenseLineInput struct {
 	Category    string `json:"category"`
 	Description string `json:"description"`
@@ -129,6 +137,7 @@ type DraftInput struct {
 	BusinessDate     string                    `json:"businessDate"`
 	Currency         string                    `json:"currency"`
 	Remark           string                    `json:"remark,omitempty"`
+	ReturnReason     string                    `json:"returnReason,omitempty"`
 	SourceDocumentID string                    `json:"-"`
 	Customer         *ReferenceInput           `json:"customer,omitempty"`
 	Supplier         *ReferenceInput           `json:"supplier,omitempty"`
@@ -148,6 +157,7 @@ type DraftInput struct {
 	ExpenseLines     []ExpenseLineInput        `json:"expenseLines,omitempty"`
 	SourceLines      []SourceQuantityLineInput `json:"sourceLines,omitempty"`
 	SignoffLines     []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
+	ReturnLines      []SaleReturnLineInput     `json:"returnLines,omitempty"`
 }
 
 type CreateInput struct {
@@ -339,6 +349,9 @@ type ManagedLineView struct {
 	ContainerType        string         `json:"containerType,omitempty"`
 	QuantityPerContainer string         `json:"quantityPerContainer,omitempty"`
 	Remark               string         `json:"remark,omitempty"`
+	SourceDocumentID     string         `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo     string         `json:"sourceDocumentNo,omitempty"`
+	ReturnKind           string         `json:"returnKind,omitempty"`
 }
 
 type ExpenseLineView struct {
@@ -382,6 +395,8 @@ type DocumentDataView struct {
 	DueDate                   string                        `json:"dueDate,omitempty"`
 	Currency                  string                        `json:"currency"`
 	Remark                    string                        `json:"remark,omitempty"`
+	ReturnReason              string                        `json:"returnReason,omitempty"`
+	ReturnKind                string                        `json:"returnKind,omitempty"`
 	Customer                  *ReferenceView                `json:"customer,omitempty"`
 	Supplier                  *ReferenceView                `json:"supplier,omitempty"`
 	Counterparty              *ReferenceView                `json:"counterparty,omitempty"`

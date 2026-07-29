@@ -54,6 +54,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
 			vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_sale_return_lines, vou_sale_return_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
 			vou_purchase_inbound_lines, vou_purchase_inbound_details,
@@ -411,7 +412,7 @@ func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *
 		t.Fatalf("finalize sale delivery: %v", err)
 	}
 
-	signoffApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+	signoffApproved, signoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: delivery.DocumentID,
 		SignoffLines: []voudomain.SaleSignoffLineInput{{
 			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
@@ -438,18 +439,84 @@ func TestLEDSaleChainSignoffPostsRejectedStockAndSignedReceivableIntegration(t *
 	); err != nil {
 		t.Fatalf("sum signoff party entries: %v", err)
 	}
-	if signoffInventoryMicros != 1_000_000 {
-		t.Fatalf("signoff inventory delta = %d, want rejected quantity 1000000", signoffInventoryMicros)
+	if signoffInventoryMicros != 0 {
+		t.Fatalf("signoff inventory delta = %d, want rejection inventory deferred to return", signoffInventoryMicros)
 	}
 	if signoffReceivableCents != 4_800 {
 		t.Fatalf("signoff receivable delta = %d, want signed amount 4800", signoffReceivableCents)
 	}
 
+	var returnID string
+	var returnRevision int64
+	if err = pool.QueryRow(t.Context(), `SELECT d.id,d.revision
+		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
+		WHERE r.source_signoff_id=$1 AND r.return_kind='REFUSAL'`, signoff.DocumentID).
+		Scan(&returnID, &returnRevision); err != nil {
+		t.Fatalf("load automatic refusal return: %v", err)
+	}
+	checked, err := vouchers.Check(t.Context(), voudomain.EntitySaleReturn,
+		voudomain.DocumentRevisionInput{DocumentID: returnID, Revision: returnRevision},
+		integrationActorOne, "refusal-return-check")
+	if err != nil {
+		t.Fatalf("check refusal return: %v", err)
+	}
+	approved, err := vouchers.Approve(t.Context(), voudomain.EntitySaleReturn,
+		voudomain.DocumentRevisionInput{DocumentID: returnID, Revision: checked.Revision},
+		integrationActorOne, "refusal-return-approve")
+	if err != nil {
+		t.Fatalf("approve refusal return: %v", err)
+	}
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntitySaleReturn, voudomain.FinalizeInput{
+		DocumentID: returnID, Revision: approved.Revision,
+	}, integrationActorOne, "refusal-return-finalize"); err != nil {
+		t.Fatalf("finalize refusal return: %v", err)
+	}
+	var returnInventoryMicros, returnPartyCents int64
+	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta_micros),0)
+		FROM led_inventory_entries WHERE source_document_id=$1`, returnID).Scan(&returnInventoryMicros); err != nil {
+		t.Fatalf("sum return inventory: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(amount_delta_cents),0)
+		FROM led_party_entries WHERE source_document_id=$1`, returnID).Scan(&returnPartyCents); err != nil {
+		t.Fatalf("sum return party: %v", err)
+	}
+	if returnInventoryMicros != 1_000_000 || returnPartyCents != 0 {
+		t.Fatalf("refusal return posting inventory=%d party=%d", returnInventoryMicros, returnPartyCents)
+	}
+
+	afterSaleApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", Warehouse: &refs.warehouse, ReturnReason: "客户售后退货",
+		ReturnLines: []voudomain.SaleReturnLineInput{{
+			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID,
+			Quantity:            "2",
+		}},
+	})
+	afterSale, err := vouchers.Finalize(t.Context(), voudomain.EntitySaleReturn, voudomain.FinalizeInput{
+		DocumentID: afterSaleApproved.DocumentID, Revision: afterSaleApproved.Revision,
+	}, integrationActorOne, "after-sale-return-finalize")
+	if err != nil {
+		t.Fatalf("finalize after-sale return: %v", err)
+	}
+	var afterSaleInventoryMicros, afterSalePartyCents int64
+	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta_micros),0)
+		FROM led_inventory_entries WHERE source_document_id=$1`, afterSale.DocumentID).
+		Scan(&afterSaleInventoryMicros); err != nil {
+		t.Fatalf("sum after-sale return inventory: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(amount_delta_cents),0)
+		FROM led_party_entries WHERE source_document_id=$1`, afterSale.DocumentID).
+		Scan(&afterSalePartyCents); err != nil {
+		t.Fatalf("sum after-sale return party: %v", err)
+	}
+	if afterSaleInventoryMicros != 2_000_000 || afterSalePartyCents != -2_400 {
+		t.Fatalf("after-sale return posting inventory=%d party=%d", afterSaleInventoryMicros, afterSalePartyCents)
+	}
+
 	balances, err := ledger.InventoryBalance(t.Context(), BalanceInput{
 		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-26"},
 	})
-	if err != nil || len(balances.Items) != 1 || balances.Items[0].Quantity != "5.0" {
-		t.Fatalf("inventory balances = %+v, err=%v; want 10 outbound 6 plus rejected 1", balances, err)
+	if err != nil || len(balances.Items) != 1 || balances.Items[0].Quantity != "7.0" {
+		t.Fatalf("inventory balances = %+v, err=%v; want outbound 6 plus finalized returns 3", balances, err)
 	}
 }
 

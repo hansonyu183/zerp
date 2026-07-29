@@ -22,6 +22,7 @@ func (s *Service) registerDocumentSubscriptions(bus *txevent.Bus) error {
 	for _, entity := range []string{
 		voudomain.EntitySaleOrder, voudomain.EntitySaleOutbound,
 		voudomain.EntitySaleDelivery, voudomain.EntitySaleSignoff,
+		voudomain.EntitySaleReturn,
 		voudomain.EntityPurchaseOrder, voudomain.EntityPurchaseInbound,
 		voudomain.EntityReceipt, voudomain.EntityPayment,
 		voudomain.EntityExpenseReimbursement, voudomain.EntityOtherIncome,

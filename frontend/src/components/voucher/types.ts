@@ -3,6 +3,7 @@ export type VoucherEntity =
   | 'sale-outbound'
   | 'sale-delivery'
   | 'sale-signoff'
+  | 'sale-return'
   | 'purchase-order'
   | 'purchase-inbound'
   | 'receipt'
@@ -79,6 +80,8 @@ export interface VoucherDraftForm {
   businessDate: string
   currency: string
   remark: string
+  returnReason: string
+  returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
   supplier: VoucherReference | null
   counterpartyType: '' | 'customer' | 'supplier'
@@ -234,6 +237,8 @@ export interface VoucherDocumentData {
   dueDate?: string
   currency: string
   remark?: string
+  returnReason?: string
+  returnKind?: 'REFUSAL' | 'AFTER_SALE'
   customer?: VoucherReferenceView
   supplier?: VoucherReferenceView
   counterparty?: VoucherReferenceView
@@ -278,6 +283,9 @@ export interface VoucherManagedLineView {
   lineId: string
   lineNo?: number
   sourceLineId?: string
+  sourceDocumentId?: string
+  sourceDocumentNo?: string
+  returnKind?: 'REFUSAL' | 'AFTER_SALE'
   product?: VoucherReferenceView
   quantity?: string
   orderedQuantity?: string

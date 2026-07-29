@@ -53,6 +53,9 @@ func (s *Service) Finalize(
 		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
+		if err = s.ensureRefusalReturnDraft(ctx, tx, input.DocumentID, actorID, requestID); err != nil {
+			return MutationResult{}, s.writeError("create refusal return draft", err)
+		}
 	}
 	if entity == EntityPurchaseInbound {
 		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
@@ -104,6 +107,11 @@ func (s *Service) Unfinalize(
 		return MutationResult{}, err
 	}
 	if managedSalesDocument(document) {
+		if entity == EntitySaleSignoff {
+			if err = s.removeSignoffReturnDrafts(ctx, tx, document, actorID, requestID); err != nil {
+				return MutationResult{}, err
+			}
+		}
 		if err = s.validateManagedSalesChildrenAtMost(
 			ctx, tx, document, StatusApproved,
 		); err != nil {

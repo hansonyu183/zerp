@@ -392,6 +392,16 @@ func (s *Service) Delete(
 	if err = documentWriteConflict(err, revision, input.Revision, status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
+	if entity == EntitySaleReturn {
+		var kind string
+		if err = tx.QueryRow(ctx, `SELECT return_kind FROM vou_sale_return_details
+			WHERE document_id=$1`, input.DocumentID).Scan(&kind); err != nil {
+			return MutationResult{}, err
+		}
+		if kind == returnKindRefusal {
+			return MutationResult{}, domainError(ErrorConflict, "automatic refusal return cannot be deleted", nil, nil)
+		}
+	}
 	var attachments, children int64
 	if err = tx.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM vou_document_attachments WHERE document_id=$1),
@@ -428,6 +438,12 @@ func (s *Service) Delete(
 	case EntitySaleSignoff:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1;
 			DELETE FROM vou_sale_signoff_details WHERE document_id=$1`, input.DocumentID)
+	case EntitySaleReturn:
+		if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_return_lines WHERE document_id=$1`,
+			input.DocumentID); err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_return_details WHERE document_id=$1`,
+				input.DocumentID)
+		}
 	case EntityPurchaseOrder:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
 			DELETE FROM vou_purchase_order_details WHERE document_id=$1`, input.DocumentID)
@@ -459,6 +475,19 @@ func (s *Service) Delete(
 			Summary: map[string]any{"documentId": input.DocumentID, "documentNo": number, "entity": entity},
 		}); err != nil {
 			return MutationResult{}, err
+		}
+		if entity == EntitySaleReturn {
+			root, loadErr := s.queries.WithTx(tx).GetVouDocument(
+				ctx, dbsqlc.GetVouDocumentParams{ID: *parentID, Entity: EntitySaleOrder},
+			)
+			if loadErr != nil {
+				return MutationResult{}, loadErr
+			}
+			if err = s.touchSalesWorkflow(
+				ctx, tx, root, "RETURN_DELETED", root.Status, actorID, requestID, nil,
+			); err != nil {
+				return MutationResult{}, err
+			}
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -517,6 +546,17 @@ func (s *Service) shortCloseMutation(
 		}
 		if inTransit != 0 {
 			return MutationResult{}, domainError(ErrorConflict, "order still has in-transit quantity", nil, nil)
+		}
+		var pendingReturns bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM vou_sale_return_details r
+			JOIN vou_documents d ON d.id=r.document_id
+			WHERE r.source_order_id=$1 AND d.status<>'FINALIZED'
+		)`, document.ID).Scan(&pendingReturns); err != nil {
+			return MutationResult{}, err
+		}
+		if pendingReturns {
+			return MutationResult{}, domainError(ErrorConflict, "order has unfinished return documents", nil, nil)
 		}
 	}
 	requester, storedReason := requestedBy, currentReason

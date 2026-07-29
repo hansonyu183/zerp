@@ -143,7 +143,7 @@ func (s *Service) SalesGet(ctx context.Context, input GetInput) (ProcessView, er
 		WHERE x.process_id=$1
 		ORDER BY CASE x.stage
 			WHEN 'SALE_ORDER' THEN 1 WHEN 'OUTBOUND' THEN 2
-			WHEN 'DELIVERY' THEN 3 ELSE 4 END,x.sequence_no`, input.ProcessID)
+			WHEN 'DELIVERY' THEN 3 WHEN 'SIGNOFF' THEN 4 ELSE 5 END,x.sequence_no`, input.ProcessID)
 	if err != nil {
 		return view, internal("list sales workflow documents", err)
 	}

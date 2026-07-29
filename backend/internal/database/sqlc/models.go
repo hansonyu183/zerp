@@ -1089,6 +1089,40 @@ type VouSaleOutboundLine struct {
 	Remark            *string `db:"remark" json:"remark"`
 }
 
+type VouSaleReturnDetail struct {
+	DocumentID         string  `db:"document_id" json:"document_id"`
+	Entity             string  `db:"entity" json:"entity"`
+	SourceOrderID      string  `db:"source_order_id" json:"source_order_id"`
+	SourceSignoffID    *string `db:"source_signoff_id" json:"source_signoff_id"`
+	ReturnKind         string  `db:"return_kind" json:"return_kind"`
+	ReturnReason       string  `db:"return_reason" json:"return_reason"`
+	CustomerObjectID   string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID  string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode       string  `db:"customer_code" json:"customer_code"`
+	CustomerName       string  `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
+}
+
+type VouSaleReturnLine struct {
+	ID                  string  `db:"id" json:"id"`
+	DocumentID          string  `db:"document_id" json:"document_id"`
+	SourceSignoffLineID string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceSignoffID     string  `db:"source_signoff_id" json:"source_signoff_id"`
+	LineNo              int32   `db:"line_no" json:"line_no"`
+	ProductObjectID     string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode         string  `db:"product_code" json:"product_code"`
+	ProductName         string  `db:"product_name" json:"product_name"`
+	ProductUnit         string  `db:"product_unit" json:"product_unit"`
+	QuantityMicros      int64   `db:"quantity_micros" json:"quantity_micros"`
+	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark              *string `db:"remark" json:"remark"`
+}
+
 type VouSaleSignoffDetail struct {
 	DocumentID         string `db:"document_id" json:"document_id"`
 	Entity             string `db:"entity" json:"entity"`

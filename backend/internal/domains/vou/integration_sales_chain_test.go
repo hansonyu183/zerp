@@ -121,8 +121,87 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	}}, integrationActorOne, "duplicate-signoff"); err == nil {
 		t.Fatal("second signoff for one delivery was accepted")
 	}
+	var refusalID string
+	var refusalRevision int64
+	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision
+		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
+		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
+		t.Fatalf("load refusal return: %v", err)
+	}
+	savedRefusal, err := service.Save(t.Context(), EntitySaleReturn, SaveInput{
+		DocumentID: refusalID, Revision: refusalRevision, Data: DraftInput{
+			BusinessDate: "2026-07-27", Warehouse: &refs.warehouse, ReturnReason: "包装破损拒收",
+		},
+	}, integrationActorOne, "refusal-save")
+	if err != nil {
+		t.Fatalf("save refusal return header: %v", err)
+	}
+	unfinalizedSignoff, err := service.Unfinalize(t.Context(), EntitySaleSignoff, ReverseInput{
+		DocumentID: signoffOne.DocumentID, Revision: signoffOne.Revision, Reason: "修正签收测试",
+	}, integrationActorOne, "signoff-unfinalize")
+	if err != nil {
+		t.Fatalf("unfinalize signoff with automatic refusal draft: %v", err)
+	}
+	var refusalCount int64
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_sale_return_details
+		WHERE source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalCount); err != nil || refusalCount != 0 {
+		t.Fatalf("automatic refusal drafts after unfinalize = %d, err=%v", refusalCount, err)
+	}
+	signoffOne, err = service.Finalize(t.Context(), EntitySaleSignoff, FinalizeInput{
+		DocumentID: signoffOne.DocumentID, Revision: unfinalizedSignoff.Revision,
+	}, integrationActorOne, "signoff-refinalize")
+	if err != nil {
+		t.Fatalf("refinalize signoff: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT d.id,d.revision
+		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
+		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
+		t.Fatalf("load regenerated refusal return: %v", err)
+	}
+	if savedRefusal.Revision == refusalRevision {
+		t.Fatal("automatic refusal return was not regenerated")
+	}
+	refusalChecked, err := service.Check(t.Context(), EntitySaleReturn, DocumentRevisionInput{
+		DocumentID: refusalID, Revision: refusalRevision,
+	}, integrationActorOne, "refusal-check")
+	if err != nil {
+		t.Fatalf("check refusal return: %v", err)
+	}
+	refusalApproved, err := service.Approve(t.Context(), EntitySaleReturn, DocumentRevisionInput{
+		DocumentID: refusalID, Revision: refusalChecked.Revision,
+	}, integrationActorOne, "refusal-approve")
+	if err != nil {
+		t.Fatalf("approve refusal return: %v", err)
+	}
+	if _, err = service.Finalize(t.Context(), EntitySaleReturn, FinalizeInput{
+		DocumentID: refusalID, Revision: refusalApproved.Revision,
+	}, integrationActorOne, "refusal-finalize"); err != nil {
+		t.Fatalf("finalize refusal return: %v", err)
+	}
+	afterSale, err := service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "客户退回",
+		ReturnLines: []SaleReturnLineInput{{
+			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "2",
+		}},
+	}}, integrationActorOne, "after-sale-return")
+	if err != nil {
+		t.Fatalf("create after-sale return: %v", err)
+	}
+	if _, err = service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "超量退货",
+		ReturnLines: []SaleReturnLineInput{{
+			SourceSignoffLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "3",
+		}},
+	}}, integrationActorOne, "over-return"); err == nil {
+		t.Fatal("cumulative after-sale over-return was accepted")
+	}
+	if _, err = service.Delete(t.Context(), EntitySaleReturn, DeleteInput{
+		DocumentID: afterSale.DocumentID, Revision: afterSale.Revision, Reason: "取消测试退货",
+	}, integrationActorOne, "delete-after-sale-return"); err != nil {
+		t.Fatalf("delete after-sale return: %v", err)
+	}
 
-	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
+	orderView, err = service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
 	if err != nil {
 		t.Fatalf("get order balances: %v", err)
 	}

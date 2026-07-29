@@ -53,6 +53,8 @@ func (s *Service) loadData(
 		return data, nil
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		return s.loadSalesChainData(ctx, document, data)
+	case EntitySaleReturn:
+		return s.loadSaleReturnData(ctx, q, document, data)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, document.ID)
 		if err != nil {

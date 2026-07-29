@@ -22,8 +22,7 @@ export const warehouseConfig = defineBobEntityConfig({
     managerEmployeeId: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name'],
-  uppercaseKeys: ['code'],
+  requiredKeys: ['name'],
   references: {
     managerEmployeeId: { entity: 'employee', label: '管理员工' },
   },

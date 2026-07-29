@@ -41,9 +41,9 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	id, err := l.queries.FindBobObjectIDByCode(ctx, dbsqlc.FindBobObjectIDByCodeParams{
-		Entity: entity,
-		Code:   code,
+	id, err := l.queries.FindBobSeedObjectID(ctx, dbsqlc.FindBobSeedObjectIDParams{
+		Entity:   entity,
+		SeedCode: code,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
@@ -154,12 +154,12 @@ var samples = [...]sample{
 		Code: "DEMO-WH-002", Name: "临时仓（已驳回）", Address: "上海市青浦区临时仓路2号",
 	}, status: bob.StatusRejected},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
-		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "BOX_TRUCK",
+		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
 		Remark: "演示有效车辆",
 	}, status: bob.StatusEffective, platformCode: "DEMO-SUP-001"},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
-		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "BOX_TRUCK",
+		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
 	}, status: bob.StatusDraft, platformCode: "DEMO-SUP-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
@@ -344,7 +344,6 @@ func matches(item sample, view bob.ObjectView) bool {
 		expectedCustomerType = bob.CustomerTypeEndUser
 	}
 	return view.Entity == item.entity &&
-		view.Code == item.data.Code &&
 		view.Data.Name == item.data.Name &&
 		view.Data.Unit == item.data.Unit &&
 		view.Data.Currency == item.data.Currency &&
@@ -396,7 +395,6 @@ func matchesLegacyShape(item sample, view bob.ObjectView) bool {
 		expectedSupplierType = bob.SupplierTypeGeneral
 	}
 	return view.Entity == item.entity &&
-		view.Code == item.data.Code &&
 		view.Data.Name == item.data.Name &&
 		view.Data.Unit == item.data.Unit &&
 		view.Data.Currency == item.data.Currency &&
@@ -413,7 +411,6 @@ func requestID(code, action string) string {
 func isLegacyPlatformSample(item sample, view bob.ObjectView) bool {
 	return item.entity == bob.EntitySupplier &&
 		item.data.Code == "DEMO-SUP-001" &&
-		view.Code == item.data.Code &&
 		view.Data.Name == "远山供应链有限公司" &&
 		(view.Data.SupplierType == "" || view.Data.SupplierType == bob.SupplierTypeGeneral) &&
 		view.Version.Status == bob.StatusEffective

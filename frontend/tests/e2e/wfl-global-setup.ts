@@ -45,6 +45,7 @@ interface BobMutation {
   objectRevision: number
   versionId: string
   revision: number
+  code: string
 }
 
 function localDate(): string {
@@ -140,19 +141,19 @@ class RealApi {
   async post<T>(path: string, data: unknown): Promise<T> {
     const response = await this.context.post(path, {
       data,
-      headers: this.csrfToken
-        ? { 'X-CSRF-Token': this.csrfToken }
-        : undefined,
+      headers: this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : undefined,
     })
     if (response.status() !== 200) {
       throw new Error(`WFL 预置接口 ${path} 返回 HTTP ${response.status()}。`)
     }
-    const envelope = await response.json() as Envelope<T>
+    const envelope = (await response.json()) as Envelope<T>
     if (envelope.code !== 0 && envelope.code !== '0') {
       const requestId = envelope.requestId
         ? `（请求编号：${envelope.requestId}）`
         : ''
-      throw new Error(`WFL 预置接口 ${path} 失败：${envelope.message}${requestId}`)
+      throw new Error(
+        `WFL 预置接口 ${path} 失败：${envelope.message}${requestId}`,
+      )
     }
     return envelope.data
   }
@@ -224,12 +225,16 @@ async function createEffectiveBob(
     versionId: created.versionId,
     revision: created.revision,
   })
-  return reviewer.post<BobMutation>(`bob/${entity}/approve`, {
+  const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
     objectId: submitted.objectId,
     versionId: submitted.versionId,
     revision: submitted.revision,
     comment: 'WFL 隔离测试自动预置',
   })
+  const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function createAuxiliary(
@@ -237,7 +242,13 @@ async function createAuxiliary(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
-  return operator.post<BobMutation>(`aux/${entity}/create`, { data })
+  const created = await operator.post<BobMutation>(`aux/${entity}/create`, {
+    data,
+  })
+  const view = await operator.post<{ code: string }>(`aux/${entity}/get`, {
+    objectId: created.objectId,
+  })
+  return { ...created, code: view.code }
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -257,13 +268,11 @@ export default async function globalSetup(): Promise<void> {
   try {
     const permissions = await allPermissions(operatorSession.api)
     const selected = permissions.filter(
-      (item) =>
-        item.status === 'ENABLED' &&
-        bobReviewerActions.has(item.path),
+      (item) => item.status === 'ENABLED' && bobReviewerActions.has(item.path),
     )
 
-    const suffix = `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`
-      .toUpperCase()
+    const suffix =
+      `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.toUpperCase()
     const reviewerPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
     const role = await operatorSession.api.post<RoleView>('app/role/create', {
       code: `e2e-wfl-${suffix}`.toLowerCase(),
@@ -285,70 +294,60 @@ export default async function globalSetup(): Promise<void> {
     )
     contexts.push(reviewerSession.context)
 
-    const code = (kind: string) => `WFL-${kind}-${suffix}`
     const employee = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'employee',
-      { code: code('EMP'), name: `WFL 员工 ${suffix}` },
+      { name: `WFL 员工 ${suffix}` },
     )
     const settlement = await createAuxiliary(
       operatorSession.api,
       'settlement-method',
       {
-        code: code('SET'),
         name: `WFL 结算方式 ${suffix}`,
         ruleType: 'DUE_DAYS',
         dueDays: 30,
         defaultSalesSurcharge: '0.00',
       },
     )
-    const customerCode = code('CUS')
-    await createEffectiveBob(
+    const customer = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'customer',
       {
-        code: customerCode,
         name: `WFL 客户 ${suffix}`,
-        customerType: 'END_USER',
+        customerType: 'DIT-0001',
         salespersonEmployeeId: employee.objectId,
         settlementMethodId: settlement.objectId,
       },
     )
-    const supplierCode = code('SUP')
-    await createEffectiveBob(
+    const supplier = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'supplier',
       {
-        code: supplierCode,
         name: `WFL 普通供应商 ${suffix}`,
         supplierType: 'GENERAL',
         salespersonEmployeeId: employee.objectId,
         settlementMethodId: settlement.objectId,
       },
     )
-    const platformCode = code('PLT')
     const platform = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'supplier',
       {
-        code: platformCode,
         name: `WFL 物流平台 ${suffix}`,
         supplierType: 'LOGISTICS_PLATFORM',
         salespersonEmployeeId: employee.objectId,
         settlementMethodId: settlement.objectId,
       },
     )
-    const solventProductCode = code('SOL')
     const solventProduct = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'product',
       {
-        code: solventProductCode,
         name: `WFL 溶剂桶产品 ${suffix}`,
         unit: 'KG',
         productKind: 'RAW_MATERIAL',
@@ -357,13 +356,11 @@ export default async function globalSetup(): Promise<void> {
         pricingQuantityPerInventoryUnit: '1',
       },
     )
-    const resinProductCode = code('RES')
-    await createEffectiveBob(
+    const resinProduct = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'product',
       {
-        code: resinProductCode,
         name: `WFL 树脂桶产品 ${suffix}`,
         unit: 'KG',
         productKind: 'RAW_MATERIAL',
@@ -372,46 +369,36 @@ export default async function globalSetup(): Promise<void> {
         pricingQuantityPerInventoryUnit: '1',
       },
     )
-    const vehicleCode = code('VEH')
-    await createEffectiveBob(
+    const vehicle = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'vehicle',
       {
-        code: vehicleCode,
         name: `WFL 测试车辆 ${suffix}`,
         plateNumber: `E2E-${suffix.slice(-8)}`,
-        vehicleType: 'BOX_TRUCK',
+        vehicleType: 'DIT-0003',
         platformObjectId: platform.objectId,
       },
     )
-    const warehouseCode = code('WHS')
     const warehouse = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'warehouse',
       {
-        code: warehouseCode,
         name: `WFL 测试仓库 ${suffix}`,
       },
     )
-    const fundAccountCode = code('FUND')
-    await createEffectiveBob(
+    const fundAccount = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
       'fund-account',
       {
-        code: fundAccountCode,
         name: `WFL 测试资金账户 ${suffix}`,
         currency: 'CNY',
       },
     )
 
-    await ensureLedgerActive(
-      operatorSession.api,
-      warehouse,
-      solventProduct,
-    )
+    await ensureLedgerActive(operatorSession.api, warehouse, solventProduct)
 
     const state: WflBootstrapState = {
       reviewer: {
@@ -419,23 +406,22 @@ export default async function globalSetup(): Promise<void> {
         password: reviewerPassword,
       },
       fixtures: {
-        customer: customerCode,
-        supplier: supplierCode,
-        employee: code('EMP'),
-        solventProduct: solventProductCode,
-        resinProduct: resinProductCode,
-        platform: platformCode,
-        vehicle: vehicleCode,
-        warehouse: warehouseCode,
-        fundAccount: fundAccountCode,
+        customer: customer.code,
+        supplier: supplier.code,
+        employee: employee.code,
+        solventProduct: solventProduct.code,
+        resinProduct: resinProduct.code,
+        platform: platform.code,
+        vehicle: vehicle.code,
+        warehouse: warehouse.code,
+        fundAccount: fundAccount.code,
       },
     }
     await mkdir(dirname(wflBootstrapStatePath), { recursive: true })
-    await writeFile(
-      wflBootstrapStatePath,
-      `${JSON.stringify(state)}\n`,
-      { encoding: 'utf8', mode: 0o600 },
-    )
+    await writeFile(wflBootstrapStatePath, `${JSON.stringify(state)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()))
   }

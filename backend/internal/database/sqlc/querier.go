@@ -109,6 +109,7 @@ type Querier interface {
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
 	FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
+	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindLatestCustomerSaleOrderFormula(ctx context.Context, arg FindLatestCustomerSaleOrderFormulaParams) (FindLatestCustomerSaleOrderFormulaRow, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
@@ -256,6 +257,7 @@ type Querier interface {
 	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
+	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)

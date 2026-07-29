@@ -18,7 +18,7 @@ export const customerConfig = defineBobEntityConfig({
   codeLabel: '客户编码',
   nameLabel: '客户名称',
   defaults: {
-    customerType: 'END_USER',
+    customerType: 'DIT-0001',
     shortName: '',
     settlementMethodId: '',
     salespersonEmployeeId: '',
@@ -29,15 +29,15 @@ export const customerConfig = defineBobEntityConfig({
     address: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'customerType', 'salespersonEmployeeId'],
-  uppercaseKeys: ['code', 'taxNumber'],
+  requiredKeys: ['name', 'customerType', 'salespersonEmployeeId'],
+  uppercaseKeys: ['taxNumber'],
   references: {
     customerType: {
       domain: 'aux',
       entity: 'dictionary-item',
       label: '客户类型',
       value: 'code',
-      filters: { dictionaryTypeCode: 'CUSTOMER_TYPE' },
+      filters: { dictionaryTypeCode: 'DCT-0001' },
     },
     settlementMethodId: {
       domain: 'aux',
@@ -55,7 +55,9 @@ export const customerConfig = defineBobEntityConfig({
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
-      rules: [patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。')],
+      rules: [
+        patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),
+      ],
     }),
     text('contactName', '联系人', 100),
     text('contactPhone', '联系电话', 32, {
@@ -85,7 +87,7 @@ export const customerConfig = defineBobEntityConfig({
         entity: 'dictionary-item',
         label: '客户类型',
         value: 'code',
-        filters: { dictionaryTypeCode: 'CUSTOMER_TYPE' },
+        filters: { dictionaryTypeCode: 'DCT-0001' },
       },
     },
     {

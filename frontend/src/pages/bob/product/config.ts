@@ -34,7 +34,6 @@ export const productConfig = defineBobEntityConfig({
     remark: '',
   },
   requiredKeys: [
-    'code',
     'name',
     'productKind',
     'inventoryUnitId',
@@ -50,7 +49,7 @@ export const productConfig = defineBobEntityConfig({
     'packagingSpecs',
     'formula',
   ],
-  uppercaseKeys: ['code', 'barcode'],
+  uppercaseKeys: ['barcode'],
   references: {
     categoryId: {
       domain: 'aux',

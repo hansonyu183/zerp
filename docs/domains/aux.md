@@ -22,7 +22,7 @@ account-subject
 
 辅助对象创建后立即生效，不走 BOB 的提交审核状态机。每次保存追加一个不可变版本，并把当前版本切换到新版本；交易领域必须保存对象 ID、版本 ID、编码和名称快照。
 
-- `code` 在首次被其他对象或单据引用前允许修改；产生引用后不可修改。
+- `code` 由服务端生成，创建后不可修改。
 - 对象可启用或停用；停用后不可用于新的引用，历史快照不受影响。
 - 只有从未被引用的对象才允许删除。
 - 树形对象禁止自引用和循环引用。
@@ -37,6 +37,17 @@ query get create save enable disable delete versions audit-history
 ```
 
 ## 3. 对象规则
+
+对象编码格式固定为 `PPP-NNNN`，其中 `PPP` 是三位对象前缀，`NNNN` 是按实体永久递增且
+不复用的四位流水号。达到 `9999` 后拒绝继续创建。前缀固定为：
+
+```text
+product-category PCT         department DEP
+position POS                 settlement-method STM
+dictionary-type DCT          dictionary-item DIT
+measurement-unit UNT         income-expense-type IET
+account-subject ACS
+```
 
 ### 3.1 产品分类
 

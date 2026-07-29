@@ -24,8 +24,7 @@ export const employeeConfig = defineBobEntityConfig({
     hireDate: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name'],
-  uppercaseKeys: ['code'],
+  requiredKeys: ['name'],
   references: {
     departmentId: { domain: 'aux', entity: 'department', label: '部门' },
     positionId: { domain: 'aux', entity: 'position', label: '岗位' },

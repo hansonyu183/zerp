@@ -4,11 +4,38 @@ package vou
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
 	"testing"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
+
+func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO vou_number_counters(entity, business_date, last_value)
+		VALUES ($1, DATE '2026-07-24', 9999)
+	`, EntityReceipt); err != nil {
+		t.Fatalf("exhaust document counter: %v", err)
+	}
+
+	_, err := newIntegrationService(t, pool).Create(t.Context(), EntityReceipt, CreateInput{
+		Data: DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
+			Handler: &refs.employee, Amount: "100.00",
+		},
+	}, integrationActorOne, "document-number-exhausted")
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
+		t.Fatalf("exhausted document counter error = %v", err)
+	}
+}
 
 func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 	pool := vouIntegrationPool(t)
@@ -243,6 +270,9 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for number := range numbers {
+		if len(number) != 17 || !strings.HasPrefix(number, "REC-20260724-") {
+			t.Fatalf("unexpected document number %s", number)
+		}
 		if seen[number] {
 			t.Fatalf("duplicate document number %s", number)
 		}

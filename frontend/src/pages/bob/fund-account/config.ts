@@ -20,8 +20,8 @@ export const fundAccountConfig = defineBobEntityConfig({
     accountNumber: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'currency'],
-  uppercaseKeys: ['code', 'currency', 'accountNumber'],
+  requiredKeys: ['name', 'currency'],
+  uppercaseKeys: ['currency', 'accountNumber'],
   fields: (context) => [
     ...commonFields(context, '账户编码', '账户名称'),
     text('accountName', '户名', 200),

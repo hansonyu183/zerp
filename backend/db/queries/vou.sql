@@ -3,6 +3,7 @@ INSERT INTO vou_number_counters (entity, business_date, last_value)
 VALUES (sqlc.arg(entity), sqlc.arg(business_date), 1)
 ON CONFLICT (entity, business_date)
 DO UPDATE SET last_value = vou_number_counters.last_value + 1
+WHERE vou_number_counters.last_value < 9999
 RETURNING last_value;
 
 -- name: InsertVouDocument :exec

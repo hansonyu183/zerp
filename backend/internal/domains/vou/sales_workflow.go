@@ -525,10 +525,13 @@ func (s *Service) insertAutoSalesDocument(
 		Entity: entity, BusinessDate: dateValue(date),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", domainError(ErrorConflict, "document number exhausted", nil, nil)
+		}
 		return "", "", s.writeError("allocate generated sales number", err)
 	}
 	id := newID()
-	number := fmt.Sprintf("%s-%s-%06d", entityPrefix(entity), date.Format("20060102"), counter)
+	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), date.Format("20060102"), counter)
 	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
 		id,entity,document_no,parent_entity,parent_document_id,business_date,currency,
 		total_amount_cents,created_by,updated_by

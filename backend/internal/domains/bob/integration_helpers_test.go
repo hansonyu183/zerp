@@ -150,8 +150,11 @@ func insertSaleOrderReferenceIntegration(t *testing.T, pool *pgxpool.Pool, targe
 	if _, err = tx.Exec(t.Context(), `
 		INSERT INTO vou_documents (
 			id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
-		) VALUES ($1, 'sale-order', $2, current_date, 'CNY', 100, $3, $3)
-	`, documentID, "D"+newID(), integrationActorOne); err != nil {
+		) VALUES (
+			$1, 'sale-order', 'SOR-' || to_char(current_date, 'YYYYMMDD') || '-9999',
+			current_date, 'CNY', 100, $2, $2
+		)
+	`, documentID, integrationActorOne); err != nil {
 		t.Fatalf("insert VOU reference document: %v", err)
 	}
 	if _, err = tx.Exec(t.Context(), `

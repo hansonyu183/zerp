@@ -136,7 +136,7 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 	}{
 		{"query", `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
 		{"get", `{"objectId":"` + objectID + `"}`},
-		{"create", `{"data":{"code":"C1","name":"Customer"}}`},
+		{"create", `{"data":{"name":"Customer"}}`},
 		{"edit", `{"objectId":"` + objectID + `","objectRevision":1}`},
 		{"save", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1,"data":{"name":"Customer"}}`},
 		{"delete", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1}`},
@@ -188,7 +188,36 @@ func TestHandlerRejectsLegacySalespersonField(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/bob/customer/create",
-		strings.NewReader(`{"data":{"code":"C1","name":"Customer","salespersonId":"01J00000000000000000000010"}}`),
+		strings.NewReader(`{"data":{"name":"Customer","salespersonId":"01J00000000000000000000010"}}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeValidation {
+		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
+	}
+	if len(service.actions) != 0 {
+		t.Fatalf("service calls = %v", service.actions)
+	}
+}
+
+func TestHandlerRejectsClientSuppliedCode(t *testing.T) {
+	service := &serviceStub{}
+	authorizer := authorization.Func(func(
+		_ context.Context, _ *http.Request, _, _ string,
+	) (authorization.Principal, error) {
+		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
+	})
+	router := newBOBTestRouter(service, authorizer)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/bob/customer/create",
+		strings.NewReader(`{"data":{"code":"CUS-9999","name":"Customer"}}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()

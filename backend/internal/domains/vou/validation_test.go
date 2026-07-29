@@ -93,7 +93,7 @@ func TestValidateFormulaRules(t *testing.T) {
 		BaseOutputQuantity: "100",
 		SourceType:         "customer_latest",
 		SourceDocumentID:   testObjectID,
-		SourceDocumentNo:   "SO-20260728-000001",
+		SourceDocumentNo:   "SOR-20260728-0001",
 		Components: []FormulaComponentInput{{
 			Material: *refInput(),
 			Quantity: "25.5",

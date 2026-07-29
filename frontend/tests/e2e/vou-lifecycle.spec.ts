@@ -113,7 +113,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await selectReference(page, '资金账户', fixture.fundAccount, workspace)
   await page.getByLabel('金额').fill('100.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
-  await expectDraftCreated(workspace, /^REC-\d{8}-\d{6}$/)
+  await expectDraftCreated(workspace, /^REC-\d{8}-\d{4}$/)
 
   await page.getByRole('tab', { name: '附件' }).click()
   await page.locator('input[type=file]').setInputFiles({
@@ -180,7 +180,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await draftInputs.nth(2).fill('12.50')
   await expect(draftLine).toContainText('25.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
-  await expectDraftCreated(workspace, /^SO-\d{8}-\d{6}$/)
+  await expectDraftCreated(workspace, /^SOR-\d{8}-\d{4}$/)
   const orderNo = (
     await workspace.locator('.voucher-document-header__number').textContent()
   )?.trim()
@@ -202,7 +202,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const outbound = composition
     .locator('tbody tr')
     .filter({ hasText: 'OUTBOUND' })
-  await expect(outbound).toContainText(/^.*SOB-\d{8}-\d{6}.*DRAFT.*$/)
+  await expect(outbound).toContainText(/^.*SOB-\d{8}-\d{4}.*DRAFT.*$/)
 
   await outbound.click()
   const outboundWorkspace = page.locator('.voucher-workspace')

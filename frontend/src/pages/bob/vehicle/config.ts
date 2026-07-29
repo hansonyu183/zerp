@@ -25,17 +25,15 @@ export const vehicleConfig = defineBobEntityConfig({
     loadCapacityKg: '',
     remark: '',
   },
-  requiredKeys: [
-    'code', 'name', 'plateNumber', 'vehicleType', 'platformObjectId',
-  ],
-  uppercaseKeys: ['code', 'plateNumber', 'vin'],
+  requiredKeys: ['name', 'plateNumber', 'vehicleType', 'platformObjectId'],
+  uppercaseKeys: ['plateNumber', 'vin'],
   references: {
     vehicleType: {
       domain: 'aux',
       entity: 'dictionary-item',
       label: '车辆类型',
       value: 'code',
-      filters: { dictionaryTypeCode: 'VEHICLE_TYPE' },
+      filters: { dictionaryTypeCode: 'DCT-0002' },
     },
     platformObjectId: {
       entity: 'supplier',

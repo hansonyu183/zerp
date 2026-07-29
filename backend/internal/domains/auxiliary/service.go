@@ -15,8 +15,6 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-var codePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]{0,63}$`)
-
 // AUX graphs use JSONB references, so a transaction-level domain lock keeps
 // validation and mutation atomic across concurrent AUX writes.
 const auxiliaryWriteLockKey int64 = 0x5a455250415558
@@ -158,8 +156,7 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
-	code := strings.ToUpper(strings.TrimSpace(input.Data.Code))
-	if !validEntity(entity) || !codePattern.MatchString(code) || !validID(actorID) || strings.TrimSpace(requestID) == "" {
+	if !validEntity(entity) || !validID(actorID) || strings.TrimSpace(requestID) == "" {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, nil)
 	}
 	objectID, versionID := ulid.Make().String(), ulid.Make().String()
@@ -171,6 +168,20 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
 		return MutationResult{}, s.internal("lock auxiliary writes", err)
 	}
+	var counter int32
+	err = tx.QueryRow(ctx, `INSERT INTO object_number_counters(domain,entity,last_value)
+		VALUES('aux',$1,1)
+		ON CONFLICT(domain,entity) DO UPDATE
+		SET last_value=object_number_counters.last_value+1
+		WHERE object_number_counters.last_value<9999
+		RETURNING last_value`, entity).Scan(&counter)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
+	}
+	if err != nil {
+		return MutationResult{}, s.writeError("allocate object number", err)
+	}
+	code := fmt.Sprintf("%s-%04d", objectPrefix(entity), counter)
 	data, err := s.validateData(ctx, tx, entity, "", input.Data.Data)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
@@ -227,22 +238,6 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	if object.revision != input.Revision {
 		return MutationResult{}, domainError(ErrorConflict, "object changed before save", map[string]any{"objectRevision": object.revision}, nil)
 	}
-	code := object.code
-	if input.Code != nil {
-		code = strings.ToUpper(strings.TrimSpace(*input.Code))
-		if !codePattern.MatchString(code) {
-			return MutationResult{}, domainError(ErrorValidation, "invalid code", nil, nil)
-		}
-		if code != object.code {
-			referenced, referenceErr := objectReferenced(ctx, tx, entity, input.ObjectID)
-			if referenceErr != nil {
-				return MutationResult{}, s.internal("check auxiliary references", referenceErr)
-			}
-			if referenced {
-				return MutationResult{}, domainError(ErrorConflict, "referenced object code cannot change", nil, nil)
-			}
-		}
-	}
 	data, err := s.validateData(ctx, tx, entity, input.ObjectID, input.Data)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
@@ -255,17 +250,17 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, s.writeError("insert auxiliary version", err)
 	}
 	tag, err := tx.Exec(ctx, `UPDATE aux_objects
-		SET code=$1,current_version_id=$2,next_version_no=next_version_no+1,
-		    revision=revision+1,updated_at=now(),updated_by=$3
-		WHERE id=$4 AND entity=$5 AND revision=$6`,
-		code, versionID, actorID, input.ObjectID, entity, input.Revision)
+		SET current_version_id=$1,next_version_no=next_version_no+1,
+		    revision=revision+1,updated_at=now(),updated_by=$2
+		WHERE id=$3 AND entity=$4 AND revision=$5`,
+		versionID, actorID, input.ObjectID, entity, input.Revision)
 	if err != nil {
 		return MutationResult{}, s.writeError("update auxiliary object", err)
 	}
 	if tag.RowsAffected() != 1 {
 		return MutationResult{}, domainError(ErrorConflict, "object changed before save", nil, nil)
 	}
-	if err = insertAudit(ctx, tx, input.ObjectID, versionID, entity, "SAVED", actorID, requestID, map[string]any{"code": code}); err != nil {
+	if err = insertAudit(ctx, tx, input.ObjectID, versionID, entity, "SAVED", actorID, requestID, map[string]any{"code": object.code}); err != nil {
 		return MutationResult{}, s.writeError("audit auxiliary save", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -275,6 +270,14 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		ObjectID: input.ObjectID, ObjectRevision: input.Revision + 1,
 		VersionID: versionID, Version: object.nextVersion, Enabled: object.enabled,
 	}, nil
+}
+
+func objectPrefix(entity string) string {
+	return map[string]string{
+		EntityProductCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
+		EntitySettlementMethod: "STM", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
+		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAccountSubject: "ACS",
+	}[entity]
 }
 
 func (s *Service) Enable(ctx context.Context, entity string, input RevisionInput, actorID, requestID string) (MutationResult, error) {

@@ -18,9 +18,8 @@ export const serviceConfig = defineBobEntityConfig({
     description: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'inventoryUnitId'],
+  requiredKeys: ['name', 'inventoryUnitId'],
   persistedKeys: ['inventoryUnitId'],
-  uppercaseKeys: ['code'],
   references: {
     inventoryUnitId: {
       domain: 'aux',
@@ -43,7 +42,11 @@ export const serviceConfig = defineBobEntityConfig({
     textarea('remark', '备注'),
   ],
   columns: baseColumns('编码', '名称', [
-    { key: 'unit', label: '单位', value: (row) => row.currentVersion.summary.unit },
+    {
+      key: 'unit',
+      label: '单位',
+      value: (row) => row.currentVersion.summary.unit,
+    },
     {
       key: 'description',
       label: '说明',

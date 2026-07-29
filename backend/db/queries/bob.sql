@@ -1,3 +1,11 @@
+-- name: NextObjectNumberCounter :one
+INSERT INTO object_number_counters (domain, entity, last_value)
+VALUES (sqlc.arg(domain), sqlc.arg(entity), 1)
+ON CONFLICT (domain, entity)
+DO UPDATE SET last_value = object_number_counters.last_value + 1
+WHERE object_number_counters.last_value < 9999
+RETURNING last_value;
+
 -- name: InsertBobObject :exec
 INSERT INTO bob_objects (
     id, entity, code, current_version_id, next_version_no, revision, created_by, updated_by
@@ -410,6 +418,25 @@ FOR UPDATE;
 SELECT id
 FROM bob_objects
 WHERE entity = sqlc.arg(entity) AND upper(code) = upper(sqlc.arg(code)::text)
+LIMIT 1;
+
+-- name: FindBobSeedObjectID :one
+SELECT candidate.id
+FROM (
+    SELECT object.id, 0 AS priority, object.created_at
+    FROM bob_audit_events audit
+    JOIN bob_objects object ON object.id = audit.object_id AND object.entity = audit.entity
+    WHERE audit.entity = sqlc.arg(entity)
+      AND audit.request_id = 'seed-bob-' || sqlc.arg(seed_code)::text || '-create'
+    UNION ALL
+    SELECT object.id, 1 AS priority, object.created_at
+    FROM identifier_object_renumber_history history
+    JOIN bob_objects object ON object.id = history.object_id AND object.entity = history.entity
+    WHERE history.domain = 'bob'
+      AND history.entity = sqlc.arg(entity)
+      AND history.old_code = sqlc.arg(seed_code)
+) candidate
+ORDER BY candidate.priority, candidate.created_at, candidate.id
 LIMIT 1;
 
 -- name: LockBobVersion :one

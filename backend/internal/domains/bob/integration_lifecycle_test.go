@@ -15,9 +15,8 @@ func TestLifecycleIntegration(t *testing.T) {
 	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "LSE" + newID(), Name: "Lifecycle Salesperson",
 	}, "lifecycle-salesperson")
-	code := "IT" + newID()
 	created, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
-		Code: code, Name: "Integration Customer", SalespersonEmployeeID: salesperson.ObjectID,
+		Name: "Integration Customer", SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "integration-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -80,7 +79,7 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("get effective: view=%+v err=%v", view, err)
 	}
 	page, err := service.Query(t.Context(), EntityCustomer, QueryInput{
-		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: code}, Sort: []SortItem{},
+		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: view.Code}, Sort: []SortItem{},
 	})
 	if err != nil || page.Total != 1 || len(page.Items) != 1 {
 		t.Fatalf("query: page=%+v err=%v", page, err)
@@ -99,7 +98,7 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("begin reference transaction: %v", err)
 	}
 	reference, err := service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID)
-	if err != nil || reference.Code != code {
+	if err != nil || reference.Code != view.Code {
 		t.Fatalf("resolve reference: reference=%+v err=%v", reference, err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {

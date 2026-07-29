@@ -969,6 +969,38 @@ func (q *Queries) FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectID
 	return id, err
 }
 
+const findBobSeedObjectID = `-- name: FindBobSeedObjectID :one
+SELECT candidate.id
+FROM (
+    SELECT object.id, 0 AS priority, object.created_at
+    FROM bob_audit_events audit
+    JOIN bob_objects object ON object.id = audit.object_id AND object.entity = audit.entity
+    WHERE audit.entity = $1
+      AND audit.request_id = 'seed-bob-' || $2::text || '-create'
+    UNION ALL
+    SELECT object.id, 1 AS priority, object.created_at
+    FROM identifier_object_renumber_history history
+    JOIN bob_objects object ON object.id = history.object_id AND object.entity = history.entity
+    WHERE history.domain = 'bob'
+      AND history.entity = $1
+      AND history.old_code = $2
+) candidate
+ORDER BY candidate.priority, candidate.created_at, candidate.id
+LIMIT 1
+`
+
+type FindBobSeedObjectIDParams struct {
+	Entity   string `db:"entity" json:"entity"`
+	SeedCode string `db:"seed_code" json:"seed_code"`
+}
+
+func (q *Queries) FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, findBobSeedObjectID, arg.Entity, arg.SeedCode)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getBobProductFormula = `-- name: GetBobProductFormula :one
 SELECT base_output_quantity_micros
 FROM bob_product_formulas
@@ -2295,6 +2327,27 @@ func (q *Queries) MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSav
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const nextObjectNumberCounter = `-- name: NextObjectNumberCounter :one
+INSERT INTO object_number_counters (domain, entity, last_value)
+VALUES ($1, $2, 1)
+ON CONFLICT (domain, entity)
+DO UPDATE SET last_value = object_number_counters.last_value + 1
+WHERE object_number_counters.last_value < 9999
+RETURNING last_value
+`
+
+type NextObjectNumberCounterParams struct {
+	Domain string `db:"domain" json:"domain"`
+	Entity string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error) {
+	row := q.db.QueryRow(ctx, nextObjectNumberCounter, arg.Domain, arg.Entity)
+	var last_value int32
+	err := row.Scan(&last_value)
+	return last_value, err
 }
 
 const rejectBobVersion = `-- name: RejectBobVersion :execrows

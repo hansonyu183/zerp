@@ -237,10 +237,13 @@ func (s *Service) CreatePurchaseInbound(
 		Entity: EntityPurchaseInbound, BusinessDate: dateValue(businessDate),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return MutationResult{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
+		}
 		return MutationResult{}, s.writeError("allocate purchase inbound number", err)
 	}
 	id := newID()
-	number := fmt.Sprintf("PI-%s-%06d", businessDate.Format("20060102"), counter)
+	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), businessDate.Format("20060102"), counter)
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
 		id,entity,document_no,business_date,currency,total_amount_cents,remark,
 		parent_entity,parent_document_id,created_by,updated_by

@@ -13,7 +13,23 @@ func errorIsKind(err error, kind ErrorKind) bool {
 	return errors.As(err, &target) && target.Kind == kind
 }
 
-func TestValidateCreateNormalizesCodeAndEntityFields(t *testing.T) {
+func TestObjectPrefixes(t *testing.T) {
+	t.Parallel()
+	expected := map[string]string{
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityEmployee: "EMP",
+		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
+		EntityVehicle: "VEH", EntityFundAccount: "FAC",
+		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
+		EntitySettlementMethod: "STM",
+	}
+	for entity, prefix := range expected {
+		if actual := objectPrefix(entity); actual != prefix {
+			t.Fatalf("objectPrefix(%q) = %q, want %q", entity, actual, prefix)
+		}
+	}
+}
+
+func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *testing.T) {
 	const platformObjectID = "01J00000000000000000000020"
 	const salespersonEmployeeID = "01J00000000000000000000021"
 	tests := []struct {
@@ -49,8 +65,8 @@ func TestValidateCreateNormalizesCodeAndEntityFields(t *testing.T) {
 			if err != nil {
 				t.Fatalf("validateCreate: %v", err)
 			}
-			if code == "" || code != strings.ToUpper(strings.TrimSpace(test.input.Code)) {
-				t.Fatalf("code = %q", code)
+			if code != "" {
+				t.Fatalf("fixture code leaked into validation result: %q", code)
 			}
 			if data.Name == "" {
 				t.Fatal("name was not normalized")

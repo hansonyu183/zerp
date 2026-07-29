@@ -20,42 +20,30 @@ describe('AUX entity view model', () => {
     ]
   })
 
-  it('新增时自动生成只读编码并使用同一编辑模型提交', async () => {
+  it('新增时不展示或提交编码', async () => {
     const vm = createAuxEntityViewModel(auxConfigs.position)
     vm.openCreate()
 
-    expect(vm.editorModel.value.code).toMatch(
-      /^AUX-POSITION-\d{17}-[A-Z0-9]{6}$/,
+    expect(vm.editorModel.value.code).toBeUndefined()
+    expect(vm.editorFields.value.some((field) => field.key === 'code')).toBe(
+      false,
     )
-    expect(vm.editorFields.value[0]).toMatchObject({
-      key: 'code',
-      type: 'readonly',
-    })
 
-    mockedPost
-      .mockResolvedValueOnce({ data: {} })
-      .mockResolvedValueOnce({
-        data: { items: [], total: 0, page: 1, pageSize: 20 },
-      })
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
     await vm.save({
       ...vm.editorModel.value,
       name: '仓储主管',
       description: '',
     })
 
-    expect(mockedPost).toHaveBeenNthCalledWith(
-      1,
-      'aux/position/create',
-      {
-        data: {
-          code: expect.stringMatching(
-            /^AUX-POSITION-\d{17}-[A-Z0-9]{6}$/,
-          ),
-          name: '仓储主管',
-          description: '',
-        },
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'aux/position/create', {
+      data: {
+        name: '仓储主管',
+        description: '',
       },
-    )
+    })
   })
 
   it('按动作权限限制编辑、启停和删除', () => {
@@ -101,15 +89,12 @@ describe('AUX entity view model', () => {
       vm.searchEditorReference('parentId', '华南')
       await vi.advanceTimersByTimeAsync(250)
 
-      expect(mockedPost).toHaveBeenCalledWith(
-        'aux/department/query',
-        {
-          page: 1,
-          pageSize: 100,
-          filters: { enabled: true, keyword: '华南' },
-          sort: [{ field: 'code', order: 'asc' }],
-        },
-      )
+      expect(mockedPost).toHaveBeenCalledWith('aux/department/query', {
+        page: 1,
+        pageSize: 100,
+        filters: { enabled: true, keyword: '华南' },
+        sort: [{ field: 'code', order: 'asc' }],
+      })
     } finally {
       vi.useRealTimers()
     }

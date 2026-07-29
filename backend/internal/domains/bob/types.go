@@ -24,8 +24,8 @@ const (
 
 	SupplierTypeGeneral           = "GENERAL"
 	SupplierTypeLogisticsPlatform = "LOGISTICS_PLATFORM"
-	CustomerTypeEndUser           = "END_USER"
-	CustomerTypeDealer            = "DEALER"
+	CustomerTypeEndUser           = "DIT-0001"
+	CustomerTypeDealer            = "DIT-0002"
 	SettlementRuleRelativeDays    = "RELATIVE_DAYS"
 	SettlementRuleMonthEnd        = "MONTH_END"
 	SettlementRuleFixedDay        = "FIXED_DAY"
@@ -145,7 +145,9 @@ type DetailInput struct {
 }
 
 type CreateDetailInput struct {
-	Code                            string               `json:"code"`
+	// Code is retained for internal fixture labels only and is never accepted
+	// from JSON or used as the persisted business-object code.
+	Code                            string               `json:"-"`
 	Name                            string               `json:"name"`
 	Unit                            string               `json:"unit,omitempty"`
 	Currency                        string               `json:"currency,omitempty"`

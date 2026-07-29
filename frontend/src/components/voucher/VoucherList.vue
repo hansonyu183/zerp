@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatLocalDateTime } from '@/utils/date'
 import type {
   VoucherListItem,
   VoucherReference,
@@ -196,12 +195,6 @@ function changeStatuses(value: unknown): void {
                 :direction="sort.order"
                 @sort="changeSort('amount')"
               />
-              <SortableTableHeader
-                label="更新"
-                :active="sort.field === 'updatedAt'"
-                :direction="sort.order"
-                @sort="changeSort('updatedAt')"
-              />
               <th class="text-end">操作</th>
             </tr>
           </thead>
@@ -216,7 +209,6 @@ function changeStatuses(value: unknown): void {
                 }}</v-chip>
               </td>
               <td class="text-end">{{ row.amount }}</td>
-              <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end text-no-wrap">
                 <v-btn
                   v-if="canView(row)"
@@ -236,7 +228,7 @@ function changeStatuses(value: unknown): void {
               </td>
             </tr>
             <tr v-if="!loading && rows.length === 0">
-              <td colspan="7" class="text-center py-12">{{ emptyText }}</td>
+              <td colspan="6" class="text-center py-12">{{ emptyText }}</td>
             </tr>
           </tbody>
         </v-table>

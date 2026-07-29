@@ -59,7 +59,6 @@ void vm.query()
           { title: '编码', key: 'code' },
           { title: '名称', key: 'name', sortable: false },
           { title: '状态', key: 'enabled', sortable: false },
-          { title: '版本', key: 'version', sortable: false },
           { title: '操作', key: 'actions', sortable: false },
         ]"
         :items="vm.rows"
@@ -80,9 +79,6 @@ void vm.query()
           >
             {{ item.enabled ? '启用' : '停用' }}
           </v-chip>
-        </template>
-        <template #[`item.version`]="{ item }">
-          V{{ item.currentVersion.version }}
         </template>
         <template #[`item.actions`]="{ item }">
           <v-btn

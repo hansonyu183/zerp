@@ -59,11 +59,43 @@ for (const file of forbiddenDomainCopies) {
 const rootReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8')
 const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
 const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
+const moduleDomainIndexes = [
+  'frontend/README.md',
+  'backend/README.md',
+  'backend/AGENTS.md',
+].map((file) => ({
+  file,
+  source: fs.readFileSync(path.join(root, file), 'utf8'),
+}))
 
 for (const file of [...domainFiles, ...operationFiles]) {
   const target = relative(file)
   if (!rootReadme.includes(`](${target})`)) {
     failures.push(`README 文档索引缺少 ${target}`)
+  }
+}
+
+for (const file of domainFiles) {
+  const domainFile = path.basename(file)
+  const target = `../docs/domains/${domainFile}`
+  for (const index of moduleDomainIndexes) {
+    if (!index.source.includes(`](${target})`)) {
+      failures.push(`${index.file} 领域索引缺少 ${target}`)
+    }
+  }
+
+  const source = fs.readFileSync(file, 'utf8')
+  const previousMinorByMajor = new Map()
+  for (const match of source.matchAll(/^### (\d+)\.(\d+)(?:\s|$)/gm)) {
+    const major = Number(match[1])
+    const minor = Number(match[2])
+    const expected = (previousMinorByMajor.get(major) ?? 0) + 1
+    if (minor !== expected) {
+      failures.push(
+        `${relative(file)} 三级章节编号不连续：期望 ${major}.${expected}，实际 ${major}.${minor}`,
+      )
+    }
+    previousMinorByMajor.set(major, minor)
   }
 }
 

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import {
   ledgerEntityConfigs,
+  ledgerSourceEntityOptions,
   useLedgerViewModel,
   type LedgerReference,
 } from '@/components/ledger'
@@ -69,6 +70,16 @@ describe('LED shared ledger view model', () => {
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
     ])
     expect(ledgerEntityConfigs.container.directions).toEqual([])
+    expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
+      'opening',
+      'sale-outbound',
+      'sale-signoff',
+      'purchase-inbound',
+      'receipt',
+      'payment',
+      'expense-reimbursement',
+      'other-income',
+    ])
     expect(ledgerEntityConfigs.inventory.entryColumns.map(
       (column) => column.label,
     )).toEqual([

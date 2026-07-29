@@ -16,8 +16,6 @@ const sourceEntities: readonly LedgerOption[] = [
   { title: '往来付款', value: 'payment' },
   { title: '费用报销', value: 'expense-reimbursement' },
   { title: '其他收入', value: 'other-income' },
-  { title: '居间收货确认', value: 'intermediary-receipt' },
-  { title: '居间签收确认', value: 'intermediary-signoff' },
 ]
 
 const directionText: Record<string, string> = {

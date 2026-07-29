@@ -47,7 +47,7 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('只显示前端已注册的非 APP 权限实体，并使用本地菜单元数据', () => {
+  it('显示所有非 APP 权限实体，并优先使用本地菜单元数据', () => {
     const menus = buildMenus(
       normalizePermissions([
         '/app/user/query',
@@ -82,10 +82,35 @@ describe('permission menu registry', () => {
           },
         ],
       },
+      {
+        domain: 'inv',
+        title: 'Inv',
+        order: Number.MAX_SAFE_INTEGER,
+        children: [
+          {
+            entity: 'stock',
+            title: 'Stock',
+            order: Number.MAX_SAFE_INTEGER,
+            actions: ['create'],
+          },
+        ],
+      },
     ])
     expect(buildMenus(['/app/user/query'])).toEqual([])
     expect(buildMenus(['/bob/customer/create'])).toHaveLength(1)
-    expect(buildMenus(['/aux/unknown/query'])).toEqual([])
+    expect(buildMenus(['/aux/unknown/query'])).toMatchObject([
+      {
+        domain: 'aux',
+        title: '辅助对象',
+        children: [
+          {
+            entity: 'unknown',
+            title: 'Unknown',
+            actions: ['query'],
+          },
+        ],
+      },
+    ])
   })
 
   it('按本地领域和实体顺序生成菜单，未注册实体排在已注册实体之后', () => {
@@ -149,17 +174,18 @@ describe('permission menu registry', () => {
     ])
   })
 
-  it('为全部已注册菜单加载真实页面路由', () => {
+  it('为全部授权菜单注册路由，未注册组件使用开发中占位页', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/bob/customer/query',
       '/bob/customer/create',
       '/bob/supplier/query',
+      '/aux/unknown/query',
     ])
 
     expect(hasRegisteredPage('bob', 'customer')).toBe(true)
     expect(hasRegisteredPage('bob', 'supplier')).toBe(true)
-    expect(registerMenuRoutes(router, menus)).toBe(2)
+    expect(registerMenuRoutes(router, menus)).toBe(3)
     expect(router.hasRoute('page:bob/customer')).toBe(true)
     expect(router.hasRoute('page:bob/supplier')).toBe(true)
     expect(router.resolve('/bob/customer').meta.actions).toEqual([
@@ -169,11 +195,15 @@ describe('permission menu registry', () => {
     expect(router.resolve('/bob/customer').meta.developing).toBe(false)
     expect(router.resolve('/bob/supplier').meta.actions).toEqual(['query'])
     expect(router.resolve('/bob/supplier').meta.developing).toBe(false)
+    expect(router.hasRoute('page:aux/unknown')).toBe(true)
+    expect(router.resolve('/aux/unknown').meta.actions).toEqual(['query'])
+    expect(router.resolve('/aux/unknown').meta.developing).toBe(true)
     expect(resolveFirstMenuPath(menus)).toBe('/bob/customer')
 
     expect(registerMenuRoutes(router, [])).toBe(0)
     expect(router.hasRoute('page:bob/customer')).toBe(false)
     expect(router.hasRoute('page:bob/supplier')).toBe(false)
+    expect(router.hasRoute('page:aux/unknown')).toBe(false)
     expect(router.resolve('/bob/customer').name).toBe('not-found')
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })

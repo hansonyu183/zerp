@@ -22,7 +22,7 @@ const columns: readonly BusinessObjectColumn<ExampleRow>[] = [
     key: 'status',
     label: '状态',
     value: (row) => row.status,
-    format: (value) => value === 'DRAFT' ? '草稿' : '有效',
+    format: (value) => (value === 'DRAFT' ? '草稿' : '有效'),
   },
 ]
 
@@ -175,10 +175,11 @@ describe('BusinessObjectList', () => {
     const wrapper = mountList({
       sort: { field: 'updatedAt', order: 'desc' },
     })
-    const nameHeader = wrapper.findAll('th')
+    const nameHeader = wrapper
+      .findAll('th')
       .find((heading) => heading.text() === '客户名称')
 
-    await nameHeader?.get('button').trigger('click')
+    await nameHeader?.trigger('click')
     expect(wrapper.emitted('update:sort')).toEqual([
       [{ field: 'name', order: 'asc' }],
     ])
@@ -193,6 +194,8 @@ describe('BusinessObjectList', () => {
     })
 
     expect(wrapper.text()).toContain('暂无数据')
-    expect(wrapper.get('.business-object-list__empty').attributes('colspan')).toBe('2')
+    expect(
+      wrapper.get('.business-object-list__empty').attributes('colspan'),
+    ).toBe('2')
   })
 })

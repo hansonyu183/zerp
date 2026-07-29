@@ -11,6 +11,7 @@ export const vuetify = createVuetify({
         colors: {
           background: '#f4f6f8',
           surface: '#ffffff',
+          'table-header': '#f2f4f7',
           'on-background': '#172b4d',
           'on-surface': '#172b4d',
           'on-surface-variant': '#667085',
@@ -27,6 +28,7 @@ export const vuetify = createVuetify({
         colors: {
           background: '#0f1115',
           surface: '#181b20',
+          'table-header': '#22262d',
           'on-background': '#edf0f6',
           'on-surface': '#edf0f6',
           'on-surface-variant': '#aeb7c5',

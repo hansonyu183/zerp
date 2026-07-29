@@ -65,6 +65,9 @@ void vm.query()
         :items="vm.rows"
         :loading="vm.loading"
         hide-default-footer
+        sort-asc-icon="mdi-arrow-up"
+        sort-desc-icon="mdi-arrow-down"
+        sort-icon="mdi-swap-vertical"
       >
         <template #[`item.name`]="{ item }">
           {{ item.currentVersion.data.name }}
@@ -116,7 +119,6 @@ void vm.query()
         @update:model-value="vm.changePage"
       />
     </v-card>
-
   </v-container>
 
   <v-navigation-drawer
@@ -133,9 +135,7 @@ void vm.query()
       :model-value="vm.editorModel"
       :reset-key="vm.editorResetKey"
       :saving="vm.saving"
-      :title="
-        vm.editing ? `编辑${vm.config.title}` : `新增${vm.config.title}`
-      "
+      :title="vm.editing ? `编辑${vm.config.title}` : `新增${vm.config.title}`"
       @cancel="vm.closeEditor"
       @reference-search="vm.searchEditorReference"
       @save="vm.save"

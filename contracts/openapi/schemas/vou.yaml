@@ -12,6 +12,8 @@
           'purchase-order',
           'purchase-inbound',
           'purchase-return',
+          'order-production',
+          'self-production',
           'receipt',
           'payment',
           'expense-reimbursement',
@@ -28,6 +30,8 @@
           'purchase-order',
           'purchase-inbound',
           'purchase-return',
+          'order-production',
+          'self-production',
           'receipt',
           'payment',
           'expense-reimbursement',
@@ -187,6 +191,35 @@
                           'objectId': { 'type': 'string' },
                           'versionId': { 'type': 'string' },
                         },
+                    },
+                  'materialWarehouse':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'finishedWarehouse':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'productionLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouProductionOutputInput' },
                     },
                   'platform':
                     {
@@ -447,6 +480,35 @@
                           'versionId': { 'type': 'string' },
                         },
                     },
+                  'materialWarehouse':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'finishedWarehouse':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'productionLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouProductionOutputInput' },
+                    },
                   'platform':
                     {
                       'type': 'object',
@@ -596,6 +658,60 @@
                     },
                 },
             },
+        },
+    },
+  'VouProductionOutputInput':
+    {
+      'type': 'object',
+      'required': ['outputQuantity', 'lossRate', 'materials'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceOrderLineId': { 'type': 'string' },
+          'product':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'outputQuantity': { 'type': 'string' },
+          'lossRate': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'materials':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/VouProductionMaterialInput' },
+            },
+        },
+    },
+  'VouProductionMaterialInput':
+    {
+      'type': 'object',
+      'required': ['formulaLineNo', 'actualMaterial', 'actualQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'formulaLineNo': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'actualMaterial':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'actualQuantity': { 'type': 'string' },
+          'adjustmentReason': { 'type': 'string' },
         },
     },
   'VouFormulaInput':

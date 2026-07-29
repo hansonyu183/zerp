@@ -1865,7 +1865,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         VouQueryRequest: {
             page: number;
             pageSize: number;
@@ -1898,7 +1898,27 @@ export interface components {
             };
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouCreatableEntity: "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouProductionMaterialInput: {
+            formulaLineNo: number;
+            actualMaterial: {
+                objectId: string;
+                versionId: string;
+            };
+            actualQuantity: string;
+            adjustmentReason?: string;
+        };
+        VouProductionOutputInput: {
+            sourceOrderLineId?: string;
+            product?: {
+                objectId: string;
+                versionId: string;
+            };
+            outputQuantity: string;
+            lossRate: string;
+            remark?: string;
+            materials: components["schemas"]["VouProductionMaterialInput"][];
+        };
         VouFormulaComponentInput: {
             material: {
                 objectId: string;
@@ -1956,6 +1976,15 @@ export interface components {
                     objectId: string;
                     versionId: string;
                 };
+                materialWarehouse?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                finishedWarehouse?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                productionLines?: components["schemas"]["VouProductionOutputInput"][];
                 platform?: {
                     objectId: string;
                     versionId: string;
@@ -2051,6 +2080,15 @@ export interface components {
                     objectId: string;
                     versionId: string;
                 };
+                materialWarehouse?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                finishedWarehouse?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                productionLines?: components["schemas"]["VouProductionOutputInput"][];
                 platform?: {
                     objectId: string;
                     versionId: string;

@@ -19,6 +19,7 @@ const (
 	StatusReturning      = "RETURNING"
 
 	StageSaleOrder       = "SALE_ORDER"
+	StageProduction      = "PRODUCTION"
 	StageOutbound        = "OUTBOUND"
 	StageDelivery        = "DELIVERY"
 	StageSignoff         = "SIGNOFF"

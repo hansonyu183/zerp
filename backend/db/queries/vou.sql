@@ -6,6 +6,15 @@ DO UPDATE SET last_value = vou_number_counters.last_value + 1
 WHERE vou_number_counters.last_value < 9999
 RETURNING last_value;
 
+-- name: CountVouProductionAttributes :one
+SELECT
+    (SELECT count(*) FROM vou_production_output_lines production_output
+     WHERE production_output.document_id = sqlc.arg(target_document_id)) AS outputs,
+    (SELECT count(*)
+     FROM vou_production_material_lines material
+     JOIN vou_production_output_lines output ON output.id = material.output_line_id
+     WHERE output.document_id = sqlc.arg(target_document_id)) AS materials;
+
 -- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
     id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,

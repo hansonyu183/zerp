@@ -14,7 +14,9 @@ export function buildVoucherDraftPayload(
 ): DraftPayload {
   const payload: DraftPayload = {
     businessDate: value.businessDate,
-    currency: value.currency.trim().toUpperCase() || 'CNY',
+    ...(config.productionMode
+      ? {}
+      : { currency: value.currency.trim().toUpperCase() || 'CNY' }),
     ...(value.remark.trim() ? { remark: value.remark.trim() } : {}),
   }
   if (config.partyMode === 'customer' || config.partyMode === 'dual') {
@@ -44,6 +46,26 @@ export function buildVoucherDraftPayload(
   if (config.usesWarehouse) {
     payload.warehouse = inputReference(value.warehouse)
   }
+  if (config.productionMode) {
+    payload.materialWarehouse = inputReference(value.materialWarehouse)
+    payload.finishedWarehouse = inputReference(value.finishedWarehouse)
+    payload.productionLines = value.productionLines.map((line) => ({
+      ...(config.productionMode === 'order'
+        ? { sourceOrderLineId: line.sourceOrderLineId }
+        : { product: inputReference(line.product)! }),
+      outputQuantity: line.outputQuantity.trim(),
+      lossRate: line.lossRate.trim(),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+      materials: line.materials.map((material) => ({
+        formulaLineNo: material.formulaLineNo,
+        actualMaterial: inputReference(material.actualMaterial)!,
+        actualQuantity: material.actualQuantity.trim(),
+        ...(material.adjustmentReason.trim()
+          ? { adjustmentReason: material.adjustmentReason.trim() }
+          : {}),
+      })),
+    }))
+  }
   if (config.entity === 'sale-delivery') {
     payload.platform = inputReference(value.platform)
     payload.vehicle = inputReference(value.vehicle)
@@ -52,10 +74,7 @@ export function buildVoucherDraftPayload(
     payload.fundAccount = inputReference(value.fundAccount)
   }
   if (config.usesSourceName) payload.sourceName = value.sourceName.trim()
-  if (
-    config.entity === 'sale-return' ||
-    config.entity === 'purchase-return'
-  ) {
+  if (config.entity === 'sale-return' || config.entity === 'purchase-return') {
     payload.returnReason = value.returnReason.trim()
     if (value.returnKind !== 'REFUSAL') {
       payload.returnLines = value.salesChainLines.map((line) => ({

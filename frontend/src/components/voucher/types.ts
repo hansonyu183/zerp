@@ -4,6 +4,8 @@ export type VoucherEntity =
   | 'sale-delivery'
   | 'sale-signoff'
   | 'sale-return'
+  | 'order-production'
+  | 'self-production'
   | 'purchase-order'
   | 'purchase-inbound'
   | 'purchase-return'
@@ -77,6 +79,32 @@ export interface VoucherSalesChainLineDraft {
   remark: string
 }
 
+export interface VoucherProductionMaterialDraft {
+  key: string
+  lineId?: string
+  formulaLineNo: number
+  formulaMaterial: VoucherReference
+  formulaQuantity: string
+  suggestedQuantity: string
+  actualMaterial: VoucherReference | null
+  actualQuantity: string
+  adjustmentReason: string
+}
+
+export interface VoucherProductionOutputDraft {
+  key: string
+  lineId?: string
+  sourceOrderLineId: string
+  product: VoucherReference | null
+  outputQuantity: string
+  lossRate: string
+  formulaBaseOutputQuantity: string
+  remark: string
+  materials: VoucherProductionMaterialDraft[]
+  formulaLoading?: boolean
+  formulaError?: string
+}
+
 export interface VoucherDraftForm {
   businessDate: string
   currency: string
@@ -92,6 +120,8 @@ export interface VoucherDraftForm {
   purchaser: VoucherReference | null
   handler: VoucherReference | null
   warehouse: VoucherReference | null
+  materialWarehouse: VoucherReference | null
+  finishedWarehouse: VoucherReference | null
   platform: VoucherReference | null
   vehicle: VoucherReference | null
   fundAccount: VoucherReference | null
@@ -102,6 +132,7 @@ export interface VoucherDraftForm {
   productLines: VoucherProductLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
+  productionLines: VoucherProductionOutputDraft[]
 }
 
 export interface VoucherReferenceView extends VoucherReferenceInput {
@@ -169,6 +200,29 @@ export interface VoucherExpenseLineView {
   description: string
   amount: string
   remark?: string
+}
+
+export interface VoucherProductionMaterialView {
+  lineId: string
+  lineNo: number
+  formulaMaterial: VoucherReferenceView
+  formulaQuantity: string
+  suggestedQuantity: string
+  actualMaterial: VoucherReferenceView
+  actualQuantity: string
+  adjustmentReason?: string
+}
+
+export interface VoucherProductionOutputView {
+  lineId: string
+  lineNo: number
+  sourceOrderLineId?: string
+  product: VoucherReferenceView
+  outputQuantity: string
+  lossRate: string
+  formulaBaseOutputQuantity: string
+  remark?: string
+  materials: VoucherProductionMaterialView[]
 }
 
 export interface SettlementMethodSnapshot {
@@ -250,6 +304,8 @@ export interface VoucherDocumentData {
   purchaser?: VoucherReferenceView
   handler?: VoucherReferenceView
   warehouse?: VoucherReferenceView
+  materialWarehouse?: VoucherReferenceView
+  finishedWarehouse?: VoucherReferenceView
   fundAccount?: VoucherReferenceView
   contactName?: string
   contactPhone?: string
@@ -275,6 +331,7 @@ export interface VoucherDocumentData {
   shortCloseRequestedBy?: string
   shortCloseReason?: string
   lines?: VoucherManagedLineView[]
+  productionLines?: VoucherProductionOutputView[]
   expectedSolventContainers?: number
   expectedResinContainers?: number
   returnedSolventContainers?: number
@@ -429,6 +486,7 @@ export interface VoucherEntityConfig {
   usesEmployee?: boolean
   usesSourceName?: boolean
   directAmount?: boolean
+  productionMode?: 'order' | 'self'
 }
 
 export interface VoucherActionAvailability {

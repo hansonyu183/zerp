@@ -9,6 +9,7 @@ import {
   type VoucherListItem,
 } from '@/components/voucher'
 import type { DraftPayload } from './form'
+import { productionLineFromOrderLine } from './production'
 
 export function useVoucherSalesChain(
   config: VoucherEntityConfig,
@@ -60,6 +61,7 @@ export function useVoucherSalesChain(
       sourceOptions.value.find((item) => item.documentId === documentId)
         ?.documentNo ?? ''
     form.value.salesChainLines = []
+    if (config.productionMode === 'order') form.value.productionLines = []
     if (!documentId || !config.parentEntity) return
     sourceLoading.value = true
     sourceError.value = null
@@ -69,6 +71,14 @@ export function useVoucherSalesChain(
         { documentId: string }
       >(`vou/${config.parentEntity}/get`, { documentId })
       form.value.currency = data.data.currency
+      if (config.productionMode === 'order') {
+        form.value.productionLines = (data.data.productLines ?? []).flatMap(
+          (line) => {
+            const productionLine = productionLineFromOrderLine(line)
+            return productionLine ? [productionLine] : []
+          },
+        )
+      }
       if (config.entity === 'sale-outbound') {
         form.value.salesChainLines = (data.data.productLines ?? [])
           .filter(

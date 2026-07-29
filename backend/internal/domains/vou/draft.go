@@ -327,6 +327,12 @@ func (s *Service) validateStoredAttributes(
 		return s.validateSalesChainStored(ctx, entity, documentID)
 	case EntitySaleReturn, EntityPurchaseReturn:
 		return nil
+	case EntityOrderProduction, EntitySelfProduction:
+		counts, err := q.CountVouProductionAttributes(ctx, documentID)
+		if err != nil {
+			return s.internal("read production attributes", err)
+		}
+		missing = counts.Outputs == 0 || counts.Materials == 0
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, documentID)
 		if err != nil {

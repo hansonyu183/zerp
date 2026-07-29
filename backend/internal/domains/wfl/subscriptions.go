@@ -19,11 +19,19 @@ func (s *Service) registerDocumentSubscriptions(bus *txevent.Bus) error {
 			return err
 		}
 	}
+	if err := bus.Subscribe(
+		voudomain.DocumentCreatedTopic(voudomain.EntityOrderProduction),
+		"wfl-production-composition",
+		s.handleOrderProductionCreated,
+	); err != nil {
+		return err
+	}
 	for _, entity := range []string{
 		voudomain.EntitySaleOrder, voudomain.EntitySaleOutbound,
 		voudomain.EntitySaleDelivery, voudomain.EntitySaleSignoff,
 		voudomain.EntitySaleReturn,
 		voudomain.EntityPurchaseOrder, voudomain.EntityPurchaseInbound,
+		voudomain.EntityOrderProduction,
 		voudomain.EntityReceipt, voudomain.EntityPayment,
 		voudomain.EntityExpenseReimbursement, voudomain.EntityOtherIncome,
 	} {
@@ -36,6 +44,48 @@ func (s *Service) registerDocumentSubscriptions(bus *txevent.Bus) error {
 		}
 	}
 	return nil
+}
+
+func (s *Service) handleOrderProductionCreated(
+	ctx context.Context,
+	tx pgx.Tx,
+	raw txevent.Event,
+) error {
+	event, ok := raw.(voudomain.DocumentCreatedEvent)
+	if !ok || event.Entity != voudomain.EntityOrderProduction ||
+		event.ParentEntity != voudomain.EntitySaleOrder {
+		return txevent.Reject("invalid order production created event", nil)
+	}
+	var processID string
+	err := tx.QueryRow(ctx, `SELECT process_id FROM wfl_process_documents
+		WHERE document_id=$1 AND stage=$2`,
+		event.ParentDocumentID, StageSaleOrder).Scan(&processID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return txevent.Reject("production source has no sales workflow", nil)
+	}
+	if err != nil {
+		return err
+	}
+	var sequence int32
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(max(sequence_no),0)+1
+		FROM wfl_process_documents WHERE process_id=$1 AND stage=$2`,
+		processID, StageProduction).Scan(&sequence); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_documents(
+		process_id,document_id,stage,sequence_no
+	) VALUES($1,$2,$3,$4)`,
+		processID, event.DocumentID, StageProduction, sequence); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO wfl_audit_events(
+		id,process_id,event_type,to_status,stage,document_id,document_no,
+		document_status,actor_id,request_id,summary
+	) SELECT $1,$2,'PRODUCTION_LINKED',status,$3,$4,$5,'DRAFT',$6,$7,'{}'
+	  FROM wfl_process_instances WHERE id=$2`,
+		newID(), processID, StageProduction, event.DocumentID, event.DocumentNo,
+		event.ActorID, event.RequestID)
+	return err
 }
 
 func (s *Service) handleRootDocumentCreated(

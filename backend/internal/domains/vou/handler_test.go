@@ -104,7 +104,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 			if route.action == "create" && !publicCreateEntity(entity) {
 				continue
 			}
-			if route.action == "formula-default" && entity != EntitySaleOrder {
+			if route.action == "formula-default" &&
+				entity != EntitySaleOrder &&
+				entity != EntitySelfProduction {
 				continue
 			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
@@ -120,7 +122,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3-(len(entities)-1)+2; got != want {
+	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3-(len(entities)-2)+2; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

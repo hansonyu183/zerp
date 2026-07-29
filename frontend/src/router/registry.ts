@@ -244,6 +244,20 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/sale-return/SaleReturn.vue'),
   }),
   registerPage('vou', {
+    entity: 'order-production',
+    entityTitle: '订单生产',
+    icon: 'mdi-factory',
+    order: 55,
+    component: () => import('@/pages/vou/order-production/OrderProduction.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'self-production',
+    entityTitle: '自制品生产',
+    icon: 'mdi-cog-transfer-outline',
+    order: 56,
+    component: () => import('@/pages/vou/self-production/SelfProduction.vue'),
+  }),
+  registerPage('vou', {
     entity: 'purchase-order',
     entityTitle: '采购订单',
     icon: 'mdi-cart-arrow-up',

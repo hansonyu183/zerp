@@ -87,7 +87,9 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "create" && !publicCreateEntity(entity) {
 				continue
 			}
-			if route.action == "formula-default" && entity != EntitySaleOrder {
+			if route.action == "formula-default" &&
+				entity != EntitySaleOrder &&
+				entity != EntitySelfProduction {
 				continue
 			}
 			action := route.action
@@ -103,7 +105,7 @@ func (h *Handler) Register(router *gin.Engine) {
 }
 
 func (h *Handler) formulaDefault(c *gin.Context, entity string) {
-	if entity != EntitySaleOrder {
+	if entity != EntitySaleOrder && entity != EntitySelfProduction {
 		h.result(c, FormulaDefaultView{}, domainError(ErrorValidation, "invalid entity", nil, nil))
 		return
 	}

@@ -20,6 +20,8 @@ var vouEntities = [...]string{
 	voudomain.EntitySaleReturn,
 	voudomain.EntityPurchaseInbound,
 	voudomain.EntityPurchaseReturn,
+	voudomain.EntityOrderProduction,
+	voudomain.EntitySelfProduction,
 	voudomain.EntityReceipt,
 	voudomain.EntityPayment,
 	voudomain.EntityExpenseReimbursement,
@@ -192,6 +194,8 @@ func (s *Service) postDocument(
 		return s.postPurchase(ctx, tx, q, posting)
 	case voudomain.EntityPurchaseReturn:
 		return s.postPurchaseReturn(ctx, tx, q, posting)
+	case voudomain.EntityOrderProduction, voudomain.EntitySelfProduction:
+		return s.postProduction(ctx, tx, q, posting)
 	case voudomain.EntityReceipt:
 		return s.postReceipt(ctx, q, posting)
 	case voudomain.EntityPayment:
@@ -216,7 +220,7 @@ func fundParams(
 		ActorID: posting.ActorID, RequestID: posting.RequestID,
 		Remark:              preferredRemark(nil, doc.Remark),
 		FundAccountObjectID: objectID, FundAccountVersionID: versionID,
-		FundAccountCode: code, FundAccountName: name, Currency: doc.Currency, AmountDeltaCents: delta,
+		FundAccountCode: code, FundAccountName: name, Currency: deref(doc.Currency), AmountDeltaCents: delta,
 	}
 }
 
@@ -231,7 +235,7 @@ func partyParams(
 		OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
 		Remark:             preferredRemark(nil, doc.Remark),
 		CounterpartyEntity: entity, CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
-		CounterpartyCode: code, CounterpartyName: name, Currency: doc.Currency, AmountDeltaCents: delta,
+		CounterpartyCode: code, CounterpartyName: name, Currency: deref(doc.Currency), AmountDeltaCents: delta,
 	}
 }
 

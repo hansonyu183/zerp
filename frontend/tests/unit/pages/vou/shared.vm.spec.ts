@@ -58,6 +58,12 @@ function documentView(
       ...(form.purchaser ? { purchaser: form.purchaser } : {}),
       ...(form.handler ? { handler: form.handler } : {}),
       ...(form.warehouse ? { warehouse: form.warehouse } : {}),
+      ...(form.materialWarehouse
+        ? { materialWarehouse: form.materialWarehouse }
+        : {}),
+      ...(form.finishedWarehouse
+        ? { finishedWarehouse: form.finishedWarehouse }
+        : {}),
       ...(form.fundAccount ? { fundAccount: form.fundAccount } : {}),
       sourceName: form.sourceName,
       productLines: form.productLines.map((line, index) => ({
@@ -79,6 +85,26 @@ function documentView(
         description: line.description,
         amount: line.amount,
         remark: line.remark,
+      })),
+      productionLines: form.productionLines.map((line, index) => ({
+        lineId: `PRODUCTION-${index}`,
+        lineNo: index + 1,
+        sourceOrderLineId: line.sourceOrderLineId,
+        product: line.product!,
+        outputQuantity: line.outputQuantity,
+        lossRate: line.lossRate,
+        formulaBaseOutputQuantity: line.formulaBaseOutputQuantity,
+        remark: line.remark,
+        materials: line.materials.map((material, materialIndex) => ({
+          lineId: `MATERIAL-${materialIndex}`,
+          lineNo: material.formulaLineNo,
+          formulaMaterial: material.formulaMaterial,
+          formulaQuantity: material.formulaQuantity,
+          suggestedQuantity: material.suggestedQuantity,
+          actualMaterial: material.actualMaterial!,
+          actualQuantity: material.actualQuantity,
+          adjustmentReason: material.adjustmentReason,
+        })),
       })),
     },
     attachments: [],
@@ -111,6 +137,42 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesFundAccount) form.fundAccount = reference('fund-account')
   if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
+  if (config.productionMode) {
+    const warehouse = reference('warehouse')
+    const product = {
+      ...reference('product', 'FG-001'),
+      productKind: 'STANDARD_FINISHED',
+    }
+    const material = {
+      ...reference('product', 'RM-001'),
+      productKind: 'RAW_MATERIAL',
+    }
+    form.materialWarehouse = warehouse
+    form.finishedWarehouse = warehouse
+    form.productionLines = [
+      {
+        key: 'production-line',
+        sourceOrderLineId: '',
+        product,
+        outputQuantity: '10',
+        lossRate: '0',
+        formulaBaseOutputQuantity: '1',
+        remark: '',
+        materials: [
+          {
+            key: 'material-line',
+            formulaLineNo: 1,
+            formulaMaterial: material,
+            formulaQuantity: '2',
+            suggestedQuantity: '20',
+            actualMaterial: material,
+            actualQuantity: '20',
+            adjustmentReason: '',
+          },
+        ],
+      },
+    ]
+  }
   if (config.lineKind === 'product') {
     const product = {
       ...reference('product'),
@@ -162,13 +224,15 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines all twelve atomic document entities', () => {
+  it('defines all fourteen atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',
       'sale-outbound',
       'sale-delivery',
       'sale-signoff',
       'sale-return',
+      'order-production',
+      'self-production',
       'purchase-order',
       'purchase-inbound',
       'purchase-return',

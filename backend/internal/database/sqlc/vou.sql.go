@@ -227,6 +227,28 @@ func (q *Queries) CountVouDocuments(ctx context.Context, arg CountVouDocumentsPa
 	return count, err
 }
 
+const countVouProductionAttributes = `-- name: CountVouProductionAttributes :one
+SELECT
+    (SELECT count(*) FROM vou_production_output_lines production_output
+     WHERE production_output.document_id = $1) AS outputs,
+    (SELECT count(*)
+     FROM vou_production_material_lines material
+     JOIN vou_production_output_lines output ON output.id = material.output_line_id
+     WHERE output.document_id = $1) AS materials
+`
+
+type CountVouProductionAttributesRow struct {
+	Outputs   int64 `db:"outputs" json:"outputs"`
+	Materials int64 `db:"materials" json:"materials"`
+}
+
+func (q *Queries) CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error) {
+	row := q.db.QueryRow(ctx, countVouProductionAttributes, targetDocumentID)
+	var i CountVouProductionAttributesRow
+	err := row.Scan(&i.Outputs, &i.Materials)
+	return i, err
+}
+
 const deleteExpiredVouDownloadTokens = `-- name: DeleteExpiredVouDownloadTokens :exec
 DELETE FROM vou_download_tokens WHERE expires_at <= now() OR used_at IS NOT NULL
 `
@@ -757,7 +779,7 @@ type InsertVouDocumentParams struct {
 	DocumentNo       string      `db:"document_no" json:"document_no"`
 	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
 	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
-	Currency         string      `db:"currency" json:"currency"`
+	Currency         *string     `db:"currency" json:"currency"`
 	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string     `db:"remark" json:"remark"`
 	ParentEntity     *string     `db:"parent_entity" json:"parent_entity"`
@@ -1739,7 +1761,7 @@ type ListVouDocumentsRow struct {
 	Status           string             `db:"status" json:"status"`
 	Revision         int64              `db:"revision" json:"revision"`
 	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	Currency         string             `db:"currency" json:"currency"`
+	Currency         *string            `db:"currency" json:"currency"`
 	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string            `db:"remark" json:"remark"`
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -2356,7 +2378,7 @@ RETURNING revision
 type UpdateVouDraftParams struct {
 	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
 	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
-	Currency         string      `db:"currency" json:"currency"`
+	Currency         *string     `db:"currency" json:"currency"`
 	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string     `db:"remark" json:"remark"`
 	ActorID          string      `db:"actor_id" json:"actor_id"`

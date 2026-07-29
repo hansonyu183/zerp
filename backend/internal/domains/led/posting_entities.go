@@ -90,7 +90,7 @@ func (s *Service) postSaleOutbound(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: -line.quantity, Currency: &doc.Currency,
+			QuantityDeltaMicros: -line.quantity, Currency: doc.Currency,
 			UnitPriceCents: &line.price, AmountCents: &line.amount,
 			Remark: preferredRemark(line.remark, doc.Remark),
 		})
@@ -221,7 +221,7 @@ func (s *Service) postSaleReturn(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: line.quantity, Currency: &doc.Currency,
+			QuantityDeltaMicros: line.quantity, Currency: doc.Currency,
 			UnitPriceCents: &line.price, AmountCents: &line.amount,
 			Remark: preferredRemark(line.remark, doc.Remark),
 		}); err != nil {
@@ -273,7 +273,7 @@ func (s *Service) postPurchase(
 			WarehouseCode: detail.WarehouseCode, WarehouseName: detail.WarehouseName,
 			ProductObjectID: line.ProductObjectID, ProductVersionID: line.ProductVersionID,
 			ProductCode: line.ProductCode, ProductName: line.ProductName, ProductUnit: line.ProductUnit,
-			QuantityDeltaMicros: line.QuantityMicros, Currency: &doc.Currency,
+			QuantityDeltaMicros: line.QuantityMicros, Currency: doc.Currency,
 			UnitPriceCents: &line.UnitPriceCents, AmountCents: &line.LineAmountCents,
 			Remark: preferredRemark(line.Remark, doc.Remark),
 		}); err != nil {
@@ -351,7 +351,7 @@ func (s *Service) postPurchaseReturn(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: -line.quantity, Currency: &doc.Currency,
+			QuantityDeltaMicros: -line.quantity, Currency: doc.Currency,
 			UnitPriceCents: &line.price, AmountCents: &line.amount,
 			Remark: preferredRemark(line.remark, doc.Remark),
 		}); err != nil {

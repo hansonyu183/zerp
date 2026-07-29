@@ -43,10 +43,13 @@ function mountHeader(
 describe('SortableTableHeader', () => {
   it('使用整列表头和右侧小图标触发鼠标及键盘排序', async () => {
     const wrapper = mountHeader()
+    const sortControl = wrapper.get('[role="button"]')
 
     expect(wrapper.element.tagName).toBe('TH')
     expect(wrapper.find('button').exists()).toBe(false)
-    expect(wrapper.attributes('tabindex')).toBe('0')
+    expect(wrapper.attributes('tabindex')).toBeUndefined()
+    expect(sortControl.attributes('tabindex')).toBe('0')
+    expect(sortControl.text()).toContain('日期')
     expect(wrapper.attributes('aria-sort')).toBe('none')
     expect(wrapper.get('[data-icon]').attributes('data-icon')).toBe(
       'mdi-swap-vertical',
@@ -54,8 +57,8 @@ describe('SortableTableHeader', () => {
     expect(wrapper.get('[data-icon]').attributes('data-size')).toBe('16')
 
     await wrapper.trigger('click')
-    await wrapper.trigger('keydown.enter')
-    await wrapper.trigger('keydown.space')
+    await sortControl.trigger('keydown.enter')
+    await sortControl.trigger('keydown.space')
 
     expect(wrapper.emitted('sort')).toHaveLength(3)
   })

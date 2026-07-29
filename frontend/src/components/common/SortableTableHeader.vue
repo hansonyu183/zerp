@@ -27,12 +27,15 @@ defineEmits<{ sort: [] }>()
     "
     :class="['sortable-table-header', `text-${align}`]"
     :style="{ width }"
-    tabindex="0"
     @click="$emit('sort')"
     @keydown.enter.prevent="$emit('sort')"
     @keydown.space.prevent="$emit('sort')"
   >
-    <span class="sortable-table-header__content">
+    <span
+      class="sortable-table-header__content"
+      role="button"
+      tabindex="0"
+    >
       <span>{{ label }}</span>
       <v-icon
         :class="{ 'sortable-table-header__icon--inactive': !active }"
@@ -62,10 +65,10 @@ defineEmits<{ sort: [] }>()
   min-height: 36px;
 }
 
-.sortable-table-header:focus-visible {
+.sortable-table-header__content:focus-visible {
   border-radius: 4px;
   outline: 2px solid rgb(var(--v-theme-primary));
-  outline-offset: -3px;
+  outline-offset: 2px;
 }
 
 .sortable-table-header__icon--inactive {

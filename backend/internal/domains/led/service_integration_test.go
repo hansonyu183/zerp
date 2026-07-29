@@ -60,6 +60,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_sale_signoff_lines, vou_sale_signoff_details,
 			vou_sale_delivery_details, vou_sale_outbound_lines, vou_sale_outbound_details,
 			vou_purchase_inbound_lines, vou_purchase_inbound_details,
+			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
 			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
@@ -422,6 +423,122 @@ func TestLEDInventoryPostingStrictBalanceAndDeletionIntegration(t *testing.T) {
 	}
 	if purchaseEntryCount != 0 {
 		t.Fatalf("unfinalized purchase entries = %d, want 0", purchaseEntryCount)
+	}
+}
+
+func TestLEDSelfProductionPostsMaterialOutAndFinishedGoodsInIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	rawInbound, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "100", "1.00")
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound, voudomain.FinalizeInput{
+		DocumentID: rawInbound.DocumentID, Revision: rawInbound.Revision,
+	}, integrationActorOne, "production-raw-inbound"); err != nil {
+		t.Fatalf("finalize raw material inbound: %v", err)
+	}
+
+	finished := createApprovedReference(
+		t,
+		bobdomain.NewService(pool),
+		bobdomain.EntityProduct,
+		bobdomain.CreateDetailInput{
+			Code:        "LFG" + newID(),
+			Name:        "LED 自制成品",
+			Unit:        "件",
+			ProductKind: bobdomain.ProductKindStandardFinished,
+			Formula: &bobdomain.ProductFormula{
+				BaseOutputQuantity: "1",
+				Components: []bobdomain.ProductFormulaComponent{{
+					Material: bobdomain.FormulaMaterialReference{
+						ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID,
+					},
+					Quantity: "2",
+				}},
+			},
+		},
+	)
+	approved, _ := advanceToApproved(t, vouchers, voudomain.EntitySelfProduction, voudomain.DraftInput{
+		BusinessDate:      "2026-07-24",
+		MaterialWarehouse: &refs.warehouse,
+		FinishedWarehouse: &refs.warehouse,
+		ProductionLines: []voudomain.ProductionOutputInput{{
+			Product: &finished, OutputQuantity: "10", LossRate: "5",
+			Remark: "成品入库",
+			Materials: []voudomain.ProductionMaterialInput{{
+				FormulaLineNo: 1, ActualMaterial: refs.product,
+				ActualQuantity: "21", AdjustmentReason: "",
+			}},
+		}},
+	})
+	finalized, err := vouchers.Finalize(
+		t.Context(),
+		voudomain.EntitySelfProduction,
+		voudomain.FinalizeInput{
+			DocumentID: approved.DocumentID,
+			Revision:   approved.Revision,
+		},
+		integrationActorOne,
+		"production-finalize",
+	)
+	if err != nil {
+		t.Fatalf("finalize self production: %v", err)
+	}
+
+	rows, err := pool.Query(t.Context(), `SELECT product_object_id,quantity_delta_micros
+		FROM led_inventory_entries WHERE source_document_id=$1 ORDER BY quantity_delta_micros`,
+		finalized.DocumentID)
+	if err != nil {
+		t.Fatalf("query production postings: %v", err)
+	}
+	defer rows.Close()
+	type posting struct {
+		productID string
+		quantity  int64
+	}
+	var postings []posting
+	for rows.Next() {
+		var item posting
+		if err = rows.Scan(&item.productID, &item.quantity); err != nil {
+			t.Fatalf("scan production posting: %v", err)
+		}
+		postings = append(postings, item)
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatalf("iterate production postings: %v", err)
+	}
+	if len(postings) != 2 ||
+		postings[0].productID != refs.product.ObjectID ||
+		postings[0].quantity != -21_000_000 ||
+		postings[1].productID != finished.ObjectID ||
+		postings[1].quantity != 10_000_000 {
+		t.Fatalf("production postings = %+v", postings)
+	}
+
+	reversed, err := vouchers.Unfinalize(
+		t.Context(),
+		voudomain.EntitySelfProduction,
+		voudomain.ReverseInput{
+			DocumentID: finalized.DocumentID,
+			Revision:   finalized.Revision,
+			Reason:     "撤销生产",
+		},
+		integrationActorOne,
+		"production-unfinalize",
+	)
+	if err != nil || reversed.Status != voudomain.StatusApproved {
+		t.Fatalf("unfinalize production = %+v, err=%v", reversed, err)
+	}
+	var remaining int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM led_inventory_entries
+		WHERE source_document_id=$1`, finalized.DocumentID).Scan(&remaining); err != nil {
+		t.Fatalf("count reversed production postings: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("reversed production postings = %d, want 0", remaining)
 	}
 }
 

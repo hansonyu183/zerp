@@ -15,6 +15,9 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isProductionEntity(entity) {
+		return s.CreateProduction(ctx, entity, input, actorID, requestID)
+	}
 	if entity == EntityPurchaseInbound {
 		parentEntity, parentDocumentID, err := validateParentInput(
 			input.ParentEntity,
@@ -113,7 +116,7 @@ func (s *Service) createDocument(
 	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
 		ID: documentID, Entity: entity, DocumentNo: documentNo,
-		BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
+		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
 		DueDate:          optionalDate(draft.DueDate),
 		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark,
 		ParentEntity: nullableString(parentEntity), ParentDocumentID: nullableString(parentDocumentID),
@@ -151,6 +154,9 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isProductionEntity(entity) {
+		return s.SaveProduction(ctx, entity, input, actorID, requestID)
+	}
 	if isSalesChainEntity(entity) {
 		return s.saveSalesChain(ctx, entity, input, actorID, requestID)
 	}
@@ -195,7 +201,7 @@ func (s *Service) Save(
 		return MutationResult{}, s.writeError("update document detail", err)
 	}
 	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
-		BusinessDate: dateValue(draft.BusinessDate), Currency: draft.Currency,
+		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
 		DueDate:          optionalDate(draft.DueDate),
 		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark, ActorID: actorID,
 		ID: input.DocumentID, Entity: entity, Revision: input.Revision,

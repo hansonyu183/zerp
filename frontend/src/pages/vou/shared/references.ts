@@ -5,6 +5,7 @@ import type {
   VoucherDraftForm,
   VoucherEntityConfig,
   VoucherProductLineDraft,
+  VoucherProductionOutputDraft,
   VoucherReference,
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
@@ -83,9 +84,28 @@ export function useVoucherReferences(
     if (['employee', 'salesperson', 'purchaser', 'handler'].includes(key)) {
       return { entities: ['employee'] }
     }
-    if (key === 'warehouse') return { entities: ['warehouse'] }
+    if (
+      key === 'warehouse' ||
+      key === 'materialWarehouse' ||
+      key === 'finishedWarehouse'
+    ) {
+      return { entities: ['warehouse'] }
+    }
     if (key === 'fundAccount') return { entities: ['fund-account'] }
-    if (key === 'product') return { entities: ['product'] }
+    if (key === 'product') {
+      return {
+        entities: ['product'],
+        ...(config.productionMode === 'self'
+          ? { filters: { productKind: 'STANDARD_FINISHED' } }
+          : {}),
+      }
+    }
+    if (key === 'actualMaterial') {
+      return {
+        entities: ['product'],
+        filters: { productKind: 'RAW_MATERIAL' },
+      }
+    }
     if (key === 'platform') {
       return {
         entities: ['supplier'],
@@ -104,8 +124,15 @@ export function useVoucherReferences(
       if (value && typeof value === 'object' && 'objectId' in value) {
         result.push(value as VoucherReference)
       } else if (Array.isArray(value)) {
-        for (const item of value as VoucherProductLineDraft[]) {
+        for (const item of value as Array<
+          VoucherProductLineDraft | VoucherProductionOutputDraft
+        >) {
           if (item.product) result.push(item.product)
+          if ('materials' in item && Array.isArray(item.materials)) {
+            for (const material of item.materials) {
+              if (material.actualMaterial) result.push(material.actualMaterial)
+            }
+          }
         }
       }
     }

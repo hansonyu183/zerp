@@ -15,10 +15,12 @@ func (s *Service) loadData(
 	ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument,
 ) (DocumentDataView, error) {
 	data := DocumentDataView{
-		BusinessDate: formatDate(document.BusinessDate), Currency: document.Currency, Remark: deref(document.Remark),
+		BusinessDate: formatDate(document.BusinessDate), Currency: deref(document.Currency), Remark: deref(document.Remark),
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntityOrderProduction, EntitySelfProduction:
+		return s.loadProductionData(ctx, document, data)
 	case EntitySaleOrder:
 		detail, err := q.GetVouSaleOrderDetail(ctx, document.ID)
 		if err != nil {
@@ -137,7 +139,7 @@ func (s *Service) loadData(
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
-			detail.FundAccountCode, detail.FundAccountName, "", document.Currency, "")
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
@@ -150,7 +152,7 @@ func (s *Service) loadData(
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
-			detail.FundAccountCode, detail.FundAccountName, "", document.Currency, "")
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
@@ -163,7 +165,7 @@ func (s *Service) loadData(
 		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
-			detail.FundAccountCode, detail.FundAccountName, "", document.Currency, "")
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		rows, err := q.ListVouExpenseLines(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -186,7 +188,7 @@ func (s *Service) loadData(
 				deref(detail.CounterpartyEntity), deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "", "", "")
 		}
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
-			detail.FundAccountCode, detail.FundAccountName, "", document.Currency, "")
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,

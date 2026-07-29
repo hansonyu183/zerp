@@ -134,7 +134,7 @@ func (s *Service) SalesGet(ctx context.Context, input GetInput) (ProcessView, er
 		return view, internal("get sales workflow", err)
 	}
 	rows, err := s.pool.Query(ctx, `SELECT x.document_id,d.document_no,d.entity,x.stage,
-		d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,
+		d.status,d.revision,d.business_date,COALESCE(d.currency,''),d.total_amount_cents,
 		d.created_at,d.created_by,d.reviewed_at,d.reviewed_by,d.approved_at,d.approved_by,
 		COALESCE(d.parent_entity,''),COALESCE(d.parent_document_id,''),COALESCE(parent.document_no,'')
 		FROM wfl_process_documents x
@@ -142,8 +142,8 @@ func (s *Service) SalesGet(ctx context.Context, input GetInput) (ProcessView, er
 		LEFT JOIN vou_documents parent ON parent.id=d.parent_document_id
 		WHERE x.process_id=$1
 		ORDER BY CASE x.stage
-			WHEN 'SALE_ORDER' THEN 1 WHEN 'OUTBOUND' THEN 2
-			WHEN 'DELIVERY' THEN 3 WHEN 'SIGNOFF' THEN 4 ELSE 5 END,x.sequence_no`, input.ProcessID)
+			WHEN 'SALE_ORDER' THEN 1 WHEN 'PRODUCTION' THEN 2 WHEN 'OUTBOUND' THEN 3
+			WHEN 'DELIVERY' THEN 4 WHEN 'SIGNOFF' THEN 5 ELSE 6 END,x.sequence_no`, input.ProcessID)
 	if err != nil {
 		return view, internal("list sales workflow documents", err)
 	}

@@ -11,7 +11,7 @@ import { formulaFromPayload, type FormulaPayload } from '@/components/formula'
 
 export interface DraftPayload {
   businessDate: string
-  currency: string
+  currency?: string
   remark?: string
   returnReason?: string
   customer?: VoucherReferenceInput
@@ -23,6 +23,8 @@ export interface DraftPayload {
   purchaser?: VoucherReferenceInput
   handler?: VoucherReferenceInput
   warehouse?: VoucherReferenceInput
+  materialWarehouse?: VoucherReferenceInput
+  finishedWarehouse?: VoucherReferenceInput
   platform?: VoucherReferenceInput
   vehicle?: VoucherReferenceInput
   fundAccount?: VoucherReferenceInput
@@ -59,12 +61,25 @@ export interface DraftPayload {
     quantity: string
     remark?: string
   }>
+  productionLines?: Array<{
+    sourceOrderLineId?: string
+    product?: VoucherReferenceInput
+    outputQuantity: string
+    lossRate: string
+    remark?: string
+    materials: Array<{
+      formulaLineNo: number
+      actualMaterial: VoucherReferenceInput
+      actualQuantity: string
+      adjustmentReason?: string
+    }>
+  }>
 }
 
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
   return {
     businessDate: localDate(),
-    currency: 'CNY',
+    currency: config.productionMode ? '' : 'CNY',
     remark: '',
     returnReason: '',
     returnKind: '',
@@ -77,6 +92,8 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     purchaser: null,
     handler: null,
     warehouse: null,
+    materialWarehouse: null,
+    finishedWarehouse: null,
     platform: null,
     vehicle: null,
     fundAccount: null,
@@ -112,6 +129,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
           ]
         : [],
     salesChainLines: [],
+    productionLines: [],
   }
 }
 
@@ -153,6 +171,8 @@ export function formFromDocument(
     purchaser: formReference(data.purchaser),
     handler: formReference(data.handler),
     warehouse: formReference(data.warehouse),
+    materialWarehouse: formReference(data.materialWarehouse),
+    finishedWarehouse: formReference(data.finishedWarehouse),
     platform: formReference(data.platform),
     vehicle: formReference(data.vehicle),
     fundAccount: formReference(data.fundAccount),
@@ -227,6 +247,27 @@ export function formFromDocument(
                 remark: line.remark ?? '',
               }))
             : [],
+    productionLines: (data.productionLines ?? []).map((line) => ({
+      key: line.lineId,
+      lineId: line.lineId,
+      sourceOrderLineId: line.sourceOrderLineId ?? '',
+      product: formReference(line.product),
+      outputQuantity: line.outputQuantity,
+      lossRate: line.lossRate,
+      formulaBaseOutputQuantity: line.formulaBaseOutputQuantity,
+      remark: line.remark ?? '',
+      materials: line.materials.map((material) => ({
+        key: material.lineId,
+        lineId: material.lineId,
+        formulaLineNo: material.lineNo,
+        formulaMaterial: { ...material.formulaMaterial },
+        formulaQuantity: material.formulaQuantity,
+        suggestedQuantity: material.suggestedQuantity,
+        actualMaterial: formReference(material.actualMaterial),
+        actualQuantity: material.actualQuantity,
+        adjustmentReason: material.adjustmentReason ?? '',
+      })),
+    })),
   }
 }
 

@@ -16,6 +16,7 @@ import {
   VoucherLifecycleActions,
   VoucherList,
   VoucherProductLinesEditor,
+  VoucherProductionLinesEditor,
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
   type VoucherDraftForm,
@@ -122,10 +123,7 @@ if (
   returnSourceQuery
 ) {
   const sourceIds = [...new Set(returnSourceQuery.split(',').filter(Boolean))]
-  if (
-    sourceIds.length &&
-    session.can(`/vou/${vm.config.entity}/create`)
-  ) {
+  if (sourceIds.length && session.can(`/vou/${vm.config.entity}/create`)) {
     vm.openCreate()
     vm.workspaceLoading = true
     Promise.all(
@@ -150,15 +148,16 @@ if (
           : null
         vm.form.salesChainLines = sources.flatMap((source) =>
           (vm.config.entity === 'sale-return'
-            ? source.data.signoffLines ?? []
-            : source.data.productLines ?? []
+            ? (source.data.signoffLines ?? [])
+            : (source.data.productLines ?? [])
           )
-            .filter((line) =>
-              Number(
-                'signedQuantity' in line
-                  ? (line.returnableQuantity ?? line.signedQuantity ?? '')
-                  : (line.returnableQuantity ?? line.orderedQuantity),
-              ) > 0,
+            .filter(
+              (line) =>
+                Number(
+                  'signedQuantity' in line
+                    ? (line.returnableQuantity ?? line.signedQuantity ?? '')
+                    : (line.returnableQuantity ?? line.orderedQuantity),
+                ) > 0,
             )
             .map((line) => ({
               key: crypto.randomUUID(),
@@ -207,6 +206,10 @@ function updateReference(
 
 function search(key: string, keyword: string): void {
   vm.searchReference(key, keyword)
+}
+
+function selectSource(value: unknown): void {
+  void vm.selectSourceDocument(typeof value === 'string' ? value : null)
 }
 
 function changeSort(value: typeof vm.sort): void {
@@ -468,8 +471,26 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     type="date"
                     variant="outlined"
                   />
+                  <v-autocomplete
+                    v-if="
+                      vm.config.productionMode === 'order' && !vm.documentView
+                    "
+                    clearable
+                    :disabled="!vm.editing"
+                    :error-messages="vm.sourceError ? [vm.sourceError] : []"
+                    item-title="documentNo"
+                    item-value="documentId"
+                    :items="vm.sourceOptions"
+                    label="来源销售订单"
+                    :loading="vm.sourceLoading"
+                    :model-value="vm.form.parentDocumentId || null"
+                    no-filter
+                    variant="outlined"
+                    @update:model-value="selectSource"
+                    @update:search="vm.searchSourceDocuments($event ?? '')"
+                  />
                   <v-text-field
-                    v-if="vm.config.parentEntity"
+                    v-else-if="vm.config.parentEntity"
                     label="来源单据"
                     :model-value="parentDocumentNo"
                     readonly
@@ -563,6 +584,30 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     required
                     @search="search('warehouse', $event)"
                     @update:model-value="updateReference('warehouse', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.productionMode"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('materialWarehouse')"
+                    label="材料仓库"
+                    :model-value="vm.form.materialWarehouse"
+                    required
+                    @search="search('materialWarehouse', $event)"
+                    @update:model-value="
+                      updateReference('materialWarehouse', $event)
+                    "
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.productionMode"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('finishedWarehouse')"
+                    label="成品仓库"
+                    :model-value="vm.form.finishedWarehouse"
+                    required
+                    @search="search('finishedWarehouse', $event)"
+                    @update:model-value="
+                      updateReference('finishedWarehouse', $event)
+                    "
                   />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.entity === 'sale-delivery'"
@@ -674,6 +719,23 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             v-if="vm.config.lineKind === 'expense'"
             v-model="vm.form.expenseLines"
             :editable="vm.editing"
+          />
+          <VoucherProductionLinesEditor
+            v-if="vm.config.productionMode"
+            v-model="vm.form.productionLines"
+            :editable="vm.editing"
+            :material-error="vm.referenceError('actualMaterial')"
+            :material-loading="vm.referenceLoading('actualMaterial')"
+            :material-options="vm.referenceOptions('actualMaterial')"
+            :mode="vm.config.productionMode"
+            :product-error="vm.referenceError('product')"
+            :product-loading="vm.referenceLoading('product')"
+            :product-options="vm.referenceOptions('product')"
+            @add-line="vm.addProductionLine"
+            @material-search="vm.searchReference('actualMaterial', $event)"
+            @product-change="vm.changeProductionProduct"
+            @product-search="vm.searchReference('product', $event)"
+            @recalculate="vm.recalculateProductionLine"
           />
           <div
             v-if="

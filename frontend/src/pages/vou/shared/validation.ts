@@ -3,6 +3,7 @@ import {
   addMoney,
   isMoney,
   isQuantity,
+  parseFixed,
   sumMoney,
   type VoucherDraftForm,
   type VoucherEntityConfig,
@@ -32,6 +33,12 @@ export function validateVoucherDraft(
   if (config.usesEmployee && !value.employee) return '请选择员工。'
   if (config.usesWarehouse && !value.warehouse) return '请选择仓库。'
   if (
+    config.productionMode &&
+    (!value.materialWarehouse || !value.finishedWarehouse)
+  ) {
+    return '请选择材料仓库和成品仓库。'
+  }
+  if (
     (config.entity === 'sale-return' || config.entity === 'purchase-return') &&
     (!value.returnReason.trim() ||
       Array.from(value.returnReason.trim()).length > 1000)
@@ -59,6 +66,52 @@ export function validateVoucherDraft(
   }
   const salesChainError = validateSalesChainDraft(config, value)
   if (salesChainError) return salesChainError
+  if (config.productionMode) {
+    if (
+      value.productionLines.length < 1 ||
+      value.productionLines.length > 200
+    ) {
+      return '生产明细必须包含 1 到 200 行。'
+    }
+    const seen = new Set<string>()
+    for (const [index, line] of value.productionLines.entries()) {
+      const lossRate = parseFixed(line.lossRate, 6, true)
+      if (
+        !line.product ||
+        !isQuantity(line.outputQuantity) ||
+        lossRate === null ||
+        lossRate > 100_000_000n ||
+        !isQuantity(line.formulaBaseOutputQuantity) ||
+        line.materials.length < 1
+      ) {
+        return `第 ${index + 1} 行 · 生产明细：请填写有效的产品、产量、损耗比例和配方。`
+      }
+      if (config.productionMode === 'order' && !line.sourceOrderLineId) {
+        return `第 ${index + 1} 行 · 来源订单行无效。`
+      }
+      const key =
+        config.productionMode === 'order'
+          ? line.sourceOrderLineId
+          : line.product.objectId
+      if (seen.has(key)) return `第 ${index + 1} 行 · 成品不能重复。`
+      seen.add(key)
+      for (const [materialIndex, material] of line.materials.entries()) {
+        const adjusted =
+          material.actualMaterial?.objectId !==
+            material.formulaMaterial.objectId ||
+          material.actualMaterial?.versionId !==
+            material.formulaMaterial.versionId ||
+          material.actualQuantity.trim() !== material.suggestedQuantity.trim()
+        if (
+          !material.actualMaterial ||
+          !isQuantity(material.actualQuantity) ||
+          (adjusted && !material.adjustmentReason.trim())
+        ) {
+          return `第 ${index + 1} 行 · 材料 ${materialIndex + 1}：请填写有效的实际材料、用量；发生替换或调整时必须说明原因。`
+        }
+      }
+    }
+  }
   if (config.directAmount && !isMoney(value.amount)) return '金额格式不正确。'
   if (config.lineKind === 'product') {
     if (value.productLines.length < 1 || value.productLines.length > 200) {

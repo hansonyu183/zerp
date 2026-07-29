@@ -28,6 +28,7 @@ import { buildVoucherDraftPayload } from './payload'
 import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
+import { useVoucherProduction } from './production'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
 
@@ -65,6 +66,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     refreshCustomFormulas,
     updateLineFormula,
   } = useVoucherFormula(config, form)
+  const {
+    addProductionLine,
+    changeProductionProduct,
+    recalculateProductionLine,
+  } = useVoucherProduction(config, form)
   const initialForm = ref(snapshot(form.value))
   const personnelDirty = new Set<string>()
 
@@ -603,6 +609,9 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     changeLineProduct,
     resolveLineFormula,
     updateLineFormula,
+    addProductionLine,
+    changeProductionProduct,
+    recalculateProductionLine,
     save,
     lifecycleAction,
     finalize,

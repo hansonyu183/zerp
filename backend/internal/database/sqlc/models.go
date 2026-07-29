@@ -800,7 +800,7 @@ type VouDocument struct {
 	Status           string             `db:"status" json:"status"`
 	Revision         int64              `db:"revision" json:"revision"`
 	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	Currency         string             `db:"currency" json:"currency"`
+	Currency         *string            `db:"currency" json:"currency"`
 	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string            `db:"remark" json:"remark"`
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -943,6 +943,56 @@ type VouProductLine struct {
 	SettlementSurchargeCents              int64   `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
 	ProductKind                           string  `db:"product_kind" json:"product_kind"`
 	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+}
+
+type VouProductionDetail struct {
+	DocumentID                 string `db:"document_id" json:"document_id"`
+	Entity                     string `db:"entity" json:"entity"`
+	MaterialWarehouseObjectID  string `db:"material_warehouse_object_id" json:"material_warehouse_object_id"`
+	MaterialWarehouseVersionID string `db:"material_warehouse_version_id" json:"material_warehouse_version_id"`
+	MaterialWarehouseCode      string `db:"material_warehouse_code" json:"material_warehouse_code"`
+	MaterialWarehouseName      string `db:"material_warehouse_name" json:"material_warehouse_name"`
+	FinishedWarehouseObjectID  string `db:"finished_warehouse_object_id" json:"finished_warehouse_object_id"`
+	FinishedWarehouseVersionID string `db:"finished_warehouse_version_id" json:"finished_warehouse_version_id"`
+	FinishedWarehouseCode      string `db:"finished_warehouse_code" json:"finished_warehouse_code"`
+	FinishedWarehouseName      string `db:"finished_warehouse_name" json:"finished_warehouse_name"`
+}
+
+type VouProductionMaterialLine struct {
+	ID                       string  `db:"id" json:"id"`
+	OutputLineID             string  `db:"output_line_id" json:"output_line_id"`
+	LineNo                   int32   `db:"line_no" json:"line_no"`
+	FormulaMaterialObjectID  string  `db:"formula_material_object_id" json:"formula_material_object_id"`
+	FormulaMaterialVersionID string  `db:"formula_material_version_id" json:"formula_material_version_id"`
+	FormulaMaterialCode      string  `db:"formula_material_code" json:"formula_material_code"`
+	FormulaMaterialName      string  `db:"formula_material_name" json:"formula_material_name"`
+	FormulaMaterialUnit      string  `db:"formula_material_unit" json:"formula_material_unit"`
+	FormulaQuantityMicros    int64   `db:"formula_quantity_micros" json:"formula_quantity_micros"`
+	SuggestedQuantityMicros  int64   `db:"suggested_quantity_micros" json:"suggested_quantity_micros"`
+	ActualMaterialObjectID   string  `db:"actual_material_object_id" json:"actual_material_object_id"`
+	ActualMaterialVersionID  string  `db:"actual_material_version_id" json:"actual_material_version_id"`
+	ActualMaterialCode       string  `db:"actual_material_code" json:"actual_material_code"`
+	ActualMaterialName       string  `db:"actual_material_name" json:"actual_material_name"`
+	ActualMaterialUnit       string  `db:"actual_material_unit" json:"actual_material_unit"`
+	ActualQuantityMicros     int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
+	AdjustmentReason         *string `db:"adjustment_reason" json:"adjustment_reason"`
+}
+
+type VouProductionOutputLine struct {
+	ID                              string  `db:"id" json:"id"`
+	DocumentID                      string  `db:"document_id" json:"document_id"`
+	LineNo                          int32   `db:"line_no" json:"line_no"`
+	SourceOrderLineID               *string `db:"source_order_line_id" json:"source_order_line_id"`
+	ProductObjectID                 string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID                string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode                     string  `db:"product_code" json:"product_code"`
+	ProductName                     string  `db:"product_name" json:"product_name"`
+	ProductUnit                     string  `db:"product_unit" json:"product_unit"`
+	ProductKind                     string  `db:"product_kind" json:"product_kind"`
+	OutputQuantityMicros            int64   `db:"output_quantity_micros" json:"output_quantity_micros"`
+	LossRateMicros                  int64   `db:"loss_rate_micros" json:"loss_rate_micros"`
+	FormulaBaseOutputQuantityMicros int64   `db:"formula_base_output_quantity_micros" json:"formula_base_output_quantity_micros"`
+	Remark                          *string `db:"remark" json:"remark"`
 }
 
 type VouPurchaseInboundDetail struct {

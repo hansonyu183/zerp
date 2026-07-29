@@ -215,6 +215,26 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		refreshedDefault.Formula.Components[0].Material.VersionID != approvedRaw.VersionID {
 		t.Fatalf("refreshed fixed default = %+v", refreshedDefault)
 	}
+	if _, err = service.Create(t.Context(), EntitySelfProduction, CreateInput{Data: DraftInput{
+		BusinessDate:      "2026-07-28",
+		MaterialWarehouse: &refs.warehouse,
+		FinishedWarehouse: &refs.warehouse,
+		ProductionLines: []ProductionOutputInput{{
+			Product:        &standard,
+			OutputQuantity: "100",
+			LossRate:       "0",
+			Materials: []ProductionMaterialInput{{
+				FormulaLineNo: 1,
+				ActualMaterial: ReferenceInput{
+					ObjectID:  approvedRaw.ObjectID,
+					VersionID: approvedRaw.VersionID,
+				},
+				ActualQuantity: "25.5",
+			}},
+		}},
+	}}, integrationActorOne, "formula-self-production-current-material"); err != nil {
+		t.Fatalf("create self production with refreshed formula material: %v", err)
+	}
 	refreshedCustomerDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
 		Customer: &refs.customer,
 		Product:  custom,

@@ -158,16 +158,24 @@ func (s *Service) validateManagedSalesChildrenAtMost(
 	targetRank := map[string]int{
 		StatusDraft: 0, StatusChecked: 1, StatusApproved: 2, StatusFinalized: 3,
 	}[targetStatus]
-	rows, err := tx.Query(ctx, `SELECT id,status FROM vou_documents
+	rows, err := tx.Query(ctx, `SELECT id,entity,status FROM vou_documents
 		WHERE parent_document_id=$1 FOR SHARE`, document.ID)
 	if err != nil {
 		return s.internal("read sales workflow children", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var childID, status string
-		if err = rows.Scan(&childID, &status); err != nil {
+		var childID, childEntity, status string
+		if err = rows.Scan(&childID, &childEntity, &status); err != nil {
 			return s.internal("scan sales workflow child", err)
+		}
+		if childEntity == EntityOrderProduction {
+			return domainError(
+				ErrorConflict,
+				"production document blocks the reverse transition",
+				map[string]any{"documentId": childID, "status": status},
+				nil,
+			)
 		}
 		childRank, ok := map[string]int{
 			StatusDraft: 0, StatusChecked: 1, StatusApproved: 2, StatusFinalized: 3,

@@ -440,6 +440,19 @@ func (s *Service) Delete(
 		return MutationResult{}, err
 	}
 	switch entity {
+	case EntityOrderProduction, EntitySelfProduction:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_production_material_lines
+			WHERE output_line_id IN (
+				SELECT id FROM vou_production_output_lines WHERE document_id=$1
+			)`, input.DocumentID)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_production_output_lines WHERE document_id=$1`,
+				input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_production_details WHERE document_id=$1`,
+				input.DocumentID)
+		}
 	case EntitySaleOrder:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
 			DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)

@@ -13,6 +13,8 @@ sale-return
 purchase-order
 purchase-inbound
 purchase-return
+order-production
+self-production
 receipt
 payment
 expense-reimbursement
@@ -21,7 +23,7 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-十二类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+十四类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -35,11 +37,11 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SOR/SOB/SDL/SSF/SRT/POR/PIN/PRT/REC/PAY/EXR/OIN-YYYYMMDD-####
+SOR/SOB/SDL/SSF/SRT/POR/PIN/PRT/MTO/MTS/REC/PAY/EXR/OIN-YYYYMMDD-####
 ```
 
 前缀依次对应销售订单、销售出库、销售送货、销售签收、销售退货、采购订单、采购入库、
-采购退货、收款、付款、费用报销和其他收入。流水按实体和业务日期分别从 `0001` 开始，
+采购退货、订单生产、自制品生产、收款、付款、费用报销和其他收入。流水按实体和业务日期分别从 `0001` 开始，
 达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
@@ -88,10 +90,10 @@ audit-history
 attachment-initiate attachment-download attachment-remove
 ```
 
-十二类单据均提供查询、查看、保存、删除草稿、生命周期、审计和附件动作；实际可用性继续受单据
+十四类单据均提供查询、查看、保存、删除草稿、生命周期、审计和附件动作；实际可用性继续受单据
 状态、上下级关系和精确权限约束。`sale-outbound`、`sale-delivery`、`sale-signoff` 不提供
-公开 `create` 权限，由 WFL 事件订阅自动创建；其余九类单据允许按各自规则创建。
-`formula-default` 仅用于销售订单解析默认配方。
+公开 `create` 权限，由 WFL 事件订阅自动创建；其余十一类单据允许按各自规则创建。
+`formula-default` 用于销售订单和自制品生产单解析默认配方。
 
 ### 2.3 通用写入语义
 
@@ -119,19 +121,19 @@ BOB 引用结构固定为：
 
 动作请求按下表固定，未列出的字段会被拒绝：
 
-| 动作                                 | 请求字段                                                |
-| ------------------------------------ | ------------------------------------------------------- |
-| `query`                              | `page`、`pageSize`、`filters`、最多一项 `sort`          |
-| `get`                                | `documentId`                                            |
-| `formula-default`                    | 销售订单的 `customer`（可选）和 `product`               |
-| `create`                             | `data`                                                  |
-| `save`                               | `documentId`、`revision`、`data`                        |
-| `delete`                             | `documentId`、`revision`、`reason`                      |
-| `check`、`approve`                   | `documentId`、`revision`                                |
-| `uncheck`、`unapprove`、`unfinalize` | `documentId`、`revision`、`reason`                      |
-| `finalize`                           | `documentId`、`revision`，并按实体携带第 3.6 节处理字段 |
-| `audit-history`                      | `documentId`、`page`、`pageSize`                        |
-| 附件动作                             | 见第 5 节                                               |
+| 动作                                 | 请求字段                                                    |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `query`                              | `page`、`pageSize`、`filters`、最多一项 `sort`              |
+| `get`                                | `documentId`                                                |
+| `formula-default`                    | 销售订单可选 `customer`，销售订单和自制品生产均传 `product` |
+| `create`                             | `data`                                                      |
+| `save`                               | `documentId`、`revision`、`data`                            |
+| `delete`                             | `documentId`、`revision`、`reason`                          |
+| `check`、`approve`                   | `documentId`、`revision`                                    |
+| `uncheck`、`unapprove`、`unfinalize` | `documentId`、`revision`、`reason`                          |
+| `finalize`                           | `documentId`、`revision`，并按实体携带第 3.8 节处理字段     |
+| `audit-history`                      | `documentId`、`page`、`pageSize`                            |
+| 附件动作                             | 见第 5 节                                                   |
 
 创建、保存和生命周期动作成功时，`data` 使用同一结构：
 
@@ -193,7 +195,31 @@ BOB 引用结构固定为：
 
 旧 `intermediary-sale-order` 聚合、居间贸易流程及其五张专用原子单据均已删除。
 
-### 3.3 销售退货
+### 3.3 订单生产与自制品生产
+
+生产单分为 `order-production`（订单生产单）和 `self-production`（自制品生产单）。
+两类单据都保存材料仓库、成品仓库、一至两百条成品行、逐行配方快照和实际材料领用；
+最终处理在一个事务内完成材料出库和成品入库，反最终处理同步删除两类库存流水。
+
+订单生产单必须直接引用一张已最终确认的销售订单，可同时选择该订单内多条自制成品或
+定制成品行。成品、基准产量和原始材料均复制销售订单配方快照。所有未删除订单生产单
+都会占用来源行数量；创建、保存和删除时锁定来源订单重算，累计产量不得超过订购数量。
+来源订单存在生产单时不得反最终处理或删除。生产单作为 `PRODUCTION` 阶段链接展示在
+销售履约中，但不改变履约状态，也不限制销售出库。
+
+自制品生产单不引用销售订单，只允许选择当前有效且维护固定配方的自制成品；一张单据
+可包含多个不重复成品。保存时复制产品版本的固定配方，产品或材料后续变更不影响历史单据。
+
+每条成品行保存大于零的成品数量和 `0` 至 `100` 的损耗百分比。每条材料的建议领料量为
+`配方用量 / 基准产量 * 成品数量 * (1 + 损耗比例 / 100)`，按六位小数四舍五入。
+实际材料默认等于原配方材料，实际数量默认等于建议量；用户可以修改数量或把该行替换为
+另一当前有效的原材料，但不能增删配方行。替换材料或修改数量必须填写调整原因，并保留
+原配方材料、实际材料和计算结果快照。
+
+生产单是非金额单据，币种为空且金额固定为零。LED 只记录材料 `OUT` 和成品 `IN` 数量，
+不为生产流水生成价格、金额、往来或资金影响；成本归集不属于当前范围。
+
+### 3.4 销售退货
 
 销售退货是销售履约的 `RETURN` 阶段。每张退货单直接归属根销售订单，每条明细精确引用
 一条已最终处理的销售签收行；人工退货可汇总同一履约内多张签收单的明细。客户、币种、
@@ -208,15 +234,15 @@ BOB 引用结构固定为：
 自动拒收草稿不得人工删除。撤销签收前必须先删除人工退货，并将自动退货逐级退回草稿，
 随后系统删除自动草稿。反最终处理退货时必须满足严格库存时间线约束。
 
-### 3.4 往来收款与往来付款
+### 3.5 往来收款与往来付款
 
 草稿包含一个客户或供应商、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；执行只确认单据已实际发生。
 
-### 3.5 费用报销
+### 3.6 费用报销
 
 草稿包含员工、统一费用日期、统一支出账户、币种、备注及至少一条费用明细。员工即经办人，不增加重复的 `handler`。每条费用包含费用类别文本、说明、金额和可选备注（最多 1000 字）；总金额由后端汇总，币种必须与支出账户一致。
 
-### 3.6 其他收入
+### 3.7 其他收入
 
 草稿包含来源名称、可选客户或供应商、资金账户、必填经办人、业务日期、币种、金额和备注。币种必须与资金账户一致。
 
@@ -224,7 +250,7 @@ BOB 引用结构固定为：
 
 新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check`、`approve` 和 `finalize` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
 
-### 3.7 草稿与执行载荷
+### 3.8 草稿与执行载荷
 
 贸易单据草稿使用统一 `data` 结构。销售订单示例：
 
@@ -256,6 +282,8 @@ BOB 引用结构固定为：
 | `sale-outbound`         | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                      |
 | `sale-delivery`         | WFL 注入来源；客户端只传 `platform`、`vehicle`                                           |
 | `sale-signoff`          | WFL 注入来源；客户端只传 `signoffLines`                                                  |
+| `order-production`      | 销售订单来源、`materialWarehouse`、`finishedWarehouse`、`productionLines`                |
+| `self-production`       | `materialWarehouse`、`finishedWarehouse`、`productionLines`                              |
 | `purchase-order`        | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`              |
 | `purchase-inbound`      | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                            |
 | `receipt`、`payment`    | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                   |

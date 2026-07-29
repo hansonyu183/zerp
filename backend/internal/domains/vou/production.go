@@ -1,0 +1,822 @@
+package vou
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math/big"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/jackc/pgx/v5"
+)
+
+const productionPercentScale int64 = 100_000_000
+
+type fixedProductionMaterial struct {
+	FormulaLineNo     int32
+	FormulaMaterial   ReferenceView
+	FormulaQuantity   int64
+	SuggestedQuantity int64
+	ActualMaterial    bobdomain.EffectiveReference
+	ActualQuantity    int64
+	AdjustmentReason  *string
+}
+
+type fixedProductionOutput struct {
+	SourceOrderLineID         *string
+	Product                   bobdomain.EffectiveReference
+	OutputQuantity            int64
+	LossRate                  int64
+	FormulaBaseOutputQuantity int64
+	Remark                    *string
+	Materials                 []fixedProductionMaterial
+}
+
+type fixedProductionDraft struct {
+	BusinessDate      time.Time
+	Remark            *string
+	MaterialWarehouse bobdomain.EffectiveReference
+	FinishedWarehouse bobdomain.EffectiveReference
+	Outputs           []fixedProductionOutput
+}
+
+type productionFormulaComponent struct {
+	Material ReferenceView
+	Quantity int64
+}
+
+type productionFormula struct {
+	BaseOutputQuantity int64
+	Components         []productionFormulaComponent
+}
+
+func isProductionEntity(entity string) bool {
+	return entity == EntityOrderProduction || entity == EntitySelfProduction
+}
+
+func (s *Service) CreateProduction(
+	ctx context.Context,
+	entity string,
+	input CreateInput,
+	actorID, requestID string,
+) (MutationResult, error) {
+	if !isProductionEntity(entity) || !validID(actorID) {
+		return MutationResult{}, domainError(ErrorValidation, "invalid production create request", nil, nil)
+	}
+	parentEntity, parentID, err := validateParentInput(input.ParentEntity, input.ParentDocumentID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if entity == EntityOrderProduction {
+		if parentEntity != EntitySaleOrder || parentID == "" {
+			return MutationResult{}, domainError(
+				ErrorValidation, "order production parent must be a sale order", nil, nil,
+			)
+		}
+	} else if parentEntity != "" || parentID != "" {
+		return MutationResult{}, domainError(
+			ErrorValidation, "self production cannot have a source document", nil, nil,
+		)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin production create", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	draft, err := s.prepareProductionDraft(ctx, tx, entity, parentID, "", input.Data)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	q := s.queries.WithTx(tx)
+	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
+		Entity: entity, BusinessDate: dateValue(draft.BusinessDate),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
+	}
+	if err != nil {
+		return MutationResult{}, s.writeError("allocate production number", err)
+	}
+	documentID := newID()
+	documentNo := fmt.Sprintf(
+		"%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter,
+	)
+	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
+		id,entity,document_no,business_date,currency,total_amount_cents,remark,
+		parent_entity,parent_document_id,created_by,updated_by
+	) VALUES($1,$2,$3,$4,NULL,0,$5,$6,$7,$8,$8)`,
+		documentID, entity, documentNo, draft.BusinessDate, draft.Remark,
+		nullableString(parentEntity), nullableString(parentID), actorID)
+	if err != nil {
+		return MutationResult{}, s.writeError("insert production document", err)
+	}
+	if err = s.insertProductionDraft(ctx, tx, entity, documentID, draft); err != nil {
+		return MutationResult{}, err
+	}
+	if err = insertAudit(ctx, q, auditInput{
+		DocumentID: documentID, Entity: entity, Event: "CREATED", To: StatusDraft,
+		ActorID: actorID, RequestID: requestID,
+		Summary: map[string]any{"documentNo": documentNo},
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit production create", err)
+	}
+	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
+		Entity: entity, DocumentID: documentID, DocumentNo: documentNo, Revision: 1,
+		ParentEntity: parentEntity, ParentDocumentID: parentID,
+		ActorID: actorID, RequestID: requestID,
+	}); err != nil {
+		return MutationResult{}, s.eventError("publish production created", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit production create", err)
+	}
+	return MutationResult{
+		DocumentID: documentID, DocumentNo: documentNo, Status: StatusDraft, Revision: 1,
+	}, nil
+}
+
+func (s *Service) SaveProduction(
+	ctx context.Context,
+	entity string,
+	input SaveInput,
+	actorID, requestID string,
+) (MutationResult, error) {
+	if !isProductionEntity(entity) {
+		return MutationResult{}, domainError(ErrorValidation, "invalid production entity", nil, nil)
+	}
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return MutationResult{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin production save", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.queries.WithTx(tx)
+	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
+		ID: input.DocumentID, Entity: entity,
+	})
+	if err = documentWriteConflict(
+		err, document.Revision, input.Revision, document.Status, StatusDraft,
+	); err != nil {
+		return MutationResult{}, err
+	}
+	parentID := deref(document.ParentDocumentID)
+	draft, err := s.prepareProductionDraft(
+		ctx, tx, entity, parentID, input.DocumentID, input.Data,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM vou_production_material_lines
+		WHERE output_line_id IN (
+			SELECT id FROM vou_production_output_lines WHERE document_id=$1
+		)`,
+		input.DocumentID); err != nil {
+		return MutationResult{}, s.writeError("replace production lines", err)
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM vou_production_output_lines WHERE document_id=$1`,
+		input.DocumentID); err != nil {
+		return MutationResult{}, s.writeError("replace production lines", err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE vou_production_details SET
+		material_warehouse_object_id=$2,material_warehouse_version_id=$3,
+		material_warehouse_code=$4,material_warehouse_name=$5,
+		finished_warehouse_object_id=$6,finished_warehouse_version_id=$7,
+		finished_warehouse_code=$8,finished_warehouse_name=$9
+		WHERE document_id=$1`,
+		input.DocumentID,
+		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.VersionID,
+		draft.MaterialWarehouse.Code, draft.MaterialWarehouse.Data.Name,
+		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.VersionID,
+		draft.FinishedWarehouse.Code, draft.FinishedWarehouse.Data.Name,
+	); err != nil {
+		return MutationResult{}, s.writeError("update production warehouses", err)
+	}
+	if err = s.insertProductionLines(ctx, tx, input.DocumentID, draft.Outputs); err != nil {
+		return MutationResult{}, err
+	}
+	var revision int64
+	err = tx.QueryRow(ctx, `UPDATE vou_documents SET
+		business_date=$1,currency=NULL,total_amount_cents=0,remark=$2,
+		revision=revision+1,updated_at=now(),updated_by=$3
+		WHERE id=$4 AND entity=$5 AND revision=$6 AND status='DRAFT'
+		RETURNING revision`,
+		draft.BusinessDate, draft.Remark, actorID, input.DocumentID, entity, input.Revision,
+	).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, err)
+	}
+	if err != nil {
+		return MutationResult{}, s.writeError("update production draft", err)
+	}
+	if err = insertAudit(ctx, q, auditInput{
+		DocumentID: input.DocumentID, Entity: entity, Event: "SAVED",
+		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
+		Summary: map[string]any{"revision": revision},
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit production save", err)
+	}
+	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
+		Action: "SAVED", Entity: entity, DocumentID: document.ID,
+		DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision,
+		ActorID: actorID, RequestID: requestID,
+	}); err != nil {
+		return MutationResult{}, s.eventError("publish production saved", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit production save", err)
+	}
+	return MutationResult{
+		DocumentID: input.DocumentID, DocumentNo: document.DocumentNo,
+		Status: StatusDraft, Revision: revision,
+	}, nil
+}
+
+func (s *Service) prepareProductionDraft(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity, parentID, excludedDocumentID string,
+	input DraftInput,
+) (fixedProductionDraft, error) {
+	if strings.TrimSpace(input.Currency) != "" || input.Customer != nil || input.Supplier != nil ||
+		input.Counterparty != nil || input.Employee != nil || input.Salesperson != nil ||
+		input.Purchaser != nil || input.Handler != nil || input.Warehouse != nil ||
+		input.Platform != nil || input.Vehicle != nil || input.FundAccount != nil ||
+		strings.TrimSpace(input.SourceName) != "" || strings.TrimSpace(input.Amount) != "" ||
+		len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 ||
+		len(input.SourceLines) != 0 || len(input.SignoffLines) != 0 || len(input.ReturnLines) != 0 {
+		return fixedProductionDraft{}, domainError(
+			ErrorValidation, "fields do not match production entity", nil, nil,
+		)
+	}
+	businessDate, err := time.Parse(dateLayout, strings.TrimSpace(input.BusinessDate))
+	if err != nil {
+		return fixedProductionDraft{}, domainError(ErrorValidation, "invalid businessDate", nil, nil)
+	}
+	remark := optionalText(input.Remark)
+	if remark != nil && utf8.RuneCountInString(*remark) > 1000 {
+		return fixedProductionDraft{}, domainError(ErrorValidation, "remark is too long", nil, nil)
+	}
+	if err = validateReference(input.MaterialWarehouse, "materialWarehouse", true); err != nil {
+		return fixedProductionDraft{}, err
+	}
+	if err = validateReference(input.FinishedWarehouse, "finishedWarehouse", true); err != nil {
+		return fixedProductionDraft{}, err
+	}
+	if len(input.ProductionLines) == 0 || len(input.ProductionLines) > 200 {
+		return fixedProductionDraft{}, domainError(
+			ErrorValidation, "productionLines must contain 1 to 200 items", nil, nil,
+		)
+	}
+	materialWarehouse, err := s.resolveReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.MaterialWarehouse,
+	)
+	if err != nil {
+		return fixedProductionDraft{}, err
+	}
+	finishedWarehouse, err := s.resolveReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.FinishedWarehouse,
+	)
+	if err != nil {
+		return fixedProductionDraft{}, err
+	}
+	result := fixedProductionDraft{
+		BusinessDate: businessDate, Remark: remark,
+		MaterialWarehouse: *materialWarehouse, FinishedWarehouse: *finishedWarehouse,
+		Outputs: make([]fixedProductionOutput, 0, len(input.ProductionLines)),
+	}
+	if entity == EntityOrderProduction {
+		if !validID(parentID) {
+			return fixedProductionDraft{}, domainError(
+				ErrorValidation, "invalid production source order", nil, nil,
+			)
+		}
+		var status string
+		if err = tx.QueryRow(ctx, `SELECT status FROM vou_documents
+			WHERE id=$1 AND entity='sale-order' FOR UPDATE`, parentID).Scan(&status); err != nil {
+			return fixedProductionDraft{}, domainError(
+				ErrorConflict, "production source order is unavailable", nil, err,
+			)
+		}
+		if status != StatusFinalized {
+			return fixedProductionDraft{}, domainError(
+				ErrorConflict, "production source order is not finalized", nil, nil,
+			)
+		}
+	}
+	seenProducts := make(map[string]bool, len(input.ProductionLines))
+	seenSources := make(map[string]bool, len(input.ProductionLines))
+	for _, outputInput := range input.ProductionLines {
+		output, outputErr := s.prepareProductionOutput(
+			ctx, tx, entity, parentID, outputInput,
+		)
+		if outputErr != nil {
+			return fixedProductionDraft{}, outputErr
+		}
+		if seenProducts[output.Product.ObjectID] {
+			return fixedProductionDraft{}, domainError(
+				ErrorValidation, "duplicate production product", nil, nil,
+			)
+		}
+		seenProducts[output.Product.ObjectID] = true
+		if output.SourceOrderLineID != nil {
+			if seenSources[*output.SourceOrderLineID] {
+				return fixedProductionDraft{}, domainError(
+					ErrorValidation, "duplicate production source line", nil, nil,
+				)
+			}
+			seenSources[*output.SourceOrderLineID] = true
+		}
+		result.Outputs = append(result.Outputs, output)
+	}
+	if entity == EntityOrderProduction {
+		for _, output := range result.Outputs {
+			var reserved int64
+			err = tx.QueryRow(ctx, `SELECT COALESCE(sum(line.output_quantity_micros),0)::bigint
+				FROM vou_production_output_lines line
+				JOIN vou_documents document ON document.id=line.document_id
+				WHERE line.source_order_line_id=$1
+				  AND ($2='' OR line.document_id<>$2)`,
+				*output.SourceOrderLineID, excludedDocumentID).Scan(&reserved)
+			if err != nil {
+				return fixedProductionDraft{}, s.internal("read reserved production quantity", err)
+			}
+			var ordered int64
+			if err = tx.QueryRow(ctx, `SELECT ordered_qty_micros FROM vou_product_lines
+				WHERE id=$1 AND document_id=$2`, *output.SourceOrderLineID, parentID).
+				Scan(&ordered); err != nil {
+				return fixedProductionDraft{}, s.internal("read production source quantity", err)
+			}
+			if reserved > ordered-output.OutputQuantity {
+				return fixedProductionDraft{}, domainError(
+					ErrorConflict, "production quantity exceeds sale order line",
+					map[string]any{"sourceOrderLineId": *output.SourceOrderLineID}, nil,
+				)
+			}
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) prepareProductionOutput(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity, parentID string,
+	input ProductionOutputInput,
+) (fixedProductionOutput, error) {
+	outputQuantity, err := quantityMicros(input.OutputQuantity, false)
+	if err != nil {
+		return fixedProductionOutput{}, domainError(
+			ErrorValidation, "invalid production output quantity", nil, err,
+		)
+	}
+	lossRate, err := parseFixed(input.LossRate, 6, true)
+	if err != nil || lossRate < 0 || lossRate > productionPercentScale {
+		return fixedProductionOutput{}, domainError(
+			ErrorValidation, "lossRate must be between 0 and 100", nil, err,
+		)
+	}
+	remark, err := lineRemark(input.Remark)
+	if err != nil {
+		return fixedProductionOutput{}, err
+	}
+	var product bobdomain.EffectiveReference
+	var formula productionFormula
+	var sourceLineID *string
+	if entity == EntityOrderProduction {
+		source := strings.TrimSpace(input.SourceOrderLineID)
+		if !validID(source) || input.Product != nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "order production requires sourceOrderLineId only", nil, nil,
+			)
+		}
+		sourceLineID = &source
+		product, formula, err = s.loadOrderProductionFormula(ctx, tx, parentID, source)
+	} else {
+		if strings.TrimSpace(input.SourceOrderLineID) != "" ||
+			validateReference(input.Product, "product", true) != nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "self production requires product only", nil, nil,
+			)
+		}
+		productRef, resolveErr := s.resolveReference(
+			ctx, tx, bobdomain.EntityProduct, input.Product,
+		)
+		if resolveErr != nil {
+			return fixedProductionOutput{}, resolveErr
+		}
+		product = *productRef
+		if product.Data.ProductKind != bobdomain.ProductKindStandardFinished ||
+			product.Data.Formula == nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorConflict, "self production product must have a fixed formula", nil, nil,
+			)
+		}
+		formula, err = productProductionFormula(product.Data.Formula)
+		if err == nil {
+			err = s.refreshProductionFormulaMaterials(ctx, tx, &formula)
+		}
+	}
+	if err != nil {
+		return fixedProductionOutput{}, err
+	}
+	if len(input.Materials) != len(formula.Components) {
+		return fixedProductionOutput{}, domainError(
+			ErrorValidation, "production materials must match formula lines", nil, nil,
+		)
+	}
+	materialInputs := make(map[int32]ProductionMaterialInput, len(input.Materials))
+	for _, material := range input.Materials {
+		if material.FormulaLineNo < 1 || int(material.FormulaLineNo) > len(formula.Components) ||
+			materialInputs[material.FormulaLineNo].FormulaLineNo != 0 {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "invalid production formula line", nil, nil,
+			)
+		}
+		materialInputs[material.FormulaLineNo] = material
+	}
+	output := fixedProductionOutput{
+		SourceOrderLineID: sourceLineID, Product: product,
+		OutputQuantity: outputQuantity, LossRate: lossRate,
+		FormulaBaseOutputQuantity: formula.BaseOutputQuantity, Remark: remark,
+		Materials: make([]fixedProductionMaterial, 0, len(formula.Components)),
+	}
+	for index, component := range formula.Components {
+		materialInput := materialInputs[int32(index+1)]
+		if err = validateReference(&materialInput.ActualMaterial, "actualMaterial", true); err != nil {
+			return fixedProductionOutput{}, err
+		}
+		actual, resolveErr := s.resolveReference(
+			ctx, tx, bobdomain.EntityProduct, &materialInput.ActualMaterial,
+		)
+		if resolveErr != nil {
+			return fixedProductionOutput{}, resolveErr
+		}
+		if actual.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+			return fixedProductionOutput{}, domainError(
+				ErrorConflict, "actual production material must be raw material", nil, nil,
+			)
+		}
+		actualQuantity, quantityErr := quantityMicros(materialInput.ActualQuantity, false)
+		if quantityErr != nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "invalid actual material quantity", nil, quantityErr,
+			)
+		}
+		suggested, calculationErr := productionSuggestedQuantity(
+			component.Quantity, formula.BaseOutputQuantity, outputQuantity, lossRate,
+		)
+		if calculationErr != nil {
+			return fixedProductionOutput{}, calculationErr
+		}
+		reason := optionalText(materialInput.AdjustmentReason)
+		adjusted := actual.ObjectID != component.Material.ObjectID ||
+			actual.VersionID != component.Material.VersionID || actualQuantity != suggested
+		if adjusted && reason == nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "adjustmentReason is required for changed material usage", nil, nil,
+			)
+		}
+		if reason != nil && utf8.RuneCountInString(*reason) > 1000 {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "adjustmentReason is too long", nil, nil,
+			)
+		}
+		output.Materials = append(output.Materials, fixedProductionMaterial{
+			FormulaLineNo: int32(index + 1), FormulaMaterial: component.Material,
+			FormulaQuantity: component.Quantity, SuggestedQuantity: suggested,
+			ActualMaterial: *actual, ActualQuantity: actualQuantity, AdjustmentReason: reason,
+		})
+	}
+	return output, nil
+}
+
+func (s *Service) loadOrderProductionFormula(
+	ctx context.Context,
+	tx pgx.Tx,
+	orderID, sourceLineID string,
+) (bobdomain.EffectiveReference, productionFormula, error) {
+	var product bobdomain.EffectiveReference
+	var productKind string
+	var base int64
+	err := tx.QueryRow(ctx, `SELECT line.product_object_id,line.product_version_id,
+		line.product_code,line.product_name,line.product_unit,line.product_kind,
+		formula.base_output_quantity_micros
+		FROM vou_product_lines line
+		JOIN vou_sale_order_formulas formula ON formula.product_line_id=line.id
+		WHERE line.id=$1 AND line.document_id=$2`,
+		sourceLineID, orderID).Scan(
+		&product.ObjectID, &product.VersionID, &product.Code,
+		&product.Data.Name, &product.Data.Unit, &productKind, &base,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return product, productionFormula{}, domainError(
+			ErrorConflict, "sale order line has no production formula", nil, nil,
+		)
+	}
+	if err != nil {
+		return product, productionFormula{}, s.internal("read sale order production formula", err)
+	}
+	if productKind != bobdomain.ProductKindStandardFinished &&
+		productKind != bobdomain.ProductKindCustomFinished {
+		return product, productionFormula{}, domainError(
+			ErrorConflict, "sale order line is not a producible finished product", nil, nil,
+		)
+	}
+	product.Entity = bobdomain.EntityProduct
+	product.Data.ProductKind = productKind
+	rows, err := tx.Query(ctx, `SELECT material_object_id,material_version_id,
+		material_code,material_name,material_unit,quantity_micros
+		FROM vou_sale_order_formula_lines
+		WHERE product_line_id=$1 ORDER BY line_no`, sourceLineID)
+	if err != nil {
+		return product, productionFormula{}, s.internal("read sale order formula materials", err)
+	}
+	defer rows.Close()
+	formula := productionFormula{BaseOutputQuantity: base}
+	for rows.Next() {
+		var component productionFormulaComponent
+		if err = rows.Scan(
+			&component.Material.ObjectID, &component.Material.VersionID,
+			&component.Material.Code, &component.Material.Name,
+			&component.Material.Unit, &component.Quantity,
+		); err != nil {
+			return product, productionFormula{}, err
+		}
+		component.Material.Entity = bobdomain.EntityProduct
+		component.Material.ProductKind = bobdomain.ProductKindRawMaterial
+		formula.Components = append(formula.Components, component)
+	}
+	if err = rows.Err(); err != nil {
+		return product, productionFormula{}, err
+	}
+	if len(formula.Components) == 0 {
+		return product, productionFormula{}, domainError(
+			ErrorConflict, "sale order production formula is empty", nil, nil,
+		)
+	}
+	return product, formula, nil
+}
+
+func productProductionFormula(input *bobdomain.ProductFormula) (productionFormula, error) {
+	base, err := quantityMicros(input.BaseOutputQuantity, false)
+	if err != nil {
+		return productionFormula{}, domainError(
+			ErrorConflict, "product formula base quantity is invalid", nil, err,
+		)
+	}
+	result := productionFormula{
+		BaseOutputQuantity: base,
+		Components:         make([]productionFormulaComponent, 0, len(input.Components)),
+	}
+	for _, item := range input.Components {
+		quantity, quantityErr := quantityMicros(item.Quantity, false)
+		if quantityErr != nil {
+			return productionFormula{}, domainError(
+				ErrorConflict, "product formula material quantity is invalid", nil, quantityErr,
+			)
+		}
+		result.Components = append(result.Components, productionFormulaComponent{
+			Material: ReferenceView{
+				ObjectID: item.Material.ObjectID, VersionID: item.Material.VersionID,
+				Entity: bobdomain.EntityProduct, Code: item.Material.Code,
+				Name: item.Material.Name, Unit: item.Material.Unit,
+				ProductKind: bobdomain.ProductKindRawMaterial,
+			},
+			Quantity: quantity,
+		})
+	}
+	if len(result.Components) == 0 {
+		return productionFormula{}, domainError(
+			ErrorConflict, "product formula is empty", nil, nil,
+		)
+	}
+	return result, nil
+}
+
+func (s *Service) refreshProductionFormulaMaterials(
+	ctx context.Context, tx pgx.Tx, formula *productionFormula,
+) error {
+	for index := range formula.Components {
+		material, err := s.resolver.ResolveCurrentEffectiveReference(
+			ctx,
+			tx,
+			bobdomain.EntityProduct,
+			formula.Components[index].Material.ObjectID,
+		)
+		if err != nil {
+			return domainError(
+				ErrorConflict,
+				"formula material is not currently effective",
+				nil,
+				err,
+			)
+		}
+		if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+			return domainError(
+				ErrorConflict,
+				"formula component must reference a raw material",
+				nil,
+				nil,
+			)
+		}
+		formula.Components[index].Material = referenceView(material)
+	}
+	return nil
+}
+
+func productionSuggestedQuantity(
+	formulaQuantity, baseOutputQuantity, outputQuantity, lossRate int64,
+) (int64, error) {
+	numerator := new(big.Int).Mul(big.NewInt(formulaQuantity), big.NewInt(outputQuantity))
+	numerator.Mul(numerator, big.NewInt(productionPercentScale+lossRate))
+	denominator := new(big.Int).Mul(
+		big.NewInt(baseOutputQuantity), big.NewInt(productionPercentScale),
+	)
+	numerator.Add(numerator, new(big.Int).Quo(denominator, big.NewInt(2)))
+	numerator.Quo(numerator, denominator)
+	if !numerator.IsInt64() || numerator.Sign() <= 0 {
+		return 0, domainError(
+			ErrorValidation, "suggested material quantity is out of range", nil, nil,
+		)
+	}
+	return numerator.Int64(), nil
+}
+
+func (s *Service) insertProductionDraft(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity, documentID string,
+	draft fixedProductionDraft,
+) error {
+	_, err := tx.Exec(ctx, `INSERT INTO vou_production_details(
+		document_id,entity,
+		material_warehouse_object_id,material_warehouse_version_id,
+		material_warehouse_code,material_warehouse_name,
+		finished_warehouse_object_id,finished_warehouse_version_id,
+		finished_warehouse_code,finished_warehouse_name
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		documentID, entity,
+		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.VersionID,
+		draft.MaterialWarehouse.Code, draft.MaterialWarehouse.Data.Name,
+		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.VersionID,
+		draft.FinishedWarehouse.Code, draft.FinishedWarehouse.Data.Name,
+	)
+	if err != nil {
+		return s.writeError("insert production detail", err)
+	}
+	return s.insertProductionLines(ctx, tx, documentID, draft.Outputs)
+}
+
+func (s *Service) insertProductionLines(
+	ctx context.Context,
+	tx pgx.Tx,
+	documentID string,
+	outputs []fixedProductionOutput,
+) error {
+	for outputIndex, output := range outputs {
+		outputID := newID()
+		_, err := tx.Exec(ctx, `INSERT INTO vou_production_output_lines(
+			id,document_id,line_no,source_order_line_id,
+			product_object_id,product_version_id,product_code,product_name,
+			product_unit,product_kind,output_quantity_micros,loss_rate_micros,
+			formula_base_output_quantity_micros,remark
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+			outputID, documentID, outputIndex+1, output.SourceOrderLineID,
+			output.Product.ObjectID, output.Product.VersionID, output.Product.Code,
+			output.Product.Data.Name, output.Product.Data.Unit, output.Product.Data.ProductKind,
+			output.OutputQuantity, output.LossRate, output.FormulaBaseOutputQuantity, output.Remark,
+		)
+		if err != nil {
+			return s.writeError("insert production output", err)
+		}
+		for materialIndex, material := range output.Materials {
+			_, err = tx.Exec(ctx, `INSERT INTO vou_production_material_lines(
+				id,output_line_id,line_no,
+				formula_material_object_id,formula_material_version_id,
+				formula_material_code,formula_material_name,formula_material_unit,
+				formula_quantity_micros,suggested_quantity_micros,
+				actual_material_object_id,actual_material_version_id,
+				actual_material_code,actual_material_name,actual_material_unit,
+				actual_quantity_micros,adjustment_reason
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+				newID(), outputID, materialIndex+1,
+				material.FormulaMaterial.ObjectID, material.FormulaMaterial.VersionID,
+				material.FormulaMaterial.Code, material.FormulaMaterial.Name,
+				material.FormulaMaterial.Unit, material.FormulaQuantity, material.SuggestedQuantity,
+				material.ActualMaterial.ObjectID, material.ActualMaterial.VersionID,
+				material.ActualMaterial.Code, material.ActualMaterial.Data.Name,
+				material.ActualMaterial.Data.Unit, material.ActualQuantity, material.AdjustmentReason,
+			)
+			if err != nil {
+				return s.writeError("insert production material", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) loadProductionData(
+	ctx context.Context,
+	document dbsqlc.VouDocument,
+	data DocumentDataView,
+) (DocumentDataView, error) {
+	var material, finished ReferenceView
+	err := s.pool.QueryRow(ctx, `SELECT
+		material_warehouse_object_id,material_warehouse_version_id,
+		material_warehouse_code,material_warehouse_name,
+		finished_warehouse_object_id,finished_warehouse_version_id,
+		finished_warehouse_code,finished_warehouse_name
+		FROM vou_production_details WHERE document_id=$1`, document.ID).Scan(
+		&material.ObjectID, &material.VersionID, &material.Code, &material.Name,
+		&finished.ObjectID, &finished.VersionID, &finished.Code, &finished.Name,
+	)
+	if err != nil {
+		return data, err
+	}
+	material.Entity = bobdomain.EntityWarehouse
+	finished.Entity = bobdomain.EntityWarehouse
+	data.MaterialWarehouse = &material
+	data.FinishedWarehouse = &finished
+	rows, err := s.pool.Query(ctx, `SELECT id,line_no,source_order_line_id,
+		product_object_id,product_version_id,product_code,product_name,product_unit,
+		product_kind,output_quantity_micros,loss_rate_micros,
+		formula_base_output_quantity_micros,remark
+		FROM vou_production_output_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
+	if err != nil {
+		return data, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item ProductionOutputLineView
+		var sourceID *string
+		var quantity, lossRate, base int64
+		var productKind string
+		var remark *string
+		if err = rows.Scan(
+			&item.LineID, &item.LineNo, &sourceID,
+			&item.Product.ObjectID, &item.Product.VersionID,
+			&item.Product.Code, &item.Product.Name, &item.Product.Unit,
+			&productKind, &quantity, &lossRate, &base, &remark,
+		); err != nil {
+			return data, err
+		}
+		item.SourceOrderLineID = deref(sourceID)
+		item.Product.Entity = bobdomain.EntityProduct
+		item.Product.ProductKind = productKind
+		item.OutputQuantity = formatQuantity(quantity)
+		item.LossRate = formatQuantity(lossRate)
+		item.FormulaBaseOutputQuantity = formatQuantity(base)
+		item.Remark = deref(remark)
+		materialRows, materialErr := s.pool.Query(ctx, `SELECT id,line_no,
+			formula_material_object_id,formula_material_version_id,
+			formula_material_code,formula_material_name,formula_material_unit,
+			formula_quantity_micros,suggested_quantity_micros,
+			actual_material_object_id,actual_material_version_id,
+			actual_material_code,actual_material_name,actual_material_unit,
+			actual_quantity_micros,adjustment_reason
+			FROM vou_production_material_lines
+			WHERE output_line_id=$1 ORDER BY line_no`, item.LineID)
+		if materialErr != nil {
+			return data, materialErr
+		}
+		for materialRows.Next() {
+			var line ProductionMaterialLineView
+			var formulaQuantity, suggested, actualQuantity int64
+			var adjustment *string
+			if materialErr = materialRows.Scan(
+				&line.LineID, &line.LineNo,
+				&line.FormulaMaterial.ObjectID, &line.FormulaMaterial.VersionID,
+				&line.FormulaMaterial.Code, &line.FormulaMaterial.Name,
+				&line.FormulaMaterial.Unit, &formulaQuantity, &suggested,
+				&line.ActualMaterial.ObjectID, &line.ActualMaterial.VersionID,
+				&line.ActualMaterial.Code, &line.ActualMaterial.Name,
+				&line.ActualMaterial.Unit, &actualQuantity, &adjustment,
+			); materialErr != nil {
+				materialRows.Close()
+				return data, materialErr
+			}
+			line.FormulaMaterial.Entity = bobdomain.EntityProduct
+			line.FormulaMaterial.ProductKind = bobdomain.ProductKindRawMaterial
+			line.ActualMaterial.Entity = bobdomain.EntityProduct
+			line.ActualMaterial.ProductKind = bobdomain.ProductKindRawMaterial
+			line.FormulaQuantity = formatQuantity(formulaQuantity)
+			line.SuggestedQuantity = formatQuantity(suggested)
+			line.ActualQuantity = formatQuantity(actualQuantity)
+			line.AdjustmentReason = deref(adjustment)
+			item.Materials = append(item.Materials, line)
+		}
+		if materialErr = materialRows.Err(); materialErr != nil {
+			materialRows.Close()
+			return data, materialErr
+		}
+		materialRows.Close()
+		data.ProductionLines = append(data.ProductionLines, item)
+	}
+	return data, rows.Err()
+}

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
-import { formatLocalDateTime } from '@/utils/date'
 import type { WflProcessListRow } from './types'
 
 const props = defineProps<{
@@ -76,7 +75,6 @@ const lastPage = computed(() =>
               <th>状态</th>
               <th>阶段</th>
               <th class="text-end">金额</th>
-              <th>更新</th>
               <th />
             </tr>
           </thead>
@@ -88,7 +86,6 @@ const lastPage = computed(() =>
               <td>{{ statusText(row.status) }}</td>
               <td>{{ stageText(row.currentStage) }}</td>
               <td class="text-end">{{ row.amount }}</td>
-              <td>{{ formatLocalDateTime(row.updatedAt) }}</td>
               <td class="text-end">
                 <v-btn
                   v-if="canOpen"
@@ -100,7 +97,7 @@ const lastPage = computed(() =>
               </td>
             </tr>
             <tr v-if="!loading && rows.length === 0">
-              <td colspan="8" class="text-center py-12">暂无流程</td>
+              <td colspan="7" class="text-center py-12">暂无流程</td>
             </tr>
           </tbody>
         </v-table>

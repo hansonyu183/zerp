@@ -11,7 +11,6 @@ import type {
   BobListItem,
   BobStatus,
 } from './types'
-import { formatLocalDateTime } from '@/utils/date'
 
 export const statusText: Record<BobStatus, string> = {
   DRAFT: '草稿',
@@ -200,22 +199,10 @@ export function baseColumns(
     },
     ...extra,
     {
-      key: 'version',
-      label: '版本',
-      value: (row) => row.currentVersion.version,
-      align: 'end',
-    },
-    {
       key: 'status',
       label: '状态',
       value: (row) => row.currentVersion.status,
       format: (value) => statusText[value as BobStatus] ?? String(value),
-    },
-    {
-      key: 'updatedAt',
-      label: '更新',
-      value: (row) => row.updatedAt,
-      format: (value) => formatLocalDateTime(String(value)),
     },
   ]
 }

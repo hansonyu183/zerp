@@ -201,7 +201,6 @@ onMounted(query)
             <th>根单号</th>
             <th>流程状态</th>
             <th>当前阶段</th>
-            <th>更新时间</th>
             <th />
           </tr>
         </thead>
@@ -210,7 +209,6 @@ onMounted(query)
             <td>{{ item.rootDocumentNo }}</td>
             <td>{{ item.status }}</td>
             <td>{{ item.currentStage || '—' }}</td>
-            <td>{{ item.updatedAt }}</td>
             <td class="text-right">
               <v-btn
                 size="small"

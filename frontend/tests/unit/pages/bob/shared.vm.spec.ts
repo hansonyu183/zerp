@@ -166,23 +166,14 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('定义全部八类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
-      customer: ['编码', '名称', '类型', '版本', '状态', '更新'],
-      supplier: ['编码', '名称', '类型', '版本', '状态', '更新'],
-      employee: ['编码', '姓名', '电话', '入职', '版本', '状态', '更新'],
-      product: [
-        '编码',
-        '名称',
-        '类型',
-        '库存单位',
-        '型号',
-        '版本',
-        '状态',
-        '更新',
-      ],
-      service: ['编码', '名称', '单位', '说明', '版本', '状态', '更新'],
-      warehouse: ['编码', '名称', '地址', '联系人', '版本', '状态', '更新'],
-      vehicle: ['编码', '名称', '车牌', '类型', '版本', '状态', '更新'],
-      'fund-account': ['编码', '名称', '银行', '版本', '状态', '更新'],
+      customer: ['编码', '名称', '类型', '状态'],
+      supplier: ['编码', '名称', '类型', '状态'],
+      employee: ['编码', '姓名', '电话', '入职', '状态'],
+      product: ['编码', '名称', '类型', '库存单位', '型号', '状态'],
+      service: ['编码', '名称', '单位', '说明', '状态'],
+      warehouse: ['编码', '名称', '地址', '联系人', '状态'],
+      vehicle: ['编码', '名称', '车牌', '类型', '状态'],
+      'fund-account': ['编码', '名称', '银行', '状态'],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {

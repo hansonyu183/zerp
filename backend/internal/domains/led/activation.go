@@ -15,9 +15,20 @@ func (s *Service) preflightActivation(
 	documents []dbsqlc.VouDocument,
 	cutoverDate time.Time,
 ) error {
-	_ = q
 	_ = cutoverDate
 	_ = documents
+	incompletePricing, err := q.HasIncompleteLedDraftInventoryPricing(ctx)
+	if err != nil {
+		return s.internal("validate inventory opening pricing", err)
+	}
+	if incompletePricing {
+		return domainError(
+			ErrorConflict,
+			"inventory opening pricing is incomplete",
+			nil,
+			nil,
+		)
+	}
 	return nil
 }
 

@@ -12,12 +12,21 @@ func TestValidateOpeningRejectsDuplicatesAndInvalidDirections(t *testing.T) {
 	_, err := validateSave(OpeningSaveInput{
 		Revision: 1, CutoverDate: "2026-01-01",
 		Inventory: []InventoryOpeningInput{
-			{Warehouse: refA, Product: refB, Quantity: "1"},
-			{Warehouse: refA, Product: refB, Quantity: "2"},
+			{Warehouse: refA, Product: refB, Quantity: "1", UnitPrice: "10.00", Currency: "CNY"},
+			{Warehouse: refA, Product: refB, Quantity: "2", UnitPrice: "10.00", Currency: "CNY"},
 		},
 	})
 	if err == nil {
 		t.Fatal("duplicate inventory opening was accepted")
+	}
+	_, err = validateSave(OpeningSaveInput{
+		Revision: 1, CutoverDate: "2026-01-01",
+		Inventory: []InventoryOpeningInput{{
+			Warehouse: refA, Product: refB, Quantity: "1", UnitPrice: "0", Currency: "CNY",
+		}},
+	})
+	if err == nil {
+		t.Fatal("zero inventory opening unit price was accepted")
 	}
 	_, err = validateSave(OpeningSaveInput{
 		Revision: 1, CutoverDate: "2026-01-01",

@@ -36,6 +36,8 @@ type InventoryOpeningInput struct {
 	Warehouse ReferenceInput `json:"warehouse"`
 	Product   ReferenceInput `json:"product"`
 	Quantity  string         `json:"quantity"`
+	UnitPrice string         `json:"unitPrice"`
+	Currency  string         `json:"currency"`
 }
 
 type FundOpeningInput struct {
@@ -81,6 +83,9 @@ type InventoryOpeningView struct {
 	Warehouse ReferenceView `json:"warehouse"`
 	Product   ReferenceView `json:"product"`
 	Quantity  string        `json:"quantity"`
+	UnitPrice string        `json:"unitPrice,omitempty"`
+	Amount    string        `json:"amount,omitempty"`
+	Currency  string        `json:"currency,omitempty"`
 }
 
 type FundOpeningView struct {
@@ -176,7 +181,10 @@ type InventoryEntryView struct {
 	Quantity         string        `json:"quantity"`
 	Warehouse        ReferenceView `json:"warehouse"`
 	Product          ReferenceView `json:"product"`
-	Reason           string        `json:"reason,omitempty"`
+	UnitPrice        string        `json:"unitPrice,omitempty"`
+	Amount           string        `json:"amount,omitempty"`
+	Currency         string        `json:"currency,omitempty"`
+	Remark           string        `json:"remark,omitempty"`
 }
 
 type FundEntryView struct {
@@ -192,7 +200,7 @@ type FundEntryView struct {
 	Amount           string        `json:"amount"`
 	FundAccount      ReferenceView `json:"fundAccount"`
 	Currency         string        `json:"currency"`
-	Reason           string        `json:"reason,omitempty"`
+	Remark           string        `json:"remark,omitempty"`
 }
 
 type PartyEntryView struct {
@@ -209,7 +217,7 @@ type PartyEntryView struct {
 	CounterpartyType string        `json:"counterpartyType"`
 	Counterparty     ReferenceView `json:"counterparty"`
 	Currency         string        `json:"currency"`
-	Reason           string        `json:"reason,omitempty"`
+	Remark           string        `json:"remark,omitempty"`
 }
 
 type ContainerEntryView struct {
@@ -226,7 +234,7 @@ type ContainerEntryView struct {
 	Customer         ReferenceView `json:"customer"`
 	ContainerType    string        `json:"containerType"`
 	Quantity         int64         `json:"quantity"`
-	Reason           string        `json:"reason,omitempty"`
+	Remark           string        `json:"remark,omitempty"`
 }
 
 type InventoryBalanceView struct {

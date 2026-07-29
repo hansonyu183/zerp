@@ -70,8 +70,14 @@ func (s *Service) replaceInventoryOpening(
 	}
 	for _, item := range inventory {
 		quantity, _ := parsePositiveFixed(item.Quantity, 6, true)
+		unitPrice, _ := parsePositiveFixed(item.UnitPrice, 2, false)
+		amount, _ := lineAmountCents(quantity, unitPrice)
+		currency := strings.ToUpper(strings.TrimSpace(item.Currency))
 		key := item.Warehouse.ObjectID + "/" + item.Warehouse.VersionID + "/" + item.Product.ObjectID + "/" + item.Product.VersionID
-		params := dbsqlc.InsertLedDraftInventoryParams{ID: newID(), QuantityMicros: quantity}
+		params := dbsqlc.InsertLedDraftInventoryParams{
+			ID: newID(), QuantityMicros: quantity,
+			Currency: &currency, UnitPriceCents: &unitPrice, AmountCents: &amount,
+		}
 		if old, ok := oldByKey[key]; ok {
 			params.ID = old.ID
 			params.WarehouseObjectID, params.WarehouseVersionID = old.WarehouseObjectID, old.WarehouseVersionID

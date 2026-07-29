@@ -2201,7 +2201,17 @@ export interface components {
             /** Format: date */
             cutoverDate: string;
             inventory: {
-                [key: string]: unknown;
+                warehouse: {
+                    objectId: string;
+                    versionId: string;
+                };
+                product: {
+                    objectId: string;
+                    versionId: string;
+                };
+                quantity: string;
+                unitPrice: string;
+                currency: string;
             }[];
             fund: {
                 [key: string]: unknown;

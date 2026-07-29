@@ -53,12 +53,14 @@ DELETE FROM led_draft_container;
 -- name: InsertLedDraftInventory :exec
 INSERT INTO led_draft_inventory (
     id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-    product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+    product_object_id, product_version_id, product_code, product_name, product_unit,
+    quantity_micros, currency, unit_price_cents, amount_cents
 ) VALUES (
     sqlc.arg(id), sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_version_id),
     sqlc.arg(warehouse_code), sqlc.arg(warehouse_name), sqlc.arg(product_object_id),
     sqlc.arg(product_version_id), sqlc.arg(product_code), sqlc.arg(product_name),
-    sqlc.arg(product_unit), sqlc.arg(quantity_micros)
+    sqlc.arg(product_unit), sqlc.arg(quantity_micros), sqlc.arg(currency),
+    sqlc.arg(unit_price_cents), sqlc.arg(amount_cents)
 );
 
 -- name: InsertLedDraftFund :exec
@@ -94,6 +96,13 @@ INSERT INTO led_draft_container(
 -- name: ListLedDraftInventory :many
 SELECT * FROM led_draft_inventory ORDER BY warehouse_code, product_code, id;
 
+-- name: HasIncompleteLedDraftInventoryPricing :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_draft_inventory
+    WHERE currency IS NULL OR unit_price_cents IS NULL OR amount_cents IS NULL
+)::boolean;
+
 -- name: ListLedDraftFund :many
 SELECT * FROM led_draft_fund ORDER BY fund_account_code, id;
 
@@ -126,7 +135,8 @@ ORDER BY customer_code, container_type, id;
 -- name: CopyLedOpeningToDraftInventory :exec
 INSERT INTO led_draft_inventory
 SELECT id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_opening_inventory WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: CopyLedOpeningToDraftFund :exec
@@ -158,10 +168,12 @@ WHERE id = sqlc.arg(generation_id) AND status = 'ACTIVE';
 -- name: InsertLedOpeningInventoryFromDraft :exec
 INSERT INTO led_opening_inventory (
     id, generation_id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-    product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+    product_object_id, product_version_id, product_code, product_name, product_unit,
+    quantity_micros, currency, unit_price_cents, amount_cents
 )
 SELECT id, sqlc.arg(generation_id), warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_draft_inventory;
 
 -- name: InsertLedOpeningFundFromDraft :exec
@@ -196,12 +208,14 @@ INSERT INTO led_inventory_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, warehouse_object_id, warehouse_version_id,
     warehouse_code, warehouse_name, product_object_id, product_version_id,
-    product_code, product_name, product_unit, quantity_delta_micros
+    product_code, product_name, product_unit, quantity_delta_micros,
+    currency, unit_price_cents, amount_cents
 )
 SELECT id, sqlc.arg(generation_id), 'OPENING', 'opening', id, sqlc.arg(cutover_date),
        sqlc.arg(occurred_at), sqlc.arg(actor_id), sqlc.arg(request_id),
        warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_draft_inventory WHERE quantity_micros <> 0;
 
 -- name: InsertLedOpeningFundEntries :exec
@@ -246,32 +260,33 @@ SELECT * FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id;
 -- name: InsertLedInventoryEntry :exec
 INSERT INTO led_inventory_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
     product_object_id, product_version_id, product_code, product_name, product_unit,
-    quantity_delta_micros
+    quantity_delta_micros, currency, unit_price_cents, amount_cents
 ) VALUES (
     sqlc.arg(id), sqlc.arg(generation_id), sqlc.arg(entry_type), sqlc.arg(source_entity),
     sqlc.arg(source_document_id), sqlc.arg(source_document_no), sqlc.arg(source_line_id),
     sqlc.arg(source_revision), sqlc.arg(effective_date), sqlc.arg(occurred_at),
-    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(reason),
+    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(remark),
     sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_version_id), sqlc.arg(warehouse_code),
     sqlc.arg(warehouse_name), sqlc.arg(product_object_id), sqlc.arg(product_version_id),
     sqlc.arg(product_code), sqlc.arg(product_name), sqlc.arg(product_unit),
-    sqlc.arg(quantity_delta_micros)
+    sqlc.arg(quantity_delta_micros), sqlc.arg(currency), sqlc.arg(unit_price_cents),
+    sqlc.arg(amount_cents)
 ) ON CONFLICT DO NOTHING;
 
 -- name: InsertLedFundEntry :exec
 INSERT INTO led_fund_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
     currency, amount_delta_cents
 ) VALUES (
     sqlc.arg(id), sqlc.arg(generation_id), sqlc.arg(entry_type), sqlc.arg(source_entity),
     sqlc.arg(source_document_id), sqlc.arg(source_document_no), sqlc.arg(source_line_id),
     sqlc.arg(source_revision), sqlc.arg(effective_date), sqlc.arg(occurred_at),
-    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(reason),
+    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(remark),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name), sqlc.arg(currency),
     sqlc.arg(amount_delta_cents)
@@ -280,14 +295,14 @@ INSERT INTO led_fund_entries (
 -- name: InsertLedPartyEntry :exec
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, currency, amount_delta_cents
 ) VALUES (
     sqlc.arg(id), sqlc.arg(generation_id), sqlc.arg(entry_type), sqlc.arg(source_entity),
     sqlc.arg(source_document_id), sqlc.arg(source_document_no), sqlc.arg(source_line_id),
     sqlc.arg(source_revision), sqlc.arg(effective_date), sqlc.arg(occurred_at),
-    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(reason),
+    sqlc.arg(actor_id), sqlc.arg(request_id), sqlc.narg(remark),
     sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code),
     sqlc.arg(counterparty_name), sqlc.arg(currency), sqlc.arg(amount_delta_cents)
@@ -314,11 +329,32 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND entry_type = 'POSTING'
 ORDER BY id;
 
+-- name: DeleteLedInventoryEntriesBySource :exec
+DELETE FROM led_inventory_entries
+WHERE generation_id = sqlc.arg(generation_id)
+  AND source_document_id = sqlc.arg(source_document_id);
+
+-- name: DeleteLedFundEntriesBySource :exec
+DELETE FROM led_fund_entries
+WHERE generation_id = sqlc.arg(generation_id)
+  AND source_document_id = sqlc.arg(source_document_id);
+
+-- name: DeleteLedPartyEntriesBySource :exec
+DELETE FROM led_party_entries
+WHERE generation_id = sqlc.arg(generation_id)
+  AND source_document_id = sqlc.arg(source_document_id);
+
+-- name: DeleteLedContainerEntriesBySource :exec
+DELETE FROM led_container_entries
+WHERE generation_id = sqlc.arg(generation_id)
+  AND source_document_id = sqlc.arg(source_document_id);
+
 -- name: HasLedEntriesForSource :one
 SELECT (
     EXISTS (SELECT 1 FROM led_inventory_entries i WHERE i.generation_id = sqlc.arg(target_generation_id) AND i.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_fund_entries f WHERE f.generation_id = sqlc.arg(target_generation_id) AND f.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = sqlc.arg(target_generation_id) AND p.source_document_id = sqlc.arg(target_document_id))
+    OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = sqlc.arg(target_generation_id) AND c.source_document_id = sqlc.arg(target_document_id))
 )::boolean;
 
 -- name: HasNegativeLedInventoryTimeline :one
@@ -345,7 +381,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR warehouse_object_id = sqlc.arg(object_id) OR product_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN quantity_delta_micros > 0 THEN 'IN' ELSE 'OUT' END = ANY(sqlc.arg(directions)::text[]));
 
 -- name: ListLedInventoryEntries :many
@@ -355,7 +391,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR warehouse_object_id = sqlc.arg(object_id) OR product_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN quantity_delta_micros > 0 THEN 'IN' ELSE 'OUT' END = ANY(sqlc.arg(directions)::text[]))
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'effectiveDate' AND sqlc.arg(sort_order)::text = 'asc' THEN effective_date END ASC,
@@ -374,7 +410,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR fund_account_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'IN' ELSE 'OUT' END = ANY(sqlc.arg(directions)::text[]));
 
 -- name: ListLedFundEntries :many
@@ -384,7 +420,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR fund_account_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'IN' ELSE 'OUT' END = ANY(sqlc.arg(directions)::text[]))
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'effectiveDate' AND sqlc.arg(sort_order)::text = 'asc' THEN effective_date END ASC,
@@ -403,7 +439,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY(sqlc.arg(directions)::text[]));
 
 -- name: ListLedPartyEntries :many
@@ -413,7 +449,7 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text = '' OR source_document_no ILIKE '%' || sqlc.arg(document_no) || '%')
-  AND (cardinality(sqlc.arg(directions)::text[]) = 0
+  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY(sqlc.arg(directions)::text[]))
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'effectiveDate' AND sqlc.arg(sort_order)::text = 'asc' THEN effective_date END ASC,

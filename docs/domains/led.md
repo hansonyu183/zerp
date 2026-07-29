@@ -14,7 +14,8 @@ container
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护入账、启用、重开、余额和前端交互语义。
 
-LED 提供库存、资金、往来流水与指定日期余额，不提供会计科目、复式记账、税额、成本计价、汇率折算、账龄、逐单核销、库存调拨或日常手工调整。
+LED 提供库存、资金、往来流水与指定日期余额，并保存库存来源单据的价格快照；
+不提供会计科目、复式记账、税额、成本计价算法、汇率折算、账龄、逐单核销、库存调拨或日常手工调整。
 
 业务 API 使用 `POST /led/{entity}/{action}`、`application/json` 和统一业务响应包络。每条路径都是独立 APP 权限。
 
@@ -56,9 +57,13 @@ LED 提供库存、资金、往来流水与指定日期余额，不提供会计�
 LED 在 VOU 写事务提交前同步订阅需要入账的单据最终处理和反最终处理事件，并使用事件携带的同一个 `pgx.Tx`：
 
 - 最终处理追加 `POSTING` 流水；
-- 反最终处理追加金额或数量相反的 `REVERSAL` 流水，保留原流水；
-- 同一 generation、来源单据、来源行、VOU revision 和事件类型具有幂等唯一约束；
+- 反最终处理删除当前 generation 内该来源单据的库存、资金、往来和空桶流水；
+- 重新最终处理按最新 VOU revision 重新生成流水；
+- 同一 generation、来源单据、来源行和 VOU revision 具有幂等唯一约束；
 - 任一 LED 校验或写入失败时，VOU 状态、VOU 审计和 LED 写入一起回滚。
+
+VOU 审计保留最终处理、反最终处理的操作者、时间和原因。LED 只表达当前有效业务结果，
+不再通过冲销行重复承担操作审计。
 
 ## 3. 启用、期初和重开
 
@@ -128,7 +133,9 @@ POST /led/container/balance
     {
       "warehouse": { "objectId": "01...", "versionId": "01..." },
       "product": { "objectId": "01...", "versionId": "01..." },
-      "quantity": "10.000000"
+      "quantity": "10.000000",
+      "unitPrice": "12.50",
+      "currency": "CNY"
     }
   ],
   "fund": [
@@ -209,15 +216,17 @@ POST /led/container/balance
 
 查询成功返回 `{items,total,page,pageSize}`。各实体 item 的稳定字段：
 
-| 实体      | 公共来源字段之外的字段                                                 |
-| --------- | ---------------------------------------------------------------------- |
-| inventory | `direction`、`quantity`、`warehouse`、`product`                        |
-| fund      | `direction`、`amount`、`fundAccount`、`currency`                       |
-| party     | `direction`、`amount`、`counterpartyType`、`counterparty`、`currency`  |
-| container | `customer`、`containerType`、有符号整数 `quantity`，以及可选根流程单号 |
+| 实体      | 公共来源字段之外的字段                                                                       |
+| --------- | -------------------------------------------------------------------------------------------- |
+| inventory | `direction`、`quantity`、`warehouse`、`product`、`unitPrice`、`amount`、`currency`、`remark` |
+| fund      | `direction`、`amount`、`fundAccount`、`currency`                                             |
+| party     | `direction`、`amount`、`counterpartyType`、`counterparty`、`currency`                        |
+| container | `customer`、`containerType`、有符号整数 `quantity`，以及可选根流程单号                       |
 
 公共来源字段为 `id`、`entryType`、`sourceEntity`、来源单据/行/revision、`effectiveDate`、
-`occurredAt` 和可选 `reason`。金额、普通数量仍以十进制字符串返回；空桶数量为整数。
+`occurredAt` 和可选 `remark`。金额、单价及普通数量仍以十进制字符串返回；空桶数量为整数。
+库存价格是来源单据价格快照：销售出库与销售退货保存销售价，采购入库与采购退货保存采购价。
+它不等同于系统计算的出库成本。
 
 余额查询必须传 `asOfDate`：
 
@@ -243,8 +252,8 @@ requestId 和摘要。
 
 ## 6. WFL 履约扩展
 
-LED 只订阅七类会记账 VOU 原子单据的最终处理与反最终处理事件：销售出库、销售签收、
-采购入库、往来收款、往来付款、费用报销和其他收入。已删除的居间流程和五类居间单据不再
+LED 只订阅九类会记账 VOU 原子单据的最终处理与反最终处理事件：销售出库、销售签收、
+销售退货、采购入库、采购退货、往来收款、往来付款、费用报销和其他收入。已删除的居间流程和五类居间单据不再
 作为流水来源；迁移同时删除其既有 LED 流水。
 
 采购履约中，`purchase-order` 不记账；`purchase-inbound` 最终处理时按实际仓库和数量增加库存，
@@ -254,7 +263,7 @@ LED 只订阅七类会记账 VOU 原子单据的最终处理与反最终处理�
 
 - 期初保存、首次启用、重开、取消和修改启用日均满足 revision 与原子性；
 - 需要记账的 VOU/WFL 原子单据按映射生成正确流水，执行和反执行与 VOU 保持同事务；
-- 七类会记账 VOU 单据生成各自正确的库存、资金和往来流水；
+- 九类会记账 VOU 单据生成各自正确的库存、资金和往来流水；
 - 任一历史时点负库存均阻止销售执行、采购反执行或账簿重建；
 - active generation 切换原子完成，旧 generation 和生命周期审计保留；
 - 查询严格执行分页、过滤、排序和 as-of 日期契约；
@@ -305,7 +314,7 @@ DRAFT -> ACTIVE -> REOPENING -> ACTIVE
 - 两种查询均支持分页和可选对象过滤；
 - 流水可按来源实体、来源单号和适用方向过滤；
 - 金额及普通数量保持后端返回的十进制字符串，不转换为浮点数；
-- 反执行和反确认以 `REVERSAL` 流水展示，不删除原始入账记录。
+- 反最终处理删除来源单据当前有效流水；操作原因仍保留在 VOU 审计中。
 
 库存按仓库与商品聚合；资金按账户与币种聚合；往来按往来方与币种聚合；空桶按客户与桶型聚合。负库存、入账原子性及历史重放由后端裁决，前端不得根据当前列表自行推断可执行性。
 

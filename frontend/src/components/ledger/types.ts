@@ -45,6 +45,7 @@ export interface LedgerEntityConfig {
   title: string
   objectLabel: string
   referenceSources: readonly LedgerReferenceSource[]
+  sourceEntities: readonly LedgerOption[]
   directions: readonly LedgerOption[]
   entryColumns: readonly LedgerColumn[]
   balanceColumns: readonly LedgerColumn[]

@@ -3,7 +3,6 @@ import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
-import { generateObjectCode } from '@/utils/object-code'
 import {
   comparableProductValue,
   productFormFields,
@@ -241,7 +240,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
   function createData(form: BobForm): Record<string, unknown> {
     const normalized = normalizeForm(form)
-    const allowedKeys = ['code', ...config.detailKeys]
+    const allowedKeys = [...config.detailKeys]
     const data: Record<string, unknown> = {}
     for (const key of allowedKeys) {
       const value = normalized[key]
@@ -255,6 +254,9 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     }
     if (config.entity === 'product') {
       Object.assign(data, productPayload(normalized))
+    }
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) delete data[key]
     }
     return data
   }
@@ -300,7 +302,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     if (!canCreate.value) return
     editorMode.value = 'create'
     editorModel.value = config.emptyForm()
-    editorModel.value.code = generateObjectCode('bob', config.entity)
     editContext.value = null
     currentView.value = null
     editorErrorMessage.value = null
@@ -426,15 +427,9 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         const missing = config.persistedKeys?.find(
           (key) =>
             JSON.stringify(
-              comparableProductValue(
-                key,
-                persisted.data[key],
-                true,
-              ),
+              comparableProductValue(key, persisted.data[key], true),
             ) !==
-            JSON.stringify(
-              comparableProductValue(key, normalized[key], false),
-            ),
+            JSON.stringify(comparableProductValue(key, normalized[key], false)),
         )
         if (missing) {
           const label =

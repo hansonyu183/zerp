@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import {
-  e2eEnv,
-  reviewerCredentials,
-  type E2ECredentials,
-} from './wfl-runtime'
+import { e2eEnv, reviewerCredentials, type E2ECredentials } from './wfl-runtime'
 
 const submitter: E2ECredentials = {
   username: e2eEnv('E2E_USERNAME'),
@@ -29,9 +25,7 @@ async function signOut(page: Page): Promise<void> {
 
 async function openCustomer(page: Page): Promise<void> {
   await page.goto('/bob/customer')
-  await expect(
-    page.getByRole('textbox', { name: '客户关键字' }),
-  ).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
 }
 
 async function searchCustomer(page: Page, code: string): Promise<void> {
@@ -52,23 +46,27 @@ function customerRow(page: Page, code: string) {
   })
 }
 
-test('使用双账号完成客户驳回、重提、通过和历史核验', async ({ page }) => {
+test('使用双账号完成客户驳回、重提、通过和历史核验', async ({
+  page,
+}, testInfo) => {
   test.setTimeout(120_000)
   const reviewer = reviewerCredentials()
+  const customerName = `E2E 生命周期客户 ${testInfo.project.name}`
 
   await signIn(page, submitter)
   await openCustomer(page)
   await page.getByRole('button', { name: '新增' }).click()
-  const code = (
-    await page
-      .locator('[data-field="code"] .business-object-editor__value')
-      .textContent()
-  )?.trim()
-  expect(code).toMatch(/^BOB-CUSTOMER-\d{17}-[A-Z0-9]{6}$/)
-  await page.getByLabel('客户名称').fill('E2E 生命周期客户')
-  await page.getByRole('combobox', { name: '业务员' }).fill('DEMO-EMP-001')
-  await page.getByRole('option', { name: /DEMO-EMP-001/ }).click()
+  await expect(page.locator('[data-field="code"]')).toHaveCount(0)
+  await page.getByLabel('客户名称').fill(customerName)
+  await page.getByRole('combobox', { name: '业务员' }).fill('张伟')
+  await page.getByRole('option', { name: /张伟/ }).click()
   await page.getByRole('button', { name: '保存' }).click()
+  const createdRow = page.locator('tbody tr').filter({
+    hasText: customerName,
+  })
+  await expect(createdRow).toHaveCount(1)
+  const code = (await createdRow.locator('td').first().textContent())?.trim()
+  expect(code).toMatch(/^CUS-\d{4}$/)
   await searchCustomer(page, code!)
   await openMore(page, code!)
   await page.getByText('提交审核', { exact: true }).click()

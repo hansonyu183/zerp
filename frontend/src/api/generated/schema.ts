@@ -1693,7 +1693,6 @@ export interface components {
             [key: string]: unknown;
         };
         AuxCreateData: components["schemas"]["AuxData"] & {
-            code: string;
             name: string;
         };
         AuxCreateRequest: {
@@ -1703,7 +1702,6 @@ export interface components {
             objectId: string;
             /** Format: int64 */
             revision: number;
-            code?: string;
             data: components["schemas"]["AuxData"];
         };
         AuxRevisionRequest: {
@@ -1741,7 +1739,6 @@ export interface components {
         };
         BobCreateRequest: {
             data: {
-                code: string | null;
                 name: string | null;
                 unit?: string | null;
                 currency?: string | null;
@@ -1797,7 +1794,6 @@ export interface components {
             /** Format: int64 */
             revision: number;
             data: {
-                code?: string | null;
                 name?: string | null;
                 unit?: string | null;
                 currency?: string | null;

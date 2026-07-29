@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const kilogramMeasurementUnitCode = "UNT-0001"
 
 type Service struct {
 	pool                   *pgxpool.Pool
@@ -118,7 +121,7 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
-	data, code, err := validateCreate(entity, input.Data)
+	data, _, err := validateCreate(entity, input.Data)
 	if err != nil || !validActorAndRequest(actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
 	}
@@ -129,6 +132,16 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
+	counter, err := qtx.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{
+		Domain: "bob", Entity: entity,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
+	}
+	if err != nil {
+		return MutationResult{}, s.writeError("allocate object number", err)
+	}
+	code := fmt.Sprintf("%s-%04d", objectPrefix(entity), counter)
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, objectID, data); err != nil {
 		return MutationResult{}, err
 	}
@@ -155,6 +168,16 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 		return MutationResult{}, s.writeError("commit create", err)
 	}
 	return MutationResult{ObjectID: objectID, ObjectRevision: 1, VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, nil
+}
+
+func objectPrefix(entity string) string {
+	return map[string]string{
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityEmployee: "EMP",
+		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
+		EntityVehicle: "VEH", EntityFundAccount: "FAC",
+		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
+		EntitySettlementMethod: "STM",
+	}[entity]
 }
 
 func (s *Service) Save(ctx context.Context, entity string, input SaveInput, actorID, requestID string) (MutationResult, error) {
@@ -636,12 +659,12 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 		}
 	}
 	if entity == EntityCustomer {
-		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "CUSTOMER_TYPE"); err != nil {
+		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return EffectiveReference{}, err
 		}
 	}
 	if entity == EntityVehicle {
-		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "VEHICLE_TYPE"); err != nil {
+		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "DCT-0002"); err != nil {
 			return EffectiveReference{}, err
 		}
 	}
@@ -773,12 +796,12 @@ func (s *Service) validateDetailReferences(
 		}
 	}
 	if entity == EntityCustomer {
-		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "CUSTOMER_TYPE"); err != nil {
+		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return err
 		}
 	}
 	if entity == EntityVehicle {
-		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "VEHICLE_TYPE"); err != nil {
+		if err := s.validateDictionaryCode(ctx, tx, data.VehicleType, "DCT-0002"); err != nil {
 			return err
 		}
 	}
@@ -827,7 +850,7 @@ func (s *Service) validateDetailReferences(
 			if resolveErr != nil {
 				return resolveErr
 			}
-			if data.ProductKind != ProductKindPackaging && pricingUnit.Code != "KG" {
+			if data.ProductKind != ProductKindPackaging && pricingUnit.Code != kilogramMeasurementUnitCode {
 				return domainError(ErrorConflict, "goods pricing unit must be KG", nil, nil)
 			}
 			if data.ProductKind == ProductKindPackaging && pricingUnit.ObjectID != inventoryUnit.ObjectID {

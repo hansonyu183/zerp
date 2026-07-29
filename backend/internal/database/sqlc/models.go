@@ -503,6 +503,28 @@ type BobWarehouseVersion struct {
 	Remark                *string `db:"remark" json:"remark"`
 }
 
+type IdentifierCounterRenumberHistory struct {
+	Entity       string      `db:"entity" json:"entity"`
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+	LastValue    int32       `db:"last_value" json:"last_value"`
+}
+
+type IdentifierDocumentRenumberHistory struct {
+	DocumentID   string      `db:"document_id" json:"document_id"`
+	Entity       string      `db:"entity" json:"entity"`
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+	OldNumber    string      `db:"old_number" json:"old_number"`
+	NewNumber    string      `db:"new_number" json:"new_number"`
+}
+
+type IdentifierObjectRenumberHistory struct {
+	Domain   string `db:"domain" json:"domain"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+	OldCode  string `db:"old_code" json:"old_code"`
+	NewCode  string `db:"new_code" json:"new_code"`
+}
+
 type LedAuditEvent struct {
 	ID           string             `db:"id" json:"id"`
 	EventType    string             `db:"event_type" json:"event_type"`
@@ -739,6 +761,12 @@ type MigrationWflRolePermission struct {
 	Entity    string  `db:"entity" json:"entity"`
 	Action    string  `db:"action" json:"action"`
 	CreatedBy *string `db:"created_by" json:"created_by"`
+}
+
+type ObjectNumberCounter struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	LastValue int32  `db:"last_value" json:"last_value"`
 }
 
 type RemovedIntermediaryFile struct {

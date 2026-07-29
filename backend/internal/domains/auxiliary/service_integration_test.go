@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/oklog/ulid/v2"
 )
 
 const integrationActor = "01J00000000000000000000000"
@@ -40,31 +40,26 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 
 func TestAuxiliaryLifecycleReferencesAndValidationIntegration(t *testing.T) {
 	service := NewService(integrationPool(t))
-	suffix := ulidSuffix()
 
 	root, err := service.Create(t.Context(), EntityDepartment, CreateInput{Data: CreateData{
-		Code: "DEPT-" + suffix,
 		Data: map[string]any{"name": "测试部门"},
 	}}, integrationActor, "aux-create-root")
 	if err != nil {
 		t.Fatalf("create root department: %v", err)
 	}
 	child, err := service.Create(t.Context(), EntityDepartment, CreateInput{Data: CreateData{
-		Code: "CHILD-" + suffix,
 		Data: map[string]any{"name": "测试子部门", "parentId": root.ObjectID},
 	}}, integrationActor, "aux-create-child")
 	if err != nil {
 		t.Fatalf("create child department: %v", err)
 	}
 
-	changedCode := "RENAMED-" + suffix
 	if _, err = service.Save(t.Context(), EntityDepartment, SaveInput{
 		ObjectID: root.ObjectID,
 		Revision: root.ObjectRevision,
-		Code:     &changedCode,
-		Data:     map[string]any{"name": "测试部门"},
-	}, integrationActor, "aux-save-referenced-code"); !errorKind(err, ErrorConflict) {
-		t.Fatalf("referenced code change error = %v", err)
+		Data:     map[string]any{"name": "测试部门", "code": "DEP-9999"},
+	}, integrationActor, "aux-save-code"); !errorKind(err, ErrorValidation) {
+		t.Fatalf("code save error = %v", err)
 	}
 
 	disabled, err := service.Disable(t.Context(), EntityDepartment, RevisionInput{
@@ -85,7 +80,6 @@ func TestAuxiliaryLifecycleReferencesAndValidationIntegration(t *testing.T) {
 	}
 
 	category, err := service.Create(t.Context(), EntityProductCategory, CreateInput{Data: CreateData{
-		Code: "CAT-" + suffix,
 		Data: map[string]any{"name": "待删除分类"},
 	}}, integrationActor, "aux-create-category")
 	if err != nil {
@@ -104,7 +98,6 @@ func TestAuxiliaryLifecycleReferencesAndValidationIntegration(t *testing.T) {
 	}
 
 	if _, err = service.Create(t.Context(), EntitySettlementMethod, CreateInput{Data: CreateData{
-		Code: "BAD-SM-" + suffix,
 		Data: map[string]any{
 			"name": "无效月结", "ruleType": "MONTH_END", "cutoffDay": 32,
 			"monthOffset": 1, "defaultSalesSurcharge": "1.00",
@@ -132,7 +125,6 @@ func TestAuxiliaryWritesUseTransactionDomainLockIntegration(t *testing.T) {
 			context.Background(),
 			EntityPosition,
 			CreateInput{Data: CreateData{
-				Code: "LOCK-" + ulidSuffix(),
 				Data: map[string]any{"name": "并发岗位"},
 			}},
 			integrationActor,
@@ -160,12 +152,50 @@ func TestAuxiliaryWritesUseTransactionDomainLockIntegration(t *testing.T) {
 	}
 }
 
+func TestAuxiliaryCreateRejectsExhaustedObjectNumberIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	var previous int32
+	err := pool.QueryRow(t.Context(), `
+		SELECT last_value FROM object_number_counters
+		WHERE domain = 'aux' AND entity = $1
+	`, EntityPosition).Scan(&previous)
+	existed := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("read object counter: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO object_number_counters(domain, entity, last_value)
+		VALUES ('aux', $1, 9999)
+		ON CONFLICT(domain, entity) DO UPDATE SET last_value = 9999
+	`, EntityPosition); err != nil {
+		t.Fatalf("exhaust object counter: %v", err)
+	}
+	t.Cleanup(func() {
+		var cleanupErr error
+		if existed {
+			_, cleanupErr = pool.Exec(context.Background(), `
+				UPDATE object_number_counters SET last_value = $1
+				WHERE domain = 'aux' AND entity = $2
+			`, previous, EntityPosition)
+		} else {
+			_, cleanupErr = pool.Exec(context.Background(), `
+				DELETE FROM object_number_counters WHERE domain = 'aux' AND entity = $1
+			`, EntityPosition)
+		}
+		if cleanupErr != nil {
+			t.Errorf("restore object counter: %v", cleanupErr)
+		}
+	})
+
+	_, err = NewService(pool).Create(t.Context(), EntityPosition, CreateInput{
+		Data: CreateData{Data: map[string]any{"name": "编号溢出岗位"}},
+	}, integrationActor, "aux-number-exhausted")
+	if !errorKind(err, ErrorConflict) {
+		t.Fatalf("exhausted object counter error = %v", err)
+	}
+}
+
 func errorKind(err error, kind ErrorKind) bool {
 	var domainErr *DomainError
 	return errors.As(err, &domainErr) && domainErr.Kind == kind
-}
-
-func ulidSuffix() string {
-	value := ulid.Make().String()
-	return value[len(value)-12:]
 }

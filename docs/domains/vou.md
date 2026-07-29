@@ -32,13 +32,15 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 
 ### 2.1 编号、金额和引用
 
-单据号由服务端按类型和创建时业务日期生成：
+单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SO/PO/PI/PR/SR/REC/PAY/ER/OI-YYYYMMDD-######
+SOR/SOB/SDL/SSF/SRT/POR/PIN/PRT/REC/PAY/EXR/OIN-YYYYMMDD-####
 ```
 
-编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
+前缀依次对应销售订单、销售出库、销售送货、销售签收、销售退货、采购订单、采购入库、
+采购退货、收款、付款、费用报销和其他收入。流水按实体和业务日期分别从 `0001` 开始，
+达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
 
@@ -136,7 +138,7 @@ BOB 引用结构固定为：
 ```json
 {
   "documentId": "01J...",
-  "documentNo": "SO-20260726-000001",
+  "documentNo": "SOR-20260726-0001",
   "status": "DRAFT",
   "revision": 1
 }
@@ -272,7 +274,7 @@ BOB 引用结构固定为：
   "page": 1,
   "pageSize": 20,
   "filters": {
-    "keyword": "SO-20260726",
+    "keyword": "SOR-20260726",
     "status": ["DRAFT", "CHECKED"],
     "dateFrom": "2026-07-01",
     "dateTo": "2026-07-31",
@@ -292,7 +294,7 @@ BOB 引用结构固定为：
     {
       "documentId": "01J...",
       "entity": "sale-order",
-      "documentNo": "SO-20260726-000001",
+      "documentNo": "SOR-20260726-0001",
       "status": "DRAFT",
       "revision": 2,
       "businessDate": "2026-07-26",
@@ -320,7 +322,7 @@ BOB 引用结构固定为：
 {
   "documentId": "01J...",
   "entity": "sale-order",
-  "documentNo": "SO-20260726-000001",
+  "documentNo": "SOR-20260726-0001",
   "status": "DRAFT",
   "revision": 2,
   "amount": "255.00",

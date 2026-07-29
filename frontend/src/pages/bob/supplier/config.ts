@@ -30,8 +30,8 @@ export const supplierConfig = defineBobEntityConfig({
     address: '',
     remark: '',
   },
-  requiredKeys: ['code', 'name', 'supplierType', 'salespersonEmployeeId'],
-  uppercaseKeys: ['code', 'taxNumber'],
+  requiredKeys: ['name', 'supplierType', 'salespersonEmployeeId'],
+  uppercaseKeys: ['taxNumber'],
   references: {
     settlementMethodId: {
       domain: 'aux',
@@ -55,7 +55,9 @@ export const supplierConfig = defineBobEntityConfig({
     reference('settlementMethodId', '结算方式', context),
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
-      rules: [patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。')],
+      rules: [
+        patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),
+      ],
     }),
     text('contactName', '联系人', 100),
     text('contactPhone', '联系电话', 32, {

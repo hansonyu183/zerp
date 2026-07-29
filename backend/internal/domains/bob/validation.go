@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	codePattern          = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]*$`)
+	objectCodePattern    = regexp.MustCompile(`^[A-Z]{3}-[0-9]{4}$`)
 	currencyPattern      = regexp.MustCompile(`^[A-Z]{3}$`)
 	phonePattern         = regexp.MustCompile(`^[+0-9() -]+$`)
 	taxNumberPattern     = regexp.MustCompile(`^[A-Z0-9-]+$`)
@@ -24,10 +24,6 @@ var (
 )
 
 func validateCreate(entity string, input CreateDetailInput) (DetailView, string, error) {
-	code := strings.ToUpper(strings.TrimSpace(input.Code))
-	if len(code) < 1 || len(code) > 64 || !codePattern.MatchString(code) {
-		return DetailView{}, "", domainError(ErrorValidation, "invalid code", nil, nil)
-	}
 	supplierType := input.SupplierType
 	if entity == EntitySupplier && supplierType == nil {
 		value := SupplierTypeGeneral
@@ -87,7 +83,7 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		data.InventoryUnitID = legacyUnitID(data.Unit)
 	}
 	data, err := validateDetailData(entity, data)
-	return data, code, err
+	return data, "", err
 }
 
 func mergeDetailInput(current DetailView, input DetailInput) DetailView {
@@ -387,7 +383,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	switch entity {
 	case EntityCustomer:
 		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
-		if !codePattern.MatchString(input.CustomerType) {
+		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
 		}
 		if input.SalespersonEmployeeID == "" {

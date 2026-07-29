@@ -1,14 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import {
-  customerConfig,
-  useCustomerViewModel,
-} from '@/pages/bob/customer/vm'
-import type {
-  BobListItem,
-  BobObjectView,
-} from '@/pages/bob/shared/types'
+import { customerConfig, useCustomerViewModel } from '@/pages/bob/customer/vm'
+import type { BobListItem, BobObjectView } from '@/pages/bob/shared/types'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
@@ -23,7 +17,7 @@ const mockedApiClient = vi.mocked(apiClient)
 const customerForm = {
   code: 'CUS-001',
   name: '华东客户',
-  customerType: 'DEALER',
+  customerType: 'DIT-0002',
   shortName: '华东',
   settlementMethodId: 'SM-1',
   salespersonEmployeeId: 'EMP-1',
@@ -94,7 +88,7 @@ describe('customer shared BOB configuration and view model', () => {
     expect(customerConfig.emptyForm()).toEqual({
       code: '',
       name: '',
-      customerType: 'END_USER',
+      customerType: 'DIT-0001',
       shortName: '',
       settlementMethodId: '',
       salespersonEmployeeId: '',
@@ -106,7 +100,6 @@ describe('customer shared BOB configuration and view model', () => {
       remark: '',
     })
     expect(customerConfig.requiredKeys).toEqual([
-      'code',
       'name',
       'customerType',
       'salespersonEmployeeId',
@@ -135,7 +128,7 @@ describe('customer shared BOB configuration and view model', () => {
     const vm = useCustomerViewModel()
     vm.keyword.value = '  华东  '
     vm.filters.value.status = ['DRAFT', 'EFFECTIVE']
-    vm.filters.value.customerType = 'DEALER'
+    vm.filters.value.customerType = 'DIT-0002'
     vm.filters.value.salespersonEmployeeId = 'EMP-1'
 
     await vm.query()
@@ -146,7 +139,7 @@ describe('customer shared BOB configuration and view model', () => {
       filters: {
         keyword: '华东',
         status: ['DRAFT', 'EFFECTIVE'],
-        customerType: 'DEALER',
+        customerType: 'DIT-0002',
         salespersonEmployeeId: 'EMP-1',
       },
       sort: [{ field: 'updatedAt', order: 'desc' }],
@@ -169,15 +162,18 @@ describe('customer shared BOB configuration and view model', () => {
     vm.searchEditorReference('settlementMethodId', '月结', customerForm)
     await vi.advanceTimersByTimeAsync(300)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('aux/settlement-method/query', {
-      page: 1,
-      pageSize: 20,
-      filters: {
-        keyword: '月结',
-        enabled: true,
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      'aux/settlement-method/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          keyword: '月结',
+          enabled: true,
+        },
+        sort: [{ field: 'name', order: 'asc' }],
       },
-      sort: [{ field: 'name', order: 'asc' }],
-    })
+    )
   })
 
   it('创建省略空可选字段并校验必填业务员', async () => {
@@ -197,27 +193,28 @@ describe('customer shared BOB configuration and view model', () => {
     const vm = useCustomerViewModel()
     vm.openCreate()
 
-    expect(await vm.save({
-      ...customerForm,
-      code: ' cus-002 ',
-      name: ' 新客户 ',
-      shortName: '',
-      settlementMethodId: '',
-      taxNumber: '',
-      contactName: '',
-      contactPhone: '',
-      email: '',
-      address: '',
-      remark: '',
-    })).toBe(true)
+    expect(
+      await vm.save({
+        ...customerForm,
+        code: ' cus-002 ',
+        name: ' 新客户 ',
+        shortName: '',
+        settlementMethodId: '',
+        taxNumber: '',
+        contactName: '',
+        contactPhone: '',
+        email: '',
+        address: '',
+        remark: '',
+      }),
+    ).toBe(true)
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       1,
       'bob/customer/create',
       {
         data: {
-          code: 'CUS-002',
           name: '新客户',
-          customerType: 'DEALER',
+          customerType: 'DIT-0002',
           salespersonEmployeeId: 'EMP-1',
         },
       },
@@ -225,10 +222,12 @@ describe('customer shared BOB configuration and view model', () => {
 
     vi.clearAllMocks()
     vm.openCreate()
-    expect(await vm.save({
-      ...customerForm,
-      salespersonEmployeeId: '',
-    })).toBe(false)
+    expect(
+      await vm.save({
+        ...customerForm,
+        salespersonEmployeeId: '',
+      }),
+    ).toBe(false)
     expect(vm.editorErrorMessage.value).toBe('请输入业务员。')
     expect(mockedApiClient.post).not.toHaveBeenCalled()
   })
@@ -271,7 +270,7 @@ describe('customer shared BOB configuration and view model', () => {
         revision: 5,
         data: {
           name: '华东客户',
-          customerType: 'DEALER',
+          customerType: 'DIT-0002',
           shortName: '',
           settlementMethodId: '',
           salespersonEmployeeId: 'EMP-1',

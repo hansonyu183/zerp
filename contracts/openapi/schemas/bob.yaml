@@ -33,11 +33,10 @@
           'data':
             {
               'type': 'object',
-              'required': ['code', 'name'],
+              'required': ['name'],
               'additionalProperties': false,
               'properties':
                 {
-                  'code': { 'type': 'string', 'nullable': true },
                   'name': { 'type': 'string', 'nullable': true },
                   'unit': { 'type': 'string', 'nullable': true },
                   'currency': { 'type': 'string', 'nullable': true },
@@ -133,7 +132,6 @@
               'additionalProperties': false,
               'properties':
                 {
-                  'code': { 'type': 'string', 'nullable': true },
                   'name': { 'type': 'string', 'nullable': true },
                   'unit': { 'type': 'string', 'nullable': true },
                   'currency': { 'type': 'string', 'nullable': true },

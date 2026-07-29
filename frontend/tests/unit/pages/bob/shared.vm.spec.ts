@@ -169,7 +169,16 @@ describe('shared BOB entity configuration and view model', () => {
       customer: ['编码', '名称', '类型', '版本', '状态', '更新'],
       supplier: ['编码', '名称', '类型', '版本', '状态', '更新'],
       employee: ['编码', '姓名', '电话', '入职', '版本', '状态', '更新'],
-      product: ['编码', '名称', '类型', '库存单位', '型号', '版本', '状态', '更新'],
+      product: [
+        '编码',
+        '名称',
+        '类型',
+        '库存单位',
+        '型号',
+        '版本',
+        '状态',
+        '更新',
+      ],
       service: ['编码', '名称', '单位', '说明', '版本', '状态', '更新'],
       warehouse: ['编码', '名称', '地址', '联系人', '版本', '状态', '更新'],
       vehicle: ['编码', '名称', '车牌', '类型', '版本', '状态', '更新'],
@@ -206,8 +215,8 @@ describe('shared BOB entity configuration and view model', () => {
     const vm = useBobEntityViewModel(config)
 
     vm.openCreate()
-    expect(vm.editorModel.value.code).toMatch(
-      /^BOB-SUPPLIER-\d{17}-[A-Z0-9]{6}$/,
+    expect(vm.editorFields.value.some((field) => field.key === 'code')).toBe(
+      false,
     )
 
     const salespersonField = vm.editorFields.value.find(
@@ -244,11 +253,13 @@ describe('shared BOB entity configuration and view model', () => {
     useSessionStore().permissions = ['/bob/employee/query']
     mockedApiClient.post.mockResolvedValueOnce({
       data: {
-        items: [{
-          objectId: 'EMP-1',
-          code: 'DEMO-EMP-001',
-          currentVersion: { summary: { name: '演示员工' } },
-        }],
+        items: [
+          {
+            objectId: 'EMP-1',
+            code: 'DEMO-EMP-001',
+            currentVersion: { summary: { name: '演示员工' } },
+          },
+        ],
         total: 1,
         page: 1,
         pageSize: 20,
@@ -261,25 +272,18 @@ describe('shared BOB entity configuration and view model', () => {
       name: '示例供应商',
     }
 
-    vm.searchEditorReference(
-      'salespersonEmployeeId',
-      'DEMO-EMP-001',
-      form,
-    )
+    vm.searchEditorReference('salespersonEmployeeId', 'DEMO-EMP-001', form)
     await vi.advanceTimersByTimeAsync(300)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
-      'bob/employee/query',
-      {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          keyword: 'DEMO-EMP-001',
-          status: ['EFFECTIVE'],
-        },
-        sort: [{ field: 'name', order: 'asc' }],
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/employee/query', {
+      page: 1,
+      pageSize: 20,
+      filters: {
+        keyword: 'DEMO-EMP-001',
+        status: ['EFFECTIVE'],
       },
-    )
+      sort: [{ field: 'name', order: 'asc' }],
+    })
     expect(
       vm.editorFields.value.find(
         (field) => field.key === 'salespersonEmployeeId',
@@ -309,7 +313,6 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/supplier/create',
       {
         data: {
-          code: 'SUP-001',
           name: '示例供应商',
           supplierType: 'GENERAL',
           salespersonEmployeeId: 'EMP-1',
@@ -366,19 +369,16 @@ describe('shared BOB entity configuration and view model', () => {
 
     await vm.query()
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
-      'bob/product/query',
-      {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          keyword: '标准',
-          status: ['DRAFT', 'EFFECTIVE'],
-          categoryId: 'CAT-1',
-        },
-        sort: [{ field: 'updatedAt', order: 'desc' }],
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/query', {
+      page: 1,
+      pageSize: 20,
+      filters: {
+        keyword: '标准',
+        status: ['DRAFT', 'EFFECTIVE'],
+        categoryId: 'CAT-1',
       },
-    )
+      sort: [{ field: 'updatedAt', order: 'desc' }],
+    })
   })
 
   it('按状态和精确权限计算完整动作集合', () => {
@@ -450,7 +450,6 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/create',
       {
         data: {
-          code: 'PRD-2',
           name: '新产品',
           unit: '件',
           productKind: 'RAW_MATERIAL',
@@ -526,23 +525,15 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/edit',
       { objectId: 'OBJ-1', objectRevision: 3 },
     )
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      2,
-      'bob/product/get',
-      { objectId: 'OBJ-1', versionId: 'VER-2' },
-    )
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(2, 'bob/product/get', {
+      objectId: 'OBJ-1',
+      versionId: 'VER-2',
+    })
     expect(vm.editorModel.value.model).toBe('M1')
   })
 
   it('提交、驳回和审核历史使用当前版本 revision', async () => {
-    grant(
-      'product',
-      'query',
-      'submit',
-      'reject',
-      'versions',
-      'audit-history',
-    )
+    grant('product', 'query', 'submit', 'reject', 'versions', 'audit-history')
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation('PENDING') })
@@ -577,11 +568,13 @@ describe('shared BOB entity configuration and view model', () => {
     useSessionStore().permissions = ['/aux/product-category/query']
     mockedApiClient.post.mockResolvedValueOnce({
       data: {
-        items: [{
-          objectId: 'CAT-1',
-          code: 'CAT-1',
-          currentVersion: { data: { name: '产品分类' } },
-        }],
+        items: [
+          {
+            objectId: 'CAT-1',
+            code: 'CAT-1',
+            currentVersion: { data: { name: '产品分类' } },
+          },
+        ],
         total: 1,
         page: 1,
         pageSize: 20,
@@ -589,15 +582,11 @@ describe('shared BOB entity configuration and view model', () => {
     })
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
-    vm.searchEditorReference(
-      'categoryId',
-      '分类',
-      {
-        code: 'PRD-1',
-        name: '产品',
-        categoryId: '',
-      },
-    )
+    vm.searchEditorReference('categoryId', '分类', {
+      code: 'PRD-1',
+      name: '产品',
+      categoryId: '',
+    })
     await vi.advanceTimersByTimeAsync(300)
 
     expect(mockedApiClient.post).toHaveBeenCalledWith(

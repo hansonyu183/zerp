@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -516,7 +517,7 @@ func TestDatabaseRejectsVersionWithoutTypedDetail(t *testing.T) {
 	queries := dbsqlc.New(pool).WithTx(tx)
 	objectID, versionID := newID(), newID()
 	if err = queries.InsertBobObject(t.Context(), dbsqlc.InsertBobObjectParams{
-		ID: objectID, Entity: EntityCustomer, Code: "MISSING" + newID(), CurrentVersionID: versionID, ActorID: integrationActorOne,
+		ID: objectID, Entity: EntityCustomer, Code: "CUS-9999", CurrentVersionID: versionID, ActorID: integrationActorOne,
 	}); err != nil {
 		t.Fatalf("insert object: %v", err)
 	}
@@ -532,34 +533,78 @@ func TestDatabaseRejectsVersionWithoutTypedDetail(t *testing.T) {
 	}
 }
 
-func TestDuplicateCodeReturnsConflictAndRollsBackIntegration(t *testing.T) {
+func TestCreateAllocatesDistinctObjectCodesIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
 	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "DUE" + newID(), Name: "Duplicate Code Salesperson",
 	}, "duplicate-salesperson")
-	code := "DU" + newID()
-	if _, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
-		Code: code, Name: "Original", SalespersonEmployeeID: salesperson.ObjectID,
-	}}, integrationActorOne, "duplicate-create-original"); err != nil {
+	first, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+		Name: "Original", SalespersonEmployeeID: salesperson.ObjectID,
+	}}, integrationActorOne, "duplicate-create-original")
+	if err != nil {
 		t.Fatalf("create original: %v", err)
 	}
-	if _, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
-		Code: code, Name: "Duplicate", SalespersonEmployeeID: salesperson.ObjectID,
-	}}, integrationActorOne, "duplicate-create-conflict"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("duplicate create error = %v", err)
+	second, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+		Name: "Second", SalespersonEmployeeID: salesperson.ObjectID,
+	}}, integrationActorOne, "duplicate-create-second")
+	if err != nil {
+		t.Fatalf("create second: %v", err)
 	}
-
-	var objects, versions int
+	var firstCode, secondCode string
 	if err := pool.QueryRow(t.Context(), `
-		SELECT count(DISTINCT o.id), count(v.id)
-		FROM bob_objects o
-		JOIN bob_versions v ON v.object_id = o.id
-		WHERE o.entity = $1 AND o.code = $2
-	`, EntityCustomer, code).Scan(&objects, &versions); err != nil {
-		t.Fatalf("count duplicate code rows: %v", err)
+		SELECT first.code, second.code
+		FROM bob_objects first, bob_objects second
+		WHERE first.id=$1 AND second.id=$2
+	`, first.ObjectID, second.ObjectID).Scan(&firstCode, &secondCode); err != nil {
+		t.Fatalf("read generated codes: %v", err)
 	}
-	if objects != 1 || versions != 1 {
-		t.Fatalf("objects=%d versions=%d, want one committed aggregate", objects, versions)
+	if len(firstCode) != 8 || len(secondCode) != 8 ||
+		firstCode[:4] != "CUS-" || secondCode[:4] != "CUS-" ||
+		firstCode == secondCode {
+		t.Fatalf("generated codes = %q, %q", firstCode, secondCode)
+	}
+}
+
+func TestCreateRejectsExhaustedObjectNumberIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	var previous int32
+	err := pool.QueryRow(t.Context(), `
+		SELECT last_value FROM object_number_counters
+		WHERE domain = 'bob' AND entity = $1
+	`, EntityService).Scan(&previous)
+	existed := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("read object counter: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO object_number_counters(domain, entity, last_value)
+		VALUES ('bob', $1, 9999)
+		ON CONFLICT(domain, entity) DO UPDATE SET last_value = 9999
+	`, EntityService); err != nil {
+		t.Fatalf("exhaust object counter: %v", err)
+	}
+	t.Cleanup(func() {
+		var cleanupErr error
+		if existed {
+			_, cleanupErr = pool.Exec(context.Background(), `
+				UPDATE object_number_counters SET last_value = $1
+				WHERE domain = 'bob' AND entity = $2
+			`, previous, EntityService)
+		} else {
+			_, cleanupErr = pool.Exec(context.Background(), `
+				DELETE FROM object_number_counters WHERE domain = 'bob' AND entity = $1
+			`, EntityService)
+		}
+		if cleanupErr != nil {
+			t.Errorf("restore object counter: %v", cleanupErr)
+		}
+	})
+
+	_, err = NewService(pool).Create(t.Context(), EntityService, CreateInput{
+		Data: CreateDetailInput{Name: "编号溢出服务", Unit: "次"},
+	}, integrationActorOne, "object-number-exhausted")
+	if !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("exhausted object counter error = %v", err)
 	}
 }

@@ -97,10 +97,13 @@ func (s *Service) createDocument(
 		Entity: entity, BusinessDate: dateValue(draft.BusinessDate),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return MutationResult{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
+		}
 		return MutationResult{}, s.writeError("allocate document number", err)
 	}
 	documentID := newID()
-	documentNo := fmt.Sprintf("%s-%s-%06d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
+	documentNo := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
 	resolved, err := s.resolveDraft(ctx, tx, entity, draft, resolvedDraft{}, true)
 	if err != nil {
 		return MutationResult{}, err

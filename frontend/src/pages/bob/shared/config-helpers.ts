@@ -35,8 +35,8 @@ export const supplierTypeOptions: readonly BusinessObjectFieldOption[] = [
 ]
 
 export const customerTypeOptions: readonly BusinessObjectFieldOption[] = [
-  { title: '终端客户', value: 'END_USER' },
-  { title: '经销商', value: 'DEALER' },
+  { title: '终端客户', value: 'DIT-0001' },
+  { title: '经销商', value: 'DIT-0002' },
 ]
 
 export const settlementRuleOptions: readonly BusinessObjectFieldOption[] = [
@@ -58,7 +58,6 @@ export const targetEntityOptions: readonly BusinessObjectFieldOption[] = [
   { title: '岗位', value: 'position' },
 ]
 
-export const codePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 export const phonePattern = /^[+0-9() -]+$/
 export const emailPattern = /^[^@\s]+@[^@\s]+$/
 export const taxNumberPattern = /^[A-Za-z0-9-]+$/
@@ -96,18 +95,21 @@ export function patternRule(pattern: RegExp, message: string) {
 }
 
 export function commonFields(
-  _context: BobFieldContext,
+  context: BobFieldContext,
   codeLabel: string,
   nameLabel: string,
 ): BusinessObjectField<BobForm>[] {
   return [
-    {
-      key: 'code',
-      label: codeLabel,
-      type: 'readonly',
-      required: true,
-      rules: [patternRule(codePattern, '编码格式不正确。')],
-    },
+    ...(context.mode === 'create'
+      ? []
+      : [
+          {
+            key: 'code',
+            label: codeLabel,
+            type: 'readonly',
+            required: true,
+          } as BusinessObjectField<BobForm>,
+        ]),
     {
       key: 'name',
       label: nameLabel,
@@ -169,7 +171,9 @@ export function reference(
   }
 }
 
-export function baseFilters(extra: readonly BobFilterField[] = []): BobFilterField[] {
+export function baseFilters(
+  extra: readonly BobFilterField[] = [],
+): BobFilterField[] {
   return [
     {
       key: 'status',
@@ -231,9 +235,10 @@ export const categoryFilter = (entity: string): BobFilterField => ({
   },
 })
 
-
-export interface BobEntityDefinition
-  extends Omit<BobEntityConfig, 'emptyForm' | 'detailKeys'> {
+export interface BobEntityDefinition extends Omit<
+  BobEntityConfig,
+  'emptyForm' | 'detailKeys'
+> {
   defaults: Record<string, unknown>
 }
 
@@ -267,9 +272,24 @@ export function defineBobEntityConfig(
     metadata.fields(emptyContext).map((field) => String(field.key)),
   )
 
-  assertConfigKeys(metadata.entity, 'requiredKeys', metadata.requiredKeys, formKeys)
-  assertConfigKeys(metadata.entity, 'uppercaseKeys', metadata.uppercaseKeys ?? [], formKeys)
-  assertConfigKeys(metadata.entity, 'persistedKeys', metadata.persistedKeys ?? [], formKeys)
+  assertConfigKeys(
+    metadata.entity,
+    'requiredKeys',
+    metadata.requiredKeys,
+    formKeys,
+  )
+  assertConfigKeys(
+    metadata.entity,
+    'uppercaseKeys',
+    metadata.uppercaseKeys ?? [],
+    formKeys,
+  )
+  assertConfigKeys(
+    metadata.entity,
+    'persistedKeys',
+    metadata.persistedKeys ?? [],
+    formKeys,
+  )
   assertConfigKeys(
     metadata.entity,
     'references',
@@ -289,5 +309,5 @@ export function defineBobEntityConfig(
 }
 
 export function getStatusText(status?: BobStatus): string {
-  return status ? statusText[status] ?? status : '未标记'
+  return status ? (statusText[status] ?? status) : '未标记'
 }

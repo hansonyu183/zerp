@@ -287,7 +287,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 		INSERT INTO vou_documents (
 			id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
 		) VALUES ($1, 'receipt', $2, DATE '2026-07-24', 'CNY', 100, $3, $3)`,
-		newID(), "REC-20260724-999999", integrationActorOne)
+		newID(), "REC-20260724-9999", integrationActorOne)
 	if err != nil {
 		t.Fatalf("insert invalid document: %v", err)
 	}

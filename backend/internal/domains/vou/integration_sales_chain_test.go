@@ -90,7 +90,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 		BusinessDate: "2026-07-26", SourceDocumentID: outboundOne.DocumentID,
 		Platform: &refs.platform, Vehicle: &refs.vehicle,
 	}, true)
-	if deliveryView.DocumentNo[:2] != "SD" ||
+	if deliveryView.DocumentNo[:3] != "SDL" ||
 		deliveryView.ParentDocumentID != outboundOne.DocumentID {
 		t.Fatalf("delivery view = %+v", deliveryView)
 	}
@@ -108,7 +108,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 			SignedQuantity: "4", RejectedQuantity: "1",
 		}},
 	}, true)
-	if signoffView.DocumentNo[:2] != "SS" ||
+	if signoffView.DocumentNo[:3] != "SSF" ||
 		signoffView.Data.SignoffLines[0].LossQuantity != "1.0" {
 		t.Fatalf("signoff view = %+v", signoffView)
 	}

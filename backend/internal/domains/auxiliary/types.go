@@ -54,7 +54,6 @@ func domainError(kind ErrorKind, message string, data any, cause error) error {
 }
 
 type CreateData struct {
-	Code string `json:"code"`
 	Data map[string]any
 }
 
@@ -65,15 +64,12 @@ func (d *CreateData) UnmarshalJSON(raw []byte) error {
 	if err := decoder.Decode(&values); err != nil {
 		return err
 	}
-	code, _ := values["code"].(string)
-	delete(values, "code")
-	d.Code, d.Data = code, values
+	d.Data = values
 	return nil
 }
 
 func (d CreateData) MarshalJSON() ([]byte, error) {
 	values := cloneData(d.Data)
-	values["code"] = d.Code
 	return json.Marshal(values)
 }
 
@@ -84,7 +80,6 @@ type CreateInput struct {
 type SaveInput struct {
 	ObjectID string         `json:"objectId"`
 	Revision int64          `json:"revision"`
-	Code     *string        `json:"code,omitempty"`
 	Data     map[string]any `json:"data"`
 }
 

@@ -139,9 +139,12 @@ func (s *Service) CreatePurchaseReturn(
 		Entity: EntityPurchaseReturn, BusinessDate: dateValue(date),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return MutationResult{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
+		}
 		return MutationResult{}, s.writeError("allocate purchase return number", err)
 	}
-	id, number := newID(), fmt.Sprintf("PR-%s-%06d", date.Format("20060102"), counter)
+	id, number := newID(), fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseReturn), date.Format("20060102"), counter)
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
 		id,entity,document_no,business_date,currency,total_amount_cents,remark,
 		parent_entity,parent_document_id,created_by,updated_by

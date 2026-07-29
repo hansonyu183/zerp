@@ -23,13 +23,18 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		Code: "SP" + newID(), Name: "客户业务员", DepartmentID: department.ObjectID,
 		PositionID: position.ObjectID,
 	}, "common-salesperson")
-	settlementCode := "SM" + newID()
 	settlementMethod, _ := createApprovedIntegration(t, service, EntitySettlementMethod, CreateDetailInput{
-		Code: settlementCode, Name: "月结 30 天", RuleType: SettlementRuleRelativeDays,
+		Name: "月结 30 天", RuleType: SettlementRuleRelativeDays,
 		DayOffset: 30,
 	}, "common-settlement-method")
+	settlementView, err := service.Get(t.Context(), EntitySettlementMethod, GetInput{
+		ObjectID: settlementMethod.ObjectID,
+	})
+	if err != nil {
+		t.Fatalf("get settlement method: %v", err)
+	}
 	settlementPage, err := service.Query(t.Context(), EntitySettlementMethod, QueryInput{
-		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: settlementCode},
+		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: settlementView.Code},
 	})
 	if err != nil || settlementPage.Total != 1 {
 		t.Fatalf("query settlement methods page=%+v err=%v", settlementPage, err)
@@ -178,9 +183,8 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}
 
 	accountNumber := "6222" + newID()
-	accountCode := "FA" + newID()
 	account, _ := createApprovedIntegration(t, service, EntityFundAccount, CreateDetailInput{
-		Code: accountCode, Name: "敏感账户", Currency: "CNY",
+		Name: "敏感账户", Currency: "CNY",
 		AccountName: "示例公司", BankName: "示例银行", BankBranch: "上海支行",
 		AccountNumber: accountNumber,
 	}, "common-account")
@@ -189,7 +193,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		t.Fatalf("get account view=%+v err=%v", accountView, err)
 	}
 	accountPage, err := service.Query(t.Context(), EntityFundAccount, QueryInput{
-		Page: 1, PageSize: 20, Filters: QueryFilters{Currency: "cny", Keyword: accountCode},
+		Page: 1, PageSize: 20, Filters: QueryFilters{Currency: "cny", Keyword: accountView.Code},
 	})
 	if err != nil || accountPage.Total != 1 || accountPage.Items[0].CurrentVersion.Summary.AccountNumber != "" {
 		t.Fatalf("query account redaction page=%+v err=%v", accountPage, err)

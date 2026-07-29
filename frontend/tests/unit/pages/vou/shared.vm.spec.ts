@@ -328,7 +328,7 @@ describe('shared VOU entity view model', () => {
     populate(orderConfig, orderForm)
     const order = documentView(orderConfig, orderForm)
     order.documentId = 'ORDER-1'
-    order.documentNo = 'SO-20260724-000001'
+    order.documentNo = 'SOR-20260724-0001'
     order.status = 'FINALIZED'
     order.data.productLines![0].availableQuantity = '6.0'
 
@@ -364,7 +364,7 @@ describe('shared VOU entity view model', () => {
         return {
           data: {
             documentId: 'OUTBOUND-1',
-            documentNo: 'SOB-20260724-000001',
+            documentNo: 'SOB-20260724-0001',
             status: 'DRAFT',
             revision: 1,
           },
@@ -377,7 +377,7 @@ describe('shared VOU entity view model', () => {
     })
 
     vm.openCreate()
-    await vm.searchSourceDocuments('SO-20260724')
+    await vm.searchSourceDocuments('SOR-20260724')
     await vm.selectSourceDocument(order.documentId)
     expect(vm.form.value.salesChainLines).toHaveLength(1)
     expect(vm.form.value.salesChainLines[0]).toMatchObject({

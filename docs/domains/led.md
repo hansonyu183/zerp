@@ -197,7 +197,7 @@ POST /led/container/balance
     "dateTo": "2026-07-31",
     "objectId": "01J...",
     "sourceEntity": "sale-order",
-    "documentNo": "SO-20260726",
+    "documentNo": "SOR-20260726",
     "direction": ["OUT"]
   },
   "sort": [{ "field": "effectiveDate", "order": "desc" }]

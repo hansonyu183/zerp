@@ -1,15 +1,8 @@
-import {
-  computed,
-  getCurrentScope,
-  onScopeDispose,
-  reactive,
-  ref,
-} from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
-import { generateObjectCode } from '@/utils/object-code'
 import type { AuxEntityConfig } from './config'
 
 export interface AuxVersion {
@@ -61,9 +54,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     code: '',
     ...config.defaults(),
   })
-  const referenceOptions = reactive<
-    Record<string, ReferenceOption[]>
-  >({})
+  const referenceOptions = reactive<Record<string, ReferenceOption[]>>({})
   const referenceLoading = reactive<Record<string, boolean>>({})
   const referenceSequences = new Map<string, number>()
   const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -71,31 +62,37 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const canCreate = computed(() => session.can(`/aux/${config.entity}/create`))
   const canSave = computed(() => session.can(`/aux/${config.entity}/save`))
   const canEnable = computed(() => session.can(`/aux/${config.entity}/enable`))
-  const canDisable = computed(() => session.can(`/aux/${config.entity}/disable`))
+  const canDisable = computed(() =>
+    session.can(`/aux/${config.entity}/disable`),
+  )
   const canDelete = computed(() => session.can(`/aux/${config.entity}/delete`))
   const editorFields = computed<
     readonly BusinessObjectField<Record<string, unknown>>[]
   >(() => [
-    {
-      key: 'code',
-      label: '编码',
-      type: 'readonly',
-      required: true,
-    },
+    ...(editing.value
+      ? [
+          {
+            key: 'code',
+            label: '编码',
+            type: 'readonly',
+            required: true,
+          } as BusinessObjectField<Record<string, unknown>>,
+        ]
+      : []),
     ...config.fields.map((field) => ({
       key: field.key,
       label: field.label,
-      type: field.type === 'reference'
-        ? 'autocomplete' as const
-        : field.type ?? 'text',
+      type:
+        field.type === 'reference'
+          ? ('autocomplete' as const)
+          : (field.type ?? 'text'),
       required: field.required,
       clearable: !field.required,
       options: field.reference
-        ? referenceOptions[field.key] ?? []
+        ? (referenceOptions[field.key] ?? [])
         : field.options,
       loading:
-        field.type === 'reference' &&
-        Boolean(referenceLoading[field.key]),
+        field.type === 'reference' && Boolean(referenceLoading[field.key]),
       visible: field.visible
         ? (record: Readonly<Record<string, unknown>>) =>
             field.visible?.(record as Record<string, unknown>) ?? true
@@ -228,9 +225,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
       referenceOptions[field.key] = selected
         ? [
             selected,
-            ...fetched.filter(
-              (option) => option.value !== selected?.value,
-            ),
+            ...fetched.filter((option) => option.value !== selected?.value),
           ]
         : fetched
     } catch (error) {
@@ -270,7 +265,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (!canCreate.value) return
     editing.value = null
     editorModel.value = {
-      code: generateObjectCode('aux', config.entity),
       ...config.defaults(),
     }
     editorResetKey.value += 1
@@ -302,17 +296,18 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     errorMessage.value = null
     try {
       editorModel.value = structuredClone(value)
-      const { code, ...data } = value
+      const data = Object.fromEntries(
+        Object.entries(value).filter(([key]) => key !== 'code'),
+      )
       if (editing.value) {
         await apiClient.post(path('save'), {
           objectId: editing.value.objectId,
           revision: editing.value.objectRevision,
-          code: String(code),
           data,
         })
       } else {
         await apiClient.post(path('create'), {
-          data: { code: String(code), ...data },
+          data,
         })
       }
       editorOpen.value = false

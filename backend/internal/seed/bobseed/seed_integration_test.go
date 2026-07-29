@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -52,14 +53,19 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	counts := make(map[string]int)
+	lookup := queryLookup{queries: dbsqlc.New(pool)}
 	for _, item := range samples {
+		objectID, found, findErr := lookup.Find(t.Context(), item.entity, item.data.Code)
+		if findErr != nil || !found {
+			t.Fatalf("find %s %s: found=%t err=%v", item.entity, item.data.Code, found, findErr)
+		}
 		var status string
 		if err = pool.QueryRow(t.Context(), `
 			SELECT v.status
 			FROM bob_objects o
 			JOIN bob_versions v ON v.id = o.current_version_id
-			WHERE o.entity = $1 AND o.code = $2
-		`, item.entity, item.data.Code).Scan(&status); err != nil {
+			WHERE o.entity = $1 AND o.id = $2
+		`, item.entity, objectID).Scan(&status); err != nil {
 			t.Fatalf("query %s %s status: %v", item.entity, item.data.Code, err)
 		}
 		counts[status]++

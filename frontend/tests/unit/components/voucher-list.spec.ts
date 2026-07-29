@@ -191,9 +191,9 @@ describe('VoucherList', () => {
       .findAll('th')
       .find((heading) => heading.text() === '单号')
 
-    await numberHeader?.get('button').trigger('click')
+    await numberHeader?.trigger('click')
     await wrapper.setProps({ sort: { field: 'documentNo', order: 'asc' } })
-    await numberHeader?.get('button').trigger('click')
+    await numberHeader?.trigger('click')
     await wrapper.setProps({ sort: { field: 'documentNo', order: 'desc' } })
 
     expect(wrapper.emitted('update:sort')).toEqual([

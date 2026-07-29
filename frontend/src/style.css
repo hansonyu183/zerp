@@ -2,8 +2,14 @@
   color: #172b4d;
   background: #f4f6f8;
   font-family:
-    Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    'Noto Sans SC',
+    'Microsoft YaHei',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -31,4 +37,23 @@ body {
 
 a {
   color: inherit;
+}
+
+.v-table > .v-table__wrapper > table > thead > tr > th {
+  background-color: rgb(var(--v-theme-table-header));
+}
+
+.v-data-table .v-data-table-header__sort-icon {
+  margin-inline-start: 4px;
+  font-size: 16px;
+}
+
+.v-data-table
+  > .v-table__wrapper
+  > table
+  > thead
+  > tr
+  > th:not(.v-data-table__th--sorted)
+  .v-data-table-header__sort-icon {
+  opacity: 0.3;
 }

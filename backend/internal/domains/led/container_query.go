@@ -35,7 +35,7 @@ func (s *Service) QueryContainer(
 	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT id,entry_type,source_entity,
 		source_document_id,source_document_no,root_document_id,root_document_no,source_revision,
 		effective_date,occurred_at,customer_object_id,customer_version_id,customer_code,
-		customer_name,container_type,quantity_delta,COALESCE(reason,'')
+		customer_name,container_type,quantity_delta,COALESCE(remark,'')
 		FROM led_container_entries WHERE %s ORDER BY %s %s,occurred_at %s,id %s
 		LIMIT $7 OFFSET $8`, where, orderBy, strings.ToUpper(query.Order),
 		strings.ToUpper(query.Order), strings.ToUpper(query.Order)),
@@ -54,7 +54,7 @@ func (s *Service) QueryContainer(
 			&item.SourceDocumentID, &item.SourceDocumentNo, &item.RootDocumentID,
 			&item.RootDocumentNo, &item.SourceRevision, &date, &occurred,
 			&item.Customer.ObjectID, &item.Customer.VersionID, &item.Customer.Code,
-			&item.Customer.Name, &item.ContainerType, &item.Quantity, &item.Reason); err != nil {
+			&item.Customer.Name, &item.ContainerType, &item.Quantity, &item.Remark); err != nil {
 			return Page[ContainerEntryView]{}, err
 		}
 		item.Customer.Entity = bobdomain.EntityCustomer

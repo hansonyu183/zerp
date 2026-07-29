@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -150,11 +151,7 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 	if !exists {
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
-	var occurredAt pgtype.Timestamptz
-	if err = tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&occurredAt); err != nil {
-		return err
-	}
-	if err = s.reverseDocumentEntries(ctx, tx, q, generationID, event, occurredAt); err != nil {
+	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
 		return err
 	}
 	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
@@ -217,6 +214,7 @@ func fundParams(
 		SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
 		SourceRevision: posting.SourceRevision, EffectiveDate: doc.BusinessDate, OccurredAt: posting.OccurredAt,
 		ActorID: posting.ActorID, RequestID: posting.RequestID,
+		Remark:              preferredRemark(nil, doc.Remark),
 		FundAccountObjectID: objectID, FundAccountVersionID: versionID,
 		FundAccountCode: code, FundAccountName: name, Currency: doc.Currency, AmountDeltaCents: delta,
 	}
@@ -231,6 +229,7 @@ func partyParams(
 		SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
 		SourceLineID: lineID, SourceRevision: posting.SourceRevision, EffectiveDate: effectiveDate,
 		OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+		Remark:             preferredRemark(nil, doc.Remark),
 		CounterpartyEntity: entity, CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
 		CounterpartyCode: code, CounterpartyName: name, Currency: doc.Currency, AmountDeltaCents: delta,
 	}
@@ -239,6 +238,19 @@ func partyParams(
 func lockInventoryDimension(ctx context.Context, tx pgx.Tx, warehouseID, productID string) error {
 	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, warehouseID+"/"+productID)
 	return err
+}
+
+func preferredRemark(line, document *string) *string {
+	for _, value := range []*string{line, document} {
+		if value == nil {
+			continue
+		}
+		trimmed := strings.TrimSpace(*value)
+		if trimmed != "" {
+			return &trimmed
+		}
+	}
+	return nil
 }
 
 func eventFailure(err error) error {

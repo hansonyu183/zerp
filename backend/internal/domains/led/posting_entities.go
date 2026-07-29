@@ -51,19 +51,22 @@ func (s *Service) postSaleOutbound(
 		return s.internal("read sale outbound ledger detail", err)
 	}
 	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
-		product_name,product_unit,quantity_micros FROM vou_sale_outbound_lines WHERE document_id=$1`, doc.ID)
+		product_name,product_unit,quantity_micros,unit_price_cents,line_amount_cents,remark
+		FROM vou_sale_outbound_lines WHERE document_id=$1`, doc.ID)
 	if err != nil {
 		return err
 	}
 	type outboundLine struct {
 		id, productObjectID, productVersionID, productCode, productName, productUnit string
-		quantity                                                                     int64
+		quantity, price, amount                                                      int64
+		remark                                                                       *string
 	}
 	lines := []outboundLine{}
 	for rows.Next() {
 		var line outboundLine
 		if err = rows.Scan(&line.id, &line.productObjectID, &line.productVersionID, &line.productCode,
-			&line.productName, &line.productUnit, &line.quantity); err != nil {
+			&line.productName, &line.productUnit, &line.quantity, &line.price,
+			&line.amount, &line.remark); err != nil {
 			rows.Close()
 			return err
 		}
@@ -87,7 +90,9 @@ func (s *Service) postSaleOutbound(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: -line.quantity,
+			QuantityDeltaMicros: -line.quantity, Currency: &doc.Currency,
+			UnitPriceCents: &line.price, AmountCents: &line.amount,
+			Remark: preferredRemark(line.remark, doc.Remark),
 		})
 		if err != nil {
 			return s.writeError("post sale outbound inventory", err)
@@ -177,20 +182,22 @@ func (s *Service) postSaleReturn(
 		return s.internal("read sale return ledger detail", err)
 	}
 	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
-		product_name,product_unit,quantity_micros,line_amount_cents
+		product_name,product_unit,quantity_micros,unit_price_cents,line_amount_cents,remark
 		FROM vou_sale_return_lines WHERE document_id=$1`, doc.ID)
 	if err != nil {
 		return err
 	}
 	type returnLine struct {
 		id, productObjectID, productVersionID, productCode, productName, productUnit string
-		quantity, amount                                                             int64
+		quantity, price, amount                                                      int64
+		remark                                                                       *string
 	}
 	lines := make([]returnLine, 0)
 	for rows.Next() {
 		var line returnLine
 		if err = rows.Scan(&line.id, &line.productObjectID, &line.productVersionID, &line.productCode,
-			&line.productName, &line.productUnit, &line.quantity, &line.amount); err != nil {
+			&line.productName, &line.productUnit, &line.quantity, &line.price,
+			&line.amount, &line.remark); err != nil {
 			rows.Close()
 			return err
 		}
@@ -214,7 +221,9 @@ func (s *Service) postSaleReturn(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productObjectID, ProductVersionID: line.productVersionID,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: line.quantity,
+			QuantityDeltaMicros: line.quantity, Currency: &doc.Currency,
+			UnitPriceCents: &line.price, AmountCents: &line.amount,
+			Remark: preferredRemark(line.remark, doc.Remark),
 		}); err != nil {
 			return s.writeError("post sale return inventory", err)
 		}
@@ -264,7 +273,9 @@ func (s *Service) postPurchase(
 			WarehouseCode: detail.WarehouseCode, WarehouseName: detail.WarehouseName,
 			ProductObjectID: line.ProductObjectID, ProductVersionID: line.ProductVersionID,
 			ProductCode: line.ProductCode, ProductName: line.ProductName, ProductUnit: line.ProductUnit,
-			QuantityDeltaMicros: line.QuantityMicros,
+			QuantityDeltaMicros: line.QuantityMicros, Currency: &doc.Currency,
+			UnitPriceCents: &line.UnitPriceCents, AmountCents: &line.LineAmountCents,
+			Remark: preferredRemark(line.Remark, doc.Remark),
 		}); err != nil {
 			return s.writeError("post purchase inventory", err)
 		}
@@ -301,20 +312,22 @@ func (s *Service) postPurchaseReturn(
 		return s.internal("read purchase return ledger detail", err)
 	}
 	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
-		product_name,product_unit,quantity_micros,line_amount_cents
+		product_name,product_unit,quantity_micros,unit_price_cents,line_amount_cents,remark
 		FROM vou_purchase_return_lines WHERE document_id=$1`, doc.ID)
 	if err != nil {
 		return err
 	}
 	type purchaseReturnLine struct {
 		id, productID, productVersion, productCode, productName, productUnit string
-		quantity, amount                                                     int64
+		quantity, price, amount                                              int64
+		remark                                                               *string
 	}
 	lines := make([]purchaseReturnLine, 0)
 	for rows.Next() {
 		var line purchaseReturnLine
 		if err = rows.Scan(&line.id, &line.productID, &line.productVersion, &line.productCode,
-			&line.productName, &line.productUnit, &line.quantity, &line.amount); err != nil {
+			&line.productName, &line.productUnit, &line.quantity, &line.price,
+			&line.amount, &line.remark); err != nil {
 			rows.Close()
 			return err
 		}
@@ -338,7 +351,9 @@ func (s *Service) postPurchaseReturn(
 			WarehouseCode: warehouseCode, WarehouseName: warehouseName,
 			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
 			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityDeltaMicros: -line.quantity,
+			QuantityDeltaMicros: -line.quantity, Currency: &doc.Currency,
+			UnitPriceCents: &line.price, AmountCents: &line.amount,
+			Remark: preferredRemark(line.remark, doc.Remark),
 		}); err != nil {
 			return s.writeError("post purchase return inventory", err)
 		}

@@ -7,18 +7,37 @@ import type {
 } from './types'
 import { formatLocalDateTime } from '@/utils/date'
 
-const sourceEntities: readonly LedgerOption[] = [
+const inventorySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
   { title: '销售出库', value: 'sale-outbound' },
-  { title: '销售签收', value: 'sale-signoff' },
+  { title: '销售退货', value: 'sale-return' },
   { title: '采购入库', value: 'purchase-inbound' },
+  { title: '采购退货', value: 'purchase-return' },
+]
+
+const fundSourceEntities: readonly LedgerOption[] = [
+  { title: '期初', value: 'opening' },
   { title: '往来收款', value: 'receipt' },
   { title: '往来付款', value: 'payment' },
   { title: '费用报销', value: 'expense-reimbursement' },
   { title: '其他收入', value: 'other-income' },
 ]
 
-const directionText: Record<string, string> = {
+const partySourceEntities: readonly LedgerOption[] = [
+  { title: '期初', value: 'opening' },
+  { title: '销售签收', value: 'sale-signoff' },
+  { title: '销售退货', value: 'sale-return' },
+  { title: '采购入库', value: 'purchase-inbound' },
+  { title: '采购退货', value: 'purchase-return' },
+  { title: '往来收款', value: 'receipt' },
+  { title: '往来付款', value: 'payment' },
+]
+
+const containerSourceEntities: readonly LedgerOption[] = [
+  { title: '期初', value: 'opening' },
+]
+
+const directionText: Readonly<Record<string, string>> = {
   IN: '流入',
   OUT: '流出',
   DEBIT: '借记',
@@ -96,7 +115,7 @@ const commonEntryColumns: readonly LedgerColumn[] = [
 ]
 
 const endingEntryColumns: readonly LedgerColumn[] = [
-  col('reason', '原因', (row) => text(row, 'reason')),
+  col('remark', '备注', (row) => text(row, 'remark')),
 ]
 
 const inOut: readonly LedgerOption[] = [
@@ -104,7 +123,19 @@ const inOut: readonly LedgerOption[] = [
   { title: '流出', value: 'OUT' },
 ]
 
-export const ledgerSourceEntityOptions = sourceEntities
+const inventoryInOut: readonly LedgerOption[] = [
+  { title: '入库', value: 'IN' },
+  { title: '出库', value: 'OUT' },
+]
+
+function quantityForDirection(
+  row: LedgerRecord,
+  direction: 'IN' | 'OUT',
+): string {
+  return row.direction === direction ? text(row, 'quantity') : ''
+}
+
+export const ledgerSourceEntityOptions = inventorySourceEntities
 
 export const ledgerEntityConfigs: Readonly<
   Record<LedgerEntityConfig['entity'], LedgerEntityConfig>
@@ -114,15 +145,24 @@ export const ledgerEntityConfigs: Readonly<
     title: '库存台账',
     objectLabel: '仓库或商品',
     referenceSources: [{ entity: 'warehouse' }, { entity: 'product' }],
-    directions: inOut,
+    sourceEntities: inventorySourceEntities,
+    directions: inventoryInOut,
     entryColumns: [
       ...commonEntryColumns,
       col('warehouse', '仓库', (row) => reference(row, 'warehouse')),
       col('product', '商品', (row) => reference(row, 'product')),
-      col('direction', '方向', (row) =>
-        translated(row, 'direction', directionText)),
-      col('quantity', '数量', (row) => text(row, 'quantity'), { align: 'end' }),
+      col('inQuantity', '入库', (row) => quantityForDirection(row, 'IN'), {
+        align: 'end',
+      }),
+      col('outQuantity', '出库', (row) => quantityForDirection(row, 'OUT'), {
+        align: 'end',
+      }),
       col('unit', '单位', (row) => nested(row, 'product')?.unit ?? '—'),
+      col('unitPrice', '单价', (row) => text(row, 'unitPrice'), {
+        align: 'end',
+      }),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+      col('currency', '币种', (row) => text(row, 'currency')),
       ...endingEntryColumns,
     ],
     balanceColumns: [
@@ -137,6 +177,7 @@ export const ledgerEntityConfigs: Readonly<
     title: '资金台账',
     objectLabel: '资金账户',
     referenceSources: [{ entity: 'fund-account' }],
+    sourceEntities: fundSourceEntities,
     directions: inOut,
     entryColumns: [
       ...commonEntryColumns,
@@ -161,6 +202,7 @@ export const ledgerEntityConfigs: Readonly<
       { entity: 'customer' },
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
     ],
+    sourceEntities: partySourceEntities,
     directions: [
       { title: '借记', value: 'DEBIT' },
       { title: '贷记', value: 'CREDIT' },
@@ -185,6 +227,7 @@ export const ledgerEntityConfigs: Readonly<
     title: '空桶台账',
     objectLabel: '客户',
     referenceSources: [{ entity: 'customer' }],
+    sourceEntities: containerSourceEntities,
     directions: [],
     entryColumns: [
       ...commonEntryColumns,

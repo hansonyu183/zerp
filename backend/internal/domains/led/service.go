@@ -67,7 +67,8 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 		for _, row := range inventory {
 			view.Inventory = append(view.Inventory, openingInventoryView(row.ID, row.WarehouseObjectID, row.WarehouseVersionID,
 				row.WarehouseCode, row.WarehouseName, row.ProductObjectID, row.ProductVersionID,
-				row.ProductCode, row.ProductName, row.ProductUnit, row.QuantityMicros))
+				row.ProductCode, row.ProductName, row.ProductUnit, row.QuantityMicros,
+				row.UnitPriceCents, row.AmountCents, row.Currency))
 		}
 		for _, row := range fund {
 			view.Fund = append(view.Fund, openingFundView(row.ID, row.FundAccountObjectID, row.FundAccountVersionID,
@@ -102,7 +103,8 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 	for _, row := range inventory {
 		view.Inventory = append(view.Inventory, openingInventoryView(row.ID, row.WarehouseObjectID, row.WarehouseVersionID,
 			row.WarehouseCode, row.WarehouseName, row.ProductObjectID, row.ProductVersionID,
-			row.ProductCode, row.ProductName, row.ProductUnit, row.QuantityMicros))
+			row.ProductCode, row.ProductName, row.ProductUnit, row.QuantityMicros,
+			row.UnitPriceCents, row.AmountCents, row.Currency))
 	}
 	for _, row := range fund {
 		view.Fund = append(view.Fund, openingFundView(row.ID, row.FundAccountObjectID, row.FundAccountVersionID,
@@ -342,14 +344,20 @@ func clearDraft(ctx context.Context, q *dbsqlc.Queries) error {
 func openingInventoryView(
 	id, warehouseObjectID, warehouseVersionID, warehouseCode, warehouseName,
 	productObjectID, productVersionID, productCode, productName, productUnit string,
-	quantity int64,
+	quantity int64, unitPrice, amount *int64, currency *string,
 ) InventoryOpeningView {
-	return InventoryOpeningView{
+	view := InventoryOpeningView{
 		ID:        id,
 		Warehouse: ReferenceView{ObjectID: warehouseObjectID, VersionID: warehouseVersionID, Entity: bobdomain.EntityWarehouse, Code: warehouseCode, Name: warehouseName},
 		Product:   ReferenceView{ObjectID: productObjectID, VersionID: productVersionID, Entity: bobdomain.EntityProduct, Code: productCode, Name: productName, Unit: productUnit},
 		Quantity:  formatQuantity(quantity),
 	}
+	if unitPrice != nil && amount != nil && currency != nil {
+		view.UnitPrice = formatMoney(*unitPrice)
+		view.Amount = formatMoney(*amount)
+		view.Currency = *currency
+	}
+	return view
 }
 
 func openingFundView(id, objectID, versionID, code, name, currency string, amount int64) FundOpeningView {

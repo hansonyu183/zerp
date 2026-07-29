@@ -48,6 +48,29 @@ function fixed(value: string, scale: number): boolean {
   return new RegExp(`^\\d+(?:\\.\\d{1,${scale}})?$`).test(value.trim())
 }
 
+function positiveFixed(value: string, scale: number): boolean {
+  const parsed = scaledInteger(value, scale)
+  return parsed !== null && parsed > 0n
+}
+
+function scaledInteger(value: string, scale: number): bigint | null {
+  if (!fixed(value, scale)) return null
+  const [whole, fraction = ''] = value.trim().split('.')
+  return BigInt(`${whole}${fraction.padEnd(scale, '0')}`)
+}
+
+export function inventoryOpeningAmount(
+  quantity: string,
+  unitPrice: string,
+): string {
+  const quantityMicros = scaledInteger(quantity, 6)
+  const unitPriceCents = scaledInteger(unitPrice, 2)
+  if (quantityMicros === null || unitPriceCents === null) return '—'
+  const amountCents =
+    (quantityMicros * unitPriceCents + 500_000n) / 1_000_000n
+  return `${amountCents / 100n}.${String(amountCents % 100n).padStart(2, '0')}`
+}
+
 function duplicate(values: readonly string[]): boolean {
   return new Set(values).size !== values.length
 }
@@ -130,6 +153,8 @@ export function useOpeningViewModel() {
       warehouse: row.warehouse,
       product: row.product,
       quantity: row.quantity,
+      unitPrice: row.unitPrice ?? '',
+      currency: row.currency ?? '',
     }))
     form.fund = value.fund.map((row): FundOpeningDraft => ({
       key: row.id || draftKey('fund'),
@@ -179,6 +204,8 @@ export function useOpeningViewModel() {
       warehouse: null,
       product: null,
       quantity: '0',
+      unitPrice: '',
+      currency: 'CNY',
     })
   }
 
@@ -222,8 +249,12 @@ export function useOpeningViewModel() {
   function validate(): string | null {
     if (!form.cutoverDate) return '请选择账簿启用日。'
     if (form.inventory.some((row) =>
-      !row.warehouse || !row.product || !fixed(row.quantity, 6)
-    )) return '请完整填写有效的库存期初，数量最多六位小数且不得为负。'
+      !row.warehouse ||
+      !row.product ||
+      !fixed(row.quantity, 6) ||
+      !positiveFixed(row.unitPrice, 2) ||
+      !/^[A-Z]{3}$/.test(row.currency.trim().toUpperCase())
+    )) return '请完整填写有效的库存期初，数量最多六位小数，单价必须大于零且最多两位小数。'
     if (form.fund.some((row) =>
       !row.fundAccount || !fixed(row.amount, 2)
     )) return '请完整填写有效的资金期初，金额最多两位小数且不得为负。'
@@ -267,6 +298,8 @@ export function useOpeningViewModel() {
         warehouse: input(row.warehouse!),
         product: input(row.product!),
         quantity: row.quantity.trim(),
+        unitPrice: row.unitPrice.trim(),
+        currency: row.currency.trim().toUpperCase(),
       })),
       fund: form.fund.map((row) => ({
         fundAccount: input(row.fundAccount!),

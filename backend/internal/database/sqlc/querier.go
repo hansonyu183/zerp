@@ -93,10 +93,14 @@ type Querier interface {
 	DeleteBobVehicleDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobWarehouseDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
+	DeleteLedContainerEntriesBySource(ctx context.Context, arg DeleteLedContainerEntriesBySourceParams) error
 	DeleteLedDraftContainer(ctx context.Context) error
 	DeleteLedDraftFund(ctx context.Context) error
 	DeleteLedDraftInventory(ctx context.Context) error
 	DeleteLedDraftParty(ctx context.Context) error
+	DeleteLedFundEntriesBySource(ctx context.Context, arg DeleteLedFundEntriesBySourceParams) error
+	DeleteLedInventoryEntriesBySource(ctx context.Context, arg DeleteLedInventoryEntriesBySourceParams) error
+	DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteLedPartyEntriesBySourceParams) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
@@ -130,6 +134,7 @@ type Querier interface {
 	GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error)
+	HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error

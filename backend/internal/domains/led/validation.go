@@ -63,8 +63,19 @@ func validateSave(input OpeningSaveInput) (time.Time, error) {
 		if err = validateReference(item.Product); err != nil {
 			return time.Time{}, err
 		}
-		if _, err = parsePositiveFixed(item.Quantity, 6, true); err != nil {
-			return time.Time{}, domainError(ErrorValidation, "invalid inventory opening quantity", nil, err)
+		quantity, quantityErr := parsePositiveFixed(item.Quantity, 6, true)
+		if quantityErr != nil {
+			return time.Time{}, domainError(ErrorValidation, "invalid inventory opening quantity", nil, quantityErr)
+		}
+		unitPrice, priceErr := parsePositiveFixed(item.UnitPrice, 2, false)
+		if priceErr != nil {
+			return time.Time{}, domainError(ErrorValidation, "invalid inventory opening unitPrice", nil, priceErr)
+		}
+		if !currencyPattern.MatchString(strings.ToUpper(strings.TrimSpace(item.Currency))) {
+			return time.Time{}, domainError(ErrorValidation, "invalid inventory opening currency", nil, nil)
+		}
+		if _, amountErr := lineAmountCents(quantity, unitPrice); amountErr != nil {
+			return time.Time{}, domainError(ErrorValidation, "invalid inventory opening amount", nil, amountErr)
 		}
 		key := item.Warehouse.ObjectID + "/" + item.Product.ObjectID
 		if _, exists := inventoryKeys[key]; exists {

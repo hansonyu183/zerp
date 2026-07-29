@@ -9,6 +9,7 @@ import {
   type LedgerReference,
 } from '@/components/ledger'
 import {
+  inventoryOpeningAmount,
   openingEventLabel,
   useOpeningViewModel,
 } from '@/pages/led/opening/vm'
@@ -73,12 +74,9 @@ describe('LED shared ledger view model', () => {
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
       'opening',
       'sale-outbound',
-      'sale-signoff',
+      'sale-return',
       'purchase-inbound',
-      'receipt',
-      'payment',
-      'expense-reimbursement',
-      'other-income',
+      'purchase-return',
     ])
     expect(ledgerEntityConfigs.inventory.entryColumns.map(
       (column) => column.label,
@@ -89,11 +87,25 @@ describe('LED shared ledger view model', () => {
       '单号',
       '仓库',
       '商品',
-      '方向',
-      '数量',
+      '入库',
+      '出库',
       '单位',
-      '原因',
+      '单价',
+      '金额',
+      '币种',
+      '备注',
     ])
+    const inventoryColumns = ledgerEntityConfigs.inventory.entryColumns
+    const inbound = {
+      direction: 'IN',
+      quantity: '2.5',
+      unitPrice: '10.00',
+      amount: '25.00',
+    }
+    expect(inventoryColumns.find((column) =>
+      column.key === 'inQuantity')?.value(inbound)).toBe('2.5')
+    expect(inventoryColumns.find((column) =>
+      column.key === 'outQuantity')?.value(inbound)).toBe('')
     expect(ledgerEntityConfigs.fund.balanceColumns.map(
       (column) => column.label,
     )).toEqual(['账户', '性质', '金额'])
@@ -148,7 +160,7 @@ describe('LED shared ledger view model', () => {
     scope.stop()
   })
 
-  it('uses today for balance and never calls an action without permission', async () => {
+  it('queries a selected balance date and never calls an action without permission', async () => {
     useSessionStore().permissions = ['/led/fund/balance']
     mockedPost.mockResolvedValue({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
@@ -158,13 +170,14 @@ describe('LED shared ledger view model', () => {
       useLedgerViewModel(ledgerEntityConfigs.fund))!
 
     expect(vm.mode.value).toBe('balances')
+    vm.balanceFilters.asOfDate = '2026-06-30'
     await vm.load()
     expect(mockedPost).toHaveBeenCalledWith(
       'led/fund/balance',
       {
         page: 1,
         pageSize: 20,
-        filters: { asOfDate: vm.balanceFilters.asOfDate },
+        filters: { asOfDate: '2026-06-30' },
       },
       { signal: expect.any(AbortSignal) },
     )
@@ -213,6 +226,8 @@ describe('LED opening view model', () => {
     vm.form.inventory[0]!.warehouse = warehouse
     vm.form.inventory[0]!.product = product
     vm.form.inventory[0]!.quantity = '12.345600'
+    vm.form.inventory[0]!.unitPrice = '10.20'
+    vm.form.inventory[0]!.currency = 'cny'
     vm.addFund()
     vm.form.fund[0]!.fundAccount = fundAccount
     vm.form.fund[0]!.balanceType = 'OVERDRAFT'
@@ -239,6 +254,8 @@ describe('LED opening view model', () => {
           versionId: product.versionId,
         },
         quantity: '12.345600',
+        unitPrice: '10.20',
+        currency: 'CNY',
       }],
       fund: [{
         fundAccount: {
@@ -283,6 +300,8 @@ describe('LED opening view model', () => {
       row.warehouse = warehouse
       row.product = product
       row.quantity = '1'
+      row.unitPrice = '10.00'
+      row.currency = 'CNY'
     }
 
     expect(vm.savePayload()).toBeNull()
@@ -290,6 +309,11 @@ describe('LED opening view model', () => {
       '库存期初存在重复的仓库和商品组合。',
     )
     scope.stop()
+  })
+
+  it('calculates inventory opening amount with backend-compatible rounding', () => {
+    expect(inventoryOpeningAmount('1.500000', '1.01')).toBe('1.52')
+    expect(inventoryOpeningAmount('1', '')).toBe('—')
   })
 
   it('uses the current revision for activation and refreshes server state', async () => {

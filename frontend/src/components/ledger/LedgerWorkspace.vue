@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ledgerSourceEntityOptions } from './config'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
@@ -123,7 +122,7 @@ void vm.load()
               density="comfortable"
               item-title="title"
               item-value="value"
-              :items="ledgerSourceEntityOptions"
+              :items="config.sourceEntities"
               label="来源单据"
               variant="outlined"
             />
@@ -143,7 +142,7 @@ void vm.load()
               item-title="title"
               item-value="value"
               :items="config.directions"
-              label="方向"
+              :label="config.entity === 'inventory' ? '业务类型' : '方向'"
               multiple
               variant="outlined"
             />

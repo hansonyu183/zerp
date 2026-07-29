@@ -2,7 +2,11 @@
 import { nextTick, ref } from 'vue'
 import { LedgerReferenceAutocomplete } from '@/components/ledger'
 import { formatLocalDateTime } from '@/utils/date'
-import { openingEventLabel, useOpeningViewModel } from './vm'
+import {
+  inventoryOpeningAmount,
+  openingEventLabel,
+  useOpeningViewModel,
+} from './vm'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 
 const vm = useOpeningViewModel()
@@ -11,6 +15,11 @@ const quantityRule = (value: string) =>
   /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) || '数量格式不正确。'
 const moneyRule = (value: string) =>
   /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value) || '金额格式不正确。'
+const positiveMoneyRule = (value: string) =>
+  /^(?:0*[1-9]\d*)(?:\.\d{1,2})?$|^0+\.(?:0*[1-9]\d?)$/.test(value) ||
+  '单价必须大于零且最多两位小数。'
+const currencyRule = (value: string) =>
+  /^[A-Za-z]{3}$/.test(value) || '币种必须为三个字母。'
 
 const statusText: Record<string, string> = {
   DRAFT: '草稿',
@@ -122,6 +131,9 @@ async function saveOpening(): Promise<void> {
                           <th>仓库</th>
                           <th>商品</th>
                           <th>数量</th>
+                          <th>单价</th>
+                          <th>金额</th>
+                          <th>币种</th>
                           <th v-if="vm.editable.value" class="text-end">
                             操作
                           </th>
@@ -166,6 +178,28 @@ async function saveOpening(): Promise<void> {
                               :rules="[quantityRule]"
                             />
                           </td>
+                          <td>
+                            <CompactTableField
+                              v-model="row.unitPrice"
+                              :disabled="!vm.editable.value"
+                              inputmode="decimal"
+                              :rules="[positiveMoneyRule]"
+                            />
+                          </td>
+                          <td class="text-end">
+                            {{ inventoryOpeningAmount(
+                              row.quantity,
+                              row.unitPrice,
+                            ) }}
+                          </td>
+                          <td>
+                            <CompactTableField
+                              v-model="row.currency"
+                              :disabled="!vm.editable.value"
+                              :maxlength="3"
+                              :rules="[currencyRule]"
+                            />
+                          </td>
                           <td v-if="vm.editable.value" class="text-end">
                             <v-btn
                               aria-label="删除库存期初"
@@ -178,7 +212,7 @@ async function saveOpening(): Promise<void> {
                         </tr>
                         <tr v-if="vm.form.inventory.length === 0">
                           <td
-                            :colspan="vm.editable.value ? 4 : 3"
+                            :colspan="vm.editable.value ? 7 : 6"
                             class="opening-page__empty"
                           >
                             暂无库存期初

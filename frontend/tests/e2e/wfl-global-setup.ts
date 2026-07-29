@@ -91,6 +91,8 @@ async function ensureLedgerActive(
       warehouse: reference(item.warehouse),
       product: reference(item.product),
       quantity: item.quantity,
+      unitPrice: item.unitPrice ?? '1.00',
+      currency: item.currency ?? 'CNY',
     })),
     fund: opening.fund.map((item) => ({
       fundAccount: reference(item.fundAccount),
@@ -115,6 +117,8 @@ async function ensureLedgerActive(
       warehouse: reference(warehouse),
       product: reference(product),
       quantity: '1000',
+      unitPrice: '1.00',
+      currency: 'CNY',
     })
   }
 

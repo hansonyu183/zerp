@@ -40,7 +40,7 @@ func (s *Service) QueryInventory(ctx context.Context, input QueryInput) (Page[In
 		if row.QuantityDeltaMicros < 0 {
 			direction = "OUT"
 		}
-		items = append(items, InventoryEntryView{
+		item := InventoryEntryView{
 			ID: row.ID, EntryType: row.EntryType, SourceEntity: row.SourceEntity,
 			SourceDocumentID: row.SourceDocumentID, SourceDocumentNo: row.SourceDocumentNo,
 			SourceLineID: row.SourceLineID, SourceRevision: row.SourceRevision,
@@ -48,8 +48,14 @@ func (s *Service) QueryInventory(ctx context.Context, input QueryInput) (Page[In
 			Direction: direction, Quantity: formatAbsoluteQuantity(row.QuantityDeltaMicros),
 			Warehouse: ReferenceView{ObjectID: row.WarehouseObjectID, VersionID: row.WarehouseVersionID, Entity: bobdomain.EntityWarehouse, Code: row.WarehouseCode, Name: row.WarehouseName},
 			Product:   ReferenceView{ObjectID: row.ProductObjectID, VersionID: row.ProductVersionID, Entity: bobdomain.EntityProduct, Code: row.ProductCode, Name: row.ProductName, Unit: row.ProductUnit},
-			Reason:    deref(row.Reason),
-		})
+			Remark:    deref(row.Remark),
+		}
+		if row.UnitPriceCents != nil && row.AmountCents != nil && row.Currency != nil {
+			item.UnitPrice = formatMoney(*row.UnitPriceCents)
+			item.Amount = formatMoney(*row.AmountCents)
+			item.Currency = *row.Currency
+		}
+		items = append(items, item)
 	}
 	return Page[InventoryEntryView]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
 }
@@ -93,7 +99,7 @@ func (s *Service) QueryFund(ctx context.Context, input QueryInput) (Page[FundEnt
 			SourceRevision: row.SourceRevision, EffectiveDate: formatDate(row.EffectiveDate),
 			OccurredAt: row.OccurredAt.Time, Direction: direction, Amount: formatAbsoluteMoney(row.AmountDeltaCents),
 			FundAccount: ReferenceView{ObjectID: row.FundAccountObjectID, VersionID: row.FundAccountVersionID, Entity: bobdomain.EntityFundAccount, Code: row.FundAccountCode, Name: row.FundAccountName, Currency: row.Currency},
-			Currency:    row.Currency, Reason: deref(row.Reason),
+			Currency:    row.Currency, Remark: deref(row.Remark),
 		})
 	}
 	return Page[FundEntryView]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
@@ -139,7 +145,7 @@ func (s *Service) QueryParty(ctx context.Context, input QueryInput) (Page[PartyE
 			OccurredAt: row.OccurredAt.Time, Direction: direction, Amount: formatAbsoluteMoney(row.AmountDeltaCents),
 			CounterpartyType: row.CounterpartyEntity,
 			Counterparty:     ReferenceView{ObjectID: row.CounterpartyObjectID, VersionID: row.CounterpartyVersionID, Entity: row.CounterpartyEntity, Code: row.CounterpartyCode, Name: row.CounterpartyName},
-			Currency:         row.Currency, Reason: deref(row.Reason),
+			Currency:         row.Currency, Remark: deref(row.Remark),
 		})
 	}
 	return Page[PartyEntryView]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil

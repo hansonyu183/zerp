@@ -7,6 +7,9 @@ export interface InventoryOpeningView {
   warehouse: LedgerReference
   product: LedgerReference
   quantity: string
+  unitPrice?: string
+  amount?: string
+  currency?: string
 }
 
 export interface FundOpeningView {
@@ -48,6 +51,8 @@ export interface InventoryOpeningDraft {
   warehouse: LedgerReference | null
   product: LedgerReference | null
   quantity: string
+  unitPrice: string
+  currency: string
 }
 
 export interface FundOpeningDraft {
@@ -88,6 +93,8 @@ export interface OpeningSaveRequest {
     warehouse: LedgerReferenceInput
     product: LedgerReferenceInput
     quantity: string
+    unitPrice: string
+    currency: string
   }>
   fund: Array<{
     fundAccount: LedgerReferenceInput

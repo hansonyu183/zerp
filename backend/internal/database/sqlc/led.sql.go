@@ -99,7 +99,8 @@ func (q *Queries) CopyLedOpeningToDraftFund(ctx context.Context, generationID st
 const copyLedOpeningToDraftInventory = `-- name: CopyLedOpeningToDraftInventory :exec
 INSERT INTO led_draft_inventory
 SELECT id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_opening_inventory WHERE generation_id = $1
 `
 
@@ -161,7 +162,7 @@ WHERE generation_id = $1
   AND ($4::text = '' OR fund_account_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'IN' ELSE 'OUT' END = ANY($7::text[]))
 `
 
@@ -220,7 +221,7 @@ WHERE generation_id = $1
   AND ($4::text = '' OR warehouse_object_id = $4 OR product_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN quantity_delta_micros > 0 THEN 'IN' ELSE 'OUT' END = ANY($7::text[]))
 `
 
@@ -279,7 +280,7 @@ WHERE generation_id = $1
   AND ($4::text = '' OR counterparty_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($7::text[]))
 `
 
@@ -306,6 +307,22 @@ func (q *Queries) CountLedPartyEntries(ctx context.Context, arg CountLedPartyEnt
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteLedContainerEntriesBySource = `-- name: DeleteLedContainerEntriesBySource :exec
+DELETE FROM led_container_entries
+WHERE generation_id = $1
+  AND source_document_id = $2
+`
+
+type DeleteLedContainerEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedContainerEntriesBySource(ctx context.Context, arg DeleteLedContainerEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedContainerEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
 }
 
 const deleteLedDraftContainer = `-- name: DeleteLedDraftContainer :exec
@@ -344,6 +361,54 @@ func (q *Queries) DeleteLedDraftParty(ctx context.Context) error {
 	return err
 }
 
+const deleteLedFundEntriesBySource = `-- name: DeleteLedFundEntriesBySource :exec
+DELETE FROM led_fund_entries
+WHERE generation_id = $1
+  AND source_document_id = $2
+`
+
+type DeleteLedFundEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedFundEntriesBySource(ctx context.Context, arg DeleteLedFundEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedFundEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
+const deleteLedInventoryEntriesBySource = `-- name: DeleteLedInventoryEntriesBySource :exec
+DELETE FROM led_inventory_entries
+WHERE generation_id = $1
+  AND source_document_id = $2
+`
+
+type DeleteLedInventoryEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedInventoryEntriesBySource(ctx context.Context, arg DeleteLedInventoryEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedInventoryEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
+const deleteLedPartyEntriesBySource = `-- name: DeleteLedPartyEntriesBySource :exec
+DELETE FROM led_party_entries
+WHERE generation_id = $1
+  AND source_document_id = $2
+`
+
+type DeleteLedPartyEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteLedPartyEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedPartyEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
 const getLedControl = `-- name: GetLedControl :one
 SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by FROM led_control WHERE singleton = true
 `
@@ -363,11 +428,27 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 	return i, err
 }
 
+const hasIncompleteLedDraftInventoryPricing = `-- name: HasIncompleteLedDraftInventoryPricing :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_draft_inventory
+    WHERE currency IS NULL OR unit_price_cents IS NULL OR amount_cents IS NULL
+)::boolean
+`
+
+func (q *Queries) HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, hasIncompleteLedDraftInventoryPricing)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const hasLedEntriesForSource = `-- name: HasLedEntriesForSource :one
 SELECT (
     EXISTS (SELECT 1 FROM led_inventory_entries i WHERE i.generation_id = $1 AND i.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_fund_entries f WHERE f.generation_id = $1 AND f.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = $1 AND p.source_document_id = $2)
+    OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = $1 AND c.source_document_id = $2)
 )::boolean
 `
 
@@ -519,27 +600,32 @@ func (q *Queries) InsertLedDraftFund(ctx context.Context, arg InsertLedDraftFund
 const insertLedDraftInventory = `-- name: InsertLedDraftInventory :exec
 INSERT INTO led_draft_inventory (
     id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-    product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+    product_object_id, product_version_id, product_code, product_name, product_unit,
+    quantity_micros, currency, unit_price_cents, amount_cents
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6,
     $7, $8, $9,
-    $10, $11
+    $10, $11, $12,
+    $13, $14
 )
 `
 
 type InsertLedDraftInventoryParams struct {
-	ID                 string `db:"id" json:"id"`
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
-	ProductObjectID    string `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string `db:"product_code" json:"product_code"`
-	ProductName        string `db:"product_name" json:"product_name"`
-	ProductUnit        string `db:"product_unit" json:"product_unit"`
-	QuantityMicros     int64  `db:"quantity_micros" json:"quantity_micros"`
+	ID                 string  `db:"id" json:"id"`
+	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	ProductUnit        string  `db:"product_unit" json:"product_unit"`
+	QuantityMicros     int64   `db:"quantity_micros" json:"quantity_micros"`
+	Currency           *string `db:"currency" json:"currency"`
+	UnitPriceCents     *int64  `db:"unit_price_cents" json:"unit_price_cents"`
+	AmountCents        *int64  `db:"amount_cents" json:"amount_cents"`
 }
 
 func (q *Queries) InsertLedDraftInventory(ctx context.Context, arg InsertLedDraftInventoryParams) error {
@@ -555,6 +641,9 @@ func (q *Queries) InsertLedDraftInventory(ctx context.Context, arg InsertLedDraf
 		arg.ProductName,
 		arg.ProductUnit,
 		arg.QuantityMicros,
+		arg.Currency,
+		arg.UnitPriceCents,
+		arg.AmountCents,
 	)
 	return err
 }
@@ -598,7 +687,7 @@ func (q *Queries) InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPar
 const insertLedFundEntry = `-- name: InsertLedFundEntry :exec
 INSERT INTO led_fund_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
     currency, amount_delta_cents
 ) VALUES (
@@ -625,7 +714,7 @@ type InsertLedFundEntryParams struct {
 	OccurredAt           pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	ActorID              string             `db:"actor_id" json:"actor_id"`
 	RequestID            string             `db:"request_id" json:"request_id"`
-	Reason               *string            `db:"reason" json:"reason"`
+	Remark               *string            `db:"remark" json:"remark"`
 	FundAccountObjectID  string             `db:"fund_account_object_id" json:"fund_account_object_id"`
 	FundAccountVersionID string             `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode      string             `db:"fund_account_code" json:"fund_account_code"`
@@ -648,7 +737,7 @@ func (q *Queries) InsertLedFundEntry(ctx context.Context, arg InsertLedFundEntry
 		arg.OccurredAt,
 		arg.ActorID,
 		arg.RequestID,
-		arg.Reason,
+		arg.Remark,
 		arg.FundAccountObjectID,
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
@@ -684,10 +773,10 @@ func (q *Queries) InsertLedGeneration(ctx context.Context, arg InsertLedGenerati
 const insertLedInventoryEntry = `-- name: InsertLedInventoryEntry :exec
 INSERT INTO led_inventory_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
     product_object_id, product_version_id, product_code, product_name, product_unit,
-    quantity_delta_micros
+    quantity_delta_micros, currency, unit_price_cents, amount_cents
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
@@ -696,7 +785,8 @@ INSERT INTO led_inventory_entries (
     $14, $15, $16,
     $17, $18, $19,
     $20, $21, $22,
-    $23
+    $23, $24, $25,
+    $26
 ) ON CONFLICT DO NOTHING
 `
 
@@ -713,7 +803,7 @@ type InsertLedInventoryEntryParams struct {
 	OccurredAt          pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	ActorID             string             `db:"actor_id" json:"actor_id"`
 	RequestID           string             `db:"request_id" json:"request_id"`
-	Reason              *string            `db:"reason" json:"reason"`
+	Remark              *string            `db:"remark" json:"remark"`
 	WarehouseObjectID   string             `db:"warehouse_object_id" json:"warehouse_object_id"`
 	WarehouseVersionID  string             `db:"warehouse_version_id" json:"warehouse_version_id"`
 	WarehouseCode       string             `db:"warehouse_code" json:"warehouse_code"`
@@ -724,6 +814,9 @@ type InsertLedInventoryEntryParams struct {
 	ProductName         string             `db:"product_name" json:"product_name"`
 	ProductUnit         string             `db:"product_unit" json:"product_unit"`
 	QuantityDeltaMicros int64              `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	Currency            *string            `db:"currency" json:"currency"`
+	UnitPriceCents      *int64             `db:"unit_price_cents" json:"unit_price_cents"`
+	AmountCents         *int64             `db:"amount_cents" json:"amount_cents"`
 }
 
 func (q *Queries) InsertLedInventoryEntry(ctx context.Context, arg InsertLedInventoryEntryParams) error {
@@ -740,7 +833,7 @@ func (q *Queries) InsertLedInventoryEntry(ctx context.Context, arg InsertLedInve
 		arg.OccurredAt,
 		arg.ActorID,
 		arg.RequestID,
-		arg.Reason,
+		arg.Remark,
 		arg.WarehouseObjectID,
 		arg.WarehouseVersionID,
 		arg.WarehouseCode,
@@ -751,6 +844,9 @@ func (q *Queries) InsertLedInventoryEntry(ctx context.Context, arg InsertLedInve
 		arg.ProductName,
 		arg.ProductUnit,
 		arg.QuantityDeltaMicros,
+		arg.Currency,
+		arg.UnitPriceCents,
+		arg.AmountCents,
 	)
 	return err
 }
@@ -854,12 +950,14 @@ INSERT INTO led_inventory_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, warehouse_object_id, warehouse_version_id,
     warehouse_code, warehouse_name, product_object_id, product_version_id,
-    product_code, product_name, product_unit, quantity_delta_micros
+    product_code, product_name, product_unit, quantity_delta_micros,
+    currency, unit_price_cents, amount_cents
 )
 SELECT id, $1, 'OPENING', 'opening', id, $2,
        $3, $4, $5,
        warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_draft_inventory WHERE quantity_micros <> 0
 `
 
@@ -885,10 +983,12 @@ func (q *Queries) InsertLedOpeningInventoryEntries(ctx context.Context, arg Inse
 const insertLedOpeningInventoryFromDraft = `-- name: InsertLedOpeningInventoryFromDraft :exec
 INSERT INTO led_opening_inventory (
     id, generation_id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-    product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+    product_object_id, product_version_id, product_code, product_name, product_unit,
+    quantity_micros, currency, unit_price_cents, amount_cents
 )
 SELECT id, $1, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
-       product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros
+       product_object_id, product_version_id, product_code, product_name, product_unit,
+       quantity_micros, currency, unit_price_cents, amount_cents
 FROM led_draft_inventory
 `
 
@@ -947,7 +1047,7 @@ func (q *Queries) InsertLedOpeningPartyFromDraft(ctx context.Context, generation
 const insertLedPartyEntry = `-- name: InsertLedPartyEntry :exec
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
-    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason,
+    source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark,
     counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, currency, amount_delta_cents
 ) VALUES (
@@ -974,7 +1074,7 @@ type InsertLedPartyEntryParams struct {
 	OccurredAt            pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	ActorID               string             `db:"actor_id" json:"actor_id"`
 	RequestID             string             `db:"request_id" json:"request_id"`
-	Reason                *string            `db:"reason" json:"reason"`
+	Remark                *string            `db:"remark" json:"remark"`
 	CounterpartyEntity    string             `db:"counterparty_entity" json:"counterparty_entity"`
 	CounterpartyObjectID  string             `db:"counterparty_object_id" json:"counterparty_object_id"`
 	CounterpartyVersionID string             `db:"counterparty_version_id" json:"counterparty_version_id"`
@@ -998,7 +1098,7 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 		arg.OccurredAt,
 		arg.ActorID,
 		arg.RequestID,
-		arg.Reason,
+		arg.Remark,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
 		arg.CounterpartyVersionID,
@@ -1167,7 +1267,7 @@ func (q *Queries) ListLedDraftFund(ctx context.Context) ([]LedDraftFund, error) 
 }
 
 const listLedDraftInventory = `-- name: ListLedDraftInventory :many
-SELECT id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros FROM led_draft_inventory ORDER BY warehouse_code, product_code, id
+SELECT id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros, currency, unit_price_cents, amount_cents FROM led_draft_inventory ORDER BY warehouse_code, product_code, id
 `
 
 func (q *Queries) ListLedDraftInventory(ctx context.Context) ([]LedDraftInventory, error) {
@@ -1191,6 +1291,9 @@ func (q *Queries) ListLedDraftInventory(ctx context.Context) ([]LedDraftInventor
 			&i.ProductName,
 			&i.ProductUnit,
 			&i.QuantityMicros,
+			&i.Currency,
+			&i.UnitPriceCents,
+			&i.AmountCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1300,13 +1403,13 @@ func (q *Queries) ListLedFundBalances(ctx context.Context, arg ListLedFundBalanc
 }
 
 const listLedFundEntries = `-- name: ListLedFundEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, currency, amount_delta_cents FROM led_fund_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, currency, amount_delta_cents FROM led_fund_entries
 WHERE generation_id = $1
   AND effective_date >= $2 AND effective_date <= $3
   AND ($4::text = '' OR fund_account_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'IN' ELSE 'OUT' END = ANY($7::text[]))
 ORDER BY
   CASE WHEN $8::text = 'effectiveDate' AND $9::text = 'asc' THEN effective_date END ASC,
@@ -1367,7 +1470,7 @@ func (q *Queries) ListLedFundEntries(ctx context.Context, arg ListLedFundEntries
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.FundAccountObjectID,
 			&i.FundAccountVersionID,
 			&i.FundAccountCode,
@@ -1386,7 +1489,7 @@ func (q *Queries) ListLedFundEntries(ctx context.Context, arg ListLedFundEntries
 }
 
 const listLedFundEntriesBySource = `-- name: ListLedFundEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, currency, amount_delta_cents FROM led_fund_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, currency, amount_delta_cents FROM led_fund_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -1420,7 +1523,7 @@ func (q *Queries) ListLedFundEntriesBySource(ctx context.Context, arg ListLedFun
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.FundAccountObjectID,
 			&i.FundAccountVersionID,
 			&i.FundAccountCode,
@@ -1516,13 +1619,13 @@ func (q *Queries) ListLedInventoryBalances(ctx context.Context, arg ListLedInven
 }
 
 const listLedInventoryEntries = `-- name: ListLedInventoryEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_delta_micros FROM led_inventory_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_delta_micros, currency, unit_price_cents, amount_cents FROM led_inventory_entries
 WHERE generation_id = $1
   AND effective_date >= $2 AND effective_date <= $3
   AND ($4::text = '' OR warehouse_object_id = $4 OR product_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN quantity_delta_micros > 0 THEN 'IN' ELSE 'OUT' END = ANY($7::text[]))
 ORDER BY
   CASE WHEN $8::text = 'effectiveDate' AND $9::text = 'asc' THEN effective_date END ASC,
@@ -1583,7 +1686,7 @@ func (q *Queries) ListLedInventoryEntries(ctx context.Context, arg ListLedInvent
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.WarehouseObjectID,
 			&i.WarehouseVersionID,
 			&i.WarehouseCode,
@@ -1594,6 +1697,9 @@ func (q *Queries) ListLedInventoryEntries(ctx context.Context, arg ListLedInvent
 			&i.ProductName,
 			&i.ProductUnit,
 			&i.QuantityDeltaMicros,
+			&i.Currency,
+			&i.UnitPriceCents,
+			&i.AmountCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1606,7 +1712,7 @@ func (q *Queries) ListLedInventoryEntries(ctx context.Context, arg ListLedInvent
 }
 
 const listLedInventoryEntriesBySource = `-- name: ListLedInventoryEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_delta_micros FROM led_inventory_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_delta_micros, currency, unit_price_cents, amount_cents FROM led_inventory_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -1640,7 +1746,7 @@ func (q *Queries) ListLedInventoryEntriesBySource(ctx context.Context, arg ListL
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.WarehouseObjectID,
 			&i.WarehouseVersionID,
 			&i.WarehouseCode,
@@ -1651,6 +1757,9 @@ func (q *Queries) ListLedInventoryEntriesBySource(ctx context.Context, arg ListL
 			&i.ProductName,
 			&i.ProductUnit,
 			&i.QuantityDeltaMicros,
+			&i.Currency,
+			&i.UnitPriceCents,
+			&i.AmountCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1733,7 +1842,7 @@ func (q *Queries) ListLedOpeningFund(ctx context.Context, generationID string) (
 }
 
 const listLedOpeningInventory = `-- name: ListLedOpeningInventory :many
-SELECT id, generation_id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros FROM led_opening_inventory
+SELECT id, generation_id, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros, currency, unit_price_cents, amount_cents FROM led_opening_inventory
 WHERE generation_id = $1
 ORDER BY warehouse_code, product_code, id
 `
@@ -1760,6 +1869,9 @@ func (q *Queries) ListLedOpeningInventory(ctx context.Context, generationID stri
 			&i.ProductName,
 			&i.ProductUnit,
 			&i.QuantityMicros,
+			&i.Currency,
+			&i.UnitPriceCents,
+			&i.AmountCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1874,13 +1986,13 @@ func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBala
 }
 
 const listLedPartyEntries = `-- name: ListLedPartyEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
 WHERE generation_id = $1
   AND effective_date >= $2 AND effective_date <= $3
   AND ($4::text = '' OR counterparty_object_id = $4)
   AND ($5::text = '' OR source_entity = $5)
   AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (cardinality($7::text[]) = 0
+  AND (COALESCE(cardinality($7::text[]), 0) = 0
        OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($7::text[]))
 ORDER BY
   CASE WHEN $8::text = 'effectiveDate' AND $9::text = 'asc' THEN effective_date END ASC,
@@ -1941,7 +2053,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.CounterpartyEntity,
 			&i.CounterpartyObjectID,
 			&i.CounterpartyVersionID,
@@ -1961,7 +2073,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 }
 
 const listLedPartyEntriesBySource = `-- name: ListLedPartyEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, reason, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -1995,7 +2107,7 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 			&i.OccurredAt,
 			&i.ActorID,
 			&i.RequestID,
-			&i.Reason,
+			&i.Remark,
 			&i.CounterpartyEntity,
 			&i.CounterpartyObjectID,
 			&i.CounterpartyVersionID,

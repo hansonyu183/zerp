@@ -43,7 +43,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
 
 run:
 	go run ./cmd/server
@@ -88,15 +88,18 @@ generate:
 
 quality:
 	@$(MAKE) quality-generated
-	@$(MAKE) quality-format
 	@$(MAKE) quality-actionlint
 	@$(MAKE) quality-compose
+	@$(MAKE) quality-core
+	@$(MAKE) quality-image
+
+quality-core:
+	@$(MAKE) quality-format
 	@$(MAKE) quality-test
 	@$(MAKE) quality-vet-build
 	@$(MAKE) quality-race
 	@$(MAKE) quality-staticcheck
 	@$(MAKE) quality-vuln
-	@$(MAKE) quality-image
 
 quality-generated:
 	@before="$$(find internal/database/sqlc -type f -name '*.go' -print | LC_ALL=C sort | while IFS= read -r file; do printf '%s ' "$$file"; git hash-object "$$file"; done)"; \
@@ -131,7 +134,7 @@ quality-test:
 	trap 'exit 129' HUP; \
 	trap 'exit 130' INT; \
 	trap 'exit 143' TERM; \
-	$(MAKE) test
+	$(MAKE) test-integration
 
 quality-vet-build:
 	go vet ./...

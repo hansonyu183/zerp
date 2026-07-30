@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,13 +21,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      impact: ${{ steps.change_impact.outputs.value }}
+      impact: ${{ steps.change_impact.outputs.impact }}
+      contracts: ${{ steps.change_impact.outputs.contracts }}
+      frontend: ${{ steps.change_impact.outputs.frontend }}
+      backend: ${{ steps.change_impact.outputs.backend }}
+      containers: ${{ steps.change_impact.outputs.containers }}
+      e2e: ${{ steps.change_impact.outputs.e2e }}
+      local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
+      preview: ${{ steps.change_impact.outputs.preview }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Classify change impact
+      - name: Classify change checks
         id: change_impact
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -34,12 +42,25 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            impact=$(scripts/change-impact.sh "$BASE_SHA...$HEAD_SHA")
+            checks=$(scripts/change-impact.sh --checks "$BASE_SHA...$HEAD_SHA")
           else
-            impact=application
+            checks='impact=application
+          contracts=1
+          frontend=1
+          backend=1
+          containers=1
+          e2e=1
+          local_e2e=1
+          preview=1'
           fi
-          echo "value=$impact" >> "$GITHUB_OUTPUT"
-          echo "Change impact: $impact"
+          printf '%s\n' "$checks"
+          printf '%s\n' "$checks" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Validation plan'
+            echo '```text'
+            printf '%s\n' "$checks"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Reject stacked pull requests
         if: github.event_name == 'pull_request'
         env:
@@ -60,42 +81,49 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
       - uses: actions/setup-node@v6
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-go@v6
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact != 'docs'
+        if: >-
+          github.event_name != 'push' &&
+          (needs.merge_evidence.outputs.contracts == '1' ||
+          needs.merge_evidence.outputs.impact == 'validation')
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name != 'push'
         run: pnpm install --frozen-lockfile
-      - name: Lint, bundle and generate API contracts
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-        run: pnpm generate:api
-      - name: Reject generated drift
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-        run: git diff --exit-code -- contracts/openapi/dist backend/internal/api/generated frontend/src/api/generated
+      - name: Generate contracts and reject drift
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.contracts == '1'
+        run: |
+          make generate
+          git diff --exit-code -- \
+            contracts/openapi/dist \
+            backend/internal/api/generated \
+            backend/internal/database/sqlc \
+            frontend/src/api/generated
       - name: Check documentation, formatting and whitespace
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         run: |
           pnpm docs:check
           pnpm format:check
           git diff --check
-      - name: Validate release scripts
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-        run: make release-check
       - name: Validate development tooling
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'validation'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.impact == 'validation'
         run: scripts/validation-check.sh
       - name: Reuse successful PR contracts check
         if: github.event_name == 'push'
@@ -107,72 +135,55 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
       - uses: pnpm/action-setup@v6
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
       - uses: actions/setup-node@v6
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+      - if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
         run: pnpm install --frozen-lockfile
       - name: Run frontend quality gate
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-        run: pnpm check:web
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
+        run: pnpm --filter @zerp/frontend check:core
       - name: Verify Cloudflare Pages compatibility build
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
         run: |
-          pnpm build
-          test -f dist/index.html
-          test "$(cat dist/_zerp-release)" = "$GITHUB_SHA"
+          test -f frontend/dist/index.html
+          test "$(cat frontend/dist/_zerp-release)" = "$GITHUB_SHA"
       - name: Audit production dependencies
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend == '1'
         run: pnpm audit --prod
-      - name: Skip application gate
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact != 'application'
-        run: echo "No frontend application impact"
+      - name: Skip frontend gate
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.frontend != '1'
+        run: echo "No frontend impact"
       - name: Reuse successful PR frontend check
         if: github.event_name == 'push'
         run: echo "Reused merged PR frontend result"
 
-  backend_generate:
-    name: backend-generate
-    if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-    needs: merge_evidence
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: |
-            backend/go.sum
-            backend/tools/go.sum
-      - name: Prepare isolated backend test environment
-        run: |
-          install -m 600 /dev/null backend/.env.ci
-          {
-            echo 'APP_ENV=test'
-            echo 'POSTGRES_DB=zerp'
-            echo 'POSTGRES_USER=zerp'
-            echo 'POSTGRES_PASSWORD=ci-only-password'
-            echo 'POSTGRES_PORT=5432'
-            echo 'DATABASE_URL=postgres://zerp:ci-only-password@localhost:5432/zerp?sslmode=disable'
-            echo 'TEST_POSTGRES_DB=zerp_test'
-            echo 'TEST_POSTGRES_PORT=55434'
-            echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
-            echo 'FEEDBACK_GITHUB_ENABLED=false'
-          } >> backend/.env.ci
-      - name: Verify sqlc generation
-        run: |
-          make -C backend ENV_FILE=.env.ci generate
-          git diff --exit-code -- backend/internal/database/sqlc
-
   backend_test:
     name: backend-test
-    if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+    if: >-
+      github.event_name != 'push' &&
+      needs.merge_evidence.outputs.backend == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -199,16 +210,18 @@ jobs:
             echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
             echo 'FEEDBACK_GITHUB_ENABLED=false'
           } >> backend/.env.ci
-      - name: Test, vet and build backend
+      - name: Run integration, vet, build and race gates
         run: |
-          make -C backend ENV_FILE=.env.ci test
+          make -C backend ENV_FILE=.env.ci quality-test
           go -C backend vet ./...
           go -C backend build ./...
           go -C backend test -race ./...
 
   backend_static:
     name: backend-static
-    if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+    if: >-
+      github.event_name != 'push' &&
+      needs.merge_evidence.outputs.backend == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -220,15 +233,14 @@ jobs:
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
-      - name: Run backend static and security gates
-        run: make -C backend quality-actionlint quality-staticcheck quality-vuln
+      - name: Run backend formatting, static and security gates
+        run: make -C backend quality-format quality-staticcheck quality-vuln
 
   backend:
     name: backend
     if: always()
     needs:
       - merge_evidence
-      - backend_generate
       - backend_test
       - backend_static
     runs-on: ubuntu-latest
@@ -237,15 +249,13 @@ jobs:
       - name: Require successful backend gates
         env:
           EVENT_NAME: ${{ github.event_name }}
-          CHANGE_IMPACT: ${{ needs.merge_evidence.outputs.impact }}
+          BACKEND_REQUIRED: ${{ needs.merge_evidence.outputs.backend }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
-          GENERATE_RESULT: ${{ needs.backend_generate.result }}
           TEST_RESULT: ${{ needs.backend_test.result }}
           STATIC_RESULT: ${{ needs.backend_static.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$CHANGE_IMPACT" = "application" ]; then
-            test "$GENERATE_RESULT" = "success"
+          if [ "$EVENT_NAME" != "push" ] && [ "$BACKEND_REQUIRED" = "1" ]; then
             test "$TEST_RESULT" = "success"
             test "$STATIC_RESULT" = "success"
           fi
@@ -256,23 +266,101 @@ jobs:
   containers:
     needs: merge_evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
-      - name: Validate Compose configurations
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact == 'application'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.containers == '1'
+        with:
+          fetch-depth: 0
+      - name: Validate container and release configuration
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.containers == '1'
         run: |
-          docker compose --env-file backend/.env.example -f compose.yaml config --quiet
-          docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
-          ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
-          ZERP_API_IMAGE=zerp-production-api:config \
-          ZERP_WEB_IMAGE=zerp-production-web:config \
-          docker compose --env-file backend/.env.production.example \
-            -p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
-      - name: Skip application gate
-        if: github.event_name == 'pull_request' && needs.merge_evidence.outputs.impact != 'application'
-        run: echo "No container application impact"
+          make check-containers BACKEND_ENV=.env.example
+          make release-check
+      - name: Skip container gate
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.containers != '1'
+        run: echo "No container impact"
       - name: Reuse successful PR containers check
         if: github.event_name == 'push'
         run: echo "Reused merged PR containers result"
+
+  e2e:
+    name: e2e
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+      - uses: pnpm/action-setup@v6
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+      - uses: actions/setup-node@v6
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium once
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
+      - uses: docker/setup-buildx-action@v4
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+      - name: Build and cache E2E backend image once
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          load: true
+          tags: zerp-e2e-api:${{ github.sha }}
+          cache-from: type=gha,scope=zerp-e2e-backend
+          cache-to: type=gha,mode=max,scope=zerp-e2e-backend
+      - name: Build and cache E2E web image once
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          load: true
+          tags: zerp-e2e-web:${{ github.sha }}
+          cache-from: type=gha,scope=zerp-e2e-web
+          cache-to: type=gha,mode=max,scope=zerp-e2e-web
+      - name: Run desktop and mobile against one full stack
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        env:
+          E2E_SKIP_IMAGE_BUILD: '1'
+          ZERP_API_IMAGE: zerp-e2e-api:${{ github.sha }}
+          ZERP_WEB_IMAGE: zerp-e2e-web:${{ github.sha }}
+        run: make e2e
+      - name: Skip E2E gate
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e != '1'
+        run: echo "No E2E impact"
+      - name: Reuse successful PR E2E check
+        if: github.event_name == 'push'
+        run: echo "Reused merged PR E2E result"

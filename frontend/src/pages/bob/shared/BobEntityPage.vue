@@ -4,6 +4,8 @@ import {
   BusinessObjectEditor,
   BusinessObjectList,
 } from '@/components/business-object'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
 import {
   FormulaEditorDialog,
@@ -76,6 +78,104 @@ function requestReview(row: BobListItem, action: 'approve' | 'reject'): void {
   reviewTarget.value = row
   reviewAction.value = action
   reviewComment.value = ''
+}
+
+function primaryRowActions(row: BobListItem): ListRowAction[] {
+  const availability = vm.actionAvailability(row)
+  if (availability.edit) {
+    return [
+      {
+        key: 'edit',
+        label: `编辑 ${row.code}`,
+        icon: 'mdi-pencil-outline',
+        color: 'primary',
+      },
+    ]
+  }
+  return availability.view
+    ? [
+        {
+          key: 'view',
+          label: `查看 ${row.code}`,
+          icon: 'mdi-eye-outline',
+        },
+      ]
+    : []
+}
+
+function moreRowActions(row: BobListItem): ListRowAction[] {
+  const availability = vm.actionAvailability(row)
+  return [
+    ...(availability.view && availability.edit
+      ? [
+          {
+            key: 'view',
+            label: `查看 ${row.code}`,
+            icon: 'mdi-eye-outline',
+          },
+        ]
+      : []),
+    ...(availability.submit
+      ? [
+          {
+            key: 'submit',
+            label: '提交审核',
+            icon: 'mdi-send-outline',
+          },
+        ]
+      : []),
+    ...(availability.approve
+      ? [
+          {
+            key: 'approve',
+            label: '审核通过',
+            icon: 'mdi-check-decagram-outline',
+          },
+        ]
+      : []),
+    ...(availability.reject
+      ? [
+          {
+            key: 'reject',
+            label: '审核驳回',
+            icon: 'mdi-close-octagon-outline',
+          },
+        ]
+      : []),
+    ...(availability.versions
+      ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
+      : []),
+    ...(availability.audit
+      ? [
+          {
+            key: 'audit',
+            label: '审核历史',
+            icon: 'mdi-clipboard-text-clock-outline',
+          },
+        ]
+      : []),
+    ...(availability.delete
+      ? [
+          {
+            key: 'delete',
+            label: '删除首版草稿',
+            icon: 'mdi-delete-outline',
+            color: 'error',
+          },
+        ]
+      : []),
+  ]
+}
+
+function selectRowAction(action: string, row: BobListItem): void {
+  if (action === 'edit') requestEdit(row)
+  else if (action === 'view') void vm.openView(row)
+  else if (action === 'submit') submitTarget.value = row
+  else if (action === 'approve' || action === 'reject') {
+    requestReview(row, action)
+  } else if (action === 'versions') void vm.openVersions(row)
+  else if (action === 'audit') void vm.openAudit(row)
+  else if (action === 'delete') deleteTarget.value = row
 }
 
 async function confirmReview(): Promise<void> {
@@ -227,82 +327,13 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
       </template>
 
       <template #actions="{ row }">
-        <v-btn
-          v-if="vm.actionAvailability(row).view"
-          :aria-label="`查看 ${row.code}`"
-          density="comfortable"
-          icon="mdi-eye-outline"
-          variant="text"
-          @click="vm.openView(row)"
+        <ListRowActions
+          :label="`操作 ${row.code}`"
+          :more="moreRowActions(row)"
+          :more-label="`更多操作 ${row.code}`"
+          :primary="primaryRowActions(row)"
+          @select="selectRowAction($event, row)"
         />
-        <v-btn
-          v-if="vm.actionAvailability(row).edit"
-          :aria-label="`编辑 ${row.code}`"
-          color="primary"
-          density="comfortable"
-          icon="mdi-pencil-outline"
-          variant="text"
-          @click="requestEdit(row)"
-        />
-        <v-menu
-          v-if="
-            vm.actionAvailability(row).delete ||
-            vm.actionAvailability(row).submit ||
-            vm.actionAvailability(row).approve ||
-            vm.actionAvailability(row).reject ||
-            vm.actionAvailability(row).versions ||
-            vm.actionAvailability(row).audit
-          "
-        >
-          <template #activator="{ props: activatorProps }">
-            <v-btn
-              v-bind="activatorProps"
-              :aria-label="`更多操作 ${row.code}`"
-              density="comfortable"
-              icon="mdi-dots-vertical"
-              variant="text"
-            />
-          </template>
-          <v-list density="comfortable">
-            <v-list-item
-              v-if="vm.actionAvailability(row).submit"
-              prepend-icon="mdi-send-outline"
-              title="提交审核"
-              @click="submitTarget = row"
-            />
-            <v-list-item
-              v-if="vm.actionAvailability(row).approve"
-              prepend-icon="mdi-check-decagram-outline"
-              title="审核通过"
-              @click="requestReview(row, 'approve')"
-            />
-            <v-list-item
-              v-if="vm.actionAvailability(row).reject"
-              prepend-icon="mdi-close-octagon-outline"
-              title="审核驳回"
-              @click="requestReview(row, 'reject')"
-            />
-            <v-list-item
-              v-if="vm.actionAvailability(row).versions"
-              prepend-icon="mdi-history"
-              title="版本历史"
-              @click="vm.openVersions(row)"
-            />
-            <v-list-item
-              v-if="vm.actionAvailability(row).audit"
-              prepend-icon="mdi-clipboard-text-clock-outline"
-              title="审核历史"
-              @click="vm.openAudit(row)"
-            />
-            <v-list-item
-              v-if="vm.actionAvailability(row).delete"
-              base-color="error"
-              prepend-icon="mdi-delete-outline"
-              title="删除首版草稿"
-              @click="deleteTarget = row"
-            />
-          </v-list>
-        </v-menu>
       </template>
     </BusinessObjectList>
   </v-container>
@@ -538,7 +569,7 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
         indeterminate
       />
       <v-card-text>
-        <v-table>
+        <v-table class="responsive-table">
           <thead>
             <tr>
               <th>版本</th>
@@ -551,12 +582,12 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
           </thead>
           <tbody>
             <tr v-for="item in vm.versions" :key="item.versionId">
-              <td>V{{ item.version }}</td>
-              <td>{{ getStatusText(item.status) }}</td>
-              <td>{{ item.summary.name }}</td>
-              <td>{{ formatLocalDateTime(item.updatedAt) }}</td>
-              <td>{{ item.reviewComment || '—' }}</td>
-              <td class="text-end">
+              <td data-label="版本">V{{ item.version }}</td>
+              <td data-label="状态">{{ getStatusText(item.status) }}</td>
+              <td data-label="名称">{{ item.summary.name }}</td>
+              <td data-label="更新">{{ formatLocalDateTime(item.updatedAt) }}</td>
+              <td data-label="意见">{{ item.reviewComment || '—' }}</td>
+              <td class="text-end responsive-table__actions" data-label="操作">
                 <v-btn
                   v-if="
                     vm.historyObject &&
@@ -597,7 +628,7 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
         indeterminate
       />
       <v-card-text>
-        <v-table>
+        <v-table class="responsive-table">
           <thead>
             <tr>
               <th>事件</th>
@@ -610,16 +641,18 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td>{{ event.eventType }}</td>
-              <td>
+              <td data-label="事件">{{ event.eventType }}</td>
+              <td data-label="变化">
                 {{ event.fromStatus ? getStatusText(event.fromStatus) : '—' }}
                 →
                 {{ getStatusText(event.toStatus) }}
               </td>
-              <td>{{ event.actorId }}</td>
-              <td>{{ formatLocalDateTime(event.occurredAt) }}</td>
-              <td>{{ event.comment || '—' }}</td>
-              <td>{{ event.requestId }}</td>
+              <td data-label="操作人">{{ event.actorId }}</td>
+              <td data-label="时间">
+                {{ formatLocalDateTime(event.occurredAt) }}
+              </td>
+              <td data-label="意见">{{ event.comment || '—' }}</td>
+              <td data-label="请求号">{{ event.requestId }}</td>
             </tr>
           </tbody>
         </v-table>

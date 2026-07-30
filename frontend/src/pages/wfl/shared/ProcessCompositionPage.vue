@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
 import { useSessionStore } from '@/stores/session'
 
 interface DocumentLink {
@@ -195,7 +196,7 @@ onMounted(query)
     </v-alert>
 
     <v-card variant="outlined">
-      <v-table>
+      <v-table class="responsive-table">
         <thead>
           <tr>
             <th>根单号</th>
@@ -206,18 +207,22 @@ onMounted(query)
         </thead>
         <tbody>
           <tr v-for="item in items" :key="item.processId">
-            <td>{{ item.rootDocumentNo }}</td>
-            <td>{{ item.status }}</td>
-            <td>{{ item.currentStage || '—' }}</td>
-            <td class="text-right">
-              <v-btn
-                size="small"
-                variant="text"
-                :disabled="!session.can(permission('get'))"
-                @click="openProcess(item)"
-              >
-                查看组合
-              </v-btn>
+            <td data-label="根单号">{{ item.rootDocumentNo }}</td>
+            <td data-label="流程状态">{{ item.status }}</td>
+            <td data-label="当前阶段">{{ item.currentStage || '—' }}</td>
+            <td class="text-right responsive-table__actions" data-label="操作">
+              <ListRowActions
+                :label="`操作 ${item.rootDocumentNo}`"
+                :primary="[
+                  {
+                    key: 'view',
+                    label: '查看组合',
+                    icon: 'mdi-eye-outline',
+                    disabled: !session.can(permission('get')),
+                  },
+                ]"
+                @select="openProcess(item)"
+              />
             </td>
           </tr>
         </tbody>
@@ -236,7 +241,7 @@ onMounted(query)
       <v-card v-if="selected">
         <v-card-title>{{ selected.rootDocumentNo }} · 单据组合</v-card-title>
         <v-card-text>
-          <v-table>
+          <v-table class="responsive-table">
             <thead>
               <tr>
                 <th>阶段</th>
@@ -253,11 +258,13 @@ onMounted(query)
                 class="cursor-pointer"
                 @click="openDocument(document)"
               >
-                <td>{{ document.stage }}</td>
-                <td class="text-primary">{{ document.documentNo }}</td>
-                <td>{{ document.status }}</td>
-                <td>{{ document.businessDate }}</td>
-                <td>{{ document.amount }}</td>
+                <td data-label="阶段">{{ document.stage }}</td>
+                <td class="text-primary" data-label="单号">
+                  {{ document.documentNo }}
+                </td>
+                <td data-label="状态">{{ document.status }}</td>
+                <td data-label="业务日期">{{ document.businessDate }}</td>
+                <td data-label="金额">{{ document.amount }}</td>
               </tr>
             </tbody>
           </v-table>

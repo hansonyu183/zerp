@@ -9,6 +9,7 @@ import type {
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherExecutionDialog' })
 
@@ -176,14 +177,22 @@ function submit(): void {
         </v-alert>
         <template v-else-if="kind === 'purchase'">
           <v-text-field v-model="form.inboundDate" label="入库日期" type="date" variant="outlined" />
-          <div class="voucher-execution__table-wrap">
-            <v-table>
+          <div class="voucher-execution__table-wrap responsive-table-wrap">
+            <v-table class="responsive-table responsive-table--form">
               <thead><tr><th>产品</th><th>订购</th><th>入库</th></tr></thead>
               <tbody>
                 <tr v-for="(line, index) in form.purchaseLines" :key="line.lineId">
-                  <td>{{ document?.data.productLines?.[index]?.product.name }}</td>
-                  <td>{{ line.orderedQuantity }}</td>
-                  <td>
+                  <td data-label="产品">
+                    {{
+                      document?.data.productLines?.[index]?.product
+                        ? formatReferenceLabel(
+                            document.data.productLines[index]!.product,
+                          )
+                        : '—'
+                    }}
+                  </td>
+                  <td data-label="订购">{{ line.orderedQuantity }}</td>
+                  <td data-label="入库">
                     <CompactTableField
                       :model-value="line.inboundQuantity"
                       :rules="[(v: string) => isQuantity(v) || '数量格式不正确。']"
@@ -219,16 +228,37 @@ function submit(): void {
               @update:model-value="form.vehicle = $event"
             />
           </div>
-          <div class="voucher-execution__table-wrap">
-            <v-table class="voucher-execution__table">
+          <div class="voucher-execution__table-wrap responsive-table-wrap">
+            <v-table
+              class="voucher-execution__table responsive-table responsive-table--form"
+            >
               <thead>
                 <tr><th>产品</th><th>订购</th><th>出库</th><th>签收</th><th>拒收</th><th>损耗</th></tr>
               </thead>
               <tbody>
                 <tr v-for="(line, index) in form.saleLines" :key="line.lineId">
-                  <td>{{ document?.data.productLines?.[index]?.product.name }}</td>
-                  <td>{{ line.orderedQuantity }}</td>
-                  <td v-for="key in ['outboundQuantity', 'signedQuantity', 'rejectedQuantity', 'lossQuantity']" :key="key">
+                  <td data-label="产品">
+                    {{
+                      document?.data.productLines?.[index]?.product
+                        ? formatReferenceLabel(
+                            document.data.productLines[index]!.product,
+                          )
+                        : '—'
+                    }}
+                  </td>
+                  <td data-label="订购">{{ line.orderedQuantity }}</td>
+                  <td
+                    v-for="key in ['outboundQuantity', 'signedQuantity', 'rejectedQuantity', 'lossQuantity']"
+                    :key="key"
+                    :data-label="
+                      {
+                        outboundQuantity: '出库',
+                        signedQuantity: '签收',
+                        rejectedQuantity: '拒收',
+                        lossQuantity: '损耗',
+                      }[key]
+                    "
+                  >
                     <CompactTableField
                       :model-value="line[key as keyof typeof line]"
                       :rules="[(v: string) => isQuantity(v, key !== 'outboundQuantity') || '数量格式不正确。']"

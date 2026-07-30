@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import { useLedgerViewModel } from './vm'
 import type { LedgerEntityConfig, LedgerMode, LedgerRecord } from './types'
@@ -34,12 +35,25 @@ function sortableField(key: string) {
   }[key] as 'effectiveDate' | 'occurredAt' | 'documentNo' | undefined
 }
 
+const mobileSortOptions = computed(() =>
+  vm.columns.value.flatMap((column) => {
+    const field = sortableField(column.key)
+    return field ? [{ title: column.label, value: field }] : []
+  }),
+)
+
 function changeSort(
   field: 'effectiveDate' | 'occurredAt' | 'documentNo',
 ): void {
   vm.sort.order =
     vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc'
   vm.sort.field = field
+  vm.search()
+}
+
+function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+  vm.sort.field = value.field as 'effectiveDate' | 'occurredAt' | 'documentNo'
+  vm.sort.order = value.order
   vm.search()
 }
 
@@ -167,9 +181,17 @@ void vm.load()
         </template>
       </EntityListControls>
 
+      <MobileSortControl
+        v-if="vm.mode.value === 'entries'"
+        :field="vm.sort.field"
+        :options="mobileSortOptions"
+        :order="vm.sort.order"
+        @change="applyMobileSort"
+      />
+
       <v-card rounded="lg" variant="flat">
-        <div class="ledger-workspace__table">
-          <v-table>
+        <div class="ledger-workspace__table responsive-table-wrap">
+          <v-table class="responsive-table">
             <thead>
               <tr>
                 <template v-for="column in vm.columns.value" :key="column.key">
@@ -203,11 +225,15 @@ void vm.load()
                   v-for="column in vm.columns.value"
                   :key="column.key"
                   :class="`text-${column.align ?? 'start'}`"
+                  :data-label="column.label"
                 >
                   {{ column.value(row) }}
                 </td>
               </tr>
-              <tr v-if="!vm.loading.value && vm.rows.value.length === 0">
+              <tr
+                v-if="!vm.loading.value && vm.rows.value.length === 0"
+                class="responsive-table__empty-row"
+              >
                 <td
                   class="ledger-workspace__empty"
                   :colspan="vm.columns.value.length"

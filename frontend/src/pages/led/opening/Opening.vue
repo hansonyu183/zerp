@@ -124,8 +124,10 @@ async function saveOpening(): Promise<void> {
                   库存期初（{{ vm.form.inventory.length }}）
                 </v-expansion-panel-title>
                 <v-expansion-panel-text>
-                  <div class="opening-page__table">
-                    <v-table>
+                  <div class="opening-page__table responsive-table-wrap">
+                    <v-table
+                      class="responsive-table responsive-table--form"
+                    >
                       <thead>
                         <tr>
                           <th>仓库</th>
@@ -144,7 +146,7 @@ async function saveOpening(): Promise<void> {
                           v-for="(row, index) in vm.form.inventory"
                           :key="row.key"
                         >
-                          <td>
+                          <td data-label="仓库">
                             <LedgerReferenceAutocomplete
                               v-model="row.warehouse"
                               :disabled="!vm.editable.value"
@@ -158,7 +160,7 @@ async function saveOpening(): Promise<void> {
                               @search="vm.warehouseReferences.search"
                             />
                           </td>
-                          <td>
+                          <td data-label="商品">
                             <LedgerReferenceAutocomplete
                               v-model="row.product"
                               :disabled="!vm.editable.value"
@@ -170,7 +172,7 @@ async function saveOpening(): Promise<void> {
                               @search="vm.productReferences.search"
                             />
                           </td>
-                          <td>
+                          <td data-label="数量">
                             <CompactTableField
                               v-model="row.quantity"
                               :disabled="!vm.editable.value"
@@ -178,7 +180,7 @@ async function saveOpening(): Promise<void> {
                               :rules="[quantityRule]"
                             />
                           </td>
-                          <td>
+                          <td data-label="单价">
                             <CompactTableField
                               v-model="row.unitPrice"
                               :disabled="!vm.editable.value"
@@ -186,13 +188,13 @@ async function saveOpening(): Promise<void> {
                               :rules="[positiveMoneyRule]"
                             />
                           </td>
-                          <td class="text-end">
+                          <td class="text-end" data-label="金额">
                             {{ inventoryOpeningAmount(
                               row.quantity,
                               row.unitPrice,
                             ) }}
                           </td>
-                          <td>
+                          <td data-label="币种">
                             <CompactTableField
                               v-model="row.currency"
                               :disabled="!vm.editable.value"
@@ -200,7 +202,11 @@ async function saveOpening(): Promise<void> {
                               :rules="[currencyRule]"
                             />
                           </td>
-                          <td v-if="vm.editable.value" class="text-end">
+                          <td
+                            v-if="vm.editable.value"
+                            class="text-end responsive-table__actions"
+                            data-label="操作"
+                          >
                             <v-btn
                               aria-label="删除库存期初"
                               color="error"
@@ -210,7 +216,10 @@ async function saveOpening(): Promise<void> {
                             />
                           </td>
                         </tr>
-                        <tr v-if="vm.form.inventory.length === 0">
+                        <tr
+                          v-if="vm.form.inventory.length === 0"
+                          class="responsive-table__empty-row"
+                        >
                           <td
                             :colspan="vm.editable.value ? 7 : 6"
                             class="opening-page__empty"
@@ -238,8 +247,10 @@ async function saveOpening(): Promise<void> {
                   资金期初（{{ vm.form.fund.length }}）
                 </v-expansion-panel-title>
                 <v-expansion-panel-text>
-                  <div class="opening-page__table">
-                    <v-table>
+                  <div class="opening-page__table responsive-table-wrap">
+                    <v-table
+                      class="responsive-table responsive-table--form"
+                    >
                       <thead>
                         <tr>
                           <th>账户</th>
@@ -252,7 +263,7 @@ async function saveOpening(): Promise<void> {
                       </thead>
                       <tbody>
                         <tr v-for="(row, index) in vm.form.fund" :key="row.key">
-                          <td>
+                          <td data-label="账户">
                             <LedgerReferenceAutocomplete
                               v-model="row.fundAccount"
                               :disabled="!vm.editable.value"
@@ -264,7 +275,7 @@ async function saveOpening(): Promise<void> {
                               @search="vm.fundReferences.search"
                             />
                           </td>
-                          <td>
+                          <td data-label="性质">
                             <v-select
                               v-model="row.balanceType"
                               :disabled="!vm.editable.value"
@@ -278,7 +289,7 @@ async function saveOpening(): Promise<void> {
                               variant="underlined"
                             />
                           </td>
-                          <td>
+                          <td data-label="金额">
                             <CompactTableField
                               v-model="row.amount"
                               :disabled="!vm.editable.value"
@@ -286,7 +297,11 @@ async function saveOpening(): Promise<void> {
                               :rules="[moneyRule]"
                             />
                           </td>
-                          <td v-if="vm.editable.value" class="text-end">
+                          <td
+                            v-if="vm.editable.value"
+                            class="text-end responsive-table__actions"
+                            data-label="操作"
+                          >
                             <v-btn
                               aria-label="删除资金期初"
                               color="error"
@@ -296,7 +311,10 @@ async function saveOpening(): Promise<void> {
                             />
                           </td>
                         </tr>
-                        <tr v-if="vm.form.fund.length === 0">
+                        <tr
+                          v-if="vm.form.fund.length === 0"
+                          class="responsive-table__empty-row"
+                        >
                           <td
                             :colspan="vm.editable.value ? 4 : 3"
                             class="opening-page__empty"
@@ -324,8 +342,10 @@ async function saveOpening(): Promise<void> {
                   往来期初（{{ vm.form.party.length }}）
                 </v-expansion-panel-title>
                 <v-expansion-panel-text>
-                  <div class="opening-page__table">
-                    <v-table>
+                  <div class="opening-page__table responsive-table-wrap">
+                    <v-table
+                      class="responsive-table responsive-table--form"
+                    >
                       <thead>
                         <tr>
                           <th>类型</th>
@@ -342,7 +362,7 @@ async function saveOpening(): Promise<void> {
                           v-for="(row, index) in vm.form.party"
                           :key="row.key"
                         >
-                          <td>
+                          <td data-label="类型">
                             <v-select
                               v-model="row.counterpartyType"
                               :disabled="!vm.editable.value"
@@ -357,7 +377,7 @@ async function saveOpening(): Promise<void> {
                               @update:model-value="row.counterparty = null"
                             />
                           </td>
-                          <td>
+                          <td data-label="往来方">
                             <LedgerReferenceAutocomplete
                               v-model="row.counterparty"
                               :disabled="!vm.editable.value"
@@ -374,7 +394,7 @@ async function saveOpening(): Promise<void> {
                               @search="vm.partyReferences.search"
                             />
                           </td>
-                          <td>
+                          <td data-label="性质">
                             <v-select
                               v-model="row.balanceType"
                               :disabled="!vm.editable.value"
@@ -388,7 +408,7 @@ async function saveOpening(): Promise<void> {
                               variant="underlined"
                             />
                           </td>
-                          <td>
+                          <td data-label="金额">
                             <CompactTableField
                               v-model="row.amount"
                               :disabled="!vm.editable.value"
@@ -396,7 +416,11 @@ async function saveOpening(): Promise<void> {
                               :rules="[moneyRule]"
                             />
                           </td>
-                          <td v-if="vm.editable.value" class="text-end">
+                          <td
+                            v-if="vm.editable.value"
+                            class="text-end responsive-table__actions"
+                            data-label="操作"
+                          >
                             <v-btn
                               aria-label="删除往来期初"
                               color="error"
@@ -406,7 +430,10 @@ async function saveOpening(): Promise<void> {
                             />
                           </td>
                         </tr>
-                        <tr v-if="vm.form.party.length === 0">
+                        <tr
+                          v-if="vm.form.party.length === 0"
+                          class="responsive-table__empty-row"
+                        >
                           <td
                             :colspan="vm.editable.value ? 5 : 4"
                             class="opening-page__empty"
@@ -434,8 +461,10 @@ async function saveOpening(): Promise<void> {
                   空桶期初（{{ vm.form.container.length }}）
                 </v-expansion-panel-title>
                 <v-expansion-panel-text>
-                  <div class="opening-page__table">
-                    <v-table>
+                  <div class="opening-page__table responsive-table-wrap">
+                    <v-table
+                      class="responsive-table responsive-table--form"
+                    >
                       <thead>
                         <tr>
                           <th>客户</th>
@@ -451,7 +480,7 @@ async function saveOpening(): Promise<void> {
                           v-for="(row, index) in vm.form.container"
                           :key="row.key"
                         >
-                          <td>
+                          <td data-label="客户">
                             <LedgerReferenceAutocomplete
                               v-model="row.customer"
                               :disabled="!vm.editable.value"
@@ -465,7 +494,7 @@ async function saveOpening(): Promise<void> {
                               @search="vm.customerReferences.search"
                             />
                           </td>
-                          <td>
+                          <td data-label="桶型">
                             <v-select
                               v-model="row.containerType"
                               :disabled="!vm.editable.value"
@@ -479,7 +508,7 @@ async function saveOpening(): Promise<void> {
                               variant="underlined"
                             />
                           </td>
-                          <td>
+                          <td data-label="数量">
                             <CompactTableField
                               v-model="row.quantity"
                               :disabled="!vm.editable.value"
@@ -490,7 +519,11 @@ async function saveOpening(): Promise<void> {
                               ]"
                             />
                           </td>
-                          <td v-if="vm.editable.value" class="text-end">
+                          <td
+                            v-if="vm.editable.value"
+                            class="text-end responsive-table__actions"
+                            data-label="操作"
+                          >
                             <v-btn
                               aria-label="删除空桶期初"
                               color="error"
@@ -500,7 +533,10 @@ async function saveOpening(): Promise<void> {
                             />
                           </td>
                         </tr>
-                        <tr v-if="vm.form.container.length === 0">
+                        <tr
+                          v-if="vm.form.container.length === 0"
+                          class="responsive-table__empty-row"
+                        >
                           <td
                             :colspan="vm.editable.value ? 4 : 3"
                             class="opening-page__empty"
@@ -576,8 +612,8 @@ async function saveOpening(): Promise<void> {
 
         <v-window-item v-if="vm.canAudit.value" value="audit">
           <v-card rounded="lg" variant="flat">
-            <div class="opening-page__table">
-              <v-table>
+            <div class="opening-page__table responsive-table-wrap">
+              <v-table class="responsive-table">
                 <thead>
                   <tr>
                     <th>时间</th>
@@ -592,9 +628,13 @@ async function saveOpening(): Promise<void> {
                 </thead>
                 <tbody>
                   <tr v-for="item in vm.auditItems.value" :key="item.id">
-                    <td>{{ formatLocalDateTime(item.occurredAt) }}</td>
-                    <td>{{ openingEventLabel(item.eventType) }}</td>
-                    <td>
+                    <td data-label="时间">
+                      {{ formatLocalDateTime(item.occurredAt) }}
+                    </td>
+                    <td data-label="事件">
+                      {{ openingEventLabel(item.eventType) }}
+                    </td>
+                    <td data-label="迁移">
                       {{
                         item.fromStatus
                           ? `${statusText[item.fromStatus] ?? item.fromStatus} → `
@@ -602,16 +642,17 @@ async function saveOpening(): Promise<void> {
                       }}
                       {{ statusText[item.toStatus] ?? item.toStatus }}
                     </td>
-                    <td>{{ item.revision }}</td>
-                    <td>{{ item.generationId ?? '—' }}</td>
-                    <td>{{ item.actorId }}</td>
-                    <td>{{ item.reason ?? '—' }}</td>
-                    <td>{{ item.requestId }}</td>
+                    <td data-label="版本">{{ item.revision }}</td>
+                    <td data-label="代次">{{ item.generationId ?? '—' }}</td>
+                    <td data-label="操作人">{{ item.actorId }}</td>
+                    <td data-label="原因">{{ item.reason ?? '—' }}</td>
+                    <td data-label="请求号">{{ item.requestId }}</td>
                   </tr>
                   <tr
                     v-if="
                       !vm.auditLoading.value && vm.auditItems.value.length === 0
                     "
+                    class="responsive-table__empty-row"
                   >
                     <td colspan="8" class="opening-page__empty">
                       暂无审计记录

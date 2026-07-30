@@ -31,9 +31,7 @@ async function openCustomer(page: Page): Promise<void> {
 async function searchCustomer(page: Page, code: string): Promise<void> {
   await page.getByRole('textbox', { name: '客户关键字' }).fill(code)
   await page.getByRole('button', { name: '查询' }).click()
-  await expect(
-    page.getByRole('cell', { name: code, exact: true }),
-  ).toBeVisible()
+  await expect(customerRow(page, code)).toBeVisible()
 }
 
 async function openMore(page: Page, code: string): Promise<void> {
@@ -41,8 +39,8 @@ async function openMore(page: Page, code: string): Promise<void> {
 }
 
 function customerRow(page: Page, code: string) {
-  return page.getByRole('row').filter({
-    has: page.getByRole('cell', { name: code, exact: true }),
+  return page.locator('tbody tr').filter({
+    has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
   })
 }
 

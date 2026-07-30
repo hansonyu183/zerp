@@ -3,6 +3,7 @@ import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import type { AuxEntityConfig } from './config'
 
 export interface AuxVersion {
@@ -147,7 +148,10 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     valueKind: 'objectId' | 'code',
   ): ReferenceOption {
     return {
-      title: `${item.code} · ${String(item.currentVersion.data.name ?? '')}`,
+      title: formatReferenceLabel({
+        code: item.code,
+        name: item.currentVersion.data.name,
+      }),
       value: valueKind === 'code' ? item.code : item.objectId,
     }
   }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { WflProcessListRow } from './types'
 
 const props = defineProps<{
@@ -65,8 +66,8 @@ const lastPage = computed(() =>
     </EntityListControls>
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
-      <div class="wfl-list__table-wrap">
-        <v-table class="wfl-list__table">
+      <div class="wfl-list__table-wrap responsive-table-wrap">
+        <v-table class="wfl-list__table responsive-table">
           <thead>
             <tr>
               <th>订单号</th>
@@ -80,23 +81,34 @@ const lastPage = computed(() =>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.processId">
-              <td>{{ row.documentNo }}</td>
-              <td>{{ row.businessDate }}</td>
-              <td>{{ row.partyName || '—' }}</td>
-              <td>{{ statusText(row.status) }}</td>
-              <td>{{ stageText(row.currentStage) }}</td>
-              <td class="text-end">{{ row.amount }}</td>
-              <td class="text-end">
-                <v-btn
-                  v-if="canOpen"
-                  :aria-label="`打开 ${row.documentNo}`"
-                  icon="mdi-open-in-new"
-                  variant="text"
-                  @click="emit('open', row)"
+              <td data-label="订单号">{{ row.documentNo }}</td>
+              <td data-label="日期">{{ row.businessDate }}</td>
+              <td data-label="客户">{{ row.partyName || '—' }}</td>
+              <td data-label="状态">{{ statusText(row.status) }}</td>
+              <td data-label="阶段">{{ stageText(row.currentStage) }}</td>
+              <td class="text-end" data-label="金额">{{ row.amount }}</td>
+              <td class="text-end responsive-table__actions" data-label="操作">
+                <ListRowActions
+                  :label="`操作 ${row.documentNo}`"
+                  :primary="
+                    canOpen
+                      ? [
+                          {
+                            key: 'open',
+                            label: `打开 ${row.documentNo}`,
+                            icon: 'mdi-open-in-new',
+                          },
+                        ]
+                      : []
+                  "
+                  @select="emit('open', row)"
                 />
               </td>
             </tr>
-            <tr v-if="!loading && rows.length === 0">
+            <tr
+              v-if="!loading && rows.length === 0"
+              class="responsive-table__empty-row"
+            >
               <td colspan="7" class="text-center py-12">暂无流程</td>
             </tr>
           </tbody>

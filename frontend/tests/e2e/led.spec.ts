@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { loadEnv } from 'vite'
 
 const localE2EEnv = loadEnv('e2e', process.cwd(), '')
@@ -17,6 +17,22 @@ function pageBreadcrumb(page: Page) {
   return page.locator('.page-heading__breadcrumb')
 }
 
+async function expectMobileCards(
+  page: Page,
+  selector: string,
+  testInfo: TestInfo,
+): Promise<void> {
+  const region = page.locator(selector).first()
+  await expect(region).toBeVisible()
+  if (testInfo.project.name !== 'mobile-chromium') return
+  await expect(region.locator('thead')).toBeHidden()
+  expect(
+    await region.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true)
+}
+
 test.describe('LED 真实后端只读流程', () => {
   test.skip(
     !ledReadonlyEnabled,
@@ -27,15 +43,23 @@ test.describe('LED 真实后端只读流程', () => {
     await signIn(page)
   })
 
-  test('加载期初状态和生命周期审计', async ({ page }) => {
+  test('加载期初状态和生命周期审计', async ({ page }, testInfo) => {
     await page.goto('/led/opening')
     await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与启用')
     await expect(page.getByText(/版本 \d+/)).toBeVisible()
     const auditTab = page.getByRole('tab', { name: '生命周期审计' })
     if (await auditTab.isVisible()) {
       await auditTab.click()
-      await expect(page.getByRole('columnheader', { name: '事件' }))
-        .toBeVisible()
+      if (testInfo.project.name === 'mobile-chromium') {
+        await expectMobileCards(
+          page,
+          '.opening-page__table',
+          testInfo,
+        )
+      } else {
+        await expect(page.getByRole('columnheader', { name: '事件' }))
+          .toBeVisible()
+      }
     }
   })
 
@@ -45,7 +69,7 @@ test.describe('LED 真实后端只读流程', () => {
     { entity: 'party', title: '往来台账' },
     { entity: 'container', title: '空桶台账' },
   ]) {
-    test(`${ledger.title}查询流水和余额`, async ({ page }) => {
+    test(`${ledger.title}查询流水和余额`, async ({ page }, testInfo) => {
       const entryResponse = page.waitForResponse(
         (response) =>
           response.url().endsWith(`/led/${ledger.entity}/query`) &&
@@ -57,6 +81,7 @@ test.describe('LED 真实后端只读流程', () => {
         code: number | string
       }
       expect(String(entryPayload.code)).toBe('0')
+      await expectMobileCards(page, '.ledger-workspace__table', testInfo)
 
       const balanceResponse = page.waitForResponse(
         (response) =>

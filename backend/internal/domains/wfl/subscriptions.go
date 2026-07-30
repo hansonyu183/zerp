@@ -81,8 +81,9 @@ func (s *Service) handleOrderProductionCreated(
 	_, err = tx.Exec(ctx, `INSERT INTO wfl_audit_events(
 		id,process_id,event_type,to_status,stage,document_id,document_no,
 		document_status,actor_id,request_id,summary
-	) SELECT $1,$2,'PRODUCTION_LINKED',status,$3,$4,$5,'DRAFT',$6,$7,'{}'
-	  FROM wfl_process_instances WHERE id=$2`,
+	) SELECT $1::varchar,$2::varchar,'PRODUCTION_LINKED',status,$3::varchar,
+	         $4::varchar,$5::varchar,'DRAFT',$6::varchar,$7::varchar,'{}'
+	  FROM wfl_process_instances WHERE id=$2::varchar`,
 		newID(), processID, StageProduction, event.DocumentID, event.DocumentNo,
 		event.ActorID, event.RequestID)
 	return err

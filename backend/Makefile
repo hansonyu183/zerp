@@ -81,7 +81,7 @@ test-db-clean:
 
 test-integration: test-db-prepare
 	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
-		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/auxiliary ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed -run 'Integration|Database' -count=1 -v
+		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/auxiliary ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed ./internal/seed/productionseed -run 'Integration|Database' -count=1 -v
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml

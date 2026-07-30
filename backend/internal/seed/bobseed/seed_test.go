@@ -20,7 +20,7 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		bob.EntityCustomer:         2,
 		bob.EntitySupplier:         3,
 		bob.EntityEmployee:         2,
-		bob.EntityProduct:          2,
+		bob.EntityProduct:          4,
 		bob.EntityService:          2,
 		bob.EntityWarehouse:        2,
 		bob.EntityVehicle:          2,
@@ -53,7 +53,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 24 || store.submitCalls != 19 || store.approveCalls != 14 || store.rejectCalls != 2 {
+	if store.createCalls != 26 || store.submitCalls != 21 || store.approveCalls != 16 || store.rejectCalls != 2 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -70,7 +70,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 24 || store.submitCalls != 19 || store.approveCalls != 14 || store.rejectCalls != 2 {
+	if store.createCalls != 26 || store.submitCalls != 21 || store.approveCalls != 16 || store.rejectCalls != 2 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -209,6 +209,10 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	if entity == bob.EntityCustomer && customerType == "" {
 		customerType = bob.CustomerTypeEndUser
 	}
+	productKind := input.Data.ProductKind
+	if entity == bob.EntityProduct && productKind == "" {
+		productKind = bob.ProductKindRawMaterial
+	}
 	view := bob.ObjectView{
 		ObjectID:       objectID,
 		Entity:         entity,
@@ -263,6 +267,8 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			MonthOffset:           input.Data.MonthOffset,
 			DayOfMonth:            input.Data.DayOfMonth,
 			DayOffset:             input.Data.DayOffset,
+			ProductKind:           productKind,
+			Formula:               input.Data.Formula,
 		},
 	}
 	recordKey := key(entity, input.Data.Code)
@@ -354,6 +360,12 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	view.Data.MonthOffset = input.Data.MonthOffset
 	view.Data.DayOfMonth = input.Data.DayOfMonth
 	view.Data.DayOffset = input.Data.DayOffset
+	if input.Data.ProductKind != nil {
+		view.Data.ProductKind = *input.Data.ProductKind
+	}
+	if input.Data.Formula != nil {
+		view.Data.Formula = input.Data.Formula
+	}
 	view.Version.Revision++
 	s.byKey[recordKey] = view
 	return mutation(view), nil

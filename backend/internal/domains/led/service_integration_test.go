@@ -49,7 +49,9 @@ func ledIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
+		TRUNCATE led_inventory_cost_allocations,led_closing_container,led_closing_party,
+			led_closing_fund,led_closing_inventory,led_closings,
+			led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
 			led_opening_container, led_draft_container,
 			led_opening_party, led_opening_fund, led_opening_inventory,
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
@@ -911,7 +913,92 @@ func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 14 {
-		t.Fatalf("LED permission count = %d, want 14", count)
+	if count != 12 {
+		t.Fatalf("LED permission count = %d, want 12", count)
+	}
+}
+
+func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	ledger, _ := newIntegratedServices(t, pool)
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("initialize ledger: %v", err)
+	}
+	before, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get closing before close: %v", err)
+	}
+	if before.LatestClosingDate != "" || before.OpeningDate != "" {
+		t.Fatalf("initial closing = %+v", before)
+	}
+	var generationID string
+	if err = pool.QueryRow(t.Context(), `SELECT active_generation_id FROM led_control
+		WHERE singleton=true`).Scan(&generationID); err != nil {
+		t.Fatalf("get closing generation: %v", err)
+	}
+	warehouseID, warehouseVersionID := newID(), newID()
+	productID, productVersionID := newID(), newID()
+	purchaseDocumentID, purchaseLineID := newID(), newID()
+	saleDocumentID, saleLineID := newID(), newID()
+	_, err = pool.Exec(t.Context(), `INSERT INTO led_inventory_entries(
+		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name,
+		product_object_id,product_version_id,product_code,product_name,product_unit,
+		quantity_delta_micros,currency,unit_price_cents,amount_cents
+	) VALUES
+		($1,$2,'POSTING','purchase-inbound',$3,'PIN-TEST',$4,1,'2026-06-01',now(),$5,'cost-in',
+		 $6,$7,'WH-1','测试仓库',$8,$9,'P-1','测试商品','件',10000000,'CNY',1000,10000),
+		($10,$2,'POSTING','sale-outbound',$11,'OUT-TEST',$12,1,'2026-06-15',now(),$5,'cost-out',
+		 $6,$7,'WH-1','测试仓库',$8,$9,'P-1','测试商品','件',-4000000,'CNY',1500,6000)`,
+		newID(), generationID, purchaseDocumentID, purchaseLineID, integrationActorOne,
+		warehouseID, warehouseVersionID, productID, productVersionID,
+		newID(), saleDocumentID, saleLineID)
+	if err != nil {
+		t.Fatalf("insert closing cost movements: %v", err)
+	}
+	closed, err := ledger.Close(t.Context(), ClosingInput{
+		Revision: before.Revision, ClosingDate: "2026-06-30",
+	}, integrationActorOne, "close-june")
+	if err != nil {
+		t.Fatalf("close June: %v", err)
+	}
+	if closed.LatestClosingDate != "2026-06-30" || closed.OpeningDate != "2026-07-01" {
+		t.Fatalf("closed result = %+v", closed)
+	}
+	after, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get generated opening: %v", err)
+	}
+	if len(after.Inventory) != 1 || after.Inventory[0].Quantity != "6.0" ||
+		after.Inventory[0].CostAmount != "60.00" {
+		t.Fatalf("generated inventory opening = %+v", after.Inventory)
+	}
+	_, err = pool.Exec(t.Context(), `INSERT INTO vou_documents(
+		id,entity,document_no,business_date,currency,total_amount_cents,created_by,updated_by
+	) VALUES($1,'sale-order','SOR-20260630-TEST','2026-06-30','CNY',0,$2,$2)`,
+		newID(), integrationActorOne)
+	if err == nil || !strings.Contains(err.Error(), "closed through 2026-06-30") {
+		t.Fatalf("closed document insert error = %v", err)
+	}
+	unclosed, err := ledger.Unclose(t.Context(), UncloseInput{
+		Revision: closed.Revision, Reason: "修正六月单据",
+	}, integrationActorTwo, "unclose-june")
+	if err != nil {
+		t.Fatalf("unclose June: %v", err)
+	}
+	if unclosed.LatestClosingDate != "" || unclosed.OpeningDate != "" {
+		t.Fatalf("unclosed result = %+v", unclosed)
+	}
+	history, err := ledger.ClosingHistory(t.Context(), HistoryInput{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("closing history: %v", err)
+	}
+	if history.Total != 1 || len(history.Items) != 1 ||
+		history.Items[0].Status != "REVERSED" ||
+		history.Items[0].ReverseReason != "修正六月单据" {
+		t.Fatalf("closing history = %+v", history)
 	}
 }

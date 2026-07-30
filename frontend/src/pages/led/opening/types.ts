@@ -1,15 +1,12 @@
-import type { LedgerReference, LedgerReferenceInput } from '@/components/ledger'
-
-export type OpeningStatus = 'DRAFT' | 'ACTIVE' | 'REOPENING'
+import type { LedgerReference } from '@/components/ledger'
 
 export interface InventoryOpeningView {
   id: string
   warehouse: LedgerReference
   product: LedgerReference
   quantity: string
-  unitPrice?: string
-  amount?: string
-  currency?: string
+  currency: string
+  costAmount: string
 }
 
 export interface FundOpeningView {
@@ -35,102 +32,33 @@ export interface ContainerOpeningView {
   quantity: number
 }
 
-export interface OpeningView {
-  status: OpeningStatus
+export interface ClosingView {
   revision: number
-  cutoverDate?: string
-  activeGenerationId?: string
+  latestClosingDate?: string
+  openingDate?: string
   inventory: InventoryOpeningView[]
   fund: FundOpeningView[]
   party: PartyOpeningView[]
   container: ContainerOpeningView[]
 }
 
-export interface InventoryOpeningDraft {
-  key: string
-  warehouse: LedgerReference | null
-  product: LedgerReference | null
-  quantity: string
-  unitPrice: string
-  currency: string
-}
-
-export interface FundOpeningDraft {
-  key: string
-  fundAccount: LedgerReference | null
-  balanceType: 'POSITIVE' | 'OVERDRAFT'
-  amount: string
-}
-
-export interface PartyOpeningDraft {
-  key: string
-  counterpartyType: 'customer' | 'supplier'
-  counterparty: LedgerReference | null
-  currency: string
-  balanceType: 'RECEIVABLE' | 'PAYABLE'
-  amount: string
-}
-
-export interface ContainerOpeningDraft {
-  key: string
-  customer: LedgerReference | null
-  containerType: 'SOLVENT' | 'RESIN'
-  quantity: string
-}
-
-export interface OpeningForm {
-  cutoverDate: string
-  inventory: InventoryOpeningDraft[]
-  fund: FundOpeningDraft[]
-  party: PartyOpeningDraft[]
-  container: ContainerOpeningDraft[]
-}
-
-export interface OpeningSaveRequest {
+export interface ClosingMutationResult {
   revision: number
-  cutoverDate: string
-  inventory: Array<{
-    warehouse: LedgerReferenceInput
-    product: LedgerReferenceInput
-    quantity: string
-    unitPrice: string
-    currency: string
-  }>
-  fund: Array<{
-    fundAccount: LedgerReferenceInput
-    balanceType: 'POSITIVE' | 'OVERDRAFT'
-    amount: string
-  }>
-  party: Array<{
-    counterpartyType: 'customer' | 'supplier'
-    counterparty: LedgerReferenceInput
-    currency: string
-    balanceType: 'RECEIVABLE' | 'PAYABLE'
-    amount: string
-  }>
-  container: Array<{
-    customer: LedgerReferenceInput
-    containerType: 'SOLVENT' | 'RESIN'
-    quantity: number
-  }>
+  latestClosingDate?: string
+  openingDate?: string
 }
 
-export interface OpeningMutationResult {
-  status: OpeningStatus
-  revision: number
-  generationId?: string
-}
-
-export interface OpeningAuditEvent {
+export interface ClosingHistoryItem {
   id: string
-  eventType: string
-  fromStatus?: string
-  toStatus: string
-  generationId?: string
+  closingDate: string
+  openingDate: string
+  status: 'ACTIVE' | 'REVERSED'
   revision: number
-  actorId: string
-  occurredAt: string
-  reason?: string
+  closedAt: string
+  closedBy: string
   requestId: string
-  summary: unknown
+  reversedAt?: string
+  reversedBy?: string
+  reverseReason?: string
+  reverseRequestId?: string
 }

@@ -153,43 +153,8 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 }
 
 func (s *Seeder) ensureLedgerActive(ctx context.Context) error {
-	opening, err := s.ledger.GetOpening(ctx)
-	if err != nil {
-		return fmt.Errorf("read preview ledger: %w", err)
-	}
-	switch opening.Status {
-	case leddomain.StatusActive:
-		return nil
-	case leddomain.StatusReopening:
-		return errors.New("preview ledger is reopening; cancel or finish reopening before seeding production data")
-	case leddomain.StatusDraft:
-	default:
-		return fmt.Errorf("unsupported preview ledger status %s", opening.Status)
-	}
-	revision := opening.Revision
-	if opening.CutoverDate == "" {
-		if len(opening.Inventory)+len(opening.Fund)+len(opening.Party)+len(opening.Container) != 0 {
-			return errors.New("preview ledger has opening data without a cutover date")
-		}
-		saved, saveErr := s.ledger.SaveOpening(ctx, leddomain.OpeningSaveInput{
-			Revision: revision, CutoverDate: "2026-07-01",
-			Inventory: []leddomain.InventoryOpeningInput{},
-			Fund:      []leddomain.FundOpeningInput{},
-			Party:     []leddomain.PartyOpeningInput{},
-			Container: []leddomain.ContainerOpeningInput{},
-		}, actorID, requestID("ledger-opening"))
-		if saveErr != nil {
-			return fmt.Errorf("save preview ledger opening: %w", saveErr)
-		}
-		revision = saved.Revision
-	}
-	if _, err = s.ledger.Activate(
-		ctx,
-		leddomain.RevisionInput{Revision: revision},
-		actorID,
-		requestID("ledger-activate"),
-	); err != nil {
-		return fmt.Errorf("activate preview ledger: %w", err)
+	if err := s.ledger.EnsureReady(ctx); err != nil {
+		return fmt.Errorf("initialize zero-opening preview ledger: %w", err)
 	}
 	return nil
 }

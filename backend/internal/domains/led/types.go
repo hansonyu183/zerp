@@ -11,6 +11,7 @@ const (
 	StatusReopening = "REOPENING"
 
 	EntityOpening   = "opening"
+	EntityClosing   = "closing"
 	EntityInventory = "inventory"
 	EntityFund      = "fund"
 	EntityParty     = "party"
@@ -79,13 +80,14 @@ type ReopenInput struct {
 }
 
 type InventoryOpeningView struct {
-	ID        string        `json:"id"`
-	Warehouse ReferenceView `json:"warehouse"`
-	Product   ReferenceView `json:"product"`
-	Quantity  string        `json:"quantity"`
-	UnitPrice string        `json:"unitPrice,omitempty"`
-	Amount    string        `json:"amount,omitempty"`
-	Currency  string        `json:"currency,omitempty"`
+	ID         string        `json:"id"`
+	Warehouse  ReferenceView `json:"warehouse"`
+	Product    ReferenceView `json:"product"`
+	Quantity   string        `json:"quantity"`
+	UnitPrice  string        `json:"unitPrice,omitempty"`
+	Amount     string        `json:"amount,omitempty"`
+	Currency   string        `json:"currency,omitempty"`
+	CostAmount string        `json:"costAmount,omitempty"`
 }
 
 type FundOpeningView struct {
@@ -126,6 +128,47 @@ type MutationResult struct {
 	Status       string `json:"status"`
 	Revision     int64  `json:"revision"`
 	GenerationID string `json:"generationId,omitempty"`
+}
+
+type ClosingInput struct {
+	Revision    int64  `json:"revision"`
+	ClosingDate string `json:"closingDate"`
+}
+
+type UncloseInput struct {
+	Revision int64  `json:"revision"`
+	Reason   string `json:"reason"`
+}
+
+type ClosingView struct {
+	Revision          int64                  `json:"revision"`
+	LatestClosingDate string                 `json:"latestClosingDate,omitempty"`
+	OpeningDate       string                 `json:"openingDate,omitempty"`
+	Inventory         []InventoryOpeningView `json:"inventory"`
+	Fund              []FundOpeningView      `json:"fund"`
+	Party             []PartyOpeningView     `json:"party"`
+	Container         []ContainerOpeningView `json:"container"`
+}
+
+type ClosingMutationResult struct {
+	Revision          int64  `json:"revision"`
+	LatestClosingDate string `json:"latestClosingDate,omitempty"`
+	OpeningDate       string `json:"openingDate,omitempty"`
+}
+
+type ClosingHistoryView struct {
+	ID               string     `json:"id"`
+	ClosingDate      string     `json:"closingDate"`
+	OpeningDate      string     `json:"openingDate"`
+	Status           string     `json:"status"`
+	Revision         int64      `json:"revision"`
+	ClosedAt         time.Time  `json:"closedAt"`
+	ClosedBy         string     `json:"closedBy"`
+	RequestID        string     `json:"requestId"`
+	ReversedAt       *time.Time `json:"reversedAt,omitempty"`
+	ReversedBy       string     `json:"reversedBy,omitempty"`
+	ReverseReason    string     `json:"reverseReason,omitempty"`
+	ReverseRequestID string     `json:"reverseRequestId,omitempty"`
 }
 
 type QueryFilters struct {

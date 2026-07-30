@@ -3,6 +3,7 @@ package vou
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -19,6 +20,14 @@ func (s *Service) writeError(operation string, err error) error {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
+		if pgErr.Code == "P0001" && strings.Contains(pgErr.Message, "closed through") {
+			return domainError(
+				ErrorConflict,
+				pgErr.Message,
+				map[string]any{"closed": true},
+				err,
+			)
+		}
 		switch pgErr.Code {
 		case "23505", "23514", "23P01", "40001", "40P01":
 			return domainError(ErrorConflict, "data conflict", nil, err)

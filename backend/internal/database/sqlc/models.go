@@ -539,6 +539,68 @@ type LedAuditEvent struct {
 	Summary      []byte             `db:"summary" json:"summary"`
 }
 
+type LedClosing struct {
+	ID               string             `db:"id" json:"id"`
+	ClosingDate      pgtype.Date        `db:"closing_date" json:"closing_date"`
+	OpeningDate      pgtype.Date        `db:"opening_date" json:"opening_date"`
+	Status           string             `db:"status" json:"status"`
+	Revision         int64              `db:"revision" json:"revision"`
+	ClosedAt         pgtype.Timestamptz `db:"closed_at" json:"closed_at"`
+	ClosedBy         string             `db:"closed_by" json:"closed_by"`
+	RequestID        string             `db:"request_id" json:"request_id"`
+	ReversedAt       pgtype.Timestamptz `db:"reversed_at" json:"reversed_at"`
+	ReversedBy       *string            `db:"reversed_by" json:"reversed_by"`
+	ReverseReason    *string            `db:"reverse_reason" json:"reverse_reason"`
+	ReverseRequestID *string            `db:"reverse_request_id" json:"reverse_request_id"`
+}
+
+type LedClosingContainer struct {
+	ClosingID         string `db:"closing_id" json:"closing_id"`
+	CustomerObjectID  string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID string `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode      string `db:"customer_code" json:"customer_code"`
+	CustomerName      string `db:"customer_name" json:"customer_name"`
+	ContainerType     string `db:"container_type" json:"container_type"`
+	Quantity          int64  `db:"quantity" json:"quantity"`
+}
+
+type LedClosingFund struct {
+	ClosingID            string `db:"closing_id" json:"closing_id"`
+	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
+	Currency             string `db:"currency" json:"currency"`
+	AmountCents          int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+type LedClosingInventory struct {
+	ClosingID          string `db:"closing_id" json:"closing_id"`
+	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+	ProductObjectID    string `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string `db:"product_code" json:"product_code"`
+	ProductName        string `db:"product_name" json:"product_name"`
+	ProductUnit        string `db:"product_unit" json:"product_unit"`
+	QuantityMicros     int64  `db:"quantity_micros" json:"quantity_micros"`
+	Currency           string `db:"currency" json:"currency"`
+	CostAmountCents    int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
+}
+
+type LedClosingParty struct {
+	ClosingID             string `db:"closing_id" json:"closing_id"`
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	Currency              string `db:"currency" json:"currency"`
+	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+}
+
 type LedContainerEntry struct {
 	ID                string             `db:"id" json:"id"`
 	GenerationID      string             `db:"generation_id" json:"generation_id"`
@@ -571,6 +633,8 @@ type LedControl struct {
 	Revision           int64              `db:"revision" json:"revision"`
 	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy          *string            `db:"updated_by" json:"updated_by"`
+	LastClosingID      *string            `db:"last_closing_id" json:"last_closing_id"`
+	RebuildRequired    bool               `db:"rebuild_required" json:"rebuild_required"`
 }
 
 type LedDraftContainer struct {
@@ -650,6 +714,16 @@ type LedGeneration struct {
 	ActivatedAt pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
 	ActivatedBy string             `db:"activated_by" json:"activated_by"`
 	RequestID   string             `db:"request_id" json:"request_id"`
+}
+
+type LedInventoryCostAllocation struct {
+	ClosingID        string `db:"closing_id" json:"closing_id"`
+	EntryID          string `db:"entry_id" json:"entry_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceLineID     string `db:"source_line_id" json:"source_line_id"`
+	QuantityMicros   int64  `db:"quantity_micros" json:"quantity_micros"`
+	CostAmountCents  int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
+	Currency         string `db:"currency" json:"currency"`
 }
 
 type LedInventoryEntry struct {

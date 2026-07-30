@@ -1,99 +1,16 @@
 {
-  'LedOpeningSaveRequest':
+  'LedClosingRequest':
     {
       'type': 'object',
-      'required':
-        ['revision', 'cutoverDate', 'inventory', 'fund', 'party', 'container'],
+      'required': ['revision', 'closingDate'],
       'additionalProperties': false,
       'properties':
         {
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'cutoverDate': { 'type': 'string', 'format': 'date' },
-          'inventory':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'required':
-                    [
-                      'warehouse',
-                      'product',
-                      'quantity',
-                      'unitPrice',
-                      'currency',
-                    ],
-                  'additionalProperties': false,
-                  'properties':
-                    {
-                      'warehouse':
-                        {
-                          'type': 'object',
-                          'required': ['objectId', 'versionId'],
-                          'additionalProperties': false,
-                          'properties':
-                            {
-                              'objectId': { 'type': 'string' },
-                              'versionId': { 'type': 'string' },
-                            },
-                        },
-                      'product':
-                        {
-                          'type': 'object',
-                          'required': ['objectId', 'versionId'],
-                          'additionalProperties': false,
-                          'properties':
-                            {
-                              'objectId': { 'type': 'string' },
-                              'versionId': { 'type': 'string' },
-                            },
-                        },
-                      'quantity': { 'type': 'string' },
-                      'unitPrice': { 'type': 'string' },
-                      'currency': { 'type': 'string', 'pattern': '^[A-Z]{3}$' },
-                    },
-                },
-            },
-          'fund':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
-          'party':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
-          'container':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
+          'closingDate': { 'type': 'string', 'format': 'date' },
         },
     },
-  'LedRevisionRequest':
-    {
-      'type': 'object',
-      'required': ['revision'],
-      'additionalProperties': false,
-      'properties': { 'revision': { 'type': 'integer', 'format': 'int64' } },
-    },
-  'LedReopenRequest':
+  'LedUncloseRequest':
     {
       'type': 'object',
       'required': ['revision', 'reason'],

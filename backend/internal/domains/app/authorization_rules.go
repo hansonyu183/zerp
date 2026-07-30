@@ -86,7 +86,7 @@ func validatePermissions(ctx context.Context, q *dbsqlc.Queries, ids []string) e
 			continue
 		}
 		readAction := "query"
-		if parts[0] == "led" && parts[1] == "opening" {
+		if parts[0] == "led" && parts[1] == "closing" {
 			readAction = "get"
 		}
 		if parts[2] == readAction {

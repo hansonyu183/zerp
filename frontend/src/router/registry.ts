@@ -324,9 +324,9 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/wfl/purchase-fulfillment/PurchaseFulfillment.vue'),
   }),
   registerPage('led', {
-    entity: 'opening',
-    entityTitle: '期初与启用',
-    icon: 'mdi-book-cog-outline',
+    entity: 'closing',
+    entityTitle: '期初与结账',
+    icon: 'mdi-calendar-check-outline',
     order: 10,
     component: () => import('@/pages/led/opening/Opening.vue'),
   }),

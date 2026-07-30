@@ -43,7 +43,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
 
 run:
 	go run ./cmd/server
@@ -81,7 +81,7 @@ test-db-clean:
 
 test-integration: test-db-prepare
 	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
-		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/auxiliary ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed ./internal/seed/productionseed -run 'Integration|Database' -count=1 -v
+		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/auxiliary ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed ./internal/seed/productionseed ./internal/seed/previewseed -run 'Integration|Database' -count=1 -v
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml
@@ -169,6 +169,9 @@ bootstrap-admin:
 
 seed-bob:
 	@go run ./cmd/seed-bob
+
+seed-preview:
+	@go run ./cmd/seed-preview
 
 cleanup-attachments:
 	@docker compose --env-file $(ENV_FILE) run --rm --no-deps \

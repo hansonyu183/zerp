@@ -158,8 +158,7 @@ up() {
     echo "Preview administrator already initialized"
   fi
 
-  compose run --rm --no-deps --entrypoint /usr/local/bin/zerp-seed-bob api
-  compose run --rm --no-deps --entrypoint /usr/local/bin/zerp-seed-production-demo api
+  compose run --rm --no-deps --entrypoint /usr/local/bin/zerp-seed-preview api
   compose up -d --wait --no-build api web
 
   wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz"

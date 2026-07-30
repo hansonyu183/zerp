@@ -272,6 +272,8 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.containers == '1'
+        with:
+          fetch-depth: 0
       - name: Validate container and release configuration
         if: >-
           github.event_name != 'push' &&

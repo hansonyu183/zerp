@@ -245,14 +245,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('vou', {
     entity: 'order-production',
-    entityTitle: '订单生产',
+    entityTitle: '生产配货',
     icon: 'mdi-factory',
     order: 55,
     component: () => import('@/pages/vou/order-production/OrderProduction.vue'),
   }),
   registerPage('vou', {
     entity: 'self-production',
-    entityTitle: '自制品生产',
+    entityTitle: '生产自制品',
     icon: 'mdi-cog-transfer-outline',
     order: 56,
     component: () => import('@/pages/vou/self-production/SelfProduction.vue'),

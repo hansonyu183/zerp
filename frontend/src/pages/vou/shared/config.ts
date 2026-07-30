@@ -114,7 +114,7 @@ export const voucherEntityConfigs: Readonly<
   },
   'order-production': {
     entity: 'order-production',
-    title: '订单生产',
+    title: '生产配货',
     icon: 'mdi-factory',
     order: 55,
     partyMode: 'none',
@@ -130,7 +130,7 @@ export const voucherEntityConfigs: Readonly<
   },
   'self-production': {
     entity: 'self-production',
-    title: '自制品生产',
+    title: '生产自制品',
     icon: 'mdi-cog-transfer-outline',
     order: 56,
     partyMode: 'none',

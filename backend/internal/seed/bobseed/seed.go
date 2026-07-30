@@ -75,6 +75,9 @@ type sample struct {
 	managerEmployeeCode     string
 	salespersonEmployeeCode string
 	settlementMethodCode    string
+	formulaMaterialCode     string
+	formulaBaseQuantity     string
+	formulaMaterialQuantity string
 }
 
 var samples = [...]sample{
@@ -139,6 +142,17 @@ var samples = [...]sample{
 		Code: "DEMO-PROD-002", Name: "试制零件 B", Unit: "件",
 		Specification: "M30", Model: "B-30", Barcode: "DEMO-BARCODE-002",
 	}, status: bob.StatusDraft, categoryCode: "DEMO-CAT-002"},
+	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
+		Code: "DEMO-FG-001", Name: "标准自制品 A", Unit: "件",
+		Specification: "FG-A", Model: "A-100", ProductKind: bob.ProductKindStandardFinished,
+		Remark: "生产单固定测试成品",
+	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002",
+		formulaMaterialCode: "DEMO-PROD-001", formulaBaseQuantity: "1.0", formulaMaterialQuantity: "2.0"},
+	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
+		Code: "DEMO-FG-002", Name: "客户定制品 B", Unit: "件",
+		Specification: "FG-B", Model: "B-200", ProductKind: bob.ProductKindCustomFinished,
+		Remark: "生产配货固定测试成品",
+	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityService, data: bob.CreateDetailInput{
 		Code: "DEMO-SVC-001", Name: "设备巡检服务", Unit: "次",
 		Description: "现场设备巡检与报告", Remark: "演示服务",
@@ -244,6 +258,37 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	if item.parentCode != "" {
 		if item.data.ParentID, err = resolve(item.entity, item.parentCode, "parent"); err != nil {
 			return 0, err
+		}
+	}
+	if item.formulaMaterialCode != "" {
+		materialObjectID, resolveErr := resolve(
+			bob.EntityProduct,
+			item.formulaMaterialCode,
+			"formula material",
+		)
+		if resolveErr != nil {
+			return 0, resolveErr
+		}
+		material, getErr := s.service.Get(
+			ctx,
+			bob.EntityProduct,
+			bob.GetInput{ObjectID: materialObjectID},
+		)
+		if getErr != nil {
+			return 0, fmt.Errorf("get formula material: %w", getErr)
+		}
+		if material.Version.Status != bob.StatusEffective {
+			return 0, fmt.Errorf("formula material %s is not effective", item.formulaMaterialCode)
+		}
+		item.data.Formula = &bob.ProductFormula{
+			BaseOutputQuantity: item.formulaBaseQuantity,
+			Components: []bob.ProductFormulaComponent{{
+				Material: bob.FormulaMaterialReference{
+					ObjectID:  material.ObjectID,
+					VersionID: material.Version.VersionID,
+				},
+				Quantity: item.formulaMaterialQuantity,
+			}},
 		}
 	}
 
@@ -383,7 +428,36 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.RuleType == item.data.RuleType &&
 		view.Data.MonthOffset == item.data.MonthOffset &&
 		equalInt32Pointer(view.Data.DayOfMonth, item.data.DayOfMonth) &&
-		view.Data.DayOffset == item.data.DayOffset
+		view.Data.DayOffset == item.data.DayOffset &&
+		view.Data.ProductKind == expectedProductKind(item) &&
+		formulaMatches(view.Data.Formula, item.data.Formula)
+}
+
+func expectedProductKind(item sample) string {
+	if item.entity == bob.EntityProduct && item.data.ProductKind == "" {
+		return bob.ProductKindRawMaterial
+	}
+	return item.data.ProductKind
+}
+
+func formulaMatches(actual, expected *bob.ProductFormula) bool {
+	if actual == nil || expected == nil {
+		return actual == nil && expected == nil
+	}
+	if actual.BaseOutputQuantity != expected.BaseOutputQuantity ||
+		len(actual.Components) != len(expected.Components) {
+		return false
+	}
+	for index := range actual.Components {
+		actualComponent := actual.Components[index]
+		expectedComponent := expected.Components[index]
+		if actualComponent.Material.ObjectID != expectedComponent.Material.ObjectID ||
+			actualComponent.Material.VersionID != expectedComponent.Material.VersionID ||
+			actualComponent.Quantity != expectedComponent.Quantity {
+			return false
+		}
+	}
+	return true
 }
 
 func matchesLegacyShape(item sample, view bob.ObjectView) bool {
@@ -485,6 +559,10 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.Model = bob.Optional(input.Model)
 		result.Barcode = bob.Optional(input.Barcode)
 		result.Remark = bob.Optional(input.Remark)
+		if input.ProductKind != "" {
+			result.ProductKind = stringPointer(input.ProductKind)
+		}
+		result.Formula = input.Formula
 	case bob.EntityService:
 		result.CategoryID = bob.Optional(input.CategoryID)
 		result.Description = bob.Optional(input.Description)

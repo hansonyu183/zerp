@@ -8,6 +8,8 @@ import type {
 } from './types'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'VoucherList' })
@@ -103,6 +105,23 @@ function changeStatuses(value: unknown): void {
     Array.isArray(value) ? (value as VoucherStatus[]) : [],
   )
 }
+
+const mobileSortOptions = [
+  { title: '更新', value: 'updatedAt' },
+  { title: '单号', value: 'documentNo' },
+  { title: '日期', value: 'businessDate' },
+  { title: '状态', value: 'status' },
+  { title: '金额', value: 'amount' },
+]
+
+function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+  emit('update:sort', value as VoucherSort)
+}
+
+function selectAction(action: string, row: VoucherListItem): void {
+  if (action === 'edit') emit('edit', row)
+  else emit('view', row)
+}
 </script>
 
 <template>
@@ -163,10 +182,17 @@ function changeStatuses(value: unknown): void {
       </template>
     </EntityListControls>
 
+    <MobileSortControl
+      :field="sort.field"
+      :options="mobileSortOptions"
+      :order="sort.order"
+      @change="applyMobileSort"
+    />
+
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
-      <div class="voucher-list__table-wrap">
-        <v-table class="voucher-list__table">
+      <div class="voucher-list__table-wrap responsive-table-wrap">
+        <v-table class="voucher-list__table responsive-table">
           <thead>
             <tr>
               <SortableTableHeader
@@ -200,34 +226,60 @@ function changeStatuses(value: unknown): void {
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.documentId">
-              <td>{{ row.documentNo }}</td>
-              <td>{{ row.businessDate }}</td>
-              <td>{{ row.partyName || '—' }}</td>
-              <td>
+              <td data-label="单号">{{ row.documentNo }}</td>
+              <td data-label="日期">{{ row.businessDate }}</td>
+              <td data-label="往来方">{{ row.partyName || '—' }}</td>
+              <td data-label="状态">
                 <v-chip size="small" variant="tonal">{{
                   statusText(row.status)
                 }}</v-chip>
               </td>
-              <td class="text-end">{{ row.amount }}</td>
-              <td class="text-end text-no-wrap">
-                <v-btn
-                  v-if="canView(row)"
-                  :aria-label="`查看 ${row.documentNo}`"
-                  icon="mdi-eye-outline"
-                  variant="text"
-                  @click="emit('view', row)"
-                />
-                <v-btn
-                  v-if="canEdit(row)"
-                  :aria-label="`编辑 ${row.documentNo}`"
-                  color="primary"
-                  icon="mdi-pencil-outline"
-                  variant="text"
-                  @click="emit('edit', row)"
+              <td class="text-end" data-label="金额">{{ row.amount }}</td>
+              <td
+                class="text-end text-no-wrap responsive-table__actions"
+                data-label="操作"
+              >
+                <ListRowActions
+                  :label="`操作 ${row.documentNo}`"
+                  :more="
+                    canView(row) && canEdit(row)
+                      ? [
+                          {
+                            key: 'view',
+                            label: `查看 ${row.documentNo}`,
+                            icon: 'mdi-eye-outline',
+                          },
+                        ]
+                      : []
+                  "
+                  :primary="
+                    canEdit(row)
+                      ? [
+                          {
+                            key: 'edit',
+                            label: `编辑 ${row.documentNo}`,
+                            icon: 'mdi-pencil-outline',
+                            color: 'primary',
+                          },
+                        ]
+                      : canView(row)
+                        ? [
+                            {
+                              key: 'view',
+                              label: `查看 ${row.documentNo}`,
+                              icon: 'mdi-eye-outline',
+                            },
+                          ]
+                        : []
+                  "
+                  @select="selectAction($event, row)"
                 />
               </td>
             </tr>
-            <tr v-if="!loading && rows.length === 0">
+            <tr
+              v-if="!loading && rows.length === 0"
+              class="responsive-table__empty-row"
+            >
               <td colspan="6" class="text-center py-12">{{ emptyText }}</td>
             </tr>
           </tbody>

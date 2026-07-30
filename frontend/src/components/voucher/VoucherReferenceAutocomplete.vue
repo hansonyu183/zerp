@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { VoucherReference } from './types'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherReferenceAutocomplete' })
 
@@ -42,7 +43,7 @@ const items = computed(() => {
 })
 
 function title(item: VoucherReference): string {
-  return `${item.code} · ${item.name}`
+  return formatReferenceLabel(item)
 }
 </script>
 

@@ -6,6 +6,8 @@ import type {
   BusinessObjectSort,
 } from './types'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 
 defineOptions({ name: 'BusinessObjectList' })
@@ -59,6 +61,14 @@ const hasActionColumn = computed(() =>
 const columnCount = computed(
   () => props.columns.length + (hasActionColumn.value ? 1 : 0),
 )
+const mobileSortOptions = computed(() => {
+  const options = props.columns
+    .filter((column) => isSortable(column.key))
+    .map((column) => ({ title: column.label, value: column.key }))
+  return options.some((option) => option.value === 'updatedAt')
+    ? options
+    : [{ title: '更新', value: 'updatedAt' }, ...options]
+})
 
 function resolveRowState(
   state: BusinessObjectRowState<T>,
@@ -94,6 +104,11 @@ function changeSort(field: BusinessObjectSort['field']): void {
         : 'asc',
   })
 }
+
+function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+  if (!isSortable(value.field)) return
+  emit('update:sort', { field: value.field, order: value.order })
+}
 </script>
 
 <template>
@@ -121,7 +136,15 @@ function changeSort(field: BusinessObjectSort['field']): void {
       </template>
     </EntityListControls>
 
-    <v-table class="business-object-list__table">
+    <MobileSortControl
+      v-if="sort"
+      :field="sort.field"
+      :options="mobileSortOptions"
+      :order="sort.order"
+      @change="applyMobileSort"
+    />
+
+    <v-table class="business-object-list__table responsive-table">
       <thead>
         <tr>
           <template v-for="column in columns" :key="column.key">
@@ -156,6 +179,7 @@ function changeSort(field: BusinessObjectSort['field']): void {
             v-for="column in columns"
             :key="column.key"
             :class="`text-${column.align ?? 'start'}`"
+            :data-label="column.label"
           >
             <slot
               :name="`cell-${column.key}`"
@@ -167,37 +191,55 @@ function changeSort(field: BusinessObjectSort['field']): void {
               {{ formatValue(column, row) }}
             </slot>
           </td>
-          <td v-if="hasActionColumn" class="business-object-list__actions">
+          <td
+            v-if="hasActionColumn"
+            class="business-object-list__actions responsive-table__actions"
+            data-label="操作"
+          >
             <slot
               name="actions"
               :deletable="resolveRowState(deletable, row)"
               :editable="resolveRowState(editable, row)"
               :row="row"
             >
-              <v-btn
-                v-if="resolveRowState(editable, row)"
-                :aria-label="`编辑 ${rowKey(row)}`"
-                color="primary"
-                density="comfortable"
-                :disabled="loading"
-                icon="mdi-pencil-outline"
-                variant="text"
-                @click="emit('edit', row)"
-              />
-              <v-btn
-                v-if="resolveRowState(deletable, row)"
-                :aria-label="`删除 ${rowKey(row)}`"
-                color="error"
-                density="comfortable"
-                :disabled="loading"
-                icon="mdi-delete-outline"
-                variant="text"
-                @click="emit('delete', row)"
+              <ListRowActions
+                :label="`操作 ${rowKey(row)}`"
+                :loading="loading"
+                :more="
+                  resolveRowState(deletable, row)
+                    ? [
+                        {
+                          key: 'delete',
+                          label: `删除 ${rowKey(row)}`,
+                          icon: 'mdi-delete-outline',
+                          color: 'error',
+                        },
+                      ]
+                    : []
+                "
+                :primary="
+                  resolveRowState(editable, row)
+                    ? [
+                        {
+                          key: 'edit',
+                          label: `编辑 ${rowKey(row)}`,
+                          icon: 'mdi-pencil-outline',
+                          color: 'primary',
+                        },
+                      ]
+                    : []
+                "
+                @select="
+                  $event === 'edit' ? emit('edit', row) : emit('delete', row)
+                "
               />
             </slot>
           </td>
         </tr>
-        <tr v-if="!loading && rows.length === 0">
+        <tr
+          v-if="!loading && rows.length === 0"
+          class="responsive-table__empty-row"
+        >
           <td class="business-object-list__empty" :colspan="columnCount">
             {{ emptyText }}
           </td>

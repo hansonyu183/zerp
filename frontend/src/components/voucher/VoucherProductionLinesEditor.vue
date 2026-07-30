@@ -2,6 +2,7 @@
 import type { VoucherProductionOutputDraft, VoucherReference } from './types'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherProductionLinesEditor' })
 
@@ -147,7 +148,9 @@ function updateLossRate(
           />
         </div>
 
-        <v-table class="production-lines__materials">
+        <v-table
+          class="production-lines__materials responsive-table responsive-table--form"
+        >
           <thead>
             <tr>
               <th>配方材料</th>
@@ -160,13 +163,17 @@ function updateLossRate(
           </thead>
           <tbody>
             <tr v-for="material in line.materials" :key="material.key">
-              <td>
-                {{ material.formulaMaterial.code }} ·
-                {{ material.formulaMaterial.name }}
+              <td data-label="配方材料">
+                {{ formatReferenceLabel(material.formulaMaterial) }}
               </td>
-              <td>{{ material.formulaQuantity }}</td>
-              <td>{{ material.suggestedQuantity || '—' }}</td>
-              <td class="production-lines__material-reference">
+              <td data-label="配方用量">{{ material.formulaQuantity }}</td>
+              <td data-label="建议领料">
+                {{ material.suggestedQuantity || '—' }}
+              </td>
+              <td
+                class="production-lines__material-reference"
+                data-label="实际材料"
+              >
                 <VoucherReferenceAutocomplete
                   :disabled="!editable"
                   :error-message="materialError"
@@ -180,7 +187,7 @@ function updateLossRate(
                   @update:model-value="material.actualMaterial = $event"
                 />
               </td>
-              <td>
+              <td data-label="实际领料">
                 <CompactTableField
                   v-model="material.actualQuantity"
                   :disabled="!editable"
@@ -188,7 +195,7 @@ function updateLossRate(
                   label="实际领料"
                 />
               </td>
-              <td>
+              <td data-label="调整原因">
                 <CompactTableField
                   v-model="material.adjustmentReason"
                   :disabled="!editable"

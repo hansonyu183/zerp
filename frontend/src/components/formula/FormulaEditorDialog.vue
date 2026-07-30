@@ -4,6 +4,7 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageResult } from '@/api/types'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import type { FormulaMaterialReference, ProductFormulaDraft } from './types'
 
 defineOptions({ name: 'FormulaEditorDialog' })
@@ -80,7 +81,7 @@ function emptyFormula(): ProductFormulaDraft {
 }
 
 function materialTitle(material: FormulaMaterialReference): string {
-  return `${material.code} · ${material.name}`
+  return formatReferenceLabel(material)
 }
 
 async function searchMaterials(keyword: string): Promise<void> {
@@ -212,8 +213,10 @@ function submit(): void {
           </div>
         </div>
 
-        <div class="formula-dialog__table-wrap">
-          <v-table class="formula-dialog__table">
+        <div class="formula-dialog__table-wrap responsive-table-wrap">
+          <v-table
+            class="formula-dialog__table responsive-table responsive-table--form"
+          >
             <thead>
               <tr>
                 <th>#</th>
@@ -228,8 +231,8 @@ function submit(): void {
                 v-for="(component, index) in draft.components"
                 :key="component.key"
               >
-                <td>{{ index + 1 }}</td>
-                <td>
+                <td data-label="行">{{ index + 1 }}</td>
+                <td data-label="原材料">
                   <v-autocomplete
                     v-if="editable"
                     v-model="component.material"
@@ -252,7 +255,7 @@ function submit(): void {
                     }}
                   </span>
                 </td>
-                <td>
+                <td data-label="用量">
                   <CompactTableField
                     v-if="editable"
                     v-model="component.quantity"
@@ -264,8 +267,12 @@ function submit(): void {
                   />
                   <span v-else>{{ component.quantity }}</span>
                 </td>
-                <td>{{ component.material?.unit || '—' }}</td>
-                <td v-if="editable">
+                <td data-label="单位">{{ component.material?.unit || '—' }}</td>
+                <td
+                  v-if="editable"
+                  class="responsive-table__actions"
+                  data-label="操作"
+                >
                   <v-btn
                     :aria-label="`删除第 ${index + 1} 行原料`"
                     color="error"
@@ -275,7 +282,10 @@ function submit(): void {
                   />
                 </td>
               </tr>
-              <tr v-if="draft.components.length === 0">
+              <tr
+                v-if="draft.components.length === 0"
+                class="responsive-table__empty-row"
+              >
                 <td :colspan="editable ? 5 : 4" class="text-center py-8">
                   暂无原料
                 </td>

@@ -282,6 +282,78 @@ describe('shared BOB entity configuration and view model', () => {
     ).toEqual([{ title: 'DEMO-EMP-001 · 演示员工', value: 'EMP-1' }])
   })
 
+  it('按编码保存的引用在详情中补齐编码和名称', async () => {
+    useSessionStore().permissions = [
+      '/bob/customer/get',
+      '/aux/dictionary-item/query',
+    ]
+    const customerRow = {
+      ...row(),
+      entity: 'customer',
+      code: 'CUS-001',
+      currentVersion: {
+        ...row().currentVersion,
+        summary: { name: '示例客户', customerType: 'DIT-0001' },
+      },
+    } as BobListItem
+    const customerView = {
+      ...objectView(),
+      entity: 'customer',
+      code: 'CUS-001',
+      data: {
+        name: '示例客户',
+        customerType: 'DIT-0001',
+        shortName: '',
+        settlementMethodId: '',
+        salespersonEmployeeId: '',
+        taxNumber: '',
+        contactName: '',
+        contactPhone: '',
+        email: '',
+        address: '',
+        remark: '',
+      },
+    } as BobObjectView
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: customerView })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              objectId: 'TYPE-1',
+              code: 'DIT-0001',
+              currentVersion: { data: { name: '终端客户' } },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      })
+    const vm = useBobEntityViewModel(getBobEntityConfig('customer'))
+
+    await vm.openView(customerRow)
+
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      2,
+      'aux/dictionary-item/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          dictionaryTypeCode: 'DCT-0001',
+          keyword: 'DIT-0001',
+          enabled: true,
+        },
+        sort: [{ field: 'name', order: 'asc' }],
+      },
+    )
+    expect(
+      vm.editorFields.value.find((field) => field.key === 'customerType')
+        ?.options,
+    ).toEqual([{ title: 'DIT-0001 · 终端客户', value: 'DIT-0001' }])
+  })
+
   it('供应商创建和保存发送 salespersonEmployeeId', async () => {
     grant('supplier', 'create', 'query')
     mockedApiClient.post

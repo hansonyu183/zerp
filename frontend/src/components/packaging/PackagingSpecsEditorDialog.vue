@@ -4,6 +4,7 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageResult } from '@/api/types'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import type {
   PackagingProductReference,
   PackagingSpecDraft,
@@ -62,7 +63,7 @@ watch(
 )
 
 function productTitle(product: PackagingProductReference): string {
-  return `${product.code} · ${product.name}`
+  return formatReferenceLabel(product)
 }
 
 async function searchPackagingProducts(keyword: string): Promise<void> {
@@ -181,7 +182,7 @@ function submit(): void {
           {{ errorMessage || validationMessage }}
         </v-alert>
 
-        <v-table>
+        <v-table class="responsive-table responsive-table--form">
           <thead>
             <tr>
               <th>#</th>
@@ -193,8 +194,8 @@ function submit(): void {
           </thead>
           <tbody>
             <tr v-for="(spec, index) in draft" :key="spec.key">
-              <td>{{ index + 1 }}</td>
-              <td>
+              <td data-label="行">{{ index + 1 }}</td>
+              <td data-label="包装物">
                 <v-autocomplete
                   v-if="editable"
                   v-model="spec.packagingProduct"
@@ -217,7 +218,7 @@ function submit(): void {
                   }}
                 </span>
               </td>
-              <td>
+              <td data-label="内容量">
                 <div v-if="editable" class="d-flex align-center ga-2">
                   <CompactTableField
                     v-model="spec.contentQuantity"
@@ -233,7 +234,7 @@ function submit(): void {
                   {{ spec.contentQuantity }} {{ productUnit }}
                 </span>
               </td>
-              <td>
+              <td data-label="默认">
                 <v-checkbox-btn
                   v-if="editable"
                   :model-value="spec.isDefault"
@@ -246,7 +247,11 @@ function submit(): void {
                 />
                 <span v-else>—</span>
               </td>
-              <td v-if="editable">
+              <td
+                v-if="editable"
+                class="responsive-table__actions"
+                data-label="操作"
+              >
                 <v-btn
                   :aria-label="`删除第 ${index + 1} 个包装规格`"
                   color="error"
@@ -256,7 +261,10 @@ function submit(): void {
                 />
               </td>
             </tr>
-            <tr v-if="draft.length === 0">
+            <tr
+              v-if="draft.length === 0"
+              class="responsive-table__empty-row"
+            >
               <td :colspan="editable ? 5 : 4" class="text-center py-8">
                 暂无包装规格
               </td>

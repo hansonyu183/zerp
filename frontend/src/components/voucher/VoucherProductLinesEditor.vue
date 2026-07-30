@@ -10,6 +10,7 @@ import {
 } from './decimal'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import {
   FormulaEditorDialog,
   type ProductFormulaDraft,
@@ -182,8 +183,10 @@ function removeLine(index: number): void {
       同一产品不能重复添加。
     </v-alert>
 
-    <div class="voucher-lines__table-wrap">
-      <v-table class="voucher-lines__table">
+    <div class="voucher-lines__table-wrap responsive-table-wrap">
+      <v-table
+        class="voucher-lines__table responsive-table responsive-table--form"
+      >
         <thead>
           <tr>
             <th>#</th>
@@ -200,8 +203,8 @@ function removeLine(index: number): void {
         </thead>
         <tbody>
           <tr v-for="(line, index) in modelValue" :key="line.key">
-            <td>{{ index + 1 }}</td>
-            <td>
+            <td data-label="行">{{ index + 1 }}</td>
+            <td data-label="产品">
               <VoucherReferenceAutocomplete
                 v-if="editable"
                 :error-message="productError"
@@ -217,12 +220,12 @@ function removeLine(index: number): void {
               <span v-else>
                 {{
                   line.product
-                    ? `${line.product.code} · ${line.product.name}`
+                    ? formatReferenceLabel(line.product)
                     : '—'
                 }}
               </span>
             </td>
-            <td>
+            <td data-label="数量">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
@@ -237,7 +240,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.orderedQuantity }}</span>
             </td>
-            <td>
+            <td :data-label="settlementSurchargeEnabled ? '基础售价' : '售价'">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
@@ -250,7 +253,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.unitPrice }}</span>
             </td>
-            <td v-if="settlementSurchargeEnabled">
+            <td v-if="settlementSurchargeEnabled" data-label="结算加价/kg">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
@@ -268,7 +271,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.settlementSurcharge || '0.00' }}</span>
             </td>
-            <td v-if="purchasePriceRequired">
+            <td v-if="purchasePriceRequired" data-label="采购价">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
@@ -283,7 +286,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.purchaseUnitPrice }}</span>
             </td>
-            <td class="text-end">
+            <td class="text-end" data-label="金额">
               {{
                 calculatePricedLineAmount(
                   line.orderedQuantity,
@@ -292,7 +295,7 @@ function removeLine(index: number): void {
                 ) ?? '—'
               }}
             </td>
-            <td>
+            <td data-label="备注">
               <CompactTableField
                 v-if="editable"
                 :maxlength="1000"
@@ -306,7 +309,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.remark || '—' }}</span>
             </td>
-            <td v-if="formulaEnabled">
+            <td v-if="formulaEnabled" data-label="配方">
               <span v-if="line.product?.productKind === 'PACKAGING'">—</span>
               <v-btn
                 v-else-if="line.product"
@@ -328,7 +331,11 @@ function removeLine(index: number): void {
               </v-btn>
               <span v-else>—</span>
             </td>
-            <td v-if="editable">
+            <td
+              v-if="editable"
+              class="responsive-table__actions"
+              data-label="操作"
+            >
               <v-btn
                 :aria-label="`删除第 ${index + 1} 行`"
                 color="error"
@@ -338,7 +345,10 @@ function removeLine(index: number): void {
               />
             </td>
           </tr>
-          <tr v-if="modelValue.length === 0">
+          <tr
+            v-if="modelValue.length === 0"
+            class="responsive-table__empty-row"
+          >
             <td
               :colspan="
                 6 +
@@ -362,11 +372,17 @@ function removeLine(index: number): void {
                 (settlementSurchargeEnabled ? 1 : 0)
               "
               class="text-end font-weight-bold"
+              data-label=""
             >
               合计
             </td>
-            <td class="text-end font-weight-bold">{{ total ?? '—' }}</td>
-            <td :colspan="1 + (formulaEnabled ? 1 : 0) + (editable ? 1 : 0)" />
+            <td class="text-end font-weight-bold" data-label="金额">
+              {{ total ?? '—' }}
+            </td>
+            <td
+              :colspan="1 + (formulaEnabled ? 1 : 0) + (editable ? 1 : 0)"
+              data-label=""
+            />
           </tr>
         </tfoot>
       </v-table>

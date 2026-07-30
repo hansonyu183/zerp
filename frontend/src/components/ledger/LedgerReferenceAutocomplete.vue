@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { LedgerReference } from './types'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'LedgerReferenceAutocomplete' })
 
@@ -39,7 +40,7 @@ const items = computed(() => {
 })
 
 function title(item: LedgerReference): string {
-  return `${item.code} · ${item.name}`
+  return formatReferenceLabel(item)
 }
 </script>
 

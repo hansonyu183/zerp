@@ -74,6 +74,32 @@ const VTableStub = defineComponent({
   },
 })
 
+const ListRowActionsStub = defineComponent({
+  name: 'ListRowActions',
+  props: {
+    primary: { type: Array, default: () => [] },
+    more: { type: Array, default: () => [] },
+  },
+  emits: ['select'],
+  setup(props, { emit }) {
+    return () =>
+      h(
+        'div',
+        [...props.primary, ...props.more].map((action) => {
+          const item = action as { key: string; label: string }
+          return h(
+            'button',
+            {
+              'aria-label': item.label,
+              onClick: () => emit('select', item.key),
+            },
+            item.label,
+          )
+        }),
+      )
+  },
+})
+
 function mountList(
   props: Partial<{
     rows: readonly ExampleRow[]
@@ -108,6 +134,9 @@ function mountList(
         VTable: VTableStub,
         VTextField: VTextFieldStub,
       },
+      stubs: {
+        ListRowActions: ListRowActionsStub,
+      },
     },
   })
 }
@@ -129,6 +158,10 @@ describe('BusinessObjectList', () => {
       '#华东客户',
       '#华南客户',
     ])
+    expect(wrapper.get('table').classes()).toContain('responsive-table')
+    expect(
+      wrapper.find('td[data-label="客户名称"]').exists(),
+    ).toBe(true)
   })
 
   it('发出查询、关键字、新增和条件行操作事件', async () => {

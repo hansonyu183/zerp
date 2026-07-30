@@ -27,6 +27,7 @@ import {
 import { lifecycleLabels } from './config'
 import type { VoucherEntityViewModel } from './vm'
 import CompactTableField from '@/components/common/CompactTableField.vue'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 const props = withDefaults(
   defineProps<{
@@ -754,7 +755,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             >
               本单由签收拒收自动生成，来源和数量不可修改。
             </v-alert>
-            <v-table>
+            <v-table class="responsive-table responsive-table--form">
               <thead>
                 <tr>
                   <th>产品</th>
@@ -771,12 +772,17 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   v-for="(line, index) in vm.form.salesChainLines"
                   :key="line.key"
                 >
-                  <td>
-                    {{ line.productCode }} · {{ line.productName }}
+                  <td data-label="产品">
+                    {{
+                      formatReferenceLabel({
+                        code: line.productCode,
+                        name: line.productName,
+                      })
+                    }}
                     {{ line.productUnit }}
                   </td>
-                  <td>{{ line.availableQuantity || '—' }}</td>
-                  <td>
+                  <td data-label="可退">{{ line.availableQuantity || '—' }}</td>
+                  <td data-label="退货数量">
                     <CompactTableField
                       v-model="line.quantity"
                       :disabled="
@@ -785,7 +791,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       inputmode="decimal"
                     />
                   </td>
-                  <td>
+                  <td data-label="备注">
                     <CompactTableField
                       v-model="line.remark"
                       :disabled="
@@ -793,7 +799,11 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       "
                     />
                   </td>
-                  <td v-if="vm.editing && vm.form.returnKind !== 'REFUSAL'">
+                  <td
+                    v-if="vm.editing && vm.form.returnKind !== 'REFUSAL'"
+                    class="responsive-table__actions"
+                    data-label="操作"
+                  >
                     <v-btn
                       aria-label="移除此退货明细"
                       icon="mdi-delete-outline"
@@ -814,7 +824,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             class="voucher-form__chain-table"
           >
             <h3>出库明细</h3>
-            <v-table>
+            <v-table class="responsive-table responsive-table--form">
               <thead>
                 <tr>
                   <th>产品</th>
@@ -829,25 +839,34 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   v-for="(line, index) in vm.form.salesChainLines"
                   :key="line.key"
                 >
-                  <td>
-                    {{ line.productCode }} · {{ line.productName }}
+                  <td data-label="产品">
+                    {{
+                      formatReferenceLabel({
+                        code: line.productCode,
+                        name: line.productName,
+                      })
+                    }}
                     {{ line.productUnit }}
                   </td>
-                  <td>{{ line.availableQuantity }}</td>
-                  <td>
+                  <td data-label="可出库">{{ line.availableQuantity }}</td>
+                  <td data-label="本次出库">
                     <CompactTableField
                       v-model="line.quantity"
                       :disabled="!vm.editing"
                       inputmode="decimal"
                     />
                   </td>
-                  <td>
+                  <td data-label="备注">
                     <CompactTableField
                       v-model="line.remark"
                       :disabled="!vm.editing"
                     />
                   </td>
-                  <td v-if="vm.editing">
+                  <td
+                    v-if="vm.editing"
+                    class="responsive-table__actions"
+                    data-label="操作"
+                  >
                     <v-btn
                       aria-label="移除此出库明细"
                       icon="mdi-delete-outline"
@@ -879,7 +898,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             class="voucher-form__chain-table"
           >
             <h3>签收明细</h3>
-            <v-table>
+            <v-table class="responsive-table responsive-table--form">
               <thead>
                 <tr>
                   <th>产品</th>
@@ -892,12 +911,17 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               </thead>
               <tbody>
                 <tr v-for="line in vm.form.salesChainLines" :key="line.key">
-                  <td>
-                    {{ line.productCode }} · {{ line.productName }}
+                  <td data-label="产品">
+                    {{
+                      formatReferenceLabel({
+                        code: line.productCode,
+                        name: line.productName,
+                      })
+                    }}
                     {{ line.productUnit }}
                   </td>
-                  <td>{{ line.outboundQuantity }}</td>
-                  <td>
+                  <td data-label="配送">{{ line.outboundQuantity }}</td>
+                  <td data-label="签收">
                     <CompactTableField
                       v-model="line.signedQuantity"
                       :disabled="!vm.editing"
@@ -905,7 +929,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       @update:model-value="updateSignoffLoss(line)"
                     />
                   </td>
-                  <td>
+                  <td data-label="拒收">
                     <CompactTableField
                       v-model="line.rejectedQuantity"
                       :disabled="!vm.editing"
@@ -913,8 +937,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       @update:model-value="updateSignoffLoss(line)"
                     />
                   </td>
-                  <td>{{ line.lossQuantity || '—' }}</td>
-                  <td>
+                  <td data-label="损耗">{{ line.lossQuantity || '—' }}</td>
+                  <td data-label="备注">
                     <CompactTableField
                       v-model="line.remark"
                       :disabled="!vm.editing"
@@ -947,7 +971,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               <div v-if="vm.documentView.data.settlementMethod">
                 <strong>结算方式</strong>
                 <span>
-                  {{ vm.documentView.data.settlementMethod.name }} · 到期
+                  {{
+                    formatReferenceLabel(
+                      vm.documentView.data.settlementMethod,
+                    )
+                  }}
+                  · 到期
                   {{
                     resolveDueDate(
                       vm.documentView.data.dueDate,
@@ -960,7 +989,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               <div v-if="vm.documentView.data.customerSettlementMethod">
                 <strong>客户结算</strong>
                 <span>
-                  {{ vm.documentView.data.customerSettlementMethod.name }} ·
+                  {{
+                    formatReferenceLabel(
+                      vm.documentView.data.customerSettlementMethod,
+                    )
+                  }}
+                  ·
                   到期
                   {{
                     resolveDueDate(
@@ -974,7 +1008,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               <div v-if="vm.documentView.data.supplierSettlementMethod">
                 <strong>供应商结算</strong>
                 <span>
-                  {{ vm.documentView.data.supplierSettlementMethod.name }} ·
+                  {{
+                    formatReferenceLabel(
+                      vm.documentView.data.supplierSettlementMethod,
+                    )
+                  }}
+                  ·
                   到期
                   {{
                     resolveDueDate(
@@ -998,10 +1037,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               </div>
               <div v-if="vm.documentView.data.platform">
                 <strong>物流平台/车辆</strong>
-                <span
-                  >{{ vm.documentView.data.platform.name }} /
-                  {{ vm.documentView.data.vehicle?.plateNumber }}</span
-                >
+                <span>
+                  {{ formatReferenceLabel(vm.documentView.data.platform) }} /
+                  {{
+                    vm.documentView.data.vehicle
+                      ? formatReferenceLabel(vm.documentView.data.vehicle)
+                      : '—'
+                  }}
+                </span>
               </div>
               <div v-if="vm.documentView.parentDocumentNo">
                 <strong>来源单据</strong>

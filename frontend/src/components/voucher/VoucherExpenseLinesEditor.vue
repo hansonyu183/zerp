@@ -69,8 +69,10 @@ function removeLine(index: number): void {
         添加费用
       </v-btn>
     </div>
-    <div class="voucher-expense-lines__wrap">
-      <v-table class="voucher-expense-lines__table">
+    <div class="voucher-expense-lines__wrap responsive-table-wrap">
+      <v-table
+        class="voucher-expense-lines__table responsive-table responsive-table--form"
+      >
         <thead>
           <tr>
             <th>#</th><th>类别</th><th>说明</th><th>金额</th><th>备注</th>
@@ -79,8 +81,8 @@ function removeLine(index: number): void {
         </thead>
         <tbody>
           <tr v-for="(line, index) in modelValue" :key="line.key">
-            <td>{{ index + 1 }}</td>
-            <td>
+            <td data-label="行">{{ index + 1 }}</td>
+            <td data-label="类别">
               <CompactTableField
                 v-if="editable"
                 :model-value="line.category"
@@ -92,7 +94,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.category }}</span>
             </td>
-            <td>
+            <td data-label="说明">
               <CompactTableField
                 v-if="editable"
                 :model-value="line.description"
@@ -104,7 +106,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.description }}</span>
             </td>
-            <td>
+            <td data-label="金额">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
@@ -117,7 +119,7 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.amount }}</span>
             </td>
-            <td>
+            <td data-label="备注">
               <CompactTableField
                 v-if="editable"
                 :maxlength="1000"
@@ -127,7 +129,11 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.remark || '—' }}</span>
             </td>
-            <td v-if="editable">
+            <td
+              v-if="editable"
+              class="responsive-table__actions"
+              data-label="操作"
+            >
               <v-btn
                 :aria-label="`删除第 ${index + 1} 行`"
                 color="error"
@@ -137,15 +143,22 @@ function removeLine(index: number): void {
               />
             </td>
           </tr>
-          <tr v-if="modelValue.length === 0">
+          <tr
+            v-if="modelValue.length === 0"
+            class="responsive-table__empty-row"
+          >
             <td :colspan="editable ? 6 : 5" class="text-center py-8">暂无费用明细</td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" class="text-end font-weight-bold">合计</td>
-            <td class="font-weight-bold">{{ total ?? '—' }}</td>
-            <td :colspan="editable ? 2 : 1" />
+            <td colspan="3" class="text-end font-weight-bold" data-label="">
+              合计
+            </td>
+            <td class="font-weight-bold" data-label="金额">
+              {{ total ?? '—' }}
+            </td>
+            <td :colspan="editable ? 2 : 1" data-label="" />
           </tr>
         </tfoot>
       </v-table>

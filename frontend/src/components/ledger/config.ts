@@ -6,6 +6,7 @@ import type {
   LedgerReference,
 } from './types'
 import { formatLocalDateTime } from '@/utils/date'
+import { formatReferenceLabel } from '@/utils/reference-label'
 
 const inventorySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
@@ -72,7 +73,7 @@ function nested(row: LedgerRecord, key: string): LedgerReference | null {
 
 function reference(row: LedgerRecord, key: string): string {
   const value = nested(row, key)
-  return value ? `${value.code} · ${value.name}` : '—'
+  return value ? formatReferenceLabel(value) : '—'
 }
 
 function text(row: LedgerRecord, key: string): string {

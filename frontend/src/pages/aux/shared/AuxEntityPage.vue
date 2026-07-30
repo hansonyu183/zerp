@@ -1,12 +1,42 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { BusinessObjectEditor } from '@/components/business-object'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import MobileSortControl from '@/components/common/MobileSortControl.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import type { AuxEntityViewModel } from './vm'
 
 const props = defineProps<{ model: AuxEntityViewModel }>()
 const vm = reactive(props.model)
 const pageCount = computed(() => Math.max(1, Math.ceil(vm.total / vm.pageSize)))
+const sort = ref<{ field: 'updatedAt' | 'code'; order: 'asc' | 'desc' }>({
+  field: 'updatedAt',
+  order: 'desc',
+})
+const sortedRows = computed(() =>
+  [...vm.rows].sort((left, right) => {
+    const result = String(left[sort.value.field]).localeCompare(
+      String(right[sort.value.field]),
+      'zh-CN',
+    )
+    return sort.value.order === 'asc' ? result : -result
+  }),
+)
+
+function changeSort(field: 'updatedAt' | 'code'): void {
+  sort.value = {
+    field,
+    order:
+      sort.value.field === field && sort.value.order === 'asc' ? 'desc' : 'asc',
+  }
+}
+
+function selectAction(action: string, item: (typeof vm.rows)[number]): void {
+  if (action === 'edit') vm.openEdit(item)
+  else if (action === 'toggle') void vm.changeEnabled(item)
+  else void vm.deleteObject(item)
+}
 
 void vm.query()
 </script>
@@ -53,61 +83,100 @@ void vm.query()
       </template>
     </EntityListControls>
 
+    <MobileSortControl
+      :field="sort.field"
+      :options="[
+        { title: '更新', value: 'updatedAt' },
+        { title: '编码', value: 'code' },
+      ]"
+      :order="sort.order"
+      @change="
+        sort = {
+          field: $event.field as 'updatedAt' | 'code',
+          order: $event.order,
+        }
+      "
+    />
+
     <v-card variant="outlined">
-      <v-data-table
-        :headers="[
-          { title: '编码', key: 'code' },
-          { title: '名称', key: 'name', sortable: false },
-          { title: '状态', key: 'enabled', sortable: false },
-          { title: '操作', key: 'actions', sortable: false },
-        ]"
-        :items="vm.rows"
-        :loading="vm.loading"
-        hide-default-footer
-        sort-asc-icon="mdi-arrow-up"
-        sort-desc-icon="mdi-arrow-down"
-        sort-icon="mdi-swap-vertical"
-      >
-        <template #[`item.name`]="{ item }">
-          {{ item.currentVersion.data.name }}
-        </template>
-        <template #[`item.enabled`]="{ item }">
-          <v-chip
-            :color="item.enabled ? 'success' : 'default'"
-            size="small"
-            variant="tonal"
+      <v-progress-linear v-if="vm.loading" indeterminate />
+      <v-table class="responsive-table">
+        <thead>
+          <tr>
+            <SortableTableHeader
+              :active="sort.field === 'code'"
+              :direction="sort.order"
+              label="编码"
+              @sort="changeSort('code')"
+            />
+            <th>名称</th>
+            <th>状态</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in sortedRows" :key="item.objectId">
+            <td data-label="编码">{{ item.code }}</td>
+            <td data-label="名称">{{ item.currentVersion.data.name }}</td>
+            <td data-label="状态">
+              <v-chip
+                :color="item.enabled ? 'success' : 'default'"
+                size="small"
+                variant="tonal"
+              >
+                {{ item.enabled ? '启用' : '停用' }}
+              </v-chip>
+            </td>
+            <td class="responsive-table__actions" data-label="操作">
+              <ListRowActions
+                :label="`操作 ${item.code}`"
+                :more="[
+                  ...((item.enabled ? vm.canDisable : vm.canEnable)
+                    ? [
+                        {
+                          key: 'toggle',
+                          label: item.enabled ? '停用' : '启用',
+                          icon: item.enabled
+                            ? 'mdi-pause-circle-outline'
+                            : 'mdi-play-circle-outline',
+                        },
+                      ]
+                    : []),
+                  ...(vm.canDelete
+                    ? [
+                        {
+                          key: 'delete',
+                          label: '删除',
+                          icon: 'mdi-delete-outline',
+                          color: 'error',
+                        },
+                      ]
+                    : []),
+                ]"
+                :primary="
+                  vm.canSave
+                    ? [
+                        {
+                          key: 'edit',
+                          label: '编辑',
+                          icon: 'mdi-pencil-outline',
+                          color: 'primary',
+                        },
+                      ]
+                    : []
+                "
+                @select="selectAction($event, item)"
+              />
+            </td>
+          </tr>
+          <tr
+            v-if="!vm.loading && sortedRows.length === 0"
+            class="responsive-table__empty-row"
           >
-            {{ item.enabled ? '启用' : '停用' }}
-          </v-chip>
-        </template>
-        <template #[`item.actions`]="{ item }">
-          <v-btn
-            v-if="vm.canSave"
-            icon="mdi-pencil-outline"
-            size="small"
-            variant="text"
-            @click="vm.openEdit(item)"
-          />
-          <v-btn
-            v-if="item.enabled ? vm.canDisable : vm.canEnable"
-            :icon="
-              item.enabled
-                ? 'mdi-pause-circle-outline'
-                : 'mdi-play-circle-outline'
-            "
-            size="small"
-            variant="text"
-            @click="vm.changeEnabled(item)"
-          />
-          <v-btn
-            v-if="vm.canDelete"
-            icon="mdi-delete-outline"
-            size="small"
-            variant="text"
-            @click="vm.deleteObject(item)"
-          />
-        </template>
-      </v-data-table>
+            <td colspan="4" class="text-center py-12">暂无数据</td>
+          </tr>
+        </tbody>
+      </v-table>
       <v-pagination
         :model-value="vm.page"
         class="my-3"

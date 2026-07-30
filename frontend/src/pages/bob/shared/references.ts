@@ -9,6 +9,7 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import type { BusinessObjectFieldOption } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import type {
   BobEntityConfig,
   BobFilterField,
@@ -107,17 +108,50 @@ export function useBobReferences(
         if (typeof value !== 'string' || !value) return
         const state = referenceState(`editor:${key}`)
         if (state.options.some((option) => option.value === value)) return
-        if (reference.value === 'code') {
-          state.options = [...state.options, { title: value, value }]
-          return
-        }
 
         const domain = reference.domain ?? 'bob'
-        if (!session.can(`/${domain}/${reference.entity}/get`)) {
+        const action = reference.value === 'code' ? 'query' : 'get'
+        if (!session.can(`/${domain}/${reference.entity}/${action}`)) {
           state.options = [...state.options, { title: value, value }]
           return
         }
         try {
+          if (reference.value === 'code') {
+            const { data } = await apiClient.post<
+              PageResult<ReferenceQueryItem | AuxReferenceQueryItem>,
+              PageRequest
+            >(`${domain}/${reference.entity}/query` as never, {
+              page: 1,
+              pageSize: 20,
+              filters: {
+                ...resolveReferenceFilters(reference, form),
+                keyword: value,
+                ...(domain === 'bob'
+                  ? { status: ['EFFECTIVE'] }
+                  : { enabled: true }),
+              },
+              sort: [{ field: 'name', order: 'asc' }],
+            })
+            const item = (data.items ?? []).find(
+              (candidate) => candidate.code === value,
+            )
+            if (!item) {
+              state.options = [...state.options, { title: value, value }]
+              return
+            }
+            const name = domain === 'aux'
+              ? (item as AuxReferenceQueryItem).currentVersion.data.name
+              : (item as ReferenceQueryItem).currentVersion.summary.name
+            state.options = [
+              ...state.options.filter((option) => option.value !== value),
+              {
+                title: formatReferenceLabel({ code: item.code, name }),
+                value,
+              },
+            ]
+            return
+          }
+
           const { data } = await apiClient.post<
             BobObjectView | AuxReferenceObject,
             { objectId: string }
@@ -127,7 +161,7 @@ export function useBobReferences(
             : (data as BobObjectView).data.name
           state.options = [
             ...state.options.filter((option) => option.value !== value),
-            { title: `${data.code} · ${name}`, value },
+            { title: formatReferenceLabel({ code: data.code, name }), value },
           ]
         } catch {
           state.options = [...state.options, { title: value, value }]
@@ -188,11 +222,13 @@ export function useBobReferences(
       state.options = [
         ...selected,
         ...(data.items ?? []).map((item) => ({
-          title: `${item.code} · ${
-            domain === 'aux'
-              ? (item as AuxReferenceQueryItem).currentVersion.data.name
-              : (item as ReferenceQueryItem).currentVersion.summary.name
-          }`,
+          title: formatReferenceLabel({
+            code: item.code,
+            name:
+              domain === 'aux'
+                ? (item as AuxReferenceQueryItem).currentVersion.data.name
+                : (item as ReferenceQueryItem).currentVersion.summary.name,
+          }),
           value: reference.value === 'code' ? item.code : item.objectId,
         })),
       ].filter((option, index, all) =>

@@ -465,6 +465,21 @@ func (s *Seeder) ensureDocument(
 		if current.Status == targetStatus {
 			return current, outcomeSkipped, nil
 		}
+		currentRank, currentKnown := productionStatusRank(current.Status)
+		targetRank, targetKnown := productionStatusRank(targetStatus)
+		if !currentKnown {
+			return current, 0, fmt.Errorf(
+				"cannot evaluate %s seed status %s",
+				entity,
+				current.Status,
+			)
+		}
+		if !targetKnown {
+			return current, 0, fmt.Errorf("unsupported seed target status %s", targetStatus)
+		}
+		if currentRank > targetRank {
+			return current, outcomeSkipped, nil
+		}
 	} else {
 		return current, 0, err
 	}
@@ -478,15 +493,15 @@ func (s *Seeder) advanceDocument(
 	current voudomain.MutationResult,
 	targetStatus string,
 ) (voudomain.MutationResult, error) {
-	rank := map[string]int{
-		voudomain.StatusDraft: 0, voudomain.StatusChecked: 1,
-		voudomain.StatusApproved: 2, voudomain.StatusFinalized: 3,
-	}
-	targetRank, ok := rank[targetStatus]
+	targetRank, ok := productionStatusRank(targetStatus)
 	if !ok {
 		return current, fmt.Errorf("unsupported seed target status %s", targetStatus)
 	}
-	for rank[current.Status] < targetRank {
+	currentRank, ok := productionStatusRank(current.Status)
+	if !ok {
+		return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
+	}
+	for currentRank < targetRank {
 		var err error
 		switch current.Status {
 		case voudomain.StatusDraft:
@@ -507,11 +522,30 @@ func (s *Seeder) advanceDocument(
 		if err != nil {
 			return current, err
 		}
+		currentRank, ok = productionStatusRank(current.Status)
+		if !ok {
+			return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
+		}
 	}
-	if current.Status != targetStatus {
+	if currentRank != targetRank {
 		return current, fmt.Errorf("%s reached unexpected status %s", entity, current.Status)
 	}
 	return current, nil
+}
+
+func productionStatusRank(status string) (int, bool) {
+	switch status {
+	case voudomain.StatusDraft:
+		return 0, true
+	case voudomain.StatusChecked:
+		return 1, true
+	case voudomain.StatusApproved:
+		return 2, true
+	case voudomain.StatusFinalized:
+		return 3, true
+	default:
+		return 0, false
+	}
 }
 
 func (s *Seeder) findDocumentID(ctx context.Context, request string) (string, error) {

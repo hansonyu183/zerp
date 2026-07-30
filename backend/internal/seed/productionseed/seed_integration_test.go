@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/seed/bobseed"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -49,6 +50,40 @@ func TestProductionDemoSeedIsIdempotentAndPostsInventoryIntegration(t *testing.T
 	}
 	if second != (Result{Skipped: 5}) {
 		t.Fatalf("second result = %+v", second)
+	}
+	orderProductionID, err := seeder.findDocumentID(
+		t.Context(),
+		requestID("order-production-draft-create"),
+	)
+	if err != nil {
+		t.Fatalf("find draft order production: %v", err)
+	}
+	orderProduction, err := seeder.vouchers.Get(
+		t.Context(),
+		voudomain.EntityOrderProduction,
+		voudomain.GetInput{DocumentID: orderProductionID},
+	)
+	if err != nil {
+		t.Fatalf("get draft order production: %v", err)
+	}
+	if _, err = seeder.vouchers.Check(
+		t.Context(),
+		voudomain.EntityOrderProduction,
+		voudomain.DocumentRevisionInput{
+			DocumentID: orderProduction.DocumentID,
+			Revision:   orderProduction.Revision,
+		},
+		actorID,
+		requestID("integration-advance-order-production"),
+	); err != nil {
+		t.Fatalf("advance draft order production: %v", err)
+	}
+	third, err := seeder.Seed(t.Context())
+	if err != nil {
+		t.Fatalf("repeat production demo seed after tester advance: %v", err)
+	}
+	if third != (Result{Skipped: 5}) {
+		t.Fatalf("third result after tester advance = %+v", third)
 	}
 
 	var productionDocuments int

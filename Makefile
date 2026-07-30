@@ -8,7 +8,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check release-check test e2e build compose-up compose-down pre-push preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -32,12 +32,42 @@ generate-check:
 	git diff --exit-code
 
 check:
+	$(MAKE) check-common
+	$(MAKE) check-release
+	$(MAKE) check-contracts
+	$(MAKE) check-frontend
+	$(MAKE) check-containers
+	$(MAKE) check-backend BACKEND_SKIP_GENERATED=1
+
+check-common:
 	pnpm format:check
-	pnpm check:web
+	pnpm docs:check
+	git diff --check
+
+check-contracts:
+	$(MAKE) generate-check
+
+check-frontend:
+	pnpm --filter @zerp/frontend check:core
+
+check-backend:
+	@targets="quality-core"; \
+	if [ "$(BACKEND_SKIP_GENERATED)" != "1" ]; then targets="quality-generated $$targets"; fi; \
+	if [ "$(BACKEND_SKIP_IMAGE)" != "1" ]; then targets="$$targets quality-image"; fi; \
+	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) $$targets
+
+check-containers:
 	$(COMPOSE) -f compose.yaml config --quiet
 	docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
+	ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
+	ZERP_API_IMAGE=zerp-production-api:config \
+	ZERP_WEB_IMAGE=zerp-production-web:config \
+	docker compose --env-file backend/.env.production.example \
+		-p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
+
+check-release:
 	$(MAKE) release-check
-	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) quality
+	$(MAKE) -C backend quality-actionlint
 
 release-check:
 	sh -n scripts/pre-push.sh scripts/verify-pr-base.sh scripts/verify-merged-pr.sh scripts/preview.sh scripts/preview-deploy.sh
@@ -73,6 +103,9 @@ compose-down:
 
 pre-push:
 	@./scripts/pre-push.sh
+
+pre-push-plan:
+	@./scripts/pre-push.sh --plan
 
 preview-up:
 	@./scripts/preview.sh up

@@ -729,32 +729,16 @@ type LedBalanceRequest struct {
 	PageSize int `json:"pageSize"`
 }
 
+// LedClosingRequest defines model for LedClosingRequest.
+type LedClosingRequest struct {
+	ClosingDate openapi_types.Date `json:"closingDate"`
+	Revision    int64              `json:"revision"`
+}
+
 // LedHistoryRequest defines model for LedHistoryRequest.
 type LedHistoryRequest struct {
 	Page     int `json:"page"`
 	PageSize int `json:"pageSize"`
-}
-
-// LedOpeningSaveRequest defines model for LedOpeningSaveRequest.
-type LedOpeningSaveRequest struct {
-	Container   []map[string]interface{} `json:"container"`
-	CutoverDate openapi_types.Date       `json:"cutoverDate"`
-	Fund        []map[string]interface{} `json:"fund"`
-	Inventory   []struct {
-		Currency string `json:"currency"`
-		Product  struct {
-			ObjectId  string `json:"objectId"`
-			VersionId string `json:"versionId"`
-		} `json:"product"`
-		Quantity  string `json:"quantity"`
-		UnitPrice string `json:"unitPrice"`
-		Warehouse struct {
-			ObjectId  string `json:"objectId"`
-			VersionId string `json:"versionId"`
-		} `json:"warehouse"`
-	} `json:"inventory"`
-	Party    []map[string]interface{} `json:"party"`
-	Revision int64                    `json:"revision"`
 }
 
 // LedQueryRequest defines model for LedQueryRequest.
@@ -778,15 +762,10 @@ type LedQueryRequest struct {
 // LedQueryRequestSortOrder defines model for LedQueryRequest.Sort.Order.
 type LedQueryRequestSortOrder string
 
-// LedReopenRequest defines model for LedReopenRequest.
-type LedReopenRequest struct {
+// LedUncloseRequest defines model for LedUncloseRequest.
+type LedUncloseRequest struct {
 	Reason   string `json:"reason"`
 	Revision int64  `json:"revision"`
-}
-
-// LedRevisionRequest defines model for LedRevisionRequest.
-type LedRevisionRequest struct {
-	Revision int64 `json:"revision"`
 }
 
 // PageRequest defines model for PageRequest.
@@ -1371,6 +1350,18 @@ type BobsubmitJSONRequestBody = BobVersionRevisionRequest
 // BobversionsJSONRequestBody defines body for Bobversions for application/json ContentType.
 type BobversionsJSONRequestBody = BobHistoryRequest
 
+// LedclosingcloseJSONRequestBody defines body for Ledclosingclose for application/json ContentType.
+type LedclosingcloseJSONRequestBody = LedClosingRequest
+
+// LedclosinggetJSONRequestBody defines body for Ledclosingget for application/json ContentType.
+type LedclosinggetJSONRequestBody = EmptyObject
+
+// LedclosinghistoryJSONRequestBody defines body for Ledclosinghistory for application/json ContentType.
+type LedclosinghistoryJSONRequestBody = LedHistoryRequest
+
+// LedclosinguncloseJSONRequestBody defines body for Ledclosingunclose for application/json ContentType.
+type LedclosinguncloseJSONRequestBody = LedUncloseRequest
+
 // LedcontainerbalanceJSONRequestBody defines body for Ledcontainerbalance for application/json ContentType.
 type LedcontainerbalanceJSONRequestBody = LedBalanceRequest
 
@@ -1388,24 +1379,6 @@ type LedinventorybalanceJSONRequestBody = LedBalanceRequest
 
 // LedinventoryqueryJSONRequestBody defines body for Ledinventoryquery for application/json ContentType.
 type LedinventoryqueryJSONRequestBody = LedQueryRequest
-
-// LedopeningactivateJSONRequestBody defines body for Ledopeningactivate for application/json ContentType.
-type LedopeningactivateJSONRequestBody = LedRevisionRequest
-
-// LedopeningaudithistoryJSONRequestBody defines body for Ledopeningaudithistory for application/json ContentType.
-type LedopeningaudithistoryJSONRequestBody = LedHistoryRequest
-
-// LedopeningcancelreopenJSONRequestBody defines body for Ledopeningcancelreopen for application/json ContentType.
-type LedopeningcancelreopenJSONRequestBody = LedRevisionRequest
-
-// LedopeninggetJSONRequestBody defines body for Ledopeningget for application/json ContentType.
-type LedopeninggetJSONRequestBody = EmptyObject
-
-// LedopeningreopenJSONRequestBody defines body for Ledopeningreopen for application/json ContentType.
-type LedopeningreopenJSONRequestBody = LedReopenRequest
-
-// LedopeningsaveJSONRequestBody defines body for Ledopeningsave for application/json ContentType.
-type LedopeningsaveJSONRequestBody = LedOpeningSaveRequest
 
 // LedpartybalanceJSONRequestBody defines body for Ledpartybalance for application/json ContentType.
 type LedpartybalanceJSONRequestBody = LedBalanceRequest
@@ -1712,6 +1685,18 @@ type ServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(c *gin.Context)
+	// Ledclosingclose 执行月末结账
+	// (POST /led/closing/close)
+	Ledclosingclose(c *gin.Context)
+	// Ledclosingget 读取最近结账与期初余额
+	// (POST /led/closing/get)
+	Ledclosingget(c *gin.Context)
+	// Ledclosinghistory 查询月末结账历史
+	// (POST /led/closing/history)
+	Ledclosinghistory(c *gin.Context)
+	// Ledclosingunclose 反结最近一期
+	// (POST /led/closing/unclose)
+	Ledclosingunclose(c *gin.Context)
 	// Ledcontainerbalance 查询容器余额
 	// (POST /led/container/balance)
 	Ledcontainerbalance(c *gin.Context)
@@ -1730,24 +1715,6 @@ type ServerInterface interface {
 	// Ledinventoryquery 查询库存流水
 	// (POST /led/inventory/query)
 	Ledinventoryquery(c *gin.Context)
-	// Ledopeningactivate 启用账簿
-	// (POST /led/opening/activate)
-	Ledopeningactivate(c *gin.Context)
-	// Ledopeningaudithistory 查询账簿期初审计历史
-	// (POST /led/opening/audit-history)
-	Ledopeningaudithistory(c *gin.Context)
-	// Ledopeningcancelreopen 取消重开账簿
-	// (POST /led/opening/cancel-reopen)
-	Ledopeningcancelreopen(c *gin.Context)
-	// Ledopeningget 读取账簿期初
-	// (POST /led/opening/get)
-	Ledopeningget(c *gin.Context)
-	// Ledopeningreopen 申请重开账簿
-	// (POST /led/opening/reopen)
-	Ledopeningreopen(c *gin.Context)
-	// Ledopeningsave 保存账簿期初
-	// (POST /led/opening/save)
-	Ledopeningsave(c *gin.Context)
 	// Ledpartybalance 查询往来余额
 	// (POST /led/party/balance)
 	Ledpartybalance(c *gin.Context)
@@ -2745,6 +2712,58 @@ func (siw *ServerInterfaceWrapper) Health(c *gin.Context) {
 	siw.Handler.Health(c)
 }
 
+// Ledclosingclose operation middleware
+func (siw *ServerInterfaceWrapper) Ledclosingclose(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledclosingclose(c)
+}
+
+// Ledclosingget operation middleware
+func (siw *ServerInterfaceWrapper) Ledclosingget(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledclosingget(c)
+}
+
+// Ledclosinghistory operation middleware
+func (siw *ServerInterfaceWrapper) Ledclosinghistory(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledclosinghistory(c)
+}
+
+// Ledclosingunclose operation middleware
+func (siw *ServerInterfaceWrapper) Ledclosingunclose(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledclosingunclose(c)
+}
+
 // Ledcontainerbalance operation middleware
 func (siw *ServerInterfaceWrapper) Ledcontainerbalance(c *gin.Context) {
 
@@ -2821,84 +2840,6 @@ func (siw *ServerInterfaceWrapper) Ledinventoryquery(c *gin.Context) {
 	}
 
 	siw.Handler.Ledinventoryquery(c)
-}
-
-// Ledopeningactivate operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningactivate(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningactivate(c)
-}
-
-// Ledopeningaudithistory operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningaudithistory(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningaudithistory(c)
-}
-
-// Ledopeningcancelreopen operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningcancelreopen(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningcancelreopen(c)
-}
-
-// Ledopeningget operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningget(c)
-}
-
-// Ledopeningreopen operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningreopen(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningreopen(c)
-}
-
-// Ledopeningsave operation middleware
-func (siw *ServerInterfaceWrapper) Ledopeningsave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledopeningsave(c)
 }
 
 // Ledpartybalance operation middleware
@@ -3622,12 +3563,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-cancel", wrapper.WflPurchaseFulfillmentShortCloseCancel)
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-confirm", wrapper.WflPurchaseFulfillmentShortCloseConfirm)
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-unconfirm", wrapper.WflPurchaseFulfillmentShortCloseUnconfirm)
-	router.POST(options.BaseURL+"/led/opening/get", wrapper.Ledopeningget)
-	router.POST(options.BaseURL+"/led/opening/save", wrapper.Ledopeningsave)
-	router.POST(options.BaseURL+"/led/opening/activate", wrapper.Ledopeningactivate)
-	router.POST(options.BaseURL+"/led/opening/reopen", wrapper.Ledopeningreopen)
-	router.POST(options.BaseURL+"/led/opening/cancel-reopen", wrapper.Ledopeningcancelreopen)
-	router.POST(options.BaseURL+"/led/opening/audit-history", wrapper.Ledopeningaudithistory)
+	router.POST(options.BaseURL+"/led/closing/get", wrapper.Ledclosingget)
+	router.POST(options.BaseURL+"/led/closing/close", wrapper.Ledclosingclose)
+	router.POST(options.BaseURL+"/led/closing/unclose", wrapper.Ledclosingunclose)
+	router.POST(options.BaseURL+"/led/closing/history", wrapper.Ledclosinghistory)
 	router.POST(options.BaseURL+"/led/inventory/query", wrapper.Ledinventoryquery)
 	router.POST(options.BaseURL+"/led/inventory/balance", wrapper.Ledinventorybalance)
 	router.POST(options.BaseURL+"/led/fund/query", wrapper.Ledfundquery)
@@ -4756,6 +4695,94 @@ func (response Health200JSONResponse) VisitHealthResponse(w http.ResponseWriter)
 	return err
 }
 
+type LedclosingcloseRequestObject struct {
+	Body *LedclosingcloseJSONRequestBody
+}
+
+type LedclosingcloseResponseObject interface {
+	VisitLedclosingcloseResponse(w http.ResponseWriter) error
+}
+
+type Ledclosingclose200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledclosingclose200JSONResponse) VisitLedclosingcloseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedclosinggetRequestObject struct {
+	Body *LedclosinggetJSONRequestBody
+}
+
+type LedclosinggetResponseObject interface {
+	VisitLedclosinggetResponse(w http.ResponseWriter) error
+}
+
+type Ledclosingget200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledclosingget200JSONResponse) VisitLedclosinggetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedclosinghistoryRequestObject struct {
+	Body *LedclosinghistoryJSONRequestBody
+}
+
+type LedclosinghistoryResponseObject interface {
+	VisitLedclosinghistoryResponse(w http.ResponseWriter) error
+}
+
+type Ledclosinghistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledclosinghistory200JSONResponse) VisitLedclosinghistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedclosinguncloseRequestObject struct {
+	Body *LedclosinguncloseJSONRequestBody
+}
+
+type LedclosinguncloseResponseObject interface {
+	VisitLedclosinguncloseResponse(w http.ResponseWriter) error
+}
+
+type Ledclosingunclose200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledclosingunclose200JSONResponse) VisitLedclosinguncloseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LedcontainerbalanceRequestObject struct {
 	Body *LedcontainerbalanceJSONRequestBody
 }
@@ -4877,138 +4904,6 @@ type LedinventoryqueryResponseObject interface {
 type Ledinventoryquery200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Ledinventoryquery200JSONResponse) VisitLedinventoryqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeningactivateRequestObject struct {
-	Body *LedopeningactivateJSONRequestBody
-}
-
-type LedopeningactivateResponseObject interface {
-	VisitLedopeningactivateResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningactivate200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningactivate200JSONResponse) VisitLedopeningactivateResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeningaudithistoryRequestObject struct {
-	Body *LedopeningaudithistoryJSONRequestBody
-}
-
-type LedopeningaudithistoryResponseObject interface {
-	VisitLedopeningaudithistoryResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningaudithistory200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningaudithistory200JSONResponse) VisitLedopeningaudithistoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeningcancelreopenRequestObject struct {
-	Body *LedopeningcancelreopenJSONRequestBody
-}
-
-type LedopeningcancelreopenResponseObject interface {
-	VisitLedopeningcancelreopenResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningcancelreopen200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningcancelreopen200JSONResponse) VisitLedopeningcancelreopenResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeninggetRequestObject struct {
-	Body *LedopeninggetJSONRequestBody
-}
-
-type LedopeninggetResponseObject interface {
-	VisitLedopeninggetResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningget200JSONResponse) VisitLedopeninggetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeningreopenRequestObject struct {
-	Body *LedopeningreopenJSONRequestBody
-}
-
-type LedopeningreopenResponseObject interface {
-	VisitLedopeningreopenResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningreopen200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningreopen200JSONResponse) VisitLedopeningreopenResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedopeningsaveRequestObject struct {
-	Body *LedopeningsaveJSONRequestBody
-}
-
-type LedopeningsaveResponseObject interface {
-	VisitLedopeningsaveResponse(w http.ResponseWriter) error
-}
-
-type Ledopeningsave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledopeningsave200JSONResponse) VisitLedopeningsaveResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5918,6 +5813,18 @@ type StrictServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
+	// Ledclosingclose 执行月末结账
+	// (POST /led/closing/close)
+	Ledclosingclose(ctx context.Context, request LedclosingcloseRequestObject) (LedclosingcloseResponseObject, error)
+	// Ledclosingget 读取最近结账与期初余额
+	// (POST /led/closing/get)
+	Ledclosingget(ctx context.Context, request LedclosinggetRequestObject) (LedclosinggetResponseObject, error)
+	// Ledclosinghistory 查询月末结账历史
+	// (POST /led/closing/history)
+	Ledclosinghistory(ctx context.Context, request LedclosinghistoryRequestObject) (LedclosinghistoryResponseObject, error)
+	// Ledclosingunclose 反结最近一期
+	// (POST /led/closing/unclose)
+	Ledclosingunclose(ctx context.Context, request LedclosinguncloseRequestObject) (LedclosinguncloseResponseObject, error)
 	// Ledcontainerbalance 查询容器余额
 	// (POST /led/container/balance)
 	Ledcontainerbalance(ctx context.Context, request LedcontainerbalanceRequestObject) (LedcontainerbalanceResponseObject, error)
@@ -5936,24 +5843,6 @@ type StrictServerInterface interface {
 	// Ledinventoryquery 查询库存流水
 	// (POST /led/inventory/query)
 	Ledinventoryquery(ctx context.Context, request LedinventoryqueryRequestObject) (LedinventoryqueryResponseObject, error)
-	// Ledopeningactivate 启用账簿
-	// (POST /led/opening/activate)
-	Ledopeningactivate(ctx context.Context, request LedopeningactivateRequestObject) (LedopeningactivateResponseObject, error)
-	// Ledopeningaudithistory 查询账簿期初审计历史
-	// (POST /led/opening/audit-history)
-	Ledopeningaudithistory(ctx context.Context, request LedopeningaudithistoryRequestObject) (LedopeningaudithistoryResponseObject, error)
-	// Ledopeningcancelreopen 取消重开账簿
-	// (POST /led/opening/cancel-reopen)
-	Ledopeningcancelreopen(ctx context.Context, request LedopeningcancelreopenRequestObject) (LedopeningcancelreopenResponseObject, error)
-	// Ledopeningget 读取账簿期初
-	// (POST /led/opening/get)
-	Ledopeningget(ctx context.Context, request LedopeninggetRequestObject) (LedopeninggetResponseObject, error)
-	// Ledopeningreopen 申请重开账簿
-	// (POST /led/opening/reopen)
-	Ledopeningreopen(ctx context.Context, request LedopeningreopenRequestObject) (LedopeningreopenResponseObject, error)
-	// Ledopeningsave 保存账簿期初
-	// (POST /led/opening/save)
-	Ledopeningsave(ctx context.Context, request LedopeningsaveRequestObject) (LedopeningsaveResponseObject, error)
 	// Ledpartybalance 查询往来余额
 	// (POST /led/party/balance)
 	Ledpartybalance(ctx context.Context, request LedpartybalanceRequestObject) (LedpartybalanceResponseObject, error)
@@ -7593,6 +7482,130 @@ func (sh *strictHandler) Health(ctx *gin.Context) {
 	}
 }
 
+// Ledclosingclose operation middleware
+func (sh *strictHandler) Ledclosingclose(ctx *gin.Context) {
+	var request LedclosingcloseRequestObject
+
+	var body LedclosingcloseJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledclosingclose(ctx, request.(LedclosingcloseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledclosingclose")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedclosingcloseResponseObject); ok {
+		if err := validResponse.VisitLedclosingcloseResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledclosingget operation middleware
+func (sh *strictHandler) Ledclosingget(ctx *gin.Context) {
+	var request LedclosinggetRequestObject
+
+	var body LedclosinggetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledclosingget(ctx, request.(LedclosinggetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledclosingget")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedclosinggetResponseObject); ok {
+		if err := validResponse.VisitLedclosinggetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledclosinghistory operation middleware
+func (sh *strictHandler) Ledclosinghistory(ctx *gin.Context) {
+	var request LedclosinghistoryRequestObject
+
+	var body LedclosinghistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledclosinghistory(ctx, request.(LedclosinghistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledclosinghistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedclosinghistoryResponseObject); ok {
+		if err := validResponse.VisitLedclosinghistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledclosingunclose operation middleware
+func (sh *strictHandler) Ledclosingunclose(ctx *gin.Context) {
+	var request LedclosinguncloseRequestObject
+
+	var body LedclosinguncloseJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledclosingunclose(ctx, request.(LedclosinguncloseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledclosingunclose")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedclosinguncloseResponseObject); ok {
+		if err := validResponse.VisitLedclosinguncloseResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Ledcontainerbalance operation middleware
 func (sh *strictHandler) Ledcontainerbalance(ctx *gin.Context) {
 	var request LedcontainerbalanceRequestObject
@@ -7772,192 +7785,6 @@ func (sh *strictHandler) Ledinventoryquery(ctx *gin.Context) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(LedinventoryqueryResponseObject); ok {
 		if err := validResponse.VisitLedinventoryqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningactivate operation middleware
-func (sh *strictHandler) Ledopeningactivate(ctx *gin.Context) {
-	var request LedopeningactivateRequestObject
-
-	var body LedopeningactivateJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningactivate(ctx, request.(LedopeningactivateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningactivate")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeningactivateResponseObject); ok {
-		if err := validResponse.VisitLedopeningactivateResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningaudithistory operation middleware
-func (sh *strictHandler) Ledopeningaudithistory(ctx *gin.Context) {
-	var request LedopeningaudithistoryRequestObject
-
-	var body LedopeningaudithistoryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningaudithistory(ctx, request.(LedopeningaudithistoryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningaudithistory")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeningaudithistoryResponseObject); ok {
-		if err := validResponse.VisitLedopeningaudithistoryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningcancelreopen operation middleware
-func (sh *strictHandler) Ledopeningcancelreopen(ctx *gin.Context) {
-	var request LedopeningcancelreopenRequestObject
-
-	var body LedopeningcancelreopenJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningcancelreopen(ctx, request.(LedopeningcancelreopenRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningcancelreopen")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeningcancelreopenResponseObject); ok {
-		if err := validResponse.VisitLedopeningcancelreopenResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningget operation middleware
-func (sh *strictHandler) Ledopeningget(ctx *gin.Context) {
-	var request LedopeninggetRequestObject
-
-	var body LedopeninggetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningget(ctx, request.(LedopeninggetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeninggetResponseObject); ok {
-		if err := validResponse.VisitLedopeninggetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningreopen operation middleware
-func (sh *strictHandler) Ledopeningreopen(ctx *gin.Context) {
-	var request LedopeningreopenRequestObject
-
-	var body LedopeningreopenJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningreopen(ctx, request.(LedopeningreopenRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningreopen")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeningreopenResponseObject); ok {
-		if err := validResponse.VisitLedopeningreopenResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledopeningsave operation middleware
-func (sh *strictHandler) Ledopeningsave(ctx *gin.Context) {
-	var request LedopeningsaveRequestObject
-
-	var body LedopeningsaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledopeningsave(ctx, request.(LedopeningsaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledopeningsave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedopeningsaveResponseObject); ok {
-		if err := validResponse.VisitLedopeningsaveResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -9018,115 +8845,112 @@ func (sh *strictHandler) WflSalesFulfillmentShortCloseUnconfirm(ctx *gin.Context
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"N/duNu9fb1x7Wl+73FomcPFhdXH1/wIAAP//",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -410,7 +410,7 @@ func (q *Queries) DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteL
 }
 
 const getLedControl = `-- name: GetLedControl :one
-SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by FROM led_control WHERE singleton = true
+SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by, last_closing_id, rebuild_required FROM led_control WHERE singleton = true
 `
 
 func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
@@ -424,6 +424,8 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 		&i.Revision,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.LastClosingID,
+		&i.RebuildRequired,
 	)
 	return i, err
 }
@@ -2127,7 +2129,7 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 }
 
 const lockLedControl = `-- name: LockLedControl :one
-SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by FROM led_control WHERE singleton = true FOR UPDATE
+SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by, last_closing_id, rebuild_required FROM led_control WHERE singleton = true FOR UPDATE
 `
 
 func (q *Queries) LockLedControl(ctx context.Context) (LedControl, error) {
@@ -2141,6 +2143,8 @@ func (q *Queries) LockLedControl(ctx context.Context) (LedControl, error) {
 		&i.Revision,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.LastClosingID,
+		&i.RebuildRequired,
 	)
 	return i, err
 }

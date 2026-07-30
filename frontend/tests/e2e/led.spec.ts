@@ -36,29 +36,26 @@ async function expectMobileCards(
 test.describe('LED 真实后端只读流程', () => {
   test.skip(
     !ledReadonlyEnabled,
-    '设置 E2E_LED_READONLY=1 后在已启用的隔离账簿运行。',
+    '设置 E2E_LED_READONLY=1 后在隔离账簿运行。',
   )
 
   test.beforeEach(async ({ page }) => {
     await signIn(page)
   })
 
-  test('加载期初状态和生命周期审计', async ({ page }, testInfo) => {
-    await page.goto('/led/opening')
-    await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与启用')
+  test('加载期初状态和结账历史', async ({ page }, testInfo) => {
+    await page.goto('/led/closing')
+    await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与结账')
     await expect(page.getByText(/版本 \d+/)).toBeVisible()
-    const auditTab = page.getByRole('tab', { name: '生命周期审计' })
+    const auditTab = page.getByRole('tab', { name: '结账历史' })
     if (await auditTab.isVisible()) {
       await auditTab.click()
       if (testInfo.project.name === 'mobile-chromium') {
-        await expectMobileCards(
-          page,
-          '.opening-page__table',
-          testInfo,
-        )
+        await expectMobileCards(page, '.responsive-table', testInfo)
       } else {
-        await expect(page.getByRole('columnheader', { name: '事件' }))
-          .toBeVisible()
+        await expect(
+          page.getByRole('columnheader', { name: '结账日' }),
+        ).toBeVisible()
       }
     }
   })
@@ -77,7 +74,7 @@ test.describe('LED 真实后端只读流程', () => {
       )
       await page.goto(`/led/${ledger.entity}`)
       await expect(pageBreadcrumb(page)).toHaveText(`ZERP / ${ledger.title}`)
-      const entryPayload = await (await entryResponse).json() as {
+      const entryPayload = (await (await entryResponse).json()) as {
         code: number | string
       }
       expect(String(entryPayload.code)).toBe('0')
@@ -89,7 +86,7 @@ test.describe('LED 真实后端只读流程', () => {
           response.request().method() === 'POST',
       )
       await page.getByRole('button', { name: '余额', exact: true }).click()
-      const balancePayload = await (await balanceResponse).json() as {
+      const balancePayload = (await (await balanceResponse).json()) as {
         code: number | string
       }
       expect(String(balancePayload.code)).toBe('0')

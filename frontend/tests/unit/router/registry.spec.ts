@@ -362,7 +362,7 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
-      '/led/opening/get',
+      '/led/closing/get',
       '/wfl/purchase-fulfillment/query',
       '/wfl/sales-fulfillment/query',
       '/vou/purchase-order/query',
@@ -391,10 +391,10 @@ describe('permission menu registry', () => {
   })
 
   it('注册 LED 五类账簿页面并保持业务顺序', () => {
-    const entities = ['opening', 'inventory', 'fund', 'party', 'container']
+    const entities = ['closing', 'inventory', 'fund', 'party', 'container']
     const router = createTestRouter()
     const menus = buildMenus([
-      '/led/opening/get',
+      '/led/closing/get',
       ...entities.slice(1).map((entity) => `/led/${entity}/query`),
     ])
 

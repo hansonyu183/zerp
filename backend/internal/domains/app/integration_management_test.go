@@ -42,7 +42,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "missing-opening-get", Name: "缺少账簿期初查看权限",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/led/opening/activate"),
+		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/led/closing/close"),
 	}, admin.ID, "reject-led-role-without-opening-get"); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("missing LED opening get error = %v", err)
 	}
@@ -51,7 +51,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		Code: "user-reader", Name: "用户查看",
 		PermissionIDs: permissionIDsByPath(
 			t, pool, signoutPath, "/app/user/query", "/app/user/get",
-			"/led/opening/get", "/led/opening/activate",
+			"/led/closing/get", "/led/closing/close",
 		),
 	}, admin.ID, "create-role")
 	if err != nil {
@@ -59,7 +59,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	expectedPermissionIDs := permissionIDsByPath(
 		t, pool, "/app/user/get", "/app/user/query", signoutPath,
-		"/led/opening/activate", "/led/opening/get",
+		"/led/closing/close", "/led/closing/get",
 	)
 	gotRole, err := service.GetRole(t.Context(), role.ID)
 	if err != nil || !slices.Equal(gotRole.PermissionIDs, expectedPermissionIDs) {
@@ -206,9 +206,9 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	if !slices.Equal(actual, expectedProtected) {
 		t.Fatalf("APP permission catalog = %v, want %v", actual, expectedProtected)
 	}
-	ledPermissionID := permissionIDsByPath(t, pool, "/led/opening/get")[0]
+	ledPermissionID := permissionIDsByPath(t, pool, "/led/closing/get")[0]
 	ledPermission, err := service.GetPermission(t.Context(), ledPermissionID)
-	if err != nil || ledPermission.ID != ledPermissionID || ledPermission.Path != "/led/opening/get" {
+	if err != nil || ledPermission.ID != ledPermissionID || ledPermission.Path != "/led/closing/get" {
 		t.Fatalf("get LED permission = %+v, err=%v", ledPermission, err)
 	}
 }

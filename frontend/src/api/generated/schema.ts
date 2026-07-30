@@ -1245,7 +1245,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/led/opening/get": {
+    "/led/closing/get": {
         parameters: {
             query?: never;
             header?: never;
@@ -1254,15 +1254,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 读取账簿期初 */
-        post: operations["ledopeningget"];
+        /** 读取最近结账与期初余额 */
+        post: operations["ledclosingget"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/led/opening/save": {
+    "/led/closing/close": {
         parameters: {
             query?: never;
             header?: never;
@@ -1271,15 +1271,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 保存账簿期初 */
-        post: operations["ledopeningsave"];
+        /** 执行月末结账 */
+        post: operations["ledclosingclose"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/led/opening/activate": {
+    "/led/closing/unclose": {
         parameters: {
             query?: never;
             header?: never;
@@ -1288,15 +1288,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 启用账簿 */
-        post: operations["ledopeningactivate"];
+        /** 反结最近一期 */
+        post: operations["ledclosingunclose"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/led/opening/reopen": {
+    "/led/closing/history": {
         parameters: {
             query?: never;
             header?: never;
@@ -1305,42 +1305,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 申请重开账簿 */
-        post: operations["ledopeningreopen"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/opening/cancel-reopen": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 取消重开账簿 */
-        post: operations["ledopeningcancelreopen"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/opening/audit-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询账簿期初审计历史 */
-        post: operations["ledopeningaudithistory"];
+        /** 查询月末结账历史 */
+        post: operations["ledclosinghistory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2229,39 +2195,13 @@ export interface components {
             };
             reason?: string;
         };
-        LedOpeningSaveRequest: {
+        LedClosingRequest: {
             /** Format: int64 */
             revision: number;
             /** Format: date */
-            cutoverDate: string;
-            inventory: {
-                warehouse: {
-                    objectId: string;
-                    versionId: string;
-                };
-                product: {
-                    objectId: string;
-                    versionId: string;
-                };
-                quantity: string;
-                unitPrice: string;
-                currency: string;
-            }[];
-            fund: {
-                [key: string]: unknown;
-            }[];
-            party: {
-                [key: string]: unknown;
-            }[];
-            container: {
-                [key: string]: unknown;
-            }[];
+            closingDate: string;
         };
-        LedRevisionRequest: {
-            /** Format: int64 */
-            revision: number;
-        };
-        LedReopenRequest: {
+        LedUncloseRequest: {
             /** Format: int64 */
             revision: number;
             reason: string;
@@ -3588,7 +3528,7 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    ledopeningget: {
+    ledclosingget: {
         parameters: {
             query?: never;
             header?: never;
@@ -3604,7 +3544,7 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    ledopeningsave: {
+    ledclosingclose: {
         parameters: {
             query?: never;
             header?: never;
@@ -3613,14 +3553,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedOpeningSaveRequest"];
+                "application/json": components["schemas"]["LedClosingRequest"];
             };
         };
         responses: {
             200: components["responses"]["Business"];
         };
     };
-    ledopeningactivate: {
+    ledclosingunclose: {
         parameters: {
             query?: never;
             header?: never;
@@ -3629,46 +3569,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedRevisionRequest"];
+                "application/json": components["schemas"]["LedUncloseRequest"];
             };
         };
         responses: {
             200: components["responses"]["Business"];
         };
     };
-    ledopeningreopen: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedReopenRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledopeningcancelreopen: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedRevisionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledopeningaudithistory: {
+    ledclosinghistory: {
         parameters: {
             query?: never;
             header?: never;

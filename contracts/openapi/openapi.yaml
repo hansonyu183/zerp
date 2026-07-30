@@ -1850,13 +1850,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/opening/get':
+      '/led/closing/get':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '读取账簿期初',
-              'operationId': 'ledopeningget',
+              'summary': '读取最近结账与期初余额',
+              'operationId': 'ledclosingget',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1874,13 +1874,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/opening/save':
+      '/led/closing/close':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '保存账簿期初',
-              'operationId': 'ledopeningsave',
+              'summary': '执行月末结账',
+              'operationId': 'ledclosingclose',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1890,9 +1890,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedOpeningSaveRequest',
-                            },
+                            { '$ref': './schemas/led.yaml#/LedClosingRequest' },
                         },
                     },
                 },
@@ -1900,13 +1898,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/opening/activate':
+      '/led/closing/unclose':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '启用账簿',
-              'operationId': 'ledopeningactivate',
+              'summary': '反结最近一期',
+              'operationId': 'ledclosingunclose',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1916,9 +1914,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedRevisionRequest',
-                            },
+                            { '$ref': './schemas/led.yaml#/LedUncloseRequest' },
                         },
                     },
                 },
@@ -1926,63 +1922,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/opening/reopen':
+      '/led/closing/history':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '申请重开账簿',
-              'operationId': 'ledopeningreopen',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedReopenRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/opening/cancel-reopen':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '取消重开账簿',
-              'operationId': 'ledopeningcancelreopen',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/opening/audit-history':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询账簿期初审计历史',
-              'operationId': 'ledopeningaudithistory',
+              'summary': '查询月末结账历史',
+              'operationId': 'ledclosinghistory',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {

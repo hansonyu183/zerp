@@ -15,12 +15,10 @@ import (
 const principalContextKey = "ledPrincipal"
 
 type applicationService interface {
-	GetOpening(context.Context) (OpeningView, error)
-	SaveOpening(context.Context, OpeningSaveInput, string, string) (MutationResult, error)
-	Activate(context.Context, RevisionInput, string, string) (MutationResult, error)
-	Reopen(context.Context, ReopenInput, string, string) (MutationResult, error)
-	CancelReopen(context.Context, RevisionInput, string, string) (MutationResult, error)
-	AuditHistory(context.Context, HistoryInput) (Page[AuditEventView], error)
+	GetClosing(context.Context) (ClosingView, error)
+	Close(context.Context, ClosingInput, string, string) (ClosingMutationResult, error)
+	Unclose(context.Context, UncloseInput, string, string) (ClosingMutationResult, error)
+	ClosingHistory(context.Context, HistoryInput) (Page[ClosingHistoryView], error)
 	QueryInventory(context.Context, QueryInput) (Page[InventoryEntryView], error)
 	InventoryBalance(context.Context, BalanceInput) (Page[InventoryBalanceView], error)
 	QueryFund(context.Context, QueryInput) (Page[FundEntryView], error)
@@ -55,12 +53,10 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity, action string
 		handle         gin.HandlerFunc
 	}{
-		{EntityOpening, "get", h.getOpening},
-		{EntityOpening, "save", h.saveOpening},
-		{EntityOpening, "activate", h.activate},
-		{EntityOpening, "reopen", h.reopen},
-		{EntityOpening, "cancel-reopen", h.cancelReopen},
-		{EntityOpening, "audit-history", h.auditHistory},
+		{EntityClosing, "get", h.getClosing},
+		{EntityClosing, "close", h.close},
+		{EntityClosing, "unclose", h.unclose},
+		{EntityClosing, "history", h.closingHistory},
 		{EntityInventory, "query", h.queryInventory},
 		{EntityInventory, "balance", h.inventoryBalance},
 		{EntityFund, "query", h.queryFund},
@@ -80,50 +76,34 @@ func (h *Handler) authorize(path string) gin.HandlerFunc {
 	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
 }
 
-func (h *Handler) getOpening(c *gin.Context) {
+func (h *Handler) getClosing(c *gin.Context) {
 	var input struct{}
 	if h.bind(c, &input) {
-		result, err := h.service.GetOpening(c.Request.Context())
+		result, err := h.service.GetClosing(c.Request.Context())
 		h.result(c, result, err)
 	}
 }
 
-func (h *Handler) saveOpening(c *gin.Context) {
-	var input OpeningSaveInput
+func (h *Handler) close(c *gin.Context) {
+	var input ClosingInput
 	if h.bind(c, &input) {
-		result, err := h.service.SaveOpening(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Close(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
 
-func (h *Handler) activate(c *gin.Context) {
-	var input RevisionInput
+func (h *Handler) unclose(c *gin.Context) {
+	var input UncloseInput
 	if h.bind(c, &input) {
-		result, err := h.service.Activate(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.Unclose(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
 
-func (h *Handler) reopen(c *gin.Context) {
-	var input ReopenInput
-	if h.bind(c, &input) {
-		result, err := h.service.Reopen(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) cancelReopen(c *gin.Context) {
-	var input RevisionInput
-	if h.bind(c, &input) {
-		result, err := h.service.CancelReopen(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) auditHistory(c *gin.Context) {
+func (h *Handler) closingHistory(c *gin.Context) {
 	var input HistoryInput
 	if h.bind(c, &input) {
-		result, err := h.service.AuditHistory(c.Request.Context(), input)
+		result, err := h.service.ClosingHistory(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }

@@ -18,8 +18,8 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		got[route.Method+" "+route.Path] = true
 	}
 	expected := []string{
-		"/led/opening/get", "/led/opening/save", "/led/opening/activate",
-		"/led/opening/reopen", "/led/opening/cancel-reopen", "/led/opening/audit-history",
+		"/led/closing/get", "/led/closing/close",
+		"/led/closing/unclose", "/led/closing/history",
 		"/led/inventory/query", "/led/inventory/balance",
 		"/led/fund/query", "/led/fund/balance",
 		"/led/party/query", "/led/party/balance",

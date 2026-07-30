@@ -9,8 +9,7 @@ import {
   type LedgerReference,
 } from '@/components/ledger'
 import {
-  inventoryOpeningAmount,
-  openingEventLabel,
+  lastCompletedMonthEnd,
   useOpeningViewModel,
 } from '@/pages/led/opening/vm'
 import { useSessionStore } from '@/stores/session'
@@ -38,11 +37,11 @@ function reference(
   }
 }
 
-function openingView() {
+function closingView() {
   return {
-    status: 'DRAFT' as const,
     revision: 1,
-    cutoverDate: '2026-07-01',
+    latestClosingDate: '2026-06-30',
+    openingDate: '2026-07-01',
     inventory: [],
     fund: [],
     party: [],
@@ -63,9 +62,9 @@ describe('LED shared ledger view model', () => {
       'party',
       'container',
     ])
-    expect(ledgerEntityConfigs.inventory.referenceSources.map(
-      (item) => item.entity,
-    )).toEqual(['warehouse', 'product'])
+    expect(
+      ledgerEntityConfigs.inventory.referenceSources.map((item) => item.entity),
+    ).toEqual(['warehouse', 'product'])
     expect(ledgerEntityConfigs.party.referenceSources).toEqual([
       { entity: 'customer' },
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
@@ -78,9 +77,9 @@ describe('LED shared ledger view model', () => {
       'purchase-inbound',
       'purchase-return',
     ])
-    expect(ledgerEntityConfigs.inventory.entryColumns.map(
-      (column) => column.label,
-    )).toEqual([
+    expect(
+      ledgerEntityConfigs.inventory.entryColumns.map((column) => column.label),
+    ).toEqual([
       '日期',
       '入账',
       '类型',
@@ -102,19 +101,27 @@ describe('LED shared ledger view model', () => {
       unitPrice: '10.00',
       amount: '25.00',
     }
-    expect(inventoryColumns.find((column) =>
-      column.key === 'inQuantity')?.value(inbound)).toBe('2.5')
-    expect(inventoryColumns.find((column) =>
-      column.key === 'outQuantity')?.value(inbound)).toBe('')
-    expect(ledgerEntityConfigs.fund.balanceColumns.map(
-      (column) => column.label,
-    )).toEqual(['账户', '性质', '金额'])
-    expect(ledgerEntityConfigs.party.balanceColumns.map(
-      (column) => column.label,
-    )).toEqual(['往来方', '性质', '金额'])
-    expect(ledgerEntityConfigs.container.balanceColumns.map(
-      (column) => column.label,
-    )).toEqual(['客户', '桶型', '欠桶'])
+    expect(
+      inventoryColumns
+        .find((column) => column.key === 'inQuantity')
+        ?.value(inbound),
+    ).toBe('2.5')
+    expect(
+      inventoryColumns
+        .find((column) => column.key === 'outQuantity')
+        ?.value(inbound),
+    ).toBe('')
+    expect(
+      ledgerEntityConfigs.fund.balanceColumns.map((column) => column.label),
+    ).toEqual(['账户', '性质', '金额'])
+    expect(
+      ledgerEntityConfigs.party.balanceColumns.map((column) => column.label),
+    ).toEqual(['往来方', '性质', '金额'])
+    expect(
+      ledgerEntityConfigs.container.balanceColumns.map(
+        (column) => column.label,
+      ),
+    ).toEqual(['客户', '桶型', '欠桶'])
   })
 
   it('queries entries with the selected filters and exact sort contract', async () => {
@@ -127,7 +134,8 @@ describe('LED shared ledger view model', () => {
     })
     const scope = effectScope()
     const vm = scope.run(() =>
-      useLedgerViewModel(ledgerEntityConfigs.inventory))!
+      useLedgerViewModel(ledgerEntityConfigs.inventory),
+    )!
     const warehouse = reference('warehouse', '1')
     vm.queryFilters.dateFrom = '2026-07-01'
     vm.queryFilters.dateTo = '2026-07-25'
@@ -166,8 +174,7 @@ describe('LED shared ledger view model', () => {
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
     const scope = effectScope()
-    const vm = scope.run(() =>
-      useLedgerViewModel(ledgerEntityConfigs.fund))!
+    const vm = scope.run(() => useLedgerViewModel(ledgerEntityConfigs.fund))!
 
     expect(vm.mode.value).toBe('balances')
     vm.balanceFilters.asOfDate = '2026-06-30'
@@ -190,173 +197,197 @@ describe('LED shared ledger view model', () => {
   })
 })
 
-describe('LED opening view model', () => {
+describe('LED closing view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     useSessionStore().permissions = [
-      '/led/opening/get',
-      '/led/opening/save',
-      '/led/opening/activate',
-      '/led/opening/reopen',
-      '/led/opening/cancel-reopen',
-      '/led/opening/audit-history',
+      '/led/closing/get',
+      '/led/closing/close',
+      '/led/closing/unclose',
+      '/led/closing/history',
     ]
   })
 
-  it('translates the exact backend opening audit event names', () => {
-    expect(openingEventLabel('OPENING_SAVED')).toBe('保存期初')
-    expect(openingEventLabel('ACTIVATED')).toBe('启用账簿')
-    expect(openingEventLabel('REOPENED')).toBe('重开账簿')
-    expect(openingEventLabel('REOPEN_CANCELLED')).toBe('取消重开')
-    expect(openingEventLabel('FUTURE_EVENT')).toBe('FUTURE_EVENT')
+  it('defaults to the previous completed calendar month end', () => {
+    expect(lastCompletedMonthEnd(new Date(2026, 6, 30))).toBe('2026-06-30')
+    expect(lastCompletedMonthEnd(new Date(2026, 0, 15))).toBe('2025-12-31')
   })
 
-  it('builds the complete opening payload with object and version references', async () => {
-    mockedPost.mockResolvedValue({ data: openingView() })
+  it('closes with the current revision and reloads the generated opening', async () => {
+    mockedPost
+      .mockResolvedValueOnce({ data: closingView() })
+      .mockResolvedValueOnce({
+        data: {
+          revision: 2,
+          latestClosingDate: '2026-07-31',
+          openingDate: '2026-08-01',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ...closingView(),
+          revision: 2,
+          latestClosingDate: '2026-07-31',
+          openingDate: '2026-08-01',
+        },
+      })
     const scope = effectScope()
     const vm = scope.run(() => useOpeningViewModel())!
     await vm.load()
-    const warehouse = reference('warehouse', '1')
-    const product = reference('product', '2')
-    const fundAccount = reference('fund-account', '3')
-    const customer = reference('customer', '4')
-
-    vm.addInventory()
-    vm.form.inventory[0]!.warehouse = warehouse
-    vm.form.inventory[0]!.product = product
-    vm.form.inventory[0]!.quantity = '12.345600'
-    vm.form.inventory[0]!.unitPrice = '10.20'
-    vm.form.inventory[0]!.currency = 'cny'
-    vm.addFund()
-    vm.form.fund[0]!.fundAccount = fundAccount
-    vm.form.fund[0]!.balanceType = 'OVERDRAFT'
-    vm.form.fund[0]!.amount = '10.20'
-    vm.addParty()
-    vm.form.party[0]!.counterparty = customer
-    vm.form.party[0]!.currency = 'cny'
-    vm.form.party[0]!.amount = '30.00'
-    vm.addContainer()
-    vm.form.container[0]!.customer = customer
-    vm.form.container[0]!.containerType = 'RESIN'
-    vm.form.container[0]!.quantity = '8'
-
-    expect(vm.savePayload()).toEqual({
+    vm.closingDate.value = '2026-07-31'
+    expect(await vm.close()).toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'led/closing/close', {
       revision: 1,
-      cutoverDate: '2026-07-01',
-      inventory: [{
-        warehouse: {
-          objectId: warehouse.objectId,
-          versionId: warehouse.versionId,
+      closingDate: '2026-07-31',
+    })
+    expect(vm.closing.value?.openingDate).toBe('2026-08-01')
+    scope.stop()
+  })
+
+  it('requires a reason before reversing the latest closing', async () => {
+    mockedPost.mockResolvedValue({ data: closingView() })
+    const scope = effectScope()
+    const vm = scope.run(() => useOpeningViewModel())!
+    await vm.load()
+    vi.clearAllMocks()
+
+    expect(await vm.unclose()).toBe(false)
+    expect(mockedPost).not.toHaveBeenCalled()
+    expect(vm.errorMessage.value).toBe('反结账原因必填且不得超过 1000 字。')
+    scope.stop()
+  })
+
+  it('loads closing history, validates pagination, and refreshes loaded history after closing', async () => {
+    mockedPost
+      .mockResolvedValueOnce({ data: closingView() })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: 'closing-1',
+              closingDate: '2026-06-30',
+              status: 'ACTIVE',
+              createdAt: '2026-07-01T00:00:00Z',
+            },
+          ],
+          total: 21,
+          page: 1,
+          pageSize: 20,
         },
-        product: {
-          objectId: product.objectId,
-          versionId: product.versionId,
+      })
+      .mockResolvedValueOnce({ data: { revision: 2 } })
+      .mockResolvedValueOnce({
+        data: {
+          ...closingView(),
+          revision: 2,
+          latestClosingDate: '2026-07-31',
+          openingDate: '2026-08-01',
         },
-        quantity: '12.345600',
-        unitPrice: '10.20',
-        currency: 'CNY',
-      }],
-      fund: [{
-        fundAccount: {
-          objectId: fundAccount.objectId,
-          versionId: fundAccount.versionId,
-        },
-        balanceType: 'OVERDRAFT',
-        amount: '10.20',
-      }],
-      party: [{
-        counterpartyType: 'customer',
-        counterparty: {
-          objectId: customer.objectId,
-          versionId: customer.versionId,
-        },
-        currency: 'CNY',
-        balanceType: 'RECEIVABLE',
-        amount: '30.00',
-      }],
-      container: [{
-        customer: {
-          objectId: customer.objectId,
-          versionId: customer.versionId,
-        },
-        containerType: 'RESIN',
-        quantity: 8,
-      }],
+      })
+      .mockResolvedValueOnce({
+        data: { items: [], total: 0, page: 1, pageSize: 20 },
+      })
+    const scope = effectScope()
+    const vm = scope.run(() => useOpeningViewModel())!
+
+    await vm.load()
+    await vm.loadHistory()
+    expect(vm.historyLoaded.value).toBe(true)
+    expect(vm.historyItems.value).toHaveLength(1)
+    expect(vm.historyPageCount.value).toBe(2)
+    await vm.changeHistoryPage(0)
+    await vm.changeHistoryPage(3)
+    expect(mockedPost).toHaveBeenCalledTimes(2)
+
+    vm.closingDate.value = '2026-07-31'
+    expect(await vm.close()).toBe(true)
+    expect(mockedPost).toHaveBeenLastCalledWith('led/closing/history', {
+      page: 1,
+      pageSize: 20,
     })
     scope.stop()
   })
 
-  it('rejects duplicate dimensions before a save request', async () => {
-    mockedPost.mockResolvedValue({ data: openingView() })
-    const scope = effectScope()
-    const vm = scope.run(() => useOpeningViewModel())!
-    await vm.load()
-    const warehouse = reference('warehouse', '1')
-    const product = reference('product', '2')
-    vm.addInventory()
-    vm.addInventory()
-    for (const row of vm.form.inventory) {
-      row.warehouse = warehouse
-      row.product = product
-      row.quantity = '1'
-      row.unitPrice = '10.00'
-      row.currency = 'CNY'
-    }
-
-    expect(vm.savePayload()).toBeNull()
-    expect(vm.errorMessage.value).toBe(
-      '库存期初存在重复的仓库和商品组合。',
-    )
-    scope.stop()
-  })
-
-  it('calculates inventory opening amount with backend-compatible rounding', () => {
-    expect(inventoryOpeningAmount('1.500000', '1.01')).toBe('1.52')
-    expect(inventoryOpeningAmount('1', '')).toBe('—')
-  })
-
-  it('uses the current revision for activation and refreshes server state', async () => {
+  it('reverses the latest closing and resets the dialog', async () => {
     mockedPost
-      .mockResolvedValueOnce({ data: openingView() })
-      .mockResolvedValueOnce({
-        data: { status: 'ACTIVE', revision: 2, generationId: 'GEN-1' },
-      })
+      .mockResolvedValueOnce({ data: closingView() })
+      .mockResolvedValueOnce({ data: { revision: 2 } })
       .mockResolvedValueOnce({
         data: {
-          ...openingView(),
-          status: 'ACTIVE',
+          ...closingView(),
           revision: 2,
-          activeGenerationId: 'GEN-1',
+          latestClosingDate: null,
+          openingDate: null,
         },
       })
     const scope = effectScope()
     const vm = scope.run(() => useOpeningViewModel())!
     await vm.load()
+    vm.uncloseDialog.value = true
+    vm.uncloseReason.value = '  发现月末单据遗漏  '
 
-    expect(await vm.activate()).toBe(true)
-    expect(mockedPost).toHaveBeenNthCalledWith(
-      2,
-      'led/opening/activate',
-      { revision: 1 },
-    )
-    expect(vm.opening.value?.status).toBe('ACTIVE')
+    expect(await vm.unclose()).toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'led/closing/unclose', {
+      revision: 1,
+      reason: '发现月末单据遗漏',
+    })
+    expect(vm.successMessage.value).toBe('已反结最近一期。')
+    expect(vm.uncloseDialog.value).toBe(false)
+    expect(vm.uncloseReason.value).toBe('')
     scope.stop()
   })
 
-  it('blocks activation while the visible opening form has unsaved changes', async () => {
-    mockedPost.mockResolvedValue({ data: openingView() })
+  it('reports API failures and always clears loading state', async () => {
+    mockedPost.mockRejectedValueOnce(new Error('结账状态读取失败'))
     const scope = effectScope()
     const vm = scope.run(() => useOpeningViewModel())!
-    await vm.load()
-    vm.form.cutoverDate = '2026-07-02'
-    vi.clearAllMocks()
 
-    expect(await vm.activate()).toBe(false)
+    await vm.load()
+    expect(vm.errorMessage.value).toBe('结账状态读取失败')
+    expect(vm.loading.value).toBe(false)
+
+    vm.closing.value = closingView()
+    mockedPost.mockRejectedValueOnce(new Error('结账失败'))
+    expect(await vm.close()).toBe(false)
+    expect(vm.errorMessage.value).toBe('结账失败')
+    expect(vm.saving.value).toBe(false)
+
+    mockedPost.mockRejectedValueOnce(new Error('历史读取失败'))
+    await vm.loadHistory()
+    expect(vm.errorMessage.value).toBe('历史读取失败')
+    expect(vm.historyLoading.value).toBe(false)
+
+    vm.uncloseReason.value = '更正'
+    mockedPost.mockRejectedValueOnce(new Error('反结账失败'))
+    expect(await vm.unclose()).toBe(false)
+    expect(vm.errorMessage.value).toBe('反结账失败')
+    expect(vm.saving.value).toBe(false)
+    scope.stop()
+  })
+
+  it('does not call closing APIs without permission or required state', async () => {
+    useSessionStore().permissions = []
+    const scope = effectScope()
+    const vm = scope.run(() => useOpeningViewModel())!
+
+    await vm.load()
+    await vm.loadHistory()
+    expect(await vm.close()).toBe(false)
+    expect(await vm.unclose()).toBe(false)
     expect(mockedPost).not.toHaveBeenCalled()
-    expect(vm.errorMessage.value).toBe(
-      '期初存在未保存修改，请先保存再启用账簿。',
-    )
+
+    useSessionStore().permissions = [
+      '/led/closing/get',
+      '/led/closing/close',
+      '/led/closing/unclose',
+    ]
+    vm.closing.value = closingView()
+    vm.closingDate.value = ''
+    expect(await vm.close()).toBe(false)
+    vm.uncloseReason.value = '超'.repeat(1001)
+    expect(await vm.unclose()).toBe(false)
+    expect(mockedPost).not.toHaveBeenCalled()
     scope.stop()
   })
 })

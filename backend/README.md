@@ -53,6 +53,7 @@ curl http://localhost:8080/readyz
 | `make migrate-down`        | 回滚一个迁移版本               |
 | `make bootstrap-admin`     | 在空用户库创建首个管理员       |
 | `make seed-bob`            | 幂等写入非生产 BOB 演示数据    |
+| `make seed-preview`        | 幂等补齐开发预览全业务测试数据 |
 | `make cleanup-attachments` | 清理过期附件和未提交反馈截图   |
 | `make compose-up`          | 启动后端 API 与 PostgreSQL     |
 | `make compose-down`        | 停止后端 Compose               |
@@ -123,6 +124,8 @@ unset APP_BOOTSTRAP_PASSWORD
 ```
 
 该命令在已有用户时拒绝执行。`make seed-bob` 只允许在 `development` 或 `test` 环境运行。
+`make seed-preview` 只允许在 `development` 环境运行，按 AUX、BOB、VOU/WFL、LED
+顺序补齐预览数据；重复执行只恢复 seed 自身中断的步骤，不覆盖测试人员已经修改或推进的样本。
 
 ## 隔离 E2E 后端
 

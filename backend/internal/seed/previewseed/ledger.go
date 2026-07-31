@@ -1,0 +1,174 @@
+package previewseed
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
+	"github.com/jackc/pgx/v5"
+	"github.com/oklog/ulid/v2"
+)
+
+func (s *Seeder) seedLedgerBaseline(ctx context.Context, counts *Counts) error {
+	if err := s.ledger.EnsureReady(ctx); err != nil {
+		return err
+	}
+	opening, err := s.ledger.GetOpening(ctx)
+	if err != nil {
+		return err
+	}
+	var documentCount, closingCount, externalAuditCount int
+	if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM vou_documents`).Scan(&documentCount); err != nil {
+		return err
+	}
+	if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM led_closings`).Scan(&closingCount); err != nil {
+		return err
+	}
+	if err = s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM led_audit_events WHERE request_id NOT LIKE $1
+	`, seedPrefix+"%").Scan(&externalAuditCount); err != nil {
+		return err
+	}
+	canSeedOpening := documentCount == 0 && closingCount == 0 && externalAuditCount == 0 &&
+		len(opening.Inventory) == 0 && len(opening.Fund) == 0 &&
+		len(opening.Party) == 0 && len(opening.Container) == 0
+	if canSeedOpening && opening.Status == leddomain.StatusActive {
+		reopened, reopenErr := s.ledger.Reopen(ctx, leddomain.ReopenInput{
+			Revision: opening.Revision, Reason: "初始化预览测试期初",
+		}, actorID, requestID("ledger-opening", "reopen"))
+		if reopenErr != nil {
+			return reopenErr
+		}
+		opening.Status, opening.Revision = reopened.Status, reopened.Revision
+	}
+	if canSeedOpening &&
+		(opening.Status == leddomain.StatusDraft || opening.Status == leddomain.StatusReopening) {
+		raw := s.bobRefs["raw-effective"]
+		finished := s.bobRefs["finished-effective"]
+		warehouse := s.bobRefs["warehouse-effective"]
+		fund := s.bobRefs["fund-effective"]
+		customer := s.bobRefs["customer-effective"]
+		saved, saveErr := s.ledger.SaveOpening(ctx, leddomain.OpeningSaveInput{
+			Revision: opening.Revision, CutoverDate: openingDate,
+			Inventory: []leddomain.InventoryOpeningInput{
+				{
+					Warehouse: ledReference(warehouse), Product: ledReference(raw),
+					Quantity: "1000", UnitPrice: "10.00", Currency: "CNY",
+				},
+				{
+					Warehouse: ledReference(warehouse), Product: ledReference(finished),
+					Quantity: "100", UnitPrice: "50.00", Currency: "CNY",
+				},
+			},
+			Fund: []leddomain.FundOpeningInput{{
+				FundAccount: ledReference(fund), BalanceType: "POSITIVE", Amount: "100000.00",
+			}},
+			Party: []leddomain.PartyOpeningInput{{
+				CounterpartyType: "customer", Counterparty: ledReference(customer),
+				Currency: "CNY", BalanceType: "RECEIVABLE", Amount: "5000.00",
+			}},
+			Container: []leddomain.ContainerOpeningInput{{
+				Customer: ledReference(customer), ContainerType: "SOLVENT", Quantity: 20,
+			}},
+		}, actorID, requestID("ledger-opening", "save"))
+		if saveErr != nil {
+			return saveErr
+		}
+		if _, err = s.ledger.Activate(
+			ctx,
+			leddomain.RevisionInput{Revision: saved.Revision},
+			actorID,
+			requestID("ledger-opening", "activate"),
+		); err != nil {
+			return err
+		}
+		counts.add(outcomeCreated)
+	} else {
+		counts.add(outcomeSkipped)
+	}
+
+	if closingCount > 0 {
+		counts.add(outcomeSkipped)
+		return nil
+	}
+	closing, err := s.ledger.GetClosing(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err = s.ledger.Close(ctx, leddomain.ClosingInput{
+		Revision: closing.Revision, ClosingDate: historyDate,
+	}, actorID, requestID("ledger-closing", "close")); err != nil {
+		return err
+	}
+	counts.add(outcomeCreated)
+	return nil
+}
+
+func ledReference(view bobdomain.ObjectView) leddomain.ReferenceInput {
+	return leddomain.ReferenceInput{
+		ObjectID: view.ObjectID, VersionID: view.Version.VersionID,
+	}
+}
+
+func (s *Seeder) seedContainerBalance(ctx context.Context, counts *Counts) error {
+	var exists int
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM led_container_entries
+		WHERE request_id=$1
+	`, requestID("container-balance", "opening")).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists > 0 {
+		counts.add(outcomeSkipped)
+		return nil
+	}
+	customer := s.bobRefs["customer-effective"]
+	var generationID string
+	err = s.pool.QueryRow(ctx, `
+		SELECT active_generation_id
+		FROM led_control
+		WHERE singleton AND status='ACTIVE' AND active_generation_id IS NOT NULL
+	`).Scan(&generationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errors.New("active ledger generation is required")
+	}
+	if err != nil {
+		return err
+	}
+	var occupied int
+	if err = s.pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM led_container_entries
+		WHERE generation_id=$1 AND entry_type='OPENING'
+		  AND source_document_id='' AND source_revision=0 AND container_type='RESIN'
+	`, generationID).Scan(&occupied); err != nil {
+		return err
+	}
+	if occupied > 0 {
+		counts.add(outcomeSkipped)
+		return nil
+	}
+	// Container movements no longer originate from VOU. A preserved preview
+	// database can already have an active generation that cannot safely be
+	// reopened, so add one uniquely marked open-period balance row directly.
+	// The insert uses the same constraints and shape as a normal opening entry.
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO led_container_entries(
+			id,generation_id,entry_type,source_entity,source_line_id,effective_date,
+			occurred_at,actor_id,request_id,remark,customer_object_id,customer_version_id,
+			customer_code,customer_name,container_type,quantity_delta
+		) VALUES($1,$2,'OPENING','opening',$1,$3,$4,$5,$6,$7,$8,$9,$10,$11,'RESIN',12)
+	`, ulid.Make().String(), generationID, "2026-07-01", time.Now().UTC(), actorID,
+		requestID("container-balance", "opening"), "预览测试开放期间容器期初",
+		customer.ObjectID, customer.Version.VersionID, customer.Code, customer.Data.Name)
+	if err != nil {
+		return fmt.Errorf("insert preview container opening: %w", err)
+	}
+	counts.add(outcomeCreated)
+	return nil
+}

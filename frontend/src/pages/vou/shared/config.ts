@@ -44,11 +44,6 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'product',
     finalizationKind: 'direct',
     usesSalesperson: true,
-    lifecycleLabels: {
-      finalize: '确认订单',
-      unfinalize: '反确认订单',
-      finalized: '已确认',
-    },
   },
   'sale-outbound': {
     entity: 'sale-outbound',
@@ -60,11 +55,6 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     parentEntity: 'sale-order',
     usesWarehouse: true,
-    lifecycleLabels: {
-      finalize: '出库',
-      unfinalize: '反出库',
-      finalized: '已出库',
-    },
   },
   'sale-delivery': {
     entity: 'sale-delivery',
@@ -75,11 +65,6 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
     parentEntity: 'sale-outbound',
-    lifecycleLabels: {
-      finalize: '配送',
-      unfinalize: '撤销配送',
-      finalized: '配送中',
-    },
   },
   'sale-signoff': {
     entity: 'sale-signoff',
@@ -90,11 +75,6 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
     parentEntity: 'sale-delivery',
-    lifecycleLabels: {
-      finalize: '签收',
-      unfinalize: '反签收',
-      finalized: '已签收',
-    },
   },
   'sale-return': {
     entity: 'sale-return',
@@ -106,11 +86,6 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     parentEntity: 'sale-order',
     usesWarehouse: true,
-    lifecycleLabels: {
-      finalize: '退货入库',
-      unfinalize: '撤销退货',
-      finalized: '已退货',
-    },
   },
   'order-production': {
     entity: 'order-production',
@@ -122,11 +97,6 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     parentEntity: 'sale-order',
     productionMode: 'order',
-    lifecycleLabels: {
-      finalize: '完成生产',
-      unfinalize: '撤销完成',
-      finalized: '已完成',
-    },
   },
   'self-production': {
     entity: 'self-production',
@@ -137,11 +107,6 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
     productionMode: 'self',
-    lifecycleLabels: {
-      finalize: '完成生产',
-      unfinalize: '撤销完成',
-      finalized: '已完成',
-    },
   },
   'purchase-order': {
     entity: 'purchase-order',
@@ -175,11 +140,6 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     usesWarehouse: true,
     parentEntity: 'purchase-order',
-    lifecycleLabels: {
-      finalize: '退货出库',
-      unfinalize: '撤销退货',
-      finalized: '已退货',
-    },
   },
   receipt: {
     entity: 'receipt',

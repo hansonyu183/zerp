@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 )
@@ -63,43 +64,64 @@ func (s *Service) PurchaseSave(
 	return s.purchaseMutation(ctx, result)
 }
 
-func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[ProcessView], error) {
+func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[PurchaseProcessListItem], error) {
 	query, err := validateQuery(input)
 	if err != nil {
-		return Page[ProcessView]{}, err
+		return Page[PurchaseProcessListItem]{}, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT p.id
-		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
-		WHERE p.process_type=$1 AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
-		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))
-		ORDER BY p.updated_at DESC,p.id DESC LIMIT $4 OFFSET $5`,
-		ProcessTypePurchase, query.keyword, query.statuses, query.pageSize, query.offset)
+	rows, err := s.queries.ListPurchaseWorkflowSummaries(ctx, sqlc.ListPurchaseWorkflowSummariesParams{
+		Keyword: query.keyword, Statuses: query.statuses,
+		PageSize: int32(query.pageSize), PageOffset: query.offset,
+	})
 	if err != nil {
-		return Page[ProcessView]{}, internal("query purchase workflows", err)
+		return Page[PurchaseProcessListItem]{}, internal("query purchase workflows", err)
 	}
-	defer rows.Close()
-	items := make([]ProcessView, 0)
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			return Page[ProcessView]{}, err
+	items := make([]PurchaseProcessListItem, len(rows))
+	ids := make([]string, len(rows))
+	indexByID := make(map[string]int, len(rows))
+	for index, row := range rows {
+		ids[index], indexByID[row.ProcessID] = row.ProcessID, index
+		items[index] = PurchaseProcessListItem{
+			ProcessListItem: ProcessListItem{
+				ProcessID: row.ProcessID, ProcessType: row.ProcessType, Status: row.Status,
+				Revision: row.Revision, RootDocumentID: row.RootDocumentID,
+				RootDocumentNo: row.RootDocumentNo, CurrentStage: row.CurrentStage,
+				BusinessDate: documentLinkDate(row.BusinessDate.Time), PartyName: row.PartyName,
+				Currency: row.Currency, Amount: documentLinkAmount(row.TotalAmountCents),
+				UpdatedAt: row.UpdatedAt.Time,
+			},
+			ProgressGroups: make([]PurchaseProgressGroup, 0),
 		}
-		item, getErr := s.PurchaseGet(ctx, GetInput{ProcessID: id})
-		if getErr != nil {
-			return Page[ProcessView]{}, getErr
-		}
-		items = append(items, item)
 	}
-	var total int64
-	err = s.pool.QueryRow(ctx, `SELECT count(*)
-		FROM wfl_process_instances p JOIN vou_documents d ON d.id=p.root_document_id
-		WHERE p.process_type=$1 AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
-		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))`,
-		ProcessTypePurchase, query.keyword, query.statuses).Scan(&total)
+	if len(ids) > 0 {
+		progressRows, progressErr := s.queries.ListPurchaseWorkflowProgress(ctx, ids)
+		if progressErr != nil {
+			return Page[PurchaseProcessListItem]{}, internal("summarize purchase workflow progress", progressErr)
+		}
+		for _, row := range progressRows {
+			index, ok := indexByID[row.ProcessID]
+			if !ok {
+				continue
+			}
+			items[index].ProgressGroups = append(items[index].ProgressGroups, PurchaseProgressGroup{
+				Unit: row.ProductUnit, ProductCount: row.ProductCount,
+				OrderedQuantity:           workflowQuantity(row.OrderedQuantity),
+				InboundProcessingQuantity: workflowQuantity(row.InboundProcessingQuantity),
+				FinalizedInboundQuantity:  workflowQuantity(row.FinalizedInboundQuantity),
+				ReturnProcessingQuantity:  workflowQuantity(row.ReturnProcessingQuantity),
+				ReturnedQuantity:          workflowQuantity(row.ReturnedQuantity),
+				NetInboundQuantity:        workflowQuantity(row.NetInboundQuantity),
+				RemainingQuantity:         workflowQuantity(row.RemainingQuantity),
+			})
+		}
+	}
+	total, err := s.queries.CountPurchaseWorkflowSummaries(ctx, sqlc.CountPurchaseWorkflowSummariesParams{
+		Keyword: query.keyword, Statuses: query.statuses,
+	})
 	if err != nil {
-		return Page[ProcessView]{}, err
+		return Page[PurchaseProcessListItem]{}, internal("count purchase workflows", err)
 	}
-	return Page[ProcessView]{
+	return Page[PurchaseProcessListItem]{
 		Items: items, Total: total, Page: query.page, PageSize: query.pageSize,
 	}, nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 )
@@ -64,52 +65,70 @@ func (s *Service) SalesSave(
 	return s.salesMutation(ctx, result)
 }
 
-func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[ProcessView], error) {
+func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[SalesProcessListItem], error) {
 	query, err := validateQuery(input)
 	if err != nil {
-		return Page[ProcessView]{}, err
+		return Page[SalesProcessListItem]{}, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT p.id
-		FROM wfl_process_instances p
-		JOIN vou_documents d ON d.id=p.root_document_id
-		WHERE p.process_type=$1
-		  AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
-		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))
-		ORDER BY p.updated_at DESC,p.id DESC LIMIT $4 OFFSET $5`,
-		ProcessTypeSales, query.keyword, query.statuses, query.pageSize, query.offset)
+	rows, err := s.queries.ListSalesWorkflowSummaries(ctx, sqlc.ListSalesWorkflowSummariesParams{
+		Keyword: query.keyword, Statuses: query.statuses,
+		PageSize: int32(query.pageSize), PageOffset: query.offset,
+	})
 	if err != nil {
-		return Page[ProcessView]{}, internal("query sales workflows", err)
+		return Page[SalesProcessListItem]{}, internal("query sales workflows", err)
 	}
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			rows.Close()
-			return Page[ProcessView]{}, err
+	items := make([]SalesProcessListItem, len(rows))
+	ids := make([]string, len(rows))
+	indexByID := make(map[string]int, len(rows))
+	for index, row := range rows {
+		ids[index], indexByID[row.ProcessID] = row.ProcessID, index
+		items[index] = SalesProcessListItem{
+			ProcessListItem: ProcessListItem{
+				ProcessID: row.ProcessID, ProcessType: row.ProcessType, Status: row.Status,
+				Revision: row.Revision, RootDocumentID: row.RootDocumentID,
+				RootDocumentNo: row.RootDocumentNo, CurrentStage: row.CurrentStage,
+				BusinessDate: documentLinkDate(row.BusinessDate.Time), PartyName: row.PartyName,
+				Currency: row.Currency, Amount: documentLinkAmount(row.TotalAmountCents),
+				UpdatedAt: row.UpdatedAt.Time,
+			},
+			ProgressGroups: make([]SalesProgressGroup, 0),
 		}
-		ids = append(ids, id)
 	}
-	rows.Close()
-	items := make([]ProcessView, 0, len(ids))
-	for _, id := range ids {
-		item, getErr := s.SalesGet(ctx, GetInput{ProcessID: id})
-		if getErr != nil {
-			return Page[ProcessView]{}, getErr
+	if len(ids) > 0 {
+		progressRows, progressErr := s.queries.ListSalesWorkflowProgress(ctx, ids)
+		if progressErr != nil {
+			return Page[SalesProcessListItem]{}, internal("summarize sales workflow progress", progressErr)
 		}
-		items = append(items, item)
+		for _, row := range progressRows {
+			index, ok := indexByID[row.ProcessID]
+			if !ok {
+				continue
+			}
+			items[index].ProgressGroups = append(items[index].ProgressGroups, SalesProgressGroup{
+				Unit: row.ProductUnit, ProductCount: row.ProductCount,
+				OrderedQuantity:                   workflowQuantity(row.OrderedQuantity),
+				OutboundProcessingQuantity:        workflowQuantity(row.OutboundProcessingQuantity),
+				FinalizedOutboundQuantity:         workflowQuantity(row.FinalizedOutboundQuantity),
+				InTransitQuantity:                 workflowQuantity(row.InTransitQuantity),
+				SignedQuantity:                    workflowQuantity(row.SignedQuantity),
+				RejectedQuantity:                  workflowQuantity(row.RejectedQuantity),
+				LossQuantity:                      workflowQuantity(row.LossQuantity),
+				RefusalReturnProcessingQuantity:   workflowQuantity(row.RefusalReturnProcessingQuantity),
+				RefusalReturnedQuantity:           workflowQuantity(row.RefusalReturnedQuantity),
+				AfterSaleReturnProcessingQuantity: workflowQuantity(row.AfterSaleReturnProcessingQuantity),
+				AfterSaleReturnedQuantity:         workflowQuantity(row.AfterSaleReturnedQuantity),
+				NetSignedQuantity:                 workflowQuantity(row.NetSignedQuantity),
+				RemainingQuantity:                 workflowQuantity(row.RemainingQuantity),
+			})
+		}
 	}
-	var total int64
-	err = s.pool.QueryRow(ctx, `SELECT count(*)
-		FROM wfl_process_instances p
-		JOIN vou_documents d ON d.id=p.root_document_id
-		WHERE p.process_type=$1
-		  AND ($2='' OR d.document_no ILIKE '%'||$2||'%')
-		  AND (COALESCE(cardinality($3::text[]),0)=0 OR p.status=ANY($3::text[]))`,
-		ProcessTypeSales, query.keyword, query.statuses).Scan(&total)
+	total, err := s.queries.CountSalesWorkflowSummaries(ctx, sqlc.CountSalesWorkflowSummariesParams{
+		Keyword: query.keyword, Statuses: query.statuses,
+	})
 	if err != nil {
-		return Page[ProcessView]{}, internal("count sales workflows", err)
+		return Page[SalesProcessListItem]{}, internal("count sales workflows", err)
 	}
-	return Page[ProcessView]{
+	return Page[SalesProcessListItem]{
 		Items: items, Total: total, Page: query.page, PageSize: query.pageSize,
 	}, nil
 }

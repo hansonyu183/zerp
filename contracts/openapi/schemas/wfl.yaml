@@ -12,6 +12,215 @@
           'statuses': { 'type': 'array', 'items': { 'type': 'string' } },
         },
     },
+  'WflSalesProgressGroup':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'productCount',
+          'orderedQuantity',
+          'outboundProcessingQuantity',
+          'finalizedOutboundQuantity',
+          'inTransitQuantity',
+          'signedQuantity',
+          'rejectedQuantity',
+          'lossQuantity',
+          'refusalReturnProcessingQuantity',
+          'refusalReturnedQuantity',
+          'afterSaleReturnProcessingQuantity',
+          'afterSaleReturnedQuantity',
+          'netSignedQuantity',
+          'remainingQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string' },
+          'productCount': { 'type': 'integer', 'format': 'int32' },
+          'orderedQuantity': { 'type': 'string' },
+          'outboundProcessingQuantity': { 'type': 'string' },
+          'finalizedOutboundQuantity': { 'type': 'string' },
+          'inTransitQuantity': { 'type': 'string' },
+          'signedQuantity': { 'type': 'string' },
+          'rejectedQuantity': { 'type': 'string' },
+          'lossQuantity': { 'type': 'string' },
+          'refusalReturnProcessingQuantity': { 'type': 'string' },
+          'refusalReturnedQuantity': { 'type': 'string' },
+          'afterSaleReturnProcessingQuantity': { 'type': 'string' },
+          'afterSaleReturnedQuantity': { 'type': 'string' },
+          'netSignedQuantity': { 'type': 'string' },
+          'remainingQuantity': { 'type': 'string' },
+        },
+    },
+  'WflPurchaseProgressGroup':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'productCount',
+          'orderedQuantity',
+          'inboundProcessingQuantity',
+          'finalizedInboundQuantity',
+          'returnProcessingQuantity',
+          'returnedQuantity',
+          'netInboundQuantity',
+          'remainingQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string' },
+          'productCount': { 'type': 'integer', 'format': 'int32' },
+          'orderedQuantity': { 'type': 'string' },
+          'inboundProcessingQuantity': { 'type': 'string' },
+          'finalizedInboundQuantity': { 'type': 'string' },
+          'returnProcessingQuantity': { 'type': 'string' },
+          'returnedQuantity': { 'type': 'string' },
+          'netInboundQuantity': { 'type': 'string' },
+          'remainingQuantity': { 'type': 'string' },
+        },
+    },
+  'WflSalesProcessListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'processId',
+          'processType',
+          'status',
+          'revision',
+          'rootDocumentId',
+          'rootDocumentNo',
+          'currentStage',
+          'businessDate',
+          'partyName',
+          'currency',
+          'amount',
+          'updatedAt',
+          'progressGroups',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processType': { 'type': 'string' },
+          'status': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'rootDocumentId': { 'type': 'string' },
+          'rootDocumentNo': { 'type': 'string' },
+          'currentStage': { 'type': 'string' },
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'partyName': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'amount': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'progressGroups':
+            { 'type': 'array', 'items': { '$ref': '#/WflSalesProgressGroup' } },
+        },
+    },
+  'WflPurchaseProcessListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'processId',
+          'processType',
+          'status',
+          'revision',
+          'rootDocumentId',
+          'rootDocumentNo',
+          'currentStage',
+          'businessDate',
+          'partyName',
+          'currency',
+          'amount',
+          'updatedAt',
+          'progressGroups',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'processType': { 'type': 'string' },
+          'status': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'rootDocumentId': { 'type': 'string' },
+          'rootDocumentNo': { 'type': 'string' },
+          'currentStage': { 'type': 'string' },
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'partyName': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'amount': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'progressGroups':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflPurchaseProgressGroup' },
+            },
+        },
+    },
+  'WflSalesProcessPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflSalesProcessListItem' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'WflPurchaseProcessPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflPurchaseProcessListItem' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'WflSalesQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/WflSalesProcessPage' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'WflPurchaseQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/WflPurchaseProcessPage' },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'WflGetRequest':
     {
       'type': 'object',

@@ -2235,6 +2235,56 @@ export interface components {
             keyword?: string;
             statuses?: string[];
         };
+        WflSalesProgressGroup: {
+            unit: string;
+            /** Format: int32 */
+            productCount: number;
+            orderedQuantity: string;
+            outboundProcessingQuantity: string;
+            finalizedOutboundQuantity: string;
+            inTransitQuantity: string;
+            signedQuantity: string;
+            rejectedQuantity: string;
+            lossQuantity: string;
+            refusalReturnProcessingQuantity: string;
+            refusalReturnedQuantity: string;
+            afterSaleReturnProcessingQuantity: string;
+            afterSaleReturnedQuantity: string;
+            netSignedQuantity: string;
+            remainingQuantity: string;
+        };
+        WflSalesProcessListItem: {
+            processId: string;
+            processType: string;
+            status: string;
+            /** Format: int64 */
+            revision: number;
+            rootDocumentId: string;
+            rootDocumentNo: string;
+            currentStage: string;
+            /** Format: date */
+            businessDate: string;
+            partyName: string;
+            currency: string;
+            amount: string;
+            /** Format: date-time */
+            updatedAt: string;
+            progressGroups: components["schemas"]["WflSalesProgressGroup"][];
+        };
+        WflSalesProcessPage: {
+            items: components["schemas"]["WflSalesProcessListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        WflSalesQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["WflSalesProcessPage"];
+            requestId: string;
+        };
         WflGetRequest: {
             processId: string;
         };
@@ -2254,6 +2304,50 @@ export interface components {
                 [key: string]: unknown;
             };
             reason?: string;
+        };
+        WflPurchaseProgressGroup: {
+            unit: string;
+            /** Format: int32 */
+            productCount: number;
+            orderedQuantity: string;
+            inboundProcessingQuantity: string;
+            finalizedInboundQuantity: string;
+            returnProcessingQuantity: string;
+            returnedQuantity: string;
+            netInboundQuantity: string;
+            remainingQuantity: string;
+        };
+        WflPurchaseProcessListItem: {
+            processId: string;
+            processType: string;
+            status: string;
+            /** Format: int64 */
+            revision: number;
+            rootDocumentId: string;
+            rootDocumentNo: string;
+            currentStage: string;
+            /** Format: date */
+            businessDate: string;
+            partyName: string;
+            currency: string;
+            amount: string;
+            /** Format: date-time */
+            updatedAt: string;
+            progressGroups: components["schemas"]["WflPurchaseProgressGroup"][];
+        };
+        WflPurchaseProcessPage: {
+            items: components["schemas"]["WflPurchaseProcessListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        WflPurchaseQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["WflPurchaseProcessPage"];
+            requestId: string;
         };
         LedClosingRequest: {
             /** Format: int64 */
@@ -3431,7 +3525,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 销售履约流程分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WflSalesQueryResponse"];
+                };
+            };
         };
     };
     wflSalesFulfillmentGet: {
@@ -3543,7 +3645,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 采购履约流程分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WflPurchaseQueryResponse"];
+                };
+            };
         };
     };
     wflPurchaseFulfillmentGet: {

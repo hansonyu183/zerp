@@ -35,7 +35,7 @@ ALTER TABLE bob_audit_events
     DROP CONSTRAINT bob_audit_events_event_type_check,
     ADD CONSTRAINT bob_audit_events_event_type_check CHECK (
         event_type IN (
-            'CREATED', 'SAVED', 'SUBMITTED', 'UNSUBMITTED',
+            'CREATED', 'EDIT_STARTED', 'SAVED', 'SUBMITTED', 'UNSUBMITTED',
             'APPROVED', 'UNAPPROVED', 'REJECTED', 'INVALIDATED',
             'ENABLED', 'DISABLED'
         )

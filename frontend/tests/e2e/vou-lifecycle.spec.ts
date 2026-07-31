@@ -98,6 +98,20 @@ async function expectDraftCreated(
   ).toHaveText(documentNo)
 }
 
+async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      })),
+    )
+    .toEqual({
+      clientWidth: page.viewportSize()!.width,
+      scrollWidth: page.viewportSize()!.width,
+    })
+}
+
 test('收款单完成附件、完整生命周期、反向流转和审计', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
@@ -153,6 +167,10 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
 })
 
 test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '该有状态用例在桌面项目内切换到 390px 验收手机布局',
+  )
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
@@ -162,6 +180,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const workspace = page.locator('.voucher-workspace')
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, /业务员/, fixture.employee, workspace)
+  await selectReference(page, '仓库', fixture.warehouse, workspace)
   await selectReference(page, '产品', fixture.product, workspace)
 
   const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
@@ -191,18 +210,50 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
+  await page.goto('/vou/sale-order')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: orderNo! }),
+  ).toContainText('缺货 / 出库 / 在途 / 签收')
+
   await page.goto('/wfl/sales-fulfillment')
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
   await expect(processRow).toHaveCount(1)
-  await processRow.getByRole('button', { name: '查看组合' }).click()
+  await expect(processRow).toContainText('已批准')
+  await expect(processRow).toContainText('销售出库')
+  await expect(processRow).toContainText('缺货 / 出库 / 在途 / 签收')
+  await processRow.getByRole('button', { name: '展开履约' }).click()
+  const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
+  await expect(progressRow).toContainText('订购')
+  await expect(progressRow).toContainText('待履约')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const mobileProcess = page
+    .locator('.process-card')
+    .filter({ hasText: orderNo! })
+  await expect(mobileProcess).toBeVisible()
+  await mobileProcess.getByRole('button', { name: '履约明细' }).click()
+  await expect(mobileProcess.getByText('待履约', { exact: true })).toBeVisible()
+  await expectNoPageHorizontalOverflow(page)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.reload()
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const desktopProcessRow = page
+    .locator('tbody tr')
+    .filter({ hasText: orderNo! })
+  await desktopProcessRow.getByRole('button', { name: '查看组合' }).click()
   const composition = page.getByRole('dialog')
   await expect(composition).toContainText(orderNo!)
   const outbound = composition
     .locator('tbody tr')
-    .filter({ hasText: 'OUTBOUND' })
-  await expect(outbound).toContainText(/^.*SOB-\d{8}-\d{4}.*DRAFT.*$/)
+    .filter({ hasText: '销售出库' })
+  await expect(outbound).toContainText(/^.*销售出库.*SOB-\d{8}-\d{4}.*草稿.*$/)
 
   await outbound.click()
   const outboundWorkspace = page.locator('.voucher-workspace')
@@ -214,4 +265,71 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
   ).toHaveCount(0)
+})
+
+test('采购流程列表展示中文阶段和按单位履约数据', async ({ page }) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '该有状态用例在桌面项目内切换到 430px 验收手机布局',
+  )
+  test.setTimeout(180_000)
+  const fixture = vouFixture()
+  await signIn(page)
+
+  await page.goto('/vou/purchase-order')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '供应商', fixture.supplier, workspace)
+  await selectReference(page, /采购员/, fixture.employee, workspace)
+  await selectReference(page, '仓库', fixture.warehouse, workspace)
+  await selectReference(page, '产品', fixture.product, workspace)
+  const draftInputs = workspace
+    .locator('.voucher-lines__table tbody tr')
+    .first()
+    .locator('input')
+  await draftInputs.nth(1).fill('3')
+  await draftInputs.nth(2).fill('10')
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  await expectDraftCreated(workspace, /^POR-\d{8}-\d{4}$/)
+  const orderNo = (
+    await workspace.locator('.voucher-document-header__number').textContent()
+  )?.trim()
+  expect(orderNo).toBeTruthy()
+  await workspace.getByRole('button', { name: '取消编辑' }).click()
+  await workspace.getByRole('button', { name: '核对', exact: true }).click()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+
+  await page.goto('/vou/purchase-order')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: orderNo! }),
+  ).toContainText('订购 / 累计入库 / 退货中 / 净入库')
+
+  await page.goto('/wfl/purchase-fulfillment')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
+  await expect(processRow).toHaveCount(1)
+  await expect(processRow).toContainText('已批准')
+  await expect(processRow).toContainText('采购入库')
+  await expect(processRow).toContainText('订购 / 累计入库 / 退货中 / 净入库')
+  await processRow.getByRole('button', { name: '展开履约' }).click()
+  const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
+  await expect(progressRow).toContainText('订购')
+  await expect(progressRow).toContainText('剩余可入库')
+  await page.setViewportSize({ width: 430, height: 932 })
+  await page.reload()
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const mobileProcess = page
+    .locator('.process-card')
+    .filter({ hasText: orderNo! })
+  await expect(mobileProcess).toBeVisible()
+  await mobileProcess.getByRole('button', { name: '履约明细' }).click()
+  await expect(
+    mobileProcess.getByText('剩余可入库', { exact: true }),
+  ).toBeVisible()
+  await expectNoPageHorizontalOverflow(page)
 })

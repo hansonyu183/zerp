@@ -17,7 +17,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	bobService := bobdomain.NewService(pool)
 	saleDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00", Remark: "制单快照",
 		}},
@@ -188,6 +188,7 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 	service := newIntegrationService(t, pool)
 	draft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00",
 		}},
@@ -256,7 +257,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 
 	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: "1", UnitPrice: "1.00",
 		}},

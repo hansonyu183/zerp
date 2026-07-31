@@ -52,7 +52,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		draft  DraftInput
 	}{
 		{EntitySaleOrder, DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer, ProductLines: productLine,
+			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+			Warehouse: &refs.warehouse, ProductLines: productLine,
 		}},
 		{EntityReceipt, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
@@ -120,8 +121,9 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			}
 			switch test.entity {
 			case EntitySaleOrder:
-				if view.Data.Salesperson == nil || view.Data.Warehouse != nil ||
+				if view.Data.Salesperson == nil || view.Data.Warehouse == nil ||
 					view.Data.Salesperson.ObjectID != refs.employee.ObjectID ||
+					view.Data.Warehouse.ObjectID != refs.warehouse.ObjectID ||
 					view.Data.ContactName != "客户联系人" ||
 					view.Data.ContactPhone != "13800000000" ||
 					view.Data.DeliveryAddress != "深圳市测试路 1 号" ||
@@ -160,6 +162,11 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				t.Fatalf("unfiltered query page=%+v err=%v", unfiltered, queryErr)
 			}
 			if test.entity == EntitySaleOrder {
+				if page.Items[0].SalesSummary == nil ||
+					page.Items[0].SalesSummary.ShortageQuantity != "10500" ||
+					page.Items[0].SalesSummary.OutboundQuantity != "0" {
+					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
+				}
 				unexecuted, reverseErr := service.Unfinalize(t.Context(), test.entity, ReverseInput{
 					DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "修正执行结果",
 				}, integrationActorOne, "vou-unexecute")

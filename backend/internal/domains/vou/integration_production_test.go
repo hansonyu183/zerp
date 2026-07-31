@@ -37,7 +37,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 	service := newIntegrationService(t, pool)
 	order, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-29", Currency: "CNY",
-		Customer: &refs.customer, Salesperson: &refs.employee,
+		Customer: &refs.customer, Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{
 			{
 				Product: firstFinished, OrderedQuantity: "10", UnitPrice: "10.00",

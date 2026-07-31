@@ -334,6 +334,13 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       "
       :date-from="vm.filters.dateFrom"
       :date-to="vm.filters.dateTo"
+      :fulfillment-summary-kind="
+        vm.config.entity === 'sale-order'
+          ? 'sales'
+          : vm.config.entity === 'purchase-order'
+            ? 'purchase'
+            : undefined
+      "
       :keyword="vm.filters.keyword"
       :loading="vm.loading"
       :lifecycle-labels="labels"
@@ -668,7 +675,11 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.usesWarehouse"
-                    :disabled="!vm.editing"
+                    :disabled="
+                      !vm.editing ||
+                      (vm.config.entity === 'sale-outbound' &&
+                        Boolean(vm.form.warehouse))
+                    "
                     v-bind="referenceProps('warehouse')"
                     label="仓库"
                     :model-value="vm.form.warehouse"

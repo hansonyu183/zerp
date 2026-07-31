@@ -2,9 +2,11 @@ package wfl
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,6 +15,7 @@ import (
 
 type Service struct {
 	pool     *pgxpool.Pool
+	queries  *sqlc.Queries
 	sales    salesVoucherService
 	purchase purchaseVoucherService
 	logger   *slog.Logger
@@ -30,7 +33,7 @@ func NewService(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	service := &Service{pool: pool, logger: logger}
+	service := &Service{pool: pool, queries: sqlc.New(pool), logger: logger}
 	if err := service.registerDocumentSubscriptions(events); err != nil {
 		return nil, err
 	}
@@ -94,3 +97,17 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 }
 
 var _ = voudomain.EntitySaleOrder
+
+func workflowQuantity(value int64) string {
+	negative := value < 0
+	if negative {
+		value = -value
+	}
+	whole, fraction := value/1_000_000, value%1_000_000
+	formatted := fmt.Sprintf("%d.%06d", whole, fraction)
+	formatted = strings.TrimRight(strings.TrimRight(formatted, "0"), ".")
+	if negative {
+		return "-" + formatted
+	}
+	return formatted
+}

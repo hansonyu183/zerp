@@ -18,14 +18,14 @@ const principalContextKey = "wflPrincipal"
 type applicationService interface{}
 
 type salesApplicationService interface {
-	SalesQuery(context.Context, QueryInput) (Page[ProcessView], error)
+	SalesQuery(context.Context, QueryInput) (Page[SalesProcessListItem], error)
 	SalesGet(context.Context, GetInput) (ProcessView, error)
 	SalesAction(context.Context, string, ActionInput, string, string) (any, error)
 	SalesHistory(context.Context, HistoryInput) (Page[AuditView], error)
 }
 
 type purchaseApplicationService interface {
-	PurchaseQuery(context.Context, QueryInput) (Page[ProcessView], error)
+	PurchaseQuery(context.Context, QueryInput) (Page[PurchaseProcessListItem], error)
 	PurchaseGet(context.Context, GetInput) (ProcessView, error)
 	PurchaseAction(context.Context, string, ActionInput, string, string) (any, error)
 	PurchaseHistory(context.Context, HistoryInput) (Page[AuditView], error)

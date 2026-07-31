@@ -252,7 +252,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-03", Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Remark: "预览生产配货来源订单",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览生产配货来源订单",
 				ProductLines: []voudomain.ProductLineInput{{
 					Product: finished, OrderedQuantity: "40", UnitPrice: "80.00", Formula: formula,
 				}},
@@ -373,7 +373,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-05", Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Remark: "预览完整销售履约链",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览完整销售履约链",
 				ProductLines: []voudomain.ProductLineInput{{
 					Product: finished, OrderedQuantity: "12", UnitPrice: "85.00",
 					Formula: s.fixedFormula(raw, "2"),
@@ -501,7 +501,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Remark: "预览可操作草稿：销售订单",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览可操作草稿：销售订单",
 				ProductLines: []voudomain.ProductLineInput{{
 					Product: finished, OrderedQuantity: "20", UnitPrice: "88.00",
 					Formula: s.fixedFormula(raw, "2"),
@@ -535,7 +535,7 @@ func (s *Seeder) seedCompletedSalesWorkflow(ctx context.Context, counts *Counts)
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Remark: "预览已完成销售履约流程",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览已完成销售履约流程",
 				ProductLines: []voudomain.ProductLineInput{{
 					Product: finished, OrderedQuantity: "5", UnitPrice: "90.00",
 					Formula: s.fixedFormula(raw, "2"),

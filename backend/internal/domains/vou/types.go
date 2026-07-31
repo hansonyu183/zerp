@@ -523,16 +523,37 @@ type MutationResult struct {
 }
 
 type ListItem struct {
-	DocumentID   string    `json:"documentId"`
-	Entity       string    `json:"entity"`
-	DocumentNo   string    `json:"documentNo"`
-	Status       string    `json:"status"`
-	Revision     int64     `json:"revision"`
-	BusinessDate string    `json:"businessDate"`
-	PartyName    string    `json:"partyName,omitempty"`
-	Currency     string    `json:"currency"`
-	Amount       string    `json:"amount"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	DocumentID      string             `json:"documentId"`
+	Entity          string             `json:"entity"`
+	DocumentNo      string             `json:"documentNo"`
+	Status          string             `json:"status"`
+	Revision        int64              `json:"revision"`
+	BusinessDate    string             `json:"businessDate"`
+	PartyName       string             `json:"partyName,omitempty"`
+	Currency        string             `json:"currency"`
+	Amount          string             `json:"amount"`
+	UpdatedAt       time.Time          `json:"updatedAt"`
+	SalesSummary    *SalesKgSummary    `json:"salesSummary,omitempty"`
+	PurchaseSummary *PurchaseKgSummary `json:"purchaseSummary,omitempty"`
+}
+
+type SalesKgSummary struct {
+	Unit               string `json:"unit"`
+	ExcludedPackaging  bool   `json:"excludedPackaging"`
+	WarehouseAvailable bool   `json:"warehouseAvailable"`
+	ShortageQuantity   string `json:"shortageQuantity,omitempty"`
+	OutboundQuantity   string `json:"outboundQuantity"`
+	InTransitQuantity  string `json:"inTransitQuantity"`
+	SignedQuantity     string `json:"signedQuantity"`
+}
+
+type PurchaseKgSummary struct {
+	Unit                     string `json:"unit"`
+	ExcludedPackaging        bool   `json:"excludedPackaging"`
+	OrderedQuantity          string `json:"orderedQuantity"`
+	InboundQuantity          string `json:"inboundQuantity"`
+	ReturnProcessingQuantity string `json:"returnProcessingQuantity"`
+	NetInboundQuantity       string `json:"netInboundQuantity"`
 }
 
 type Page[T any] struct {

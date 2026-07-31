@@ -80,6 +80,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Currency:     "CNY",
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
+		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: custom, OrderedQuantity: "2", UnitPrice: "10.00",
 			Formula: &FormulaInput{
@@ -131,6 +132,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Currency:     "CNY",
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
+		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: standard, OrderedQuantity: "1", UnitPrice: "12.00",
 			Formula: &FormulaInput{
@@ -242,6 +244,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Currency:     "CNY",
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
+		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: standard, OrderedQuantity: "1", UnitPrice: "12.00",
 			Formula: &FormulaInput{

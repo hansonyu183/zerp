@@ -283,7 +283,7 @@ func finalizeSaleOrder(
 	t.Helper()
 	approved, view := advanceToApproved(t, service, voudomain.EntitySaleOrder, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []voudomain.ProductLineInput{{
 			Product: refs.product, OrderedQuantity: quantity, UnitPrice: "12.00",
 		}},

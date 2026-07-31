@@ -1233,6 +1233,10 @@ type VouSaleOrderDetail struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
 }
 
 type VouSaleOrderFormula struct {

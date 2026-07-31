@@ -1202,7 +1202,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务单据分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/get':
@@ -1616,7 +1631,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '销售履约流程分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflSalesQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/sales-fulfillment/get':
@@ -1784,7 +1814,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '采购履约流程分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflPurchaseQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/purchase-fulfillment/get':

@@ -237,6 +237,7 @@ func (s *Seeder) seedSaleOrder(ctx context.Context, refs references) (seedOutcom
 				Remark:       "生产配货固定测试订单",
 				Customer:     &refs.customer,
 				Salesperson:  &refs.employee,
+				Warehouse:    &refs.warehouse,
 				ProductLines: []voudomain.ProductLineInput{
 					{
 						Product: refs.standard, OrderedQuantity: "100", UnitPrice: "80.00",

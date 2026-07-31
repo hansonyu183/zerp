@@ -242,11 +242,14 @@ func (s *Service) lockSalesSource(
 	switch entity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name
+			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
+			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_version_id,''),
+			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName)
+				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
+				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleOutbound:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
@@ -348,9 +351,6 @@ func (s *Service) writeSaleOutbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = validateReference(data.Warehouse, "warehouse", true); err != nil {
-		return MutationResult{}, err
-	}
 	source, err := s.lockSalesSource(ctx, tx, data.SourceDocumentID, EntitySaleOrder)
 	if err != nil {
 		return MutationResult{}, err
@@ -366,11 +366,26 @@ func (s *Service) writeSaleOutbound(
 	if fulfillment == "FULFILLED" || fulfillment == "SHORT_CLOSED" {
 		return MutationResult{}, domainError(ErrorConflict, "order is closed for outbound", nil, nil)
 	}
+	if err = validateReference(data.Warehouse, "warehouse", true); err != nil {
+		return MutationResult{}, err
+	}
 	warehouse, err := s.resolver.ResolveEffectiveReference(
 		ctx, tx, bobdomain.EntityWarehouse, data.Warehouse.ObjectID, data.Warehouse.VersionID,
 	)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "warehouse reference is not effective", nil, err)
+	}
+	if source.WarehouseObjectID != "" &&
+		(source.WarehouseObjectID != warehouse.ObjectID || source.WarehouseVersionID != warehouse.VersionID) {
+		return MutationResult{}, domainError(ErrorConflict, "outbound warehouse must match sale order warehouse", nil, nil)
+	}
+	if source.WarehouseObjectID == "" {
+		if _, err = tx.Exec(ctx, `UPDATE vou_sale_order_details SET
+			warehouse_object_id=$1,warehouse_version_id=$2,warehouse_code=$3,warehouse_name=$4
+			WHERE document_id=$5 AND warehouse_object_id IS NULL`, warehouse.ObjectID, warehouse.VersionID,
+			warehouse.Code, warehouse.Data.Name, source.ID); err != nil {
+			return MutationResult{}, s.writeError("bind legacy sale order warehouse", err)
+		}
 	}
 	type outboundLine struct {
 		fixedSourceQuantityLine

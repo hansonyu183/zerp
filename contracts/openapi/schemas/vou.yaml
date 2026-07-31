@@ -77,6 +77,111 @@
             },
         },
     },
+  'VouSalesKgSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'excludedPackaging',
+          'warehouseAvailable',
+          'outboundQuantity',
+          'inTransitQuantity',
+          'signedQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string', 'enum': ['KG'] },
+          'excludedPackaging': { 'type': 'boolean' },
+          'warehouseAvailable': { 'type': 'boolean' },
+          'shortageQuantity': { 'type': 'string' },
+          'outboundQuantity': { 'type': 'string' },
+          'inTransitQuantity': { 'type': 'string' },
+          'signedQuantity': { 'type': 'string' },
+        },
+    },
+  'VouPurchaseKgSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'excludedPackaging',
+          'orderedQuantity',
+          'inboundQuantity',
+          'returnProcessingQuantity',
+          'netInboundQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string', 'enum': ['KG'] },
+          'excludedPackaging': { 'type': 'boolean' },
+          'orderedQuantity': { 'type': 'string' },
+          'inboundQuantity': { 'type': 'string' },
+          'returnProcessingQuantity': { 'type': 'string' },
+          'netInboundQuantity': { 'type': 'string' },
+        },
+    },
+  'VouListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'documentId',
+          'entity',
+          'documentNo',
+          'status',
+          'revision',
+          'businessDate',
+          'currency',
+          'amount',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'documentId': { 'type': 'string' },
+          'entity': { '$ref': '#/VouEntity' },
+          'documentNo': { 'type': 'string' },
+          'status': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'partyName': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'amount': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'salesSummary': { '$ref': '#/VouSalesKgSummary' },
+          'purchaseSummary': { '$ref': '#/VouPurchaseKgSummary' },
+        },
+    },
+  'VouListPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/VouListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'VouQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/VouListPage' },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'VouGetRequest':
     {
       'type': 'object',

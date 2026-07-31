@@ -145,6 +145,63 @@ type ProcessView struct {
 	UpdatedBy         string            `json:"updatedBy"`
 }
 
+type ProcessListItem struct {
+	ProcessID      string    `json:"processId"`
+	ProcessType    string    `json:"processType"`
+	Status         string    `json:"status"`
+	Revision       int64     `json:"revision"`
+	RootDocumentID string    `json:"rootDocumentId"`
+	RootDocumentNo string    `json:"rootDocumentNo"`
+	CurrentStage   string    `json:"currentStage"`
+	BusinessDate   string    `json:"businessDate"`
+	PartyName      string    `json:"partyName"`
+	Currency       string    `json:"currency"`
+	Amount         string    `json:"amount"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type SalesProgressGroup struct {
+	Unit                              string `json:"unit"`
+	ProductCount                      int32  `json:"productCount"`
+	OrderedQuantity                   string `json:"orderedQuantity"`
+	OutboundProcessingQuantity        string `json:"outboundProcessingQuantity"`
+	FinalizedOutboundQuantity         string `json:"finalizedOutboundQuantity"`
+	InTransitQuantity                 string `json:"inTransitQuantity"`
+	SignedQuantity                    string `json:"signedQuantity"`
+	RejectedQuantity                  string `json:"rejectedQuantity"`
+	LossQuantity                      string `json:"lossQuantity"`
+	RefusalReturnProcessingQuantity   string `json:"refusalReturnProcessingQuantity"`
+	RefusalReturnedQuantity           string `json:"refusalReturnedQuantity"`
+	AfterSaleReturnProcessingQuantity string `json:"afterSaleReturnProcessingQuantity"`
+	AfterSaleReturnedQuantity         string `json:"afterSaleReturnedQuantity"`
+	NetSignedQuantity                 string `json:"netSignedQuantity"`
+	RemainingQuantity                 string `json:"remainingQuantity"`
+}
+
+type SalesProcessListItem struct {
+	ProcessListItem
+	ProgressGroups []SalesProgressGroup     `json:"progressGroups"`
+	Summary        voudomain.SalesKgSummary `json:"summary"`
+}
+
+type PurchaseProgressGroup struct {
+	Unit                      string `json:"unit"`
+	ProductCount              int32  `json:"productCount"`
+	OrderedQuantity           string `json:"orderedQuantity"`
+	InboundProcessingQuantity string `json:"inboundProcessingQuantity"`
+	FinalizedInboundQuantity  string `json:"finalizedInboundQuantity"`
+	ReturnProcessingQuantity  string `json:"returnProcessingQuantity"`
+	ReturnedQuantity          string `json:"returnedQuantity"`
+	NetInboundQuantity        string `json:"netInboundQuantity"`
+	RemainingQuantity         string `json:"remainingQuantity"`
+}
+
+type PurchaseProcessListItem struct {
+	ProcessListItem
+	ProgressGroups []PurchaseProgressGroup     `json:"progressGroups"`
+	Summary        voudomain.PurchaseKgSummary `json:"summary"`
+}
+
 type MutationResult struct {
 	ProcessID        string    `json:"processId"`
 	ProcessRevision  int64     `json:"processRevision"`

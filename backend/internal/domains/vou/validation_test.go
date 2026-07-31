@@ -19,7 +19,7 @@ func TestValidateDraftByEntity(t *testing.T) {
 	product := *refInput()
 	sale, err := validateDraft(EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "cny", Customer: refInput(),
-		Salesperson:  refInput(),
+		Salesperson: refInput(), Warehouse: refInput(),
 		ProductLines: []ProductLineInput{{Product: product, OrderedQuantity: "2.5", UnitPrice: "10.00"}},
 	})
 	if err != nil {
@@ -68,7 +68,7 @@ func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	product := *refInput()
 	_, err := validateDraft(EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: refInput(), FundAccount: refInput(),
-		Salesperson:  refInput(),
+		Salesperson: refInput(), Warehouse: refInput(),
 		ProductLines: []ProductLineInput{{Product: product, OrderedQuantity: "1", UnitPrice: "1.00"}},
 	})
 	if err == nil {

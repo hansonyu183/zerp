@@ -145,6 +145,7 @@ function mountList(
     ) => boolean
     lifecycleLabels: VoucherLifecycleLabels
     actionLoading: string | null
+    fulfillmentSummaryKind: 'sales' | 'purchase'
   }> = {},
 ): VueWrapper {
   return mount(VoucherList as Component, {
@@ -327,6 +328,38 @@ describe('VoucherList', () => {
     })
     expect(readonly.find('[aria-label="编辑 SO-0001"]').exists()).toBe(false)
     expect(readonly.find('[aria-label="查看 SO-0001"]').exists()).toBe(true)
+  })
+
+  it('在销售订单列表显示 KG 履约摘要', () => {
+    const wrapper = mountList({
+      fulfillmentSummaryKind: 'sales',
+      rows: [
+        {
+          documentId: 'DOC-SUMMARY',
+          entity: 'sale-order',
+          documentNo: 'SOR-20260731-0001',
+          status: 'APPROVED',
+          revision: 3,
+          businessDate: '2026-07-31',
+          currency: 'CNY',
+          amount: '100.00',
+          updatedAt: '2026-07-31T00:00:00Z',
+          salesSummary: {
+            unit: 'KG',
+            excludedPackaging: true,
+            warehouseAvailable: true,
+            shortageQuantity: '10',
+            outboundQuantity: '20',
+            inTransitQuantity: '5',
+            signedQuantity: '15',
+          },
+        },
+      ],
+    })
+
+    expect(wrapper.text()).toContain('缺货 / 出库 / 在途 / 签收')
+    expect(wrapper.text()).toContain('10 / 20 / 5 / 15KG')
+    expect(wrapper.text()).toContain('不含包装物')
   })
 
   it('按状态和权限把流程动作直接显示在操作列', async () => {

@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const advanceBobObjectForEdit = `-- name: AdvanceBobObjectForEdit :execrows
+const advanceBobObjectForUnapprove = `-- name: AdvanceBobObjectForUnapprove :execrows
 UPDATE bob_objects
 SET current_version_id = $1, effective_version_id = NULL,
     next_version_no = next_version_no + 1, revision = revision + 1, updated_at = now(), updated_by = $2
@@ -19,7 +19,7 @@ WHERE id = $3 AND entity = $4 AND revision = $5
   AND current_version_id = $6 AND effective_version_id = $6
 `
 
-type AdvanceBobObjectForEditParams struct {
+type AdvanceBobObjectForUnapproveParams struct {
 	NewVersionID string `db:"new_version_id" json:"new_version_id"`
 	ActorID      string `db:"actor_id" json:"actor_id"`
 	ID           string `db:"id" json:"id"`
@@ -28,8 +28,8 @@ type AdvanceBobObjectForEditParams struct {
 	OldVersionID string `db:"old_version_id" json:"old_version_id"`
 }
 
-func (q *Queries) AdvanceBobObjectForEdit(ctx context.Context, arg AdvanceBobObjectForEditParams) (int64, error) {
-	result, err := q.db.Exec(ctx, advanceBobObjectForEdit,
+func (q *Queries) AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, advanceBobObjectForUnapprove,
 		arg.NewVersionID,
 		arg.ActorID,
 		arg.ID,
@@ -608,46 +608,55 @@ func (q *Queries) CountBobAuditEvents(ctx context.Context, arg CountBobAuditEven
 
 const countBobObjects = `-- name: CountBobObjects :one
 SELECT count(*)
-FROM bob_version_views
-WHERE entity = $1 AND version_id = current_version_id
-  AND (cardinality($2::text[]) = 0 OR status = ANY($2::text[]))
-  AND ($3::text = '' OR customer_type = $3)
-  AND ($4::text = '' OR supplier_type = $4)
-  AND ($5::text = '' OR category_id = $5)
-  AND ($6::text = '' OR department_id = $6)
-  AND ($7::text = '' OR position_id = $7)
-  AND ($8::text = '' OR salesperson_employee_id = $8)
-  AND ($9::text = '' OR currency = $9)
-  AND ($10::text = '' OR product_kind = $10)
-  AND ($11::text = '' OR target_entity = $11)
-  AND ($12::text = '' OR parent_id = $12)
-  AND (NOT $13::boolean OR parent_id = '')
+FROM bob_version_views view
+WHERE view.entity = $1 AND view.version_id = view.current_version_id
+  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]))
   AND (
-      $14::text = ''
-      OR code ILIKE '%' || $14 || '%'
-      OR name ILIKE '%' || $14 || '%'
-      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
-      OR short_name ILIKE '%' || $14 || '%'
-      OR tax_number ILIKE '%' || $14 || '%'
-      OR contact_name ILIKE '%' || $14 || '%'
-      OR contact_phone ILIKE '%' || $14 || '%'
-      OR email ILIKE '%' || $14 || '%'
-      OR address ILIKE '%' || $14 || '%'
-      OR phone ILIKE '%' || $14 || '%'
-      OR specification ILIKE '%' || $14 || '%'
-      OR model ILIKE '%' || $14 || '%'
-      OR barcode ILIKE '%' || $14 || '%'
-      OR vin ILIKE '%' || $14 || '%'
-      OR engine_number ILIKE '%' || $14 || '%'
-      OR account_name ILIKE '%' || $14 || '%'
-      OR bank_name ILIKE '%' || $14 || '%'
-      OR bank_branch ILIKE '%' || $14 || '%'
+    $3::integer = -1
+    OR EXISTS (
+      SELECT 1 FROM bob_objects filter_object
+      WHERE filter_object.id = view.object_id
+        AND filter_object.enabled = ($3::integer = 1)
+    )
+  )
+  AND ($4::text = '' OR customer_type = $4)
+  AND ($5::text = '' OR supplier_type = $5)
+  AND ($6::text = '' OR category_id = $6)
+  AND ($7::text = '' OR department_id = $7)
+  AND ($8::text = '' OR position_id = $8)
+  AND ($9::text = '' OR salesperson_employee_id = $9)
+  AND ($10::text = '' OR currency = $10)
+  AND ($11::text = '' OR product_kind = $11)
+  AND ($12::text = '' OR target_entity = $12)
+  AND ($13::text = '' OR parent_id = $13)
+  AND (NOT $14::boolean OR parent_id = '')
+  AND (
+      $15::text = ''
+      OR code ILIKE '%' || $15 || '%'
+      OR name ILIKE '%' || $15 || '%'
+      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $15 || '%')
+      OR short_name ILIKE '%' || $15 || '%'
+      OR tax_number ILIKE '%' || $15 || '%'
+      OR contact_name ILIKE '%' || $15 || '%'
+      OR contact_phone ILIKE '%' || $15 || '%'
+      OR email ILIKE '%' || $15 || '%'
+      OR address ILIKE '%' || $15 || '%'
+      OR phone ILIKE '%' || $15 || '%'
+      OR specification ILIKE '%' || $15 || '%'
+      OR model ILIKE '%' || $15 || '%'
+      OR barcode ILIKE '%' || $15 || '%'
+      OR vin ILIKE '%' || $15 || '%'
+      OR engine_number ILIKE '%' || $15 || '%'
+      OR account_name ILIKE '%' || $15 || '%'
+      OR bank_name ILIKE '%' || $15 || '%'
+      OR bank_branch ILIKE '%' || $15 || '%'
   )
 `
 
 type CountBobObjectsParams struct {
 	Entity                string   `db:"entity" json:"entity"`
 	Statuses              []string `db:"statuses" json:"statuses"`
+	EnabledFilter         int32    `db:"enabled_filter" json:"enabled_filter"`
 	CustomerType          string   `db:"customer_type" json:"customer_type"`
 	SupplierType          string   `db:"supplier_type" json:"supplier_type"`
 	CategoryID            string   `db:"category_id" json:"category_id"`
@@ -666,6 +675,7 @@ func (q *Queries) CountBobObjects(ctx context.Context, arg CountBobObjectsParams
 	row := q.db.QueryRow(ctx, countBobObjects,
 		arg.Entity,
 		arg.Statuses,
+		arg.EnabledFilter,
 		arg.CustomerType,
 		arg.SupplierType,
 		arg.CategoryID,
@@ -999,6 +1009,23 @@ func (q *Queries) FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObject
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getBobObjectEnabled = `-- name: GetBobObjectEnabled :one
+SELECT enabled FROM bob_objects
+WHERE id = $1 AND entity = $2
+`
+
+type GetBobObjectEnabledParams struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) GetBobObjectEnabled(ctx context.Context, arg GetBobObjectEnabledParams) (bool, error) {
+	row := q.db.QueryRow(ctx, getBobObjectEnabled, arg.ID, arg.Entity)
+	var enabled bool
+	err := row.Scan(&enabled)
+	return enabled, err
 }
 
 const getBobProductFormula = `-- name: GetBobProductFormula :one
@@ -1801,60 +1828,69 @@ func (q *Queries) ListBobAuditEvents(ctx context.Context, arg ListBobAuditEvents
 }
 
 const listBobObjects = `-- name: ListBobObjects :many
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs
-FROM bob_version_views
-WHERE entity = $1 AND version_id = current_version_id
-  AND (cardinality($2::text[]) = 0 OR status = ANY($2::text[]))
-  AND ($3::text = '' OR customer_type = $3)
-  AND ($4::text = '' OR supplier_type = $4)
-  AND ($5::text = '' OR category_id = $5)
-  AND ($6::text = '' OR department_id = $6)
-  AND ($7::text = '' OR position_id = $7)
-  AND ($8::text = '' OR salesperson_employee_id = $8)
-  AND ($9::text = '' OR currency = $9)
-  AND ($10::text = '' OR product_kind = $10)
-  AND ($11::text = '' OR target_entity = $11)
-  AND ($12::text = '' OR parent_id = $12)
-  AND (NOT $13::boolean OR parent_id = '')
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs
+FROM bob_version_views view
+WHERE view.entity = $1 AND view.version_id = view.current_version_id
+  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]))
   AND (
-      $14::text = ''
-      OR code ILIKE '%' || $14 || '%'
-      OR name ILIKE '%' || $14 || '%'
-      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
-      OR short_name ILIKE '%' || $14 || '%'
-      OR tax_number ILIKE '%' || $14 || '%'
-      OR contact_name ILIKE '%' || $14 || '%'
-      OR contact_phone ILIKE '%' || $14 || '%'
-      OR email ILIKE '%' || $14 || '%'
-      OR address ILIKE '%' || $14 || '%'
-      OR phone ILIKE '%' || $14 || '%'
-      OR specification ILIKE '%' || $14 || '%'
-      OR model ILIKE '%' || $14 || '%'
-      OR barcode ILIKE '%' || $14 || '%'
-      OR vin ILIKE '%' || $14 || '%'
-      OR engine_number ILIKE '%' || $14 || '%'
-      OR account_name ILIKE '%' || $14 || '%'
-      OR bank_name ILIKE '%' || $14 || '%'
-      OR bank_branch ILIKE '%' || $14 || '%'
+    $3::integer = -1
+    OR EXISTS (
+      SELECT 1 FROM bob_objects filter_object
+      WHERE filter_object.id = view.object_id
+        AND filter_object.enabled = ($3::integer = 1)
+    )
+  )
+  AND ($4::text = '' OR customer_type = $4)
+  AND ($5::text = '' OR supplier_type = $5)
+  AND ($6::text = '' OR category_id = $6)
+  AND ($7::text = '' OR department_id = $7)
+  AND ($8::text = '' OR position_id = $8)
+  AND ($9::text = '' OR salesperson_employee_id = $9)
+  AND ($10::text = '' OR currency = $10)
+  AND ($11::text = '' OR product_kind = $11)
+  AND ($12::text = '' OR target_entity = $12)
+  AND ($13::text = '' OR parent_id = $13)
+  AND (NOT $14::boolean OR parent_id = '')
+  AND (
+      $15::text = ''
+      OR code ILIKE '%' || $15 || '%'
+      OR name ILIKE '%' || $15 || '%'
+      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $15 || '%')
+      OR short_name ILIKE '%' || $15 || '%'
+      OR tax_number ILIKE '%' || $15 || '%'
+      OR contact_name ILIKE '%' || $15 || '%'
+      OR contact_phone ILIKE '%' || $15 || '%'
+      OR email ILIKE '%' || $15 || '%'
+      OR address ILIKE '%' || $15 || '%'
+      OR phone ILIKE '%' || $15 || '%'
+      OR specification ILIKE '%' || $15 || '%'
+      OR model ILIKE '%' || $15 || '%'
+      OR barcode ILIKE '%' || $15 || '%'
+      OR vin ILIKE '%' || $15 || '%'
+      OR engine_number ILIKE '%' || $15 || '%'
+      OR account_name ILIKE '%' || $15 || '%'
+      OR bank_name ILIKE '%' || $15 || '%'
+      OR bank_branch ILIKE '%' || $15 || '%'
   )
 ORDER BY
-  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'asc' THEN object_updated_at END ASC,
-  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'desc' THEN object_updated_at END DESC,
-  CASE WHEN $15::text = 'code' AND $16::text = 'asc' THEN code END ASC,
-  CASE WHEN $15::text = 'code' AND $16::text = 'desc' THEN code END DESC,
-  CASE WHEN $15::text = 'name' AND $16::text = 'asc' THEN name END ASC,
-  CASE WHEN $15::text = 'name' AND $16::text = 'desc' THEN name END DESC,
-  CASE WHEN $15::text = 'status' AND $16::text = 'asc' THEN status END ASC,
-  CASE WHEN $15::text = 'status' AND $16::text = 'desc' THEN status END DESC,
-  CASE WHEN $15::text = 'version' AND $16::text = 'asc' THEN version_no END ASC,
-  CASE WHEN $15::text = 'version' AND $16::text = 'desc' THEN version_no END DESC,
+  CASE WHEN $16::text = 'updatedAt' AND $17::text = 'asc' THEN object_updated_at END ASC,
+  CASE WHEN $16::text = 'updatedAt' AND $17::text = 'desc' THEN object_updated_at END DESC,
+  CASE WHEN $16::text = 'code' AND $17::text = 'asc' THEN code END ASC,
+  CASE WHEN $16::text = 'code' AND $17::text = 'desc' THEN code END DESC,
+  CASE WHEN $16::text = 'name' AND $17::text = 'asc' THEN name END ASC,
+  CASE WHEN $16::text = 'name' AND $17::text = 'desc' THEN name END DESC,
+  CASE WHEN $16::text = 'status' AND $17::text = 'asc' THEN status END ASC,
+  CASE WHEN $16::text = 'status' AND $17::text = 'desc' THEN status END DESC,
+  CASE WHEN $16::text = 'version' AND $17::text = 'asc' THEN version_no END ASC,
+  CASE WHEN $16::text = 'version' AND $17::text = 'desc' THEN version_no END DESC,
   object_id DESC
-LIMIT $18 OFFSET $17
+LIMIT $19 OFFSET $18
 `
 
 type ListBobObjectsParams struct {
 	Entity                string   `db:"entity" json:"entity"`
 	Statuses              []string `db:"statuses" json:"statuses"`
+	EnabledFilter         int32    `db:"enabled_filter" json:"enabled_filter"`
 	CustomerType          string   `db:"customer_type" json:"customer_type"`
 	SupplierType          string   `db:"supplier_type" json:"supplier_type"`
 	CategoryID            string   `db:"category_id" json:"category_id"`
@@ -1877,6 +1913,7 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 	rows, err := q.db.Query(ctx, listBobObjects,
 		arg.Entity,
 		arg.Statuses,
+		arg.EnabledFilter,
 		arg.CustomerType,
 		arg.SupplierType,
 		arg.CategoryID,
@@ -1972,6 +2009,36 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.Returnable,
 			&i.PackagingSpecs,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobObjectsEnabled = `-- name: ListBobObjectsEnabled :many
+SELECT id, enabled FROM bob_objects
+WHERE id = ANY($1::text[])
+`
+
+type ListBobObjectsEnabledRow struct {
+	ID      string `db:"id" json:"id"`
+	Enabled bool   `db:"enabled" json:"enabled"`
+}
+
+func (q *Queries) ListBobObjectsEnabled(ctx context.Context, ids []string) ([]ListBobObjectsEnabledRow, error) {
+	rows, err := q.db.Query(ctx, listBobObjectsEnabled, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobObjectsEnabledRow{}
+	for rows.Next() {
+		var i ListBobObjectsEnabledRow
+		if err := rows.Scan(&i.ID, &i.Enabled); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2146,7 +2213,7 @@ func (q *Queries) ListBobVersions(ctx context.Context, arg ListBobVersionsParams
 }
 
 const lockBobObject = `-- name: LockBobObject :one
-SELECT id, entity, code, current_version_id, effective_version_id, next_version_no, revision, updated_at
+SELECT id, entity, code, current_version_id, effective_version_id, enabled, next_version_no, revision, updated_at
 FROM bob_objects
 WHERE id = $1 AND entity = $2
 FOR UPDATE
@@ -2163,6 +2230,7 @@ type LockBobObjectRow struct {
 	Code               string             `db:"code" json:"code"`
 	CurrentVersionID   string             `db:"current_version_id" json:"current_version_id"`
 	EffectiveVersionID *string            `db:"effective_version_id" json:"effective_version_id"`
+	Enabled            bool               `db:"enabled" json:"enabled"`
 	NextVersionNo      int32              `db:"next_version_no" json:"next_version_no"`
 	Revision           int64              `db:"revision" json:"revision"`
 	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -2177,6 +2245,7 @@ func (q *Queries) LockBobObject(ctx context.Context, arg LockBobObjectParams) (L
 		&i.Code,
 		&i.CurrentVersionID,
 		&i.EffectiveVersionID,
+		&i.Enabled,
 		&i.NextVersionNo,
 		&i.Revision,
 		&i.UpdatedAt,
@@ -2238,6 +2307,7 @@ JOIN bob_versions v
  AND v.entity = o.entity
 WHERE o.id = $1
   AND o.entity = $2
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o
@@ -2265,6 +2335,7 @@ JOIN bob_versions v
 JOIN bob_category_versions detail ON detail.version_id = v.id
 WHERE o.id = $1
   AND o.entity = 'category'
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o
@@ -2287,6 +2358,7 @@ JOIN bob_versions v
 JOIN bob_supplier_versions s ON s.version_id = v.id
 WHERE o.id = $1
   AND o.entity = 'supplier'
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
   AND s.supplier_type = 'LOGISTICS_PLATFORM'
@@ -2300,11 +2372,44 @@ func (q *Queries) LockEffectiveLogisticsPlatform(ctx context.Context, platformOb
 	return id, err
 }
 
+const markBobVersionPendingCopy = `-- name: MarkBobVersionPendingCopy :execrows
+UPDATE bob_versions
+SET status = 'PENDING', revision = revision + 1,
+    submitted_at = $1, submitted_by = $2,
+    updated_at = now(), updated_by = $3
+WHERE id = $4 AND object_id = $5 AND entity = $6
+  AND revision = 1 AND status = 'DRAFT'
+`
+
+type MarkBobVersionPendingCopyParams struct {
+	SubmittedAt pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	SubmittedBy *string            `db:"submitted_by" json:"submitted_by"`
+	ActorID     string             `db:"actor_id" json:"actor_id"`
+	ID          string             `db:"id" json:"id"`
+	ObjectID    string             `db:"object_id" json:"object_id"`
+	Entity      string             `db:"entity" json:"entity"`
+}
+
+func (q *Queries) MarkBobVersionPendingCopy(ctx context.Context, arg MarkBobVersionPendingCopyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markBobVersionPendingCopy,
+		arg.SubmittedAt,
+		arg.SubmittedBy,
+		arg.ActorID,
+		arg.ID,
+		arg.ObjectID,
+		arg.Entity,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markBobVersionSaved = `-- name: MarkBobVersionSaved :execrows
 UPDATE bob_versions
 SET revision = revision + 1, updated_at = now(), updated_by = $1
 WHERE id = $2 AND object_id = $3 AND entity = $4
-  AND revision = $5 AND status IN ('DRAFT', 'REJECTED')
+  AND revision = $5 AND status = 'DRAFT'
 `
 
 type MarkBobVersionSavedParams struct {
@@ -2352,25 +2457,25 @@ func (q *Queries) NextObjectNumberCounter(ctx context.Context, arg NextObjectNum
 
 const rejectBobVersion = `-- name: RejectBobVersion :execrows
 UPDATE bob_versions
-SET status = 'REJECTED', revision = revision + 1, reviewed_at = now(), reviewed_by = $1,
-    review_comment = $2, updated_at = now(), updated_by = $1
-WHERE id = $3 AND object_id = $4 AND entity = $5
-  AND revision = $6 AND status = 'PENDING' AND submitted_by <> $1
+SET status = 'DRAFT', revision = revision + 1,
+    submitted_at = NULL, submitted_by = NULL,
+    reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
+    updated_at = now(), updated_by = $1
+WHERE id = $2 AND object_id = $3 AND entity = $4
+  AND revision = $5 AND status = 'PENDING' AND submitted_by <> $1
 `
 
 type RejectBobVersionParams struct {
-	ActorID  *string `db:"actor_id" json:"actor_id"`
-	Comment  *string `db:"comment" json:"comment"`
-	ID       string  `db:"id" json:"id"`
-	ObjectID string  `db:"object_id" json:"object_id"`
-	Entity   string  `db:"entity" json:"entity"`
-	Revision int64   `db:"revision" json:"revision"`
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	ID       string `db:"id" json:"id"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+	Revision int64  `db:"revision" json:"revision"`
 }
 
 func (q *Queries) RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, rejectBobVersion,
 		arg.ActorID,
-		arg.Comment,
 		arg.ID,
 		arg.ObjectID,
 		arg.Entity,
@@ -2390,6 +2495,7 @@ WHERE view.object_id = $1 AND view.entity = $2
   AND view.version_id = $3
   AND view.effective_version_id = view.version_id
   AND view.status = 'EFFECTIVE'
+  AND o.enabled
 FOR SHARE OF o
 `
 
@@ -2484,6 +2590,7 @@ WHERE view.object_id = $1 AND view.entity = $2
   AND view.version_id = o.current_version_id
   AND view.version_id = o.effective_version_id
   AND view.status = 'EFFECTIVE'
+  AND o.enabled
 FOR SHARE OF o
 `
 
@@ -2598,12 +2705,45 @@ func (q *Queries) SetBobObjectEffective(ctx context.Context, arg SetBobObjectEff
 	return result.RowsAffected(), nil
 }
 
+const setBobObjectEnabled = `-- name: SetBobObjectEnabled :execrows
+UPDATE bob_objects
+SET enabled = $1, revision = revision + 1,
+    updated_at = now(), updated_by = $2
+WHERE id = $3 AND entity = $4
+  AND revision = $5
+  AND current_version_id = effective_version_id
+  AND effective_version_id IS NOT NULL
+  AND enabled <> $1
+`
+
+type SetBobObjectEnabledParams struct {
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	ID       string `db:"id" json:"id"`
+	Entity   string `db:"entity" json:"entity"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBobObjectEnabled,
+		arg.Enabled,
+		arg.ActorID,
+		arg.ID,
+		arg.Entity,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const submitBobVersion = `-- name: SubmitBobVersion :execrows
 UPDATE bob_versions
 SET status = 'PENDING', revision = revision + 1, submitted_at = now(), submitted_by = $1,
     reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL, updated_at = now(), updated_by = $1
 WHERE id = $2 AND object_id = $3 AND entity = $4
-  AND revision = $5 AND status IN ('DRAFT', 'REJECTED')
+  AND revision = $5 AND status = 'DRAFT'
 `
 
 type SubmitBobVersionParams struct {
@@ -2642,6 +2782,38 @@ type TouchBobObjectParams struct {
 func (q *Queries) TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error {
 	_, err := q.db.Exec(ctx, touchBobObject, arg.ActorID, arg.ID, arg.Entity)
 	return err
+}
+
+const unsubmitBobVersion = `-- name: UnsubmitBobVersion :execrows
+UPDATE bob_versions
+SET status = 'DRAFT', revision = revision + 1,
+    submitted_at = NULL, submitted_by = NULL,
+    reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
+    updated_at = now(), updated_by = $1
+WHERE id = $2 AND object_id = $3 AND entity = $4
+  AND revision = $5 AND status = 'PENDING'
+`
+
+type UnsubmitBobVersionParams struct {
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	ID       string `db:"id" json:"id"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unsubmitBobVersion,
+		arg.ActorID,
+		arg.ID,
+		arg.ObjectID,
+		arg.Entity,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateBobCategoryDetail = `-- name: UpdateBobCategoryDetail :execrows

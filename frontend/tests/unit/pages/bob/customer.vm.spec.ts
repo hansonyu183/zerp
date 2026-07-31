@@ -36,6 +36,7 @@ function row(): BobListItem {
     entity: 'customer',
     code: 'CUS-001',
     objectRevision: 3,
+    enabled: true,
     effectiveVersionId: null,
     currentVersion: {
       versionId: 'VER-1',
@@ -55,6 +56,7 @@ function objectView(): BobObjectView {
     entity: 'customer',
     code: 'CUS-001',
     objectRevision: 3,
+    enabled: true,
     currentVersionId: 'VER-1',
     effectiveVersionId: null,
     version: {
@@ -110,6 +112,7 @@ describe('customer shared BOB configuration and view model', () => {
     })
     expect(customerConfig.filters.map((field) => field.key)).toEqual([
       'status',
+      'enabled',
       'customerType',
       'salespersonEmployeeId',
     ])
@@ -301,8 +304,12 @@ describe('customer shared BOB configuration and view model', () => {
       edit: true,
       delete: true,
       submit: true,
+      unsubmit: false,
       approve: false,
+      unapprove: false,
       reject: false,
+      enable: false,
+      disable: false,
       versions: true,
       audit: true,
     })

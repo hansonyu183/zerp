@@ -35,7 +35,7 @@ func TestLifecycleIntegration(t *testing.T) {
 	rejected, err := service.Reject(t.Context(), EntityCustomer, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision, Comment: &comment,
 	}, integrationActorTwo, "integration-reject")
-	if err != nil || rejected.Status != StatusRejected || rejected.Revision != 3 {
+	if err != nil || rejected.Status != StatusDraft || rejected.Revision != 3 {
 		t.Fatalf("reject: result=%+v err=%v", rejected, err)
 	}
 	saved, err := service.Save(t.Context(), EntityCustomer, SaveInput{
@@ -105,11 +105,40 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("commit reference transaction: %v", err)
 	}
 
-	edited, err := service.Edit(t.Context(), EntityCustomer, ObjectRevisionInput{
+	disabled, err := service.Disable(t.Context(), EntityCustomer, ObjectRevisionInput{
 		ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
-	}, integrationActorOne, "integration-edit")
-	if err != nil || edited.Status != StatusDraft || edited.Version != 2 || edited.ObjectRevision != 3 {
-		t.Fatalf("edit: result=%+v err=%v", edited, err)
+	}, integrationActorOne, "integration-disable")
+	if err != nil || disabled.Enabled || disabled.ObjectRevision != 3 {
+		t.Fatalf("disable: result=%+v err=%v", disabled, err)
+	}
+	tx, err = pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin disabled reference transaction: %v", err)
+	}
+	_, err = service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID)
+	_ = tx.Rollback(t.Context())
+	if !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("disabled reference error = %v", err)
+	}
+	enabled, err := service.Enable(t.Context(), EntityCustomer, ObjectRevisionInput{
+		ObjectID: created.ObjectID, ObjectRevision: disabled.ObjectRevision,
+	}, integrationActorOne, "integration-enable")
+	if err != nil || !enabled.Enabled || enabled.ObjectRevision != 4 {
+		t.Fatalf("enable: result=%+v err=%v", enabled, err)
+	}
+	unapproved, err := service.Unapprove(t.Context(), EntityCustomer, ReverseInput{
+		ObjectID: created.ObjectID, ObjectRevision: enabled.ObjectRevision,
+		VersionID: created.VersionID, Revision: approved.Revision, Reason: "correct approved object",
+	}, integrationActorOne, "integration-unapprove")
+	if err != nil || unapproved.Status != StatusPending || unapproved.Version != 2 || unapproved.ObjectRevision != 5 {
+		t.Fatalf("unapprove: result=%+v err=%v", unapproved, err)
+	}
+	edited, err := service.Unsubmit(t.Context(), EntityCustomer, ReverseInput{
+		ObjectID: created.ObjectID, ObjectRevision: unapproved.ObjectRevision,
+		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "return to draft",
+	}, integrationActorOne, "integration-unsubmit")
+	if err != nil || edited.Status != StatusDraft || edited.Version != 2 || edited.ObjectRevision != 5 {
+		t.Fatalf("unsubmit: result=%+v err=%v", edited, err)
 	}
 	oldView, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: created.ObjectID, VersionID: created.VersionID})
 	if err != nil || oldView.Version.Status != StatusInvalid {
@@ -124,10 +153,11 @@ func TestLifecycleIntegration(t *testing.T) {
 	if !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("invalidated reference error = %v", err)
 	}
-	if _, err = service.Edit(t.Context(), EntityCustomer, ObjectRevisionInput{
-		ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
-	}, integrationActorOne, "integration-edit-repeat"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("repeat edit error = %v", err)
+	if _, err = service.Unapprove(t.Context(), EntityCustomer, ReverseInput{
+		ObjectID: created.ObjectID, ObjectRevision: enabled.ObjectRevision,
+		VersionID: created.VersionID, Revision: approved.Revision, Reason: "repeat",
+	}, integrationActorOne, "integration-unapprove-repeat"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("repeat unapprove error = %v", err)
 	}
 }
 

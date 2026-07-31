@@ -322,15 +322,6 @@ func TestDeleteFirstDraftConcurrencyIntegration(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "edit",
-			action: func(created MutationResult) error {
-				_, err := service.Edit(context.Background(), EntityCustomer, ObjectRevisionInput{
-					ObjectID: created.ObjectID, ObjectRevision: created.ObjectRevision,
-				}, integrationActorOne, "delete-concurrent-edit")
-				return err
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

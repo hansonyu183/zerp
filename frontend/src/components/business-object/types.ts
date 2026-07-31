@@ -69,6 +69,6 @@ export interface BusinessObjectColumn<T extends object> {
 }
 
 export interface BusinessObjectSort {
-  field: 'code' | 'name' | 'status' | 'version' | 'updatedAt'
+  field: 'code' | 'name' | 'status' | 'version'
   order: 'asc' | 'desc'
 }

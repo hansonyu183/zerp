@@ -228,6 +228,35 @@ func createApprovedIntegration(
 	return created, approved
 }
 
+// editEffectiveToDraft keeps legacy integration scenarios concise while the
+// public lifecycle now requires the two explicit reverse actions.
+func (s *Service) Edit(
+	ctx context.Context,
+	entity string,
+	input ObjectRevisionInput,
+	actorID string,
+	requestID string,
+) (MutationResult, error) {
+	view, err := s.Get(ctx, entity, GetInput{ObjectID: input.ObjectID})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if view.ObjectRevision != input.ObjectRevision || view.Version.Status != StatusEffective {
+		return MutationResult{}, domainError(ErrorConflict, "object cannot be edited in its current state", nil, nil)
+	}
+	unapproved, err := s.Unapprove(ctx, entity, ReverseInput{
+		ObjectID: input.ObjectID, ObjectRevision: input.ObjectRevision,
+		VersionID: view.Version.VersionID, Revision: view.Version.Revision, Reason: "integration reverse approval",
+	}, actorID, requestID+"-unapprove")
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return s.Unsubmit(ctx, entity, ReverseInput{
+		ObjectID: input.ObjectID, ObjectRevision: unapproved.ObjectRevision,
+		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "integration return to draft",
+	}, actorID, requestID+"-unsubmit")
+}
+
 func stringIntegrationPointer(value string) *string {
 	return &value
 }

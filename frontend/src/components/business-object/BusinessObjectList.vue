@@ -89,7 +89,7 @@ function changePage(page: number): void {
 }
 
 function isSortable(key: string): key is BusinessObjectSort['field'] {
-  return ['code', 'name', 'status', 'version', 'updatedAt'].includes(key)
+  return ['code', 'name', 'status', 'version'].includes(key)
 }
 
 function changeSort(field: BusinessObjectSort['field']): void {

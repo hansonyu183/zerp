@@ -111,6 +111,9 @@ const bobReviewerActions = new Set([
   '/bob/customer/get',
   '/bob/customer/approve',
   '/bob/customer/reject',
+  '/bob/customer/unapprove',
+  '/bob/customer/enable',
+  '/bob/customer/disable',
   '/bob/customer/versions',
   '/bob/customer/audit-history',
   ...[
@@ -145,7 +148,6 @@ async function createEffectiveBob(
     objectId: submitted.objectId,
     versionId: submitted.versionId,
     revision: submitted.revision,
-    comment: 'WFL 隔离测试自动预置',
   })
   const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
     objectId: approved.objectId,

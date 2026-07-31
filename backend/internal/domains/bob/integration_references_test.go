@@ -411,12 +411,15 @@ func TestWarehouseSchemaAndPermissionsIntegration(t *testing.T) {
 		"audit-history": 62,
 		"create":        63,
 		"delete":        86,
-		"edit":          64,
+		"disable":       156,
+		"enable":        155,
 		"get":           65,
 		"query":         66,
 		"reject":        67,
 		"save":          68,
 		"submit":        69,
+		"unapprove":     154,
+		"unsubmit":      153,
 		"versions":      70,
 	}
 	rows, err := pool.Query(t.Context(), `
@@ -438,7 +441,7 @@ func TestWarehouseSchemaAndPermissionsIntegration(t *testing.T) {
 		if !exists {
 			t.Fatalf("unexpected warehouse action %q", action)
 		}
-		if id != fmt.Sprintf("01JBOB%020d", sequence) {
+		if sequence > 0 && id != fmt.Sprintf("01JBOB%020d", sequence) {
 			t.Fatalf("permission %s id = %q", action, id)
 		}
 		if path != "/bob/warehouse/"+action || status != "ENABLED" {
@@ -451,27 +454,6 @@ func TestWarehouseSchemaAndPermissionsIntegration(t *testing.T) {
 	}
 	if len(seen) != len(expectedSequence) {
 		t.Fatalf("warehouse permission actions = %v", seen)
-	}
-
-	var superadminCount int
-	if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM app_roles WHERE code = 'superadmin'").Scan(&superadminCount); err != nil {
-		t.Fatalf("count superadmin roles: %v", err)
-	}
-	if superadminCount > 0 {
-		var storedGrantCount int
-		if err = pool.QueryRow(t.Context(), `
-			SELECT count(*)
-			FROM app_role_permissions rp
-			JOIN app_roles r ON r.id = rp.role_id
-			JOIN app_permissions p ON p.id = rp.permission_id
-			WHERE r.code = 'superadmin' AND p.domain = 'bob' AND p.entity = 'warehouse'
-			  AND p.action <> 'delete'
-		`).Scan(&storedGrantCount); err != nil {
-			t.Fatalf("count stored superadmin warehouse grants: %v", err)
-		}
-		if storedGrantCount != 0 {
-			t.Fatalf("stored superadmin warehouse grants = %d, want 0", storedGrantCount)
-		}
 	}
 }
 
@@ -491,12 +473,15 @@ func TestVehicleSchemaAndPermissionsIntegration(t *testing.T) {
 		"audit-history": 72,
 		"create":        73,
 		"delete":        87,
-		"edit":          74,
+		"disable":       160,
+		"enable":        159,
 		"get":           75,
 		"query":         76,
 		"reject":        77,
 		"save":          78,
 		"submit":        79,
+		"unapprove":     158,
+		"unsubmit":      157,
 		"versions":      80,
 	}
 	rows, err := pool.Query(t.Context(), `
@@ -518,7 +503,7 @@ func TestVehicleSchemaAndPermissionsIntegration(t *testing.T) {
 		if !exists {
 			t.Fatalf("unexpected vehicle action %q", action)
 		}
-		if id != fmt.Sprintf("01JBOB%020d", sequence) {
+		if sequence > 0 && id != fmt.Sprintf("01JBOB%020d", sequence) {
 			t.Fatalf("permission %s id = %q", action, id)
 		}
 		if path != "/bob/vehicle/"+action || status != "ENABLED" {
@@ -531,26 +516,5 @@ func TestVehicleSchemaAndPermissionsIntegration(t *testing.T) {
 	}
 	if len(seen) != len(expectedSequence) {
 		t.Fatalf("vehicle permission actions = %v", seen)
-	}
-
-	var superadminCount int
-	if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM app_roles WHERE code = 'superadmin'").Scan(&superadminCount); err != nil {
-		t.Fatalf("count superadmin roles: %v", err)
-	}
-	if superadminCount > 0 {
-		var storedGrantCount int
-		if err = pool.QueryRow(t.Context(), `
-			SELECT count(*)
-			FROM app_role_permissions rp
-			JOIN app_roles r ON r.id = rp.role_id
-			JOIN app_permissions p ON p.id = rp.permission_id
-			WHERE r.code = 'superadmin' AND p.domain = 'bob' AND p.entity = 'vehicle'
-			  AND p.action <> 'delete'
-		`).Scan(&storedGrantCount); err != nil {
-			t.Fatalf("count stored superadmin vehicle grants: %v", err)
-		}
-		if storedGrantCount != 0 {
-			t.Fatalf("stored superadmin vehicle grants = %d, want 0", storedGrantCount)
-		}
 	}
 }

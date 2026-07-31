@@ -25,10 +25,11 @@ type Result struct {
 type lifecycleService interface {
 	Create(context.Context, string, bob.CreateInput, string, string) (bob.MutationResult, error)
 	Get(context.Context, string, bob.GetInput) (bob.ObjectView, error)
-	Edit(context.Context, string, bob.ObjectRevisionInput, string, string) (bob.MutationResult, error)
 	Save(context.Context, string, bob.SaveInput, string, string) (bob.MutationResult, error)
 	Submit(context.Context, string, bob.VersionRevisionInput, string, string) (bob.MutationResult, error)
+	Unsubmit(context.Context, string, bob.ReverseInput, string, string) (bob.MutationResult, error)
 	Approve(context.Context, string, bob.ReviewInput, string, string) (bob.MutationResult, error)
+	Unapprove(context.Context, string, bob.ReverseInput, string, string) (bob.MutationResult, error)
 	Reject(context.Context, string, bob.ReviewInput, string, string) (bob.MutationResult, error)
 }
 
@@ -104,8 +105,8 @@ var samples = [...]sample{
 		Email: "zhangwei@example.com", HireDate: "2024-01-15", Remark: "演示在岗员工",
 	}, status: bob.StatusEffective, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001"},
 	{entity: bob.EntityEmployee, data: bob.CreateDetailInput{
-		Code: "DEMO-EMP-002", Name: "李娜（已驳回）", Phone: "13800000005",
-	}, status: bob.StatusRejected, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001"},
+		Code: "DEMO-EMP-002", Name: "李娜（草稿）", Phone: "13800000005",
+	}, status: bob.StatusDraft, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001"},
 	{entity: bob.EntitySettlementMethod, data: bob.CreateDetailInput{
 		Code: "DEMO-SM-001", Name: "当月 15 日结算", RuleType: bob.SettlementRuleFixedDay,
 		MonthOffset: 0, DayOfMonth: int32Pointer(15), DayOffset: 0, Description: "VOU 演示结算方式",
@@ -165,8 +166,8 @@ var samples = [...]sample{
 		ContactName: "张伟", ContactPhone: "13800000004", Remark: "演示主仓",
 	}, status: bob.StatusEffective, managerEmployeeCode: "DEMO-EMP-001"},
 	{entity: bob.EntityWarehouse, data: bob.CreateDetailInput{
-		Code: "DEMO-WH-002", Name: "临时仓（已驳回）", Address: "上海市青浦区临时仓路2号",
-	}, status: bob.StatusRejected},
+		Code: "DEMO-WH-002", Name: "临时仓（草稿）", Address: "上海市青浦区临时仓路2号",
+	}, status: bob.StatusDraft},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
 		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
@@ -339,8 +340,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		}
 	}
 
-	if (current.Status == bob.StatusDraft || current.Status == bob.StatusRejected) &&
-		item.status != current.Status {
+	if current.Status == bob.StatusDraft && item.status != current.Status {
 		current, err = s.service.Submit(ctx, item.entity, bob.VersionRevisionInput{
 			ObjectID:  current.ObjectID,
 			VersionID: current.VersionID,
@@ -362,14 +362,6 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			Revision:  current.Revision,
 			Comment:   &comment,
 		}, reviewerID, requestID(item.data.Code, "approve"))
-	case current.Status == bob.StatusPending && item.status == bob.StatusRejected:
-		comment := "演示数据：审核驳回"
-		_, err = s.service.Reject(ctx, item.entity, bob.ReviewInput{
-			ObjectID:  current.ObjectID,
-			VersionID: current.VersionID,
-			Revision:  current.Revision,
-			Comment:   &comment,
-		}, reviewerID, requestID(item.data.Code, "reject"))
 	default:
 		return 0, fmt.Errorf("cannot advance status %s to %s", current.Status, item.status)
 	}
@@ -498,16 +490,23 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view bob.Ob
 	var err error
 	switch current.Status {
 	case bob.StatusEffective:
-		current, err = s.service.Edit(ctx, item.entity, bob.ObjectRevisionInput{
+		current, err = s.service.Unapprove(ctx, item.entity, bob.ReverseInput{
 			ObjectID: current.ObjectID, ObjectRevision: current.ObjectRevision,
-		}, submitterID, requestID(item.data.Code, "upgrade-edit"))
+			VersionID: current.VersionID, Revision: current.Revision, Reason: "演示数据：撤销批准后补齐属性",
+		}, submitterID, requestID(item.data.Code, "upgrade-unapprove"))
+		if err == nil {
+			current, err = s.service.Unsubmit(ctx, item.entity, bob.ReverseInput{
+				ObjectID: current.ObjectID, ObjectRevision: current.ObjectRevision,
+				VersionID: current.VersionID, Revision: current.Revision, Reason: "演示数据：退回草稿补齐属性",
+			}, submitterID, requestID(item.data.Code, "upgrade-unsubmit"))
+		}
 	case bob.StatusPending:
 		comment := "演示数据：补齐新增属性"
 		current, err = s.service.Reject(ctx, item.entity, bob.ReviewInput{
 			ObjectID: current.ObjectID, VersionID: current.VersionID,
 			Revision: current.Revision, Comment: &comment,
 		}, reviewerID, requestID(item.data.Code, "upgrade-reject"))
-	case bob.StatusDraft, bob.StatusRejected:
+	case bob.StatusDraft:
 	default:
 		return bob.MutationResult{}, fmt.Errorf("cannot reconcile status %s", current.Status)
 	}

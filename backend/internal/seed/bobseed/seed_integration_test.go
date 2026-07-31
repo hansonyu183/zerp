@@ -72,9 +72,8 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	expected := map[string]int{
 		bob.StatusEffective: 16,
-		bob.StatusDraft:     5,
+		bob.StatusDraft:     7,
 		bob.StatusPending:   3,
-		bob.StatusRejected:  2,
 	}
 	if len(counts) != len(expected) {
 		t.Fatalf("status counts = %v", counts)

@@ -897,31 +897,6 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/bob/{entity}/edit':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '发起业务对象编辑',
-              'operationId': 'bobedit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobEditRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
       '/bob/{entity}/save':
         {
           'post':
@@ -999,6 +974,31 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/bob/{entity}/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '撤回业务对象提交',
+              'operationId': 'bobunsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/bob/{entity}/approve':
         {
           'post':
@@ -1016,7 +1016,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
                         },
                     },
                 },
@@ -1042,6 +1044,85 @@
                         {
                           'schema':
                             { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/unapprove':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '撤销批准业务对象',
+              'operationId': 'bobunapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/enable':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '启用有效业务对象',
+              'operationId': 'bobenable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/{entity}/disable':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '禁用有效业务对象',
+              'operationId': 'bobdisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
+                            },
                         },
                     },
                 },

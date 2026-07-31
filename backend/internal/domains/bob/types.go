@@ -39,7 +39,6 @@ const (
 
 	StatusDraft     = "DRAFT"
 	StatusPending   = "PENDING"
-	StatusRejected  = "REJECTED"
 	StatusEffective = "EFFECTIVE"
 	StatusInvalid   = "INVALID"
 )
@@ -266,6 +265,14 @@ type ObjectRevisionInput struct {
 	ObjectRevision int64  `json:"objectRevision"`
 }
 
+type ReverseInput struct {
+	ObjectID       string `json:"objectId"`
+	ObjectRevision int64  `json:"objectRevision"`
+	VersionID      string `json:"versionId"`
+	Revision       int64  `json:"revision"`
+	Reason         string `json:"reason"`
+}
+
 type VersionRevisionInput struct {
 	ObjectID  string `json:"objectId"`
 	VersionID string `json:"versionId"`
@@ -294,6 +301,7 @@ type GetInput struct {
 type QueryFilters struct {
 	Keyword               string   `json:"keyword,omitempty"`
 	Status                []string `json:"status,omitempty"`
+	Enabled               *bool    `json:"enabled,omitempty"`
 	CustomerType          string   `json:"customerType,omitempty"`
 	SupplierType          string   `json:"supplierType,omitempty"`
 	CategoryID            string   `json:"categoryId,omitempty"`
@@ -411,6 +419,7 @@ type DetailView struct {
 type MutationResult struct {
 	ObjectID       string `json:"objectId"`
 	ObjectRevision int64  `json:"objectRevision"`
+	Enabled        bool   `json:"enabled"`
 	VersionID      string `json:"versionId"`
 	Version        int32  `json:"version"`
 	Status         string `json:"status"`
@@ -438,6 +447,7 @@ type ObjectView struct {
 	Entity             string      `json:"entity"`
 	Code               string      `json:"code"`
 	ObjectRevision     int64       `json:"objectRevision"`
+	Enabled            bool        `json:"enabled"`
 	CurrentVersionID   string      `json:"currentVersionId"`
 	EffectiveVersionID *string     `json:"effectiveVersionId"`
 	UpdatedAt          time.Time   `json:"updatedAt"`
@@ -475,6 +485,7 @@ type QueryItem struct {
 	Entity             string         `json:"entity"`
 	Code               string         `json:"code"`
 	ObjectRevision     int64          `json:"objectRevision"`
+	Enabled            bool           `json:"enabled"`
 	CurrentVersion     VersionSummary `json:"currentVersion"`
 	EffectiveVersionID *string        `json:"effectiveVersionId"`
 	UpdatedAt          time.Time      `json:"updatedAt"`

@@ -18,6 +18,7 @@ const row: BobListItem = {
   entity: 'product',
   code: 'PRODUCT-1',
   objectRevision: 1,
+  enabled: true,
   effectiveVersionId: null,
   currentVersion: {
     versionId: 'VERSION-1',
@@ -38,13 +39,15 @@ describe('BOB history state', () => {
     mockedPost
       .mockResolvedValueOnce({
         data: {
-          items: [{
-            versionId: 'VERSION-1',
-            version: 1,
-            status: 'DRAFT',
-            revision: 1,
-            summary: { name: '产品' },
-          }],
+          items: [
+            {
+              versionId: 'VERSION-1',
+              version: 1,
+              status: 'DRAFT',
+              revision: 1,
+              summary: { name: '产品' },
+            },
+          ],
           total: 2,
           page: 1,
           pageSize: 20,
@@ -60,20 +63,22 @@ describe('BOB history state', () => {
       })
       .mockResolvedValueOnce({
         data: {
-          items: [{
-            id: 'EVENT-1',
-            objectId: row.objectId,
-            versionId: 'VERSION-1',
-            entity: 'product',
-            eventType: 'CREATED',
-            fromStatus: null,
-            toStatus: 'DRAFT',
-            actorId: 'USER-1',
-            occurredAt: '2026-07-26T00:00:00Z',
-            comment: null,
-            requestId: 'REQUEST-1',
-            summary: null,
-          }],
+          items: [
+            {
+              id: 'EVENT-1',
+              objectId: row.objectId,
+              versionId: 'VERSION-1',
+              entity: 'product',
+              eventType: 'CREATED',
+              fromStatus: null,
+              toStatus: 'DRAFT',
+              actorId: 'USER-1',
+              occurredAt: '2026-07-26T00:00:00Z',
+              comment: null,
+              requestId: 'REQUEST-1',
+              summary: null,
+            },
+          ],
           total: 2,
           page: 1,
           pageSize: 20,
@@ -99,11 +104,11 @@ describe('BOB history state', () => {
     expect(history.versionsOpen.value).toBe(true)
     expect(history.versions.value).toHaveLength(1)
     expect(history.versionsTotal.value).toBe(2)
-    expect(mockedPost).toHaveBeenNthCalledWith(
-      1,
-      'bob/product/versions',
-      { objectId: row.objectId, page: 1, pageSize: 20 },
-    )
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/product/versions', {
+      objectId: row.objectId,
+      page: 1,
+      pageSize: 20,
+    })
     await history.changeVersionsPage(1)
     await history.changeVersionsPage(0)
     expect(mockedPost).toHaveBeenCalledTimes(1)
@@ -113,11 +118,11 @@ describe('BOB history state', () => {
     await history.openAudit(row)
     expect(history.auditOpen.value).toBe(true)
     expect(history.auditEvents.value).toHaveLength(1)
-    expect(mockedPost).toHaveBeenNthCalledWith(
-      3,
-      'bob/product/audit-history',
-      { objectId: row.objectId, page: 1, pageSize: 20 },
-    )
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'bob/product/audit-history', {
+      objectId: row.objectId,
+      page: 1,
+      pageSize: 20,
+    })
     await history.changeAuditPage(1)
     await history.changeAuditPage(0)
     expect(mockedPost).toHaveBeenCalledTimes(3)

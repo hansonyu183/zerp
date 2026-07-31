@@ -599,23 +599,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bob/{entity}/edit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 发起业务对象编辑 */
-        post: operations["bobedit"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/bob/{entity}/save": {
         parameters: {
             query?: never;
@@ -667,6 +650,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bob/{entity}/unsubmit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 撤回业务对象提交 */
+        post: operations["bobunsubmit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/{entity}/approve": {
         parameters: {
             query?: never;
@@ -695,6 +695,57 @@ export interface paths {
         put?: never;
         /** 驳回业务对象 */
         post: operations["bobreject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/{entity}/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 撤销批准业务对象 */
+        post: operations["bobunapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/{entity}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用有效业务对象 */
+        post: operations["bobenable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/{entity}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 禁用有效业务对象 */
+        post: operations["bobdisable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1749,11 +1800,6 @@ export interface components {
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
-        BobEditRequest: {
-            objectId: string;
-            /** Format: int64 */
-            objectRevision: number;
-        };
         BobSaveRequest: {
             objectId: string;
             versionId: string;
@@ -1818,12 +1864,26 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        BobReverseRequest: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            reason: string;
+        };
         BobReviewRequest: {
             objectId: string;
             versionId: string;
             /** Format: int64 */
             revision: number;
             comment: string | null;
+        };
+        BobObjectRevisionRequest: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
         };
         BobHistoryRequest: {
             objectId: string;
@@ -2872,24 +2932,6 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    bobedit: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["BobEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BobEditRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
     bobsave: {
         parameters: {
             query?: never;
@@ -2944,6 +2986,24 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    bobunsubmit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["BobEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
     bobapprove: {
         parameters: {
             query?: never;
@@ -2955,7 +3015,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BobReviewRequest"];
+                "application/json": components["schemas"]["BobVersionRevisionRequest"];
             };
         };
         responses: {
@@ -2974,6 +3034,60 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["BobReviewRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    bobunapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["BobEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    bobenable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["BobEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobObjectRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    bobdisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["BobEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobObjectRevisionRequest"];
             };
         };
         responses: {

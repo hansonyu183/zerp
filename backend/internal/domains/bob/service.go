@@ -64,9 +64,18 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	if statuses == nil {
 		statuses = []string{}
 	}
+	enabledFilter := int32(-1)
+	if filters.Enabled != nil {
+		if *filters.Enabled {
+			enabledFilter = 1
+		} else {
+			enabledFilter = 0
+		}
+	}
 	countParams := dbsqlc.CountBobObjectsParams{
 		Entity: entity, Statuses: statuses, Keyword: filters.Keyword,
-		CustomerType: filters.CustomerType, SupplierType: filters.SupplierType,
+		EnabledFilter: enabledFilter,
+		CustomerType:  filters.CustomerType, SupplierType: filters.SupplierType,
 		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
@@ -79,7 +88,8 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{
 		Entity: entity, Statuses: statuses, Keyword: filters.Keyword, SortField: sortField, SortOrder: sortOrder,
-		CustomerType: filters.CustomerType, SupplierType: filters.SupplierType,
+		EnabledFilter: enabledFilter,
+		CustomerType:  filters.CustomerType, SupplierType: filters.SupplierType,
 		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
@@ -90,9 +100,23 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list objects", err)
 	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ObjectID)
+	}
+	enabledByID := make(map[string]bool, len(rows))
+	if len(ids) > 0 {
+		enabledRows, enabledErr := s.queries.ListBobObjectsEnabled(ctx, ids)
+		if enabledErr != nil {
+			return Page[QueryItem]{}, s.internal("read object availability", enabledErr)
+		}
+		for _, enabledRow := range enabledRows {
+			enabledByID[enabledRow.ID] = enabledRow.Enabled
+		}
+	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, queryItem(row))
+		items = append(items, queryItem(row, enabledByID[row.ObjectID]))
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -110,7 +134,13 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("get object", err)
 	}
-	result := objectView(row)
+	enabled, err := s.queries.GetBobObjectEnabled(ctx, dbsqlc.GetBobObjectEnabledParams{
+		ID: input.ObjectID, Entity: entity,
+	})
+	if err != nil {
+		return ObjectView{}, s.internal("read object availability", err)
+	}
+	result := objectView(row, enabled)
 	if entity == EntityProduct {
 		result.Data.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
 		if err != nil {
@@ -167,7 +197,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit create", err)
 	}
-	return MutationResult{ObjectID: objectID, ObjectRevision: 1, VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{ObjectID: objectID, ObjectRevision: 1, Enabled: true, VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, nil
 }
 
 func objectPrefix(entity string) string {
@@ -193,7 +223,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Revision != input.Revision ||
-		!slices.Contains([]string{StatusDraft, StatusRejected}, version.Status) {
+		version.Status != StatusDraft {
 		return MutationResult{}, conflict(object, version, "version changed before save")
 	}
 	row, readErr := qtx.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{
@@ -373,7 +403,7 @@ func (s *Service) Submit(ctx context.Context, entity string, input VersionRevisi
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Revision != input.Revision ||
-		!slices.Contains([]string{StatusDraft, StatusRejected}, version.Status) {
+		version.Status != StatusDraft {
 		return MutationResult{}, conflict(object, version, "version changed before submit")
 	}
 	if err = s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
@@ -473,7 +503,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	rows, err := qtx.RejectBobVersion(ctx, dbsqlc.RejectBobVersionParams{
-		ActorID: &actorID, Comment: comment, ID: input.VersionID, ObjectID: input.ObjectID, Entity: entity, Revision: input.Revision,
+		ActorID: actorID, ID: input.VersionID, ObjectID: input.ObjectID, Entity: entity, Revision: input.Revision,
 	})
 	if err != nil {
 		return MutationResult{}, s.writeError("reject version", err)
@@ -486,7 +516,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 	}
 	from := StatusPending
 	if err = insertAudit(ctx, qtx, auditInput{
-		ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: entity, Event: "REJECTED", From: &from, To: StatusRejected,
+		ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: entity, Event: "REJECTED", From: &from, To: StatusDraft,
 		ActorID: actorID, RequestID: requestID, Comment: comment,
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit rejection", err)
@@ -494,16 +524,134 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit rejection", err)
 	}
-	return mutation(object, version, StatusRejected, input.Revision+1), nil
+	return mutation(object, version, StatusDraft, input.Revision+1), nil
 }
 
-func (s *Service) Edit(ctx context.Context, entity string, input ObjectRevisionInput, actorID, requestID string) (MutationResult, error) {
+func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInput, actorID, requestID string) (MutationResult, error) {
+	reason, err := requiredComment(&input.Reason)
+	if err != nil || !validReverseInput(entity, input, actorID, requestID) {
+		return MutationResult{}, domainError(ErrorValidation, "invalid unsubmit request", nil, err)
+	}
+	tx, qtx, object, version, err := s.lockTarget(ctx, entity, input.ObjectID, input.VersionID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if object.Revision != input.ObjectRevision || object.CurrentVersionID != input.VersionID ||
+		object.EffectiveVersionID != nil || version.Revision != input.Revision || version.Status != StatusPending {
+		return MutationResult{}, conflict(object, version, "version changed before unsubmit")
+	}
+	rows, err := qtx.UnsubmitBobVersion(ctx, dbsqlc.UnsubmitBobVersionParams{
+		ActorID: actorID, ID: input.VersionID, ObjectID: input.ObjectID, Entity: entity, Revision: input.Revision,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("unsubmit version", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, version, "version changed before unsubmit")
+	}
+	if err = qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ID: input.ObjectID, Entity: entity}); err != nil {
+		return MutationResult{}, s.internal("touch object", err)
+	}
+	from := StatusPending
+	if err = insertAudit(ctx, qtx, auditInput{
+		ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: entity, Event: "UNSUBMITTED",
+		From: &from, To: StatusDraft, ActorID: actorID, RequestID: requestID, Comment: reason,
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit unsubmit", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit unsubmit", err)
+	}
+	return mutation(object, version, StatusDraft, input.Revision+1), nil
+}
+
+func (s *Service) Unapprove(ctx context.Context, entity string, input ReverseInput, actorID, requestID string) (MutationResult, error) {
+	reason, err := requiredComment(&input.Reason)
+	if err != nil || !validReverseInput(entity, input, actorID, requestID) {
+		return MutationResult{}, domainError(ErrorValidation, "invalid unapprove request", nil, err)
+	}
+	tx, qtx, object, oldVersion, err := s.lockTarget(ctx, entity, input.ObjectID, input.VersionID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if object.Revision != input.ObjectRevision || object.CurrentVersionID != input.VersionID ||
+		object.EffectiveVersionID == nil || *object.EffectiveVersionID != input.VersionID ||
+		oldVersion.Revision != input.Revision || oldVersion.Status != StatusEffective ||
+		!oldVersion.SubmittedAt.Valid || oldVersion.SubmittedBy == nil {
+		return MutationResult{}, conflict(object, oldVersion, "version changed before unapprove")
+	}
+	newVersionID := newID()
+	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{
+		ID: newVersionID, ObjectID: input.ObjectID, Entity: entity, VersionNo: object.NextVersionNo, ActorID: actorID,
+	}); err != nil {
+		return MutationResult{}, s.writeError("insert unapproved version", err)
+	}
+	if err = copyDetail(ctx, qtx, entity, newVersionID, oldVersion.ID); err != nil {
+		return MutationResult{}, s.writeError("copy unapproved detail", err)
+	}
+	rows, err := qtx.MarkBobVersionPendingCopy(ctx, dbsqlc.MarkBobVersionPendingCopyParams{
+		SubmittedAt: oldVersion.SubmittedAt, SubmittedBy: oldVersion.SubmittedBy,
+		ActorID: actorID, ID: newVersionID, ObjectID: input.ObjectID, Entity: entity,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("mark unapproved version pending", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, oldVersion, "new version changed before unapprove")
+	}
+	rows, err = qtx.InvalidateBobVersion(ctx, dbsqlc.InvalidateBobVersionParams{
+		ActorID: actorID, ID: oldVersion.ID, ObjectID: input.ObjectID, Entity: entity, Revision: oldVersion.Revision,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("freeze effective version", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, oldVersion, "effective version changed before unapprove")
+	}
+	rows, err = qtx.AdvanceBobObjectForUnapprove(ctx, dbsqlc.AdvanceBobObjectForUnapproveParams{
+		NewVersionID: newVersionID, ActorID: actorID, ID: input.ObjectID, Entity: entity,
+		Revision: input.ObjectRevision, OldVersionID: oldVersion.ID,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("advance object for unapprove", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, oldVersion, "object changed before unapprove")
+	}
+	fromEffective := StatusEffective
+	if err = insertAudit(ctx, qtx, auditInput{
+		ObjectID: input.ObjectID, VersionID: oldVersion.ID, Entity: entity, Event: "INVALIDATED",
+		From: &fromEffective, To: StatusInvalid, ActorID: actorID, RequestID: requestID, Comment: reason,
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit frozen version", err)
+	}
+	if err = insertAudit(ctx, qtx, auditInput{
+		ObjectID: input.ObjectID, VersionID: newVersionID, Entity: entity, Event: "UNAPPROVED",
+		From: &fromEffective, To: StatusPending, ActorID: actorID, RequestID: requestID, Comment: reason,
+		Summary: map[string]any{"sourceVersionId": oldVersion.ID},
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit unapprove", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit unapprove", err)
+	}
+	return MutationResult{
+		ObjectID: input.ObjectID, ObjectRevision: input.ObjectRevision + 1, Enabled: object.Enabled,
+		VersionID: newVersionID, Version: object.NextVersionNo, Status: StatusPending, Revision: 2,
+	}, nil
+}
+
+func (s *Service) SetEnabled(
+	ctx context.Context, entity string, input ObjectRevisionInput, enabled bool, actorID, requestID string,
+) (MutationResult, error) {
 	if !validEntity(entity) || !validID(input.ObjectID) || input.ObjectRevision < 1 || !validActorAndRequest(actorID, requestID) {
-		return MutationResult{}, domainError(ErrorValidation, "invalid edit request", nil, nil)
+		return MutationResult{}, domainError(ErrorValidation, "invalid availability request", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin edit", err)
+		return MutationResult{}, s.internal("begin availability change", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
@@ -514,68 +662,61 @@ func (s *Service) Edit(ctx context.Context, entity string, input ObjectRevisionI
 	if err != nil {
 		return MutationResult{}, s.internal("lock object", err)
 	}
-	if object.Revision != input.ObjectRevision || object.EffectiveVersionID == nil || object.CurrentVersionID != *object.EffectiveVersionID {
-		return MutationResult{}, domainError(ErrorConflict, "object cannot be edited in its current state", map[string]any{
-			"objectRevision": object.Revision, "currentVersionId": object.CurrentVersionID,
+	if object.Revision != input.ObjectRevision || object.EffectiveVersionID == nil ||
+		object.CurrentVersionID != *object.EffectiveVersionID || object.Enabled == enabled {
+		return MutationResult{}, domainError(ErrorConflict, "object availability changed", map[string]any{
+			"objectRevision": object.Revision, "enabled": object.Enabled,
 		}, nil)
 	}
-	oldVersion, err := qtx.LockBobVersion(ctx, dbsqlc.LockBobVersionParams{
-		ID: *object.EffectiveVersionID, ObjectID: input.ObjectID, Entity: entity,
+	version, err := qtx.LockBobVersion(ctx, dbsqlc.LockBobVersionParams{
+		ID: object.CurrentVersionID, ObjectID: input.ObjectID, Entity: entity,
 	})
 	if err != nil {
 		return MutationResult{}, s.internal("lock effective version", err)
 	}
-	if oldVersion.Status != StatusEffective {
-		return MutationResult{}, conflict(object, oldVersion, "effective version changed before edit")
+	if version.Status != StatusEffective {
+		return MutationResult{}, conflict(object, version, "object is not effective")
 	}
-	newVersionID := newID()
-	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{
-		ID: newVersionID, ObjectID: input.ObjectID, Entity: entity, VersionNo: object.NextVersionNo, ActorID: actorID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("insert edit version", err)
-	}
-	if err = copyDetail(ctx, qtx, entity, newVersionID, oldVersion.ID); err != nil {
-		return MutationResult{}, s.writeError("copy edit detail", err)
-	}
-	rows, err := qtx.InvalidateBobVersion(ctx, dbsqlc.InvalidateBobVersionParams{
-		ActorID: actorID, ID: oldVersion.ID, ObjectID: input.ObjectID, Entity: entity, Revision: oldVersion.Revision,
+	rows, err := qtx.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{
+		Enabled: enabled, ActorID: actorID, ID: input.ObjectID, Entity: entity, Revision: input.ObjectRevision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("invalidate effective version", err)
+		return MutationResult{}, s.writeError("change object availability", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, oldVersion, "effective version changed before edit")
+		return MutationResult{}, conflict(object, version, "object availability changed")
 	}
-	rows, err = qtx.AdvanceBobObjectForEdit(ctx, dbsqlc.AdvanceBobObjectForEditParams{
-		NewVersionID: newVersionID, ActorID: actorID, ID: input.ObjectID, Entity: entity,
-		Revision: input.ObjectRevision, OldVersionID: oldVersion.ID,
-	})
-	if err != nil {
-		return MutationResult{}, s.writeError("advance object for edit", err)
+	event := "DISABLED"
+	if enabled {
+		event = "ENABLED"
 	}
-	if rows != 1 {
-		return MutationResult{}, conflict(object, oldVersion, "object changed before edit")
-	}
-	fromEffective, fromNone := StatusEffective, (*string)(nil)
+	from := StatusEffective
 	if err = insertAudit(ctx, qtx, auditInput{
-		ObjectID: input.ObjectID, VersionID: oldVersion.ID, Entity: entity, Event: "INVALIDATED", From: &fromEffective, To: StatusInvalid,
-		ActorID: actorID, RequestID: requestID,
+		ObjectID: input.ObjectID, VersionID: version.ID, Entity: entity, Event: event,
+		From: &from, To: StatusEffective, ActorID: actorID, RequestID: requestID,
+		Summary: map[string]any{"enabled": enabled},
 	}); err != nil {
-		return MutationResult{}, s.writeError("audit invalidation", err)
-	}
-	if err = insertAudit(ctx, qtx, auditInput{
-		ObjectID: input.ObjectID, VersionID: newVersionID, Entity: entity, Event: "EDIT_STARTED", From: fromNone, To: StatusDraft,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit edit", err)
+		return MutationResult{}, s.writeError("audit availability change", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit edit", err)
+		return MutationResult{}, s.writeError("commit availability change", err)
 	}
-	return MutationResult{
-		ObjectID: input.ObjectID, ObjectRevision: input.ObjectRevision + 1, VersionID: newVersionID,
-		Version: object.NextVersionNo, Status: StatusDraft, Revision: 1,
-	}, nil
+	result := mutation(object, version, StatusEffective, version.Revision)
+	result.ObjectRevision++
+	result.Enabled = enabled
+	return result, nil
+}
+
+func (s *Service) Enable(
+	ctx context.Context, entity string, input ObjectRevisionInput, actorID, requestID string,
+) (MutationResult, error) {
+	return s.SetEnabled(ctx, entity, input, true, actorID, requestID)
+}
+
+func (s *Service) Disable(
+	ctx context.Context, entity string, input ObjectRevisionInput, actorID, requestID string,
+) (MutationResult, error) {
+	return s.SetEnabled(ctx, entity, input, false, actorID, requestID)
 }
 
 func (s *Service) Versions(ctx context.Context, entity string, input HistoryInput) (Page[VersionHistoryItem], error) {

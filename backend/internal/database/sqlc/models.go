@@ -288,6 +288,7 @@ type BobObject struct {
 	CreatedBy          string             `db:"created_by" json:"created_by"`
 	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy          string             `db:"updated_by" json:"updated_by"`
+	Enabled            bool               `db:"enabled" json:"enabled"`
 }
 
 type BobPositionVersion struct {

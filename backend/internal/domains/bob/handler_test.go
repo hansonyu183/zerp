@@ -43,8 +43,8 @@ func (s *serviceStub) Create(_ context.Context, entity string, _ CreateInput, _,
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Edit(_ context.Context, entity string, _ ObjectRevisionInput, _, _ string) (MutationResult, error) {
-	s.record("edit", entity)
+func (s *serviceStub) Unsubmit(_ context.Context, entity string, _ ReverseInput, _, _ string) (MutationResult, error) {
+	s.record("unsubmit", entity)
 	return MutationResult{}, nil
 }
 
@@ -68,8 +68,23 @@ func (s *serviceStub) Approve(_ context.Context, entity string, _ ReviewInput, _
 	return MutationResult{}, nil
 }
 
+func (s *serviceStub) Unapprove(_ context.Context, entity string, _ ReverseInput, _, _ string) (MutationResult, error) {
+	s.record("unapprove", entity)
+	return MutationResult{}, nil
+}
+
 func (s *serviceStub) Reject(_ context.Context, entity string, _ ReviewInput, _, _ string) (MutationResult, error) {
 	s.record("reject", entity)
+	return MutationResult{}, nil
+}
+
+func (s *serviceStub) Enable(_ context.Context, entity string, _ ObjectRevisionInput, _, _ string) (MutationResult, error) {
+	s.record("enable", entity)
+	return MutationResult{}, nil
+}
+
+func (s *serviceStub) Disable(_ context.Context, entity string, _ ObjectRevisionInput, _, _ string) (MutationResult, error) {
+	s.record("disable", entity)
 	return MutationResult{}, nil
 }
 
@@ -103,8 +118,8 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 		"vehicle", "fund-account",
 	}
 	expectedActions := []string{
-		"query", "get", "create", "edit", "save", "delete",
-		"submit", "approve", "reject", "versions", "audit-history",
+		"query", "get", "create", "save", "delete", "submit", "unsubmit",
+		"approve", "unapprove", "reject", "enable", "disable", "versions", "audit-history",
 	}
 	wanted := make(map[string]bool, len(expectedEntities)*len(expectedActions))
 	for _, entity := range expectedEntities {
@@ -137,12 +152,15 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 		{"query", `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
 		{"get", `{"objectId":"` + objectID + `"}`},
 		{"create", `{"data":{"name":"Customer"}}`},
-		{"edit", `{"objectId":"` + objectID + `","objectRevision":1}`},
 		{"save", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1,"data":{"name":"Customer"}}`},
 		{"delete", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1}`},
 		{"submit", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1}`},
+		{"unsubmit", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1,"reason":"fix"}`},
 		{"approve", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1}`},
+		{"unapprove", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1,"reason":"fix"}`},
 		{"reject", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1,"comment":"fix"}`},
+		{"enable", `{"objectId":"` + objectID + `","objectRevision":1}`},
+		{"disable", `{"objectId":"` + objectID + `","objectRevision":1}`},
 		{"versions", `{"objectId":"` + objectID + `","page":1,"pageSize":20}`},
 		{"audit-history", `{"objectId":"` + objectID + `","page":1,"pageSize":20}`},
 	}

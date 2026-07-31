@@ -13,6 +13,9 @@ SET status = 'DRAFT',
     updated_at = now()
 WHERE status = 'REJECTED';
 
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
 DROP INDEX bob_versions_candidate_uq;
 CREATE UNIQUE INDEX bob_versions_candidate_uq
     ON bob_versions (object_id) WHERE status IN ('DRAFT', 'PENDING');

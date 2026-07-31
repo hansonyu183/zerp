@@ -48,18 +48,20 @@ function primaryActions(document: WflDocumentSummary): ListRowAction[] {
       icon: 'mdi-check-outline',
       color: 'primary',
     })
-  } else if (
+  }
+  if (
     document.status === 'CHECKED' &&
-    props.canAction(props.definition.finalAction)
+    props.canAction(props.definition.finalAction) &&
+    document.reviewedBy !== props.currentUserId
   ) {
     actions.push({
       key: 'final',
       label: props.definition.finalLabel,
       icon: 'mdi-check-decagram-outline',
       color: 'primary',
-      disabled: document.reviewedBy === props.currentUserId,
     })
-  } else if (
+  }
+  if (
     props.definition.stage === 'DELIVERY' &&
     document.status === 'EXECUTED' &&
     props.canAction('signoff-create') &&
@@ -70,23 +72,6 @@ function primaryActions(document: WflDocumentSummary): ListRowAction[] {
       label: '新增签收',
       icon: 'mdi-file-sign',
       color: 'secondary',
-    })
-  }
-  return actions
-}
-
-function moreActions(document: WflDocumentSummary): ListRowAction[] {
-  const actions: ListRowAction[] = []
-  if (
-    document.status === 'DRAFT' &&
-    props.definition.deleteAction &&
-    props.canAction(props.definition.deleteAction)
-  ) {
-    actions.push({
-      key: 'delete',
-      label: '删除',
-      icon: 'mdi-delete-outline',
-      color: 'error',
     })
   }
   if (
@@ -107,6 +92,23 @@ function moreActions(document: WflDocumentSummary): ListRowAction[] {
       key: 'reverse-final',
       label: `反${props.definition.finalLabel}`,
       icon: 'mdi-undo-variant',
+    })
+  }
+  return actions
+}
+
+function moreActions(document: WflDocumentSummary): ListRowAction[] {
+  const actions: ListRowAction[] = []
+  if (
+    document.status === 'DRAFT' &&
+    props.definition.deleteAction &&
+    props.canAction(props.definition.deleteAction)
+  ) {
+    actions.push({
+      key: 'delete',
+      label: '删除',
+      icon: 'mdi-delete-outline',
+      color: 'error',
     })
   }
   return actions

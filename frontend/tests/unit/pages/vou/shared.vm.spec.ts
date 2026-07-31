@@ -708,6 +708,7 @@ describe('shared VOU entity view model', () => {
     await vm.resetFilters()
     expect(vm.filters.keyword).toBe('')
     expect(vm.selectedParty.value).toBeNull()
+    expect(vm.sort.value).toEqual({ field: 'documentNo', order: 'desc' })
 
     await vm.openDocument(row, true)
     vm.startEditing()

@@ -107,7 +107,6 @@ function changeStatuses(value: unknown): void {
 }
 
 const mobileSortOptions = [
-  { title: '更新', value: 'updatedAt' },
   { title: '单号', value: 'documentNo' },
   { title: '日期', value: 'businessDate' },
   { title: '状态', value: 'status' },
@@ -241,17 +240,6 @@ function selectAction(action: string, row: VoucherListItem): void {
               >
                 <ListRowActions
                   :label="`操作 ${row.documentNo}`"
-                  :more="
-                    canView(row) && canEdit(row)
-                      ? [
-                          {
-                            key: 'view',
-                            label: `查看 ${row.documentNo}`,
-                            icon: 'mdi-eye-outline',
-                          },
-                        ]
-                      : []
-                  "
                   :primary="
                     canEdit(row)
                       ? [

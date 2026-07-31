@@ -216,6 +216,12 @@ describe('BusinessObjectList', () => {
     expect(wrapper.emitted('update:sort')).toEqual([
       [{ field: 'name', order: 'asc' }],
     ])
+    expect(
+      wrapper
+        .getComponent({ name: 'MobileSortControl' })
+        .props('options')
+        .map((option: { value: string }) => option.value),
+    ).toEqual(['name', 'status'])
   })
 
   it('为空列表显示空状态并保持正确列数', () => {

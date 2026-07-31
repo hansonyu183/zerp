@@ -62,12 +62,9 @@ const columnCount = computed(
   () => props.columns.length + (hasActionColumn.value ? 1 : 0),
 )
 const mobileSortOptions = computed(() => {
-  const options = props.columns
+  return props.columns
     .filter((column) => isSortable(column.key))
     .map((column) => ({ title: column.label, value: column.key }))
-  return options.some((option) => option.value === 'updatedAt')
-    ? options
-    : [{ title: '更新', value: 'updatedAt' }, ...options]
 })
 
 function resolveRowState(

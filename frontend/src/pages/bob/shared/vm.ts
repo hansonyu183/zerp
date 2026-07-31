@@ -54,8 +54,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const pageSize = ref(20)
   const keyword = ref('')
   const sort = ref<BusinessObjectSort>({
-    field: 'updatedAt',
-    order: 'desc',
+    field: 'code',
+    order: 'asc',
   })
   const filters = ref<Record<string, unknown>>(
     Object.fromEntries(
@@ -210,7 +210,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         field.multiple ? [] : field.type === 'switch' ? false : '',
       ]),
     )
-    sort.value = { field: 'updatedAt', order: 'desc' }
+    sort.value = { field: 'code', order: 'asc' }
     await search()
   }
 
@@ -509,7 +509,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     comment: string,
   ): Promise<boolean> {
     if (!actionAvailability(row)[action] || actionLoading.value) return false
-    const normalizedComment = comment.trim()
+    const normalizedComment = action === 'reject' ? comment.trim() : ''
     if (action === 'reject' && !normalizedComment) {
       errorMessage.value = '驳回意见不能为空。'
       return false

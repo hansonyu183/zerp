@@ -140,7 +140,7 @@ describe('customer shared BOB configuration and view model', () => {
         customerType: 'DIT-0002',
         salespersonEmployeeId: 'EMP-1',
       },
-      sort: [{ field: 'updatedAt', order: 'desc' }],
+      sort: [{ field: 'code', order: 'asc' }],
     })
   })
 

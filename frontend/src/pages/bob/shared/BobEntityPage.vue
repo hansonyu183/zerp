@@ -24,9 +24,7 @@ const vm = reactive(props.model)
 
 const effectiveEditTarget = ref<BobListItem | null>(null)
 const deleteTarget = ref<BobListItem | null>(null)
-const submitTarget = ref<BobListItem | null>(null)
 const reviewTarget = ref<BobListItem | null>(null)
-const reviewAction = ref<'approve' | 'reject'>('approve')
 const reviewComment = ref('')
 const formulaOpen = ref(false)
 const formulaModel = ref<ProductFormulaDraft | null>(null)
@@ -69,58 +67,39 @@ async function confirmDelete(): Promise<void> {
   if (row && (await vm.deleteObject(row))) deleteTarget.value = null
 }
 
-async function confirmSubmit(): Promise<void> {
-  const row = submitTarget.value
-  if (row && (await vm.submitObject(row))) submitTarget.value = null
-}
-
-function requestReview(row: BobListItem, action: 'approve' | 'reject'): void {
+function requestReject(row: BobListItem): void {
   reviewTarget.value = row
-  reviewAction.value = action
   reviewComment.value = ''
 }
 
 function primaryRowActions(row: BobListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
-  if (availability.edit) {
-    return [
-      {
-        key: 'edit',
-        label: `编辑 ${row.code}`,
-        icon: 'mdi-pencil-outline',
-        color: 'primary',
-      },
-    ]
-  }
-  return availability.view
-    ? [
-        {
-          key: 'view',
-          label: `查看 ${row.code}`,
-          icon: 'mdi-eye-outline',
-        },
-      ]
-    : []
-}
-
-function moreRowActions(row: BobListItem): ListRowAction[] {
-  const availability = vm.actionAvailability(row)
   return [
-    ...(availability.view && availability.edit
+    ...(availability.edit
       ? [
           {
-            key: 'view',
-            label: `查看 ${row.code}`,
-            icon: 'mdi-eye-outline',
+            key: 'edit',
+            label: `编辑 ${row.code}`,
+            icon: 'mdi-pencil-outline',
+            color: 'primary',
           },
         ]
-      : []),
+      : availability.view
+        ? [
+            {
+              key: 'view',
+              label: `查看 ${row.code}`,
+              icon: 'mdi-eye-outline',
+            },
+          ]
+        : []),
     ...(availability.submit
       ? [
           {
             key: 'submit',
             label: '提交审核',
             icon: 'mdi-send-outline',
+            color: 'primary',
           },
         ]
       : []),
@@ -130,6 +109,7 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
             key: 'approve',
             label: '审核通过',
             icon: 'mdi-check-decagram-outline',
+            color: 'success',
           },
         ]
       : []),
@@ -139,9 +119,16 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
             key: 'reject',
             label: '审核驳回',
             icon: 'mdi-close-octagon-outline',
+            color: 'error',
           },
         ]
       : []),
+  ]
+}
+
+function moreRowActions(row: BobListItem): ListRowAction[] {
+  const availability = vm.actionAvailability(row)
+  return [
     ...(availability.versions
       ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
       : []),
@@ -170,17 +157,17 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
 function selectRowAction(action: string, row: BobListItem): void {
   if (action === 'edit') requestEdit(row)
   else if (action === 'view') void vm.openView(row)
-  else if (action === 'submit') submitTarget.value = row
-  else if (action === 'approve' || action === 'reject') {
-    requestReview(row, action)
-  } else if (action === 'versions') void vm.openVersions(row)
+  else if (action === 'submit') void vm.submitObject(row)
+  else if (action === 'approve') void vm.review(row, 'approve', '')
+  else if (action === 'reject') requestReject(row)
+  else if (action === 'versions') void vm.openVersions(row)
   else if (action === 'audit') void vm.openAudit(row)
   else if (action === 'delete') deleteTarget.value = row
 }
 
 async function confirmReview(): Promise<void> {
   const row = reviewTarget.value
-  if (row && (await vm.review(row, reviewAction.value, reviewComment.value))) {
+  if (row && (await vm.review(row, 'reject', reviewComment.value))) {
     reviewTarget.value = null
     reviewComment.value = ''
   }
@@ -329,6 +316,7 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
       <template #actions="{ row }">
         <ListRowActions
           :label="`操作 ${row.code}`"
+          :loading="Boolean(vm.actionLoading)"
           :more="moreRowActions(row)"
           :more-label="`更多操作 ${row.code}`"
           :primary="primaryRowActions(row)"
@@ -499,48 +487,18 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
   </v-dialog>
 
   <v-dialog
-    :model-value="Boolean(submitTarget)"
-    max-width="540"
-    @update:model-value="
-      (value) => {
-        if (!value) submitTarget = null
-      }
-    "
-  >
-    <v-card rounded="xl" title="确认提交审核">
-      <v-card-text>
-        提交后当前版本进入待审核状态，在审核完成前不能继续编辑。
-      </v-card-text>
-      <v-card-actions class="px-6 pb-5">
-        <v-spacer />
-        <v-btn variant="text" @click="submitTarget = null">取消</v-btn>
-        <v-btn
-          color="primary"
-          :loading="vm.actionLoading === `submit:${submitTarget?.objectId}`"
-          @click="confirmSubmit"
-        >
-          提交审核
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog
     :model-value="Boolean(reviewTarget)"
     max-width="620"
     @update:model-value="closeReview"
   >
-    <v-card
-      rounded="xl"
-      :title="reviewAction === 'approve' ? '审核通过' : '审核驳回'"
-    >
+    <v-card rounded="xl" title="审核驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
           counter="1000"
-          :label="reviewAction === 'reject' ? '驳回意见' : '审核意见（可选）'"
+          label="驳回意见"
           :maxlength="1000"
-          :required="reviewAction === 'reject'"
+          required
           variant="outlined"
         />
       </v-card-text>
@@ -548,14 +506,12 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReview(false)">取消</v-btn>
         <v-btn
-          :color="reviewAction === 'approve' ? 'success' : 'error'"
-          :disabled="reviewAction === 'reject' && !reviewComment.trim()"
-          :loading="
-            vm.actionLoading === `${reviewAction}:${reviewTarget?.objectId}`
-          "
+          color="error"
+          :disabled="!reviewComment.trim()"
+          :loading="vm.actionLoading === `reject:${reviewTarget?.objectId}`"
           @click="confirmReview"
         >
-          {{ reviewAction === 'approve' ? '确认通过' : '确认驳回' }}
+          确认驳回
         </v-btn>
       </v-card-actions>
     </v-card>

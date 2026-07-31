@@ -45,6 +45,10 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const pageSize = ref(20)
   const keyword = ref('')
   const enabled = ref<boolean | null>(null)
+  const sort = ref<{ field: 'code'; order: 'asc' | 'desc' }>({
+    field: 'code',
+    order: 'asc',
+  })
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
@@ -115,7 +119,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
         page: page.value,
         pageSize: pageSize.value,
         filters,
-        sort: [{ field: 'updatedAt', order: 'desc' }],
+        sort: [{ ...sort.value }],
       } as never)
       rows.value = result.data.items
       total.value = result.data.total
@@ -134,6 +138,15 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   async function resetFilters(): Promise<void> {
     keyword.value = ''
     enabled.value = null
+    sort.value = { field: 'code', order: 'asc' }
+    await search()
+  }
+
+  async function changeSort(value: {
+    field: 'code'
+    order: 'asc' | 'desc'
+  }): Promise<void> {
+    sort.value = value
     await search()
   }
 
@@ -366,6 +379,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     pageSize,
     keyword,
     enabled,
+    sort,
     loading,
     saving,
     errorMessage,
@@ -384,6 +398,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     query,
     search,
     resetFilters,
+    changeSort,
     changePage,
     openCreate,
     openEdit,

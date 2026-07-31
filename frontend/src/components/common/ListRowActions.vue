@@ -85,8 +85,5 @@ const emit = defineEmits<{ select: [key: string] }>()
     width: 100%;
   }
 
-  .list-row-actions__label {
-    display: inline;
-  }
 }
 </style>

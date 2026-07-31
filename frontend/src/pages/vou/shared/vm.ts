@@ -45,7 +45,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     dateTo: '',
     partyObjectId: '',
   })
-  const sort = ref<VoucherSort>({ field: 'updatedAt', order: 'desc' })
+  const sort = ref<VoucherSort>({ field: 'documentNo', order: 'desc' })
   const selectedParty = ref<VoucherReference | null>(null)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
@@ -242,7 +242,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       partyObjectId: '',
     })
     selectedParty.value = null
-    sort.value = { field: 'updatedAt', order: 'desc' }
+    sort.value = { field: 'documentNo', order: 'desc' }
     await search()
   }
 

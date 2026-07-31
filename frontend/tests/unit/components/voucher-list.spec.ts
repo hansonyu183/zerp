@@ -11,6 +11,7 @@ import {
 } from 'vue'
 import { describe, expect, it } from 'vitest'
 import VoucherList from '@/components/voucher/VoucherList.vue'
+import type { VoucherListItem } from '@/components/voucher'
 
 interface ExpansionState {
   open: Ref<boolean>
@@ -127,10 +128,13 @@ const passthroughStub = (name: string, tag = 'div') =>
 
 function mountList(
   props: Partial<{
+    rows: readonly VoucherListItem[]
     keyword: string
     loading: boolean
     queryable: boolean
     creatable: boolean
+    canView: (row: VoucherListItem) => boolean
+    canEdit: (row: VoucherListItem) => boolean
   }> = {},
 ): VueWrapper {
   return mount(VoucherList as Component, {
@@ -143,7 +147,7 @@ function mountList(
       statuses: [],
       dateFrom: '',
       dateTo: '',
-      sort: { field: 'updatedAt', order: 'desc' },
+      sort: { field: 'documentNo', order: 'desc' },
       party: null,
       ...props,
     },
@@ -182,9 +186,15 @@ describe('VoucherList', () => {
       '金额',
       '操作',
     ])
+    expect(
+      wrapper
+        .getComponent({ name: 'MobileSortControl' })
+        .props('options')
+        .map((option: { value: string }) => option.value),
+    ).toEqual(['documentNo', 'businessDate', 'status', 'amount'])
   })
 
-  it('通过表头按自然升序开始并再次切换方向', async () => {
+  it('通过表头从默认单号降序切换方向', async () => {
     const wrapper = mountList()
     const numberHeader = wrapper
       .findAll('th')
@@ -267,5 +277,35 @@ describe('VoucherList', () => {
     expect(
       wrapper.findAll('button').some((button) => button.text() === '新增'),
     ).toBe(false)
+  })
+
+  it('编辑和查看只显示当前可用的一个入口', () => {
+    const row: VoucherListItem = {
+      documentId: 'DOC-1',
+      entity: 'sale-order',
+      documentNo: 'SO-0001',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-31',
+      currency: 'CNY',
+      amount: '100.00',
+      updatedAt: '2026-07-31T00:00:00Z',
+    }
+    const editable = mountList({
+      rows: [row],
+      canView: () => true,
+      canEdit: () => true,
+    })
+
+    expect(editable.find('[aria-label="编辑 SO-0001"]').exists()).toBe(true)
+    expect(editable.find('[aria-label="查看 SO-0001"]').exists()).toBe(false)
+
+    const readonly = mountList({
+      rows: [row],
+      canView: () => true,
+      canEdit: () => false,
+    })
+    expect(readonly.find('[aria-label="编辑 SO-0001"]').exists()).toBe(false)
+    expect(readonly.find('[aria-label="查看 SO-0001"]').exists()).toBe(true)
   })
 })

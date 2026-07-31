@@ -66,9 +66,10 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   const code = (await createdRow.locator('td').first().textContent())?.trim()
   expect(code).toMatch(/^CUS-\d{4}$/)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('提交审核', { exact: true }).click()
-  await page.getByRole('button', { name: '提交审核' }).click()
+  await expect(
+    customerRow(page, code!).getByText('提交审核', { exact: true }),
+  ).toBeHidden()
+  await customerRow(page, code!).getByLabel('提交审核').click()
   await expect(
     customerRow(page, code!).getByText('待审核', { exact: true }),
   ).toBeVisible()
@@ -77,8 +78,7 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   await signIn(page, reviewer)
   await openCustomer(page)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('审核驳回', { exact: true }).click()
+  await customerRow(page, code!).getByLabel('审核驳回').click()
   await page.getByLabel('驳回意见').fill('E2E 验证驳回后重提')
   await page.getByRole('button', { name: '确认驳回' }).click()
   await expect(
@@ -93,18 +93,13 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   await page.getByLabel('联系人').fill('E2E 重提联系人')
   await page.getByRole('button', { name: '保存' }).click()
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('提交审核', { exact: true }).click()
-  await page.getByRole('button', { name: '提交审核' }).click()
+  await customerRow(page, code!).getByLabel('提交审核').click()
   await signOut(page)
 
   await signIn(page, reviewer)
   await openCustomer(page)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('审核通过', { exact: true }).click()
-  await page.getByLabel('审核意见（可选）').fill('E2E 审核通过')
-  await page.getByRole('button', { name: '确认通过' }).click()
+  await customerRow(page, code!).getByLabel('审核通过').click()
   await expect(
     customerRow(page, code!).getByText('有效', { exact: true }),
   ).toBeVisible()

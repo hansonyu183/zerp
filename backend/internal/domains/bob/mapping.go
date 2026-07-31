@@ -11,7 +11,7 @@ import (
 func mutation(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionRow, status string, revision int64) MutationResult {
 	return MutationResult{
 		ObjectID: object.ID, ObjectRevision: object.Revision, VersionID: version.ID,
-		Version: version.VersionNo, Status: status, Revision: revision,
+		Enabled: object.Enabled, Version: version.VersionNo, Status: status, Revision: revision,
 	}
 }
 
@@ -61,11 +61,11 @@ func detailFields(entity string) []string {
 	}
 }
 
-func queryItem(row dbsqlc.BobVersionView) QueryItem {
+func queryItem(row dbsqlc.BobVersionView, enabled bool) QueryItem {
 	summary := detailView(row)
 	summary.AccountNumber = ""
 	return QueryItem{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: enabled,
 		CurrentVersion: VersionSummary{
 			VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status,
 			Revision: row.VersionRevision, Summary: summary,
@@ -84,9 +84,9 @@ func versionHistoryItem(row dbsqlc.BobVersionView) VersionHistoryItem {
 	}
 }
 
-func objectView(row dbsqlc.BobVersionView) ObjectView {
+func objectView(row dbsqlc.BobVersionView, enabled bool) ObjectView {
 	return ObjectView{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: enabled,
 		CurrentVersionID: row.CurrentVersionID, EffectiveVersionID: row.EffectiveVersionID, UpdatedAt: row.ObjectUpdatedAt.Time,
 		Version: VersionMeta{
 			VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status, Revision: row.VersionRevision,

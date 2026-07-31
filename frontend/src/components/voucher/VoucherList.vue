@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type {
+  VoucherLifecycleAction,
+  VoucherLifecycleLabels,
   VoucherListItem,
   VoucherReference,
   VoucherSort,
   VoucherStatus,
 } from './types'
+import type { ListRowAction } from '@/components/common/list-row-actions'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
@@ -30,6 +33,12 @@ const props = withDefaults(
     creatable?: boolean
     canView?: (row: VoucherListItem) => boolean
     canEdit?: (row: VoucherListItem) => boolean
+    canLifecycleAction?: (
+      row: VoucherListItem,
+      action: VoucherLifecycleAction,
+    ) => boolean
+    lifecycleLabels: VoucherLifecycleLabels
+    actionLoading?: string | null
     emptyText?: string
     partyEnabled?: boolean
     partyLabel?: string
@@ -44,6 +53,8 @@ const props = withDefaults(
     creatable: false,
     canView: () => true,
     canEdit: () => false,
+    canLifecycleAction: () => false,
+    actionLoading: null,
     emptyText: '暂无单据',
     partyEnabled: false,
     partyLabel: '往来方',
@@ -67,6 +78,7 @@ const emit = defineEmits<{
   create: []
   view: [row: VoucherListItem]
   edit: [row: VoucherListItem]
+  lifecycle: [row: VoucherListItem, action: VoucherLifecycleAction]
 }>()
 
 const hasNext = computed(() => props.page * props.pageSize < props.total)
@@ -107,20 +119,108 @@ function changeStatuses(value: unknown): void {
 }
 
 const mobileSortOptions = [
-  { title: '更新', value: 'updatedAt' },
   { title: '单号', value: 'documentNo' },
   { title: '日期', value: 'businessDate' },
   { title: '状态', value: 'status' },
   { title: '金额', value: 'amount' },
 ]
 
-function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+function applyMobileSort(value: {
+  field: string
+  order: 'asc' | 'desc'
+}): void {
   emit('update:sort', value as VoucherSort)
+}
+
+const lifecycleActionDefinitions: ReadonlyArray<{
+  action: VoucherLifecycleAction
+  statuses: readonly VoucherStatus[]
+  icon: string
+  color?: string
+}> = [
+  {
+    action: 'check',
+    statuses: ['DRAFT'],
+    icon: 'mdi-account-check-outline',
+    color: 'primary',
+  },
+  {
+    action: 'uncheck',
+    statuses: ['CHECKED'],
+    icon: 'mdi-undo-variant',
+  },
+  {
+    action: 'approve',
+    statuses: ['CHECKED'],
+    icon: 'mdi-check-decagram-outline',
+    color: 'success',
+  },
+  {
+    action: 'unapprove',
+    statuses: ['APPROVED'],
+    icon: 'mdi-undo-variant',
+  },
+  {
+    action: 'finalize',
+    statuses: ['APPROVED'],
+    icon: 'mdi-play-circle-outline',
+    color: 'primary',
+  },
+  {
+    action: 'unfinalize',
+    statuses: ['FINALIZED'],
+    icon: 'mdi-backup-restore',
+    color: 'warning',
+  },
+]
+
+function lifecycleActionLabel(action: VoucherLifecycleAction): string {
+  return props.lifecycleLabels[action]
+}
+
+function rowActions(row: VoucherListItem): ListRowAction[] {
+  const detailAction: ListRowAction[] = props.canEdit(row)
+    ? [
+        {
+          key: 'edit',
+          label: `编辑 ${row.documentNo}`,
+          icon: 'mdi-pencil-outline',
+          color: 'primary',
+        },
+      ]
+    : props.canView(row)
+      ? [
+          {
+            key: 'view',
+            label: `查看 ${row.documentNo}`,
+            icon: 'mdi-eye-outline',
+          },
+        ]
+      : []
+  const lifecycleActions = lifecycleActionDefinitions
+    .filter(
+      ({ action, statuses }) =>
+        statuses.includes(row.status) && props.canLifecycleAction(row, action),
+    )
+    .map(({ action, icon, color }) => ({
+      key: action,
+      label: `${lifecycleActionLabel(action)} ${row.documentNo}`,
+      icon,
+      color,
+    }))
+  return [...detailAction, ...lifecycleActions]
+}
+
+function isLifecycleAction(action: string): action is VoucherLifecycleAction {
+  return lifecycleActionDefinitions.some(
+    (definition) => definition.action === action,
+  )
 }
 
 function selectAction(action: string, row: VoucherListItem): void {
   if (action === 'edit') emit('edit', row)
-  else emit('view', row)
+  else if (action === 'view') emit('view', row)
+  else if (isLifecycleAction(action)) emit('lifecycle', row, action)
 }
 </script>
 
@@ -241,37 +341,8 @@ function selectAction(action: string, row: VoucherListItem): void {
               >
                 <ListRowActions
                   :label="`操作 ${row.documentNo}`"
-                  :more="
-                    canView(row) && canEdit(row)
-                      ? [
-                          {
-                            key: 'view',
-                            label: `查看 ${row.documentNo}`,
-                            icon: 'mdi-eye-outline',
-                          },
-                        ]
-                      : []
-                  "
-                  :primary="
-                    canEdit(row)
-                      ? [
-                          {
-                            key: 'edit',
-                            label: `编辑 ${row.documentNo}`,
-                            icon: 'mdi-pencil-outline',
-                            color: 'primary',
-                          },
-                        ]
-                      : canView(row)
-                        ? [
-                            {
-                              key: 'view',
-                              label: `查看 ${row.documentNo}`,
-                              icon: 'mdi-eye-outline',
-                            },
-                          ]
-                        : []
-                  "
+                  :loading="Boolean(actionLoading)"
+                  :primary="rowActions(row)"
                   @select="selectAction($event, row)"
                 />
               </td>

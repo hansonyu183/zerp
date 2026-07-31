@@ -44,7 +44,7 @@ function customerRow(page: Page, code: string) {
   })
 }
 
-test('使用双账号完成客户驳回、重提、通过和历史核验', async ({
+test('使用双账号完成客户反向流转、启禁用和历史核验', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000)
@@ -66,23 +66,33 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   const code = (await createdRow.locator('td').first().textContent())?.trim()
   expect(code).toMatch(/^CUS-\d{4}$/)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('提交审核', { exact: true }).click()
-  await page.getByRole('button', { name: '提交审核' }).click()
+  await expect(
+    customerRow(page, code!).getByText('提交审核', { exact: true }),
+  ).toBeHidden()
+  await customerRow(page, code!).getByLabel('提交审核').click()
   await expect(
     customerRow(page, code!).getByText('待审核', { exact: true }),
   ).toBeVisible()
+  await customerRow(page, code!).getByLabel('撤回提交').click()
+  const unsubmitDialog = page.getByRole('dialog').filter({
+    hasText: '撤回提交',
+  })
+  await unsubmitDialog.getByLabel('原因').fill('E2E 验证撤回提交')
+  await unsubmitDialog.getByRole('button', { name: '确认' }).click()
+  await expect(
+    customerRow(page, code!).getByText('草稿', { exact: true }),
+  ).toBeVisible()
+  await customerRow(page, code!).getByLabel('提交审核').click()
   await signOut(page)
 
   await signIn(page, reviewer)
   await openCustomer(page)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('审核驳回', { exact: true }).click()
+  await customerRow(page, code!).getByLabel('审核驳回').click()
   await page.getByLabel('驳回意见').fill('E2E 验证驳回后重提')
   await page.getByRole('button', { name: '确认驳回' }).click()
   await expect(
-    customerRow(page, code!).getByText('已驳回', { exact: true }),
+    customerRow(page, code!).getByText('草稿', { exact: true }),
   ).toBeVisible()
   await signOut(page)
 
@@ -93,18 +103,34 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   await page.getByLabel('联系人').fill('E2E 重提联系人')
   await page.getByRole('button', { name: '保存' }).click()
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('提交审核', { exact: true }).click()
-  await page.getByRole('button', { name: '提交审核' }).click()
+  await customerRow(page, code!).getByLabel('提交审核').click()
   await signOut(page)
 
   await signIn(page, reviewer)
   await openCustomer(page)
   await searchCustomer(page, code!)
-  await openMore(page, code!)
-  await page.getByText('审核通过', { exact: true }).click()
-  await page.getByLabel('审核意见（可选）').fill('E2E 审核通过')
-  await page.getByRole('button', { name: '确认通过' }).click()
+  await customerRow(page, code!).getByLabel('审核通过').click()
+  await expect(
+    customerRow(page, code!).getByText('有效', { exact: true }),
+  ).toBeVisible()
+  await customerRow(page, code!).getByLabel('禁用').click()
+  await expect(
+    customerRow(page, code!).getByText('禁用', { exact: true }),
+  ).toBeVisible()
+  await customerRow(page, code!).getByLabel('启用').click()
+  await expect(
+    customerRow(page, code!).getByText('启用', { exact: true }),
+  ).toBeVisible()
+  await customerRow(page, code!).getByLabel('撤销批准').click()
+  const unapproveDialog = page.getByRole('dialog').filter({
+    hasText: '撤销批准',
+  })
+  await unapproveDialog.getByLabel('原因').fill('E2E 验证撤销批准')
+  await unapproveDialog.getByRole('button', { name: '确认' }).click()
+  await expect(
+    customerRow(page, code!).getByText('待审核', { exact: true }),
+  ).toBeVisible()
+  await customerRow(page, code!).getByLabel('审核通过').click()
   await expect(
     customerRow(page, code!).getByText('有效', { exact: true }),
   ).toBeVisible()
@@ -116,6 +142,7 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   })
   await expect(versionsDialog).toBeVisible()
   await expect(versionsDialog.getByText('V1', { exact: true })).toBeVisible()
+  await expect(versionsDialog.getByText('V2', { exact: true })).toBeVisible()
   await versionsDialog.getByRole('button', { name: '关闭' }).click()
 
   await openMore(page, code!)
@@ -125,5 +152,10 @@ test('使用双账号完成客户驳回、重提、通过和历史核验', async
   })
   await expect(auditDialog).toBeVisible()
   await expect(auditDialog.getByText('REJECTED', { exact: true })).toBeVisible()
-  await expect(auditDialog.getByText('APPROVED', { exact: true })).toBeVisible()
+  await expect(
+    auditDialog.getByText('UNAPPROVED', { exact: true }),
+  ).toBeVisible()
+  await expect(auditDialog.getByText('APPROVED', { exact: true })).toHaveCount(
+    2,
+  )
 })

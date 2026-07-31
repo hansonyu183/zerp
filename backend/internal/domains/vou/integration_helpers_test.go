@@ -95,6 +95,31 @@ func createApprovedBOB(
 	return ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
 }
 
+func reverseApprovedBOBToDraft(
+	t *testing.T,
+	service *bobdomain.Service,
+	entity string,
+	view bobdomain.ObjectView,
+	requestID string,
+) bobdomain.MutationResult {
+	t.Helper()
+	unapproved, err := service.Unapprove(t.Context(), entity, bobdomain.ReverseInput{
+		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision,
+		VersionID: view.Version.VersionID, Revision: view.Version.Revision, Reason: "integration update",
+	}, integrationActorOne, requestID+"-unapprove")
+	if err != nil {
+		t.Fatalf("unapprove BOB reference: %v", err)
+	}
+	draft, err := service.Unsubmit(t.Context(), entity, bobdomain.ReverseInput{
+		ObjectID: unapproved.ObjectID, ObjectRevision: unapproved.ObjectRevision,
+		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "integration update",
+	}, integrationActorOne, requestID+"-unsubmit")
+	if err != nil {
+		t.Fatalf("unsubmit BOB reference: %v", err)
+	}
+	return draft
+}
+
 func int32IntegrationPointer(value int32) *int32 { return &value }
 
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {

@@ -409,10 +409,18 @@ WHERE line.product_version_id = sqlc.arg(product_version_id)
 ORDER BY line.line_no;
 
 -- name: LockBobObject :one
-SELECT id, entity, code, current_version_id, effective_version_id, next_version_no, revision, updated_at
+SELECT id, entity, code, current_version_id, effective_version_id, enabled, next_version_no, revision, updated_at
 FROM bob_objects
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
 FOR UPDATE;
+
+-- name: GetBobObjectEnabled :one
+SELECT enabled FROM bob_objects
+WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity);
+
+-- name: ListBobObjectsEnabled :many
+SELECT id, enabled FROM bob_objects
+WHERE id = ANY(sqlc.arg(ids)::text[]);
 
 -- name: FindBobObjectIDByCode :one
 SELECT id
@@ -721,6 +729,7 @@ JOIN bob_versions v
 JOIN bob_supplier_versions s ON s.version_id = v.id
 WHERE o.id = sqlc.arg(platform_object_id)
   AND o.entity = 'supplier'
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
   AND s.supplier_type = 'LOGISTICS_PLATFORM'
@@ -735,6 +744,7 @@ JOIN bob_versions v
  AND v.entity = o.entity
 WHERE o.id = sqlc.arg(object_id)
   AND o.entity = sqlc.arg(entity)
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o;
@@ -749,6 +759,7 @@ JOIN bob_versions v
 JOIN bob_category_versions detail ON detail.version_id = v.id
 WHERE o.id = sqlc.arg(target_category_id)
   AND o.entity = 'category'
+  AND o.enabled
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o;
@@ -757,14 +768,14 @@ FOR SHARE OF o;
 UPDATE bob_versions
 SET revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status IN ('DRAFT', 'REJECTED');
+  AND revision = sqlc.arg(revision) AND status = 'DRAFT';
 
 -- name: SubmitBobVersion :execrows
 UPDATE bob_versions
 SET status = 'PENDING', revision = revision + 1, submitted_at = now(), submitted_by = sqlc.arg(actor_id),
     reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL, updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status IN ('DRAFT', 'REJECTED');
+  AND revision = sqlc.arg(revision) AND status = 'DRAFT';
 
 -- name: ApproveBobVersion :execrows
 UPDATE bob_versions
@@ -775,10 +786,29 @@ WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.ar
 
 -- name: RejectBobVersion :execrows
 UPDATE bob_versions
-SET status = 'REJECTED', revision = revision + 1, reviewed_at = now(), reviewed_by = sqlc.arg(actor_id),
-    review_comment = sqlc.arg(comment), updated_at = now(), updated_by = sqlc.arg(actor_id)
+SET status = 'DRAFT', revision = revision + 1,
+    submitted_at = NULL, submitted_by = NULL,
+    reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
+    updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'PENDING' AND submitted_by <> sqlc.arg(actor_id);
+
+-- name: UnsubmitBobVersion :execrows
+UPDATE bob_versions
+SET status = 'DRAFT', revision = revision + 1,
+    submitted_at = NULL, submitted_by = NULL,
+    reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
+    updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
+  AND revision = sqlc.arg(revision) AND status = 'PENDING';
+
+-- name: MarkBobVersionPendingCopy :execrows
+UPDATE bob_versions
+SET status = 'PENDING', revision = revision + 1,
+    submitted_at = sqlc.arg(submitted_at), submitted_by = sqlc.arg(submitted_by),
+    updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
+  AND revision = 1 AND status = 'DRAFT';
 
 -- name: InvalidateBobVersion :execrows
 UPDATE bob_versions
@@ -786,12 +816,22 @@ SET status = 'INVALID', revision = revision + 1, updated_at = now(), updated_by 
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'EFFECTIVE';
 
--- name: AdvanceBobObjectForEdit :execrows
+-- name: AdvanceBobObjectForUnapprove :execrows
 UPDATE bob_objects
 SET current_version_id = sqlc.arg(new_version_id), effective_version_id = NULL,
     next_version_no = next_version_no + 1, revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity) AND revision = sqlc.arg(revision)
   AND current_version_id = sqlc.arg(old_version_id) AND effective_version_id = sqlc.arg(old_version_id);
+
+-- name: SetBobObjectEnabled :execrows
+UPDATE bob_objects
+SET enabled = sqlc.arg(enabled), revision = revision + 1,
+    updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
+  AND revision = sqlc.arg(revision)
+  AND current_version_id = effective_version_id
+  AND effective_version_id IS NOT NULL
+  AND enabled <> sqlc.arg(enabled);
 
 -- name: SetBobObjectEffective :execrows
 UPDATE bob_objects
@@ -818,9 +858,17 @@ WHERE object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
 
 -- name: CountBobObjects :one
 SELECT count(*)
-FROM bob_version_views
-WHERE entity = sqlc.arg(entity) AND version_id = current_version_id
-  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR status = ANY(sqlc.arg(statuses)::text[]))
+FROM bob_version_views view
+WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
+  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
+  AND (
+    sqlc.arg(enabled_filter)::integer = -1
+    OR EXISTS (
+      SELECT 1 FROM bob_objects filter_object
+      WHERE filter_object.id = view.object_id
+        AND filter_object.enabled = (sqlc.arg(enabled_filter)::integer = 1)
+    )
+  )
   AND (sqlc.arg(customer_type)::text = '' OR customer_type = sqlc.arg(customer_type))
   AND (sqlc.arg(supplier_type)::text = '' OR supplier_type = sqlc.arg(supplier_type))
   AND (sqlc.arg(category_id)::text = '' OR category_id = sqlc.arg(category_id))
@@ -855,10 +903,18 @@ WHERE entity = sqlc.arg(entity) AND version_id = current_version_id
   );
 
 -- name: ListBobObjects :many
-SELECT *
-FROM bob_version_views
-WHERE entity = sqlc.arg(entity) AND version_id = current_version_id
-  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR status = ANY(sqlc.arg(statuses)::text[]))
+SELECT view.*
+FROM bob_version_views view
+WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
+  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
+  AND (
+    sqlc.arg(enabled_filter)::integer = -1
+    OR EXISTS (
+      SELECT 1 FROM bob_objects filter_object
+      WHERE filter_object.id = view.object_id
+        AND filter_object.enabled = (sqlc.arg(enabled_filter)::integer = 1)
+    )
+  )
   AND (sqlc.arg(customer_type)::text = '' OR customer_type = sqlc.arg(customer_type))
   AND (sqlc.arg(supplier_type)::text = '' OR supplier_type = sqlc.arg(supplier_type))
   AND (sqlc.arg(category_id)::text = '' OR category_id = sqlc.arg(category_id))
@@ -933,6 +989,7 @@ WHERE view.object_id = sqlc.arg(object_id) AND view.entity = sqlc.arg(entity)
   AND view.version_id = sqlc.arg(version_id)
   AND view.effective_version_id = view.version_id
   AND view.status = 'EFFECTIVE'
+  AND o.enabled
 FOR SHARE OF o;
 
 -- name: ResolveCurrentBobEffectiveReference :one
@@ -943,4 +1000,5 @@ WHERE view.object_id = sqlc.arg(object_id) AND view.entity = sqlc.arg(entity)
   AND view.version_id = o.current_version_id
   AND view.version_id = o.effective_version_id
   AND view.status = 'EFFECTIVE'
+  AND o.enabled
 FOR SHARE OF o;

@@ -1,13 +1,6 @@
-<script
-  setup
-  lang="ts"
-  generic="T extends object"
->
+<script setup lang="ts" generic="T extends object">
 import { computed, ref, watch } from 'vue'
-import type {
-  BusinessObjectField,
-  BusinessObjectValidationRule,
-} from './types'
+import type { BusinessObjectField, BusinessObjectValidationRule } from './types'
 
 defineOptions({ name: 'BusinessObjectEditor' })
 
@@ -113,7 +106,8 @@ function setDraftValue(field: BusinessObjectField<T>, value: unknown): void {
 }
 
 function resolveFieldState(
-  state: BusinessObjectField<T>['readonly'] | BusinessObjectField<T>['disabled'],
+  state:
+    BusinessObjectField<T>['readonly'] | BusinessObjectField<T>['disabled'],
 ): boolean {
   return typeof state === 'function' ? state(record.value) : Boolean(state)
 }
@@ -147,10 +141,8 @@ function getRules(field: BusinessObjectField<T>) {
       !isEmpty(value) ||
       `请输入${field.label}。`,
     ...(field.rules ?? []).map(
-      (rule: BusinessObjectValidationRule<T>) =>
-        async (value: unknown) =>
-          !isFieldVisible(field) ||
-          rule(value, draft.value as Readonly<T>),
+      (rule: BusinessObjectValidationRule<T>) => async (value: unknown) =>
+        !isFieldVisible(field) || rule(value, draft.value as Readonly<T>),
     ),
   ]
 }
@@ -166,9 +158,7 @@ function formatValue(field: BusinessObjectField<T>): string {
   }
 
   if (field.type === 'switch') {
-    return value
-      ? field.trueLabel ?? '是'
-      : field.falseLabel ?? '否'
+    return value ? (field.trueLabel ?? '是') : (field.falseLabel ?? '否')
   }
 
   if (typeof value === 'object') return JSON.stringify(value)
@@ -203,11 +193,7 @@ async function save(): Promise<void> {
 <template>
   <v-card class="business-object-editor" rounded="lg" variant="flat">
     <div class="business-object-editor__header">
-      <slot
-        name="header"
-        :editing="editing"
-        :title="title"
-      >
+      <slot name="header" :editing="editing" :title="title">
         <div>
           <div class="business-object-editor__eyebrow">
             {{ editing ? '编辑' : '详情' }}
@@ -235,11 +221,7 @@ async function save(): Promise<void> {
             编辑
           </v-btn>
           <template v-else-if="editing">
-            <v-btn
-              :disabled="saving"
-              variant="text"
-              @click="cancelEditing"
-            >
+            <v-btn :disabled="saving" variant="text" @click="cancelEditing">
               取消
             </v-btn>
             <v-btn
@@ -259,12 +241,7 @@ async function save(): Promise<void> {
     <v-divider />
 
     <v-card-text class="business-object-editor__content">
-      <v-alert
-        v-if="errorMessage"
-        class="mb-5"
-        type="error"
-        variant="tonal"
-      >
+      <v-alert v-if="errorMessage" class="mb-5" type="error" variant="tonal">
         {{ errorMessage }}
       </v-alert>
 
@@ -417,10 +394,7 @@ async function save(): Promise<void> {
         </div>
       </v-form>
 
-      <div
-        v-else
-        class="business-object-editor__grid"
-      >
+      <div v-else class="business-object-editor__grid">
         <div
           v-for="field in renderedFields"
           :key="fieldKey(field)"
@@ -466,14 +440,14 @@ async function save(): Promise<void> {
 .business-object-editor__header h2 {
   margin: 3px 0 0;
   font-size: 20px;
-  letter-spacing: -.02em;
+  letter-spacing: -0.02em;
 }
 
 .business-object-editor__eyebrow {
   color: rgb(var(--v-theme-primary));
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .business-object-editor__actions {
@@ -518,8 +492,16 @@ async function save(): Promise<void> {
 
 @media (max-width: 640px) {
   .business-object-editor__header {
+    flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
     padding: 16px 18px;
+  }
+
+  .business-object-editor__actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .business-object-editor__content {

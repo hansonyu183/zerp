@@ -35,7 +35,7 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 			t.Errorf("%s sample count = %d, want %d", entity, entityCounts[entity], expected)
 		}
 	}
-	for _, status := range []string{bob.StatusEffective, bob.StatusDraft, bob.StatusPending, bob.StatusRejected} {
+	for _, status := range []string{bob.StatusEffective, bob.StatusDraft, bob.StatusPending} {
 		if statusCounts[status] == 0 {
 			t.Errorf("missing %s sample", status)
 		}
@@ -53,7 +53,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 26 || store.submitCalls != 21 || store.approveCalls != 16 || store.rejectCalls != 2 {
+	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -70,7 +70,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 26 || store.submitCalls != 21 || store.approveCalls != 16 || store.rejectCalls != 2 {
+	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -163,21 +163,27 @@ func TestSeedUpgradesLegacyDemoSupplierToLogisticsPlatform(t *testing.T) {
 		view.Version.Status != bob.StatusEffective {
 		t.Fatalf("upgraded supplier = %+v", view)
 	}
-	if store.editCalls != 1 || store.saveCalls != 1 {
-		t.Fatalf("edit calls=%d save calls=%d", store.editCalls, store.saveCalls)
+	if store.unapproveCalls != 1 || store.unsubmitCalls != 1 || store.saveCalls != 1 {
+		t.Fatalf(
+			"unapprove calls=%d unsubmit calls=%d save calls=%d",
+			store.unapproveCalls,
+			store.unsubmitCalls,
+			store.saveCalls,
+		)
 	}
 }
 
 type fakeStore struct {
-	byKey        map[string]bob.ObjectView
-	byID         map[string]string
-	nextID       int
-	createCalls  int
-	editCalls    int
-	saveCalls    int
-	submitCalls  int
-	approveCalls int
-	rejectCalls  int
+	byKey          map[string]bob.ObjectView
+	byID           map[string]string
+	nextID         int
+	createCalls    int
+	saveCalls      int
+	submitCalls    int
+	unsubmitCalls  int
+	approveCalls   int
+	unapproveCalls int
+	rejectCalls    int
 }
 
 func newFakeStore() *fakeStore {
@@ -285,22 +291,6 @@ func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (bob.Ob
 	return s.byKey[recordKey], nil
 }
 
-func (s *fakeStore) Edit(_ context.Context, _ string, input bob.ObjectRevisionInput, _, _ string) (bob.MutationResult, error) {
-	s.editCalls++
-	recordKey, found := s.byID[input.ObjectID]
-	if !found {
-		return bob.MutationResult{}, fmt.Errorf("object not found")
-	}
-	view := s.byKey[recordKey]
-	view.ObjectRevision++
-	view.Version.Version++
-	view.Version.VersionID = fmt.Sprintf("version-%d-edit", s.nextID)
-	view.Version.Status = bob.StatusDraft
-	view.Version.Revision = 1
-	s.byKey[recordKey] = view
-	return mutation(view), nil
-}
-
 func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ string) (bob.MutationResult, error) {
 	s.saveCalls++
 	recordKey, found := s.byID[input.ObjectID]
@@ -376,14 +366,24 @@ func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisio
 	return s.transition(input.ObjectID, bob.StatusPending), nil
 }
 
+func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _, _ string) (bob.MutationResult, error) {
+	s.unsubmitCalls++
+	return s.transition(input.ObjectID, bob.StatusDraft), nil
+}
+
 func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _, _ string) (bob.MutationResult, error) {
 	s.approveCalls++
 	return s.transition(input.ObjectID, bob.StatusEffective), nil
 }
 
+func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _, _ string) (bob.MutationResult, error) {
+	s.unapproveCalls++
+	return s.transition(input.ObjectID, bob.StatusPending), nil
+}
+
 func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _, _ string) (bob.MutationResult, error) {
 	s.rejectCalls++
-	return s.transition(input.ObjectID, bob.StatusRejected), nil
+	return s.transition(input.ObjectID, bob.StatusDraft), nil
 }
 
 func (s *fakeStore) transition(objectID, status string) bob.MutationResult {

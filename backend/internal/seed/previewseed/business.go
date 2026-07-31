@@ -23,11 +23,11 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Email: "preview.employee@example.com", HireDate: "2024-01-15", Remark: "预览测试有效员工",
 			}
 		}},
-		{"employee-rejected", bobdomain.EntityEmployee, bobdomain.StatusRejected, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"employee-rejected", bobdomain.EntityEmployee, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "李娜（预览已驳回）", DepartmentID: s.auxRefs["department-sales"].ObjectID,
+				Name: "李娜（预览草稿）", DepartmentID: s.auxRefs["department-sales"].ObjectID,
 				PositionID: s.auxRefs["position-operator"].ObjectID, Phone: "13800000102",
-				Remark: "预览测试已驳回员工",
+				Remark: "预览测试草稿员工",
 			}
 		}},
 		{"customer-effective", bobdomain.EntityCustomer, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
@@ -93,11 +93,11 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark:            "预览测试有效仓库",
 			}
 		}},
-		{"warehouse-rejected", bobdomain.EntityWarehouse, bobdomain.StatusRejected, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"warehouse-rejected", bobdomain.EntityWarehouse, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "临时仓（预览已驳回）", Address: "上海市青浦区预览临时仓",
+				Name: "临时仓（预览草稿）", Address: "上海市青浦区预览临时仓",
 				ManagerEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:            "预览测试已驳回仓库",
+				Remark:            "预览测试草稿仓库",
 			}
 		}},
 		{"packaging-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
@@ -305,8 +305,7 @@ func (s *Seeder) advanceBusiness(
 		VersionID: view.Version.VersionID, Status: view.Version.Status, Revision: view.Version.Revision,
 	}
 	var err error
-	if (current.Status == bobdomain.StatusDraft || current.Status == bobdomain.StatusRejected) &&
-		sample.status != current.Status {
+	if current.Status == bobdomain.StatusDraft && sample.status != current.Status {
 		current, err = s.business.Submit(ctx, sample.entity, bobdomain.VersionRevisionInput{
 			ObjectID: current.ObjectID, VersionID: current.VersionID, Revision: current.Revision,
 		}, actorID, requestID(sample.key, "submit"))
@@ -323,12 +322,6 @@ func (s *Seeder) advanceBusiness(
 			ObjectID: current.ObjectID, VersionID: current.VersionID,
 			Revision: current.Revision, Comment: &comment,
 		}, reviewerID, requestID(sample.key, "approve"))
-	case current.Status == bobdomain.StatusPending && sample.status == bobdomain.StatusRejected:
-		comment := "预览测试数据：审核驳回"
-		_, err = s.business.Reject(ctx, sample.entity, bobdomain.ReviewInput{
-			ObjectID: current.ObjectID, VersionID: current.VersionID,
-			Revision: current.Revision, Comment: &comment,
-		}, reviewerID, requestID(sample.key, "reject"))
 	default:
 		return fmt.Errorf("cannot advance status %s to %s", current.Status, sample.status)
 	}

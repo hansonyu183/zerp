@@ -23,7 +23,6 @@ export const statusText: Record<BobStatus, string> = {
 export const statusOptions: readonly BusinessObjectFieldOption[] = [
   { title: '草稿', value: 'DRAFT' },
   { title: '待审核', value: 'PENDING' },
-  { title: '已驳回', value: 'REJECTED' },
   { title: '有效', value: 'EFFECTIVE' },
   { title: '已失效', value: 'INVALID' },
 ]
@@ -180,6 +179,15 @@ export function baseFilters(
       type: 'select',
       multiple: true,
       options: statusOptions,
+    },
+    {
+      key: 'enabled',
+      label: '启停状态',
+      type: 'select',
+      options: [
+        { title: '启用', value: true },
+        { title: '禁用', value: false },
+      ],
     },
     ...extra,
   ]

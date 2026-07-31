@@ -113,7 +113,7 @@ vehicle VEH                  fund-account FAC
 
 所有车辆都通过 `platformObjectId` 关联一个物流平台供应商。自有、临时和外部车辆分别关联通过供应商 API 创建并审核生效的“自营物流平台”“临时物流平台”或外部物流平台；平台类别不增加独立枚举，由供应商编码和名称表达。车辆不保存平台版本 ID，创建、保存、提交和审核时均重新校验平台当前有效版本及供应商类型。
 
-物流平台发起编辑后，到新版本再次审核生效前没有有效版本。此期间相关车辆自身状态不变，但不能通过 `ResolveEffectiveReference` 被新的业务引用；平台重新生效后自动恢复可引用。
+物流平台撤销批准后，到新版本再次审核生效前没有有效版本。此期间相关车辆自身状态不变，但不能通过 `ResolveEffectiveReference` 被新的业务引用；平台重新生效后自动恢复可引用。
 
 ### 2.4 辅助对象与业务对象引用
 
@@ -191,9 +191,9 @@ BusinessObject (稳定身份)
 - `(object_id, version_no)` 唯一；
 - 每个版本恰好存在一条与实体类型匹配的版本明细；
 - 每个对象最多一个 `EFFECTIVE` 版本；
-- 每个对象最多一个处于 `DRAFT`、`PENDING` 或 `REJECTED` 的候选版本；
+- 每个对象最多一个处于 `DRAFT` 或 `PENDING` 的候选版本；
 - `PENDING` 必须具有提交人和提交时间；
-- `EFFECTIVE`、`REJECTED` 必须具有审核人和审核时间；
+- `EFFECTIVE`、`INVALID` 必须具有审核人和审核时间；
 - 提交人与审核人不得相同。
 
 可用 PostgreSQL 部分唯一索引保证“最多一个有效版本”和“最多一个候选版本”。无法用简单约束表达的跨表规则必须集中在领域服务和数据库集成测试中验证。
@@ -210,19 +210,18 @@ BusinessObject (稳定身份)
 - `request_id`；
 - 必要且经过脱敏的变更摘要。
 
-事件类型至少包括 `CREATED`、`EDIT_STARTED`、`SAVED`、`SUBMITTED`、`APPROVED`、`REJECTED`、`INVALIDATED`。业务事务回滚时，对应审计事件也必须回滚，禁止记录未发生的状态变化。
+事件类型至少包括 `CREATED`、`SAVED`、`SUBMITTED`、`UNSUBMITTED`、`APPROVED`、`UNAPPROVED`、`REJECTED`、`ENABLED`、`DISABLED`、`INVALIDATED`。业务事务回滚时，对应审计事件也必须回滚，禁止记录未发生的状态变化。
 
 ## 4. 生命周期状态机
 
 ### 4.1 状态定义
 
-| 状态        | 可修改业务字段 | 可提交 | 可审核 | 可被新业务引用 |
-| ----------- | -------------: | -----: | -----: | -------------: |
-| `DRAFT`     |             是 |     是 |     否 |             否 |
-| `PENDING`   |             否 |     否 |     是 |             否 |
-| `REJECTED`  |             是 |     是 |     否 |             否 |
-| `EFFECTIVE` |             否 |     否 |     否 |             是 |
-| `INVALID`   |             否 |     否 |     否 |             否 |
+| 状态        | 可修改业务字段 | 可提交 | 可审核 |   可被新业务引用 |
+| ----------- | -------------: | -----: | -----: | ---------------: |
+| `DRAFT`     |             是 |     是 |     否 |               否 |
+| `PENDING`   |             否 |     否 |     是 |               否 |
+| `EFFECTIVE` |             否 |     否 |     否 |               是 |
+| `INVALID`   |             否 |     否 |     否 | 否（仅历史版本） |
 
 允许的状态转换只有：
 
@@ -230,53 +229,58 @@ BusinessObject (稳定身份)
 create:  (none)    → DRAFT
 delete: DRAFT(v1)  → (none)，仅适用 2.2 节的唯一例外
 submit: DRAFT      → PENDING
-submit: REJECTED   → PENDING
+unsubmit: PENDING  → DRAFT
 approve: PENDING   → EFFECTIVE
-reject:  PENDING   → REJECTED
-edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
+reject:  PENDING   → DRAFT
+unapprove: EFFECTIVE → INVALID（冻结旧版本），并创建新的 PENDING
 ```
 
 除上述转换外全部拒绝。尤其禁止：
 
 - 直接创建 `EFFECTIVE` 版本；
 - 修改 `PENDING`、`EFFECTIVE` 或 `INVALID` 的业务字段；
-- 将 `REJECTED` 直接改为 `EFFECTIVE`；
-- 驳回新版本后自动恢复旧版本；
 - 通过普通保存接口修改状态或审计字段。
 
-### 4.2 编辑即失效
+### 4.2 草稿编辑与历史版本冻结
 
-发起编辑必须在同一事务内：
+只有 `DRAFT` 当前版本可以保存业务字段。有效对象需要修改时，必须先执行 `unapprove`，并在同一事务内：
 
 1. 锁定 `bob_objects` 当前行；
 2. 校验对象 `revision` 和当前有效版本；
-3. 将原 `EFFECTIVE` 版本更新为 `INVALID`；
+3. 将原 `EFFECTIVE` 版本更新为 `INVALID`，此后永久只读；
 4. 清空 `effective_version_id`；
-5. 创建版本号递增的新 `DRAFT` 版本及明细；
+5. 复制业务明细，创建版本号递增的新 `PENDING` 版本；
 6. 更新 `current_version_id` 和对象 `revision`；
-7. 写入原版本失效和新版本创建审计事件。
+7. 写入原版本冻结和撤销批准审计事件。
 
-任一步失败必须全部回滚。事务提交后到新版本再次审核通过前，该对象没有可供新业务引用的有效版本。
+任一步失败必须全部回滚。新版本继续执行 `unsubmit` 后进入 `DRAFT` 才能编辑。事务提交后到新版本再次审核通过前，该对象没有可供新业务引用的有效版本。
 
-### 4.3 驳回后重提
+### 4.3 驳回与撤回
 
-驳回不创建新版本。用户可在原 `REJECTED` 版本上保存修正；保存增加版本 `revision`，但 `version_no` 不变。再次提交时覆盖该版本的“最近一次提交”字段，同时所有历史提交、审核过程保留在 `bob_audit_events` 中。
+驳回和撤回提交都把当前 `PENDING` 版本退回 `DRAFT`，清空版本行上的最近提交、审核字段；驳回意见、反向原因和全部历史过程保留在 `bob_audit_events` 中。驳回要求意见，`unsubmit` 和 `unapprove` 要求原因。
+
+### 4.4 对象启停
+
+`enabled` 属于稳定对象而不是版本，新对象默认启用。只有当前版本为 `EFFECTIVE` 时允许执行 `enable` 或 `disable`。禁用对象不可用于新的业务引用，历史单据保存的对象 ID、版本 ID 和快照不受影响。对象从有效状态撤销批准并重新批准后保留原启停值。
 
 ## 5. 领域动作
 
-八类实体提供相同的十一个动作，共定义 88 条业务 API：
+八类实体提供相同的十四个动作，共定义 112 条业务 API：
 
 | 动作         | 路径                          | 说明                                      |
 | ------------ | ----------------------------- | ----------------------------------------- |
 | 查询         | `/bob/{entity}/query`         | 分页查询对象及当前版本摘要                |
 | 查看         | `/bob/{entity}/get`           | 查看对象和指定版本详情                    |
 | 新建         | `/bob/{entity}/create`        | 创建对象、首个草稿和明细                  |
-| 发起编辑     | `/bob/{entity}/edit`          | 使有效版本失效并复制为新草稿              |
-| 保存草稿     | `/bob/{entity}/save`          | 保存 `DRAFT` 或 `REJECTED` 版本           |
+| 保存草稿     | `/bob/{entity}/save`          | 保存 `DRAFT` 版本                         |
 | 删除首版草稿 | `/bob/{entity}/delete`        | 物理删除满足 2.2 节全部条件的首版草稿聚合 |
 | 提交审核     | `/bob/{entity}/submit`        | 转为 `PENDING`                            |
+| 撤回提交     | `/bob/{entity}/unsubmit`      | `PENDING` 退回 `DRAFT`                    |
 | 审核通过     | `/bob/{entity}/approve`       | 转为 `EFFECTIVE`                          |
-| 审核驳回     | `/bob/{entity}/reject`        | 转为 `REJECTED`                           |
+| 撤销批准     | `/bob/{entity}/unapprove`     | 冻结旧有效版本并复制新的 `PENDING` 版本   |
+| 审核驳回     | `/bob/{entity}/reject`        | `PENDING` 退回 `DRAFT`                    |
+| 启用         | `/bob/{entity}/enable`        | 允许有效对象被新业务引用                  |
+| 禁用         | `/bob/{entity}/disable`       | 禁止有效对象被新业务引用                  |
 | 查看版本     | `/bob/{entity}/versions`      | 查询对象全部历史版本                      |
 | 审核记录     | `/bob/{entity}/audit-history` | 查询状态与审核事件                        |
 
@@ -372,18 +376,23 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 对象、版本、明细和 `CREATED` 审计事件必须在单个事务中写入。
 
-### 6.4 发起编辑
+### 6.4 反向与启停
 
-请求：
+`unsubmit` 和 `unapprove` 请求：
 
 ```json
 {
   "objectId": "01J...",
-  "objectRevision": 2
+  "objectRevision": 2,
+  "versionId": "01J...",
+  "revision": 4,
+  "reason": "退回修改"
 }
 ```
 
-只有存在当前 `EFFECTIVE` 版本且不存在候选版本时允许执行。新草稿默认复制有效版本的业务字段，返回新 `versionId`、递增后的版本号、对象 `revision` 和版本 `revision`。
+`unsubmit` 只允许当前 `PENDING` 版本退回 `DRAFT`。`unapprove` 只允许当前 `EFFECTIVE` 版本执行：旧版本冻结为 `INVALID`，业务明细复制到版本号递增的新 `PENDING` 版本。两者都要求原因并写入审计。
+
+`enable` 和 `disable` 请求只包含 `objectId`、`objectRevision`。只有当前版本为 `EFFECTIVE` 时允许启停，成功后对象 `revision + 1`；重复启用或重复禁用按数据冲突处理。
 
 ### 6.5 保存草稿
 
@@ -398,7 +407,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 }
 ```
 
-只允许保存 `DRAFT` 或 `REJECTED`。更新必须匹配 `versionId`、`objectId`、实体、允许状态和 `revision`，成功后 `revision + 1`。客户端不能修改 `version`、`status` 和任何审计字段。
+只允许保存 `DRAFT`。更新必须匹配 `versionId`、`objectId`、实体、允许状态和 `revision`，成功后 `revision + 1`。客户端不能修改 `version`、`status` 和任何审计字段。
 
 新增可选属性按 2.1 节执行省略保持、显式 `null` 或空字符串清空。该语义保证旧客户端保存名称等既有字段时不会误删后端已经保存的新资料。
 
@@ -431,7 +440,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 }
 ```
 
-提交前重新执行该实体的完整业务字段、唯一性和关联有效性校验。只有 `DRAFT` 或 `REJECTED` 可提交。事务内更新状态、提交人/时间、版本 `revision` 并写入 `SUBMITTED` 事件；从 `REJECTED` 重提时清空版本行上的“最近一次审核”字段，上一轮审核事实继续保留在 `bob_audit_events` 中。
+提交前重新执行该实体的完整业务字段、唯一性和关联有效性校验。只有 `DRAFT` 可提交。事务内更新状态、提交人/时间、版本 `revision` 并写入 `SUBMITTED` 事件。
 
 ### 6.8 审核通过
 
@@ -441,8 +450,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 {
   "objectId": "01J...",
   "versionId": "01J...",
-  "revision": 4,
-  "comment": "审核通过"
+  "revision": 4
 }
 ```
 
@@ -458,7 +466,7 @@ edit:    EFFECTIVE → INVALID，并创建新的 DRAFT
 
 ### 6.9 审核驳回
 
-请求与审核通过相同，但 `comment` 必填且必须满足长度限制。只有当前 `PENDING` 版本可驳回，提交人不能审核自己的提交。事务内改为 `REJECTED` 并写入 `REJECTED` 事件；对象的 `effective_version_id` 保持为空。
+请求与审核通过相同，但 `comment` 必填且必须满足长度限制。只有当前 `PENDING` 版本可驳回，提交人不能审核自己的提交。事务内退回 `DRAFT`、清空版本行上的最近提交审核字段并写入 `REJECTED` 事件；对象的 `effective_version_id` 保持为空。
 
 ### 6.10 版本与审核历史
 
@@ -563,32 +571,33 @@ AUX 产品分类、部门、岗位、结算方式，以及 BOB 负责人和业�
 4. 编辑有效对象在同一事务内使旧版本失效并创建新草稿；
 5. 编辑事务失败时旧有效版本保持有效；
 6. 新版本待审或被驳回时旧版本不自动恢复；
-7. 同一对象并发编辑只能有一个成功；
+7. 同一对象并发撤销批准只能有一个成功；
 8. 过期 revision 的保存、提交和审核返回数据冲突；
 9. 每个对象最多一个有效版本和一个候选版本；
-10. 交易写入不能引用无效、待审、被驳回或已被编辑失效的版本；
+10. 交易写入不能引用无效、待审、草稿或对象已禁用的版本；
 11. 历史引用和快照不受后续版本状态变化影响；
 12. 无权限用户不能通过查询、详情或猜测 ID 读取数据；
 13. 数据库约束错误被转换为稳定业务错误且事务完整回滚。
-14. 物流平台编辑期间相关车辆不能被新业务引用，平台重新生效后恢复；
+14. 物流平台撤销批准期间相关车辆不能被新业务引用，平台重新生效后恢复；
 15. 当前车辆车牌并发唯一，车辆编辑后的历史车牌允许被其他车辆重新使用；
 16. 有当前车辆引用的物流平台不能改为普通供应商。
 17. 合法首版草稿删除后对象、版本、类型化明细和允许删除的审计事件均不存在；
 18. 非草稿、多个版本、曾提交或审核、曾生效、revision 过期及实体不匹配时拒绝删除；
 19. BOB 车辆平台引用或任一 VOU 对象/版本快照引用存在时拒绝删除且数据保持完整；
-20. 删除与保存、编辑或提交并发时最多一个动作成功，失败及事务中途异常不留下孤儿数据。
+20. 删除与保存或提交并发时最多一个动作成功，失败及事务中途异常不留下孤儿数据。
 21. 产品分类、部门、岗位和结算方式必须引用实体匹配且当前可用的 AUX 对象；
 22. 产品分类只能被产品引用，其他 BOB 实体不能保存通用分类；
 23. AUX 对象停用或修改不追溯改变已经生效的 BOB 版本，但阻止后续草稿保存或审核；
 24. 税号、条码、VIN 和资金账号经过规范化并满足当前版本唯一，历史版本释放后可复用；
 25. 旧请求保存时保留新增可选字段，显式 `null` 或空字符串能够清空；
 26. 资金账号只在详情和版本历史返回，查询、关键字搜索、有效引用、审计和日志不暴露完整账号；
-27. 8 类实体共注册 88 条路由，权限精确匹配且不自动授予普通角色。
+27. 8 类实体共注册 112 条路由，权限精确匹配且不自动授予普通角色；
+28. 启停只影响新引用，历史引用与快照保持有效；
+29. 撤销批准冻结旧版本并复制新版本，旧版本业务字段永久不再修改。
 
 ## 13. 待决事项
 
 - 客户与供应商是否共享“业务伙伴”主体；
-- 是否允许主动停用有效对象；若允许，需要新增独立状态动作及业务规则；
 - 员工与 APP 用户及组织的后续关联方式；
 - 产品与服务后续的价格、税率和多币种属性；
 - 仓库与组织、地址、库区、库位及库存核算范围的后续关联方式；
@@ -616,7 +625,7 @@ AUX 产品分类、部门、岗位、结算方式，以及 BOB 负责人和业�
 配置声明各自的展示与编辑字段。前端已注册 `customer`、`supplier`、
 `employee`、`product`、`service`、`warehouse`、`vehicle`、
 `fund-account` 页面，统一使用共享 BOB 页面和 ViewModel，支持第 7 节
-的十一个动作。
+的十四个动作。
 
 引用字段使用目标实体的稳定 `objectId`。编辑器和筛选器只通过目标实体
 `query` 查询可引用对象，显示“编码 · 名称”，不使用本地假数据。

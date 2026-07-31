@@ -20,12 +20,13 @@ vi.mock('@/api/client', () => ({
 
 const mockedApiClient = vi.mocked(apiClient)
 
-function row(status: BobStatus = 'DRAFT'): BobListItem {
+function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
   return {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
     objectRevision: 3,
+    enabled,
     effectiveVersionId: status === 'EFFECTIVE' ? 'VER-1' : null,
     currentVersion: {
       versionId: 'VER-1',
@@ -58,6 +59,7 @@ function objectView(versionId = 'VER-1'): BobObjectView {
     entity: 'product',
     code: 'PRD-1',
     objectRevision: 4,
+    enabled: true,
     currentVersionId: versionId,
     effectiveVersionId: null,
     version: {
@@ -88,6 +90,7 @@ function mutation(status: BobStatus = 'DRAFT'): BobMutationResult {
   return {
     objectId: 'OBJ-1',
     objectRevision: 4,
+    enabled: true,
     versionId: 'VER-2',
     version: 2,
     status,
@@ -101,6 +104,7 @@ function supplierRow(): BobListItem {
     entity: 'supplier',
     code: 'SUP-001',
     objectRevision: 3,
+    enabled: true,
     effectiveVersionId: null,
     currentVersion: {
       versionId: 'SUP-VER-1',
@@ -123,6 +127,7 @@ function supplierObjectView(): BobObjectView {
     entity: 'supplier',
     code: 'SUP-001',
     objectRevision: 3,
+    enabled: true,
     currentVersionId: 'SUP-VER-1',
     effectiveVersionId: null,
     version: {
@@ -186,7 +191,7 @@ describe('shared BOB entity configuration and view model', () => {
         multiple: true,
       })
     }
-    expect(statusOptions).toHaveLength(5)
+    expect(statusOptions).toHaveLength(4)
   })
 
   it('迁出的辅助对象不再注册为 BOB 页面', () => {
@@ -440,7 +445,7 @@ describe('shared BOB entity configuration and view model', () => {
         status: ['DRAFT', 'EFFECTIVE'],
         categoryId: 'CAT-1',
       },
-      sort: [{ field: 'updatedAt', order: 'desc' }],
+      sort: [{ field: 'code', order: 'asc' }],
     })
   })
 
@@ -448,12 +453,15 @@ describe('shared BOB entity configuration and view model', () => {
     grant(
       'product',
       'get',
-      'edit',
       'save',
       'delete',
       'submit',
+      'unsubmit',
       'approve',
+      'unapprove',
       'reject',
+      'enable',
+      'disable',
       'versions',
       'audit-history',
     )
@@ -464,8 +472,12 @@ describe('shared BOB entity configuration and view model', () => {
       edit: true,
       delete: true,
       submit: true,
+      unsubmit: false,
       approve: false,
+      unapprove: false,
       reject: false,
+      enable: false,
+      disable: false,
       versions: true,
       audit: true,
     })
@@ -473,13 +485,16 @@ describe('shared BOB entity configuration and view model', () => {
       edit: false,
       delete: false,
       submit: false,
+      unsubmit: true,
       approve: true,
       reject: true,
     })
     expect(vm.actionAvailability(row('EFFECTIVE'))).toMatchObject({
-      edit: true,
+      edit: false,
       delete: false,
       submit: false,
+      unapprove: true,
+      disable: true,
     })
   })
 
@@ -574,29 +589,29 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
-  it('有效对象先 edit 再 get，避免使用脱敏摘要编辑', async () => {
-    grant('product', 'get', 'edit', 'save')
-    mockedApiClient.post
-      .mockResolvedValueOnce({ data: mutation() })
-      .mockResolvedValueOnce({ data: objectView('VER-2') })
+  it('有效对象不能直接进入编辑', async () => {
+    grant('product', 'get', 'save', 'unapprove')
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     await vm.openEdit(row('EFFECTIVE'))
 
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      1,
-      'bob/product/edit',
-      { objectId: 'OBJ-1', objectRevision: 3 },
-    )
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(2, 'bob/product/get', {
-      objectId: 'OBJ-1',
-      versionId: 'VER-2',
-    })
-    expect(vm.editorModel.value.model).toBe('M1')
+    expect(mockedApiClient.post).not.toHaveBeenCalled()
   })
 
-  it('提交、驳回和审核历史使用当前版本 revision', async () => {
-    grant('product', 'query', 'submit', 'reject', 'versions', 'audit-history')
+  it('提交、审核、反向和启停动作使用当前并发版本', async () => {
+    grant(
+      'product',
+      'query',
+      'submit',
+      'unsubmit',
+      'approve',
+      'unapprove',
+      'reject',
+      'enable',
+      'disable',
+      'versions',
+      'audit-history',
+    )
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation('PENDING') })
@@ -611,7 +626,22 @@ describe('shared BOB entity configuration and view model', () => {
 
     vi.clearAllMocks()
     mockedApiClient.post
-      .mockResolvedValueOnce({ data: mutation('REJECTED') })
+      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce(emptyPage())
+    await vm.review(row('PENDING'), 'approve', '不会提交的意见')
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/product/approve',
+      {
+        objectId: 'OBJ-1',
+        versionId: 'VER-1',
+        revision: 5,
+      },
+    )
+
+    vi.clearAllMocks()
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('DRAFT') })
       .mockResolvedValueOnce(emptyPage())
     await vm.review(row('PENDING'), 'reject', ' 资料不完整 ')
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
@@ -623,6 +653,62 @@ describe('shared BOB entity configuration and view model', () => {
         revision: 5,
         comment: '资料不完整',
       },
+    )
+
+    vi.clearAllMocks()
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('DRAFT') })
+      .mockResolvedValueOnce(emptyPage())
+    await vm.reverse(row('PENDING'), 'unsubmit', ' 退回修改 ')
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/product/unsubmit',
+      {
+        objectId: 'OBJ-1',
+        objectRevision: 3,
+        versionId: 'VER-1',
+        revision: 5,
+        reason: '退回修改',
+      },
+    )
+
+    vi.clearAllMocks()
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('PENDING') })
+      .mockResolvedValueOnce(emptyPage())
+    await vm.reverse(row('EFFECTIVE'), 'unapprove', ' 重新维护 ')
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/product/unapprove',
+      {
+        objectId: 'OBJ-1',
+        objectRevision: 3,
+        versionId: 'VER-1',
+        revision: 5,
+        reason: '重新维护',
+      },
+    )
+
+    vi.clearAllMocks()
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce(emptyPage())
+    await vm.changeEnabled(row('EFFECTIVE'))
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/product/disable',
+      { objectId: 'OBJ-1', objectRevision: 3 },
+    )
+
+    vi.clearAllMocks()
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce(emptyPage())
+    await vm.changeEnabled(row('EFFECTIVE', false))
+    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+      1,
+      'bob/product/enable',
+      { objectId: 'OBJ-1', objectRevision: 3 },
     )
   })
 

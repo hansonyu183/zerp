@@ -5,11 +5,7 @@ import type {
 } from '@/components/business-object'
 
 export type BobStatus =
-  | 'DRAFT'
-  | 'PENDING'
-  | 'REJECTED'
-  | 'EFFECTIVE'
-  | 'INVALID'
+  'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
 
 export type BobEntity =
   | 'customer'
@@ -42,6 +38,7 @@ export interface BobListItem {
   entity: BobEntity
   code: string
   objectRevision: number
+  enabled: boolean
   currentVersion: BobVersionSummary
   effectiveVersionId: string | null
   updatedAt: string
@@ -68,6 +65,7 @@ export interface BobObjectView {
   entity: BobEntity
   code: string
   objectRevision: number
+  enabled: boolean
   currentVersionId: string
   effectiveVersionId: string | null
   updatedAt?: string
@@ -78,6 +76,7 @@ export interface BobObjectView {
 export interface BobMutationResult {
   objectId: string
   objectRevision: number
+  enabled: boolean
   versionId: string
   version: number
   status: BobStatus
@@ -115,7 +114,9 @@ export interface BobReferenceConfig {
   value?: 'objectId' | 'code'
   entity: string
   label: string
-  filters?: Record<string, unknown> | ((form: Readonly<BobForm>) => Record<string, unknown>)
+  filters?:
+    | Record<string, unknown>
+    | ((form: Readonly<BobForm>) => Record<string, unknown>)
 }
 
 export interface BobFilterField {
@@ -137,9 +138,7 @@ export interface BobEntityConfig {
   requiredKeys: readonly string[]
   uppercaseKeys?: readonly string[]
   persistedKeys?: readonly string[]
-  fields: (
-    context: BobFieldContext,
-  ) => readonly BusinessObjectField<BobForm>[]
+  fields: (context: BobFieldContext) => readonly BusinessObjectField<BobForm>[]
   columns: readonly BusinessObjectColumn<BobListItem>[]
   filters: readonly BobFilterField[]
   references?: Readonly<Record<string, BobReferenceConfig>>
@@ -147,7 +146,9 @@ export interface BobEntityConfig {
 
 export interface BobFieldContext {
   mode: 'create' | 'edit' | 'view'
-  referenceOptions: Readonly<Record<string, readonly BusinessObjectFieldOption[]>>
+  referenceOptions: Readonly<
+    Record<string, readonly BusinessObjectFieldOption[]>
+  >
   referenceLoading: Readonly<Record<string, boolean>>
   referenceErrors: Readonly<Record<string, string | null>>
 }
@@ -187,8 +188,12 @@ export interface BobActionAvailability {
   edit: boolean
   delete: boolean
   submit: boolean
+  unsubmit: boolean
   approve: boolean
+  unapprove: boolean
   reject: boolean
+  enable: boolean
+  disable: boolean
   versions: boolean
   audit: boolean
 }

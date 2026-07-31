@@ -33,13 +33,9 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get customer before edit: %v", err)
 	}
-	customerEdit, err := bobService.Edit(t.Context(), bobdomain.EntityCustomer,
-		bobdomain.ObjectRevisionInput{
-			ObjectID: refs.customer.ObjectID, ObjectRevision: customerView.ObjectRevision,
-		}, integrationActorOne, "snapshot-customer-edit")
-	if err != nil {
-		t.Fatalf("edit customer: %v", err)
-	}
+	customerEdit := reverseApprovedBOBToDraft(
+		t, bobService, bobdomain.EntityCustomer, customerView, "snapshot-customer-edit",
+	)
 	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
 		integrationActorOne, "snapshot-customer-gap"); err == nil {
 		t.Fatal("sale was created while customer had no effective version")
@@ -79,13 +75,9 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get settlement before edit: %v", err)
 	}
-	settlementEdit, err := bobService.Edit(t.Context(), bobdomain.EntitySettlementMethod,
-		bobdomain.ObjectRevisionInput{
-			ObjectID: refs.settlement.ObjectID, ObjectRevision: settlementView.ObjectRevision,
-		}, integrationActorOne, "snapshot-settlement-edit")
-	if err != nil {
-		t.Fatalf("edit settlement: %v", err)
-	}
+	settlementEdit := reverseApprovedBOBToDraft(
+		t, bobService, bobdomain.EntitySettlementMethod, settlementView, "snapshot-settlement-edit",
+	)
 	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
 		integrationActorOne, "snapshot-settlement-gap"); err == nil {
 		t.Fatal("sale was created while settlement method had no effective version")

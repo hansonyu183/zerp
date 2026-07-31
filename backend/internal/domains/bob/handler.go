@@ -18,12 +18,15 @@ type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
-	Edit(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput) error
 	Submit(context.Context, string, VersionRevisionInput, string, string) (MutationResult, error)
+	Unsubmit(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Approve(context.Context, string, ReviewInput, string, string) (MutationResult, error)
+	Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Reject(context.Context, string, ReviewInput, string, string) (MutationResult, error)
+	Enable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
+	Disable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
 	Versions(context.Context, string, HistoryInput) (Page[VersionHistoryItem], error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 }
@@ -43,12 +46,15 @@ var actionRoutes = [...]actionRoute{
 	{action: "query", handle: (*Handler).query},
 	{action: "get", handle: (*Handler).get},
 	{action: "create", handle: (*Handler).create},
-	{action: "edit", handle: (*Handler).edit},
 	{action: "save", handle: (*Handler).save},
 	{action: "delete", handle: (*Handler).delete},
 	{action: "submit", handle: (*Handler).submit},
+	{action: "unsubmit", handle: (*Handler).unsubmit},
 	{action: "approve", handle: (*Handler).approve},
+	{action: "unapprove", handle: (*Handler).unapprove},
 	{action: "reject", handle: (*Handler).reject},
+	{action: "enable", handle: (*Handler).enable},
+	{action: "disable", handle: (*Handler).disable},
 	{action: "versions", handle: (*Handler).versions},
 	{action: "audit-history", handle: (*Handler).auditHistory},
 }
@@ -104,14 +110,6 @@ func (h *Handler) create(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) edit(c *gin.Context, entity string) {
-	var input ObjectRevisionInput
-	if h.bind(c, &input) {
-		result, err := h.service.Edit(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
 func (h *Handler) save(c *gin.Context, entity string) {
 	var input SaveInput
 	if h.bind(c, &input) {
@@ -136,6 +134,14 @@ func (h *Handler) submit(c *gin.Context, entity string) {
 	}
 }
 
+func (h *Handler) unsubmit(c *gin.Context, entity string) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		result, err := h.service.Unsubmit(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
 func (h *Handler) approve(c *gin.Context, entity string) {
 	var input ReviewInput
 	if h.bind(c, &input) {
@@ -144,10 +150,34 @@ func (h *Handler) approve(c *gin.Context, entity string) {
 	}
 }
 
+func (h *Handler) unapprove(c *gin.Context, entity string) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		result, err := h.service.Unapprove(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
 func (h *Handler) reject(c *gin.Context, entity string) {
 	var input ReviewInput
 	if h.bind(c, &input) {
 		result, err := h.service.Reject(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) enable(c *gin.Context, entity string) {
+	var input ObjectRevisionInput
+	if h.bind(c, &input) {
+		result, err := h.service.Enable(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) disable(c *gin.Context, entity string) {
+	var input ObjectRevisionInput
+	if h.bind(c, &input) {
+		result, err := h.service.Disable(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }

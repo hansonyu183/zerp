@@ -22,12 +22,12 @@ import type { BobListItem } from './types'
 const props = defineProps<{ model: BobEntityViewModel }>()
 const vm = reactive(props.model)
 
-const effectiveEditTarget = ref<BobListItem | null>(null)
 const deleteTarget = ref<BobListItem | null>(null)
-const submitTarget = ref<BobListItem | null>(null)
 const reviewTarget = ref<BobListItem | null>(null)
-const reviewAction = ref<'approve' | 'reject'>('approve')
 const reviewComment = ref('')
+const reverseTarget = ref<BobListItem | null>(null)
+const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
+const reverseReason = ref('')
 const formulaOpen = ref(false)
 const formulaModel = ref<ProductFormulaDraft | null>(null)
 const formulaEditable = ref(false)
@@ -51,17 +51,7 @@ const auditLength = computed(() =>
 void vm.query()
 
 function requestEdit(row: BobListItem): void {
-  if (row.currentVersion.status === 'EFFECTIVE') {
-    effectiveEditTarget.value = row
-    return
-  }
   void vm.openEdit(row)
-}
-
-function confirmEffectiveEdit(): void {
-  const row = effectiveEditTarget.value
-  effectiveEditTarget.value = null
-  if (row) void vm.openEdit(row)
 }
 
 async function confirmDelete(): Promise<void> {
@@ -69,58 +59,58 @@ async function confirmDelete(): Promise<void> {
   if (row && (await vm.deleteObject(row))) deleteTarget.value = null
 }
 
-async function confirmSubmit(): Promise<void> {
-  const row = submitTarget.value
-  if (row && (await vm.submitObject(row))) submitTarget.value = null
+function requestReject(row: BobListItem): void {
+  reviewTarget.value = row
+  reviewComment.value = ''
 }
 
-function requestReview(row: BobListItem, action: 'approve' | 'reject'): void {
-  reviewTarget.value = row
-  reviewAction.value = action
-  reviewComment.value = ''
+function requestReverse(
+  row: BobListItem,
+  action: 'unsubmit' | 'unapprove',
+): void {
+  reverseTarget.value = row
+  reverseAction.value = action
+  reverseReason.value = ''
 }
 
 function primaryRowActions(row: BobListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
-  if (availability.edit) {
-    return [
-      {
-        key: 'edit',
-        label: `编辑 ${row.code}`,
-        icon: 'mdi-pencil-outline',
-        color: 'primary',
-      },
-    ]
-  }
-  return availability.view
-    ? [
-        {
-          key: 'view',
-          label: `查看 ${row.code}`,
-          icon: 'mdi-eye-outline',
-        },
-      ]
-    : []
-}
-
-function moreRowActions(row: BobListItem): ListRowAction[] {
-  const availability = vm.actionAvailability(row)
   return [
-    ...(availability.view && availability.edit
+    ...(availability.edit
       ? [
           {
-            key: 'view',
-            label: `查看 ${row.code}`,
-            icon: 'mdi-eye-outline',
+            key: 'edit',
+            label: `编辑 ${row.code}`,
+            icon: 'mdi-pencil-outline',
+            color: 'primary',
           },
         ]
-      : []),
+      : availability.view
+        ? [
+            {
+              key: 'view',
+              label: `查看 ${row.code}`,
+              icon: 'mdi-eye-outline',
+            },
+          ]
+        : []),
     ...(availability.submit
       ? [
           {
             key: 'submit',
             label: '提交审核',
             icon: 'mdi-send-outline',
+            color: 'primary',
+          },
+        ]
+      : []),
+    ...(availability.unsubmit
+      ? [
+          {
+            key: 'unsubmit',
+            label: '撤回提交',
+            icon: 'mdi-undo-variant',
+            color: 'warning',
           },
         ]
       : []),
@@ -130,6 +120,17 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
             key: 'approve',
             label: '审核通过',
             icon: 'mdi-check-decagram-outline',
+            color: 'success',
+          },
+        ]
+      : []),
+    ...(availability.unapprove
+      ? [
+          {
+            key: 'unapprove',
+            label: '撤销批准',
+            icon: 'mdi-backup-restore',
+            color: 'warning',
           },
         ]
       : []),
@@ -139,9 +140,36 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
             key: 'reject',
             label: '审核驳回',
             icon: 'mdi-close-octagon-outline',
+            color: 'error',
           },
         ]
       : []),
+    ...(availability.enable
+      ? [
+          {
+            key: 'toggle-enabled',
+            label: '启用',
+            icon: 'mdi-play-circle-outline',
+            color: 'success',
+          },
+        ]
+      : []),
+    ...(availability.disable
+      ? [
+          {
+            key: 'toggle-enabled',
+            label: '禁用',
+            icon: 'mdi-pause-circle-outline',
+            color: 'warning',
+          },
+        ]
+      : []),
+  ]
+}
+
+function moreRowActions(row: BobListItem): ListRowAction[] {
+  const availability = vm.actionAvailability(row)
+  return [
     ...(availability.versions
       ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
       : []),
@@ -170,17 +198,38 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
 function selectRowAction(action: string, row: BobListItem): void {
   if (action === 'edit') requestEdit(row)
   else if (action === 'view') void vm.openView(row)
-  else if (action === 'submit') submitTarget.value = row
-  else if (action === 'approve' || action === 'reject') {
-    requestReview(row, action)
-  } else if (action === 'versions') void vm.openVersions(row)
+  else if (action === 'submit') void vm.submitObject(row)
+  else if (action === 'unsubmit') requestReverse(row, 'unsubmit')
+  else if (action === 'approve') void vm.review(row, 'approve', '')
+  else if (action === 'unapprove') requestReverse(row, 'unapprove')
+  else if (action === 'reject') requestReject(row)
+  else if (action === 'toggle-enabled') void vm.changeEnabled(row)
+  else if (action === 'versions') void vm.openVersions(row)
   else if (action === 'audit') void vm.openAudit(row)
   else if (action === 'delete') deleteTarget.value = row
 }
 
+async function confirmReverse(): Promise<void> {
+  const row = reverseTarget.value
+  if (
+    row &&
+    (await vm.reverse(row, reverseAction.value, reverseReason.value))
+  ) {
+    reverseTarget.value = null
+    reverseReason.value = ''
+  }
+}
+
+function closeReverse(value: boolean): void {
+  if (!value) {
+    reverseTarget.value = null
+    reverseReason.value = ''
+  }
+}
+
 async function confirmReview(): Promise<void> {
   const row = reviewTarget.value
-  if (row && (await vm.review(row, reviewAction.value, reviewComment.value))) {
+  if (row && (await vm.review(row, 'reject', reviewComment.value))) {
     reviewTarget.value = null
     reviewComment.value = ''
   }
@@ -226,9 +275,7 @@ function openPackagingSpecs(
   packagingEditable.value = editable
   packagingProductName.value = String(record.name ?? '产品')
   packagingProductUnit.value = String(record.unit ?? '')
-  packagingSetter = setValue
-    ? (specs) => setValue(specs)
-    : null
+  packagingSetter = setValue ? (specs) => setValue(specs) : null
   packagingOpen.value = true
 }
 
@@ -321,14 +368,26 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
       </template>
 
       <template #cell-status="{ row }">
-        <v-chip density="comfortable" size="small" variant="tonal">
-          {{ getStatusText(row.currentVersion.status) }}
-        </v-chip>
+        <div class="bob-status-chips">
+          <v-chip density="comfortable" size="small" variant="tonal">
+            {{ getStatusText(row.currentVersion.status) }}
+          </v-chip>
+          <v-chip
+            v-if="row.currentVersion.status === 'EFFECTIVE'"
+            :color="row.enabled ? 'success' : 'default'"
+            density="comfortable"
+            size="small"
+            variant="tonal"
+          >
+            {{ row.enabled ? '启用' : '禁用' }}
+          </v-chip>
+        </div>
       </template>
 
       <template #actions="{ row }">
         <ListRowActions
           :label="`操作 ${row.code}`"
+          :loading="Boolean(vm.actionLoading)"
           :more="moreRowActions(row)"
           :more-label="`更多操作 ${row.code}`"
           :primary="primaryRowActions(row)"
@@ -451,27 +510,6 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
   />
 
   <v-dialog
-    :model-value="Boolean(effectiveEditTarget)"
-    max-width="540"
-    @update:model-value="
-      (value) => {
-        if (!value) effectiveEditTarget = null
-      }
-    "
-  >
-    <v-card rounded="xl" :title="`确认编辑有效${vm.config.title}`">
-      <v-card-text>
-        编辑会立即使当前有效版本失效，并创建一个需要重新审核的草稿版本。
-      </v-card-text>
-      <v-card-actions class="px-6 pb-5">
-        <v-spacer />
-        <v-btn variant="text" @click="effectiveEditTarget = null">取消</v-btn>
-        <v-btn color="warning" @click="confirmEffectiveEdit">继续编辑</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog
     :model-value="Boolean(deleteTarget)"
     max-width="540"
     @update:model-value="
@@ -499,27 +537,44 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
   </v-dialog>
 
   <v-dialog
-    :model-value="Boolean(submitTarget)"
-    max-width="540"
-    @update:model-value="
-      (value) => {
-        if (!value) submitTarget = null
-      }
-    "
+    :model-value="Boolean(reverseTarget)"
+    max-width="620"
+    @update:model-value="closeReverse"
   >
-    <v-card rounded="xl" title="确认提交审核">
+    <v-card
+      rounded="xl"
+      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+    >
       <v-card-text>
-        提交后当前版本进入待审核状态，在审核完成前不能继续编辑。
+        <v-alert
+          v-if="reverseAction === 'unapprove'"
+          class="mb-4"
+          type="info"
+          variant="tonal"
+        >
+          当前有效版本会冻结为历史记录，并复制一个新的待审核版本。
+        </v-alert>
+        <v-textarea
+          v-model="reverseReason"
+          counter="1000"
+          label="原因"
+          :maxlength="1000"
+          required
+          variant="outlined"
+        />
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
-        <v-btn variant="text" @click="submitTarget = null">取消</v-btn>
+        <v-btn variant="text" @click="closeReverse(false)">取消</v-btn>
         <v-btn
-          color="primary"
-          :loading="vm.actionLoading === `submit:${submitTarget?.objectId}`"
-          @click="confirmSubmit"
+          color="warning"
+          :disabled="!reverseReason.trim()"
+          :loading="
+            vm.actionLoading === `${reverseAction}:${reverseTarget?.objectId}`
+          "
+          @click="confirmReverse"
         >
-          提交审核
+          确认
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -530,17 +585,14 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
     max-width="620"
     @update:model-value="closeReview"
   >
-    <v-card
-      rounded="xl"
-      :title="reviewAction === 'approve' ? '审核通过' : '审核驳回'"
-    >
+    <v-card rounded="xl" title="审核驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
           counter="1000"
-          :label="reviewAction === 'reject' ? '驳回意见' : '审核意见（可选）'"
+          label="驳回意见"
           :maxlength="1000"
-          :required="reviewAction === 'reject'"
+          required
           variant="outlined"
         />
       </v-card-text>
@@ -548,14 +600,12 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReview(false)">取消</v-btn>
         <v-btn
-          :color="reviewAction === 'approve' ? 'success' : 'error'"
-          :disabled="reviewAction === 'reject' && !reviewComment.trim()"
-          :loading="
-            vm.actionLoading === `${reviewAction}:${reviewTarget?.objectId}`
-          "
+          color="error"
+          :disabled="!reviewComment.trim()"
+          :loading="vm.actionLoading === `reject:${reviewTarget?.objectId}`"
           @click="confirmReview"
         >
-          {{ reviewAction === 'approve' ? '确认通过' : '确认驳回' }}
+          确认驳回
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -585,7 +635,9 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
               <td data-label="版本">V{{ item.version }}</td>
               <td data-label="状态">{{ getStatusText(item.status) }}</td>
               <td data-label="名称">{{ item.summary.name }}</td>
-              <td data-label="更新">{{ formatLocalDateTime(item.updatedAt) }}</td>
+              <td data-label="更新">
+                {{ formatLocalDateTime(item.updatedAt) }}
+              </td>
               <td data-label="意见">{{ item.reviewComment || '—' }}</td>
               <td class="text-end responsive-table__actions" data-label="操作">
                 <v-btn
@@ -684,9 +736,21 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
   padding: 20px;
 }
 
+.bob-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 @media (max-width: 640px) {
+  .bob-entity-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+
   .bob-entity-drawer__content {
     padding: 12px;
+    padding-top: max(12px, env(safe-area-inset-top));
   }
 }
 </style>

@@ -808,6 +808,15 @@ func validDeleteInput(entity string, input DeleteInput) bool {
 		input.Revision >= 1
 }
 
+func validReverseInput(entity string, input ReverseInput, actorID, requestID string) bool {
+	return validEntity(entity) &&
+		validID(input.ObjectID) &&
+		validID(input.VersionID) &&
+		input.ObjectRevision >= 1 &&
+		input.Revision >= 1 &&
+		validActorAndRequest(actorID, requestID)
+}
+
 func validActorAndRequest(actorID, requestID string) bool {
 	return validID(actorID) && requestID != "" && len(requestID) <= 128
 }
@@ -837,7 +846,7 @@ func mustPageOffset(page, pageSize int) int32 {
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
 
 func validStatus(status string) bool {
-	return slices.Contains([]string{StatusDraft, StatusPending, StatusRejected, StatusEffective, StatusInvalid}, status)
+	return slices.Contains([]string{StatusDraft, StatusPending, StatusEffective, StatusInvalid}, status)
 }
 
 func validID(id string) bool {

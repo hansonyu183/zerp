@@ -11,7 +11,7 @@ import (
 type Querier interface {
 	AcquireAppAuthorizationLock(ctx context.Context) error
 	ActivateLedControl(ctx context.Context, arg ActivateLedControlParams) (int64, error)
-	AdvanceBobObjectForEdit(ctx context.Context, arg AdvanceBobObjectForEditParams) (int64, error)
+	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
 	ApproveBobVersion(ctx context.Context, arg ApproveBobVersionParams) (int64, error)
 	ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error)
 	ArchiveActiveLedGeneration(ctx context.Context, generationID string) error
@@ -123,6 +123,7 @@ type Querier interface {
 	GetAppUserByUsername(ctx context.Context, username string) (AppUser, error)
 	GetAppUserPermissions(ctx context.Context, userID string) ([]string, error)
 	GetAppUserRoleIDs(ctx context.Context, userID string) ([]string, error)
+	GetBobObjectEnabled(ctx context.Context, arg GetBobObjectEnabledParams) (bool, error)
 	GetBobProductFormula(ctx context.Context, productVersionID string) (int64, error)
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
 	GetLedControl(ctx context.Context) (LedControl, error)
@@ -208,6 +209,7 @@ type Querier interface {
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error)
+	ListBobObjectsEnabled(ctx context.Context, ids []string) ([]ListBobObjectsEnabledRow, error)
 	ListBobProductFormulaLines(ctx context.Context, productVersionID string) ([]ListBobProductFormulaLinesRow, error)
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
@@ -256,6 +258,7 @@ type Querier interface {
 	MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
+	MarkBobVersionPendingCopy(ctx context.Context, arg MarkBobVersionPendingCopyParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
@@ -275,6 +278,7 @@ type Querier interface {
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)
+	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
@@ -283,6 +287,7 @@ type Querier interface {
 	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDocumentParams) (int64, error)
+	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)

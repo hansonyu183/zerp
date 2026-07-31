@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { BusinessObjectEditor } from '@/components/business-object'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
@@ -10,26 +10,13 @@ import type { AuxEntityViewModel } from './vm'
 const props = defineProps<{ model: AuxEntityViewModel }>()
 const vm = reactive(props.model)
 const pageCount = computed(() => Math.max(1, Math.ceil(vm.total / vm.pageSize)))
-const sort = ref<{ field: 'updatedAt' | 'code'; order: 'asc' | 'desc' }>({
-  field: 'updatedAt',
-  order: 'desc',
-})
-const sortedRows = computed(() =>
-  [...vm.rows].sort((left, right) => {
-    const result = String(left[sort.value.field]).localeCompare(
-      String(right[sort.value.field]),
-      'zh-CN',
-    )
-    return sort.value.order === 'asc' ? result : -result
-  }),
-)
 
-function changeSort(field: 'updatedAt' | 'code'): void {
-  sort.value = {
+function changeSort(field: 'code'): void {
+  void vm.changeSort({
     field,
     order:
-      sort.value.field === field && sort.value.order === 'asc' ? 'desc' : 'asc',
-  }
+      vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc',
+  })
 }
 
 function selectAction(action: string, item: (typeof vm.rows)[number]): void {
@@ -84,17 +71,14 @@ void vm.query()
     </EntityListControls>
 
     <MobileSortControl
-      :field="sort.field"
-      :options="[
-        { title: '更新', value: 'updatedAt' },
-        { title: '编码', value: 'code' },
-      ]"
-      :order="sort.order"
+      :field="vm.sort.field"
+      :options="[{ title: '编码', value: 'code' }]"
+      :order="vm.sort.order"
       @change="
-        sort = {
-          field: $event.field as 'updatedAt' | 'code',
+        vm.changeSort({
+          field: $event.field as 'code',
           order: $event.order,
-        }
+        })
       "
     />
 
@@ -104,8 +88,8 @@ void vm.query()
         <thead>
           <tr>
             <SortableTableHeader
-              :active="sort.field === 'code'"
-              :direction="sort.order"
+              :active="vm.sort.field === 'code'"
+              :direction="vm.sort.order"
               label="编码"
               @sort="changeSort('code')"
             />
@@ -115,7 +99,7 @@ void vm.query()
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in sortedRows" :key="item.objectId">
+          <tr v-for="item in vm.rows" :key="item.objectId">
             <td data-label="编码">{{ item.code }}</td>
             <td data-label="名称">{{ item.currentVersion.data.name }}</td>
             <td data-label="状态">
@@ -170,7 +154,7 @@ void vm.query()
             </td>
           </tr>
           <tr
-            v-if="!vm.loading && sortedRows.length === 0"
+            v-if="!vm.loading && vm.rows.length === 0"
             class="responsive-table__empty-row"
           >
             <td colspan="4" class="text-center py-12">暂无数据</td>

@@ -163,19 +163,9 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get raw material before edit: %v", err)
 	}
-	editedRaw, err := bobService.Edit(
-		t.Context(),
-		bobdomain.EntityProduct,
-		bobdomain.ObjectRevisionInput{
-			ObjectID:       refs.product.ObjectID,
-			ObjectRevision: rawView.ObjectRevision,
-		},
-		integrationActorOne,
-		"formula-raw-edit",
+	editedRaw := reverseApprovedBOBToDraft(
+		t, bobService, bobdomain.EntityProduct, rawView, "formula-raw-edit",
 	)
-	if err != nil {
-		t.Fatalf("edit raw material: %v", err)
-	}
 	submittedRaw, err := bobService.Submit(
 		t.Context(),
 		bobdomain.EntityProduct,

@@ -9,6 +9,7 @@ import {
   productPayload,
 } from './product-data'
 import { useBobHistory } from './history'
+import { useBobLifecycleActions } from './lifecycle'
 import { useBobReferences } from './references'
 import type {
   BobActionAvailability,
@@ -24,10 +25,6 @@ interface VersionRevisionRequest {
   objectId: string
   versionId: string
   revision: number
-}
-
-interface ReviewRequest extends VersionRevisionRequest {
-  comment: string | null
 }
 
 function hasValue(value: unknown): boolean {
@@ -54,8 +51,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const pageSize = ref(20)
   const keyword = ref('')
   const sort = ref<BusinessObjectSort>({
-    field: 'updatedAt',
-    order: 'desc',
+    field: 'code',
+    order: 'asc',
   })
   const filters = ref<Record<string, unknown>>(
     Object.fromEntries(
@@ -100,23 +97,27 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return {
       view: session.can(permission('get')),
       edit:
-        ((status === 'DRAFT' || status === 'REJECTED') &&
-          session.can(permission('get')) &&
-          session.can(permission('save'))) ||
-        (status === 'EFFECTIVE' &&
-          session.can(permission('get')) &&
-          session.can(permission('edit')) &&
-          session.can(permission('save'))),
+        status === 'DRAFT' &&
+        session.can(permission('get')) &&
+        session.can(permission('save')),
       delete:
         session.can(permission('delete')) &&
         status === 'DRAFT' &&
         row.currentVersion.version === 1 &&
         row.effectiveVersionId === null,
-      submit:
-        session.can(permission('submit')) &&
-        (status === 'DRAFT' || status === 'REJECTED'),
+      submit: session.can(permission('submit')) && status === 'DRAFT',
+      unsubmit: session.can(permission('unsubmit')) && status === 'PENDING',
       approve: session.can(permission('approve')) && status === 'PENDING',
+      unapprove: session.can(permission('unapprove')) && status === 'EFFECTIVE',
       reject: session.can(permission('reject')) && status === 'PENDING',
+      enable:
+        session.can(permission('enable')) &&
+        status === 'EFFECTIVE' &&
+        !row.enabled,
+      disable:
+        session.can(permission('disable')) &&
+        status === 'EFFECTIVE' &&
+        row.enabled,
       versions: session.can(permission('versions')),
       audit: session.can(permission('audit-history')),
     }
@@ -158,7 +159,12 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
     for (const field of config.filters) {
       const value = filters.value[field.key]
-      if (hasValue(value)) result[field.key] = value
+      if (
+        hasValue(value) ||
+        (field.key === 'enabled' && typeof value === 'boolean')
+      ) {
+        result[field.key] = value
+      }
     }
     return result
   }
@@ -210,7 +216,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         field.multiple ? [] : field.type === 'switch' ? false : '',
       ]),
     )
-    sort.value = { field: 'updatedAt', order: 'desc' }
+    sort.value = { field: 'code', order: 'asc' }
     await search()
   }
 
@@ -335,31 +341,15 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorLoading.value = true
     editorErrorMessage.value = null
     drawerOpen.value = true
-    let beganEffectiveEdit = false
     try {
-      let versionId = row.currentVersion.versionId
-      let objectRevision = row.objectRevision
-      let revision = row.currentVersion.revision
-      if (row.currentVersion.status === 'EFFECTIVE') {
-        const { data } = await apiClient.post<
-          BobMutationResult,
-          { objectId: string; objectRevision: number }
-        >(`bob/${config.entity}/edit`, {
-          objectId: row.objectId,
-          objectRevision: row.objectRevision,
-        })
-        beganEffectiveEdit = true
-        versionId = data.versionId
-        objectRevision = data.objectRevision
-        revision = data.revision
-      }
+      const versionId = row.currentVersion.versionId
       const view = await getObject(row, versionId)
       currentView.value = view
       editContext.value = {
         objectId: row.objectId,
-        objectRevision,
+        objectRevision: row.objectRevision,
         versionId,
-        revision: view.version.revision ?? revision,
+        revision: view.version.revision ?? row.currentVersion.revision,
       }
       editorModel.value = formFromView(view)
       editorResetKey.value += 1
@@ -367,7 +357,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       await hydrateReferences(editorModel.value)
     } catch (error) {
       editorErrorMessage.value = getErrorMessage(error)
-      if (beganEffectiveEdit) await query()
     } finally {
       editorLoading.value = false
     }
@@ -503,43 +492,13 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return runRowAction(row, 'submit')
   }
 
-  async function review(
-    row: BobListItem,
-    action: 'approve' | 'reject',
-    comment: string,
-  ): Promise<boolean> {
-    if (!actionAvailability(row)[action] || actionLoading.value) return false
-    const normalizedComment = comment.trim()
-    if (action === 'reject' && !normalizedComment) {
-      errorMessage.value = '驳回意见不能为空。'
-      return false
-    }
-    if (Array.from(normalizedComment).length > 1000) {
-      errorMessage.value = '审核意见不能超过 1000 个字符。'
-      return false
-    }
-
-    actionLoading.value = `${action}:${row.objectId}`
-    errorMessage.value = null
-    try {
-      await apiClient.post<BobMutationResult, ReviewRequest>(
-        `bob/${config.entity}/${action}`,
-        {
-          objectId: row.objectId,
-          versionId: row.currentVersion.versionId,
-          revision: row.currentVersion.revision,
-          comment: normalizedComment || null,
-        },
-      )
-      await query()
-      return true
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-      return false
-    } finally {
-      actionLoading.value = null
-    }
-  }
+  const { review, reverse, changeEnabled } = useBobLifecycleActions(
+    config.entity,
+    actionLoading,
+    errorMessage,
+    actionAvailability,
+    query,
+  )
 
   return {
     config,
@@ -592,6 +551,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     deleteObject,
     submitObject,
     review,
+    reverse,
+    changeEnabled,
     searchEditorReference,
     searchFilterReference,
     filterReferenceOptions,

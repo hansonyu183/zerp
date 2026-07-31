@@ -3,6 +3,7 @@ package vou
 import (
 	"context"
 	"errors"
+	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,54 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 			UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
+	if len(items) > 0 && (entity == EntitySaleOrder || entity == EntityPurchaseOrder) {
+		orderIDs := make([]string, len(items))
+		indexByID := make(map[string]int, len(items))
+		for index := range items {
+			orderIDs[index] = items[index].DocumentID
+			indexByID[items[index].DocumentID] = index
+		}
+		if entity == EntitySaleOrder {
+			summaries, summaryErr := s.queries.ListSalesOrderKgSummaries(ctx, orderIDs)
+			if summaryErr != nil {
+				return Page[ListItem]{}, s.internal("summarize sales order list", summaryErr)
+			}
+			for _, row := range summaries {
+				index := indexByID[row.OrderID]
+				summary := &SalesKgSummary{
+					Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
+					WarehouseAvailable: row.WarehouseAvailable,
+					OutboundQuantity:   compactQuantity(row.OutboundQuantityMicros),
+					InTransitQuantity:  compactQuantity(row.InTransitQuantityMicros),
+					SignedQuantity:     compactQuantity(row.SignedQuantityMicros),
+				}
+				if row.WarehouseAvailable {
+					summary.ShortageQuantity = compactQuantity(row.ShortageQuantityMicros)
+				}
+				items[index].SalesSummary = summary
+			}
+		} else {
+			summaries, summaryErr := s.queries.ListPurchaseOrderKgSummaries(ctx, orderIDs)
+			if summaryErr != nil {
+				return Page[ListItem]{}, s.internal("summarize purchase order list", summaryErr)
+			}
+			for _, row := range summaries {
+				index := indexByID[row.OrderID]
+				items[index].PurchaseSummary = &PurchaseKgSummary{
+					Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
+					OrderedQuantity:          compactQuantity(row.OrderedQuantityMicros),
+					InboundQuantity:          compactQuantity(row.InboundQuantityMicros),
+					ReturnProcessingQuantity: compactQuantity(row.ReturnProcessingQuantityMicros),
+					NetInboundQuantity:       compactQuantity(row.NetInboundQuantityMicros),
+				}
+			}
+		}
+	}
 	return Page[ListItem]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
+}
+
+func compactQuantity(value int64) string {
+	return strings.TrimRight(strings.TrimRight(formatQuantity(value), "0"), ".")
 }
 
 func storedStatuses(entity string, statuses []string) []string {

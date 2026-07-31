@@ -82,6 +82,53 @@
           'remainingQuantity': { 'type': 'string' },
         },
     },
+  'WflSalesKgSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'excludedPackaging',
+          'warehouseAvailable',
+          'outboundQuantity',
+          'inTransitQuantity',
+          'signedQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string', 'enum': ['KG'] },
+          'excludedPackaging': { 'type': 'boolean' },
+          'warehouseAvailable': { 'type': 'boolean' },
+          'shortageQuantity': { 'type': 'string' },
+          'outboundQuantity': { 'type': 'string' },
+          'inTransitQuantity': { 'type': 'string' },
+          'signedQuantity': { 'type': 'string' },
+        },
+    },
+  'WflPurchaseKgSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'unit',
+          'excludedPackaging',
+          'orderedQuantity',
+          'inboundQuantity',
+          'returnProcessingQuantity',
+          'netInboundQuantity',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { 'type': 'string', 'enum': ['KG'] },
+          'excludedPackaging': { 'type': 'boolean' },
+          'orderedQuantity': { 'type': 'string' },
+          'inboundQuantity': { 'type': 'string' },
+          'returnProcessingQuantity': { 'type': 'string' },
+          'netInboundQuantity': { 'type': 'string' },
+        },
+    },
   'WflSalesProcessListItem':
     {
       'type': 'object',
@@ -100,6 +147,7 @@
           'amount',
           'updatedAt',
           'progressGroups',
+          'summary',
         ],
       'additionalProperties': false,
       'properties':
@@ -118,6 +166,7 @@
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
           'progressGroups':
             { 'type': 'array', 'items': { '$ref': '#/WflSalesProgressGroup' } },
+          'summary': { '$ref': '#/WflSalesKgSummary' },
         },
     },
   'WflPurchaseProcessListItem':
@@ -138,6 +187,7 @@
           'amount',
           'updatedAt',
           'progressGroups',
+          'summary',
         ],
       'additionalProperties': false,
       'properties':
@@ -159,6 +209,7 @@
               'type': 'array',
               'items': { '$ref': '#/WflPurchaseProgressGroup' },
             },
+          'summary': { '$ref': '#/WflPurchaseKgSummary' },
         },
     },
   'WflSalesProcessPage':

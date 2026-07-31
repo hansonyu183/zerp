@@ -5,6 +5,7 @@ import { apiClient, type ApiPostPath } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import {
   stageStatusText,
@@ -163,11 +164,36 @@ function amountText(item: ProcessListItem): string {
   return `${item.currency} ${item.amount}`
 }
 
-function summaryText(item: ProcessListItem): string {
-  const completed = item.progressGroups.filter(
-    (group) => Number(group.remainingQuantity) === 0,
-  ).length
-  return `${item.progressGroups.length} 个计量单位 · ${completed}/${item.progressGroups.length} 已履约`
+function summaryLabels(): string[] {
+  return props.processEntity === 'sales-fulfillment'
+    ? ['缺货', '出库', '在途', '签收']
+    : ['订购', '累计入库', '退货中', '净入库']
+}
+
+function summaryValues(item: ProcessListItem): string[] {
+  if (props.processEntity === 'sales-fulfillment') {
+    const summary = (item as SalesProcessListItem).summary
+    return [
+      summary.warehouseAvailable ? (summary.shortageQuantity ?? '0') : '—',
+      summary.outboundQuantity,
+      summary.inTransitQuantity,
+      summary.signedQuantity,
+    ]
+  }
+  const summary = (item as PurchaseProcessListItem).summary
+  return [
+    summary.orderedQuantity,
+    summary.inboundQuantity,
+    summary.returnProcessingQuantity,
+    summary.netInboundQuantity,
+  ]
+}
+
+function summaryNote(item: ProcessListItem): string | undefined {
+  const summary = item.summary
+  if ('warehouseAvailable' in summary && !summary.warehouseAvailable)
+    return '历史订单仓库不明确'
+  return summary.excludedPackaging ? '不含包装物' : undefined
 }
 
 function metricValue(group: ProgressGroup, key: string): string {
@@ -294,7 +320,14 @@ onMounted(query)
               <td>{{ amountText(item) }}</td>
               <td>{{ workflowStatusText(item.status) }}</td>
               <td>{{ workflowStageText(item.currentStage) }}</td>
-              <td>{{ summaryText(item) }}</td>
+              <td>
+                <FulfillmentSummary
+                  :labels="summaryLabels()"
+                  :note="summaryNote(item)"
+                  unit="KG"
+                  :values="summaryValues(item)"
+                />
+              </td>
               <td class="text-right">
                 <ListRowActions
                   :label="`操作 ${item.rootDocumentNo}`"
@@ -393,7 +426,14 @@ onMounted(query)
             </div>
             <div>
               <dt>履约</dt>
-              <dd>{{ summaryText(item) }}</dd>
+              <dd>
+                <FulfillmentSummary
+                  :labels="summaryLabels()"
+                  :note="summaryNote(item)"
+                  unit="KG"
+                  :values="summaryValues(item)"
+                />
+              </dd>
             </div>
           </dl>
           <div class="process-card__actions">

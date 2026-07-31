@@ -77,6 +77,15 @@ describe('workflow process composition list', () => {
             currency: 'CNY',
             amount: '1200.00',
             updatedAt: '2026-07-31T08:00:00Z',
+            summary: {
+              unit: 'KG',
+              excludedPackaging: true,
+              warehouseAvailable: true,
+              shortageQuantity: '1200',
+              outboundQuantity: '6000',
+              inTransitQuantity: '2000',
+              signedQuantity: '3000',
+            },
             progressGroups: [
               {
                 unit: '吨',
@@ -134,7 +143,9 @@ describe('workflow process composition list', () => {
     expect(wrapper.text()).toContain('CNY 1200.00')
     expect(wrapper.text()).toContain('已批准')
     expect(wrapper.text()).toContain('销售出库')
-    expect(wrapper.text()).toContain('2 个计量单位 · 1/2 已履约')
+    expect(wrapper.text()).toContain('缺货 / 出库 / 在途 / 签收')
+    expect(wrapper.text()).toContain('1200 / 6000 / 2000 / 3000KG')
+    expect(wrapper.text()).toContain('不含包装物')
 
     await wrapper
       .findAll('button')

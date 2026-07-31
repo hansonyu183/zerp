@@ -180,6 +180,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const workspace = page.locator('.voucher-workspace')
   await selectReference(page, '客户', fixture.customer, workspace)
   await selectReference(page, /业务员/, fixture.employee, workspace)
+  await selectReference(page, '仓库', fixture.warehouse, workspace)
   await selectReference(page, '产品', fixture.product, workspace)
 
   const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
@@ -209,6 +210,13 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
+  await page.goto('/vou/sale-order')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: orderNo! }),
+  ).toContainText('缺货 / 出库 / 在途 / 签收')
+
   await page.goto('/wfl/sales-fulfillment')
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
@@ -216,6 +224,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('已批准')
   await expect(processRow).toContainText('销售出库')
+  await expect(processRow).toContainText('缺货 / 出库 / 在途 / 签收')
   await processRow.getByRole('button', { name: '展开履约' }).click()
   const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
   await expect(progressRow).toContainText('订购')
@@ -291,6 +300,13 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
+  await page.goto('/vou/purchase-order')
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: orderNo! }),
+  ).toContainText('订购 / 累计入库 / 退货中 / 净入库')
+
   await page.goto('/wfl/purchase-fulfillment')
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
@@ -298,6 +314,7 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('已批准')
   await expect(processRow).toContainText('采购入库')
+  await expect(processRow).toContainText('订购 / 累计入库 / 退货中 / 净入库')
   await processRow.getByRole('button', { name: '展开履约' }).click()
   const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
   await expect(progressRow).toContainText('订购')

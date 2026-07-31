@@ -78,9 +78,10 @@ func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[Pur
 	}
 	items := make([]PurchaseProcessListItem, len(rows))
 	ids := make([]string, len(rows))
+	orderIDs := make([]string, len(rows))
 	indexByID := make(map[string]int, len(rows))
 	for index, row := range rows {
-		ids[index], indexByID[row.ProcessID] = row.ProcessID, index
+		ids[index], orderIDs[index], indexByID[row.ProcessID] = row.ProcessID, row.RootDocumentID, index
 		items[index] = PurchaseProcessListItem{
 			ProcessListItem: ProcessListItem{
 				ProcessID: row.ProcessID, ProcessType: row.ProcessType, Status: row.Status,
@@ -91,9 +92,31 @@ func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[Pur
 				UpdatedAt: row.UpdatedAt.Time,
 			},
 			ProgressGroups: make([]PurchaseProgressGroup, 0),
+			Summary:        voudomain.PurchaseKgSummary{Unit: "KG"},
 		}
 	}
 	if len(ids) > 0 {
+		summaryRows, summaryErr := s.queries.ListPurchaseOrderKgSummaries(ctx, orderIDs)
+		if summaryErr != nil {
+			return Page[PurchaseProcessListItem]{}, internal("summarize purchase workflow kg progress", summaryErr)
+		}
+		indexByOrderID := make(map[string]int, len(rows))
+		for index, row := range rows {
+			indexByOrderID[row.RootDocumentID] = index
+		}
+		for _, row := range summaryRows {
+			index, ok := indexByOrderID[row.OrderID]
+			if !ok {
+				continue
+			}
+			items[index].Summary = voudomain.PurchaseKgSummary{
+				Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
+				OrderedQuantity:          workflowQuantity(row.OrderedQuantityMicros),
+				InboundQuantity:          workflowQuantity(row.InboundQuantityMicros),
+				ReturnProcessingQuantity: workflowQuantity(row.ReturnProcessingQuantityMicros),
+				NetInboundQuantity:       workflowQuantity(row.NetInboundQuantityMicros),
+			}
+		}
 		progressRows, progressErr := s.queries.ListPurchaseWorkflowProgress(ctx, ids)
 		if progressErr != nil {
 			return Page[PurchaseProcessListItem]{}, internal("summarize purchase workflow progress", progressErr)

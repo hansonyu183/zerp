@@ -1910,6 +1910,56 @@ export interface components {
                 order: "asc" | "desc";
             }[];
         };
+        VouSalesKgSummary: {
+            /** @enum {string} */
+            unit: "KG";
+            excludedPackaging: boolean;
+            warehouseAvailable: boolean;
+            shortageQuantity?: string;
+            outboundQuantity: string;
+            inTransitQuantity: string;
+            signedQuantity: string;
+        };
+        VouPurchaseKgSummary: {
+            /** @enum {string} */
+            unit: "KG";
+            excludedPackaging: boolean;
+            orderedQuantity: string;
+            inboundQuantity: string;
+            returnProcessingQuantity: string;
+            netInboundQuantity: string;
+        };
+        VouListItem: {
+            documentId: string;
+            entity: components["schemas"]["VouEntity"];
+            documentNo: string;
+            status: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date */
+            businessDate: string;
+            partyName?: string;
+            currency: string;
+            amount: string;
+            /** Format: date-time */
+            updatedAt: string;
+            salesSummary?: components["schemas"]["VouSalesKgSummary"];
+            purchaseSummary?: components["schemas"]["VouPurchaseKgSummary"];
+        };
+        VouListPage: {
+            items: components["schemas"]["VouListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        VouQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["VouListPage"];
+            requestId: string;
+        };
         VouGetRequest: {
             documentId: string;
         };
@@ -2253,6 +2303,16 @@ export interface components {
             netSignedQuantity: string;
             remainingQuantity: string;
         };
+        WflSalesKgSummary: {
+            /** @enum {string} */
+            unit: "KG";
+            excludedPackaging: boolean;
+            warehouseAvailable: boolean;
+            shortageQuantity?: string;
+            outboundQuantity: string;
+            inTransitQuantity: string;
+            signedQuantity: string;
+        };
         WflSalesProcessListItem: {
             processId: string;
             processType: string;
@@ -2270,6 +2330,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             progressGroups: components["schemas"]["WflSalesProgressGroup"][];
+            summary: components["schemas"]["WflSalesKgSummary"];
         };
         WflSalesProcessPage: {
             items: components["schemas"]["WflSalesProcessListItem"][];
@@ -2317,6 +2378,15 @@ export interface components {
             netInboundQuantity: string;
             remainingQuantity: string;
         };
+        WflPurchaseKgSummary: {
+            /** @enum {string} */
+            unit: "KG";
+            excludedPackaging: boolean;
+            orderedQuantity: string;
+            inboundQuantity: string;
+            returnProcessingQuantity: string;
+            netInboundQuantity: string;
+        };
         WflPurchaseProcessListItem: {
             processId: string;
             processType: string;
@@ -2334,6 +2404,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             progressGroups: components["schemas"]["WflPurchaseProgressGroup"][];
+            summary: components["schemas"]["WflPurchaseKgSummary"];
         };
         WflPurchaseProcessPage: {
             items: components["schemas"]["WflPurchaseProcessListItem"][];
@@ -3239,7 +3310,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 业务单据分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouQueryResponse"];
+                };
+            };
         };
     };
     vouget: {

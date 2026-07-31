@@ -141,13 +141,16 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 
 	switch entity {
 	case EntitySaleOrder:
-		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, false, false, false); err != nil {
+		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, true, false, false); err != nil {
 			return validatedDraft{}, err
 		}
 		if err = validateReference(input.Customer, "customer", true); err != nil {
 			return validatedDraft{}, err
 		}
 		if err = validateReference(input.Salesperson, "salesperson", false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
 			return validatedDraft{}, err
 		}
 		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false, true)

@@ -235,6 +235,7 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 
 	order, orderView := createWorkflowDocument(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
 		BusinessDate: "2026-07-31", Currency: "CNY", Customer: &refs.customer,
+		Warehouse: &refs.warehouse,
 		ProductLines: []voudomain.ProductLineInput{
 			{Product: refs.products[0], OrderedQuantity: "12", UnitPrice: "10"},
 			{Product: refs.products[1], OrderedQuantity: "5", UnitPrice: "20"},
@@ -344,6 +345,11 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 		item.BusinessDate != "2026-07-31" || item.Currency != "CNY" {
 		t.Fatalf("sales list key data = %+v", item.ProcessListItem)
 	}
+	if item.Summary.Unit != "KG" || !item.Summary.WarehouseAvailable ||
+		item.Summary.ShortageQuantity != "5000" || item.Summary.OutboundQuantity != "12004" ||
+		item.Summary.InTransitQuantity != "2000" || item.Summary.SignedQuantity != "6004" {
+		t.Fatalf("sales kg summary = %+v", item.Summary)
+	}
 	if len(item.ProgressGroups) != 2 {
 		t.Fatalf("sales progress groups = %+v", item.ProgressGroups)
 	}
@@ -436,6 +442,11 @@ func TestWorkflowQueryPurchaseProgressByUnitIntegration(t *testing.T) {
 	if item.RootDocumentNo != order.DocumentNo || item.PartyName != "流程供应商" ||
 		item.BusinessDate != "2026-07-31" || item.Currency != "CNY" {
 		t.Fatalf("purchase list key data = %+v", item.ProcessListItem)
+	}
+	if item.Summary.Unit != "KG" || item.Summary.OrderedQuantity != "15004" ||
+		item.Summary.InboundQuantity != "6004" || item.Summary.ReturnProcessingQuantity != "1000" ||
+		item.Summary.NetInboundQuantity != "5004" {
+		t.Fatalf("purchase kg summary = %+v", item.Summary)
 	}
 	groups := map[string]PurchaseProgressGroup{}
 	for _, group := range item.ProgressGroups {

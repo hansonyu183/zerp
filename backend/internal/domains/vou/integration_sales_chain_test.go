@@ -58,6 +58,7 @@ func finalizedSalesOrder(
 	t.Helper()
 	return advanceSalesDocument(t, service, EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
 			Product: refs.product, OrderedQuantity: quantity, UnitPrice: "12.00",
 		}},

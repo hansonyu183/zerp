@@ -428,14 +428,17 @@ func (s *Service) ensureAutoOutboundDraft(
 		return MutationResult{}, s.internal("find generated outbound draft", err)
 	}
 	var orderNumber, orderStatus, currency, customerID, customerVersion, customerCode, customerName string
+	var warehouseID, warehouseVersion, warehouseCode, warehouseName *string
 	var date time.Time
 	if err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,
-		o.customer_object_id,o.customer_version_id,o.customer_code,o.customer_name
+		o.customer_object_id,o.customer_version_id,o.customer_code,o.customer_name,
+		o.warehouse_object_id,o.warehouse_version_id,o.warehouse_code,o.warehouse_name
 		FROM vou_documents d
 		JOIN vou_sale_order_details o ON o.document_id=d.id
 		WHERE d.id=$1 FOR UPDATE OF d`, orderID).Scan(
 		&orderNumber, &orderStatus, &date, &currency,
 		&customerID, &customerVersion, &customerCode, &customerName,
+		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName,
 	); err != nil {
 		return MutationResult{}, s.internal("lock generated outbound source", err)
 	}
@@ -494,9 +497,11 @@ func (s *Service) ensureAutoOutboundDraft(
 		return MutationResult{}, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_sale_outbound_details(
-		document_id,source_order_id,customer_object_id,customer_version_id,customer_code,customer_name
-	) VALUES($1,$2,$3,$4,$5,$6)`,
-		id, orderID, customerID, customerVersion, customerCode, customerName); err != nil {
+		document_id,source_order_id,customer_object_id,customer_version_id,customer_code,customer_name,
+		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		id, orderID, customerID, customerVersion, customerCode, customerName,
+		warehouseID, warehouseVersion, warehouseCode, warehouseName); err != nil {
 		return MutationResult{}, s.writeError("insert generated outbound detail", err)
 	}
 	for index, line := range lines {

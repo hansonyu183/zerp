@@ -394,6 +394,23 @@ export interface VoucherListItem {
   currency: string
   amount: string
   updatedAt: string
+  salesSummary?: {
+    unit: 'KG'
+    excludedPackaging: boolean
+    warehouseAvailable: boolean
+    shortageQuantity?: string
+    outboundQuantity: string
+    inTransitQuantity: string
+    signedQuantity: string
+  }
+  purchaseSummary?: {
+    unit: 'KG'
+    excludedPackaging: boolean
+    orderedQuantity: string
+    inboundQuantity: string
+    returnProcessingQuantity: string
+    netInboundQuantity: string
+  }
 }
 
 export interface VoucherMutationResult {

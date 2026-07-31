@@ -180,7 +180,8 @@ type SalesProgressGroup struct {
 
 type SalesProcessListItem struct {
 	ProcessListItem
-	ProgressGroups []SalesProgressGroup `json:"progressGroups"`
+	ProgressGroups []SalesProgressGroup     `json:"progressGroups"`
+	Summary        voudomain.SalesKgSummary `json:"summary"`
 }
 
 type PurchaseProgressGroup struct {
@@ -197,7 +198,8 @@ type PurchaseProgressGroup struct {
 
 type PurchaseProcessListItem struct {
 	ProcessListItem
-	ProgressGroups []PurchaseProgressGroup `json:"progressGroups"`
+	ProgressGroups []PurchaseProgressGroup     `json:"progressGroups"`
+	Summary        voudomain.PurchaseKgSummary `json:"summary"`
 }
 
 type MutationResult struct {

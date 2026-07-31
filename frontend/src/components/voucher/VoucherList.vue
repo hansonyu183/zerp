@@ -14,6 +14,7 @@ import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
+import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 
 defineOptions({ name: 'VoucherList' })
 
@@ -46,6 +47,7 @@ const props = withDefaults(
     partyOptions?: readonly VoucherReference[]
     partyLoading?: boolean
     partyError?: string | null
+    fulfillmentSummaryKind?: 'sales' | 'purchase'
   }>(),
   {
     loading: false,
@@ -222,6 +224,41 @@ function selectAction(action: string, row: VoucherListItem): void {
   else if (action === 'view') emit('view', row)
   else if (isLifecycleAction(action)) emit('lifecycle', row, action)
 }
+
+function summaryLabels(): string[] {
+  return props.fulfillmentSummaryKind === 'sales'
+    ? ['缺货', '出库', '在途', '签收']
+    : ['订购', '累计入库', '退货中', '净入库']
+}
+
+function summaryValues(row: VoucherListItem): string[] {
+  if (props.fulfillmentSummaryKind === 'sales' && row.salesSummary) {
+    return [
+      row.salesSummary.warehouseAvailable
+        ? (row.salesSummary.shortageQuantity ?? '0')
+        : '—',
+      row.salesSummary.outboundQuantity,
+      row.salesSummary.inTransitQuantity,
+      row.salesSummary.signedQuantity,
+    ]
+  }
+  if (props.fulfillmentSummaryKind === 'purchase' && row.purchaseSummary) {
+    return [
+      row.purchaseSummary.orderedQuantity,
+      row.purchaseSummary.inboundQuantity,
+      row.purchaseSummary.returnProcessingQuantity,
+      row.purchaseSummary.netInboundQuantity,
+    ]
+  }
+  return ['—', '—', '—', '—']
+}
+
+function summaryNote(row: VoucherListItem): string | undefined {
+  const summary = row.salesSummary ?? row.purchaseSummary
+  if (row.salesSummary && !row.salesSummary.warehouseAvailable)
+    return '历史订单仓库不明确'
+  return summary?.excludedPackaging ? '不含包装物' : undefined
+}
 </script>
 
 <template>
@@ -321,6 +358,7 @@ function selectAction(action: string, row: VoucherListItem): void {
                 :direction="sort.order"
                 @sort="changeSort('amount')"
               />
+              <th v-if="fulfillmentSummaryKind">履约摘要</th>
               <th class="text-end">操作</th>
             </tr>
           </thead>
@@ -335,6 +373,14 @@ function selectAction(action: string, row: VoucherListItem): void {
                 }}</v-chip>
               </td>
               <td class="text-end" data-label="金额">{{ row.amount }}</td>
+              <td v-if="fulfillmentSummaryKind" data-label="履约摘要">
+                <FulfillmentSummary
+                  :labels="summaryLabels()"
+                  :note="summaryNote(row)"
+                  unit="KG"
+                  :values="summaryValues(row)"
+                />
+              </td>
               <td
                 class="text-end text-no-wrap responsive-table__actions"
                 data-label="操作"
@@ -351,7 +397,12 @@ function selectAction(action: string, row: VoucherListItem): void {
               v-if="!loading && rows.length === 0"
               class="responsive-table__empty-row"
             >
-              <td colspan="6" class="text-center py-12">{{ emptyText }}</td>
+              <td
+                :colspan="fulfillmentSummaryKind ? 7 : 6"
+                class="text-center py-12"
+              >
+                {{ emptyText }}
+              </td>
             </tr>
           </tbody>
         </v-table>
@@ -384,6 +435,6 @@ function selectAction(action: string, row: VoucherListItem): void {
   overflow-x: auto;
 }
 .voucher-list__table {
-  min-width: 980px;
+  min-width: 1040px;
 }
 </style>

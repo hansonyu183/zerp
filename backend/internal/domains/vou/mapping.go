@@ -31,6 +31,10 @@ func (s *Service) loadData(
 			detail.SalespersonObjectID, detail.SalespersonVersionID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,
 		)
+		data.Warehouse = optionalReference(
+			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseCode, detail.WarehouseName,
+		)
 		data.ContactName = deref(detail.ContactName)
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.DeliveryAddress = deref(detail.DeliveryAddress)

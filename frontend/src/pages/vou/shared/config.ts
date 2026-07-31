@@ -44,6 +44,7 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'product',
     finalizationKind: 'direct',
     usesSalesperson: true,
+    usesWarehouse: true,
   },
   'sale-outbound': {
     entity: 'sale-outbound',

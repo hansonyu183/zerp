@@ -6,6 +6,14 @@ ALTER TABLE vou_sale_order_details
     ADD COLUMN warehouse_code varchar(64),
     ADD COLUMN warehouse_name varchar(200);
 
+ALTER TABLE vou_sale_order_details
+    ADD CONSTRAINT vou_sale_order_warehouse_ck CHECK (
+        (warehouse_object_id IS NULL AND warehouse_version_id IS NULL
+            AND warehouse_code IS NULL AND warehouse_name IS NULL)
+        OR (warehouse_object_id IS NOT NULL AND warehouse_version_id IS NOT NULL
+            AND warehouse_code IS NOT NULL AND warehouse_name IS NOT NULL)
+    );
+
 WITH unique_orders AS (
     SELECT source_order_id
     FROM vou_sale_outbound_details
@@ -30,14 +38,6 @@ SET warehouse_object_id = source.warehouse_object_id,
     warehouse_name = source.warehouse_name
 FROM unique_warehouse source
 WHERE source.source_order_id = order_detail.document_id;
-
-ALTER TABLE vou_sale_order_details
-    ADD CONSTRAINT vou_sale_order_warehouse_ck CHECK (
-        (warehouse_object_id IS NULL AND warehouse_version_id IS NULL
-            AND warehouse_code IS NULL AND warehouse_name IS NULL)
-        OR (warehouse_object_id IS NOT NULL AND warehouse_version_id IS NOT NULL
-            AND warehouse_code IS NOT NULL AND warehouse_name IS NOT NULL)
-    );
 
 -- +goose Down
 

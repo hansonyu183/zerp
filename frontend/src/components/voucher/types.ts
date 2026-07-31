@@ -468,6 +468,9 @@ export interface VoucherLifecycleLabels {
   finalized: string
 }
 
+export type VoucherLifecycleAction =
+  'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize'
+
 export interface VoucherEntityConfig {
   entity: VoucherEntity
   title: string

@@ -674,6 +674,59 @@ describe('shared VOU entity view model', () => {
     })
   })
 
+  it('executes permitted lifecycle actions directly from list rows', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    useSessionStore().permissions = [
+      '/vou/sale-order/query',
+      '/vou/sale-order/get',
+      '/vou/sale-order/save',
+      '/vou/sale-order/check',
+      '/vou/sale-order/approve',
+    ]
+    const row = {
+      documentId: 'DOCUMENT-1',
+      entity: config.entity,
+      documentNo: 'SO-1',
+      status: 'DRAFT' as const,
+      revision: 3,
+      businessDate: '2026-07-31',
+      currency: 'CNY',
+      amount: '10.00',
+      updatedAt: '2026-07-31T00:00:00Z',
+    }
+    mockedPost.mockImplementation(async (path) => {
+      if (path.endsWith('/query')) {
+        return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+      }
+      return {
+        data: {
+          documentId: row.documentId,
+          documentNo: row.documentNo,
+          status: 'CHECKED',
+          revision: 4,
+        },
+      }
+    })
+    const vm = useVoucherEntityViewModel(config)
+
+    expect(vm.canLifecycleAction(row, 'check')).toBe(true)
+    expect(vm.canLifecycleAction(row, 'approve')).toBe(false)
+    expect(await vm.lifecycleActionFromList(row, 'approve')).toBe(false)
+    expect(await vm.lifecycleActionFromList(row, 'check')).toBe(true)
+    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/check', {
+      documentId: 'DOCUMENT-1',
+      revision: 3,
+    })
+    expect(mockedPost).toHaveBeenCalledWith(
+      'vou/sale-order/query',
+      expect.objectContaining({
+        sort: [{ field: 'documentNo', order: 'desc' }],
+      }),
+      expect.any(Object),
+    )
+    expect(vm.actionLoading.value).toBeNull()
+  })
+
   it('keeps list and workspace navigation behavior stable', async () => {
     const config = voucherEntityConfigs.receipt
     useSessionStore().permissions = [

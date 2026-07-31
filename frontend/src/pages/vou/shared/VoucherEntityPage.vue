@@ -21,6 +21,8 @@ import {
   VoucherWorkspace,
   type VoucherDraftForm,
   type VoucherDocumentView,
+  type VoucherLifecycleAction,
+  type VoucherListItem,
   type VoucherReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
@@ -98,6 +100,15 @@ const secondaryAction = ref<
 >('delete')
 const secondaryTitle = ref('')
 const secondaryReason = ref('')
+const listLifecycleTarget = ref<VoucherListItem | null>(null)
+const listLifecycleAction =
+  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove' | 'unfinalize'>>(
+    'uncheck',
+  )
+const listLifecycleReason = ref('')
+const listLifecycleTitle = computed(
+  () => labels.value[listLifecycleAction.value],
+)
 
 if (props.autoQuery) {
   void vm.query()
@@ -255,6 +266,35 @@ async function confirmSecondary(): Promise<void> {
   await vm.secondaryAction(secondaryAction.value, secondaryReason.value.trim())
 }
 
+function requestListLifecycleAction(
+  row: VoucherListItem,
+  action: VoucherLifecycleAction,
+): void {
+  if (
+    action === 'uncheck' ||
+    action === 'unapprove' ||
+    action === 'unfinalize'
+  ) {
+    listLifecycleTarget.value = row
+    listLifecycleAction.value = action
+    listLifecycleReason.value = ''
+    return
+  }
+  void vm.lifecycleActionFromList(row, action)
+}
+
+async function confirmListLifecycleAction(): Promise<void> {
+  const row = listLifecycleTarget.value
+  const reason = listLifecycleReason.value.trim()
+  if (!row || !reason || Array.from(reason).length > 1000) return
+  if (
+    await vm.lifecycleActionFromList(row, listLifecycleAction.value, reason)
+  ) {
+    listLifecycleTarget.value = null
+    listLifecycleReason.value = ''
+  }
+}
+
 function formatQuantityMicros(value: bigint): string {
   const whole = value / 1_000_000n
   const fraction = String(value % 1_000_000n)
@@ -283,7 +323,9 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       {{ vm.errorMessage }}
     </v-alert>
     <VoucherList
+      :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
+      :can-lifecycle-action="vm.canLifecycleAction"
       :can-view="vm.canView"
       :creatable="
         vm.canCreate &&
@@ -294,6 +336,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       :date-to="vm.filters.dateTo"
       :keyword="vm.filters.keyword"
       :loading="vm.loading"
+      :lifecycle-labels="labels"
       :page="vm.page"
       :page-size="vm.pageSize"
       :party="vm.selectedParty"
@@ -309,6 +352,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       :total="vm.total"
       @create="vm.openCreate"
       @edit="vm.openDocument($event, true)"
+      @lifecycle="requestListLifecycleAction"
       @party-search="vm.searchReference('party', $event)"
       @query="vm.search"
       @reset="vm.resetFilters"
@@ -322,6 +366,52 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       @view="vm.openDocument($event)"
     />
   </v-container>
+
+  <v-dialog
+    :model-value="Boolean(listLifecycleTarget)"
+    max-width="560"
+    @update:model-value="
+      (value) => {
+        if (!value) listLifecycleTarget = null
+      }
+    "
+  >
+    <v-card rounded="xl" :title="listLifecycleTitle">
+      <v-card-text>
+        <v-textarea
+          v-model="listLifecycleReason"
+          autofocus
+          counter="1000"
+          label="原因"
+          :rules="[
+            (value: string) => Boolean(value?.trim()) || '请输入原因。',
+            (value: string) =>
+              Array.from(value ?? '').length <= 1000 ||
+              '原因不能超过 1000 字。',
+          ]"
+          variant="outlined"
+        />
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5">
+        <v-spacer />
+        <v-btn variant="text" @click="listLifecycleTarget = null">取消</v-btn>
+        <v-btn
+          color="warning"
+          :disabled="
+            !listLifecycleReason.trim() ||
+            Array.from(listLifecycleReason).length > 1000
+          "
+          :loading="
+            vm.actionLoading ===
+            `${listLifecycleAction}:${listLifecycleTarget?.documentId}`
+          "
+          @click="confirmListLifecycleAction"
+        >
+          确认{{ listLifecycleTitle }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
   <VoucherWorkspace
     v-model="vm.workspaceOpen"
@@ -976,7 +1066,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       vm.documentView.data.settlementMethod,
                     )
                   }}
-                  · 到期
+                  ·
+                  到期
                   {{
                     resolveDueDate(
                       vm.documentView.data.dueDate,
@@ -1013,8 +1104,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       vm.documentView.data.supplierSettlementMethod,
                     )
                   }}
-                  ·
-                  到期
+                  · 到期
                   {{
                     resolveDueDate(
                       vm.documentView.data.dueDate,

@@ -11,7 +11,11 @@ import {
 } from 'vue'
 import { describe, expect, it } from 'vitest'
 import VoucherList from '@/components/voucher/VoucherList.vue'
-import type { VoucherListItem } from '@/components/voucher'
+import type {
+  VoucherLifecycleAction,
+  VoucherLifecycleLabels,
+  VoucherListItem,
+} from '@/components/voucher'
 
 interface ExpansionState {
   open: Ref<boolean>
@@ -135,6 +139,12 @@ function mountList(
     creatable: boolean
     canView: (row: VoucherListItem) => boolean
     canEdit: (row: VoucherListItem) => boolean
+    canLifecycleAction: (
+      row: VoucherListItem,
+      action: VoucherLifecycleAction,
+    ) => boolean
+    lifecycleLabels: VoucherLifecycleLabels
+    actionLoading: string | null
   }> = {},
 ): VueWrapper {
   return mount(VoucherList as Component, {
@@ -149,6 +159,16 @@ function mountList(
       dateTo: '',
       sort: { field: 'documentNo', order: 'desc' },
       party: null,
+      lifecycleLabels: {
+        check: '核对',
+        uncheck: '反核对',
+        approve: '批准',
+        unapprove: '反批准',
+        finalize: '完成',
+        unfinalize: '撤销完成',
+        checked: '已核对',
+        finalized: '已完成',
+      },
       ...props,
     },
     global: {
@@ -307,5 +327,76 @@ describe('VoucherList', () => {
     })
     expect(readonly.find('[aria-label="编辑 SO-0001"]').exists()).toBe(false)
     expect(readonly.find('[aria-label="查看 SO-0001"]').exists()).toBe(true)
+  })
+
+  it('按状态和权限把流程动作直接显示在操作列', async () => {
+    const row = (
+      status: VoucherListItem['status'],
+      documentNo: string,
+    ): VoucherListItem => ({
+      documentId: `DOC-${documentNo}`,
+      entity: 'sale-order',
+      documentNo,
+      status,
+      revision: 1,
+      businessDate: '2026-07-31',
+      currency: 'CNY',
+      amount: '100.00',
+      updatedAt: '2026-07-31T00:00:00Z',
+    })
+    const rows = [
+      row('DRAFT', 'SO-DRAFT'),
+      row('CHECKED', 'SO-CHECKED'),
+      row('APPROVED', 'SO-APPROVED'),
+      row('FINALIZED', 'SO-FINALIZED'),
+    ]
+    const allowed = new Set<VoucherLifecycleAction>([
+      'check',
+      'uncheck',
+      'approve',
+      'unapprove',
+      'finalize',
+      'unfinalize',
+    ])
+    const wrapper = mountList({
+      rows,
+      canLifecycleAction: (_, action) => allowed.has(action),
+    })
+
+    for (const label of [
+      '核对 SO-DRAFT',
+      '反核对 SO-CHECKED',
+      '批准 SO-CHECKED',
+      '反批准 SO-APPROVED',
+      '完成 SO-APPROVED',
+      '撤销完成 SO-FINALIZED',
+    ]) {
+      expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true)
+    }
+    expect(wrapper.find('[aria-label^="更多操作"]').exists()).toBe(false)
+
+    await wrapper.get('[aria-label="核对 SO-DRAFT"]').trigger('click')
+    expect(wrapper.emitted('lifecycle')).toEqual([[rows[0], 'check']])
+  })
+
+  it('不显示状态不匹配或无权限的流程动作', () => {
+    const row: VoucherListItem = {
+      documentId: 'DOC-1',
+      entity: 'sale-order',
+      documentNo: 'SO-0001',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-31',
+      currency: 'CNY',
+      amount: '100.00',
+      updatedAt: '2026-07-31T00:00:00Z',
+    }
+    const wrapper = mountList({
+      rows: [row],
+      canLifecycleAction: (_, action) => action === 'approve',
+    })
+
+    expect(wrapper.find('[aria-label="核对 SO-0001"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="批准 SO-0001"]').exists()).toBe(false)
   })
 })

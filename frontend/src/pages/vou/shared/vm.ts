@@ -8,6 +8,7 @@ import {
   type VoucherEntity,
   type VoucherEntityConfig,
   type VoucherExecutionForm,
+  type VoucherLifecycleAction,
   type VoucherListItem,
   type VoucherMutationResult,
   type VoucherQueryFilters,
@@ -28,6 +29,7 @@ import { buildVoucherDraftPayload } from './payload'
 import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
+import { canRunListLifecycleAction } from './lifecycle'
 import { useVoucherProduction } from './production'
 
 const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
@@ -167,6 +169,13 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       session.can(permission('get')) &&
       session.can(permission('save'))
     )
+  }
+
+  function canLifecycleAction(
+    row: VoucherListItem,
+    action: VoucherLifecycleAction,
+  ): boolean {
+    return canRunListLifecycleAction(config, row, action, session.can)
   }
 
   async function query(): Promise<void> {
@@ -421,8 +430,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   async function lifecycleAction(
-    action:
-      'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize',
+    action: VoucherLifecycleAction,
     reason?: string,
   ): Promise<void> {
     const current = documentView.value
@@ -448,6 +456,37 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       await Promise.all([query(), loadAudit(1)])
     } catch (error) {
       workspaceError.value = getErrorMessage(error)
+    } finally {
+      actionLoading.value = null
+    }
+  }
+
+  async function lifecycleActionFromList(
+    row: VoucherListItem,
+    action: VoucherLifecycleAction,
+    reason?: string,
+  ): Promise<boolean> {
+    if (!canLifecycleAction(row, action)) return false
+    actionLoading.value = `${action}:${row.documentId}`
+    errorMessage.value = null
+    try {
+      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
+        `vou/${config.entity}/${action}`,
+        {
+          documentId: row.documentId,
+          revision: row.revision,
+          ...(reason ? { reason } : {}),
+        },
+      )
+      await query()
+      if (documentView.value?.documentId === row.documentId) {
+        await loadDocument(row.documentId)
+        if (actionAvailability.value.audit) await loadAudit(1)
+      }
+      return true
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      return false
     } finally {
       actionLoading.value = null
     }
@@ -594,6 +633,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     auditError,
     canView,
     canEdit,
+    canLifecycleAction,
     query,
     search,
     changePage,
@@ -614,6 +654,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     recalculateProductionLine,
     save,
     lifecycleAction,
+    lifecycleActionFromList,
     finalize,
     secondaryAction,
     uploadAttachments,

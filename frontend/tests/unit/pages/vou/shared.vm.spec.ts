@@ -224,6 +224,27 @@ describe('shared VOU entity view model', () => {
     vi.clearAllMocks()
   })
 
+  it('通过单据深链接标识打开现有工作区并按保存权限进入编辑态', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    useSessionStore().permissions = [
+      '/vou/sale-order/get',
+      '/vou/sale-order/save',
+    ]
+    const vm = useVoucherEntityViewModel(config)
+    populate(config, vm.form.value)
+    mockedPost.mockResolvedValueOnce({
+      data: documentView(config, vm.form.value),
+    })
+
+    await vm.openDocument({ documentId: 'DOCUMENT-1' }, true)
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/get', {
+      documentId: 'DOCUMENT-1',
+    })
+    expect(vm.workspaceOpen.value).toBe(true)
+    expect(vm.editing.value).toBe(true)
+  })
+
   it('defines all fourteen atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-order',

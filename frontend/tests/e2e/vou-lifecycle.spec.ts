@@ -128,6 +128,10 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await page.getByLabel('金额').fill('100.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^REC-\d{8}-\d{4}$/)
+  const documentNo = (
+    await workspace.locator('.voucher-document-header__number').textContent()
+  )?.trim()
+  expect(documentNo).toMatch(/^REC-\d{8}-\d{4}$/)
 
   await page.getByRole('tab', { name: '附件' }).click()
   await page.locator('input[type=file]').setInputFiles({
@@ -142,11 +146,29 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
 
   await page.getByRole('tab', { name: '单据' }).click()
   await page.getByRole('button', { name: '取消编辑' }).click()
-  await page.getByRole('button', { name: '核对', exact: true }).click()
-  await expect(workspace.getByText('已核对', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '完成', exact: true }).click()
+  await page.goto('/home/dashboard')
+  await page.getByRole('tab', { name: '待处理单据' }).click()
+  await page
+    .getByRole('textbox', { name: '编码、名称、单号或往来方' })
+    .fill(documentNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+  await expect(workbenchRow).toContainText('待核对')
+  await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+  await expect(workbenchRow).toContainText('待批准')
+  await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
+  await expect(workbenchRow).toContainText('待完成')
+  await workbenchRow.getByLabel(`完成 ${documentNo}`).click()
+  await expect(workbenchRow).toHaveCount(0)
+
+  await page.goto('/vou/receipt')
+  await page
+    .getByRole('textbox', { name: '单号或往来方关键字' })
+    .fill(documentNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const documentRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+  await expect(documentRow).toBeVisible()
+  await documentRow.getByLabel(`查看 ${documentNo}`).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
   await reverse(page, '撤销完成')

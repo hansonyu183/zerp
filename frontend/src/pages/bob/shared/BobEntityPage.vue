@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   BusinessObjectEditor,
   BusinessObjectList,
@@ -21,6 +22,8 @@ import type { BobListItem } from './types'
 
 const props = defineProps<{ model: BobEntityViewModel }>()
 const vm = reactive(props.model)
+const route = useRoute()
+const router = useRouter()
 
 const deleteTarget = ref<BobListItem | null>(null)
 const reviewTarget = ref<BobListItem | null>(null)
@@ -49,6 +52,24 @@ const auditLength = computed(() =>
 )
 
 void vm.query()
+
+watch(
+  () => [route.query.objectId, route.query.mode] as const,
+  ([objectId, mode]) => {
+    if (typeof objectId !== 'string') return
+    void vm.openById(objectId, mode === 'edit' ? 'edit' : 'view')
+  },
+  { immediate: true },
+)
+
+watch(
+  () => vm.drawerOpen,
+  (open, wasOpen) => {
+    if (open || !wasOpen || typeof route.query.objectId !== 'string') return
+    const { objectId: _objectId, mode: _mode, ...query } = route.query
+    void router.replace({ query })
+  },
+)
 
 function requestEdit(row: BobListItem): void {
   void vm.openEdit(row)

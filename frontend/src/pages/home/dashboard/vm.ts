@@ -1,18 +1,144 @@
-import { computed } from 'vue'
-import { useSessionStore } from '@/stores/session'
+import { computed, reactive, ref } from 'vue'
+import type { components } from '@/api/generated/schema'
+import { apiClient, type ApiPostPath } from '@/api/client'
+import { getErrorMessage, type PageResult } from '@/api/types'
 
-export function useDashboardViewModel() {
-  const session = useSessionStore()
+export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
+export type WorkbenchAction = components['schemas']['WorkbenchAction']
+export type WorkbenchObjectItem = components['schemas']['WorkbenchObjectItem']
+export type WorkbenchDocumentItem =
+  components['schemas']['WorkbenchDocumentItem']
+export type WorkbenchItem = WorkbenchObjectItem | WorkbenchDocumentItem
 
-  const displayName = computed(
-    () => session.user?.displayName || session.user?.username || '用户',
-  )
-  const menuCount = computed(() =>
-    session.menus.reduce((total, domain) => total + domain.children.length, 0),
-  )
+interface WorkbenchListState {
+  rows: WorkbenchItem[]
+  total: number
+  page: number
+  pageSize: number
+  keyword: string
+  loading: boolean
+  loaded: boolean
+  errorMessage: string | null
+}
 
+function emptyState(): WorkbenchListState {
   return {
-    displayName,
-    menuCount,
+    rows: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+    keyword: '',
+    loading: false,
+    loaded: false,
+    errorMessage: null,
   }
 }
+
+export function useDashboardViewModel() {
+  const activeCategory = ref<WorkbenchCategory>('BOB')
+  const states = reactive<Record<WorkbenchCategory, WorkbenchListState>>({
+    BOB: emptyState(),
+    VOU: emptyState(),
+  })
+  const actionLoading = ref<string | null>(null)
+  const activeState = computed(() => states[activeCategory.value])
+
+  async function query(
+    category: WorkbenchCategory = activeCategory.value,
+    resetPage = false,
+  ): Promise<void> {
+    const state = states[category]
+    if (resetPage) state.page = 1
+    state.loading = true
+    state.errorMessage = null
+    try {
+      const { data } = await apiClient.post<
+        PageResult<WorkbenchItem>,
+        components['schemas']['WorkbenchQueryRequest']
+      >('app/workbench/query', {
+        category,
+        ...(state.keyword.trim() ? { keyword: state.keyword.trim() } : {}),
+        page: state.page,
+        pageSize: state.pageSize,
+      })
+      state.rows = data.items ?? []
+      state.total = data.total ?? 0
+      state.page = data.page ?? state.page
+      state.pageSize = data.pageSize ?? state.pageSize
+      state.loaded = true
+    } catch (error) {
+      state.rows = []
+      state.total = 0
+      state.errorMessage = getErrorMessage(error)
+    } finally {
+      state.loading = false
+    }
+  }
+
+  async function selectCategory(category: WorkbenchCategory): Promise<void> {
+    activeCategory.value = category
+    if (!states[category].loaded) await query(category)
+  }
+
+  async function changePage(page: number): Promise<void> {
+    const state = activeState.value
+    if (page < 1 || page === state.page || state.loading) return
+    state.page = page
+    await query()
+  }
+
+  async function runAction(
+    item: WorkbenchItem,
+    action: Exclude<WorkbenchAction, 'view' | 'edit'>,
+    comment = '',
+  ): Promise<boolean> {
+    if (!item.availableActions.includes(action) || actionLoading.value) {
+      return false
+    }
+    const category = item.category
+    const state = states[category]
+    actionLoading.value = `${action}:${item.category === 'BOB' ? item.objectId : item.documentId}`
+    state.errorMessage = null
+    try {
+      if (item.category === 'BOB') {
+        await apiClient.post<unknown, Record<string, unknown>>(
+          `bob/${item.entity}/${action}` as ApiPostPath,
+          {
+            objectId: item.objectId,
+            versionId: item.versionId,
+            revision: item.revision,
+            ...(action === 'reject' ? { comment: comment.trim() } : {}),
+          },
+        )
+      } else {
+        await apiClient.post<unknown, Record<string, unknown>>(
+          `vou/${item.entity}/${action}` as ApiPostPath,
+          { documentId: item.documentId, revision: item.revision },
+        )
+      }
+      if (state.rows.length === 1 && state.page > 1) state.page -= 1
+      await query(category)
+      return true
+    } catch (error) {
+      const message = getErrorMessage(error)
+      await query(category)
+      state.errorMessage = message
+      return false
+    } finally {
+      actionLoading.value = null
+    }
+  }
+
+  return {
+    activeCategory,
+    states,
+    activeState,
+    actionLoading,
+    query,
+    selectCategory,
+    changePage,
+    runAction,
+  }
+}
+
+export type DashboardViewModel = ReturnType<typeof useDashboardViewModel>

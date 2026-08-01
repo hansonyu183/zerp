@@ -60,7 +60,7 @@ test('登录后逐项加载八类业务对象中文菜单与真实组件', async
       name: item.title,
       exact: true,
     })
-    if (!await link.isVisible()) {
+    if (!(await link.isVisible())) {
       await page.getByText('业务对象', { exact: true }).click()
     }
 
@@ -207,13 +207,13 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({ pa
   }
 })
 
-test('移动端首次进入仪表盘时导航抽屉默认关闭', async ({ page, isMobile }) => {
+test('移动端首次进入工作台时导航抽屉默认关闭', async ({ page, isMobile }) => {
   test.skip(!isMobile, '仅在移动端项目验证抽屉初始状态。')
 
   await signIn(page)
   await page.goto('/home/dashboard')
 
-  await expect(page.getByText('业务工作区')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible()
   const closedBox = await page.locator('.sidebar').boundingBox()
   expect(closedBox).not.toBeNull()
   expect(closedBox!.x + closedBox!.width).toBeLessThanOrEqual(1)

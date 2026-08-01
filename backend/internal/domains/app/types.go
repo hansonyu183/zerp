@@ -136,6 +136,42 @@ type Page[T any] struct {
 	PageSize int   `json:"pageSize"`
 }
 
+const (
+	WorkbenchCategoryBob = "BOB"
+	WorkbenchCategoryVou = "VOU"
+)
+
+type WorkbenchQueryInput struct {
+	Category string `json:"category"`
+	Keyword  string `json:"keyword,omitempty"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+
+type WorkbenchItem struct {
+	Category         string    `json:"category"`
+	Entity           string    `json:"entity"`
+	Status           string    `json:"status"`
+	PendingStage     string    `json:"pendingStage"`
+	AvailableActions []string  `json:"availableActions"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+
+	ObjectID       string `json:"objectId,omitempty"`
+	ObjectRevision int64  `json:"objectRevision,omitempty"`
+	VersionID      string `json:"versionId,omitempty"`
+	Code           string `json:"code,omitempty"`
+	Name           string `json:"name,omitempty"`
+
+	DocumentID   string `json:"documentId,omitempty"`
+	DocumentNo   string `json:"documentNo,omitempty"`
+	BusinessDate string `json:"businessDate,omitempty"`
+	PartyName    string `json:"partyName,omitempty"`
+	Currency     string `json:"currency,omitempty"`
+	Amount       string `json:"amount,omitempty"`
+
+	Revision int64 `json:"revision"`
+}
+
 type pageSpec struct {
 	Page      int
 	PageSize  int

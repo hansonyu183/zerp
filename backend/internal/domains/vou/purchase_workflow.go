@@ -11,6 +11,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -67,9 +68,12 @@ func (s *Service) touchWorkflow(
 	ctx context.Context,
 	tx pgx.Tx,
 	document dbsqlc.VouDocument,
-	event, toStatus, actorID, requestID string,
+	event, toStatus string,
+	_ string,
+	requestID string,
 	summary map[string]any,
 ) error {
+	actorID := systemidentity.UserID
 	if managedPurchaseDocument(document) {
 		return s.touchPurchaseWorkflow(
 			ctx, tx, document, event, toStatus, actorID, requestID, summary,
@@ -457,13 +461,14 @@ func (s *Service) DeletePurchaseInbound(
 		}
 	}
 	if processID != "" {
+		workflowActorID := systemidentity.UserID
 		if _, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET revision=revision+1,
-			updated_at=now(),updated_by=$1 WHERE id=$2`, actorID, processID); err != nil {
+			updated_at=now(),updated_by=$1 WHERE id=$2`, workflowActorID, processID); err != nil {
 			return MutationResult{}, err
 		}
 		if err = s.insertPurchaseWorkflowAudit(ctx, tx, processID, "INBOUND_DELETED",
 			stringPtr(StatusApproved), StatusApproved, purchaseStageInbound,
-			document.ID, document.DocumentNo, StatusDraft, actorID, requestID,
+			document.ID, document.DocumentNo, StatusDraft, workflowActorID, requestID,
 			map[string]any{"reason": strings.TrimSpace(input.Reason)}); err != nil {
 			return MutationResult{}, err
 		}
@@ -637,11 +642,12 @@ func (s *Service) purchaseShortClose(
 		"OPEN": StatusApproved, "SHORT_CLOSE_REQUESTED": StatusShortCloseRequested,
 		"SHORT_CLOSED": StatusShortClosed,
 	}[next]
+	workflowActorID := systemidentity.UserID
 	if _, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET status=$1,
 		revision=revision+1,updated_at=now(),updated_by=$2,
 		completed_at=CASE WHEN $1::varchar='SHORT_CLOSED' THEN now() ELSE NULL END
 		WHERE root_document_id=$3 AND process_type=$4`,
-		processStatus, actorID, documentID, purchaseWorkflowType); err != nil {
+		processStatus, workflowActorID, documentID, purchaseWorkflowType); err != nil {
 		return MutationResult{}, err
 	}
 	var processExists bool
@@ -655,7 +661,7 @@ func (s *Service) purchaseShortClose(
 		if err = s.insertPurchaseWorkflowAudit(ctx, tx, documentID,
 			"SHORT_CLOSE_"+strings.ToUpper(operation), stringPtr(detail.FulfillmentStatus),
 			processStatus, purchaseStageOrder, document.ID, document.DocumentNo,
-			document.Status, actorID, requestID, map[string]any{"reason": reason}); err != nil {
+			document.Status, workflowActorID, requestID, map[string]any{"reason": reason}); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -862,8 +868,9 @@ func (s *Service) setPurchaseOrderBalances(
 }
 
 func (s *Service) refreshPurchaseOrderFulfillment(
-	ctx context.Context, tx pgx.Tx, documentID, actorID string,
+	ctx context.Context, tx pgx.Tx, documentID, _ string,
 ) error {
+	actorID := systemidentity.UserID
 	var orderID string
 	if err := tx.QueryRow(ctx, `SELECT source_order_id FROM (
 		SELECT document_id,source_order_id FROM vou_purchase_inbound_details

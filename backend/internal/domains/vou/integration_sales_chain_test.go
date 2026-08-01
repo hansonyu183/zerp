@@ -5,6 +5,8 @@ package vou
 import (
 	"sync"
 	"testing"
+
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 )
 
 func advanceSalesDocument(
@@ -73,6 +75,13 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	service := newIntegrationService(t, pool)
 
 	order, orderView := finalizedSalesOrder(t, service, refs, "10")
+	var orderCreator string
+	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, order.DocumentID).Scan(&orderCreator); err != nil {
+		t.Fatalf("load sales order creator: %v", err)
+	}
+	if orderCreator != integrationActorOne {
+		t.Fatalf("sales order creator = %s, want human actor", orderCreator)
+	}
 	orderLineID := orderView.Data.ProductLines[0].LineID
 	outboundOne, outboundView := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
 		BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID,
@@ -128,6 +137,17 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
 		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
 		t.Fatalf("load refusal return: %v", err)
+	}
+	var refusalCreator, refusalAuditActor string
+	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, refusalID).Scan(&refusalCreator); err != nil {
+		t.Fatalf("load refusal return creator: %v", err)
+	}
+	if err := pool.QueryRow(t.Context(), `SELECT actor_id FROM vou_audit_events
+		WHERE document_id=$1 AND event_type='CREATED' ORDER BY occurred_at LIMIT 1`, refusalID).Scan(&refusalAuditActor); err != nil {
+		t.Fatalf("load refusal return audit: %v", err)
+	}
+	if refusalCreator != systemidentity.UserID || refusalAuditActor != systemidentity.UserID {
+		t.Fatalf("automatic refusal actors = creator:%s audit:%s", refusalCreator, refusalAuditActor)
 	}
 	savedRefusal, err := service.Save(t.Context(), EntitySaleReturn, SaveInput{
 		DocumentID: refusalID, Revision: refusalRevision, Data: DraftInput{

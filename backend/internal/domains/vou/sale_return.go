@@ -11,6 +11,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -390,8 +391,9 @@ func (s *Service) loadSaleReturnData(
 }
 
 func (s *Service) ensureRefusalReturnDraft(
-	ctx context.Context, tx pgx.Tx, signoffID, actorID, requestID string,
+	ctx context.Context, tx pgx.Tx, signoffID, _ string, requestID string,
 ) error {
+	actorID := systemidentity.UserID
 	var existing string
 	err := tx.QueryRow(ctx, `SELECT document_id FROM vou_sale_return_details
 		WHERE source_signoff_id=$1 AND return_kind='REFUSAL'`, signoffID).Scan(&existing)
@@ -486,8 +488,9 @@ func (s *Service) ensureRefusalReturnDraft(
 }
 
 func (s *Service) removeSignoffReturnDrafts(
-	ctx context.Context, tx pgx.Tx, signoff dbsqlc.VouDocument, actorID, requestID string,
+	ctx context.Context, tx pgx.Tx, signoff dbsqlc.VouDocument, _ string, requestID string,
 ) error {
+	actorID := systemidentity.UserID
 	rows, err := tx.Query(ctx, `SELECT d.id,d.document_no,d.status,rd.return_kind,rd.source_order_id
 		FROM vou_sale_return_details rd
 		JOIN vou_documents d ON d.id=rd.document_id

@@ -48,7 +48,9 @@ UPDATE bob_versions
 SET status = 'EFFECTIVE', revision = revision + 1, reviewed_at = now(), reviewed_by = $1,
     review_comment = $2, updated_at = now(), updated_by = $1
 WHERE id = $3 AND object_id = $4 AND entity = $5
-  AND revision = $6 AND status = 'PENDING' AND submitted_by <> $1
+  AND revision = $6 AND status = 'PENDING'
+  AND (submitted_by <> $1
+       OR $1 = '01JAPPSYST3MACTR0000000000')
 `
 
 type ApproveBobVersionParams struct {
@@ -2462,7 +2464,9 @@ SET status = 'DRAFT', revision = revision + 1,
     reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
     updated_at = now(), updated_by = $1
 WHERE id = $2 AND object_id = $3 AND entity = $4
-  AND revision = $5 AND status = 'PENDING' AND submitted_by <> $1
+  AND revision = $5 AND status = 'PENDING'
+  AND (submitted_by <> $1
+       OR $1 = '01JAPPSYST3MACTR0000000000')
 `
 
 type RejectBobVersionParams struct {

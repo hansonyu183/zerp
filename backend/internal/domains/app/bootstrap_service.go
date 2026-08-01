@@ -5,10 +5,12 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 )
 
-// BootstrapAdmin creates the first user and a superadmin role. It refuses to run
-// once any user exists so it cannot become a general-purpose privilege bypass.
+// BootstrapAdmin creates the first human user and a superadmin role. It refuses
+// to run once any non-system user exists so it cannot become a general-purpose
+// privilege bypass.
 func (s *Service) BootstrapAdmin(ctx context.Context, username, displayName, password string) (UserView, error) {
 	username = normalizeUsername(username)
 	displayName = strings.TrimSpace(displayName)
@@ -28,7 +30,7 @@ func (s *Service) BootstrapAdmin(ctx context.Context, username, displayName, pas
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	count, err := qtx.CountAllAppUsers(ctx)
+	count, err := qtx.CountAppUsersExcept(ctx, systemidentity.UserID)
 	if err != nil {
 		return UserView{}, s.internal("count bootstrap users", err)
 	}

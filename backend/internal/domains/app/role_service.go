@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -72,7 +73,7 @@ func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput, actorID
 	if !validSegment(input.Code) || len(input.Code) > 64 || !runeLengthBetween(input.Name, 1, 128) || !validPermissionIDs(input.PermissionIDs) {
 		return RoleView{}, domainError(ErrorValidation, "invalid role fields", nil)
 	}
-	if input.Code == superadminRoleCode {
+	if input.Code == superadminRoleCode || input.Code == systemidentity.RoleCode {
 		return RoleView{}, domainError(ErrorValidation, "role code is reserved", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -104,6 +105,9 @@ func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput, actorID
 }
 
 func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, actorID, requestID string) (RoleView, error) {
+	if systemidentity.IsRole(input.ID) {
+		return RoleView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
 	input.Name = strings.TrimSpace(input.Name)
 	input.PermissionIDs = uniqueStrings(input.PermissionIDs)
 	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.Name, 1, 128) {
@@ -166,6 +170,9 @@ func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, actorID, re
 }
 
 func (s *Service) SetRoleStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (RoleView, error) {
+	if systemidentity.IsRole(id) {
+		return RoleView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
 	if !validID(id) || revision < 1 || (status != StatusEnabled && status != StatusDisabled) {
 		return RoleView{}, domainError(ErrorValidation, "invalid status request", nil)
 	}

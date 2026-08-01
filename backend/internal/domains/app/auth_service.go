@@ -7,6 +7,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -26,6 +27,10 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	}
 	if err != nil {
 		return SessionResult{}, s.internal("read signin user", err)
+	}
+	if systemidentity.IsUser(user.ID) {
+		_ = verifyPassword(s.dummyPassword, password)
+		return SessionResult{}, domainError(ErrorUnauthenticated, "authentication failed", nil)
 	}
 
 	passwordOK := verifyPassword(user.PasswordHash, password)

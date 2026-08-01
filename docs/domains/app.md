@@ -136,6 +136,8 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `app_user_roles` 使用 `(user_id, role_id)` 唯一约束；`app_role_permissions` 使用 `(role_id, permission_id)` 唯一约束。两张表均保存 `created_at`、`created_by`。
 
+系统内置固定用户 `system`（显示名“系统用户”）和固定角色 `system`（名称“系统角色”），用于归属系统自动生成的数据和自动执行的操作。该用户固定为停用状态，不能登录；该角色固定为启用状态且不授予任何 HTTP 权限。用户和角色均由迁移和服务端维护，不允许通过用户、角色管理接口创建同名主体、修改、启停或将系统角色授予其他用户。
+
 关联删除表示撤销当前授权，不代表删除用户、角色、权限或审计历史。用户角色和角色权限的批量替换必须在单个事务中完成，避免出现部分授权状态。`superadmin` 是唯一例外：其有效权限由保留角色代码动态展开，`app_role_permissions` 中不得保存该角色的逐项关联。
 
 ### 3.7 会话

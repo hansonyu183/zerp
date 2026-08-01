@@ -11,13 +11,14 @@ import (
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	actorID      = "01J00000000000000000000002"
+	actorID      = systemidentity.UserID
 	businessDate = "2026-07-30"
 )
 

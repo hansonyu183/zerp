@@ -42,11 +42,11 @@ type Querier interface {
 	CopyLedOpeningToDraftInventory(ctx context.Context, generationID string) error
 	CopyLedOpeningToDraftParty(ctx context.Context, generationID string) error
 	CountActiveUnsubmittedAppFeedbackFiles(ctx context.Context, userID string) (int64, error)
-	CountAllAppUsers(ctx context.Context) (int64, error)
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
 	CountAppRoles(ctx context.Context, arg CountAppRolesParams) (int64, error)
 	CountAppRolesUsingPermission(ctx context.Context, permissionID string) (int64, error)
 	CountAppUsers(ctx context.Context, arg CountAppUsersParams) (int64, error)
+	CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error)
 	CountBobAuditEvents(ctx context.Context, arg CountBobAuditEventsParams) (int64, error)
 	CountBobObjects(ctx context.Context, arg CountBobObjectsParams) (int64, error)
 	CountBobVersions(ctx context.Context, arg CountBobVersionsParams) (int64, error)

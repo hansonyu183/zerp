@@ -65,6 +65,9 @@ const businessMessageTranslations: Readonly<Record<string, string>> = {
     '结算方式已失效，请先编辑并重新选择后再提交审核。',
   'submitter cannot review the same version':
     '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
+  'system identity is managed internally':
+    '系统用户和系统角色由系统维护，不能人工修改。',
+  'role code is reserved': '该角色编码为系统保留编码，请使用其他编码。',
 }
 
 export function getErrorMessage(error: unknown): string {

@@ -20,17 +20,6 @@ func (q *Queries) AcquireAppAuthorizationLock(ctx context.Context) error {
 	return err
 }
 
-const countAllAppUsers = `-- name: CountAllAppUsers :one
-SELECT count(*) FROM app_users
-`
-
-func (q *Queries) CountAllAppUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countAllAppUsers)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countAppPermissions = `-- name: CountAppPermissions :one
 SELECT count(*) FROM app_permissions
 WHERE ($1::text IS NULL OR domain = $1)
@@ -93,6 +82,17 @@ type CountAppUsersParams struct {
 
 func (q *Queries) CountAppUsers(ctx context.Context, arg CountAppUsersParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countAppUsers, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAppUsersExcept = `-- name: CountAppUsersExcept :one
+SELECT count(*) FROM app_users WHERE id <> $1
+`
+
+func (q *Queries) CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppUsersExcept, excludedUserID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

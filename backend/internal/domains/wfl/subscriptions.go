@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 )
@@ -85,7 +86,7 @@ func (s *Service) handleOrderProductionCreated(
 	         $4::varchar,$5::varchar,'DRAFT',$6::varchar,$7::varchar,'{}'
 	  FROM wfl_process_instances WHERE id=$2::varchar`,
 		newID(), processID, StageProduction, event.DocumentID, event.DocumentNo,
-		event.ActorID, event.RequestID)
+		systemidentity.UserID, event.RequestID)
 	return err
 }
 
@@ -115,7 +116,7 @@ func (s *Service) handleRootDocumentCreated(
 		id,process_type,definition_version,root_document_id,status,revision,
 		created_by,updated_by
 	) VALUES($1,$2,1,$1,'DRAFT',1,$3,$3)`,
-		event.DocumentID, processType, event.ActorID); err != nil {
+		event.DocumentID, processType, systemidentity.UserID); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_documents(
@@ -127,7 +128,7 @@ func (s *Service) handleRootDocumentCreated(
 		id,process_id,event_type,to_status,stage,document_id,document_no,
 		document_status,actor_id,request_id,summary
 	) VALUES($1,$2,'CREATED','DRAFT',$3,$2,$4,'DRAFT',$5,$6,'{}')`,
-		newID(), event.DocumentID, stage, event.DocumentNo, event.ActorID, event.RequestID)
+		newID(), event.DocumentID, stage, event.DocumentNo, systemidentity.UserID, event.RequestID)
 	return err
 }
 

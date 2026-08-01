@@ -9,6 +9,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -112,7 +113,7 @@ func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw tx
 	err = s.postDocument(ctx, tx, q, postingContext{
 		GenerationID: *control.ActiveGenerationID, CutoverDate: control.CutoverDate.Time,
 		Document: document, EntryType: "POSTING", SourceRevision: event.Revision,
-		OccurredAt: document.ExecutedAt, ActorID: event.ActorID, RequestID: event.RequestID, Live: true,
+		OccurredAt: document.ExecutedAt, ActorID: systemidentity.UserID, RequestID: event.RequestID, Live: true,
 	})
 	if err != nil {
 		return eventFailure(err)

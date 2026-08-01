@@ -4,6 +4,7 @@ import (
 	"context"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -343,8 +344,9 @@ func (s *Service) ensureNoSalesChainChildren(
 }
 
 func (s *Service) refreshSaleOrderFulfillment(
-	ctx context.Context, tx pgx.Tx, signoffID, actorID string,
+	ctx context.Context, tx pgx.Tx, signoffID, _ string,
 ) error {
+	actorID := systemidentity.UserID
 	var orderID, current string
 	if err := tx.QueryRow(ctx, `SELECT x.source_order_id,o.fulfillment_status
 		FROM vou_sale_signoff_details x JOIN vou_sale_order_details o ON o.document_id=x.source_order_id
@@ -496,14 +498,15 @@ func (s *Service) Delete(
 		return MutationResult{}, err
 	}
 	if parentID != nil {
+		derivedActorID := systemidentity.UserID
 		var parentEntity, parentStatus string
 		if err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
-			WHERE id=$2 RETURNING entity,status`, actorID, *parentID).Scan(&parentEntity, &parentStatus); err != nil {
+			WHERE id=$2 RETURNING entity,status`, derivedActorID, *parentID).Scan(&parentEntity, &parentStatus); err != nil {
 			return MutationResult{}, err
 		}
 		if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
 			DocumentID: *parentID, Entity: parentEntity, Event: "DELETED",
-			From: &parentStatus, To: parentStatus, ActorID: actorID, Reason: reason, RequestID: requestID,
+			From: &parentStatus, To: parentStatus, ActorID: derivedActorID, Reason: reason, RequestID: requestID,
 			Summary: map[string]any{"documentId": input.DocumentID, "documentNo": number, "entity": entity},
 		}); err != nil {
 			return MutationResult{}, err
@@ -516,7 +519,7 @@ func (s *Service) Delete(
 				return MutationResult{}, loadErr
 			}
 			if err = s.touchSalesWorkflow(
-				ctx, tx, root, "RETURN_DELETED", root.Status, actorID, requestID, nil,
+				ctx, tx, root, "RETURN_DELETED", root.Status, derivedActorID, requestID, nil,
 			); err != nil {
 				return MutationResult{}, err
 			}
@@ -528,7 +531,7 @@ func (s *Service) Delete(
 				return MutationResult{}, loadErr
 			}
 			if err = s.touchPurchaseWorkflow(
-				ctx, tx, root, "RETURN_DELETED", root.Status, actorID, requestID, nil,
+				ctx, tx, root, "RETURN_DELETED", root.Status, derivedActorID, requestID, nil,
 			); err != nil {
 				return MutationResult{}, err
 			}

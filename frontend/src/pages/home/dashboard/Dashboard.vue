@@ -5,12 +5,18 @@ import {
   BusinessObjectList,
   type BusinessObjectColumn,
 } from '@/components/business-object'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import {
+  VoucherList,
+  type VoucherLifecycleLabels,
+  type VoucherSort,
+} from '@/components/voucher'
 import { pageRegistry } from '@/router/registry'
-import { formatLocalDateTime } from '@/utils/date'
 import {
   type WorkbenchAction,
+  type WorkbenchDocumentItem,
   type WorkbenchItem,
   type WorkbenchObjectItem,
   useDashboardViewModel,
@@ -21,63 +27,44 @@ const router = useRouter()
 const rejectTarget = ref<WorkbenchObjectItem | null>(null)
 const rejectComment = ref('')
 
-const objectColumns: readonly BusinessObjectColumn<WorkbenchItem>[] = [
-  { key: 'entity', label: '类型', value: entityTitle, width: '140px' },
+const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
+  { key: 'entity', label: '类型', value: entityTitle, sizing: 'compact' },
   {
-    key: 'identity',
-    label: '编码 · 名称',
-    value: (row) =>
-      row.category === 'BOB' ? `${row.code} · ${row.name}` : '—',
+    key: 'code',
+    label: '编码',
+    value: (row) => row.code,
+    sizing: 'compact',
   },
-  { key: 'status', label: '状态', value: pendingStatus, width: '110px' },
   {
-    key: 'updatedAt',
-    label: '更新时间',
-    value: (row) => formatLocalDateTime(row.updatedAt),
-    width: '190px',
+    key: 'name',
+    label: '名称',
+    value: (row) => row.name,
+    sizing: 'fluid',
   },
+  { key: 'status', label: '状态', value: pendingStatus, sizing: 'compact' },
 ]
 
-const documentColumns: readonly BusinessObjectColumn<WorkbenchItem>[] = [
-  { key: 'entity', label: '类型', value: entityTitle, width: '140px' },
-  {
-    key: 'documentNo',
-    label: '单号',
-    value: (row) => (row.category === 'VOU' ? row.documentNo : '—'),
-  },
-  {
-    key: 'businessDate',
-    label: '日期',
-    value: (row) => (row.category === 'VOU' ? row.businessDate : '—'),
-    width: '120px',
-  },
-  {
-    key: 'partyName',
-    label: '往来方',
-    value: (row) => (row.category === 'VOU' ? row.partyName || '—' : '—'),
-  },
-  {
-    key: 'amount',
-    label: '金额',
-    value: (row) =>
-      row.category === 'VOU'
-        ? [row.currency, row.amount].filter(Boolean).join(' ')
-        : '—',
-    align: 'end',
-    width: '150px',
-  },
-  { key: 'status', label: '状态', value: pendingStatus, width: '110px' },
-  {
-    key: 'updatedAt',
-    label: '更新时间',
-    value: (row) => formatLocalDateTime(row.updatedAt),
-    width: '190px',
-  },
-]
-
-const activeColumns = computed(() =>
-  vm.activeCategory === 'BOB' ? objectColumns : documentColumns,
+const objectRows = computed(() =>
+  vm.states.BOB.rows.filter(
+    (row): row is WorkbenchObjectItem => row.category === 'BOB',
+  ),
 )
+const documentRows = computed(() =>
+  vm.states.VOU.rows.filter(
+    (row): row is WorkbenchDocumentItem => row.category === 'VOU',
+  ),
+)
+const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
+const documentLifecycleLabels: VoucherLifecycleLabels = {
+  check: '核对',
+  uncheck: '反核对',
+  approve: '批准',
+  unapprove: '反批准',
+  finalize: '完成',
+  unfinalize: '撤销完成',
+  checked: '已核对',
+  finalized: '已完成',
+}
 
 const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   view: { label: '查看', icon: 'mdi-eye-outline' },
@@ -110,6 +97,12 @@ function pendingStatus(row: Readonly<WorkbenchItem>): string {
     APPROVE: '待批准',
     FINALIZE: '待完成',
   }[row.pendingStage]
+}
+
+function pendingColor(row: Readonly<WorkbenchItem>): string {
+  if (row.pendingStage === 'APPROVE') return 'success'
+  if (row.pendingStage === 'FINALIZE') return 'primary'
+  return 'warning'
 }
 
 function rowIdentity(row: WorkbenchItem): string {
@@ -203,17 +196,6 @@ void vm.query('BOB')
 
 <template>
   <v-container fluid class="workbench pa-4 pa-md-7">
-    <v-sheet class="workbench__heading" rounded="xl">
-      <div>
-        <div class="workbench__eyebrow">WORKBENCH</div>
-        <h2>工作台</h2>
-        <p>集中处理当前账号有权限核对、批准和完成的业务。</p>
-      </div>
-      <v-avatar color="primary" size="58" variant="tonal">
-        <v-icon icon="mdi-briefcase-check-outline" size="30" />
-      </v-avatar>
-    </v-sheet>
-
     <v-card class="workbench__panel" rounded="xl" variant="flat">
       <v-tabs
         :model-value="vm.activeCategory"
@@ -233,30 +215,23 @@ void vm.query('BOB')
       <v-divider />
 
       <div class="workbench__list">
-        <v-alert
-          v-if="vm.activeState.errorMessage"
-          class="mb-4"
-          type="error"
-          variant="tonal"
-        >
-          {{ vm.activeState.errorMessage }}
-        </v-alert>
+        <AppSnackbar
+          :message="vm.activeState.errorMessage"
+          @dismiss="vm.activeState.errorMessage = null"
+        />
 
         <BusinessObjectList
-          :columns="activeColumns"
+          v-if="vm.activeCategory === 'BOB'"
+          :columns="objectColumns"
           :editable="true"
-          :empty-text="
-            vm.activeCategory === 'BOB' ? '暂无待处理资料' : '暂无待处理单据'
-          "
+          empty-text="暂无待处理资料"
           :keyword="vm.activeState.keyword"
           :loading="vm.activeState.loading"
           :page="vm.activeState.page"
           :page-size="vm.activeState.pageSize"
-          :row-key="
-            (row) => (row.category === 'BOB' ? row.objectId : row.documentId)
-          "
-          :rows="vm.activeState.rows"
-          search-label="编码、名称、单号或往来方"
+          :row-key="(row) => row.objectId"
+          :rows="objectRows"
+          search-label="编码或名称"
           :total="vm.activeState.total"
           @query="vm.query(vm.activeCategory, true)"
           @update:keyword="vm.activeState.keyword = $event"
@@ -264,13 +239,7 @@ void vm.query('BOB')
         >
           <template #cell-status="{ row }">
             <v-chip
-              :color="
-                row.pendingStage === 'APPROVE'
-                  ? 'success'
-                  : row.pendingStage === 'FINALIZE'
-                    ? 'primary'
-                    : 'warning'
-              "
+              :color="pendingColor(row)"
               density="comfortable"
               size="small"
               variant="tonal"
@@ -290,6 +259,60 @@ void vm.query('BOB')
             />
           </template>
         </BusinessObjectList>
+
+        <VoucherList
+          v-else
+          :date-from="''"
+          :date-to="''"
+          empty-text="暂无待处理单据"
+          :filterable="false"
+          :keyword="vm.activeState.keyword"
+          :lifecycle-labels="documentLifecycleLabels"
+          :loading="vm.activeState.loading"
+          :page="vm.activeState.page"
+          :page-size="vm.activeState.pageSize"
+          :party="null"
+          :rows="documentRows"
+          search-label="单号或往来方"
+          :show-entity="true"
+          :sort="documentSort"
+          :sortable="false"
+          :statuses="[]"
+          :total="vm.activeState.total"
+          @query="vm.query('VOU', true)"
+          @update:keyword="vm.activeState.keyword = $event"
+          @update:page="vm.changePage"
+        >
+          <template #cell-entity="{ row }">
+            {{ entityTitle(row) }}
+          </template>
+
+          <template #cell-status="{ row }">
+            <v-chip
+              :color="pendingColor(row)"
+              density="comfortable"
+              size="small"
+              variant="tonal"
+            >
+              {{ pendingStatus(row) }}
+            </v-chip>
+          </template>
+
+          <template #cell-amount="{ row }">
+            {{ [row.currency, row.amount].filter(Boolean).join(' ') }}
+          </template>
+
+          <template #actions="{ row }">
+            <ListRowActions
+              :label="`操作 ${rowIdentity(row)}`"
+              :loading="Boolean(vm.actionLoading)"
+              :more="rowActions(row).more"
+              :more-label="`更多操作 ${rowIdentity(row)}`"
+              :primary="rowActions(row).primary"
+              @select="selectAction($event, row)"
+            />
+          </template>
+        </VoucherList>
       </div>
     </v-card>
 
@@ -333,40 +356,7 @@ void vm.query('BOB')
   color: rgb(var(--v-theme-on-background));
 }
 
-.workbench__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 24px 28px;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--v-theme-primary), 0.12),
-    rgba(var(--v-theme-surface), 0.98)
-  );
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.workbench__eyebrow {
-  color: rgb(var(--v-theme-primary));
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-}
-
-.workbench__heading h2 {
-  margin: 5px 0 4px;
-  font-size: clamp(25px, 4vw, 34px);
-  letter-spacing: -0.03em;
-}
-
-.workbench__heading p {
-  margin: 0;
-  color: rgb(var(--v-theme-on-surface-variant));
-}
-
 .workbench__panel {
-  margin-top: 22px;
   background: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
@@ -380,15 +370,6 @@ void vm.query('BOB')
 }
 
 @media (max-width: 700px) {
-  .workbench__heading {
-    align-items: flex-start;
-    padding: 20px;
-  }
-
-  .workbench__heading .v-avatar {
-    display: none;
-  }
-
   .workbench__panel :deep(.v-tab) {
     min-width: 0;
     flex: 1;

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
 import { useSessionStore } from '@/stores/session'
 
@@ -317,16 +318,11 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
     {{ accountSuccess }}
   </v-snackbar>
 
+  <AppSnackbar :message="accountError" @dismiss="accountError = ''" />
+
   <v-dialog v-model="profileDialog" max-width="520">
     <v-card rounded="xl" title="名称与头像">
       <v-card-text>
-        <v-alert
-          v-if="accountError"
-          class="mb-4"
-          type="error"
-          variant="tonal"
-          >{{ accountError }}</v-alert
-        >
         <div class="profile-preview">
           <v-avatar color="primary" size="64">
             <v-img
@@ -369,13 +365,6 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-dialog v-model="passwordDialog" max-width="520">
     <v-card rounded="xl" title="更改密码">
       <v-card-text>
-        <v-alert
-          v-if="accountError"
-          class="mb-4"
-          type="error"
-          variant="tonal"
-          >{{ accountError }}</v-alert
-        >
         <v-text-field
           v-model="passwords.currentPassword"
           autocomplete="current-password"

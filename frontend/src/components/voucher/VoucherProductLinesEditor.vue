@@ -9,6 +9,7 @@ import {
   sumMoney,
 } from './decimal'
 import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import {
@@ -173,15 +174,9 @@ function removeLine(index: number): void {
       </v-btn>
     </div>
 
-    <v-alert
-      v-if="duplicateProducts"
-      class="mb-3"
-      density="compact"
-      type="error"
-      variant="tonal"
-    >
-      同一产品不能重复添加。
-    </v-alert>
+    <AppSnackbar
+      :message="duplicateProducts ? '同一产品不能重复添加。' : null"
+    />
 
     <div class="voucher-lines__table-wrap responsive-table-wrap">
       <v-table
@@ -218,11 +213,7 @@ function removeLine(index: number): void {
                 @update:model-value="changeProduct(index, $event)"
               />
               <span v-else>
-                {{
-                  line.product
-                    ? formatReferenceLabel(line.product)
-                    : '—'
-                }}
+                {{ line.product ? formatReferenceLabel(line.product) : '—' }}
               </span>
             </td>
             <td data-label="数量">

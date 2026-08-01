@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
@@ -293,9 +294,7 @@ onMounted(query)
       @update:keyword="keyword = $event"
     />
 
-    <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
-      {{ errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="errorMessage" @dismiss="errorMessage = null" />
 
     <v-card variant="outlined" class="process-list">
       <v-table class="process-list__desktop">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useSignInViewModel } from './vm'
 
 const vm = reactive(useSignInViewModel())
@@ -13,21 +14,8 @@ const vm = reactive(useSignInViewModel())
         <h1>ZERP</h1>
         <p class="subtitle">登录企业资源管理系统</p>
 
-        <v-alert
-          v-if="vm.successMessage"
-          class="mb-5"
-          type="success"
-          variant="tonal"
-          :text="vm.successMessage"
-        />
-
-        <v-alert
-          v-if="vm.errorMessage"
-          class="mb-5"
-          type="error"
-          variant="tonal"
-          :text="vm.errorMessage"
-        />
+        <AppSnackbar :message="vm.successMessage" type="success" />
+        <AppSnackbar :message="vm.errorMessage" />
 
         <v-form @submit.prevent="vm.submit">
           <v-text-field

@@ -213,7 +213,7 @@ test('移动端首次进入工作台时导航抽屉默认关闭', async ({ page,
   await signIn(page)
   await page.goto('/home/dashboard')
 
-  await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '待处理资料' })).toBeVisible()
   const closedBox = await page.locator('.sidebar').boundingBox()
   expect(closedBox).not.toBeNull()
   expect(closedBox!.x + closedBox!.width).toBeLessThanOrEqual(1)

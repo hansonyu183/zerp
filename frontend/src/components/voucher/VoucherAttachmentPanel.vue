@@ -1,27 +1,31 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherAttachment } from './types'
 
 defineOptions({ name: 'VoucherAttachmentPanel' })
 
-const props = withDefaults(defineProps<{
-  attachments: readonly VoucherAttachment[]
-  draft?: boolean
-  canUpload?: boolean
-  canDownload?: boolean
-  canRemove?: boolean
-  loading?: boolean
-  documentCreated?: boolean
-  errorMessage?: string | null
-}>(), {
-  draft: false,
-  canUpload: false,
-  canDownload: false,
-  canRemove: false,
-  loading: false,
-  documentCreated: false,
-  errorMessage: null,
-})
+const props = withDefaults(
+  defineProps<{
+    attachments: readonly VoucherAttachment[]
+    draft?: boolean
+    canUpload?: boolean
+    canDownload?: boolean
+    canRemove?: boolean
+    loading?: boolean
+    documentCreated?: boolean
+    errorMessage?: string | null
+  }>(),
+  {
+    draft: false,
+    canUpload: false,
+    canDownload: false,
+    canRemove: false,
+    loading: false,
+    documentCreated: false,
+    errorMessage: null,
+  },
+)
 
 const emit = defineEmits<{
   upload: [files: File[]]
@@ -73,7 +77,9 @@ function sizeText(size: number): string {
       </div>
       <v-btn
         v-if="canUpload"
-        :disabled="!documentCreated || !draft || loading || attachments.length >= 10"
+        :disabled="
+          !documentCreated || !draft || loading || attachments.length >= 10
+        "
         :loading="loading"
         prepend-icon="mdi-paperclip-plus"
         variant="tonal"
@@ -88,25 +94,13 @@ function sizeText(size: number): string {
         multiple
         type="file"
         @change="selectFiles"
-      >
+      />
     </div>
 
-    <v-alert
-      v-if="!documentCreated"
-      class="mb-4"
-      type="info"
-      variant="tonal"
-    >
+    <v-alert v-if="!documentCreated" class="mb-4" type="info" variant="tonal">
       请先保存草稿，再添加附件。
     </v-alert>
-    <v-alert
-      v-if="localError || errorMessage"
-      class="mb-4"
-      type="error"
-      variant="tonal"
-    >
-      {{ localError || errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="localError || errorMessage" />
 
     <v-list v-if="attachments.length" lines="two">
       <v-list-item
@@ -162,6 +156,11 @@ function sizeText(size: number): string {
   gap: 16px;
   margin-bottom: 18px;
 }
-.voucher-attachments__toolbar h3 { margin: 0; }
-.voucher-attachments__toolbar span { color: rgb(var(--v-theme-on-surface-variant)); font-size: 12px; }
+.voucher-attachments__toolbar h3 {
+  margin: 0;
+}
+.voucher-attachments__toolbar span {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 12px;
+}
 </style>

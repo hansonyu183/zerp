@@ -1,9 +1,9 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends VoucherListRow">
 import { computed } from 'vue'
 import type {
   VoucherLifecycleAction,
   VoucherLifecycleLabels,
-  VoucherListItem,
+  VoucherListRow,
   VoucherReference,
   VoucherSort,
   VoucherStatus,
@@ -20,7 +20,7 @@ defineOptions({ name: 'VoucherList' })
 
 const props = withDefaults(
   defineProps<{
-    rows: readonly VoucherListItem[]
+    rows: readonly T[]
     total: number
     page: number
     pageSize: number
@@ -32,12 +32,9 @@ const props = withDefaults(
     loading?: boolean
     queryable?: boolean
     creatable?: boolean
-    canView?: (row: VoucherListItem) => boolean
-    canEdit?: (row: VoucherListItem) => boolean
-    canLifecycleAction?: (
-      row: VoucherListItem,
-      action: VoucherLifecycleAction,
-    ) => boolean
+    canView?: (row: T) => boolean
+    canEdit?: (row: T) => boolean
+    canLifecycleAction?: (row: T, action: VoucherLifecycleAction) => boolean
     lifecycleLabels: VoucherLifecycleLabels
     actionLoading?: string | null
     emptyText?: string
@@ -48,6 +45,10 @@ const props = withDefaults(
     partyLoading?: boolean
     partyError?: string | null
     fulfillmentSummaryKind?: 'sales' | 'purchase'
+    filterable?: boolean
+    sortable?: boolean
+    showEntity?: boolean
+    searchLabel?: string
   }>(),
   {
     loading: false,
@@ -63,6 +64,10 @@ const props = withDefaults(
     partyOptions: () => [],
     partyLoading: false,
     partyError: null,
+    filterable: true,
+    sortable: true,
+    showEntity: false,
+    searchLabel: '单号或往来方关键字',
   },
 )
 
@@ -78,9 +83,9 @@ const emit = defineEmits<{
   query: []
   reset: []
   create: []
-  view: [row: VoucherListItem]
-  edit: [row: VoucherListItem]
-  lifecycle: [row: VoucherListItem, action: VoucherLifecycleAction]
+  view: [row: T]
+  edit: [row: T]
+  lifecycle: [row: T, action: VoucherLifecycleAction]
 }>()
 
 const hasNext = computed(() => props.page * props.pageSize < props.total)
@@ -180,7 +185,7 @@ function lifecycleActionLabel(action: VoucherLifecycleAction): string {
   return props.lifecycleLabels[action]
 }
 
-function rowActions(row: VoucherListItem): ListRowAction[] {
+function rowActions(row: T): ListRowAction[] {
   const detailAction: ListRowAction[] = props.canEdit(row)
     ? [
         {
@@ -219,7 +224,7 @@ function isLifecycleAction(action: string): action is VoucherLifecycleAction {
   )
 }
 
-function selectAction(action: string, row: VoucherListItem): void {
+function selectAction(action: string, row: T): void {
   if (action === 'edit') emit('edit', row)
   else if (action === 'view') emit('view', row)
   else if (isLifecycleAction(action)) emit('lifecycle', row, action)
@@ -231,7 +236,7 @@ function summaryLabels(): string[] {
     : ['订购', '累计入库', '退货中', '净入库']
 }
 
-function summaryValues(row: VoucherListItem): string[] {
+function summaryValues(row: T): string[] {
   if (props.fulfillmentSummaryKind === 'sales' && row.salesSummary) {
     return [
       row.salesSummary.warehouseAvailable
@@ -253,7 +258,7 @@ function summaryValues(row: VoucherListItem): string[] {
   return ['—', '—', '—', '—']
 }
 
-function summaryNote(row: VoucherListItem): string | undefined {
+function summaryNote(row: T): string | undefined {
   const summary = row.salesSummary ?? row.purchaseSummary
   if (row.salesSummary && !row.salesSummary.warehouseAvailable)
     return '历史订单仓库不明确'
@@ -265,18 +270,18 @@ function summaryNote(row: VoucherListItem): string | undefined {
   <section class="voucher-list">
     <EntityListControls
       :creatable="creatable"
-      filterable
+      :filterable="filterable"
       :keyword="keyword"
       :loading="loading"
       :queryable="queryable"
-      search-label="单号或往来方关键字"
+      :search-label="searchLabel"
       @apply-filters="emit('query')"
       @create="emit('create')"
       @query="emit('query')"
       @reset-filters="emit('reset')"
       @update:keyword="emit('update:keyword', $event)"
     >
-      <template #filters>
+      <template v-if="filterable" #filters>
         <v-select
           chips
           clearable
@@ -320,6 +325,7 @@ function summaryNote(row: VoucherListItem): string | undefined {
     </EntityListControls>
 
     <MobileSortControl
+      v-if="sortable"
       :field="sort.field"
       :options="mobileSortOptions"
       :order="sort.order"
@@ -332,48 +338,94 @@ function summaryNote(row: VoucherListItem): string | undefined {
         <v-table class="voucher-list__table responsive-table">
           <thead>
             <tr>
+              <th v-if="showEntity" class="voucher-list__column--compact">
+                类型
+              </th>
               <SortableTableHeader
+                v-if="sortable"
+                class="voucher-list__column--compact"
                 label="单号"
                 :active="sort.field === 'documentNo'"
                 :direction="sort.order"
                 @sort="changeSort('documentNo')"
               />
+              <th v-else class="voucher-list__column--compact">单号</th>
               <SortableTableHeader
+                v-if="sortable"
+                class="voucher-list__column--compact"
                 label="日期"
                 :active="sort.field === 'businessDate'"
                 :direction="sort.order"
                 @sort="changeSort('businessDate')"
               />
-              <th>往来方</th>
+              <th v-else class="voucher-list__column--compact">日期</th>
+              <th class="voucher-list__column--fluid">往来方</th>
               <SortableTableHeader
+                v-if="sortable"
+                class="voucher-list__column--compact"
                 label="状态"
                 :active="sort.field === 'status'"
                 :direction="sort.order"
                 @sort="changeSort('status')"
               />
+              <th v-else class="voucher-list__column--compact">状态</th>
               <SortableTableHeader
+                v-if="sortable"
+                class="voucher-list__column--compact"
                 align="end"
                 label="金额"
                 :active="sort.field === 'amount'"
                 :direction="sort.order"
                 @sort="changeSort('amount')"
               />
-              <th v-if="fulfillmentSummaryKind">履约摘要</th>
-              <th class="text-end">操作</th>
+              <th v-else class="text-end voucher-list__column--compact">
+                金额
+              </th>
+              <th
+                v-if="fulfillmentSummaryKind"
+                class="voucher-list__column--fluid"
+              >
+                履约摘要
+              </th>
+              <th class="text-end voucher-list__column--compact">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.documentId">
-              <td data-label="单号">{{ row.documentNo }}</td>
-              <td data-label="日期">{{ row.businessDate }}</td>
-              <td data-label="往来方">{{ row.partyName || '—' }}</td>
-              <td data-label="状态">
-                <v-chip size="small" variant="tonal">{{
-                  statusText(row.status)
-                }}</v-chip>
+              <td
+                v-if="showEntity"
+                class="voucher-list__column--compact"
+                data-label="类型"
+              >
+                <slot name="cell-entity" :row="row">{{ row.entity }}</slot>
               </td>
-              <td class="text-end" data-label="金额">{{ row.amount }}</td>
-              <td v-if="fulfillmentSummaryKind" data-label="履约摘要">
+              <td class="voucher-list__column--compact" data-label="单号">
+                {{ row.documentNo }}
+              </td>
+              <td class="voucher-list__column--compact" data-label="日期">
+                {{ row.businessDate }}
+              </td>
+              <td class="voucher-list__column--fluid" data-label="往来方">
+                {{ row.partyName || '—' }}
+              </td>
+              <td class="voucher-list__column--compact" data-label="状态">
+                <slot name="cell-status" :row="row">
+                  <v-chip size="small" variant="tonal">{{
+                    statusText(row.status)
+                  }}</v-chip>
+                </slot>
+              </td>
+              <td
+                class="text-end voucher-list__column--compact"
+                data-label="金额"
+              >
+                <slot name="cell-amount" :row="row">{{ row.amount }}</slot>
+              </td>
+              <td
+                v-if="fulfillmentSummaryKind"
+                class="voucher-list__column--fluid"
+                data-label="履约摘要"
+              >
                 <FulfillmentSummary
                   :labels="summaryLabels()"
                   :note="summaryNote(row)"
@@ -385,12 +437,14 @@ function summaryNote(row: VoucherListItem): string | undefined {
                 class="text-end text-no-wrap responsive-table__actions"
                 data-label="操作"
               >
-                <ListRowActions
-                  :label="`操作 ${row.documentNo}`"
-                  :loading="Boolean(actionLoading)"
-                  :primary="rowActions(row)"
-                  @select="selectAction($event, row)"
-                />
+                <slot name="actions" :row="row">
+                  <ListRowActions
+                    :label="`操作 ${row.documentNo}`"
+                    :loading="Boolean(actionLoading)"
+                    :primary="rowActions(row)"
+                    @select="selectAction($event, row)"
+                  />
+                </slot>
               </td>
             </tr>
             <tr
@@ -398,7 +452,9 @@ function summaryNote(row: VoucherListItem): string | undefined {
               class="responsive-table__empty-row"
             >
               <td
-                :colspan="fulfillmentSummaryKind ? 7 : 6"
+                :colspan="
+                  6 + (showEntity ? 1 : 0) + (fulfillmentSummaryKind ? 1 : 0)
+                "
                 class="text-center py-12"
               >
                 {{ emptyText }}
@@ -434,7 +490,14 @@ function summaryNote(row: VoucherListItem): string | undefined {
 .voucher-list__table-wrap {
   overflow-x: auto;
 }
-.voucher-list__table {
-  min-width: 1040px;
+
+.voucher-list__column--compact {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.voucher-list__column--fluid {
+  min-width: 180px;
+  width: 100%;
 }
 </style>

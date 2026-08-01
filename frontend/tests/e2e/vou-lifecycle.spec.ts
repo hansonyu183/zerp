@@ -149,7 +149,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await page.goto('/home/dashboard')
   await page.getByRole('tab', { name: '待处理单据' }).click()
   await page
-    .getByRole('textbox', { name: '编码、名称、单号或往来方' })
+    .getByRole('textbox', { name: '单号或往来方' })
     .fill(documentNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })

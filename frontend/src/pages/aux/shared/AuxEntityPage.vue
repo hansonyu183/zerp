@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import { BusinessObjectEditor } from '@/components/business-object'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
@@ -14,8 +15,7 @@ const pageCount = computed(() => Math.max(1, Math.ceil(vm.total / vm.pageSize)))
 function changeSort(field: 'code'): void {
   void vm.changeSort({
     field,
-    order:
-      vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc',
+    order: vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc',
   })
 }
 
@@ -30,16 +30,7 @@ void vm.query()
 
 <template>
   <v-container fluid class="pa-5 pa-md-8">
-    <v-alert
-      v-if="vm.errorMessage"
-      class="mb-4"
-      closable
-      type="error"
-      variant="tonal"
-      @click:close="vm.errorMessage = null"
-    >
-      {{ vm.errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
 
     <EntityListControls
       :creatable="vm.canCreate"

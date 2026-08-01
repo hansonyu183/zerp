@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherDocumentView } from './types'
 
 defineOptions({ name: 'VoucherWorkspace' })
@@ -113,24 +114,11 @@ function statusText(): string {
       </v-tabs>
       <v-divider />
 
-      <v-alert
-        v-if="errorMessage"
-        class="ma-4 mb-0"
-        type="error"
-        variant="tonal"
-      >
-        <div class="d-flex align-center justify-space-between ga-3">
-          <span>{{ errorMessage }}</span>
-          <v-btn
-            v-if="canReload"
-            size="small"
-            variant="text"
-            @click="emit('reload')"
-          >
-            重新加载
-          </v-btn>
-        </div>
-      </v-alert>
+      <AppSnackbar
+        :action-label="canReload ? '重新加载' : undefined"
+        :message="errorMessage"
+        @action="emit('reload')"
+      />
 
       <v-window v-model="tab" class="voucher-workspace__window">
         <v-window-item value="document">

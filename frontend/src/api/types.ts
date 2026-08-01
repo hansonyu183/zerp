@@ -30,12 +30,7 @@ export interface PageResult<T> {
 }
 
 export type ApiErrorKind =
-  | 'configuration'
-  | 'network'
-  | 'timeout'
-  | 'aborted'
-  | 'protocol'
-  | 'business'
+  'configuration' | 'network' | 'timeout' | 'aborted' | 'protocol' | 'business'
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind
@@ -63,10 +58,33 @@ export class ApiError extends Error {
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    return error.requestId
-      ? `${error.message}（请求编号：${error.requestId}）`
-      : error.message
+    const message = sanitizeUserMessage(error.message)
+    if (containsChineseText(message)) return message
+
+    return {
+      configuration: '系统配置异常，请联系管理员。',
+      network: '网络连接失败，请检查网络后重试。',
+      timeout: '请求超时，请稍后重试。',
+      aborted: '请求已取消。',
+      protocol: '服务响应异常，请稍后重试。',
+      business: '操作未完成，请检查输入后重试。',
+    }[error.kind]
   }
 
-  return error instanceof Error ? error.message : '发生未知错误，请稍后重试。'
+  if (error instanceof Error) {
+    const message = sanitizeUserMessage(error.message)
+    if (containsChineseText(message)) return message
+  }
+  return '操作失败，请稍后重试。'
+}
+
+export function containsChineseText(value: string): boolean {
+  return /[\u3400-\u9fff]/u.test(value)
+}
+
+export function sanitizeUserMessage(value: string): string {
+  return value
+    .replace(/\s*[（(]?请求(?:编号|号)\s*[：:]\s*[^）)\s]+[）)]?/giu, '')
+    .replace(/\s*[（(]?request[\s_-]*id\s*[：:]\s*[^）)\s]+[）)]?/giu, '')
+    .trim()
 }

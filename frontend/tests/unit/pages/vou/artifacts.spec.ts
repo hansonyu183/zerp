@@ -100,17 +100,19 @@ describe('VOU attachment and audit artifacts', () => {
       if (path.endsWith('/audit-history')) {
         return {
           data: {
-            items: [{
-              id: 'EVENT-1',
-              eventType: 'ATTACHMENT_ADDED',
-              fromStatus: 'DRAFT',
-              toStatus: 'DRAFT',
-              actorId: 'USER-1',
-              occurredAt: '2026-07-26T00:00:00Z',
-              reason: null,
-              requestId: 'REQUEST-1',
-              summary: null,
-            }],
+            items: [
+              {
+                id: 'EVENT-1',
+                eventType: 'ATTACHMENT_ADDED',
+                fromStatus: 'DRAFT',
+                toStatus: 'DRAFT',
+                actorId: 'USER-1',
+                occurredAt: '2026-07-26T00:00:00Z',
+                reason: null,
+                requestId: 'REQUEST-1',
+                summary: null,
+              },
+            ],
             total: 1,
             page: 1,
             pageSize: 20,
@@ -188,14 +190,11 @@ describe('VOU attachment and audit artifacts', () => {
     expect(mockedDownload).toHaveBeenCalledWith(blob, 'invoice.pdf')
 
     await artifacts.removeAttachment(attachment)
-    expect(mockedPost).toHaveBeenCalledWith(
-      'vou/receipt/attachment-remove',
-      {
-        documentId: 'DOCUMENT-1',
-        revision: 2,
-        fileId: 'FILE-1',
-      },
-    )
+    expect(mockedPost).toHaveBeenCalledWith('vou/receipt/attachment-remove', {
+      documentId: 'DOCUMENT-1',
+      revision: 2,
+      fileId: 'FILE-1',
+    })
     expect(artifacts.attachmentLoading.value).toBe(false)
     expect(artifacts.attachmentError.value).toBeNull()
   })
@@ -213,7 +212,7 @@ describe('VOU attachment and audit artifacts', () => {
 
     mockedPost.mockRejectedValueOnce(new Error('audit unavailable'))
     await artifacts.loadAudit(2)
-    expect(artifacts.auditError.value).toBe('audit unavailable')
+    expect(artifacts.auditError.value).toBe('操作失败，请稍后重试。')
     expect(artifacts.auditLoading.value).toBe(false)
 
     mockedPost.mockResolvedValueOnce({
@@ -233,24 +232,25 @@ describe('VOU attachment and audit artifacts', () => {
     } as unknown as File
     await artifacts.uploadAttachments([file])
     expect(loadDocument).toHaveBeenCalledWith('DOCUMENT-1')
-    expect(artifacts.attachmentError.value).toBe('upload unavailable')
+    expect(artifacts.attachmentError.value).toBe('操作失败，请稍后重试。')
 
     mockedPost.mockRejectedValueOnce(new Error('download unavailable'))
     await artifacts.downloadAttachment(attachment)
-    expect(artifacts.attachmentError.value).toBe('download unavailable')
+    expect(artifacts.attachmentError.value).toBe('操作失败，请稍后重试。')
 
     mockedPost.mockRejectedValueOnce(new Error('remove unavailable'))
     await artifacts.removeAttachment(attachment)
-    expect(artifacts.attachmentError.value).toBe('remove unavailable')
+    expect(artifacts.attachmentError.value).toBe('操作失败，请稍后重试。')
     expect(artifacts.attachmentLoading.value).toBe(false)
   })
 
   it('does not perform artifact actions without a document or permission', async () => {
     const current = ref<VoucherDocumentView | null>(null)
-    const availability = computed(() =>
-      Object.fromEntries(
-        Object.keys(allowed).map((key) => [key, false]),
-      ) as unknown as VoucherActionAvailability,
+    const availability = computed(
+      () =>
+        Object.fromEntries(
+          Object.keys(allowed).map((key) => [key, false]),
+        ) as unknown as VoucherActionAvailability,
     )
     const artifacts = useVoucherArtifacts(
       voucherEntityConfigs.receipt,

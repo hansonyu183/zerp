@@ -9,17 +9,14 @@ export type BusinessObjectFieldType =
   | 'readonly'
 
 export type BusinessObjectFieldState<T extends object> =
-  | boolean
-  | ((record: Readonly<T>) => boolean)
+  boolean | ((record: Readonly<T>) => boolean)
 
 export type BusinessObjectValidationResult = true | string
 
 export type BusinessObjectValidationRule<T extends object> = (
   value: unknown,
   record: Readonly<T>,
-) =>
-  | BusinessObjectValidationResult
-  | Promise<BusinessObjectValidationResult>
+) => BusinessObjectValidationResult | Promise<BusinessObjectValidationResult>
 
 export interface BusinessObjectFieldOption<TValue = unknown> {
   title: string
@@ -49,15 +46,11 @@ export interface BusinessObjectField<T extends object> {
   falseLabel?: string
   format?: (value: unknown, record: Readonly<T>) => string
   rules?: readonly BusinessObjectValidationRule<T>[]
-  onChange?: (
-    value: unknown,
-    record: Readonly<T>,
-  ) => Partial<T> | void
+  onChange?: (value: unknown, record: Readonly<T>) => Partial<T> | void
 }
 
 export type BusinessObjectRowState<T extends object> =
-  | boolean
-  | ((row: Readonly<T>) => boolean)
+  boolean | ((row: Readonly<T>) => boolean)
 
 export interface BusinessObjectColumn<T extends object> {
   key: string
@@ -66,6 +59,7 @@ export interface BusinessObjectColumn<T extends object> {
   format?: (value: unknown, row: Readonly<T>) => string
   align?: 'start' | 'center' | 'end'
   width?: string
+  sizing?: 'compact' | 'balanced' | 'fluid'
 }
 
 export interface BusinessObjectSort {

@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
 import { apiClient } from '@/api/client'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useSessionStore } from '@/stores/session'
 import {
   resolveDueDate,
@@ -324,9 +325,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <v-alert v-if="vm.errorMessage" class="mb-4" type="error" variant="tonal">
-      {{ vm.errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"

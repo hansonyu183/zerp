@@ -29,6 +29,22 @@ const objectItem: WorkbenchItem = {
   name: '测试客户',
 }
 
+const documentItem: WorkbenchItem = {
+  category: 'VOU',
+  entity: 'sale-order',
+  status: 'DRAFT',
+  pendingStage: 'CHECK',
+  availableActions: ['view', 'edit', 'check'],
+  updatedAt: '2026-08-01T08:00:00Z',
+  documentId: 'document-1',
+  revision: 2,
+  documentNo: 'SO-0001',
+  businessDate: '2026-08-01',
+  partyName: '测试客户',
+  currency: 'CNY',
+  amount: '100.00',
+}
+
 function page(items: WorkbenchItem[] = []) {
   return { data: { items, total: items.length, page: 1, pageSize: 20 } }
 }
@@ -59,20 +75,25 @@ describe('Dashboard workbench', () => {
         stubs: {
           BusinessObjectList: {
             name: 'BusinessObjectList',
+            props: ['columns'],
             template: '<section class="list-stub" />',
           },
+          VoucherList: {
+            name: 'VoucherList',
+            props: ['filterable', 'showEntity', 'sortable'],
+            template: '<section class="voucher-list-stub" />',
+          },
+          AppSnackbar: true,
           ListRowActions: true,
-          VAlert: true,
-          VAvatar: true,
           VBtn: true,
           VCard: { template: '<section><slot /></section>' },
           VCardActions: true,
           VCardText: true,
+          VChip: true,
           VContainer: { template: '<main><slot /></main>' },
           VDialog: true,
           VDivider: true,
           VIcon: true,
-          VSheet: { template: '<section><slot /></section>' },
           VSpacer: true,
           VTab: { template: '<button><slot /></button>' },
           VTabs: {
@@ -88,12 +109,23 @@ describe('Dashboard workbench', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('待处理资料')
     expect(wrapper.text()).toContain('待处理单据')
+    expect(wrapper.text()).not.toContain('集中处理')
+    expect(wrapper.findComponent({ name: 'BusinessObjectList' }).exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper
+        .findComponent({ name: 'BusinessObjectList' })
+        .props('columns')
+        .map((column: { label: string }) => column.label),
+    ).toEqual(['类型', '编码', '名称', '状态'])
     expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
       category: 'BOB',
       page: 1,
       pageSize: 20,
     })
 
+    mockedPost.mockResolvedValueOnce(page([documentItem]))
     wrapper
       .findComponent({ name: 'VTabs' })
       .vm.$emit('update:modelValue', 'VOU')
@@ -102,6 +134,14 @@ describe('Dashboard workbench', () => {
       category: 'VOU',
       page: 1,
       pageSize: 20,
+    })
+    expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
+    expect(
+      wrapper.findComponent({ name: 'VoucherList' }).props(),
+    ).toMatchObject({
+      filterable: false,
+      showEntity: true,
+      sortable: false,
     })
   })
 

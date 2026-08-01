@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageResult } from '@/api/types'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
 import { formatReferenceLabel } from '@/utils/reference-label'
@@ -188,15 +189,7 @@ function submit(): void {
         <v-chip size="small" variant="tonal">{{ sourceLabel }}</v-chip>
       </v-card-title>
       <v-card-text>
-        <v-alert
-          v-if="errorMessage || validationMessage"
-          class="mb-4"
-          density="compact"
-          type="error"
-          variant="tonal"
-        >
-          {{ errorMessage || validationMessage }}
-        </v-alert>
+        <AppSnackbar :message="errorMessage || validationMessage" />
 
         <div class="formula-dialog__base">
           <v-text-field

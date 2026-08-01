@@ -52,7 +52,9 @@ async function searchWorkbench(
   await page.goto('/home/dashboard')
   await page.getByRole('tab', { name: category }).click()
   await page
-    .getByRole('textbox', { name: '编码、名称、单号或往来方' })
+    .getByRole('textbox', {
+      name: category === '待处理资料' ? '编码或名称' : '单号或往来方',
+    })
     .fill(keyword)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = page.locator('tbody tr').filter({ hasText: keyword })

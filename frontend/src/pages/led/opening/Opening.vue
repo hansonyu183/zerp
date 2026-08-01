@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { formatLocalDateTime } from '@/utils/date'
 import { useOpeningViewModel } from './vm'
 
@@ -26,26 +27,15 @@ void vm.load()
     </v-alert>
 
     <template v-else>
-      <v-alert
-        v-if="vm.errorMessage.value"
-        class="mb-4"
-        closable
-        type="error"
-        variant="tonal"
-        @click:close="vm.errorMessage.value = null"
-      >
-        {{ vm.errorMessage.value }}
-      </v-alert>
-      <v-alert
-        v-if="vm.successMessage.value"
-        class="mb-4"
-        closable
+      <AppSnackbar
+        :message="vm.errorMessage.value"
+        @dismiss="vm.errorMessage.value = null"
+      />
+      <AppSnackbar
+        :message="vm.successMessage.value"
         type="success"
-        variant="tonal"
-        @click:close="vm.successMessage.value = null"
-      >
-        {{ vm.successMessage.value }}
-      </v-alert>
+        @dismiss="vm.successMessage.value = null"
+      />
 
       <v-tabs
         :model-value="tab"
@@ -280,7 +270,6 @@ void vm.load()
                   <th>结账时间</th>
                   <th>操作人</th>
                   <th>反结原因</th>
-                  <th>请求号</th>
                 </tr>
               </thead>
               <tbody>
@@ -295,7 +284,6 @@ void vm.load()
                   </td>
                   <td data-label="操作人">{{ item.closedBy }}</td>
                   <td data-label="反结原因">{{ item.reverseReason ?? '—' }}</td>
-                  <td data-label="请求号">{{ item.requestId }}</td>
                 </tr>
                 <tr
                   v-if="
@@ -303,7 +291,7 @@ void vm.load()
                     vm.historyItems.value.length === 0
                   "
                 >
-                  <td colspan="7">暂无结账记录</td>
+                  <td colspan="6">暂无结账记录</td>
                 </tr>
               </tbody>
             </v-table>

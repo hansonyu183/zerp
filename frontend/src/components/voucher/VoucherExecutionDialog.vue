@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { isQuantity, parseFixed } from './decimal'
 import type {
   VoucherDocumentView,
@@ -13,24 +14,27 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherExecutionDialog' })
 
-const props = withDefaults(defineProps<{
-  modelValue: boolean
-  kind: VoucherFinalizationKind
-  document: VoucherDocumentView | null
-  platformOptions?: readonly VoucherReference[]
-  vehicleOptions?: readonly VoucherReference[]
-  platformLoading?: boolean
-  vehicleLoading?: boolean
-  saving?: boolean
-  errorMessage?: string | null
-}>(), {
-  platformOptions: () => [],
-  vehicleOptions: () => [],
-  platformLoading: false,
-  vehicleLoading: false,
-  saving: false,
-  errorMessage: null,
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean
+    kind: VoucherFinalizationKind
+    document: VoucherDocumentView | null
+    platformOptions?: readonly VoucherReference[]
+    vehicleOptions?: readonly VoucherReference[]
+    platformLoading?: boolean
+    vehicleLoading?: boolean
+    saving?: boolean
+    errorMessage?: string | null
+  }>(),
+  {
+    platformOptions: () => [],
+    vehicleOptions: () => [],
+    platformLoading: false,
+    vehicleLoading: false,
+    saving: false,
+    errorMessage: null,
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -41,30 +45,35 @@ const emit = defineEmits<{
 
 const form = ref<VoucherExecutionForm>(emptyForm())
 
-watch(() => props.modelValue, (open) => {
-  if (!open) return
-  const lines = props.document?.data.productLines ?? []
-  form.value = {
-    ...emptyForm(),
-    saleLines: props.kind === 'sale'
-      ? lines.map((line) => ({
-        lineId: line.lineId,
-        orderedQuantity: line.orderedQuantity,
-        outboundQuantity: line.orderedQuantity,
-        signedQuantity: line.orderedQuantity,
-        rejectedQuantity: '0',
-        lossQuantity: '0',
-      }))
-      : [],
-    purchaseLines: props.kind === 'purchase'
-      ? lines.map((line) => ({
-        lineId: line.lineId,
-        orderedQuantity: line.orderedQuantity,
-        inboundQuantity: line.orderedQuantity,
-      }))
-      : [],
-  }
-})
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!open) return
+    const lines = props.document?.data.productLines ?? []
+    form.value = {
+      ...emptyForm(),
+      saleLines:
+        props.kind === 'sale'
+          ? lines.map((line) => ({
+              lineId: line.lineId,
+              orderedQuantity: line.orderedQuantity,
+              outboundQuantity: line.orderedQuantity,
+              signedQuantity: line.orderedQuantity,
+              rejectedQuantity: '0',
+              lossQuantity: '0',
+            }))
+          : [],
+      purchaseLines:
+        props.kind === 'purchase'
+          ? lines.map((line) => ({
+              lineId: line.lineId,
+              orderedQuantity: line.orderedQuantity,
+              inboundQuantity: line.orderedQuantity,
+            }))
+          : [],
+    }
+  },
+)
 
 const vehicleMismatch = computed(() =>
   Boolean(
@@ -94,18 +103,21 @@ const needsDifferenceReason = computed(() => {
 
 const valid = computed(() => {
   if (props.kind === 'direct') return true
-  if (needsDifferenceReason.value && !form.value.differenceReason.trim()) return false
+  if (needsDifferenceReason.value && !form.value.differenceReason.trim())
+    return false
   if (Array.from(form.value.differenceReason).length > 1000) return false
   if (props.kind === 'purchase') {
-    return Boolean(
-      form.value.inboundDate &&
-      form.value.inboundDate >= (props.document?.data.businessDate ?? ''),
-    ) &&
+    return (
+      Boolean(
+        form.value.inboundDate &&
+        form.value.inboundDate >= (props.document?.data.businessDate ?? ''),
+      ) &&
       form.value.purchaseLines.every((line) => {
         const inbound = parseFixed(line.inboundQuantity, 6)
         const ordered = parseFixed(line.orderedQuantity, 6)
         return inbound !== null && ordered !== null && inbound <= ordered
       })
+    )
   }
   return Boolean(
     form.value.outboundDate &&
@@ -122,8 +134,12 @@ const valid = computed(() => {
       const rejected = parseFixed(line.rejectedQuantity, 6, true)
       const loss = parseFixed(line.lossQuantity, 6, true)
       return (
-        outbound !== null && ordered !== null && outbound <= ordered &&
-        signed !== null && rejected !== null && loss !== null &&
+        outbound !== null &&
+        ordered !== null &&
+        outbound <= ordered &&
+        signed !== null &&
+        rejected !== null &&
+        loss !== null &&
         signed + rejected + loss === outbound
       )
     }),
@@ -158,6 +174,11 @@ function submit(): void {
     purchaseLines: form.value.purchaseLines.map((line) => ({ ...line })),
   })
 }
+
+function selectPlatform(value: VoucherReference | null): void {
+  form.value.platform = value
+  form.value.vehicle = null
+}
 </script>
 
 <template>
@@ -169,19 +190,31 @@ function submit(): void {
   >
     <v-card rounded="xl" title="完成单据">
       <v-card-text>
-        <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
-          {{ errorMessage }}
-        </v-alert>
+        <AppSnackbar :message="errorMessage" />
         <v-alert v-if="kind === 'direct'" type="info" variant="tonal">
           完成表示确认这张单据已经实际发生。完成后需通过撤销完成才能退回。
         </v-alert>
         <template v-else-if="kind === 'purchase'">
-          <v-text-field v-model="form.inboundDate" label="入库日期" type="date" variant="outlined" />
+          <v-text-field
+            v-model="form.inboundDate"
+            label="入库日期"
+            type="date"
+            variant="outlined"
+          />
           <div class="voucher-execution__table-wrap responsive-table-wrap">
             <v-table class="responsive-table responsive-table--form">
-              <thead><tr><th>产品</th><th>订购</th><th>入库</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>产品</th>
+                  <th>订购</th>
+                  <th>入库</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr v-for="(line, index) in form.purchaseLines" :key="line.lineId">
+                <tr
+                  v-for="(line, index) in form.purchaseLines"
+                  :key="line.lineId"
+                >
                   <td data-label="产品">
                     {{
                       document?.data.productLines?.[index]?.product
@@ -195,7 +228,9 @@ function submit(): void {
                   <td data-label="入库">
                     <CompactTableField
                       :model-value="line.inboundQuantity"
-                      :rules="[(v: string) => isQuantity(v) || '数量格式不正确。']"
+                      :rules="[
+                        (v: string) => isQuantity(v) || '数量格式不正确。',
+                      ]"
                       @update:model-value="line.inboundQuantity = $event"
                     />
                   </td>
@@ -206,8 +241,18 @@ function submit(): void {
         </template>
         <template v-else>
           <div class="voucher-execution__grid">
-            <v-text-field v-model="form.outboundDate" label="出库日期" type="date" variant="outlined" />
-            <v-text-field v-model="form.signoffDate" label="签收日期" type="date" variant="outlined" />
+            <v-text-field
+              v-model="form.outboundDate"
+              label="出库日期"
+              type="date"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="form.signoffDate"
+              label="签收日期"
+              type="date"
+              variant="outlined"
+            />
             <VoucherReferenceAutocomplete
               label="物流平台"
               :loading="platformLoading"
@@ -215,10 +260,12 @@ function submit(): void {
               :options="platformOptions"
               required
               @search="emit('platform-search', $event)"
-              @update:model-value="form.platform = $event; form.vehicle = null"
+              @update:model-value="selectPlatform"
             />
             <VoucherReferenceAutocomplete
-              :error-message="vehicleMismatch ? '车辆不属于所选物流平台。' : null"
+              :error-message="
+                vehicleMismatch ? '车辆不属于所选物流平台。' : null
+              "
               label="送货车辆"
               :loading="vehicleLoading"
               :model-value="form.vehicle"
@@ -233,7 +280,14 @@ function submit(): void {
               class="voucher-execution__table responsive-table responsive-table--form"
             >
               <thead>
-                <tr><th>产品</th><th>订购</th><th>出库</th><th>签收</th><th>拒收</th><th>损耗</th></tr>
+                <tr>
+                  <th>产品</th>
+                  <th>订购</th>
+                  <th>出库</th>
+                  <th>签收</th>
+                  <th>拒收</th>
+                  <th>损耗</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="(line, index) in form.saleLines" :key="line.lineId">
@@ -248,7 +302,12 @@ function submit(): void {
                   </td>
                   <td data-label="订购">{{ line.orderedQuantity }}</td>
                   <td
-                    v-for="key in ['outboundQuantity', 'signedQuantity', 'rejectedQuantity', 'lossQuantity']"
+                    v-for="key in [
+                      'outboundQuantity',
+                      'signedQuantity',
+                      'rejectedQuantity',
+                      'lossQuantity',
+                    ]"
                     :key="key"
                     :data-label="
                       {
@@ -261,7 +320,11 @@ function submit(): void {
                   >
                     <CompactTableField
                       :model-value="line[key as keyof typeof line]"
-                      :rules="[(v: string) => isQuantity(v, key !== 'outboundQuantity') || '数量格式不正确。']"
+                      :rules="[
+                        (v: string) =>
+                          isQuantity(v, key !== 'outboundQuantity') ||
+                          '数量格式不正确。',
+                      ]"
                       @update:model-value="updateSaleLine(index, key, $event)"
                     />
                   </td>
@@ -281,7 +344,12 @@ function submit(): void {
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
-        <v-btn :disabled="saving" variant="text" @click="emit('update:modelValue', false)">取消</v-btn>
+        <v-btn
+          :disabled="saving"
+          variant="text"
+          @click="emit('update:modelValue', false)"
+          >取消</v-btn
+        >
         <v-btn
           color="primary"
           :disabled="!valid"
@@ -296,11 +364,23 @@ function submit(): void {
 </template>
 
 <style scoped>
-.voucher-execution__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.voucher-execution__table-wrap { overflow-x: auto; }
-.voucher-execution__table { min-width: 900px; }
-.voucher-execution__table :deep(.v-input) { min-width: 120px; }
+.voucher-execution__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.voucher-execution__table-wrap {
+  overflow-x: auto;
+}
+.voucher-execution__table {
+  min-width: 900px;
+}
+.voucher-execution__table :deep(.v-input) {
+  min-width: 120px;
+}
 @media (max-width: 700px) {
-  .voucher-execution__grid { grid-template-columns: 1fr; }
+  .voucher-execution__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

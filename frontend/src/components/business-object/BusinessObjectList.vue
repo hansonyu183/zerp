@@ -92,6 +92,10 @@ function isSortable(key: string): key is BusinessObjectSort['field'] {
   return ['code', 'name', 'status', 'version'].includes(key)
 }
 
+function columnSizing(column: BusinessObjectColumn<T>): string {
+  return `business-object-list__column--${column.sizing ?? 'balanced'}`
+}
+
 function changeSort(field: BusinessObjectSort['field']): void {
   emit('update:sort', {
     field,
@@ -102,7 +106,10 @@ function changeSort(field: BusinessObjectSort['field']): void {
   })
 }
 
-function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+function applyMobileSort(value: {
+  field: string
+  order: 'asc' | 'desc'
+}): void {
   if (!isSortable(value.field)) return
   emit('update:sort', { field: value.field, order: value.order })
 }
@@ -149,6 +156,7 @@ function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void 
               v-if="sort && isSortable(column.key)"
               :active="sort.field === column.key"
               :align="column.align"
+              :class="columnSizing(column)"
               :direction="sort.order"
               :label="column.label"
               :width="column.width"
@@ -156,7 +164,7 @@ function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void 
             />
             <th
               v-else
-              :class="`text-${column.align ?? 'start'}`"
+              :class="[`text-${column.align ?? 'start'}`, columnSizing(column)]"
               :style="{ width: column.width }"
             >
               {{ column.label }}
@@ -175,7 +183,7 @@ function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void 
           <td
             v-for="column in columns"
             :key="column.key"
-            :class="`text-${column.align ?? 'start'}`"
+            :class="[`text-${column.align ?? 'start'}`, columnSizing(column)]"
             :data-label="column.label"
           >
             <slot
@@ -279,8 +287,19 @@ function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void 
   font-weight: 700;
 }
 
+.business-object-list__column--compact,
 .business-object-list__actions-heading {
-  width: 112px;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.business-object-list__column--balanced {
+  min-width: 120px;
+}
+
+.business-object-list__column--fluid {
+  min-width: 180px;
+  width: 100%;
 }
 
 .business-object-list__actions {

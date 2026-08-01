@@ -5,6 +5,8 @@ import { getErrorMessage, type PageResult } from '@/api/types'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
+export type WorkbenchPendingStage =
+  components['schemas']['WorkbenchPendingStage']
 export type WorkbenchObjectItem = components['schemas']['WorkbenchObjectItem']
 export type WorkbenchDocumentItem =
   components['schemas']['WorkbenchDocumentItem']
@@ -16,6 +18,8 @@ interface WorkbenchListState {
   page: number
   pageSize: number
   keyword: string
+  entities: string[]
+  pendingStages: WorkbenchPendingStage[]
   loading: boolean
   loaded: boolean
   errorMessage: string | null
@@ -28,6 +32,8 @@ function emptyState(): WorkbenchListState {
     page: 1,
     pageSize: 20,
     keyword: '',
+    entities: [],
+    pendingStages: [],
     loading: false,
     loaded: false,
     errorMessage: null,
@@ -58,6 +64,10 @@ export function useDashboardViewModel() {
       >('app/workbench/query', {
         category,
         ...(state.keyword.trim() ? { keyword: state.keyword.trim() } : {}),
+        ...(state.entities.length ? { entities: state.entities } : {}),
+        ...(state.pendingStages.length
+          ? { pendingStages: state.pendingStages }
+          : {}),
         page: state.page,
         pageSize: state.pageSize,
       })
@@ -85,6 +95,14 @@ export function useDashboardViewModel() {
     if (page < 1 || page === state.page || state.loading) return
     state.page = page
     await query()
+  }
+
+  async function resetFilters(): Promise<void> {
+    const state = activeState.value
+    state.keyword = ''
+    state.entities = []
+    state.pendingStages = []
+    await query(activeCategory.value, true)
   }
 
   async function runAction(
@@ -137,6 +155,7 @@ export function useDashboardViewModel() {
     query,
     selectCategory,
     changePage,
+    resetFilters,
     runAction,
   }
 }

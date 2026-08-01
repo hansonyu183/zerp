@@ -139,6 +139,14 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if bobPage.Total < 2 {
 		t.Fatalf("BOB total = %d, want at least 2", bobPage.Total)
 	}
+	bobApprovalPage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
+		Category: WorkbenchCategoryBob, Keyword: "工作台", Entities: []string{"warehouse"},
+		PendingStages: []string{"APPROVE"}, Page: 1, PageSize: 20,
+	})
+	if err != nil || bobApprovalPage.Total != 1 || len(bobApprovalPage.Items) != 1 ||
+		bobApprovalPage.Items[0].ObjectID != pending.ObjectID {
+		t.Fatalf("filtered BOB workbench page = %+v, err = %v", bobApprovalPage, err)
+	}
 
 	noActionPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
 		"/bob/warehouse/query",
@@ -162,5 +170,15 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouByID[documentIDs[1]].PendingStage != "APPROVE" ||
 		vouByID[documentIDs[2]].PendingStage != "FINALIZE" {
 		t.Fatalf("unexpected VOU workbench items: %+v", vouByID)
+	}
+	vouApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+		"/vou/other-income/query", "/vou/other-income/approve",
+	}}, WorkbenchQueryInput{
+		Category: WorkbenchCategoryVou, Entities: []string{"other-income"},
+		PendingStages: []string{"APPROVE"}, Page: 1, PageSize: 20,
+	})
+	if err != nil || vouApprovalPage.Total != 1 || len(vouApprovalPage.Items) != 1 ||
+		vouApprovalPage.Items[0].DocumentID != documentIDs[1] {
+		t.Fatalf("filtered VOU workbench page = %+v, err = %v", vouApprovalPage, err)
 	}
 }

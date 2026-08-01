@@ -310,6 +310,15 @@ describe('VoucherList', () => {
     expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
   })
 
+  it('允许业务页面复用筛选面板并替换默认筛选字段', async () => {
+    const wrapper = mountList({}, { filters: '<label>待办状态</label>' })
+
+    await wrapper.get('[data-test="filter-toggle"]').trigger('click')
+
+    expect(wrapper.text()).toContain('待办状态')
+    expect(wrapper.text()).not.toContain('业务日期起')
+  })
+
   it('折叠切换保留筛选值并继续发出查询和重置事件', async () => {
     const wrapper = mountList({ keyword: '华东客户' })
     const toggle = wrapper.get('[data-test="filter-toggle"]')

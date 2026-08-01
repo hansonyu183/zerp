@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
@@ -7,6 +8,7 @@ import {
   type WorkbenchItem,
   useDashboardViewModel,
 } from '@/pages/home/dashboard/vm'
+import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: { post: vi.fn() },
@@ -67,21 +69,30 @@ beforeEach(() => {
 describe('Dashboard workbench', () => {
   it('显示两个待处理 Tab 并按需查询对应类别', async () => {
     const router = createTestRouter()
+    const pinia = createPinia()
+    useSessionStore(pinia).permissions = [
+      '/bob/customer/query',
+      '/bob/customer/submit',
+      '/vou/sale-order/query',
+      '/vou/sale-order/check',
+    ]
     await router.push('/home/dashboard')
 
     const wrapper = mount(Dashboard, {
       global: {
-        plugins: [router],
+        plugins: [router, pinia],
         stubs: {
           BusinessObjectList: {
             name: 'BusinessObjectList',
             props: ['columns'],
-            template: '<section class="list-stub" />',
+            template:
+              '<section class="list-stub"><slot name="filters" /></section>',
           },
           VoucherList: {
             name: 'VoucherList',
             props: ['filterable', 'showEntity', 'sortable'],
-            template: '<section class="voucher-list-stub" />',
+            template:
+              '<section class="voucher-list-stub"><slot name="filters" /></section>',
           },
           AppSnackbar: true,
           ListRowActions: true,
@@ -101,6 +112,11 @@ describe('Dashboard workbench', () => {
             emits: ['update:modelValue'],
             template: '<nav><slot /></nav>',
           },
+          VSelect: {
+            name: 'VSelect',
+            props: ['label', 'items', 'modelValue'],
+            template: '<label>{{ label }}</label>',
+          },
           VTextarea: true,
         },
       },
@@ -110,6 +126,11 @@ describe('Dashboard workbench', () => {
     expect(wrapper.text()).toContain('待处理资料')
     expect(wrapper.text()).toContain('待处理单据')
     expect(wrapper.text()).not.toContain('集中处理')
+    expect(wrapper.text()).toContain('类型')
+    expect(wrapper.text()).toContain('待办状态')
+    expect(
+      wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
+    ).toEqual([{ title: '客户', value: 'customer' }])
     expect(wrapper.findComponent({ name: 'BusinessObjectList' }).exists()).toBe(
       true,
     )
@@ -139,9 +160,43 @@ describe('Dashboard workbench', () => {
     expect(
       wrapper.findComponent({ name: 'VoucherList' }).props(),
     ).toMatchObject({
-      filterable: false,
+      filterable: true,
       showEntity: true,
       sortable: false,
+    })
+    expect(
+      wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
+    ).toEqual([{ title: '销售订单', value: 'sale-order' }])
+  })
+
+  it('按类型和待办状态进行服务端筛选并可重置', async () => {
+    const vm = useDashboardViewModel()
+    vm.states.BOB.keyword = ' 客户 '
+    vm.states.BOB.entities = ['customer']
+    vm.states.BOB.pendingStages = ['APPROVE']
+
+    await vm.query('BOB', true)
+
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'BOB',
+      keyword: '客户',
+      entities: ['customer'],
+      pendingStages: ['APPROVE'],
+      page: 1,
+      pageSize: 20,
+    })
+
+    await vm.resetFilters()
+    expect(vm.states.BOB).toMatchObject({
+      keyword: '',
+      entities: [],
+      pendingStages: [],
+      page: 1,
+    })
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'BOB',
+      page: 1,
+      pageSize: 20,
     })
   })
 

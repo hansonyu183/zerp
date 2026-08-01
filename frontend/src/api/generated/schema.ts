@@ -1622,9 +1622,13 @@ export interface components {
         EmptyObject: Record<string, never>;
         /** @enum {string} */
         WorkbenchCategory: "BOB" | "VOU";
+        /** @enum {string} */
+        WorkbenchPendingStage: "CHECK" | "APPROVE" | "FINALIZE";
         WorkbenchQueryRequest: {
             category: components["schemas"]["WorkbenchCategory"];
             keyword?: string;
+            entities?: string[];
+            pendingStages?: components["schemas"]["WorkbenchPendingStage"][];
             page: number;
             pageSize: number;
         };
@@ -1650,8 +1654,6 @@ export interface components {
             code: string;
             name: string;
         };
-        /** @enum {string} */
-        WorkbenchPendingStage: "CHECK" | "APPROVE" | "FINALIZE";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";

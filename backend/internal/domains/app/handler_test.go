@@ -142,7 +142,7 @@ func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/app/workbench/query",
-		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
+		strings.NewReader(`{"category":"BOB","entities":["customer"],"pendingStages":["APPROVE"],"page":1,"pageSize":20}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "token"})
@@ -158,6 +158,10 @@ func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
 	}
 	if stub.workbenchInput.Category != WorkbenchCategoryBob {
 		t.Fatalf("workbench category = %q", stub.workbenchInput.Category)
+	}
+	if len(stub.workbenchInput.Entities) != 1 || stub.workbenchInput.Entities[0] != "customer" ||
+		len(stub.workbenchInput.PendingStages) != 1 || stub.workbenchInput.PendingStages[0] != "APPROVE" {
+		t.Fatalf("workbench filters = entities %v, stages %v", stub.workbenchInput.Entities, stub.workbenchInput.PendingStages)
 	}
 }
 

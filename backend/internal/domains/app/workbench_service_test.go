@@ -43,17 +43,44 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 
 func TestValidateWorkbenchQueryDefaultsAndRejectsInvalidInput(t *testing.T) {
 	input, spec, err := validateWorkbenchQuery(WorkbenchQueryInput{
-		Category: " bob ", Keyword: " 客户 ",
+		Category: " bob ", Keyword: " 客户 ", Entities: []string{" Customer "},
+		PendingStages: []string{" check "},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if input.Category != WorkbenchCategoryBob || input.Keyword != "客户" || spec.Page != 1 || spec.PageSize != 20 {
+	if input.Category != WorkbenchCategoryBob || input.Keyword != "客户" ||
+		!reflect.DeepEqual(input.Entities, []string{"customer"}) ||
+		!reflect.DeepEqual(input.PendingStages, []string{"CHECK"}) ||
+		spec.Page != 1 || spec.PageSize != 20 {
 		t.Fatalf("normalized input = %+v, spec = %+v", input, spec)
 	}
 
 	if _, _, err = validateWorkbenchQuery(WorkbenchQueryInput{Category: "AUX"}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("invalid category error = %v", err)
+	}
+	if _, _, err = validateWorkbenchQuery(WorkbenchQueryInput{
+		Category: WorkbenchCategoryBob, PendingStages: []string{"FINALIZE"},
+	}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("invalid BOB stage error = %v", err)
+	}
+	if _, _, err = validateWorkbenchQuery(WorkbenchQueryInput{
+		Category: WorkbenchCategoryVou, Entities: []string{"sale-order", "sale-order"},
+	}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("duplicate entity error = %v", err)
+	}
+}
+
+func TestFilterWorkbenchEntitiesAndStages(t *testing.T) {
+	available := []string{"customer", "product", "supplier"}
+	if actual := filterWorkbenchEntities(available, nil); !reflect.DeepEqual(actual, available) {
+		t.Fatalf("unfiltered entities = %v", actual)
+	}
+	if actual := filterWorkbenchEntities(available, []string{"supplier", "warehouse"}); !reflect.DeepEqual(actual, []string{"supplier"}) {
+		t.Fatalf("filtered entities = %v", actual)
+	}
+	if !includesWorkbenchStage(nil, "CHECK") || includesWorkbenchStage([]string{"APPROVE"}, "CHECK") {
+		t.Fatal("unexpected pending stage selection")
 	}
 }
 

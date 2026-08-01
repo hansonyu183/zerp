@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -63,6 +64,35 @@ func validateWorkbenchQuery(input WorkbenchQueryInput) (WorkbenchQueryInput, pag
 	if utf8.RuneCountInString(input.Keyword) > 128 {
 		return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench keyword", nil)
 	}
+	if len(input.Entities) > 100 || len(input.PendingStages) > 3 {
+		return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench filters", nil)
+	}
+	entitySet := make(map[string]struct{}, len(input.Entities))
+	for index, entity := range input.Entities {
+		entity = strings.ToLower(strings.TrimSpace(entity))
+		if !validSegment(entity) {
+			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench entity filter", nil)
+		}
+		if _, duplicate := entitySet[entity]; duplicate {
+			return input, pageSpec{}, domainError(ErrorValidation, "duplicate workbench entity filter", nil)
+		}
+		entitySet[entity] = struct{}{}
+		input.Entities[index] = entity
+	}
+	stageSet := make(map[string]struct{}, len(input.PendingStages))
+	for index, stage := range input.PendingStages {
+		stage = strings.ToUpper(strings.TrimSpace(stage))
+		valid := stage == "CHECK" || stage == "APPROVE" ||
+			(input.Category == WorkbenchCategoryVou && stage == "FINALIZE")
+		if !valid {
+			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench pending stage filter", nil)
+		}
+		if _, duplicate := stageSet[stage]; duplicate {
+			return input, pageSpec{}, domainError(ErrorValidation, "duplicate workbench pending stage filter", nil)
+		}
+		stageSet[stage] = struct{}{}
+		input.PendingStages[index] = stage
+	}
 	spec, err := validatePage(PageRequest{
 		Page: input.Page, PageSize: input.PageSize,
 	}, map[string]bool{"updatedAt": true}, "updatedAt", "desc")
@@ -80,15 +110,36 @@ func (s *Service) QueryWorkbench(
 	}
 	scope := newWorkbenchPermissionScope(principal.Permissions)
 	if input.Category == WorkbenchCategoryBob {
-		return s.queryWorkbenchBob(ctx, scope, input.Keyword, spec)
+		return s.queryWorkbenchBob(ctx, scope, input, spec)
 	}
-	return s.queryWorkbenchVou(ctx, scope, input.Keyword, spec)
+	return s.queryWorkbenchVou(ctx, scope, input, spec)
+}
+
+func filterWorkbenchEntities(available, selected []string) []string {
+	if len(selected) == 0 {
+		return available
+	}
+	selectedSet := make(map[string]struct{}, len(selected))
+	for _, entity := range selected {
+		selectedSet[entity] = struct{}{}
+	}
+	result := make([]string, 0, len(available))
+	for _, entity := range available {
+		if _, ok := selectedSet[entity]; ok {
+			result = append(result, entity)
+		}
+	}
+	return result
+}
+
+func includesWorkbenchStage(selected []string, stage string) bool {
+	return len(selected) == 0 || slices.Contains(selected, stage)
 }
 
 func (s *Service) queryWorkbenchBob(
 	ctx context.Context,
 	scope workbenchPermissionScope,
-	keyword string,
+	input WorkbenchQueryInput,
 	spec pageSpec,
 ) (Page[WorkbenchItem], error) {
 	draftEntities := scope.entitiesWith("bob", func(entity string) bool {
@@ -97,15 +148,23 @@ func (s *Service) queryWorkbenchBob(
 	pendingEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "approve") || scope.can("bob", entity, "reject")
 	})
+	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
+	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
+	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+		draftEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
+		pendingEntities = nil
+	}
 	params := dbsqlc.CountWorkbenchBobItemsParams{
-		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: keyword,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchBobItems(ctx, params)
 	if err != nil {
 		return Page[WorkbenchItem]{}, s.internal("count workbench business objects", err)
 	}
 	rows, err := s.queries.ListWorkbenchBobItems(ctx, dbsqlc.ListWorkbenchBobItemsParams{
-		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: keyword,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
 	if err != nil {
@@ -147,7 +206,7 @@ func (s *Service) queryWorkbenchBob(
 func (s *Service) queryWorkbenchVou(
 	ctx context.Context,
 	scope workbenchPermissionScope,
-	keyword string,
+	input WorkbenchQueryInput,
 	spec pageSpec,
 ) (Page[WorkbenchItem], error) {
 	draftEntities := scope.entitiesWith("vou", func(entity string) bool {
@@ -159,9 +218,21 @@ func (s *Service) queryWorkbenchVou(
 	approvedEntities := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "finalize")
 	})
+	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
+	checkedEntities = filterWorkbenchEntities(checkedEntities, input.Entities)
+	approvedEntities = filterWorkbenchEntities(approvedEntities, input.Entities)
+	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+		draftEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
+		checkedEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "FINALIZE") {
+		approvedEntities = nil
+	}
 	params := dbsqlc.CountWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
-		ApprovedEntities: approvedEntities, Keyword: keyword,
+		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchVouItems(ctx, params)
 	if err != nil {
@@ -169,7 +240,7 @@ func (s *Service) queryWorkbenchVou(
 	}
 	rows, err := s.queries.ListWorkbenchVouItems(ctx, dbsqlc.ListWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
-		ApprovedEntities: approvedEntities, Keyword: keyword,
+		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
 	if err != nil {

@@ -142,10 +142,12 @@ const (
 )
 
 type WorkbenchQueryInput struct {
-	Category string `json:"category"`
-	Keyword  string `json:"keyword,omitempty"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
+	Category      string   `json:"category"`
+	Keyword       string   `json:"keyword,omitempty"`
+	Entities      []string `json:"entities,omitempty"`
+	PendingStages []string `json:"pendingStages,omitempty"`
+	Page          int      `json:"page"`
+	PageSize      int      `json:"pageSize"`
 }
 
 type WorkbenchItem struct {

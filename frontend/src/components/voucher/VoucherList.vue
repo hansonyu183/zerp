@@ -275,45 +275,47 @@ function summaryNote(row: T): string | undefined {
       @update:keyword="emit('update:keyword', $event)"
     >
       <template v-if="filterable" #filters>
-        <v-select
-          chips
-          clearable
-          hide-details
-          item-title="title"
-          item-value="value"
-          :items="statusOptions"
-          label="状态"
-          :model-value="statuses"
-          multiple
-          variant="outlined"
-          @update:model-value="changeStatuses"
-        />
-        <v-text-field
-          hide-details
-          label="业务日期起"
-          :model-value="dateFrom"
-          type="date"
-          variant="outlined"
-          @update:model-value="emit('update:dateFrom', $event ?? '')"
-        />
-        <v-text-field
-          hide-details
-          label="业务日期止"
-          :model-value="dateTo"
-          type="date"
-          variant="outlined"
-          @update:model-value="emit('update:dateTo', $event ?? '')"
-        />
-        <VoucherReferenceAutocomplete
-          v-if="partyEnabled"
-          :error-message="partyError"
-          :label="partyLabel"
-          :loading="partyLoading"
-          :model-value="party"
-          :options="partyOptions"
-          @search="emit('party-search', $event)"
-          @update:model-value="emit('update:party', $event)"
-        />
+        <slot name="filters">
+          <v-select
+            chips
+            clearable
+            hide-details
+            item-title="title"
+            item-value="value"
+            :items="statusOptions"
+            label="状态"
+            :model-value="statuses"
+            multiple
+            variant="outlined"
+            @update:model-value="changeStatuses"
+          />
+          <v-text-field
+            hide-details
+            label="业务日期起"
+            :model-value="dateFrom"
+            type="date"
+            variant="outlined"
+            @update:model-value="emit('update:dateFrom', $event ?? '')"
+          />
+          <v-text-field
+            hide-details
+            label="业务日期止"
+            :model-value="dateTo"
+            type="date"
+            variant="outlined"
+            @update:model-value="emit('update:dateTo', $event ?? '')"
+          />
+          <VoucherReferenceAutocomplete
+            v-if="partyEnabled"
+            :error-message="partyError"
+            :label="partyLabel"
+            :loading="partyLoading"
+            :model-value="party"
+            :options="partyOptions"
+            @search="emit('party-search', $event)"
+            @update:model-value="emit('update:party', $event)"
+          />
+        </slot>
       </template>
     </EntityListControls>
 

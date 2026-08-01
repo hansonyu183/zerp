@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 import {
   BusinessObjectList,
   type BusinessObjectColumn,
@@ -19,13 +20,42 @@ import {
   type WorkbenchDocumentItem,
   type WorkbenchItem,
   type WorkbenchObjectItem,
+  type WorkbenchPendingStage,
   useDashboardViewModel,
 } from './vm'
 
 const vm = reactive(useDashboardViewModel())
 const router = useRouter()
+const session = useSessionStore()
 const rejectTarget = ref<WorkbenchObjectItem | null>(null)
 const rejectComment = ref('')
+
+const entityFilterOptions = computed(() =>
+  (
+    session.menus.find(
+      (menu) => menu.domain === (vm.activeCategory === 'BOB' ? 'bob' : 'vou'),
+    )?.children ?? []
+  )
+    .filter(
+      (entity) =>
+        entity.actions.includes('query') &&
+        (vm.activeCategory === 'BOB'
+          ? ['submit', 'approve', 'reject'].some((action) =>
+              entity.actions.includes(action),
+            )
+          : ['check', 'approve', 'finalize'].some((action) =>
+              entity.actions.includes(action),
+            )),
+    )
+    .map((entity) => ({ title: entity.title, value: entity.entity })),
+)
+const pendingStageFilterOptions = computed(() => [
+  { title: '待核对', value: 'CHECK' as const },
+  { title: '待批准', value: 'APPROVE' as const },
+  ...(vm.activeCategory === 'VOU'
+    ? [{ title: '待完成', value: 'FINALIZE' as const }]
+    : []),
+])
 
 const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
   { key: 'entity', label: '类型', value: entityTitle, sizing: 'compact' },
@@ -139,6 +169,27 @@ async function changeCategory(value: unknown): Promise<void> {
   if (value === 'BOB' || value === 'VOU') await vm.selectCategory(value)
 }
 
+function updateEntityFilters(value: unknown): void {
+  vm.activeState.entities = Array.isArray(value)
+    ? value.filter((entity): entity is string => typeof entity === 'string')
+    : []
+}
+
+function updatePendingStageFilters(value: unknown): void {
+  const validStages = new Set<WorkbenchPendingStage>([
+    'CHECK',
+    'APPROVE',
+    'FINALIZE',
+  ])
+  vm.activeState.pendingStages = Array.isArray(value)
+    ? value.filter(
+        (stage): stage is WorkbenchPendingStage =>
+          typeof stage === 'string' &&
+          validStages.has(stage as WorkbenchPendingStage),
+      )
+    : []
+}
+
 async function openItem(
   row: WorkbenchItem,
   mode: 'view' | 'edit',
@@ -234,9 +285,40 @@ void vm.query('BOB')
           search-label="编码或名称"
           :total="vm.activeState.total"
           @query="vm.query(vm.activeCategory, true)"
+          @apply-filters="vm.query(vm.activeCategory, true)"
+          @reset-filters="vm.resetFilters"
           @update:keyword="vm.activeState.keyword = $event"
           @update:page="vm.changePage"
         >
+          <template #filters>
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="entityFilterOptions"
+              label="类型"
+              :model-value="vm.activeState.entities"
+              multiple
+              variant="outlined"
+              @update:model-value="updateEntityFilters"
+            />
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="pendingStageFilterOptions"
+              label="待办状态"
+              :model-value="vm.activeState.pendingStages"
+              multiple
+              variant="outlined"
+              @update:model-value="updatePendingStageFilters"
+            />
+          </template>
+
           <template #cell-status="{ row }">
             <v-chip
               :color="pendingColor(row)"
@@ -265,7 +347,7 @@ void vm.query('BOB')
           :date-from="''"
           :date-to="''"
           empty-text="暂无待处理单据"
-          :filterable="false"
+          :filterable="true"
           :keyword="vm.activeState.keyword"
           :lifecycle-labels="documentLifecycleLabels"
           :loading="vm.activeState.loading"
@@ -280,9 +362,39 @@ void vm.query('BOB')
           :statuses="[]"
           :total="vm.activeState.total"
           @query="vm.query('VOU', true)"
+          @reset="vm.resetFilters"
           @update:keyword="vm.activeState.keyword = $event"
           @update:page="vm.changePage"
         >
+          <template #filters>
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="entityFilterOptions"
+              label="类型"
+              :model-value="vm.activeState.entities"
+              multiple
+              variant="outlined"
+              @update:model-value="updateEntityFilters"
+            />
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="pendingStageFilterOptions"
+              label="待办状态"
+              :model-value="vm.activeState.pendingStages"
+              multiple
+              variant="outlined"
+              @update:model-value="updatePendingStageFilters"
+            />
+          </template>
+
           <template #cell-entity="{ row }">
             {{ entityTitle(row) }}
           </template>

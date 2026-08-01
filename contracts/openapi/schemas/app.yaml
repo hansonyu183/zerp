@@ -156,6 +156,25 @@
         {
           'category': { '$ref': '#/WorkbenchCategory' },
           'keyword': { 'type': 'string', 'maxLength': 128 },
+          'entities':
+            {
+              'type': 'array',
+              'maxItems': 100,
+              'uniqueItems': true,
+              'items':
+                {
+                  'type': 'string',
+                  'pattern': '^[a-z][a-z0-9-]*$',
+                  'maxLength': 64,
+                },
+            },
+          'pendingStages':
+            {
+              'type': 'array',
+              'maxItems': 3,
+              'uniqueItems': true,
+              'items': { '$ref': '#/WorkbenchPendingStage' },
+            },
           'page': { 'type': 'integer', 'minimum': 1 },
           'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
         },

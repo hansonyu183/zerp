@@ -60,9 +60,11 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 				summary := &SalesKgSummary{
 					Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
 					WarehouseAvailable: row.WarehouseAvailable,
+					OrderedQuantity:    compactQuantity(row.OrderedQuantityMicros),
 					OutboundQuantity:   compactQuantity(row.OutboundQuantityMicros),
 					InTransitQuantity:  compactQuantity(row.InTransitQuantityMicros),
 					SignedQuantity:     compactQuantity(row.SignedQuantityMicros),
+					NetSignedQuantity:  compactQuantity(row.NetSignedQuantityMicros),
 				}
 				if row.WarehouseAvailable {
 					summary.ShortageQuantity = compactQuantity(row.ShortageQuantityMicros)

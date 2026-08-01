@@ -1999,9 +1999,11 @@ export interface components {
             excludedPackaging: boolean;
             warehouseAvailable: boolean;
             shortageQuantity?: string;
+            orderedQuantity: string;
             outboundQuantity: string;
             inTransitQuantity: string;
             signedQuantity: string;
+            netSignedQuantity: string;
         };
         VouPurchaseKgSummary: {
             /** @enum {string} */
@@ -2392,9 +2394,11 @@ export interface components {
             excludedPackaging: boolean;
             warehouseAvailable: boolean;
             shortageQuantity?: string;
+            orderedQuantity: string;
             outboundQuantity: string;
             inTransitQuantity: string;
             signedQuantity: string;
+            netSignedQuantity: string;
         };
         WflSalesProcessListItem: {
             processId: string;

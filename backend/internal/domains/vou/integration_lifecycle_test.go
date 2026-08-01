@@ -164,7 +164,9 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			if test.entity == EntitySaleOrder {
 				if page.Items[0].SalesSummary == nil ||
 					page.Items[0].SalesSummary.ShortageQuantity != "10500" ||
-					page.Items[0].SalesSummary.OutboundQuantity != "0" {
+					page.Items[0].SalesSummary.OrderedQuantity != "10500" ||
+					page.Items[0].SalesSummary.OutboundQuantity != "0" ||
+					page.Items[0].SalesSummary.NetSignedQuantity != "0" {
 					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
 				}
 				unexecuted, reverseErr := service.Unfinalize(t.Context(), test.entity, ReverseInput{

@@ -232,26 +232,21 @@ function selectAction(action: string, row: T): void {
 
 function summaryLabels(): string[] {
   return props.fulfillmentSummaryKind === 'sales'
-    ? ['缺货', '出库', '在途', '签收']
-    : ['订购', '累计入库', '退货中', '净入库']
+    ? ['订购', '出库', '净签收']
+    : ['订购', '净入库']
 }
 
 function summaryValues(row: T): string[] {
   if (props.fulfillmentSummaryKind === 'sales' && row.salesSummary) {
     return [
-      row.salesSummary.warehouseAvailable
-        ? (row.salesSummary.shortageQuantity ?? '0')
-        : '—',
+      row.salesSummary.orderedQuantity,
       row.salesSummary.outboundQuantity,
-      row.salesSummary.inTransitQuantity,
-      row.salesSummary.signedQuantity,
+      row.salesSummary.netSignedQuantity,
     ]
   }
   if (props.fulfillmentSummaryKind === 'purchase' && row.purchaseSummary) {
     return [
       row.purchaseSummary.orderedQuantity,
-      row.purchaseSummary.inboundQuantity,
-      row.purchaseSummary.returnProcessingQuantity,
       row.purchaseSummary.netInboundQuantity,
     ]
   }
@@ -260,8 +255,6 @@ function summaryValues(row: T): string[] {
 
 function summaryNote(row: T): string | undefined {
   const summary = row.salesSummary ?? row.purchaseSummary
-  if (row.salesSummary && !row.salesSummary.warehouseAvailable)
-    return '历史订单仓库不明确'
   return summary?.excludedPackaging ? '不含包装物' : undefined
 }
 </script>

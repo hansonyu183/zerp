@@ -399,9 +399,11 @@ export interface VoucherListRow {
     excludedPackaging: boolean
     warehouseAvailable: boolean
     shortageQuantity?: string
+    orderedQuantity: string
     outboundQuantity: string
     inTransitQuantity: string
     signedQuantity: string
+    netSignedQuantity: string
   }
   purchaseSummary?: {
     unit: 'KG'

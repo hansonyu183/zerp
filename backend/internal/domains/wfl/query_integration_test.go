@@ -347,7 +347,8 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 	}
 	if item.Summary.Unit != "KG" || !item.Summary.WarehouseAvailable ||
 		item.Summary.ShortageQuantity != "5000" || item.Summary.OutboundQuantity != "12004" ||
-		item.Summary.InTransitQuantity != "2000" || item.Summary.SignedQuantity != "6004" {
+		item.Summary.InTransitQuantity != "2000" || item.Summary.SignedQuantity != "6004" ||
+		item.Summary.OrderedQuantity != "17004" || item.Summary.NetSignedQuantity != "5004" {
 		t.Fatalf("sales kg summary = %+v", item.Summary)
 	}
 	if len(item.ProgressGroups) != 2 {

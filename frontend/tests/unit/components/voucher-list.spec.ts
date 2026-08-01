@@ -405,16 +405,18 @@ describe('VoucherList', () => {
             excludedPackaging: true,
             warehouseAvailable: true,
             shortageQuantity: '10',
+            orderedQuantity: '30',
             outboundQuantity: '20',
             inTransitQuantity: '5',
             signedQuantity: '15',
+            netSignedQuantity: '12',
           },
         },
       ],
     })
 
-    expect(wrapper.text()).toContain('缺货 / 出库 / 在途 / 签收')
-    expect(wrapper.text()).toContain('10 / 20 / 5 / 15KG')
+    expect(wrapper.text()).toContain('订购 / 出库 / 净签收')
+    expect(wrapper.text()).toContain('30 / 20 / 12KG')
     expect(wrapper.text()).toContain('不含包装物')
   })
 

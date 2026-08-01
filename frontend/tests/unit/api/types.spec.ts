@@ -48,5 +48,15 @@ describe('API user messages', () => {
         }),
       ),
     ).toBe('结算方式已失效，请先编辑并重新选择后再提交审核。')
+
+    expect(
+      getErrorMessage(
+        new ApiError(
+          'business',
+          'submitter cannot review the same version',
+          { code: 3001 },
+        ),
+      ),
+    ).toBe('提交人与审核人不能为同一人，请由其他有审批权限的用户处理。')
   })
 })

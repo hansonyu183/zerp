@@ -63,6 +63,8 @@ const businessMessageTranslations: Readonly<Record<string, string>> = {
     '库存不足，无法完成销售出库。请先补充库存后重试。',
   'settlement-method reference is unavailable':
     '结算方式已失效，请先编辑并重新选择后再提交审核。',
+  'submitter cannot review the same version':
+    '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
 }
 
 export function getErrorMessage(error: unknown): string {

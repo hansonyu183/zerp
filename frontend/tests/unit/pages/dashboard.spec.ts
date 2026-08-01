@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import Dashboard from '@/pages/home/dashboard/Dashboard.vue'
 import {
   type WorkbenchItem,
@@ -237,5 +238,31 @@ describe('Dashboard workbench', () => {
       revision: 5,
       comment: '信息不完整',
     })
+  })
+
+  it('批准人与提交人相同时显示明确失败原因', async () => {
+    const pending = {
+      ...objectItem,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['view', 'approve', 'reject'] as const,
+    }
+    mockedPost
+      .mockRejectedValueOnce(
+        new ApiError(
+          'business',
+          'submitter cannot review the same version',
+          { code: 3001 },
+        ),
+      )
+      .mockResolvedValueOnce(page([pending]))
+    const vm = useDashboardViewModel()
+
+    const success = await vm.runAction(pending, 'approve')
+
+    expect(success).toBe(false)
+    expect(vm.states.BOB.errorMessage).toBe(
+      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
+    )
   })
 })

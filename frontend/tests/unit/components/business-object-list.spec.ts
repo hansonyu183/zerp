@@ -17,12 +17,18 @@ const rows: ExampleRow[] = [
 ]
 
 const columns: readonly BusinessObjectColumn<ExampleRow>[] = [
-  { key: 'name', label: '客户名称', value: (row) => row.name },
+  {
+    key: 'name',
+    label: '客户名称',
+    value: (row) => row.name,
+    sizing: 'fluid',
+  },
   {
     key: 'status',
     label: '状态',
     value: (row) => row.status,
     format: (value) => (value === 'DRAFT' ? '草稿' : '有效'),
+    sizing: 'compact',
   },
 ]
 
@@ -159,9 +165,13 @@ describe('BusinessObjectList', () => {
       '#华南客户',
     ])
     expect(wrapper.get('table').classes()).toContain('responsive-table')
-    expect(
-      wrapper.find('td[data-label="客户名称"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('td[data-label="客户名称"]').exists()).toBe(true)
+    expect(wrapper.find('th').classes()).toContain(
+      'business-object-list__column--fluid',
+    )
+    expect(wrapper.find('td[data-label="状态"]').classes()).toContain(
+      'business-object-list__column--compact',
+    )
   })
 
   it('发出查询、关键字、新增和条件行操作事件', async () => {

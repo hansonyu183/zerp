@@ -93,6 +93,47 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/app/workbench/query':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '查询当前用户工作台待办',
+              'operationId': 'appWorkbenchQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/WorkbenchQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户可处理的资料或单据分页列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/WorkbenchQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/user/query':
         {
           'post':

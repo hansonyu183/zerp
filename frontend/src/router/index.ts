@@ -31,7 +31,7 @@ export const router = createRouter({
           path: 'home/dashboard',
           name: 'page:home/dashboard',
           component: Dashboard,
-          meta: { requiresAuth: true, title: '仪表盘' },
+          meta: { requiresAuth: true, title: '工作台' },
         },
       ],
     },

@@ -138,4 +138,157 @@
       'additionalProperties': false,
       'properties': { 'feedbackId': { 'type': 'string' } },
     },
+  'WorkbenchCategory': { 'type': 'string', 'enum': ['BOB', 'VOU'] },
+  'WorkbenchPendingStage':
+    { 'type': 'string', 'enum': ['CHECK', 'APPROVE', 'FINALIZE'] },
+  'WorkbenchAction':
+    {
+      'type': 'string',
+      'enum':
+        ['view', 'edit', 'submit', 'approve', 'reject', 'check', 'finalize'],
+    },
+  'WorkbenchQueryRequest':
+    {
+      'type': 'object',
+      'required': ['category', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'category': { '$ref': '#/WorkbenchCategory' },
+          'keyword': { 'type': 'string', 'maxLength': 128 },
+          'entities':
+            {
+              'type': 'array',
+              'maxItems': 100,
+              'uniqueItems': true,
+              'items':
+                {
+                  'type': 'string',
+                  'pattern': '^[a-z][a-z0-9-]*$',
+                  'maxLength': 64,
+                },
+            },
+          'pendingStages':
+            {
+              'type': 'array',
+              'maxItems': 3,
+              'uniqueItems': true,
+              'items': { '$ref': '#/WorkbenchPendingStage' },
+            },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+  'WorkbenchObjectItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'category',
+          'entity',
+          'status',
+          'pendingStage',
+          'availableActions',
+          'updatedAt',
+          'objectId',
+          'objectRevision',
+          'versionId',
+          'revision',
+          'code',
+          'name',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'category': { 'type': 'string', 'enum': ['BOB'] },
+          'entity': { '$ref': '../schemas/bob.yaml#/BobEntity' },
+          'status': { 'type': 'string', 'enum': ['DRAFT', 'PENDING'] },
+          'pendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
+          'availableActions':
+            { 'type': 'array', 'items': { '$ref': '#/WorkbenchAction' } },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'WorkbenchDocumentItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'category',
+          'entity',
+          'status',
+          'pendingStage',
+          'availableActions',
+          'updatedAt',
+          'documentId',
+          'revision',
+          'documentNo',
+          'businessDate',
+          'partyName',
+          'currency',
+          'amount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'category': { 'type': 'string', 'enum': ['VOU'] },
+          'entity': { '$ref': '../schemas/vou.yaml#/VouEntity' },
+          'status':
+            { 'type': 'string', 'enum': ['DRAFT', 'CHECKED', 'APPROVED'] },
+          'pendingStage': { '$ref': '#/WorkbenchPendingStage' },
+          'availableActions':
+            { 'type': 'array', 'items': { '$ref': '#/WorkbenchAction' } },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'documentId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'documentNo': { 'type': 'string' },
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'partyName': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'amount': { 'type': 'string' },
+        },
+    },
+  'WorkbenchPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'oneOf':
+                    [
+                      { '$ref': '#/WorkbenchObjectItem' },
+                      { '$ref': '#/WorkbenchDocumentItem' },
+                    ],
+                },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'WorkbenchQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/WorkbenchPage' },
+          'requestId': { 'type': 'string' },
+        },
+    },
 }

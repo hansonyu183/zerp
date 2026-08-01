@@ -128,6 +128,10 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await page.getByLabel('金额').fill('100.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^REC-\d{8}-\d{4}$/)
+  const documentNo = (
+    await workspace.locator('.voucher-document-header__number').textContent()
+  )?.trim()
+  expect(documentNo).toMatch(/^REC-\d{8}-\d{4}$/)
 
   await page.getByRole('tab', { name: '附件' }).click()
   await page.locator('input[type=file]').setInputFiles({
@@ -142,11 +146,27 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
 
   await page.getByRole('tab', { name: '单据' }).click()
   await page.getByRole('button', { name: '取消编辑' }).click()
-  await page.getByRole('button', { name: '核对', exact: true }).click()
-  await expect(workspace.getByText('已核对', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '完成', exact: true }).click()
+  await page.goto('/home/dashboard')
+  await page.getByRole('tab', { name: '待处理单据' }).click()
+  await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+  await expect(workbenchRow).toContainText('待核对')
+  await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+  await expect(workbenchRow).toContainText('待批准')
+  await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
+  await expect(workbenchRow).toContainText('待完成')
+  await workbenchRow.getByLabel(`完成 ${documentNo}`).click()
+  await expect(workbenchRow).toHaveCount(0)
+
+  await page.goto('/vou/receipt')
+  await page
+    .getByRole('textbox', { name: '单号或往来方关键字' })
+    .fill(documentNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const documentRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+  await expect(documentRow).toBeVisible()
+  await documentRow.getByLabel(`查看 ${documentNo}`).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
   await reverse(page, '撤销完成')
@@ -215,7 +235,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(
     page.locator('tbody tr').filter({ hasText: orderNo! }),
-  ).toContainText('缺货 / 出库 / 在途 / 签收')
+  ).toContainText('订购 / 出库 / 净签收')
 
   await page.goto('/wfl/sales-fulfillment')
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
@@ -224,7 +244,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('已批准')
   await expect(processRow).toContainText('销售出库')
-  await expect(processRow).toContainText('缺货 / 出库 / 在途 / 签收')
+  await expect(processRow).toContainText('订购 / 出库 / 净签收')
   await processRow.getByRole('button', { name: '展开履约' }).click()
   const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
   await expect(progressRow).toContainText('订购')
@@ -254,6 +274,8 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     .locator('tbody tr')
     .filter({ hasText: '销售出库' })
   await expect(outbound).toContainText(/^.*销售出库.*SOB-\d{8}-\d{4}.*草稿.*$/)
+  const outboundNo = (await outbound.textContent())?.match(/SOB-\d{8}-\d{4}/)?.[0]
+  expect(outboundNo).toBeTruthy()
 
   await outbound.click()
   const outboundWorkspace = page.locator('.voucher-workspace')
@@ -265,6 +287,29 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
   ).toHaveCount(0)
+
+  await page.goto('/home/dashboard')
+  await page.getByRole('tab', { name: '待处理单据' }).click()
+  const keyword = page.getByRole('textbox', { name: '单号或往来方' })
+  await keyword.fill(orderNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const orderWorkbenchRow = page.locator('tbody tr').filter({ hasText: orderNo! })
+  await expect(orderWorkbenchRow).toContainText('待完成')
+  await orderWorkbenchRow.getByLabel(`完成 ${orderNo}`).click()
+  await expect(orderWorkbenchRow).toHaveCount(0)
+
+  await keyword.fill(outboundNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const outboundWorkbenchRow = page
+    .locator('tbody tr')
+    .filter({ hasText: outboundNo! })
+  await expect(outboundWorkbenchRow).toContainText('待核对')
+  await outboundWorkbenchRow.getByLabel(`核对 ${outboundNo}`).click()
+  await expect(outboundWorkbenchRow).toContainText('待批准')
+  await outboundWorkbenchRow.getByLabel(`批准 ${outboundNo}`).click()
+  await expect(outboundWorkbenchRow).toContainText('待完成')
+  await outboundWorkbenchRow.getByLabel(`完成 ${outboundNo}`).click()
+  await expect(outboundWorkbenchRow).toHaveCount(0)
 })
 
 test('采购流程列表展示中文阶段和按单位履约数据', async ({ page }) => {
@@ -305,7 +350,7 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(
     page.locator('tbody tr').filter({ hasText: orderNo! }),
-  ).toContainText('订购 / 累计入库 / 退货中 / 净入库')
+  ).toContainText('订购 / 净入库')
 
   await page.goto('/wfl/purchase-fulfillment')
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
@@ -314,7 +359,7 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('已批准')
   await expect(processRow).toContainText('采购入库')
-  await expect(processRow).toContainText('订购 / 累计入库 / 退货中 / 净入库')
+  await expect(processRow).toContainText('订购 / 净入库')
   await processRow.getByRole('button', { name: '展开履约' }).click()
   const progressRow = processRow.locator('xpath=following-sibling::tr[1]')
   await expect(progressRow).toContainText('订购')

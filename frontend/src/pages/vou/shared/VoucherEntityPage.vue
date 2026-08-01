@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
 import { apiClient } from '@/api/client'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useSessionStore } from '@/stores/session'
 import {
   resolveDueDate,
@@ -44,6 +45,7 @@ const props = withDefaults(
 )
 const vm = reactive(props.model)
 const route = useRoute()
+const router = useRouter()
 const session = useSessionStore()
 const labels = computed(() => lifecycleLabels(vm.config))
 
@@ -113,19 +115,23 @@ const listLifecycleTitle = computed(
 if (props.autoQuery) {
   void vm.query()
 }
-const linkedDocumentId = route.query.documentId
-if (typeof linkedDocumentId === 'string' && linkedDocumentId) {
-  vm.workspaceOpen = true
-  vm.workspaceLoading = true
-  void vm
-    .loadDocument(linkedDocumentId)
-    .catch((error: unknown) => {
-      vm.workspaceError = getErrorMessage(error)
-    })
-    .finally(() => {
-      vm.workspaceLoading = false
-    })
-}
+watch(
+  () => [route.query.documentId, route.query.mode] as const,
+  ([documentId, mode]) => {
+    if (typeof documentId !== 'string') return
+    void vm.openDocument({ documentId }, mode === 'edit')
+  },
+  { immediate: true },
+)
+
+watch(
+  () => vm.workspaceOpen,
+  (open, wasOpen) => {
+    if (open || !wasOpen || typeof route.query.documentId !== 'string') return
+    const { documentId: _documentId, mode: _mode, ...query } = route.query
+    void router.replace({ query })
+  },
+)
 
 const returnSourceQuery = route.query.sourceDocumentIds
 if (
@@ -319,9 +325,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <v-alert v-if="vm.errorMessage" class="mb-4" type="error" variant="tonal">
-      {{ vm.errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
@@ -1073,12 +1077,9 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                 <strong>结算方式</strong>
                 <span>
                   {{
-                    formatReferenceLabel(
-                      vm.documentView.data.settlementMethod,
-                    )
+                    formatReferenceLabel(vm.documentView.data.settlementMethod)
                   }}
-                  ·
-                  到期
+                  · 到期
                   {{
                     resolveDueDate(
                       vm.documentView.data.dueDate,
@@ -1096,8 +1097,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       vm.documentView.data.customerSettlementMethod,
                     )
                   }}
-                  ·
-                  到期
+                  · 到期
                   {{
                     resolveDueDate(
                       vm.documentView.data.dueDate,

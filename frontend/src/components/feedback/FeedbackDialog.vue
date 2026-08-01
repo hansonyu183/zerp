@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useFeedbackViewModel } from './vm'
 
 defineOptions({ name: 'FeedbackDialog' })
@@ -80,14 +81,7 @@ function sizeText(size: number): string {
           请勿填写密码、Cookie、Token 或其他敏感信息。
         </v-card-subtitle>
         <v-card-text>
-          <v-alert
-            v-if="vm.errorMessage"
-            class="mb-4"
-            type="error"
-            variant="tonal"
-          >
-            {{ vm.errorMessage }}
-          </v-alert>
+          <AppSnackbar :message="vm.errorMessage" />
 
           <v-select
             v-model="vm.category"
@@ -114,16 +108,6 @@ function sizeText(size: number): string {
             rows="5"
             variant="outlined"
           />
-          <v-text-field
-            v-model="vm.relatedRequestId"
-            :error-messages="vm.requestIdValid ? [] : ['请求编号只能包含不带空格的 ASCII 字符。']"
-            hint="若错误提示中包含请求编号，可粘贴到这里。"
-            label="关联请求编号（可选）"
-            maxlength="128"
-            persistent-hint
-            variant="outlined"
-          />
-
           <section class="feedback-attachments">
             <div class="feedback-attachments__heading">
               <div>
@@ -145,7 +129,7 @@ function sizeText(size: number): string {
                 multiple
                 type="file"
                 @change="selectFiles"
-              >
+              />
             </div>
 
             <button
@@ -159,16 +143,12 @@ function sizeText(size: number): string {
               <span>可粘贴截图，或将图片拖放到这里</span>
             </button>
 
-            <v-alert
-              v-if="vm.attachmentError"
-              class="mt-3"
-              type="error"
-              variant="tonal"
-            >
-              {{ vm.attachmentError }}
-            </v-alert>
+            <AppSnackbar :message="vm.attachmentError" />
 
-            <v-list v-if="vm.attachments.length" class="feedback-attachment-list">
+            <v-list
+              v-if="vm.attachments.length"
+              class="feedback-attachment-list"
+            >
               <v-list-item
                 v-for="attachment in vm.attachments"
                 :key="attachment.key"
@@ -212,7 +192,11 @@ function sizeText(size: number): string {
         </v-card-text>
         <v-card-actions class="px-6 pb-5">
           <v-spacer />
-          <v-btn :disabled="vm.submitting" variant="text" @click="vm.closeDialog">
+          <v-btn
+            :disabled="vm.submitting"
+            variant="text"
+            @click="vm.closeDialog"
+          >
             取消
           </v-btn>
           <v-btn
@@ -231,20 +215,83 @@ function sizeText(size: number): string {
 </template>
 
 <style scoped>
-.feedback-title { display: flex; gap: 10px; align-items: center; padding-top: 24px; }
-.feedback-success { display: flex; flex-direction: column; align-items: center; padding: 44px 28px 30px; text-align: center; }
-.feedback-success h2 { margin: 14px 0 6px; }
-.feedback-success p { margin: 0 0 20px; color: rgb(var(--v-theme-on-surface-variant)); }
-.feedback-attachments { margin-top: 4px; }
-.feedback-attachments__heading { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.feedback-attachments__heading div { display: flex; flex-direction: column; gap: 3px; }
-.feedback-attachments__heading span { color: rgb(var(--v-theme-on-surface-variant)); font-size: 12px; }
-.feedback-dropzone { display: flex; width: 100%; min-height: 88px; flex-direction: column; gap: 7px; align-items: center; justify-content: center; padding: 16px; color: rgb(var(--v-theme-on-surface-variant)); background: rgba(var(--v-theme-primary), .04); border: 1px dashed rgba(var(--v-theme-primary), .5); border-radius: 12px; cursor: pointer; }
-.feedback-dropzone:hover, .feedback-dropzone:focus-visible { background: rgba(var(--v-theme-primary), .09); outline: none; }
-.feedback-attachment-list { margin-top: 10px; padding: 0; }
-.feedback-attachment-preview { width: 54px; height: 42px; margin-right: 12px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 7px; }
+.feedback-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-top: 24px;
+}
+.feedback-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 28px 30px;
+  text-align: center;
+}
+.feedback-success h2 {
+  margin: 14px 0 6px;
+}
+.feedback-success p {
+  margin: 0 0 20px;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+.feedback-attachments {
+  margin-top: 4px;
+}
+.feedback-attachments__heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.feedback-attachments__heading div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.feedback-attachments__heading span {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 12px;
+}
+.feedback-dropzone {
+  display: flex;
+  width: 100%;
+  min-height: 88px;
+  flex-direction: column;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  background: rgba(var(--v-theme-primary), 0.04);
+  border: 1px dashed rgba(var(--v-theme-primary), 0.5);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.feedback-dropzone:hover,
+.feedback-dropzone:focus-visible {
+  background: rgba(var(--v-theme-primary), 0.09);
+  outline: none;
+}
+.feedback-attachment-list {
+  margin-top: 10px;
+  padding: 0;
+}
+.feedback-attachment-preview {
+  width: 54px;
+  height: 42px;
+  margin-right: 12px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 7px;
+}
 @media (max-width: 600px) {
-  .feedback-attachments__heading { align-items: flex-start; flex-direction: column; }
-  .feedback-attachments__heading .v-btn { width: 100%; }
+  .feedback-attachments__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .feedback-attachments__heading .v-btn {
+    width: 100%;
+  }
 }
 </style>

@@ -10,7 +10,7 @@ const vm = useNotFoundViewModel()
     <h1>页面不存在</h1>
     <p>该地址没有对应的本地页面，或当前用户没有访问权限。</p>
     <v-btn color="primary" prepend-icon="mdi-home" @click="vm.goHome">
-      返回仪表盘
+      返回工作台
     </v-btn>
   </v-container>
 </template>

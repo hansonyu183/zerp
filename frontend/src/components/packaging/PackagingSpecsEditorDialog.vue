@@ -2,13 +2,11 @@
 import { ref, watch } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageResult } from '@/api/types'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
 import { formatReferenceLabel } from '@/utils/reference-label'
-import type {
-  PackagingProductReference,
-  PackagingSpecDraft,
-} from './types'
+import type { PackagingProductReference, PackagingSpecDraft } from './types'
 
 defineOptions({ name: 'PackagingSpecsEditorDialog' })
 
@@ -143,16 +141,13 @@ function submit(): void {
   if (!props.editable) return
   if (
     draft.value.some(
-      (spec) =>
-        !spec.packagingProduct || !isQuantity(spec.contentQuantity),
+      (spec) => !spec.packagingProduct || !isQuantity(spec.contentQuantity),
     )
   ) {
     validationMessage.value = '请完整填写包装物和内容量。'
     return
   }
-  const ids = draft.value.map(
-    (spec) => spec.packagingProduct!.objectId,
-  )
+  const ids = draft.value.map((spec) => spec.packagingProduct!.objectId)
   if (new Set(ids).size !== ids.length) {
     validationMessage.value = '同一包装物不能重复添加。'
     return
@@ -172,15 +167,7 @@ function submit(): void {
     <v-card rounded="xl">
       <v-card-title>{{ productName }} · 包装规格</v-card-title>
       <v-card-text>
-        <v-alert
-          v-if="errorMessage || validationMessage"
-          class="mb-4"
-          density="compact"
-          type="error"
-          variant="tonal"
-        >
-          {{ errorMessage || validationMessage }}
-        </v-alert>
+        <AppSnackbar :message="errorMessage || validationMessage" />
 
         <v-table class="responsive-table responsive-table--form">
           <thead>
@@ -261,10 +248,7 @@ function submit(): void {
                 />
               </td>
             </tr>
-            <tr
-              v-if="draft.length === 0"
-              class="responsive-table__empty-row"
-            >
+            <tr v-if="draft.length === 0" class="responsive-table__empty-row">
               <td :colspan="editable ? 5 : 4" class="text-center py-8">
                 暂无包装规格
               </td>

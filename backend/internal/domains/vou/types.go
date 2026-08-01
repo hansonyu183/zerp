@@ -542,9 +542,11 @@ type SalesKgSummary struct {
 	ExcludedPackaging  bool   `json:"excludedPackaging"`
 	WarehouseAvailable bool   `json:"warehouseAvailable"`
 	ShortageQuantity   string `json:"shortageQuantity,omitempty"`
+	OrderedQuantity    string `json:"orderedQuantity"`
 	OutboundQuantity   string `json:"outboundQuantity"`
 	InTransitQuantity  string `json:"inTransitQuantity"`
 	SignedQuantity     string `json:"signedQuantity"`
+	NetSignedQuantity  string `json:"netSignedQuantity"`
 }
 
 type PurchaseKgSummary struct {

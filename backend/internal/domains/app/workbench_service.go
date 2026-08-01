@@ -1,0 +1,288 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"sort"
+	"strings"
+	"unicode/utf8"
+
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+)
+
+type workbenchPermissionScope struct {
+	paths map[string]struct{}
+}
+
+func newWorkbenchPermissionScope(permissions []string) workbenchPermissionScope {
+	paths := make(map[string]struct{}, len(permissions))
+	for _, permission := range permissions {
+		paths[permission] = struct{}{}
+	}
+	return workbenchPermissionScope{paths: paths}
+}
+
+func (scope workbenchPermissionScope) can(domain, entity, action string) bool {
+	_, ok := scope.paths["/"+domain+"/"+entity+"/"+action]
+	return ok
+}
+
+func (scope workbenchPermissionScope) entities(domain string) []string {
+	set := map[string]struct{}{}
+	for path := range scope.paths {
+		parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+		if len(parts) == 3 && parts[0] == domain && validSegment(parts[1]) {
+			set[parts[1]] = struct{}{}
+		}
+	}
+	result := make([]string, 0, len(set))
+	for entity := range set {
+		result = append(result, entity)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func (scope workbenchPermissionScope) entitiesWith(domain string, matches func(string) bool) []string {
+	entities := scope.entities(domain)
+	result := make([]string, 0, len(entities))
+	for _, entity := range entities {
+		if scope.can(domain, entity, "query") && matches(entity) {
+			result = append(result, entity)
+		}
+	}
+	return result
+}
+
+func validateWorkbenchQuery(input WorkbenchQueryInput) (WorkbenchQueryInput, pageSpec, error) {
+	input.Category = strings.ToUpper(strings.TrimSpace(input.Category))
+	input.Keyword = strings.TrimSpace(input.Keyword)
+	if input.Category != WorkbenchCategoryBob && input.Category != WorkbenchCategoryVou {
+		return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench category", nil)
+	}
+	if utf8.RuneCountInString(input.Keyword) > 128 {
+		return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench keyword", nil)
+	}
+	if len(input.Entities) > 100 || len(input.PendingStages) > 3 {
+		return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench filters", nil)
+	}
+	entitySet := make(map[string]struct{}, len(input.Entities))
+	for index, entity := range input.Entities {
+		entity = strings.ToLower(strings.TrimSpace(entity))
+		if !validSegment(entity) {
+			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench entity filter", nil)
+		}
+		if _, duplicate := entitySet[entity]; duplicate {
+			return input, pageSpec{}, domainError(ErrorValidation, "duplicate workbench entity filter", nil)
+		}
+		entitySet[entity] = struct{}{}
+		input.Entities[index] = entity
+	}
+	stageSet := make(map[string]struct{}, len(input.PendingStages))
+	for index, stage := range input.PendingStages {
+		stage = strings.ToUpper(strings.TrimSpace(stage))
+		valid := stage == "CHECK" || stage == "APPROVE" ||
+			(input.Category == WorkbenchCategoryVou && stage == "FINALIZE")
+		if !valid {
+			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench pending stage filter", nil)
+		}
+		if _, duplicate := stageSet[stage]; duplicate {
+			return input, pageSpec{}, domainError(ErrorValidation, "duplicate workbench pending stage filter", nil)
+		}
+		stageSet[stage] = struct{}{}
+		input.PendingStages[index] = stage
+	}
+	spec, err := validatePage(PageRequest{
+		Page: input.Page, PageSize: input.PageSize,
+	}, map[string]bool{"updatedAt": true}, "updatedAt", "desc")
+	return input, spec, err
+}
+
+func (s *Service) QueryWorkbench(
+	ctx context.Context,
+	principal Principal,
+	input WorkbenchQueryInput,
+) (Page[WorkbenchItem], error) {
+	input, spec, err := validateWorkbenchQuery(input)
+	if err != nil {
+		return Page[WorkbenchItem]{}, err
+	}
+	scope := newWorkbenchPermissionScope(principal.Permissions)
+	if input.Category == WorkbenchCategoryBob {
+		return s.queryWorkbenchBob(ctx, principal.User.ID, scope, input, spec)
+	}
+	return s.queryWorkbenchVou(ctx, scope, input, spec)
+}
+
+func filterWorkbenchEntities(available, selected []string) []string {
+	if len(selected) == 0 {
+		return available
+	}
+	selectedSet := make(map[string]struct{}, len(selected))
+	for _, entity := range selected {
+		selectedSet[entity] = struct{}{}
+	}
+	result := make([]string, 0, len(available))
+	for _, entity := range available {
+		if _, ok := selectedSet[entity]; ok {
+			result = append(result, entity)
+		}
+	}
+	return result
+}
+
+func includesWorkbenchStage(selected []string, stage string) bool {
+	return len(selected) == 0 || slices.Contains(selected, stage)
+}
+
+func (s *Service) queryWorkbenchBob(
+	ctx context.Context,
+	actorID string,
+	scope workbenchPermissionScope,
+	input WorkbenchQueryInput,
+	spec pageSpec,
+) (Page[WorkbenchItem], error) {
+	draftEntities := scope.entitiesWith("bob", func(entity string) bool {
+		return scope.can("bob", entity, "submit")
+	})
+	pendingEntities := scope.entitiesWith("bob", func(entity string) bool {
+		return scope.can("bob", entity, "approve") || scope.can("bob", entity, "reject")
+	})
+	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
+	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
+	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+		draftEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
+		pendingEntities = nil
+	}
+	params := dbsqlc.CountWorkbenchBobItemsParams{
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
+		ActorID: actorID, Keyword: input.Keyword,
+	}
+	total, err := s.queries.CountWorkbenchBobItems(ctx, params)
+	if err != nil {
+		return Page[WorkbenchItem]{}, s.internal("count workbench business objects", err)
+	}
+	rows, err := s.queries.ListWorkbenchBobItems(ctx, dbsqlc.ListWorkbenchBobItemsParams{
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
+		ActorID: actorID, Keyword: input.Keyword,
+		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
+	})
+	if err != nil {
+		return Page[WorkbenchItem]{}, s.internal("list workbench business objects", err)
+	}
+	items := make([]WorkbenchItem, 0, len(rows))
+	for _, row := range rows {
+		actions := make([]string, 0, 4)
+		if scope.can("bob", row.Entity, "get") {
+			actions = append(actions, "view")
+			if row.Status == "DRAFT" && scope.can("bob", row.Entity, "save") {
+				actions = append(actions, "edit")
+			}
+		}
+		pendingStage := "APPROVE"
+		if row.Status == "DRAFT" {
+			pendingStage = "CHECK"
+			if scope.can("bob", row.Entity, "submit") {
+				actions = append(actions, "submit")
+			}
+		} else {
+			if scope.can("bob", row.Entity, "approve") {
+				actions = append(actions, "approve")
+			}
+			if scope.can("bob", row.Entity, "reject") {
+				actions = append(actions, "reject")
+			}
+		}
+		items = append(items, WorkbenchItem{
+			Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
+			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
+			ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, VersionID: row.VersionID,
+			Revision: row.VersionRevision, Code: row.Code, Name: row.Name,
+		})
+	}
+	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
+}
+
+func (s *Service) queryWorkbenchVou(
+	ctx context.Context,
+	scope workbenchPermissionScope,
+	input WorkbenchQueryInput,
+	spec pageSpec,
+) (Page[WorkbenchItem], error) {
+	draftEntities := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "check")
+	})
+	checkedEntities := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "approve")
+	})
+	approvedEntities := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "finalize")
+	})
+	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
+	checkedEntities = filterWorkbenchEntities(checkedEntities, input.Entities)
+	approvedEntities = filterWorkbenchEntities(approvedEntities, input.Entities)
+	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+		draftEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
+		checkedEntities = nil
+	}
+	if !includesWorkbenchStage(input.PendingStages, "FINALIZE") {
+		approvedEntities = nil
+	}
+	params := dbsqlc.CountWorkbenchVouItemsParams{
+		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
+		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
+	}
+	total, err := s.queries.CountWorkbenchVouItems(ctx, params)
+	if err != nil {
+		return Page[WorkbenchItem]{}, s.internal("count workbench vouchers", err)
+	}
+	rows, err := s.queries.ListWorkbenchVouItems(ctx, dbsqlc.ListWorkbenchVouItemsParams{
+		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
+		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
+		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
+	})
+	if err != nil {
+		return Page[WorkbenchItem]{}, s.internal("list workbench vouchers", err)
+	}
+	items := make([]WorkbenchItem, 0, len(rows))
+	for _, row := range rows {
+		actions := make([]string, 0, 3)
+		if scope.can("vou", row.Entity, "get") {
+			actions = append(actions, "view")
+			if row.Status == "DRAFT" && scope.can("vou", row.Entity, "save") {
+				actions = append(actions, "edit")
+			}
+		}
+		pendingStage, action := "CHECK", "check"
+		if row.Status == "CHECKED" {
+			pendingStage, action = "APPROVE", "approve"
+		} else if row.Status == "APPROVED" {
+			pendingStage, action = "FINALIZE", "finalize"
+		}
+		if scope.can("vou", row.Entity, action) {
+			actions = append(actions, action)
+		}
+		items = append(items, WorkbenchItem{
+			Category: WorkbenchCategoryVou, Entity: row.Entity, Status: row.Status,
+			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.UpdatedAt.Time,
+			DocumentID: row.DocumentID, Revision: row.Revision, DocumentNo: row.DocumentNo,
+			BusinessDate: row.BusinessDate, PartyName: row.PartyName,
+			Currency: row.Currency, Amount: formatWorkbenchMoney(row.TotalAmountCents),
+		})
+	}
+	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
+}
+
+func formatWorkbenchMoney(cents int64) string {
+	sign := ""
+	if cents < 0 {
+		sign = "-"
+		cents = -cents
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, cents/100, cents%100)
+}

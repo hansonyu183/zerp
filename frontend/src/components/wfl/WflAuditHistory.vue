@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatMediumDateTime } from '@/utils/date'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { WflAuditEvent } from './types'
 
 withDefaults(
@@ -21,7 +22,6 @@ const emit = defineEmits<{
   'update:page': [page: number]
   reload: []
 }>()
-
 </script>
 
 <template>
@@ -37,9 +37,7 @@ const emit = defineEmits<{
         刷新
       </v-btn>
     </div>
-    <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
-      {{ errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="errorMessage" />
     <v-progress-linear v-if="loading" indeterminate />
     <v-timeline v-if="events.length" align="start" density="compact" side="end">
       <v-timeline-item
@@ -56,11 +54,12 @@ const emit = defineEmits<{
           <v-card-text>
             <div v-if="event.documentNo">
               {{ event.stage || '流程' }} · {{ event.documentNo }}
-              <span v-if="event.documentStatus">· {{ event.documentStatus }}</span>
+              <span v-if="event.documentStatus"
+                >· {{ event.documentStatus }}</span
+              >
             </div>
             <div>{{ event.fromStatus || '—' }} → {{ event.toStatus }}</div>
             <div v-if="event.reason" class="mt-2">原因：{{ event.reason }}</div>
-            <div class="mt-2 text-caption">请求编号：{{ event.requestId }}</div>
             <v-expansion-panels
               v-if="event.summary"
               class="mt-3"
@@ -98,6 +97,11 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
 }
-.wfl-audit__toolbar h3 { margin: 0; }
-pre { overflow-x: auto; white-space: pre-wrap; }
+.wfl-audit__toolbar h3 {
+  margin: 0;
+}
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
 </style>

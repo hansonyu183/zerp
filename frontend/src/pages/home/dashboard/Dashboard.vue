@@ -1,95 +1,495 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { hasRegisteredPage } from '@/router/registry'
-import { useDashboardViewModel } from './vm'
+import { useSessionStore } from '@/stores/session'
+import {
+  BusinessObjectList,
+  type BusinessObjectColumn,
+} from '@/components/business-object'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import type { ListRowAction } from '@/components/common/list-row-actions'
+import {
+  VoucherList,
+  type VoucherLifecycleLabels,
+  type VoucherSort,
+} from '@/components/voucher'
+import { pageRegistry } from '@/router/registry'
+import {
+  type WorkbenchAction,
+  type WorkbenchDocumentItem,
+  type WorkbenchItem,
+  type WorkbenchObjectItem,
+  type WorkbenchPendingStage,
+  useDashboardViewModel,
+} from './vm'
 
 const vm = reactive(useDashboardViewModel())
 const router = useRouter()
+const session = useSessionStore()
+const rejectTarget = ref<WorkbenchObjectItem | null>(null)
+const rejectComment = ref('')
 
-const quickStarts = [
-  { icon: 'mdi-database-outline', title: '基础资料', text: '统一维护企业经营所需的客户、供应商与商品资料。', color: 'primary', domain: 'bob', entity: 'customer' },
-  { icon: 'mdi-cart-outline', title: '销售与采购', text: '从订单到执行，集中处理核心业务流程。', color: 'info', domain: 'trade', entity: 'order' },
-  { icon: 'mdi-warehouse', title: '库存管理', text: '查看即时库存、出入库记录和库存预警。', color: 'success', domain: 'inv', entity: 'stock' },
+const entityFilterOptions = computed(() =>
+  (
+    session.menus.find(
+      (menu) => menu.domain === (vm.activeCategory === 'BOB' ? 'bob' : 'vou'),
+    )?.children ?? []
+  )
+    .filter(
+      (entity) =>
+        entity.actions.includes('query') &&
+        (vm.activeCategory === 'BOB'
+          ? ['submit', 'approve', 'reject'].some((action) =>
+              entity.actions.includes(action),
+            )
+          : ['check', 'approve', 'finalize'].some((action) =>
+              entity.actions.includes(action),
+            )),
+    )
+    .map((entity) => ({ title: entity.title, value: entity.entity })),
+)
+const pendingStageFilterOptions = computed(() => [
+  { title: '待核对', value: 'CHECK' as const },
+  { title: '待批准', value: 'APPROVE' as const },
+  ...(vm.activeCategory === 'VOU'
+    ? [{ title: '待完成', value: 'FINALIZE' as const }]
+    : []),
+])
+
+const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
+  { key: 'entity', label: '类型', value: entityTitle, sizing: 'compact' },
+  {
+    key: 'code',
+    label: '编码',
+    value: (row) => row.code,
+    sizing: 'compact',
+  },
+  {
+    key: 'name',
+    label: '名称',
+    value: (row) => row.name,
+    sizing: 'fluid',
+  },
+  { key: 'status', label: '状态', value: pendingStatus, sizing: 'compact' },
 ]
 
-const quickStartActions = computed(() =>
-  quickStarts.map((item) => ({
-    ...item,
-    path: `/${item.domain}/${item.entity}`,
-    available: hasRegisteredPage(item.domain, item.entity),
-  })),
+const objectRows = computed(() =>
+  vm.states.BOB.rows.filter(
+    (row): row is WorkbenchObjectItem => row.category === 'BOB',
+  ),
 )
-
-async function openModule(path: string): Promise<void> {
-  await router.push(path)
+const documentRows = computed(() =>
+  vm.states.VOU.rows.filter(
+    (row): row is WorkbenchDocumentItem => row.category === 'VOU',
+  ),
+)
+const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
+const documentLifecycleLabels: VoucherLifecycleLabels = {
+  check: '核对',
+  uncheck: '反核对',
+  approve: '批准',
+  unapprove: '反批准',
+  finalize: '完成',
+  unfinalize: '撤销完成',
+  checked: '已核对',
+  finalized: '已完成',
 }
+
+const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
+  view: { label: '查看', icon: 'mdi-eye-outline' },
+  edit: { label: '编辑', icon: 'mdi-pencil-outline', color: 'primary' },
+  submit: { label: '提交审核', icon: 'mdi-send-outline', color: 'primary' },
+  approve: {
+    label: '批准',
+    icon: 'mdi-check-decagram-outline',
+    color: 'success',
+  },
+  reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
+  check: { label: '核对', icon: 'mdi-account-check-outline', color: 'primary' },
+  finalize: {
+    label: '完成',
+    icon: 'mdi-play-circle-outline',
+    color: 'primary',
+  },
+}
+
+function entityTitle(row: Readonly<WorkbenchItem>): string {
+  return (
+    pageRegistry[`${row.category === 'BOB' ? 'bob' : 'vou'}/${row.entity}`]
+      ?.entityTitle ?? row.entity
+  )
+}
+
+function pendingStatus(row: Readonly<WorkbenchItem>): string {
+  return {
+    CHECK: '待核对',
+    APPROVE: '待批准',
+    FINALIZE: '待完成',
+  }[row.pendingStage]
+}
+
+function pendingColor(row: Readonly<WorkbenchItem>): string {
+  if (row.pendingStage === 'APPROVE') return 'success'
+  if (row.pendingStage === 'FINALIZE') return 'primary'
+  return 'warning'
+}
+
+function rowIdentity(row: WorkbenchItem): string {
+  return row.category === 'BOB' ? row.code : row.documentNo
+}
+
+function visibleActions(row: WorkbenchItem): WorkbenchAction[] {
+  return row.availableActions.filter(
+    (action) => action !== 'view' || !row.availableActions.includes('edit'),
+  )
+}
+
+function rowActions(row: WorkbenchItem): {
+  primary: ListRowAction[]
+  more: ListRowAction[]
+} {
+  const actions = visibleActions(row)
+  const forward = actions.find((action) =>
+    ['submit', 'approve', 'check', 'finalize', 'reject'].includes(action),
+  )
+  const primaryAction = forward ?? actions[0]
+  const toAction = (action: WorkbenchAction): ListRowAction => ({
+    key: action,
+    ...actionDefinitions[action],
+    label: `${actionDefinitions[action].label} ${rowIdentity(row)}`,
+  })
+  return {
+    primary: primaryAction ? [toAction(primaryAction)] : [],
+    more: actions.filter((action) => action !== primaryAction).map(toAction),
+  }
+}
+
+async function changeCategory(value: unknown): Promise<void> {
+  if (value === 'BOB' || value === 'VOU') await vm.selectCategory(value)
+}
+
+function updateEntityFilters(value: unknown): void {
+  vm.activeState.entities = Array.isArray(value)
+    ? value.filter((entity): entity is string => typeof entity === 'string')
+    : []
+}
+
+function updatePendingStageFilters(value: unknown): void {
+  const validStages = new Set<WorkbenchPendingStage>([
+    'CHECK',
+    'APPROVE',
+    'FINALIZE',
+  ])
+  vm.activeState.pendingStages = Array.isArray(value)
+    ? value.filter(
+        (stage): stage is WorkbenchPendingStage =>
+          typeof stage === 'string' &&
+          validStages.has(stage as WorkbenchPendingStage),
+      )
+    : []
+}
+
+async function openItem(
+  row: WorkbenchItem,
+  mode: 'view' | 'edit',
+): Promise<void> {
+  const domain = row.category === 'BOB' ? 'bob' : 'vou'
+  await router.push({
+    path: `/${domain}/${row.entity}`,
+    query: {
+      ...(row.category === 'BOB'
+        ? { objectId: row.objectId }
+        : { documentId: row.documentId }),
+      mode,
+    },
+  })
+}
+
+async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
+  if (action === 'view' || action === 'edit') {
+    await openItem(row, action)
+    return
+  }
+  if (action === 'reject' && row.category === 'BOB') {
+    rejectTarget.value = row
+    rejectComment.value = ''
+    return
+  }
+  if (
+    action === 'submit' ||
+    action === 'approve' ||
+    action === 'check' ||
+    action === 'finalize'
+  ) {
+    await vm.runAction(row, action)
+  }
+}
+
+async function confirmReject(): Promise<void> {
+  const target = rejectTarget.value
+  if (!target || !rejectComment.value.trim()) return
+  if (await vm.runAction(target, 'reject', rejectComment.value)) {
+    rejectTarget.value = null
+    rejectComment.value = ''
+  }
+}
+
+function closeReject(value: boolean): void {
+  if (!value) {
+    rejectTarget.value = null
+    rejectComment.value = ''
+  }
+}
+
+void vm.query('BOB')
 </script>
 
 <template>
-  <v-container fluid class="dashboard pa-5 pa-md-8 pa-lg-10">
-    <v-sheet class="hero" rounded="xl">
-      <div>
-        <div class="hero__tag">WELCOME BACK</div>
-        <h2>你好，{{ vm.displayName }}</h2>
-        <p>欢迎进入 ZERP。通过左侧导航开始处理今天的业务。</p>
-      </div>
-      <div class="hero__metric">
-        <strong>{{ vm.menuCount }}</strong>
-        <span>可访问业务菜单</span>
-      </div>
-    </v-sheet>
+  <v-container fluid class="workbench pa-4 pa-md-7">
+    <v-card class="workbench__panel" rounded="xl" variant="flat">
+      <v-tabs
+        :model-value="vm.activeCategory"
+        color="primary"
+        @update:model-value="changeCategory"
+      >
+        <v-tab value="BOB">
+          <v-icon class="mr-2" icon="mdi-database-clock-outline" />
+          待处理资料
+        </v-tab>
+        <v-tab value="VOU">
+          <v-icon class="mr-2" icon="mdi-file-clock-outline" />
+          待处理单据
+        </v-tab>
+      </v-tabs>
 
-    <div class="section-title">
-      <div>
-        <h3>业务工作区</h3>
-        <p>业务菜单根据你的权限生成，尚未注册的组件会标记为开发中。</p>
-      </div>
-    </div>
+      <v-divider />
 
-    <v-row>
-      <v-col v-for="item in quickStartActions" :key="item.title" cols="12" md="4">
-        <v-card class="business-card" rounded="xl" variant="flat">
-          <v-avatar :color="item.color" size="48" variant="tonal">
-            <v-icon :icon="item.icon" size="26" />
-          </v-avatar>
-          <h4>{{ item.title }}</h4>
-          <p>{{ item.text }}</p>
+      <div class="workbench__list">
+        <AppSnackbar
+          :message="vm.activeState.errorMessage"
+          @dismiss="vm.activeState.errorMessage = null"
+        />
+
+        <BusinessObjectList
+          v-if="vm.activeCategory === 'BOB'"
+          :columns="objectColumns"
+          :editable="true"
+          empty-text="暂无待处理资料"
+          :keyword="vm.activeState.keyword"
+          :loading="vm.activeState.loading"
+          :page="vm.activeState.page"
+          :page-size="vm.activeState.pageSize"
+          :row-key="(row) => row.objectId"
+          :rows="objectRows"
+          search-label="编码或名称"
+          :total="vm.activeState.total"
+          @query="vm.query(vm.activeCategory, true)"
+          @apply-filters="vm.query(vm.activeCategory, true)"
+          @reset-filters="vm.resetFilters"
+          @update:keyword="vm.activeState.keyword = $event"
+          @update:page="vm.changePage"
+        >
+          <template #filters>
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="entityFilterOptions"
+              label="类型"
+              :model-value="vm.activeState.entities"
+              multiple
+              variant="outlined"
+              @update:model-value="updateEntityFilters"
+            />
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="pendingStageFilterOptions"
+              label="待办状态"
+              :model-value="vm.activeState.pendingStages"
+              multiple
+              variant="outlined"
+              @update:model-value="updatePendingStageFilters"
+            />
+          </template>
+
+          <template #cell-status="{ row }">
+            <v-chip
+              :color="pendingColor(row)"
+              density="comfortable"
+              size="small"
+              variant="tonal"
+            >
+              {{ pendingStatus(row) }}
+            </v-chip>
+          </template>
+
+          <template #actions="{ row }">
+            <ListRowActions
+              :label="`操作 ${rowIdentity(row)}`"
+              :loading="Boolean(vm.actionLoading)"
+              :more="rowActions(row).more"
+              :more-label="`更多操作 ${rowIdentity(row)}`"
+              :primary="rowActions(row).primary"
+              @select="selectAction($event, row)"
+            />
+          </template>
+        </BusinessObjectList>
+
+        <VoucherList
+          v-else
+          :date-from="''"
+          :date-to="''"
+          empty-text="暂无待处理单据"
+          :filterable="true"
+          :keyword="vm.activeState.keyword"
+          :lifecycle-labels="documentLifecycleLabels"
+          :loading="vm.activeState.loading"
+          :page="vm.activeState.page"
+          :page-size="vm.activeState.pageSize"
+          :party="null"
+          :rows="documentRows"
+          search-label="单号或往来方"
+          :show-entity="true"
+          :sort="documentSort"
+          :sortable="false"
+          :statuses="[]"
+          :total="vm.activeState.total"
+          @query="vm.query('VOU', true)"
+          @reset="vm.resetFilters"
+          @update:keyword="vm.activeState.keyword = $event"
+          @update:page="vm.changePage"
+        >
+          <template #filters>
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="entityFilterOptions"
+              label="类型"
+              :model-value="vm.activeState.entities"
+              multiple
+              variant="outlined"
+              @update:model-value="updateEntityFilters"
+            />
+            <v-select
+              chips
+              clearable
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="pendingStageFilterOptions"
+              label="待办状态"
+              :model-value="vm.activeState.pendingStages"
+              multiple
+              variant="outlined"
+              @update:model-value="updatePendingStageFilters"
+            />
+          </template>
+
+          <template #cell-entity="{ row }">
+            {{ entityTitle(row) }}
+          </template>
+
+          <template #cell-status="{ row }">
+            <v-chip
+              :color="pendingColor(row)"
+              density="comfortable"
+              size="small"
+              variant="tonal"
+            >
+              {{ pendingStatus(row) }}
+            </v-chip>
+          </template>
+
+          <template #cell-amount="{ row }">
+            {{ [row.currency, row.amount].filter(Boolean).join(' ') }}
+          </template>
+
+          <template #actions="{ row }">
+            <ListRowActions
+              :label="`操作 ${rowIdentity(row)}`"
+              :loading="Boolean(vm.actionLoading)"
+              :more="rowActions(row).more"
+              :more-label="`更多操作 ${rowIdentity(row)}`"
+              :primary="rowActions(row).primary"
+              @select="selectAction($event, row)"
+            />
+          </template>
+        </VoucherList>
+      </div>
+    </v-card>
+
+    <v-dialog
+      :model-value="Boolean(rejectTarget)"
+      max-width="520"
+      @update:model-value="closeReject"
+    >
+      <v-card rounded="xl" title="驳回资料">
+        <v-card-text>
+          <p class="mb-4">请输入驳回 {{ rejectTarget?.code }} 的审核意见。</p>
+          <v-textarea
+            v-model="rejectComment"
+            autofocus
+            counter="1000"
+            label="驳回意见"
+            maxlength="1000"
+            rows="4"
+            variant="outlined"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeReject(false)">取消</v-btn>
           <v-btn
-            append-icon="mdi-arrow-right"
-            color="primary"
-            :disabled="!item.available"
-            variant="text"
-            @click="openModule(item.path)"
+            color="error"
+            :disabled="!rejectComment.trim()"
+            :loading="Boolean(vm.actionLoading)"
+            @click="confirmReject"
           >
-            {{ item.available ? '查看模块' : '暂未开放' }}
+            确认驳回
           </v-btn>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <v-alert class="mt-4" icon="mdi-shield-check-outline" type="info" variant="tonal">
-      导航显示除 APP 域外的全部授权业务；未注册组件会打开“开发中...”占位页。
-    </v-alert>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
-.dashboard { color: rgb(var(--v-theme-on-background)); }
-.hero { display: flex; justify-content: space-between; gap: 28px; align-items: center; padding: clamp(26px, 5vw, 48px); color: white; background: linear-gradient(130deg, #0d47a1 0%, #1976d2 60%, #42a5f5 100%); box-shadow: 0 18px 45px rgb(14 76 146 / 18%); }
-.hero__tag { margin-bottom: 9px; font-size: 11px; font-weight: 800; letter-spacing: .2em; opacity: .75; }
-.hero h2 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; }
-.hero p { max-width: 620px; margin: 10px 0 0; color: rgb(255 255 255 / 78%); }
-.hero__metric { display: flex; min-width: 150px; flex-direction: column; padding: 18px 22px; background: rgb(255 255 255 / 13%); border: 1px solid rgb(255 255 255 / 18%); border-radius: 16px; backdrop-filter: blur(8px); }
-.hero__metric strong { font-size: 32px; }
-.hero__metric span { font-size: 12px; opacity: .78; }
-.section-title { display: flex; justify-content: space-between; margin: 38px 0 18px; }
-.section-title h3 { margin: 0; font-size: 22px; }
-.section-title p { margin: 6px 0 0; color: rgb(var(--v-theme-on-surface-variant)); }
-.business-card { height: 100%; padding: 24px; background: rgb(var(--v-theme-surface)); border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); transition: transform .2s ease, box-shadow .2s ease; }
-.business-card:hover { transform: translateY(-3px); box-shadow: 0 14px 35px rgb(16 24 40 / 10%); }
-.business-card h4 { margin: 20px 0 8px; font-size: 18px; }
-.business-card p { min-height: 48px; margin: 0 0 14px; color: rgb(var(--v-theme-on-surface-variant)); line-height: 1.6; }
-.business-card .v-btn { margin-left: -16px; }
-@media (max-width: 700px) { .hero { align-items: flex-start; flex-direction: column; } .hero__metric { width: 100%; } }
+.workbench {
+  color: rgb(var(--v-theme-on-background));
+}
+
+.workbench__panel {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.workbench__panel :deep(.v-tabs) {
+  padding-inline: 12px;
+}
+
+.workbench__list {
+  padding: 22px;
+}
+
+@media (max-width: 700px) {
+  .workbench__panel :deep(.v-tab) {
+    min-width: 0;
+    flex: 1;
+    padding-inline: 8px;
+  }
+
+  .workbench__list {
+    padding: 14px;
+  }
+}
 </style>

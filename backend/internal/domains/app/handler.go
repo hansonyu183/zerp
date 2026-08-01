@@ -35,6 +35,7 @@ type applicationService interface {
 	SetRoleStatus(context.Context, string, int64, string, string, string) (RoleView, error)
 	QueryPermissions(context.Context, PageRequest) (Page[PermissionView], error)
 	GetPermission(context.Context, string) (PermissionView, error)
+	QueryWorkbench(context.Context, Principal, WorkbenchQueryInput) (Page[WorkbenchItem], error)
 	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
 	GetFeedback(context.Context, string, string) (FeedbackView, error)
 	InitiateFeedbackAttachment(context.Context, FeedbackAttachmentInitiateInput, string) (FeedbackAttachmentInitiateResult, error)
@@ -84,6 +85,10 @@ func (h *Handler) Register(router *gin.Engine) {
 	permission.Use(h.authorize())
 	permission.POST("/query", h.queryPermissions)
 	permission.POST("/get", h.getPermission)
+
+	workbench := appGroup.Group("/workbench")
+	workbench.Use(h.authorizeSession())
+	workbench.POST("/query", h.queryWorkbench)
 
 	feedback := appGroup.Group("/feedback")
 	feedback.Use(h.authorizeSession())

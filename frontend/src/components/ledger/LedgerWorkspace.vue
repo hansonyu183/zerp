@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
@@ -51,7 +52,10 @@ function changeSort(
   vm.search()
 }
 
-function applyMobileSort(value: { field: string; order: 'asc' | 'desc' }): void {
+function applyMobileSort(value: {
+  field: string
+  order: 'asc' | 'desc'
+}): void {
   vm.sort.field = value.field as 'effectiveDate' | 'occurredAt' | 'documentNo'
   vm.sort.order = value.order
   vm.search()
@@ -87,16 +91,10 @@ void vm.load()
     </v-alert>
 
     <template v-else>
-      <v-alert
-        v-if="vm.errorMessage.value"
-        class="mb-4"
-        closable
-        type="error"
-        variant="tonal"
-        @click:close="vm.errorMessage.value = null"
-      >
-        {{ vm.errorMessage.value }}
-      </v-alert>
+      <AppSnackbar
+        :message="vm.errorMessage.value"
+        @dismiss="vm.errorMessage.value = null"
+      />
 
       <EntityListControls
         filterable

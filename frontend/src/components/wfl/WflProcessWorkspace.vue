@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 
 export interface WflWorkspaceTab {
   value: string | number
@@ -85,19 +86,11 @@ function forceClose(): void {
         </div>
       </v-toolbar>
       <v-progress-linear v-if="busy" indeterminate />
-      <v-alert
-        v-if="errorMessage"
-        class="ma-4 mb-0"
-        type="error"
-        variant="tonal"
-      >
-        <div class="d-flex align-center justify-space-between ga-3">
-          <span>{{ errorMessage }}</span>
-          <v-btn v-if="revision" variant="text" @click="emit('reload')">
-            重新加载
-          </v-btn>
-        </div>
-      </v-alert>
+      <AppSnackbar
+        :action-label="revision ? '重新加载' : undefined"
+        :message="errorMessage"
+        @action="emit('reload')"
+      />
       <v-tabs
         color="primary"
         :model-value="activeTab"

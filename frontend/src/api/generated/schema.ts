@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/workbench/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询当前用户工作台待办 */
+        post: operations["appWorkbenchQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/query": {
         parameters: {
             query?: never;
@@ -1603,6 +1620,78 @@ export interface components {
             requestId: string;
         };
         EmptyObject: Record<string, never>;
+        /** @enum {string} */
+        WorkbenchCategory: "BOB" | "VOU";
+        /** @enum {string} */
+        WorkbenchPendingStage: "CHECK" | "APPROVE" | "FINALIZE";
+        WorkbenchQueryRequest: {
+            category: components["schemas"]["WorkbenchCategory"];
+            keyword?: string;
+            entities?: string[];
+            pendingStages?: components["schemas"]["WorkbenchPendingStage"][];
+            page: number;
+            pageSize: number;
+        };
+        /** @enum {string} */
+        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
+        /** @enum {string} */
+        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
+        WorkbenchObjectItem: {
+            /** @enum {string} */
+            category: "BOB";
+            entity: components["schemas"]["BobEntity"];
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING";
+            /** @enum {string} */
+            pendingStage: "CHECK" | "APPROVE";
+            availableActions: components["schemas"]["WorkbenchAction"][];
+            /** Format: date-time */
+            updatedAt: string;
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            code: string;
+            name: string;
+        };
+        /** @enum {string} */
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        WorkbenchDocumentItem: {
+            /** @enum {string} */
+            category: "VOU";
+            entity: components["schemas"]["VouEntity"];
+            /** @enum {string} */
+            status: "DRAFT" | "CHECKED" | "APPROVED";
+            pendingStage: components["schemas"]["WorkbenchPendingStage"];
+            availableActions: components["schemas"]["WorkbenchAction"][];
+            /** Format: date-time */
+            updatedAt: string;
+            documentId: string;
+            /** Format: int64 */
+            revision: number;
+            documentNo: string;
+            /** Format: date */
+            businessDate: string;
+            partyName: string;
+            currency: string;
+            amount: string;
+        };
+        WorkbenchPage: {
+            items: (components["schemas"]["WorkbenchObjectItem"] | components["schemas"]["WorkbenchDocumentItem"])[];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        WorkbenchQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["WorkbenchPage"];
+            requestId: string;
+        };
         PageRequest: {
             page: number;
             pageSize: number;
@@ -1731,8 +1820,6 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
         BobGetRequest: {
             objectId: string;
             versionId?: string;
@@ -1890,8 +1977,6 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         VouQueryRequest: {
             page: number;
             pageSize: number;
@@ -1916,9 +2001,11 @@ export interface components {
             excludedPackaging: boolean;
             warehouseAvailable: boolean;
             shortageQuantity?: string;
+            orderedQuantity: string;
             outboundQuantity: string;
             inTransitQuantity: string;
             signedQuantity: string;
+            netSignedQuantity: string;
         };
         VouPurchaseKgSummary: {
             /** @enum {string} */
@@ -2309,9 +2396,11 @@ export interface components {
             excludedPackaging: boolean;
             warehouseAvailable: boolean;
             shortageQuantity?: string;
+            orderedQuantity: string;
             outboundQuantity: string;
             inTransitQuantity: string;
             signedQuantity: string;
+            netSignedQuantity: string;
         };
         WflSalesProcessListItem: {
             processId: string;
@@ -2559,6 +2648,30 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    appWorkbenchQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkbenchQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户可处理的资料或单据分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkbenchQueryResponse"];
+                };
+            };
         };
     };
     appUserquery: {

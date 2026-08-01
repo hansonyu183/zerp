@@ -120,7 +120,8 @@ const VFormStub = defineComponent({
     const controls = new Set<TestControl>()
     const register = (control: TestControl) => controls.add(control)
     const unregister = (control: TestControl) => controls.delete(control)
-    const resetValidation = () => controls.forEach((control) => control.resetValidation())
+    const resetValidation = () =>
+      controls.forEach((control) => control.resetValidation())
     const validate = async () => {
       const errors = await Promise.all(
         [...controls].map((control) => control.validate()),
@@ -333,11 +334,13 @@ describe('BusinessObjectEditor', () => {
   })
 
   it('只按业务可见性渲染字段且不提供额外设置入口', () => {
-    const optionalFields: readonly BusinessObjectField<ExampleObject>[] = [{
-      key: 'optional',
-      label: '可选字段',
-      type: 'text',
-    }]
+    const optionalFields: readonly BusinessObjectField<ExampleObject>[] = [
+      {
+        key: 'optional',
+        label: '可选字段',
+        type: 'text',
+      },
+    ]
     const wrapper = mountEditor({
       editing: true,
       fields: optionalFields,
@@ -362,7 +365,9 @@ describe('BusinessObjectEditor', () => {
     })
 
     expect(
-      wrapper.getComponent('[data-field="name"] .v-text-field').props('modelValue'),
+      wrapper
+        .getComponent('[data-field="name"] .v-text-field')
+        .props('modelValue'),
     ).toBe('本地草稿')
 
     await buttonByText(wrapper, '取消').trigger('click')
@@ -387,12 +392,16 @@ describe('BusinessObjectEditor', () => {
     })
 
     expect(
-      wrapper.getComponent('[data-field="name"] .v-text-field').props('modelValue'),
+      wrapper
+        .getComponent('[data-field="name"] .v-text-field')
+        .props('modelValue'),
     ).toBe('本地草稿')
 
     await wrapper.setProps({ resetKey: 1 })
     expect(
-      wrapper.getComponent('[data-field="name"] .v-text-field').props('modelValue'),
+      wrapper
+        .getComponent('[data-field="name"] .v-text-field')
+        .props('modelValue'),
     ).toBe('服务端更新')
   })
 
@@ -434,7 +443,9 @@ describe('BusinessObjectEditor', () => {
 
   it('支持加载、保存锁定、错误提示和动态字段插槽', async () => {
     const loadingWrapper = mountEditor({ loading: true })
-    expect(loadingWrapper.findComponent({ name: 'VSkeletonLoader' }).exists()).toBe(true)
+    expect(
+      loadingWrapper.findComponent({ name: 'VSkeletonLoader' }).exists(),
+    ).toBe(true)
     expect(buttonByText(loadingWrapper, '编辑').props('disabled')).toBe(true)
 
     const wrapper = mountEditor(
@@ -463,11 +474,14 @@ describe('BusinessObjectEditor', () => {
       },
     )
 
-    expect(wrapper.text()).toContain('保存失败（请求编号：REQ-1）')
+    expect(wrapper.text()).toContain('保存失败')
+    expect(wrapper.text()).not.toContain('REQ-1')
     expect(buttonByText(wrapper, '保存').props('loading')).toBe(true)
     expect(buttonByText(wrapper, '取消').props('disabled')).toBe(true)
     expect(
-      wrapper.getComponent('[data-field="notes"] .v-textarea').props('disabled'),
+      wrapper
+        .getComponent('[data-field="notes"] .v-textarea')
+        .props('disabled'),
     ).toBe(true)
 
     await wrapper.get('.custom-name-input').trigger('click')

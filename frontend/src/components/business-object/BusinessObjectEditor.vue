@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T extends object">
 import { computed, ref, watch } from 'vue'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { BusinessObjectField, BusinessObjectValidationRule } from './types'
 
 defineOptions({ name: 'BusinessObjectEditor' })
@@ -241,9 +242,7 @@ async function save(): Promise<void> {
     <v-divider />
 
     <v-card-text class="business-object-editor__content">
-      <v-alert v-if="errorMessage" class="mb-5" type="error" variant="tonal">
-        {{ errorMessage }}
-      </v-alert>
+      <AppSnackbar :message="errorMessage" />
 
       <v-skeleton-loader
         v-if="loading"

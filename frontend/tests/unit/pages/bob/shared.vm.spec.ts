@@ -169,6 +169,21 @@ describe('shared BOB entity configuration and view model', () => {
     vi.useRealTimers()
   })
 
+  it('通过对象深链接标识打开现有编辑抽屉并复用详情 revision', async () => {
+    grant('product', 'get', 'save')
+    mockedApiClient.post.mockResolvedValueOnce({ data: objectView() })
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await vm.openById('OBJ-1', 'edit')
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/get', {
+      objectId: 'OBJ-1',
+    })
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(vm.editorMode.value).toBe('edit')
+    expect(vm.currentView.value?.version.revision).toBe(1)
+  })
+
   it('定义全部八类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '状态'],

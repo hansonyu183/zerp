@@ -72,6 +72,8 @@ type Querier interface {
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
+	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
+	CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error)
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
@@ -249,6 +251,8 @@ type Querier interface {
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
 	ListVouPurchaseInboundLines(ctx context.Context, documentID string) ([]VouPurchaseInboundLine, error)
 	ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error)
+	ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error)
+	ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVouItemsParams) ([]ListWorkbenchVouItemsRow, error)
 	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
 	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)

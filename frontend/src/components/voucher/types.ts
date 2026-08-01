@@ -383,9 +383,9 @@ export interface VoucherDocumentView {
   parentDocumentNo?: string
 }
 
-export interface VoucherListItem {
+export interface VoucherListRow {
   documentId: string
-  entity: VoucherEntity
+  entity: string
   documentNo: string
   status: VoucherStatus
   revision: number
@@ -399,9 +399,11 @@ export interface VoucherListItem {
     excludedPackaging: boolean
     warehouseAvailable: boolean
     shortageQuantity?: string
+    orderedQuantity: string
     outboundQuantity: string
     inTransitQuantity: string
     signedQuantity: string
+    netSignedQuantity: string
   }
   purchaseSummary?: {
     unit: 'KG'
@@ -411,6 +413,10 @@ export interface VoucherListItem {
     returnProcessingQuantity: string
     netInboundQuantity: string
   }
+}
+
+export interface VoucherListItem extends VoucherListRow {
+  entity: VoucherEntity
 }
 
 export interface VoucherMutationResult {

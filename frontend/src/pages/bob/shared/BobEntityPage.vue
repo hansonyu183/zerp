@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   BusinessObjectEditor,
   BusinessObjectList,
 } from '@/components/business-object'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
@@ -21,6 +23,8 @@ import type { BobListItem } from './types'
 
 const props = defineProps<{ model: BobEntityViewModel }>()
 const vm = reactive(props.model)
+const route = useRoute()
+const router = useRouter()
 
 const deleteTarget = ref<BobListItem | null>(null)
 const reviewTarget = ref<BobListItem | null>(null)
@@ -49,6 +53,24 @@ const auditLength = computed(() =>
 )
 
 void vm.query()
+
+watch(
+  () => [route.query.objectId, route.query.mode] as const,
+  ([objectId, mode]) => {
+    if (typeof objectId !== 'string') return
+    void vm.openById(objectId, mode === 'edit' ? 'edit' : 'view')
+  },
+  { immediate: true },
+)
+
+watch(
+  () => vm.drawerOpen,
+  (open, wasOpen) => {
+    if (open || !wasOpen || typeof route.query.objectId !== 'string') return
+    const { objectId: _objectId, mode: _mode, ...query } = route.query
+    void router.replace({ query })
+  },
+)
 
 function requestEdit(row: BobListItem): void {
   void vm.openEdit(row)
@@ -287,16 +309,7 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
 
 <template>
   <v-container fluid class="bob-entity-page pa-5 pa-md-8">
-    <v-alert
-      v-if="vm.errorMessage"
-      class="mb-4"
-      closable
-      type="error"
-      variant="tonal"
-      @click:close="vm.errorMessage = null"
-    >
-      {{ vm.errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
 
     <BusinessObjectList
       :columns="vm.config.columns"
@@ -688,7 +701,6 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
               <th>操作人</th>
               <th>时间</th>
               <th>意见</th>
-              <th>请求号</th>
             </tr>
           </thead>
           <tbody>
@@ -704,7 +716,6 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
                 {{ formatLocalDateTime(event.occurredAt) }}
               </td>
               <td data-label="意见">{{ event.comment || '—' }}</td>
-              <td data-label="请求号">{{ event.requestId }}</td>
             </tr>
           </tbody>
         </v-table>

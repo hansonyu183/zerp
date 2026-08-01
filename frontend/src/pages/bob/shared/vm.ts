@@ -362,6 +362,41 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     }
   }
 
+  async function openById(
+    objectId: string,
+    requestedMode: 'view' | 'edit',
+  ): Promise<void> {
+    if (!session.can(permission('get')) || editorLoading.value) return
+    editorLoading.value = true
+    editorErrorMessage.value = null
+    drawerOpen.value = true
+    try {
+      const view = await getObject({ objectId })
+      const editable =
+        requestedMode === 'edit' &&
+        view.version.status === 'DRAFT' &&
+        session.can(permission('save'))
+      editorMode.value = editable ? 'edit' : 'view'
+      currentView.value = view
+      editContext.value = editable
+        ? {
+            objectId: view.objectId,
+            objectRevision: view.objectRevision,
+            versionId: view.version.versionId,
+            revision: view.version.revision,
+          }
+        : null
+      editorModel.value = formFromView(view)
+      editorResetKey.value += 1
+      if (editable) preloadEditorReferences(editorModel.value)
+      await hydrateReferences(editorModel.value)
+    } catch (error) {
+      editorErrorMessage.value = getErrorMessage(error)
+    } finally {
+      editorLoading.value = false
+    }
+  }
+
   function closeEditor(): void {
     if (saving.value) return
     drawerOpen.value = false
@@ -546,6 +581,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     openCreate,
     openView,
     openEdit,
+    openById,
     closeEditor,
     save,
     deleteObject,

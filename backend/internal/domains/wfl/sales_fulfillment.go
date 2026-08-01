@@ -113,9 +113,11 @@ func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[SalesP
 			items[index].Summary = voudomain.SalesKgSummary{
 				Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
 				WarehouseAvailable: row.WarehouseAvailable,
+				OrderedQuantity:    workflowQuantity(row.OrderedQuantityMicros),
 				OutboundQuantity:   workflowQuantity(row.OutboundQuantityMicros),
 				InTransitQuantity:  workflowQuantity(row.InTransitQuantityMicros),
 				SignedQuantity:     workflowQuantity(row.SignedQuantityMicros),
+				NetSignedQuantity:  workflowQuantity(row.NetSignedQuantityMicros),
 			}
 			if row.WarehouseAvailable {
 				items[index].Summary.ShortageQuantity = workflowQuantity(row.ShortageQuantityMicros)

@@ -29,6 +29,7 @@ type handlerServiceStub struct {
 	savedProfileUserID    string
 	changedPassword       ChangePasswordInput
 	createdFeedback       CreateFeedbackInput
+	workbenchInput        WorkbenchQueryInput
 }
 
 func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
@@ -47,6 +48,15 @@ func (stub *handlerServiceStub) Authorize(_ context.Context, _, _, path, _ strin
 
 func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest) (Page[UserView], error) {
 	return Page[UserView]{Items: []UserView{}, Page: 1, PageSize: 20}, nil
+}
+
+func (stub *handlerServiceStub) QueryWorkbench(
+	_ context.Context,
+	_ Principal,
+	input WorkbenchQueryInput,
+) (Page[WorkbenchItem], error) {
+	stub.workbenchInput = input
+	return Page[WorkbenchItem]{Items: []WorkbenchItem{}, Page: 1, PageSize: 20}, nil
 }
 
 func (stub *handlerServiceStub) GetProfile(context.Context, string) (ProfileView, error) {
@@ -90,6 +100,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
+		"/app/workbench/query",
 		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",
 		"/app/feedback/create", "/app/feedback/get",
 	}
@@ -120,6 +131,37 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	}
 	if len(router.Routes()) != len(expected)+1 {
 		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected)+1)
+	}
+}
+
+func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{
+		User:        UserSummary{ID: "user-1"},
+		Permissions: []string{"/bob/customer/query", "/bob/customer/submit"},
+	}}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/workbench/query",
+		strings.NewReader(`{"category":"BOB","entities":["customer"],"pendingStages":["APPROVE"],"page":1,"pageSize":20}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "token"})
+	responseRecorder := httptest.NewRecorder()
+
+	testRouter(stub).ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if stub.sessionAuthorizedPath != "/app/workbench/query" || stub.authorizedPath != "" {
+		t.Fatalf("authorization paths: session=%q permission=%q", stub.sessionAuthorizedPath, stub.authorizedPath)
+	}
+	if stub.workbenchInput.Category != WorkbenchCategoryBob {
+		t.Fatalf("workbench category = %q", stub.workbenchInput.Category)
+	}
+	if len(stub.workbenchInput.Entities) != 1 || stub.workbenchInput.Entities[0] != "customer" ||
+		len(stub.workbenchInput.PendingStages) != 1 || stub.workbenchInput.PendingStages[0] != "APPROVE" {
+		t.Fatalf("workbench filters = entities %v, stages %v", stub.workbenchInput.Entities, stub.workbenchInput.PendingStages)
 	}
 }
 

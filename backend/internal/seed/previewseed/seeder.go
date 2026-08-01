@@ -159,6 +159,9 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	if err := s.seedLedgerBaseline(ctx, &result.Ledger); err != nil {
 		return result, fmt.Errorf("seed ledger baseline: %w", err)
 	}
+	if err := s.seedInventoryBalance(ctx, &result.Ledger); err != nil {
+		return result, fmt.Errorf("seed inventory balance: %w", err)
+	}
 	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed voucher data: %w", err)
 	}

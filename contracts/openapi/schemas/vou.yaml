@@ -85,9 +85,11 @@
           'unit',
           'excludedPackaging',
           'warehouseAvailable',
+          'orderedQuantity',
           'outboundQuantity',
           'inTransitQuantity',
           'signedQuantity',
+          'netSignedQuantity',
         ],
       'additionalProperties': false,
       'properties':
@@ -96,9 +98,11 @@
           'excludedPackaging': { 'type': 'boolean' },
           'warehouseAvailable': { 'type': 'boolean' },
           'shortageQuantity': { 'type': 'string' },
+          'orderedQuantity': { 'type': 'string' },
           'outboundQuantity': { 'type': 'string' },
           'inTransitQuantity': { 'type': 'string' },
           'signedQuantity': { 'type': 'string' },
+          'netSignedQuantity': { 'type': 'string' },
         },
     },
   'VouPurchaseKgSummary':

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { apiClient, type ApiPostPath } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
@@ -166,33 +167,25 @@ function amountText(item: ProcessListItem): string {
 
 function summaryLabels(): string[] {
   return props.processEntity === 'sales-fulfillment'
-    ? ['缺货', '出库', '在途', '签收']
-    : ['订购', '累计入库', '退货中', '净入库']
+    ? ['订购', '出库', '净签收']
+    : ['订购', '净入库']
 }
 
 function summaryValues(item: ProcessListItem): string[] {
   if (props.processEntity === 'sales-fulfillment') {
     const summary = (item as SalesProcessListItem).summary
     return [
-      summary.warehouseAvailable ? (summary.shortageQuantity ?? '0') : '—',
+      summary.orderedQuantity,
       summary.outboundQuantity,
-      summary.inTransitQuantity,
-      summary.signedQuantity,
+      summary.netSignedQuantity,
     ]
   }
   const summary = (item as PurchaseProcessListItem).summary
-  return [
-    summary.orderedQuantity,
-    summary.inboundQuantity,
-    summary.returnProcessingQuantity,
-    summary.netInboundQuantity,
-  ]
+  return [summary.orderedQuantity, summary.netInboundQuantity]
 }
 
 function summaryNote(item: ProcessListItem): string | undefined {
   const summary = item.summary
-  if ('warehouseAvailable' in summary && !summary.warehouseAvailable)
-    return '历史订单仓库不明确'
   return summary.excludedPackaging ? '不含包装物' : undefined
 }
 
@@ -293,9 +286,7 @@ onMounted(query)
       @update:keyword="keyword = $event"
     />
 
-    <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
-      {{ errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="errorMessage" @dismiss="errorMessage = null" />
 
     <v-card variant="outlined" class="process-list">
       <v-table class="process-list__desktop">

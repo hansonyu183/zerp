@@ -44,6 +44,17 @@ interface BobMutation {
   code: string
 }
 
+interface VouMutation {
+  documentId: string
+  revision: number
+}
+
+interface VouDocumentView {
+  data: {
+    productLines?: Array<{ lineId: string }>
+  }
+}
+
 async function ensureLedgerReady(api: RealApi): Promise<void> {
   await api.post<ClosingView>('led/closing/get', {})
 }
@@ -167,6 +178,78 @@ async function createAuxiliary(
     objectId: created.objectId,
   })
   return { ...created, code: view.code }
+}
+
+async function seedInventoryThroughLifecycle(
+  operator: RealApi,
+  supplier: BobMutation,
+  purchaser: BobMutation,
+  warehouse: BobMutation,
+  product: BobMutation,
+): Promise<void> {
+  const reference = (value: BobMutation) => ({
+    objectId: value.objectId,
+    versionId: value.versionId,
+  })
+  const order = await operator.post<VouMutation>('vou/purchase-order/create', {
+    data: {
+      businessDate: new Date().toISOString().slice(0, 10),
+      currency: 'CNY',
+      supplier: reference(supplier),
+      purchaser: reference(purchaser),
+      warehouse: reference(warehouse),
+      productLines: [
+        {
+          product: reference(product),
+          orderedQuantity: '1000',
+          unitPrice: '1.00',
+        },
+      ],
+    },
+  })
+  const checkedOrder = await operator.post<VouMutation>(
+    'vou/purchase-order/check',
+    { documentId: order.documentId, revision: order.revision },
+  )
+  await operator.post<VouMutation>('vou/purchase-order/approve', {
+    documentId: checkedOrder.documentId,
+    revision: checkedOrder.revision,
+  })
+  const orderView = await operator.post<VouDocumentView>(
+    'vou/purchase-order/get',
+    { documentId: order.documentId },
+  )
+  const sourceLineId = orderView.data.productLines?.[0]?.lineId
+  if (!sourceLineId) {
+    throw new Error('WFL 库存预置未取得采购订单明细。')
+  }
+  const inbound = await operator.post<VouMutation>(
+    'vou/purchase-inbound/create',
+    {
+      parentEntity: 'purchase-order',
+      parentDocumentId: order.documentId,
+      data: {
+        businessDate: new Date().toISOString().slice(0, 10),
+        warehouse: reference(warehouse),
+        sourceLines: [{ sourceLineId, quantity: '1000' }],
+      },
+    },
+  )
+  const checkedInbound = await operator.post<VouMutation>(
+    'vou/purchase-inbound/check',
+    { documentId: inbound.documentId, revision: inbound.revision },
+  )
+  const approvedInbound = await operator.post<VouMutation>(
+    'vou/purchase-inbound/approve',
+    {
+      documentId: checkedInbound.documentId,
+      revision: checkedInbound.revision,
+    },
+  )
+  await operator.post<VouMutation>('vou/purchase-inbound/finalize', {
+    documentId: approvedInbound.documentId,
+    revision: approvedInbound.revision,
+  })
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -317,6 +400,13 @@ export default async function globalSetup(): Promise<void> {
     )
 
     await ensureLedgerReady(operatorSession.api)
+    await seedInventoryThroughLifecycle(
+      operatorSession.api,
+      supplier,
+      employee,
+      warehouse,
+      solventProduct,
+    )
 
     const state: WflBootstrapState = {
       reviewer: {

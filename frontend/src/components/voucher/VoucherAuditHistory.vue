@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { formatMediumDateTime } from '@/utils/date'
+import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherAuditEvent } from './types'
 
 defineOptions({ name: 'VoucherAuditHistory' })
 
-withDefaults(defineProps<{
-  events: readonly VoucherAuditEvent[]
-  loading?: boolean
-  page: number
-  pageSize: number
-  total: number
-  errorMessage?: string | null
-}>(), {
-  loading: false,
-  errorMessage: null,
-})
+withDefaults(
+  defineProps<{
+    events: readonly VoucherAuditEvent[]
+    loading?: boolean
+    page: number
+    pageSize: number
+    total: number
+    errorMessage?: string | null
+  }>(),
+  {
+    loading: false,
+    errorMessage: null,
+  },
+)
 
 const emit = defineEmits<{
   'update:page': [page: number]
@@ -39,7 +43,6 @@ const eventText: Record<string, string> = {
   ATTACHMENT_UPLOADED: '上传附件',
   ATTACHMENT_REMOVED: '移除附件',
 }
-
 </script>
 
 <template>
@@ -55,9 +58,7 @@ const eventText: Record<string, string> = {
         刷新
       </v-btn>
     </div>
-    <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
-      {{ errorMessage }}
-    </v-alert>
+    <AppSnackbar :message="errorMessage" />
     <v-progress-linear v-if="loading" indeterminate />
     <v-timeline v-if="events.length" align="start" density="compact" side="end">
       <v-timeline-item
@@ -76,8 +77,11 @@ const eventText: Record<string, string> = {
           <v-card-text>
             <div>{{ event.fromStatus || '—' }} → {{ event.toStatus }}</div>
             <div v-if="event.reason" class="mt-2">原因：{{ event.reason }}</div>
-            <div class="mt-2 text-caption">请求编号：{{ event.requestId }}</div>
-            <v-expansion-panels v-if="event.summary" class="mt-3" variant="accordion">
+            <v-expansion-panels
+              v-if="event.summary"
+              class="mt-3"
+              variant="accordion"
+            >
               <v-expansion-panel title="变更摘要">
                 <v-expansion-panel-text>
                   <pre>{{ JSON.stringify(event.summary, null, 2) }}</pre>
@@ -110,6 +114,11 @@ const eventText: Record<string, string> = {
   align-items: center;
   justify-content: space-between;
 }
-.voucher-audit__toolbar h3 { margin: 0; }
-pre { overflow-x: auto; white-space: pre-wrap; }
+.voucher-audit__toolbar h3 {
+  margin: 0;
+}
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
 </style>

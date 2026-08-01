@@ -199,11 +199,17 @@ export function baseColumns(
   extra: readonly BusinessObjectColumn<BobListItem>[] = [],
 ): readonly BusinessObjectColumn<BobListItem>[] {
   return [
-    { key: 'code', label: codeLabel, value: (row) => row.code },
+    {
+      key: 'code',
+      label: codeLabel,
+      value: (row) => row.code,
+      sizing: 'compact',
+    },
     {
       key: 'name',
       label: nameLabel,
       value: (row) => row.currentVersion.summary.name,
+      sizing: 'fluid',
     },
     ...extra,
     {
@@ -211,6 +217,7 @@ export function baseColumns(
       label: '状态',
       value: (row) => row.currentVersion.status,
       format: (value) => statusText[value as BobStatus] ?? String(value),
+      sizing: 'compact',
     },
   ]
 }

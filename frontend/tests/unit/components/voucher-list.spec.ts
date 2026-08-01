@@ -146,7 +146,12 @@ function mountList(
     lifecycleLabels: VoucherLifecycleLabels
     actionLoading: string | null
     fulfillmentSummaryKind: 'sales' | 'purchase'
+    filterable: boolean
+    sortable: boolean
+    showEntity: boolean
+    searchLabel: string
   }> = {},
+  slots: Record<string, unknown> = {},
 ): VueWrapper {
   return mount(VoucherList as Component, {
     props: {
@@ -172,6 +177,7 @@ function mountList(
       },
       ...props,
     },
+    slots,
     global: {
       components: {
         VBtn: VBtnStub,
@@ -213,6 +219,56 @@ describe('VoucherList', () => {
         .props('options')
         .map((option: { value: string }) => option.value),
     ).toEqual(['documentNo', 'businessDate', 'status', 'amount'])
+    expect(wrapper.findAll('th')[0]?.classes()).toContain(
+      'voucher-list__column--compact',
+    )
+    expect(wrapper.findAll('th')[2]?.classes()).toContain(
+      'voucher-list__column--fluid',
+    )
+  })
+
+  it('聚合模式复用单据列表并关闭业务筛选和排序', () => {
+    const row: VoucherListItem = {
+      documentId: 'DOC-1',
+      entity: 'sale-order',
+      documentNo: 'SO-0001',
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-31',
+      currency: 'CNY',
+      amount: '100.00',
+      updatedAt: '2026-07-31T00:00:00Z',
+    }
+    const wrapper = mountList(
+      {
+        rows: [row],
+        filterable: false,
+        sortable: false,
+        showEntity: true,
+      },
+      {
+        'cell-entity': () => '销售订单',
+        'cell-status': () => '待核对',
+        'cell-amount': () => 'CNY 100.00',
+      },
+    )
+
+    expect(wrapper.findAll('th').map((heading) => heading.text())).toEqual([
+      '类型',
+      '单号',
+      '日期',
+      '往来方',
+      '状态',
+      '金额',
+      '操作',
+    ])
+    expect(wrapper.text()).toContain('销售订单')
+    expect(wrapper.text()).toContain('待核对')
+    expect(wrapper.text()).toContain('CNY 100.00')
+    expect(wrapper.findComponent({ name: 'MobileSortControl' }).exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-test="filter-toggle"]').exists()).toBe(false)
   })
 
   it('通过表头从默认单号降序切换方向', async () => {
@@ -252,6 +308,15 @@ describe('VoucherList', () => {
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
+  })
+
+  it('允许业务页面复用筛选面板并替换默认筛选字段', async () => {
+    const wrapper = mountList({}, { filters: '<label>待办状态</label>' })
+
+    await wrapper.get('[data-test="filter-toggle"]').trigger('click')
+
+    expect(wrapper.text()).toContain('待办状态')
+    expect(wrapper.text()).not.toContain('业务日期起')
   })
 
   it('折叠切换保留筛选值并继续发出查询和重置事件', async () => {
@@ -349,16 +414,18 @@ describe('VoucherList', () => {
             excludedPackaging: true,
             warehouseAvailable: true,
             shortageQuantity: '10',
+            orderedQuantity: '30',
             outboundQuantity: '20',
             inTransitQuantity: '5',
             signedQuantity: '15',
+            netSignedQuantity: '12',
           },
         },
       ],
     })
 
-    expect(wrapper.text()).toContain('缺货 / 出库 / 在途 / 签收')
-    expect(wrapper.text()).toContain('10 / 20 / 5 / 15KG')
+    expect(wrapper.text()).toContain('订购 / 出库 / 净签收')
+    expect(wrapper.text()).toContain('30 / 20 / 12KG')
     expect(wrapper.text()).toContain('不含包装物')
   })
 

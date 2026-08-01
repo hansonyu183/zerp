@@ -270,7 +270,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   async function openDocument(
-    row: VoucherListItem,
+    row: Pick<VoucherListItem, 'documentId'>,
     edit = false,
   ): Promise<void> {
     if (!canView()) return
@@ -279,7 +279,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     workspaceError.value = null
     try {
       await loadDocument(row.documentId)
-      editing.value = edit && documentView.value?.status === 'DRAFT'
+      const editable = documentView.value?.status === 'DRAFT'
+      editing.value = edit && editable && session.can(permission('save'))
       if (actionAvailability.value.audit) void loadAudit(1)
     } catch (error) {
       workspaceError.value = getErrorMessage(error)

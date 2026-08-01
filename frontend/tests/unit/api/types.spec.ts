@@ -32,5 +32,21 @@ describe('API user messages', () => {
         ),
       ),
     ).toBe('单据资料不完整，请先编辑并补全必填信息，保存后再重试。')
+
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'inventory timeline would become negative', {
+          code: 3001,
+        }),
+      ),
+    ).toBe('库存不足，无法完成销售出库。请先补充库存后重试。')
+
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'settlement-method reference is unavailable', {
+          code: 3001,
+        }),
+      ),
+    ).toBe('结算方式已失效，请先编辑并重新选择后再提交审核。')
   })
 })

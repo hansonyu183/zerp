@@ -113,6 +113,91 @@ func ledReference(view bobdomain.ObjectView) leddomain.ReferenceInput {
 	}
 }
 
+func (s *Seeder) seedInventoryBalance(ctx context.Context, counts *Counts) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var generationID string
+	if err = tx.QueryRow(ctx, `
+		SELECT active_generation_id
+		FROM led_control
+		WHERE singleton AND status='ACTIVE' AND active_generation_id IS NOT NULL
+		FOR UPDATE
+	`).Scan(&generationID); errors.Is(err, pgx.ErrNoRows) {
+		return errors.New("active ledger generation is required")
+	} else if err != nil {
+		return err
+	}
+
+	warehouse := s.bobRefs["warehouse-effective"]
+	type inventoryBalance struct {
+		key                    string
+		product                bobdomain.ObjectView
+		quantityMicros         int64
+		unitPrice, amountCents int64
+	}
+	balances := []inventoryBalance{
+		{
+			key: "raw", product: s.bobRefs["raw-effective"],
+			quantityMicros: 1_000_000_000, unitPrice: 1_000, amountCents: 1_000_000,
+		},
+		{
+			key: "finished", product: s.bobRefs["finished-effective"],
+			quantityMicros: 100_000_000, unitPrice: 5_000, amountCents: 500_000,
+		},
+	}
+	created := false
+	for _, balance := range balances {
+		var exists bool
+		if err = tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM led_inventory_entries
+				WHERE generation_id=$1 AND entry_type='OPENING'
+				  AND warehouse_object_id=$2 AND product_object_id=$3
+			)
+		`, generationID, warehouse.ObjectID, balance.product.ObjectID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		id := ulid.Make().String()
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO led_inventory_entries(
+				id,generation_id,entry_type,source_entity,source_line_id,effective_date,
+				occurred_at,actor_id,request_id,remark,
+				warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name,
+				product_object_id,product_version_id,product_code,product_name,product_unit,
+				quantity_delta_micros,currency,unit_price_cents,amount_cents
+			) VALUES(
+				$1,$2,'OPENING','opening',$1,'2026-07-01',$3,$4,$5,$6,
+				$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'CNY',$17,$18
+			)
+		`, id, generationID, time.Now().UTC(), actorID,
+			requestID("inventory-balance-"+balance.key, "opening"),
+			"预览测试开放期间库存期初",
+			warehouse.ObjectID, warehouse.Version.VersionID, warehouse.Code, warehouse.Data.Name,
+			balance.product.ObjectID, balance.product.Version.VersionID,
+			balance.product.Code, balance.product.Data.Name, balance.product.Data.Unit,
+			balance.quantityMicros, balance.unitPrice, balance.amountCents); err != nil {
+			return fmt.Errorf("insert preview inventory opening: %w", err)
+		}
+		created = true
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	if created {
+		counts.add(outcomeCreated)
+	} else {
+		counts.add(outcomeSkipped)
+	}
+	return nil
+}
+
 func (s *Seeder) seedContainerBalance(ctx context.Context, counts *Counts) error {
 	var exists int
 	err := s.pool.QueryRow(ctx, `

@@ -59,6 +59,10 @@ export class ApiError extends Error {
 const businessMessageTranslations: Readonly<Record<string, string>> = {
   'document attributes are incomplete; return to draft and save before continuing':
     '单据资料不完整，请先编辑并补全必填信息，保存后再重试。',
+  'inventory timeline would become negative':
+    '库存不足，无法完成销售出库。请先补充库存后重试。',
+  'settlement-method reference is unavailable':
+    '结算方式已失效，请先编辑并重新选择后再提交审核。',
 }
 
 export function getErrorMessage(error: unknown): string {

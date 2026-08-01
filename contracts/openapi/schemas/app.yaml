@@ -201,7 +201,7 @@
       'properties':
         {
           'category': { 'type': 'string', 'enum': ['BOB'] },
-          'entity': { 'type': 'string' },
+          'entity': { '$ref': '../schemas/bob.yaml#/BobEntity' },
           'status': { 'type': 'string', 'enum': ['DRAFT', 'PENDING'] },
           'pendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
           'availableActions':
@@ -238,7 +238,7 @@
       'properties':
         {
           'category': { 'type': 'string', 'enum': ['VOU'] },
-          'entity': { 'type': 'string' },
+          'entity': { '$ref': '../schemas/vou.yaml#/VouEntity' },
           'status':
             { 'type': 'string', 'enum': ['DRAFT', 'CHECKED', 'APPROVED'] },
           'pendingStage': { '$ref': '#/WorkbenchPendingStage' },

@@ -110,7 +110,7 @@ func (s *Service) QueryWorkbench(
 	}
 	scope := newWorkbenchPermissionScope(principal.Permissions)
 	if input.Category == WorkbenchCategoryBob {
-		return s.queryWorkbenchBob(ctx, scope, input, spec)
+		return s.queryWorkbenchBob(ctx, principal.User.ID, scope, input, spec)
 	}
 	return s.queryWorkbenchVou(ctx, scope, input, spec)
 }
@@ -138,6 +138,7 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 
 func (s *Service) queryWorkbenchBob(
 	ctx context.Context,
+	actorID string,
 	scope workbenchPermissionScope,
 	input WorkbenchQueryInput,
 	spec pageSpec,
@@ -157,14 +158,16 @@ func (s *Service) queryWorkbenchBob(
 		pendingEntities = nil
 	}
 	params := dbsqlc.CountWorkbenchBobItemsParams{
-		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: input.Keyword,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
+		ActorID: actorID, Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchBobItems(ctx, params)
 	if err != nil {
 		return Page[WorkbenchItem]{}, s.internal("count workbench business objects", err)
 	}
 	rows, err := s.queries.ListWorkbenchBobItems(ctx, dbsqlc.ListWorkbenchBobItemsParams{
-		DraftEntities: draftEntities, PendingEntities: pendingEntities, Keyword: input.Keyword,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
+		ActorID: actorID, Keyword: input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
 	if err != nil {

@@ -6,6 +6,7 @@ WHERE view.version_id = view.current_version_id
     (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (view.status = 'PENDING' AND view.entity = ANY(sqlc.arg(pending_entities)::text[]))
   )
+  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text)
   AND (
     sqlc.arg(keyword)::text = ''
     OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -21,6 +22,7 @@ WHERE view.version_id = view.current_version_id
     (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (view.status = 'PENDING' AND view.entity = ANY(sqlc.arg(pending_entities)::text[]))
   )
+  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text)
   AND (
     sqlc.arg(keyword)::text = ''
     OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'

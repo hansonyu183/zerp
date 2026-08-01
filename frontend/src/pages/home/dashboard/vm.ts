@@ -1,7 +1,13 @@
 import { computed, reactive, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
-import { apiClient, type ApiPostPath } from '@/api/client'
+import { apiClient } from '@/api/client'
+import {
+  approveBusinessObject,
+  rejectBusinessObject,
+  submitBusinessObject,
+} from '@/api/bob'
 import { getErrorMessage, type PageResult } from '@/api/types'
+import { approveVoucher, checkVoucher, finalizeVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
@@ -119,20 +125,33 @@ export function useDashboardViewModel() {
     state.errorMessage = null
     try {
       if (item.category === 'BOB') {
-        await apiClient.post<unknown, Record<string, unknown>>(
-          `bob/${item.entity}/${action}` as ApiPostPath,
-          {
-            objectId: item.objectId,
-            versionId: item.versionId,
-            revision: item.revision,
-            ...(action === 'reject' ? { comment: comment.trim() } : {}),
-          },
-        )
+        const request = {
+          objectId: item.objectId,
+          versionId: item.versionId,
+          revision: item.revision,
+        }
+        if (action === 'submit') {
+          await submitBusinessObject(item.entity, request)
+        } else if (action === 'approve') {
+          await approveBusinessObject(item.entity, request)
+        } else if (action === 'reject') {
+          await rejectBusinessObject(item.entity, {
+            ...request,
+            comment: comment.trim(),
+          })
+        }
       } else {
-        await apiClient.post<unknown, Record<string, unknown>>(
-          `vou/${item.entity}/${action}` as ApiPostPath,
-          { documentId: item.documentId, revision: item.revision },
-        )
+        const request = {
+          documentId: item.documentId,
+          revision: item.revision,
+        }
+        if (action === 'check') {
+          await checkVoucher(item.entity, request)
+        } else if (action === 'approve') {
+          await approveVoucher(item.entity, request)
+        } else if (action === 'finalize') {
+          await finalizeVoucher(item.entity, request)
+        }
       }
       if (state.rows.length === 1 && state.page > 1) state.page -= 1
       await query(category)

@@ -90,7 +90,7 @@ test('使用双账号完成客户反向流转、启禁用和历史核验', async
   const draftWorkbenchRow = await searchWorkbench(page, '待处理资料', code!)
   await expect(draftWorkbenchRow).toContainText('待核对')
   await draftWorkbenchRow.getByLabel(`提交审核 ${code}`).click()
-  await expect(draftWorkbenchRow).toContainText('待批准')
+  await expect(draftWorkbenchRow).toHaveCount(0)
   await openCustomer(page)
   await searchCustomer(page, code!)
   await expect(

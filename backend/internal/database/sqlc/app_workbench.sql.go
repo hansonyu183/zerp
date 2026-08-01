@@ -19,21 +19,28 @@ WHERE view.version_id = view.current_version_id
     (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
     OR (view.status = 'PENDING' AND view.entity = ANY($2::text[]))
   )
+  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM $3::text)
   AND (
-    $3::text = ''
-    OR view.code ILIKE '%' || $3 || '%'
-    OR view.name ILIKE '%' || $3 || '%'
+    $4::text = ''
+    OR view.code ILIKE '%' || $4 || '%'
+    OR view.name ILIKE '%' || $4 || '%'
   )
 `
 
 type CountWorkbenchBobItemsParams struct {
 	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
 	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
+	ActorID         string   `db:"actor_id" json:"actor_id"`
 	Keyword         string   `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkbenchBobItems, arg.DraftEntities, arg.PendingEntities, arg.Keyword)
+	row := q.db.QueryRow(ctx, countWorkbenchBobItems,
+		arg.DraftEntities,
+		arg.PendingEntities,
+		arg.ActorID,
+		arg.Keyword,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -99,18 +106,20 @@ WHERE view.version_id = view.current_version_id
     (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
     OR (view.status = 'PENDING' AND view.entity = ANY($2::text[]))
   )
+  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM $3::text)
   AND (
-    $3::text = ''
-    OR view.code ILIKE '%' || $3 || '%'
-    OR view.name ILIKE '%' || $3 || '%'
+    $4::text = ''
+    OR view.code ILIKE '%' || $4 || '%'
+    OR view.name ILIKE '%' || $4 || '%'
   )
 ORDER BY view.object_updated_at DESC, view.object_id ASC
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type ListWorkbenchBobItemsParams struct {
 	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
 	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
+	ActorID         string   `db:"actor_id" json:"actor_id"`
 	Keyword         string   `db:"keyword" json:"keyword"`
 	PageOffset      int32    `db:"page_offset" json:"page_offset"`
 	PageSize        int32    `db:"page_size" json:"page_size"`
@@ -132,6 +141,7 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 	rows, err := q.db.Query(ctx, listWorkbenchBobItems,
 		arg.DraftEntities,
 		arg.PendingEntities,
+		arg.ActorID,
 		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,

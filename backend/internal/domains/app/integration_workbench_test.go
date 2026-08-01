@@ -119,7 +119,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		t.Fatalf("commit workbench vouchers: %v", err)
 	}
 
-	bobPrincipal := Principal{Permissions: []string{
+	bobPrincipal := Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/bob/warehouse/query", "/bob/warehouse/get", "/bob/warehouse/save",
 		"/bob/warehouse/submit", "/bob/warehouse/approve", "/bob/warehouse/reject",
 	}}
@@ -146,6 +146,17 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if err != nil || bobApprovalPage.Total != 1 || len(bobApprovalPage.Items) != 1 ||
 		bobApprovalPage.Items[0].ObjectID != pending.ObjectID {
 		t.Fatalf("filtered BOB workbench page = %+v, err = %v", bobApprovalPage, err)
+	}
+	selfApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{
+		User: UserSummary{ID: admin.ID}, Permissions: []string{
+			"/bob/warehouse/query", "/bob/warehouse/approve", "/bob/warehouse/reject",
+		},
+	}, WorkbenchQueryInput{
+		Category: WorkbenchCategoryBob, Keyword: pendingName,
+		PendingStages: []string{"APPROVE"}, Page: 1, PageSize: 20,
+	})
+	if err != nil || selfApprovalPage.Total != 0 || len(selfApprovalPage.Items) != 0 {
+		t.Fatalf("self-submitted BOB workbench page = %+v, err = %v", selfApprovalPage, err)
 	}
 
 	noActionPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{

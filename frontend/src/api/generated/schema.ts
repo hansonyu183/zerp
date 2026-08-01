@@ -1633,11 +1633,13 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
+        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
+        /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
         WorkbenchObjectItem: {
             /** @enum {string} */
             category: "BOB";
-            entity: string;
+            entity: components["schemas"]["BobEntity"];
             /** @enum {string} */
             status: "DRAFT" | "PENDING";
             /** @enum {string} */
@@ -1654,10 +1656,12 @@ export interface components {
             code: string;
             name: string;
         };
+        /** @enum {string} */
+        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
-            entity: string;
+            entity: components["schemas"]["VouEntity"];
             /** @enum {string} */
             status: "DRAFT" | "CHECKED" | "APPROVED";
             pendingStage: components["schemas"]["WorkbenchPendingStage"];
@@ -1816,8 +1820,6 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
         BobGetRequest: {
             objectId: string;
             versionId?: string;
@@ -1975,8 +1977,6 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         VouQueryRequest: {
             page: number;
             pageSize: number;

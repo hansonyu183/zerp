@@ -13,6 +13,7 @@ import (
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -339,11 +340,14 @@ func TestLEDInventoryPostingStrictBalanceAndDeletionIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute purchase: %v", err)
 	}
-	var purchaseSource, purchaseDate string
-	if err = pool.QueryRow(t.Context(), `SELECT source_entity,effective_date::text
+	var purchaseSource, purchaseDate, purchaseActor string
+	if err = pool.QueryRow(t.Context(), `SELECT source_entity,effective_date::text,actor_id
 		FROM led_inventory_entries WHERE source_document_id=$1`, purchaseExecuted.DocumentID).
-		Scan(&purchaseSource, &purchaseDate); err != nil {
+		Scan(&purchaseSource, &purchaseDate, &purchaseActor); err != nil {
 		t.Fatalf("read purchase inventory entry: %v", err)
+	}
+	if purchaseActor != systemidentity.UserID {
+		t.Fatalf("automatic ledger actor = %s", purchaseActor)
 	}
 	purchaseEntries, err := ledger.QueryInventory(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,

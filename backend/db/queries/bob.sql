@@ -782,7 +782,9 @@ UPDATE bob_versions
 SET status = 'EFFECTIVE', revision = revision + 1, reviewed_at = now(), reviewed_by = sqlc.arg(actor_id),
     review_comment = sqlc.narg(comment), updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'PENDING' AND submitted_by <> sqlc.arg(actor_id);
+  AND revision = sqlc.arg(revision) AND status = 'PENDING'
+  AND (submitted_by <> sqlc.arg(actor_id)
+       OR sqlc.arg(actor_id) = '01JAPPSYST3MACTR0000000000');
 
 -- name: RejectBobVersion :execrows
 UPDATE bob_versions
@@ -791,7 +793,9 @@ SET status = 'DRAFT', revision = revision + 1,
     reviewed_at = NULL, reviewed_by = NULL, review_comment = NULL,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'PENDING' AND submitted_by <> sqlc.arg(actor_id);
+  AND revision = sqlc.arg(revision) AND status = 'PENDING'
+  AND (submitted_by <> sqlc.arg(actor_id)
+       OR sqlc.arg(actor_id) = '01JAPPSYST3MACTR0000000000');
 
 -- name: UnsubmitBobVersion :execrows
 UPDATE bob_versions

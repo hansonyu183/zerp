@@ -58,5 +58,17 @@ describe('API user messages', () => {
         ),
       ),
     ).toBe('提交人与审核人不能为同一人，请由其他有审批权限的用户处理。')
+
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'system identity is managed internally', {
+          code: 3001,
+        }),
+      ),
+    ).toBe('系统用户和系统角色由系统维护，不能人工修改。')
+
+    expect(
+      getErrorMessage(new ApiError('business', 'role code is reserved')),
+    ).toBe('该角色编码为系统保留编码，请使用其他编码。')
   })
 })

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -447,7 +448,7 @@ func (s *Service) Approve(ctx context.Context, entity string, input ReviewInput,
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before approval")
 	}
-	if version.SubmittedBy == nil || *version.SubmittedBy == actorID {
+	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	if err = s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
@@ -499,7 +500,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before rejection")
 	}
-	if version.SubmittedBy == nil || *version.SubmittedBy == actorID {
+	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	rows, err := qtx.RejectBobVersion(ctx, dbsqlc.RejectBobVersionParams{

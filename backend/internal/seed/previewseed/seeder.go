@@ -11,14 +11,15 @@ import (
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	actorID      = "01J00000000000000000000002"
-	reviewerID   = "01J00000000000000000000001"
+	actorID      = systemidentity.UserID
+	reviewerID   = systemidentity.UserID
 	seedPrefix   = "seed-preview-"
 	historyDate  = "2026-06-30"
 	openingDate  = "2026-06-01"

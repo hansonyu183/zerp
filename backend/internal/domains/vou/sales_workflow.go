@@ -9,6 +9,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -363,8 +364,10 @@ func (s *Service) onManagedSalesApproved(
 	ctx context.Context,
 	tx pgx.Tx,
 	document dbsqlc.VouDocument,
-	actorID, requestID string,
+	_ string,
+	requestID string,
 ) (map[string]any, error) {
+	actorID := systemidentity.UserID
 	if !managedSalesDocument(document) {
 		return nil, nil
 	}
@@ -795,8 +798,10 @@ func (s *Service) replenishManagedOutbound(
 	ctx context.Context,
 	tx pgx.Tx,
 	document dbsqlc.VouDocument,
-	actorID, requestID string,
+	_ string,
+	requestID string,
 ) error {
+	actorID := systemidentity.UserID
 	if !managedSalesDocument(document) {
 		return nil
 	}

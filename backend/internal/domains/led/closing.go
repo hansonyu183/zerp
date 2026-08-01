@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -57,7 +58,7 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 		if _, err = tx.Exec(ctx, `INSERT INTO led_generations(
 			id,cutover_date,status,activated_by,request_id
 		) VALUES($1,DATE '0001-01-01','ACTIVE',$2,'zero-opening')`,
-			id, "01JLEDSYSTEM00000000000000"); err != nil {
+			id, systemidentity.UserID); err != nil {
 			return s.writeError("create ledger base generation", err)
 		}
 		generationID = &id
@@ -85,7 +86,7 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 	}
 	if err = s.replayVouDocuments(
 		ctx, tx, q, *generationID, time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
-		documents, "01JLEDSYSTEM00000000000000", "zero-opening",
+		documents, systemidentity.UserID, "zero-opening",
 	); err != nil {
 		return err
 	}
@@ -102,8 +103,8 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 		)
 	}
 	if _, err = tx.Exec(ctx, `UPDATE led_control SET rebuild_required=false,
-		cutover_date=DATE '0001-01-01',updated_at=now(),
-		updated_by='01JLEDSYSTEM00000000000000' WHERE singleton=true`); err != nil {
+		cutover_date=DATE '0001-01-01',updated_at=now(),updated_by=$1
+		WHERE singleton=true`, systemidentity.UserID); err != nil {
 		return s.writeError("finish ledger initialization", err)
 	}
 	if err = tx.Commit(ctx); err != nil {

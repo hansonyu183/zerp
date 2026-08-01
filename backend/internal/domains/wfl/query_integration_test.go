@@ -12,6 +12,7 @@ import (
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
@@ -245,11 +246,33 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 	lines := orderView.Data.ProductLines
 	var generatedOutboundID string
 	var generatedOutboundRevision int64
-	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision
+	var generatedOutboundCreator string
+	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision,d.created_by
 		FROM vou_documents d JOIN vou_sale_outbound_details detail ON detail.document_id=d.id
 		WHERE detail.source_order_id=$1 AND d.status='DRAFT'`, order.DocumentID).
-		Scan(&generatedOutboundID, &generatedOutboundRevision); err != nil {
+		Scan(&generatedOutboundID, &generatedOutboundRevision, &generatedOutboundCreator); err != nil {
 		t.Fatalf("load generated outbound draft: %v", err)
+	}
+	var sourceCreator, processCreator, processAuditActor, generatedAuditActor string
+	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, order.DocumentID).Scan(&sourceCreator); err != nil {
+		t.Fatalf("load source order creator: %v", err)
+	}
+	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM wfl_process_instances WHERE id=$1`, order.DocumentID).Scan(&processCreator); err != nil {
+		t.Fatalf("load workflow creator: %v", err)
+	}
+	if err := pool.QueryRow(t.Context(), `SELECT actor_id FROM wfl_audit_events
+		WHERE process_id=$1 ORDER BY occurred_at LIMIT 1`, order.DocumentID).Scan(&processAuditActor); err != nil {
+		t.Fatalf("load workflow audit actor: %v", err)
+	}
+	if err := pool.QueryRow(t.Context(), `SELECT actor_id FROM vou_audit_events
+		WHERE document_id=$1 AND event_type='CREATED' ORDER BY occurred_at LIMIT 1`, generatedOutboundID).Scan(&generatedAuditActor); err != nil {
+		t.Fatalf("load generated outbound audit actor: %v", err)
+	}
+	if sourceCreator != workflowIntegrationActor || generatedOutboundCreator != systemidentity.UserID ||
+		generatedAuditActor != systemidentity.UserID || processCreator != systemidentity.UserID ||
+		processAuditActor != systemidentity.UserID {
+		t.Fatalf("automatic actors source=%s outbound=%s outboundAudit=%s process=%s processAudit=%s",
+			sourceCreator, generatedOutboundCreator, generatedAuditActor, processCreator, processAuditActor)
 	}
 	tx, err := pool.Begin(t.Context())
 	if err != nil {

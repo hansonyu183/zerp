@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -64,6 +66,9 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput, actorID
 	input.Username = normalizeUsername(input.Username)
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.RoleIDs = uniqueStrings(input.RoleIDs)
+	if input.Username == systemidentity.Username || slices.Contains(input.RoleIDs, systemidentity.RoleID) {
+		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
 	if !runeLengthBetween(input.Username, 3, 64) || !runeLengthBetween(input.DisplayName, 1, 128) || !validRoleIDs(input.RoleIDs) {
 		return UserView{}, domainError(ErrorValidation, "invalid user fields", nil)
 	}
@@ -108,6 +113,9 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput, actorID
 func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, requestID string) (UserView, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.RoleIDs = uniqueStrings(input.RoleIDs)
+	if systemidentity.IsUser(input.ID) || slices.Contains(input.RoleIDs, systemidentity.RoleID) {
+		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
 	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.DisplayName, 1, 128) || !validRoleIDs(input.RoleIDs) {
 		return UserView{}, domainError(ErrorValidation, "invalid user fields", nil)
 	}
@@ -149,6 +157,9 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, re
 }
 
 func (s *Service) SetUserStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (UserView, error) {
+	if systemidentity.IsUser(id) {
+		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
 	if !validID(id) || revision < 1 || (status != StatusEnabled && status != StatusDisabled) {
 		return UserView{}, domainError(ErrorValidation, "invalid status request", nil)
 	}

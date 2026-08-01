@@ -7,13 +7,14 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	submitterID = "01J00000000000000000000000"
-	reviewerID  = "01J00000000000000000000001"
+	submitterID = systemidentity.UserID
+	reviewerID  = systemidentity.UserID
 )
 
 type Result struct {

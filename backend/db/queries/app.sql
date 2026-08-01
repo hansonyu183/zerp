@@ -85,8 +85,8 @@ SELECT count(*) FROM app_users
 WHERE (sqlc.narg(status)::text IS NULL OR status = sqlc.narg(status))
   AND (sqlc.narg(search)::text IS NULL OR username ILIKE '%' || sqlc.narg(search) || '%' OR display_name ILIKE '%' || sqlc.narg(search) || '%');
 
--- name: CountAllAppUsers :one
-SELECT count(*) FROM app_users;
+-- name: CountAppUsersExcept :one
+SELECT count(*) FROM app_users WHERE id <> sqlc.arg(excluded_user_id);
 
 -- name: ListAppUsers :many
 SELECT id, username, display_name, status, failed_signin_count, locked_until, password_changed_at,

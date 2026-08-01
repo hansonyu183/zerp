@@ -109,11 +109,13 @@ a {
     gap: 12px;
     grid-template-columns: minmax(88px, 32%) minmax(0, 1fr);
     height: auto !important;
+    max-width: none !important;
     min-width: 0 !important;
     padding: 10px 4px !important;
     text-align: start !important;
     vertical-align: top;
     white-space: normal !important;
+    width: auto !important;
   }
 
   .responsive-table tbody > tr > td:last-child,

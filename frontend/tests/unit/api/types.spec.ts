@@ -21,4 +21,16 @@ describe('API user messages', () => {
       '服务响应异常，请稍后重试。',
     )
   })
+
+  it('将可处理的英文业务冲突转换为明确中文提示', () => {
+    expect(
+      getErrorMessage(
+        new ApiError(
+          'business',
+          'document attributes are incomplete; return to draft and save before continuing',
+          { code: 3001 },
+        ),
+      ),
+    ).toBe('单据资料不完整，请先编辑并补全必填信息，保存后再重试。')
+  })
 })

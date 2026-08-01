@@ -56,9 +56,17 @@ export class ApiError extends Error {
   }
 }
 
+const businessMessageTranslations: Readonly<Record<string, string>> = {
+  'document attributes are incomplete; return to draft and save before continuing':
+    '单据资料不完整，请先编辑并补全必填信息，保存后再重试。',
+}
+
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const message = sanitizeUserMessage(error.message)
+    if (error.kind === 'business' && businessMessageTranslations[message]) {
+      return businessMessageTranslations[message]
+    }
     if (containsChineseText(message)) return message
 
     return {

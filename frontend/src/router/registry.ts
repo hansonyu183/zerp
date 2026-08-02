@@ -34,12 +34,11 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const HIDDEN_COMPATIBILITY_PAGES = new Set([
-  'wfl/purchase-fulfillment',
-  'wfl/sales-fulfillment',
-])
+const HIDDEN_COMPATIBILITY_PAGES = new Set(['wfl/process-instance'])
 const developingPage: PageLoader = () =>
   import('@/pages/system/developing/Developing.vue')
+const workflowInstancePage: PageLoader = () =>
+  import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
 type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
@@ -463,6 +462,13 @@ export function buildMenus(
 
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
+    if (
+      domainId === 'wfl' &&
+      entityId !== 'process-definition' &&
+      !actions.includes('query')
+    ) {
+      continue
+    }
     const registration = registrationsByPage.get(key)
     const domainRegistration =
       registration ?? registrationsByDomain.get(domainId)
@@ -524,16 +530,22 @@ export function registerMenuRoutes(
     for (const entity of domain.children) {
       const key = `${domain.domain}/${entity.entity}`
       const registration = pageRegistry[key]
+      const dynamicWorkflow =
+        domain.domain === 'wfl' &&
+        entity.entity !== 'process-definition' &&
+        !registration
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
       const currentRoute = router
         .getRoutes()
         .find((route) => route.name === routeName)
-      const developing = !registration
+      const developing = !registration && !dynamicWorkflow
       const routeIsCurrent =
         currentRoute?.meta.title === entity.title &&
         currentRoute.meta.developing === developing &&
+        currentRoute.meta.processName ===
+          (dynamicWorkflow ? entity.entity : undefined) &&
         hasSameActions(currentRoute.meta.actions, entity.actions)
 
       registeredRouteNames.add(routeName)
@@ -543,12 +555,15 @@ export function registerMenuRoutes(
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component: registration?.component ?? developingPage,
+        component:
+          registration?.component ??
+          (dynamicWorkflow ? workflowInstancePage : developingPage),
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
           developing,
+          ...(dynamicWorkflow ? { processName: entity.entity } : {}),
         },
       })
       added += 1

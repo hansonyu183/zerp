@@ -358,6 +358,7 @@ export function useProcessDefinitionViewModel() {
         definitionId: definition.definitionId,
         revision: definition.revision,
       })
+      await session.restore({ force: true })
       if (actionName === 'delete') {
         editorOpen.value = false
         selected.value = null

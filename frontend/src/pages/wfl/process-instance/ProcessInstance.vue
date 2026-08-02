@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
 import { useProcessInstanceViewModel } from './vm'
 
 const vm = useProcessInstanceViewModel()
@@ -12,7 +13,7 @@ const vm = useProcessInstanceViewModel()
       :keyword="vm.keyword.value"
       :loading="vm.loading.value"
       search-label="根单号或流程名称"
-      @query="vm.query"
+      @query="vm.query({ resetPage: true })"
       @update:keyword="vm.keyword.value = $event"
     >
       <template #toolbar>
@@ -46,22 +47,36 @@ const vm = useProcessInstanceViewModel()
             <th>流程</th>
             <th>根单号</th>
             <th>根单据</th>
+            <th>当前节点</th>
             <th>状态</th>
             <th>更新时间</th>
+            <th class="text-right">操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="item in vm.items.value"
-            :key="item.processId"
-            @click="vm.open(item)"
-          >
+          <tr v-for="item in vm.items.value" :key="item.processId">
             <td>
               <strong>{{ item.definitionName }}</strong
               ><small>{{ item.definitionCode }}</small>
             </td>
             <td>{{ item.rootDocumentNo }}</td>
             <td>{{ item.rootEntity }}</td>
+            <td>
+              <div
+                v-if="item.currentNodes.length"
+                class="instance-current-nodes"
+              >
+                <v-chip
+                  v-for="node in item.currentNodes"
+                  :key="node.nodeInstanceId"
+                  size="x-small"
+                  variant="tonal"
+                >
+                  {{ node.nodeName }} · {{ node.documentNo }}
+                </v-chip>
+              </div>
+              <span v-else class="text-medium-emphasis">—</span>
+            </td>
             <td>
               <v-chip
                 size="small"
@@ -70,21 +85,52 @@ const vm = useProcessInstanceViewModel()
               >
             </td>
             <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
+            <td>
+              <ListRowActions
+                :loading="vm.loading.value"
+                :primary="[
+                  {
+                    key: 'current',
+                    label: '处理当前节点',
+                    icon: 'mdi-open-in-new',
+                    disabled: item.currentNodes.length === 0,
+                  },
+                ]"
+                :more="[
+                  {
+                    key: 'view',
+                    label: '查看流程',
+                    icon: 'mdi-sitemap-outline',
+                    disabled: !vm.can('get'),
+                  },
+                  {
+                    key: 'root',
+                    label: '打开根单据',
+                    icon: 'mdi-file-document-outline',
+                  },
+                ]"
+                @select="
+                  $event === 'current'
+                    ? vm.processCurrent(item)
+                    : $event === 'view'
+                      ? vm.open(item)
+                      : vm.openRoot(item)
+                "
+              />
+            </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.items.value.length === 0">
-            <td colspan="5" class="text-center py-8 text-medium-emphasis">
+            <td colspan="7" class="text-center py-8 text-medium-emphasis">
               暂无流程实例
             </td>
           </tr>
         </tbody>
       </v-table>
       <div class="instance-list__mobile">
-        <button
+        <article
           v-for="item in vm.items.value"
           :key="item.processId"
           class="instance-card"
-          type="button"
-          @click="vm.open(item)"
         >
           <span class="instance-card__title">{{ item.definitionName }}</span>
           <v-chip
@@ -94,8 +140,49 @@ const vm = useProcessInstanceViewModel()
           >
           <strong>{{ item.rootDocumentNo }}</strong>
           <span>根单据：{{ item.rootEntity }}</span>
+          <span>
+            当前节点：{{
+              item.currentNodes.length
+                ? item.currentNodes
+                    .map((node) => `${node.nodeName} · ${node.documentNo}`)
+                    .join('、')
+                : '—'
+            }}
+          </span>
           <span>更新时间：{{ new Date(item.updatedAt).toLocaleString() }}</span>
-        </button>
+          <ListRowActions
+            class="instance-card__actions"
+            :loading="vm.loading.value"
+            :primary="[
+              {
+                key: 'current',
+                label: '处理当前节点',
+                icon: 'mdi-open-in-new',
+                disabled: item.currentNodes.length === 0,
+              },
+            ]"
+            :more="[
+              {
+                key: 'view',
+                label: '查看流程',
+                icon: 'mdi-sitemap-outline',
+                disabled: !vm.can('get'),
+              },
+              {
+                key: 'root',
+                label: '打开根单据',
+                icon: 'mdi-file-document-outline',
+              },
+            ]"
+            @select="
+              $event === 'current'
+                ? vm.processCurrent(item)
+                : $event === 'view'
+                  ? vm.open(item)
+                  : vm.openRoot(item)
+            "
+          />
+        </article>
         <div
           v-if="!vm.loading.value && vm.items.value.length === 0"
           class="pa-8 text-center text-medium-emphasis"
@@ -103,7 +190,37 @@ const vm = useProcessInstanceViewModel()
           暂无流程实例
         </div>
       </div>
+      <v-card-actions
+        v-if="vm.total.value > vm.pageSize.value"
+        class="justify-center"
+      >
+        <v-pagination
+          :length="vm.pageCount.value"
+          :model-value="vm.page.value"
+          :disabled="vm.loading.value"
+          @update:model-value="vm.changePage"
+        />
+      </v-card-actions>
     </v-card>
+
+    <v-dialog v-model="vm.chooserOpen.value" max-width="560">
+      <v-card>
+        <v-card-title>选择要处理的当前节点</v-card-title>
+        <v-list lines="two">
+          <v-list-item
+            v-for="node in vm.chooserNodes.value"
+            :key="node.nodeInstanceId"
+            :subtitle="`${node.documentEntity} · ${node.documentStatus}`"
+            :title="`${node.nodeName} · ${node.documentNo}`"
+            append-icon="mdi-chevron-right"
+            @click="vm.chooseNode(node)"
+          />
+        </v-list>
+        <v-card-actions class="justify-end">
+          <v-btn @click="vm.chooserOpen.value = false">取消</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog
       v-model="vm.detailOpen.value"
@@ -232,7 +349,8 @@ const vm = useProcessInstanceViewModel()
   text-align: left;
 }
 .instance-card strong,
-.instance-card span:not(.instance-card__title) {
+.instance-card span:not(.instance-card__title),
+.instance-card__actions {
   grid-column: 1 / -1;
 }
 .instance-card span:not(.instance-card__title) {
@@ -242,11 +360,14 @@ const vm = useProcessInstanceViewModel()
 .instance-card__title {
   font-weight: 600;
 }
-.instance-table tbody tr {
-  cursor: pointer;
-}
 .instance-table tbody tr:hover {
   background: rgb(var(--v-theme-surface-variant), 0.35);
+}
+.instance-current-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 180px;
 }
 .instance-table td:first-child span,
 .instance-table td:first-child small {

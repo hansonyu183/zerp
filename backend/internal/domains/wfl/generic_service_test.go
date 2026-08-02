@@ -43,6 +43,19 @@ func TestValidateDefinitionInputRejectsExcludedEntitiesAndMalformedConditions(t 
 	}
 }
 
+func TestValidateDefinitionInputRejectsReservedRouteCodes(t *testing.T) {
+	root := "01J00000000000000000000010"
+	for _, code := range []string{"process-definition", "process-instance"} {
+		input := DefinitionCreateInput{
+			Code: code, Name: "保留流程", RootNodeID: root,
+			Nodes: []DefinitionNodeInput{{ID: root, Key: "root", Name: "销售订单", DocumentEntity: "sale-order"}},
+		}
+		if err := validateDefinitionInput(input); err == nil {
+			t.Fatalf("reserved definition code %q was accepted", code)
+		}
+	}
+}
+
 func TestValidateRequiredDefaults(t *testing.T) {
 	nodes := []DefinitionNodeInput{{
 		ID: "01J00000000000000000000011", DocumentEntity: "receipt", Defaults: json.RawMessage(`{"fundAccountObjectId":"fund"}`),

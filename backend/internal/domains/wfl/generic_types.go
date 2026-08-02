@@ -105,16 +105,26 @@ type InstanceHistoryInput struct {
 }
 
 type InstanceListItem struct {
-	ProcessID      string    `json:"processId"`
-	DefinitionID   string    `json:"definitionId"`
-	DefinitionCode string    `json:"definitionCode"`
-	DefinitionName string    `json:"definitionName"`
-	Status         string    `json:"status"`
-	Revision       int64     `json:"revision"`
-	RootDocumentID string    `json:"rootDocumentId"`
-	RootDocumentNo string    `json:"rootDocumentNo"`
-	RootEntity     string    `json:"rootEntity"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ProcessID      string            `json:"processId"`
+	DefinitionID   string            `json:"definitionId"`
+	DefinitionCode string            `json:"definitionCode"`
+	DefinitionName string            `json:"definitionName"`
+	Status         string            `json:"status"`
+	Revision       int64             `json:"revision"`
+	RootDocumentID string            `json:"rootDocumentId"`
+	RootDocumentNo string            `json:"rootDocumentNo"`
+	RootEntity     string            `json:"rootEntity"`
+	CurrentNodes   []CurrentNodeView `json:"currentNodes"`
+	UpdatedAt      time.Time         `json:"updatedAt"`
+}
+
+type CurrentNodeView struct {
+	NodeInstanceID string `json:"nodeInstanceId"`
+	NodeName       string `json:"nodeName"`
+	DocumentID     string `json:"documentId"`
+	DocumentNo     string `json:"documentNo"`
+	DocumentEntity string `json:"documentEntity"`
+	DocumentStatus string `json:"documentStatus"`
 }
 
 type NodeInstanceView struct {

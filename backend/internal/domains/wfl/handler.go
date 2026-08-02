@@ -18,17 +18,11 @@ const principalContextKey = "wflPrincipal"
 type applicationService interface{}
 
 type salesApplicationService interface {
-	SalesQuery(context.Context, QueryInput) (Page[SalesProcessListItem], error)
-	SalesGet(context.Context, GetInput) (ProcessView, error)
 	SalesAction(context.Context, string, ActionInput, string, string) (any, error)
-	SalesHistory(context.Context, HistoryInput) (Page[AuditView], error)
 }
 
 type purchaseApplicationService interface {
-	PurchaseQuery(context.Context, QueryInput) (Page[PurchaseProcessListItem], error)
-	PurchaseGet(context.Context, GetInput) (ProcessView, error)
 	PurchaseAction(context.Context, string, ActionInput, string, string) (any, error)
-	PurchaseHistory(context.Context, HistoryInput) (Page[AuditView], error)
 }
 
 type genericApplicationService interface {
@@ -41,6 +35,9 @@ type genericApplicationService interface {
 	InstanceQuery(context.Context, InstanceQueryInput) (Page[InstanceListItem], error)
 	InstanceGet(context.Context, InstanceGetInput) (InstanceView, error)
 	InstanceHistory(context.Context, InstanceHistoryInput) (Page[RuntimeAuditView], error)
+	InstanceQueryByDefinitionCode(context.Context, string, InstanceQueryInput) (Page[InstanceListItem], error)
+	InstanceGetByDefinitionCode(context.Context, string, InstanceGetInput) (InstanceView, error)
+	InstanceHistoryByDefinitionCode(context.Context, string, InstanceHistoryInput) (Page[RuntimeAuditView], error)
 }
 
 var (
@@ -77,6 +74,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	h.registerGenericWorkflow(router)
 	h.registerSalesWorkflow(router)
 	h.registerPurchaseWorkflow(router)
+	h.registerDynamicWorkflow(router)
 }
 
 func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
@@ -197,9 +195,6 @@ func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
 
 func (h *Handler) registerPurchaseWorkflow(router *gin.Engine) {
 	group := router.Group("/wfl/purchase-fulfillment")
-	group.POST("/query", h.authorize("/wfl/purchase-fulfillment/query"), h.purchaseQuery)
-	group.POST("/get", h.authorize("/wfl/purchase-fulfillment/get"), h.purchaseGet)
-	group.POST("/audit-history", h.authorize("/wfl/purchase-fulfillment/audit-history"), h.purchaseHistory)
 	for _, value := range purchaseWorkflowActions {
 		action := value
 		group.POST("/"+action, h.authorize("/wfl/purchase-fulfillment/"+action), func(c *gin.Context) {
@@ -220,49 +215,8 @@ func (h *Handler) registerPurchaseWorkflow(router *gin.Engine) {
 	}
 }
 
-func (h *Handler) purchaseService(c *gin.Context) (purchaseApplicationService, bool) {
-	service, ok := h.service.(purchaseApplicationService)
-	if !ok {
-		h.writeError(c, internal("purchase workflow service is unavailable", nil))
-	}
-	return service, ok
-}
-
-func (h *Handler) purchaseQuery(c *gin.Context) {
-	var input QueryInput
-	if h.bind(c, &input) {
-		if service, ok := h.purchaseService(c); ok {
-			result, err := service.PurchaseQuery(c.Request.Context(), input)
-			h.result(c, result, err)
-		}
-	}
-}
-
-func (h *Handler) purchaseGet(c *gin.Context) {
-	var input GetInput
-	if h.bind(c, &input) {
-		if service, ok := h.purchaseService(c); ok {
-			result, err := service.PurchaseGet(c.Request.Context(), input)
-			h.result(c, result, err)
-		}
-	}
-}
-
-func (h *Handler) purchaseHistory(c *gin.Context) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		if service, ok := h.purchaseService(c); ok {
-			result, err := service.PurchaseHistory(c.Request.Context(), input)
-			h.result(c, result, err)
-		}
-	}
-}
-
 func (h *Handler) registerSalesWorkflow(router *gin.Engine) {
 	group := router.Group("/wfl/sales-fulfillment")
-	group.POST("/query", h.authorize("/wfl/sales-fulfillment/query"), h.salesQuery)
-	group.POST("/get", h.authorize("/wfl/sales-fulfillment/get"), h.salesGet)
-	group.POST("/audit-history", h.authorize("/wfl/sales-fulfillment/audit-history"), h.salesHistory)
 	for _, value := range salesWorkflowActions {
 		action := value
 		group.POST("/"+action, h.authorize("/wfl/sales-fulfillment/"+action), func(c *gin.Context) {
@@ -283,41 +237,62 @@ func (h *Handler) registerSalesWorkflow(router *gin.Engine) {
 	}
 }
 
-func (h *Handler) salesService(c *gin.Context) (salesApplicationService, bool) {
-	service, ok := h.service.(salesApplicationService)
-	if !ok {
-		h.writeError(c, internal("sales workflow service is unavailable", nil))
-	}
-	return service, ok
-}
-
-func (h *Handler) salesQuery(c *gin.Context) {
-	var input QueryInput
-	if h.bind(c, &input) {
-		if service, ok := h.salesService(c); ok {
-			result, err := service.SalesQuery(c.Request.Context(), input)
+func (h *Handler) registerDynamicWorkflow(router *gin.Engine) {
+	group := router.Group("/wfl/:processName")
+	group.POST("/query", h.authorizeDynamicWorkflow("query"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceQueryInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceQueryByDefinitionCode(c.Request.Context(), c.Param("processName"), input)
 			h.result(c, result, err)
 		}
-	}
-}
-
-func (h *Handler) salesGet(c *gin.Context) {
-	var input GetInput
-	if h.bind(c, &input) {
-		if service, ok := h.salesService(c); ok {
-			result, err := service.SalesGet(c.Request.Context(), input)
+	})
+	group.POST("/get", h.authorizeDynamicWorkflow("get"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceGetInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceGetByDefinitionCode(c.Request.Context(), c.Param("processName"), input)
 			h.result(c, result, err)
 		}
-	}
-}
-
-func (h *Handler) salesHistory(c *gin.Context) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		if service, ok := h.salesService(c); ok {
-			result, err := service.SalesHistory(c.Request.Context(), input)
+	})
+	group.POST("/audit-history", h.authorizeDynamicWorkflow("audit-history"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceHistoryInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceHistoryByDefinitionCode(c.Request.Context(), c.Param("processName"), input)
 			h.result(c, result, err)
 		}
+	})
+}
+
+func (h *Handler) authorizeDynamicWorkflow(action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := "/wfl/" + c.Param("processName") + "/" + action
+		principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, path, response.RequestID(c))
+		if err != nil {
+			h.writeAuthorizationError(c, err)
+			c.Abort()
+			return
+		}
+		if principal.ActorID == "" {
+			h.writeAuthorizationError(c, authorization.NewError(authorization.ErrorUnauthenticated, "session expired", nil))
+			c.Abort()
+			return
+		}
+		c.Set(principalContextKey, principal)
+		c.Next()
 	}
 }
 

@@ -1245,6 +1245,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wfl/{processName}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按流程类型查询流程实例 */
+        post: operations["wflDynamicProcessQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/{processName}/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按流程类型读取流程实例 */
+        post: operations["wflDynamicProcessGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wfl/{processName}/audit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按流程类型查询流程实例审计 */
+        post: operations["wflDynamicProcessAuditHistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wfl/process-instance/get": {
         parameters: {
             query?: never;
@@ -1273,57 +1324,6 @@ export interface paths {
         put?: never;
         /** 查询流程实例审计 */
         post: operations["wflProcessInstanceAuditHistory"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询销售履约流程 */
-        post: operations["wflSalesFulfillmentQuery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/get": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 读取销售履约流程 */
-        post: operations["wflSalesFulfillmentGet"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/audit-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询销售履约审计 */
-        post: operations["wflSalesFulfillmentAuditHistory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1392,57 +1392,6 @@ export interface paths {
         put?: never;
         /** 撤销销售履约短结 */
         post: operations["wflSalesFulfillmentShortCloseUnconfirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询采购履约流程 */
-        post: operations["wflPurchaseFulfillmentQuery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/get": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 读取采购履约流程 */
-        post: operations["wflPurchaseFulfillmentGet"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/audit-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询采购履约审计 */
-        post: operations["wflPurchaseFulfillmentAuditHistory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2665,87 +2614,48 @@ export interface components {
             definitionId?: string;
             statuses?: string[];
         };
-        WflInstanceGetRequest: {
+        WflCurrentNode: {
+            nodeInstanceId: string;
+            nodeName: string;
+            documentId: string;
+            documentNo: string;
+            documentEntity: string;
+            documentStatus: string;
+        };
+        WflInstanceListItem: {
             processId: string;
-        };
-        WflInstanceHistoryRequest: {
-            processId: string;
-            page: number;
-            pageSize: number;
-        };
-        WflQueryRequest: {
-            page: number;
-            pageSize: number;
-            keyword?: string;
-            statuses?: string[];
-        };
-        WflSalesProgressGroup: {
-            unit: string;
-            /** Format: int32 */
-            productCount: number;
-            orderedQuantity: string;
-            outboundProcessingQuantity: string;
-            finalizedOutboundQuantity: string;
-            inTransitQuantity: string;
-            signedQuantity: string;
-            rejectedQuantity: string;
-            lossQuantity: string;
-            refusalReturnProcessingQuantity: string;
-            refusalReturnedQuantity: string;
-            afterSaleReturnProcessingQuantity: string;
-            afterSaleReturnedQuantity: string;
-            netSignedQuantity: string;
-            remainingQuantity: string;
-        };
-        WflSalesKgSummary: {
+            definitionId: string;
+            definitionCode: string;
+            definitionName: string;
             /** @enum {string} */
-            unit: "KG";
-            excludedPackaging: boolean;
-            warehouseAvailable: boolean;
-            shortageQuantity?: string;
-            orderedQuantity: string;
-            outboundQuantity: string;
-            inTransitQuantity: string;
-            signedQuantity: string;
-            netSignedQuantity: string;
-        };
-        WflSalesProcessListItem: {
-            processId: string;
-            processType: string;
-            status: string;
+            status: "ACTIVE" | "COMPLETED";
             /** Format: int64 */
             revision: number;
             rootDocumentId: string;
             rootDocumentNo: string;
-            currentStage: string;
-            /** Format: date */
-            businessDate: string;
-            partyName: string;
-            currency: string;
-            amount: string;
+            rootEntity: string;
+            currentNodes: components["schemas"]["WflCurrentNode"][];
             /** Format: date-time */
             updatedAt: string;
-            progressGroups: components["schemas"]["WflSalesProgressGroup"][];
-            summary: components["schemas"]["WflSalesKgSummary"];
         };
-        WflSalesProcessPage: {
-            items: components["schemas"]["WflSalesProcessListItem"][];
+        WflInstancePage: {
+            items: components["schemas"]["WflInstanceListItem"][];
             /** Format: int64 */
             total: number;
             page: number;
             pageSize: number;
         };
-        WflSalesQueryResponse: {
+        WflInstanceQueryResponse: {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["WflSalesProcessPage"];
+            data: components["schemas"]["WflInstancePage"];
             requestId: string;
         };
-        WflGetRequest: {
+        WflInstanceGetRequest: {
             processId: string;
         };
-        WflHistoryRequest: {
+        WflInstanceHistoryRequest: {
             processId: string;
             page: number;
             pageSize: number;
@@ -2761,60 +2671,6 @@ export interface components {
                 [key: string]: unknown;
             };
             reason?: string;
-        };
-        WflPurchaseProgressGroup: {
-            unit: string;
-            /** Format: int32 */
-            productCount: number;
-            orderedQuantity: string;
-            inboundProcessingQuantity: string;
-            finalizedInboundQuantity: string;
-            returnProcessingQuantity: string;
-            returnedQuantity: string;
-            netInboundQuantity: string;
-            remainingQuantity: string;
-        };
-        WflPurchaseKgSummary: {
-            /** @enum {string} */
-            unit: "KG";
-            excludedPackaging: boolean;
-            orderedQuantity: string;
-            inboundQuantity: string;
-            returnProcessingQuantity: string;
-            netInboundQuantity: string;
-        };
-        WflPurchaseProcessListItem: {
-            processId: string;
-            processType: string;
-            status: string;
-            /** Format: int64 */
-            revision: number;
-            rootDocumentId: string;
-            rootDocumentNo: string;
-            currentStage: string;
-            /** Format: date */
-            businessDate: string;
-            partyName: string;
-            currency: string;
-            amount: string;
-            /** Format: date-time */
-            updatedAt: string;
-            progressGroups: components["schemas"]["WflPurchaseProgressGroup"][];
-            summary: components["schemas"]["WflPurchaseKgSummary"];
-        };
-        WflPurchaseProcessPage: {
-            items: components["schemas"]["WflPurchaseProcessListItem"][];
-            /** Format: int64 */
-            total: number;
-            page: number;
-            pageSize: number;
-        };
-        WflPurchaseQueryResponse: {
-            /** Format: int32 */
-            code: number;
-            message: string;
-            data: components["schemas"]["WflPurchaseProcessPage"];
-            requestId: string;
         };
         LedClosingRequest: {
             /** Format: int64 */
@@ -4178,6 +4034,76 @@ export interface operations {
             };
         };
         responses: {
+            /** @description 流程实例分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WflInstanceQueryResponse"];
+                };
+            };
+        };
+    };
+    wflDynamicProcessQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                processName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflInstanceQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 流程实例分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WflInstanceQueryResponse"];
+                };
+            };
+        };
+    };
+    wflDynamicProcessGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                processName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflInstanceGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflDynamicProcessAuditHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                processName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflInstanceHistoryRequest"];
+            };
+        };
+        responses: {
             200: components["responses"]["Business"];
         };
     };
@@ -4207,62 +4133,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflInstanceHistoryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentQuery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflQueryRequest"];
-            };
-        };
-        responses: {
-            /** @description 销售履约流程分页响应。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WflSalesQueryResponse"];
-                };
-            };
-        };
-    };
-    wflSalesFulfillmentGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflGetRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentAuditHistory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflHistoryRequest"];
             };
         };
         responses: {
@@ -4327,62 +4197,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentQuery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflQueryRequest"];
-            };
-        };
-        responses: {
-            /** @description 采购履约流程分页响应。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WflPurchaseQueryResponse"];
-                };
-            };
-        };
-    };
-    wflPurchaseFulfillmentGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflGetRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentAuditHistory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflHistoryRequest"];
             };
         };
         responses: {

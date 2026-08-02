@@ -185,7 +185,10 @@ function removeSelectedNode(): void {
             <v-text-field
               v-model="vm.selected.value.code"
               label="流程编码"
+              :readonly="Boolean(vm.selected.value.definitionId)"
               variant="outlined"
+              hint="保存后作为流程 API 类型，不可修改。"
+              persistent-hint
             />
             <v-text-field
               v-model="vm.selected.value.name"

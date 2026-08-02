@@ -449,30 +449,18 @@ func (e VouSalesKgSummaryUnit) Valid() bool {
 	}
 }
 
-// Defines values for WflPurchaseKgSummaryUnit.
+// Defines values for WflInstanceListItemStatus.
 const (
-	WflPurchaseKgSummaryUnitKG WflPurchaseKgSummaryUnit = "KG"
+	ACTIVE    WflInstanceListItemStatus = "ACTIVE"
+	COMPLETED WflInstanceListItemStatus = "COMPLETED"
 )
 
-// Valid indicates whether the value is a known member of the WflPurchaseKgSummaryUnit enum.
-func (e WflPurchaseKgSummaryUnit) Valid() bool {
+// Valid indicates whether the value is a known member of the WflInstanceListItemStatus enum.
+func (e WflInstanceListItemStatus) Valid() bool {
 	switch e {
-	case WflPurchaseKgSummaryUnitKG:
+	case ACTIVE:
 		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for WflSalesKgSummaryUnit.
-const (
-	WflSalesKgSummaryUnitKG WflSalesKgSummaryUnit = "KG"
-)
-
-// Valid indicates whether the value is a known member of the WflSalesKgSummaryUnit enum.
-func (e WflSalesKgSummaryUnit) Valid() bool {
-	switch e {
-	case WflSalesKgSummaryUnitKG:
+	case COMPLETED:
 		return true
 	default:
 		return false
@@ -1539,6 +1527,16 @@ type WflActionRequest struct {
 	Reason           *string                 `json:"reason,omitempty"`
 }
 
+// WflCurrentNode defines model for WflCurrentNode.
+type WflCurrentNode struct {
+	DocumentEntity string `json:"documentEntity"`
+	DocumentId     string `json:"documentId"`
+	DocumentNo     string `json:"documentNo"`
+	DocumentStatus string `json:"documentStatus"`
+	NodeInstanceId string `json:"nodeInstanceId"`
+	NodeName       string `json:"nodeName"`
+}
+
 // WflDefinitionActionRequest defines model for WflDefinitionActionRequest.
 type WflDefinitionActionRequest struct {
 	DefinitionId string `json:"definitionId"`
@@ -1600,18 +1598,6 @@ type WflDefinitionSaveRequest struct {
 	StartCondition map[string]interface{}   `json:"startCondition"`
 }
 
-// WflGetRequest defines model for WflGetRequest.
-type WflGetRequest struct {
-	ProcessId string `json:"processId"`
-}
-
-// WflHistoryRequest defines model for WflHistoryRequest.
-type WflHistoryRequest struct {
-	Page      int    `json:"page"`
-	PageSize  int    `json:"pageSize"`
-	ProcessId string `json:"processId"`
-}
-
 // WflInstanceGetRequest defines model for WflInstanceGetRequest.
 type WflInstanceGetRequest struct {
 	ProcessId string `json:"processId"`
@@ -1624,6 +1610,32 @@ type WflInstanceHistoryRequest struct {
 	ProcessId string `json:"processId"`
 }
 
+// WflInstanceListItem defines model for WflInstanceListItem.
+type WflInstanceListItem struct {
+	CurrentNodes   []WflCurrentNode          `json:"currentNodes"`
+	DefinitionCode string                    `json:"definitionCode"`
+	DefinitionId   string                    `json:"definitionId"`
+	DefinitionName string                    `json:"definitionName"`
+	ProcessId      string                    `json:"processId"`
+	Revision       int64                     `json:"revision"`
+	RootDocumentId string                    `json:"rootDocumentId"`
+	RootDocumentNo string                    `json:"rootDocumentNo"`
+	RootEntity     string                    `json:"rootEntity"`
+	Status         WflInstanceListItemStatus `json:"status"`
+	UpdatedAt      time.Time                 `json:"updatedAt"`
+}
+
+// WflInstanceListItemStatus defines model for WflInstanceListItem.Status.
+type WflInstanceListItemStatus string
+
+// WflInstancePage defines model for WflInstancePage.
+type WflInstancePage struct {
+	Items    []WflInstanceListItem `json:"items"`
+	Page     int                   `json:"page"`
+	PageSize int                   `json:"pageSize"`
+	Total    int64                 `json:"total"`
+}
+
 // WflInstanceQueryRequest defines model for WflInstanceQueryRequest.
 type WflInstanceQueryRequest struct {
 	DefinitionId *string   `json:"definitionId,omitempty"`
@@ -1633,141 +1645,12 @@ type WflInstanceQueryRequest struct {
 	Statuses     *[]string `json:"statuses,omitempty"`
 }
 
-// WflPurchaseKgSummary defines model for WflPurchaseKgSummary.
-type WflPurchaseKgSummary struct {
-	ExcludedPackaging        bool                     `json:"excludedPackaging"`
-	InboundQuantity          string                   `json:"inboundQuantity"`
-	NetInboundQuantity       string                   `json:"netInboundQuantity"`
-	OrderedQuantity          string                   `json:"orderedQuantity"`
-	ReturnProcessingQuantity string                   `json:"returnProcessingQuantity"`
-	Unit                     WflPurchaseKgSummaryUnit `json:"unit"`
-}
-
-// WflPurchaseKgSummaryUnit defines model for WflPurchaseKgSummary.Unit.
-type WflPurchaseKgSummaryUnit string
-
-// WflPurchaseProcessListItem defines model for WflPurchaseProcessListItem.
-type WflPurchaseProcessListItem struct {
-	Amount         string                     `json:"amount"`
-	BusinessDate   openapi_types.Date         `json:"businessDate"`
-	Currency       string                     `json:"currency"`
-	CurrentStage   string                     `json:"currentStage"`
-	PartyName      string                     `json:"partyName"`
-	ProcessId      string                     `json:"processId"`
-	ProcessType    string                     `json:"processType"`
-	ProgressGroups []WflPurchaseProgressGroup `json:"progressGroups"`
-	Revision       int64                      `json:"revision"`
-	RootDocumentId string                     `json:"rootDocumentId"`
-	RootDocumentNo string                     `json:"rootDocumentNo"`
-	Status         string                     `json:"status"`
-	Summary        WflPurchaseKgSummary       `json:"summary"`
-	UpdatedAt      time.Time                  `json:"updatedAt"`
-}
-
-// WflPurchaseProcessPage defines model for WflPurchaseProcessPage.
-type WflPurchaseProcessPage struct {
-	Items    []WflPurchaseProcessListItem `json:"items"`
-	Page     int                          `json:"page"`
-	PageSize int                          `json:"pageSize"`
-	Total    int64                        `json:"total"`
-}
-
-// WflPurchaseProgressGroup defines model for WflPurchaseProgressGroup.
-type WflPurchaseProgressGroup struct {
-	FinalizedInboundQuantity  string `json:"finalizedInboundQuantity"`
-	InboundProcessingQuantity string `json:"inboundProcessingQuantity"`
-	NetInboundQuantity        string `json:"netInboundQuantity"`
-	OrderedQuantity           string `json:"orderedQuantity"`
-	ProductCount              int32  `json:"productCount"`
-	RemainingQuantity         string `json:"remainingQuantity"`
-	ReturnProcessingQuantity  string `json:"returnProcessingQuantity"`
-	ReturnedQuantity          string `json:"returnedQuantity"`
-	Unit                      string `json:"unit"`
-}
-
-// WflPurchaseQueryResponse defines model for WflPurchaseQueryResponse.
-type WflPurchaseQueryResponse struct {
-	Code      int32                  `json:"code"`
-	Data      WflPurchaseProcessPage `json:"data"`
-	Message   string                 `json:"message"`
-	RequestId string                 `json:"requestId"`
-}
-
-// WflQueryRequest defines model for WflQueryRequest.
-type WflQueryRequest struct {
-	Keyword  *string   `json:"keyword,omitempty"`
-	Page     int       `json:"page"`
-	PageSize int       `json:"pageSize"`
-	Statuses *[]string `json:"statuses,omitempty"`
-}
-
-// WflSalesKgSummary defines model for WflSalesKgSummary.
-type WflSalesKgSummary struct {
-	ExcludedPackaging  bool                  `json:"excludedPackaging"`
-	InTransitQuantity  string                `json:"inTransitQuantity"`
-	NetSignedQuantity  string                `json:"netSignedQuantity"`
-	OrderedQuantity    string                `json:"orderedQuantity"`
-	OutboundQuantity   string                `json:"outboundQuantity"`
-	ShortageQuantity   *string               `json:"shortageQuantity,omitempty"`
-	SignedQuantity     string                `json:"signedQuantity"`
-	Unit               WflSalesKgSummaryUnit `json:"unit"`
-	WarehouseAvailable bool                  `json:"warehouseAvailable"`
-}
-
-// WflSalesKgSummaryUnit defines model for WflSalesKgSummary.Unit.
-type WflSalesKgSummaryUnit string
-
-// WflSalesProcessListItem defines model for WflSalesProcessListItem.
-type WflSalesProcessListItem struct {
-	Amount         string                  `json:"amount"`
-	BusinessDate   openapi_types.Date      `json:"businessDate"`
-	Currency       string                  `json:"currency"`
-	CurrentStage   string                  `json:"currentStage"`
-	PartyName      string                  `json:"partyName"`
-	ProcessId      string                  `json:"processId"`
-	ProcessType    string                  `json:"processType"`
-	ProgressGroups []WflSalesProgressGroup `json:"progressGroups"`
-	Revision       int64                   `json:"revision"`
-	RootDocumentId string                  `json:"rootDocumentId"`
-	RootDocumentNo string                  `json:"rootDocumentNo"`
-	Status         string                  `json:"status"`
-	Summary        WflSalesKgSummary       `json:"summary"`
-	UpdatedAt      time.Time               `json:"updatedAt"`
-}
-
-// WflSalesProcessPage defines model for WflSalesProcessPage.
-type WflSalesProcessPage struct {
-	Items    []WflSalesProcessListItem `json:"items"`
-	Page     int                       `json:"page"`
-	PageSize int                       `json:"pageSize"`
-	Total    int64                     `json:"total"`
-}
-
-// WflSalesProgressGroup defines model for WflSalesProgressGroup.
-type WflSalesProgressGroup struct {
-	AfterSaleReturnProcessingQuantity string `json:"afterSaleReturnProcessingQuantity"`
-	AfterSaleReturnedQuantity         string `json:"afterSaleReturnedQuantity"`
-	FinalizedOutboundQuantity         string `json:"finalizedOutboundQuantity"`
-	InTransitQuantity                 string `json:"inTransitQuantity"`
-	LossQuantity                      string `json:"lossQuantity"`
-	NetSignedQuantity                 string `json:"netSignedQuantity"`
-	OrderedQuantity                   string `json:"orderedQuantity"`
-	OutboundProcessingQuantity        string `json:"outboundProcessingQuantity"`
-	ProductCount                      int32  `json:"productCount"`
-	RefusalReturnProcessingQuantity   string `json:"refusalReturnProcessingQuantity"`
-	RefusalReturnedQuantity           string `json:"refusalReturnedQuantity"`
-	RejectedQuantity                  string `json:"rejectedQuantity"`
-	RemainingQuantity                 string `json:"remainingQuantity"`
-	SignedQuantity                    string `json:"signedQuantity"`
-	Unit                              string `json:"unit"`
-}
-
-// WflSalesQueryResponse defines model for WflSalesQueryResponse.
-type WflSalesQueryResponse struct {
-	Code      int32               `json:"code"`
-	Data      WflSalesProcessPage `json:"data"`
-	Message   string              `json:"message"`
-	RequestId string              `json:"requestId"`
+// WflInstanceQueryResponse defines model for WflInstanceQueryResponse.
+type WflInstanceQueryResponse struct {
+	Code      int32           `json:"code"`
+	Data      WflInstancePage `json:"data"`
+	Message   string          `json:"message"`
+	RequestId string          `json:"requestId"`
 }
 
 // WorkbenchAction defines model for WorkbenchAction.
@@ -2128,15 +2011,6 @@ type WflProcessInstanceGetJSONRequestBody = WflInstanceGetRequest
 // WflProcessInstanceQueryJSONRequestBody defines body for WflProcessInstanceQuery for application/json ContentType.
 type WflProcessInstanceQueryJSONRequestBody = WflInstanceQueryRequest
 
-// WflPurchaseFulfillmentAuditHistoryJSONRequestBody defines body for WflPurchaseFulfillmentAuditHistory for application/json ContentType.
-type WflPurchaseFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
-
-// WflPurchaseFulfillmentGetJSONRequestBody defines body for WflPurchaseFulfillmentGet for application/json ContentType.
-type WflPurchaseFulfillmentGetJSONRequestBody = WflGetRequest
-
-// WflPurchaseFulfillmentQueryJSONRequestBody defines body for WflPurchaseFulfillmentQuery for application/json ContentType.
-type WflPurchaseFulfillmentQueryJSONRequestBody = WflQueryRequest
-
 // WflPurchaseFulfillmentShortCloseCancelJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseCancel for application/json ContentType.
 type WflPurchaseFulfillmentShortCloseCancelJSONRequestBody = WflActionRequest
 
@@ -2149,15 +2023,6 @@ type WflPurchaseFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
 // WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflPurchaseFulfillmentShortCloseUnconfirm for application/json ContentType.
 type WflPurchaseFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
 
-// WflSalesFulfillmentAuditHistoryJSONRequestBody defines body for WflSalesFulfillmentAuditHistory for application/json ContentType.
-type WflSalesFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
-
-// WflSalesFulfillmentGetJSONRequestBody defines body for WflSalesFulfillmentGet for application/json ContentType.
-type WflSalesFulfillmentGetJSONRequestBody = WflGetRequest
-
-// WflSalesFulfillmentQueryJSONRequestBody defines body for WflSalesFulfillmentQuery for application/json ContentType.
-type WflSalesFulfillmentQueryJSONRequestBody = WflQueryRequest
-
 // WflSalesFulfillmentShortCloseCancelJSONRequestBody defines body for WflSalesFulfillmentShortCloseCancel for application/json ContentType.
 type WflSalesFulfillmentShortCloseCancelJSONRequestBody = WflActionRequest
 
@@ -2169,6 +2034,15 @@ type WflSalesFulfillmentShortCloseRequestJSONRequestBody = WflActionRequest
 
 // WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody defines body for WflSalesFulfillmentShortCloseUnconfirm for application/json ContentType.
 type WflSalesFulfillmentShortCloseUnconfirmJSONRequestBody = WflActionRequest
+
+// WflDynamicProcessAuditHistoryJSONRequestBody defines body for WflDynamicProcessAuditHistory for application/json ContentType.
+type WflDynamicProcessAuditHistoryJSONRequestBody = WflInstanceHistoryRequest
+
+// WflDynamicProcessGetJSONRequestBody defines body for WflDynamicProcessGet for application/json ContentType.
+type WflDynamicProcessGetJSONRequestBody = WflInstanceGetRequest
+
+// WflDynamicProcessQueryJSONRequestBody defines body for WflDynamicProcessQuery for application/json ContentType.
+type WflDynamicProcessQueryJSONRequestBody = WflInstanceQueryRequest
 
 // Getter for additional properties for AuxCreateData. Returns the specified
 // element and whether it was found
@@ -2576,15 +2450,6 @@ type ServerInterface interface {
 	// WflProcessInstanceQuery 查询流程实例
 	// (POST /wfl/process-instance/query)
 	WflProcessInstanceQuery(c *gin.Context)
-	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
-	// (POST /wfl/purchase-fulfillment/audit-history)
-	WflPurchaseFulfillmentAuditHistory(c *gin.Context)
-	// WflPurchaseFulfillmentGet 读取采购履约流程
-	// (POST /wfl/purchase-fulfillment/get)
-	WflPurchaseFulfillmentGet(c *gin.Context)
-	// WflPurchaseFulfillmentQuery 查询采购履约流程
-	// (POST /wfl/purchase-fulfillment/query)
-	WflPurchaseFulfillmentQuery(c *gin.Context)
 	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
 	// (POST /wfl/purchase-fulfillment/short-close-cancel)
 	WflPurchaseFulfillmentShortCloseCancel(c *gin.Context)
@@ -2597,15 +2462,6 @@ type ServerInterface interface {
 	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
 	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
 	WflPurchaseFulfillmentShortCloseUnconfirm(c *gin.Context)
-	// WflSalesFulfillmentAuditHistory 查询销售履约审计
-	// (POST /wfl/sales-fulfillment/audit-history)
-	WflSalesFulfillmentAuditHistory(c *gin.Context)
-	// WflSalesFulfillmentGet 读取销售履约流程
-	// (POST /wfl/sales-fulfillment/get)
-	WflSalesFulfillmentGet(c *gin.Context)
-	// WflSalesFulfillmentQuery 查询销售履约流程
-	// (POST /wfl/sales-fulfillment/query)
-	WflSalesFulfillmentQuery(c *gin.Context)
 	// WflSalesFulfillmentShortCloseCancel 取消销售履约短结申请
 	// (POST /wfl/sales-fulfillment/short-close-cancel)
 	WflSalesFulfillmentShortCloseCancel(c *gin.Context)
@@ -2618,6 +2474,15 @@ type ServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(c *gin.Context)
+	// WflDynamicProcessAuditHistory 按流程类型查询流程实例审计
+	// (POST /wfl/{processName}/audit-history)
+	WflDynamicProcessAuditHistory(c *gin.Context, processName string)
+	// WflDynamicProcessGet 按流程类型读取流程实例
+	// (POST /wfl/{processName}/get)
+	WflDynamicProcessGet(c *gin.Context, processName string)
+	// WflDynamicProcessQuery 按流程类型查询流程实例
+	// (POST /wfl/{processName}/query)
+	WflDynamicProcessQuery(c *gin.Context, processName string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -4341,45 +4206,6 @@ func (siw *ServerInterfaceWrapper) WflProcessInstanceQuery(c *gin.Context) {
 	siw.Handler.WflProcessInstanceQuery(c)
 }
 
-// WflPurchaseFulfillmentAuditHistory operation middleware
-func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentAuditHistory(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflPurchaseFulfillmentAuditHistory(c)
-}
-
-// WflPurchaseFulfillmentGet operation middleware
-func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentGet(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflPurchaseFulfillmentGet(c)
-}
-
-// WflPurchaseFulfillmentQuery operation middleware
-func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentQuery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflPurchaseFulfillmentQuery(c)
-}
-
 // WflPurchaseFulfillmentShortCloseCancel operation middleware
 func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseCancel(c *gin.Context) {
 
@@ -4432,45 +4258,6 @@ func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentShortCloseUnconfirm(c *
 	siw.Handler.WflPurchaseFulfillmentShortCloseUnconfirm(c)
 }
 
-// WflSalesFulfillmentAuditHistory operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentAuditHistory(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentAuditHistory(c)
-}
-
-// WflSalesFulfillmentGet operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentGet(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentGet(c)
-}
-
-// WflSalesFulfillmentQuery operation middleware
-func (siw *ServerInterfaceWrapper) WflSalesFulfillmentQuery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.WflSalesFulfillmentQuery(c)
-}
-
 // WflSalesFulfillmentShortCloseCancel operation middleware
 func (siw *ServerInterfaceWrapper) WflSalesFulfillmentShortCloseCancel(c *gin.Context) {
 
@@ -4521,6 +4308,81 @@ func (siw *ServerInterfaceWrapper) WflSalesFulfillmentShortCloseUnconfirm(c *gin
 	}
 
 	siw.Handler.WflSalesFulfillmentShortCloseUnconfirm(c)
+}
+
+// WflDynamicProcessAuditHistory operation middleware
+func (siw *ServerInterfaceWrapper) WflDynamicProcessAuditHistory(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "processName" -------------
+	var processName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "processName", c.Param("processName"), &processName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter processName: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflDynamicProcessAuditHistory(c, processName)
+}
+
+// WflDynamicProcessGet operation middleware
+func (siw *ServerInterfaceWrapper) WflDynamicProcessGet(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "processName" -------------
+	var processName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "processName", c.Param("processName"), &processName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter processName: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflDynamicProcessGet(c, processName)
+}
+
+// WflDynamicProcessQuery operation middleware
+func (siw *ServerInterfaceWrapper) WflDynamicProcessQuery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "processName" -------------
+	var processName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "processName", c.Param("processName"), &processName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter processName: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflDynamicProcessQuery(c, processName)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -4623,18 +4485,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/wfl/process-definition/delete", wrapper.WflProcessDefinitionDelete)
 	router.POST(options.BaseURL+"/wfl/process-definition/catalog", wrapper.WflProcessDefinitionCatalog)
 	router.POST(options.BaseURL+"/wfl/process-instance/query", wrapper.WflProcessInstanceQuery)
+	router.POST(options.BaseURL+"/wfl/:processName/query", wrapper.WflDynamicProcessQuery)
+	router.POST(options.BaseURL+"/wfl/:processName/get", wrapper.WflDynamicProcessGet)
+	router.POST(options.BaseURL+"/wfl/:processName/audit-history", wrapper.WflDynamicProcessAuditHistory)
 	router.POST(options.BaseURL+"/wfl/process-instance/get", wrapper.WflProcessInstanceGet)
 	router.POST(options.BaseURL+"/wfl/process-instance/audit-history", wrapper.WflProcessInstanceAuditHistory)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/query", wrapper.WflSalesFulfillmentQuery)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/get", wrapper.WflSalesFulfillmentGet)
-	router.POST(options.BaseURL+"/wfl/sales-fulfillment/audit-history", wrapper.WflSalesFulfillmentAuditHistory)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-request", wrapper.WflSalesFulfillmentShortCloseRequest)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-cancel", wrapper.WflSalesFulfillmentShortCloseCancel)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-confirm", wrapper.WflSalesFulfillmentShortCloseConfirm)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/short-close-unconfirm", wrapper.WflSalesFulfillmentShortCloseUnconfirm)
-	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/query", wrapper.WflPurchaseFulfillmentQuery)
-	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/get", wrapper.WflPurchaseFulfillmentGet)
-	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/audit-history", wrapper.WflPurchaseFulfillmentAuditHistory)
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-request", wrapper.WflPurchaseFulfillmentShortCloseRequest)
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-cancel", wrapper.WflPurchaseFulfillmentShortCloseCancel)
 	router.POST(options.BaseURL+"/wfl/purchase-fulfillment/short-close-confirm", wrapper.WflPurchaseFulfillmentShortCloseConfirm)
@@ -6780,75 +6639,9 @@ type WflProcessInstanceQueryResponseObject interface {
 	VisitWflProcessInstanceQueryResponse(w http.ResponseWriter) error
 }
 
-type WflProcessInstanceQuery200JSONResponse struct{ BusinessJSONResponse }
+type WflProcessInstanceQuery200JSONResponse WflInstanceQueryResponse
 
 func (response WflProcessInstanceQuery200JSONResponse) VisitWflProcessInstanceQueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflPurchaseFulfillmentAuditHistoryRequestObject struct {
-	Body *WflPurchaseFulfillmentAuditHistoryJSONRequestBody
-}
-
-type WflPurchaseFulfillmentAuditHistoryResponseObject interface {
-	VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error
-}
-
-type WflPurchaseFulfillmentAuditHistory200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflPurchaseFulfillmentAuditHistory200JSONResponse) VisitWflPurchaseFulfillmentAuditHistoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflPurchaseFulfillmentGetRequestObject struct {
-	Body *WflPurchaseFulfillmentGetJSONRequestBody
-}
-
-type WflPurchaseFulfillmentGetResponseObject interface {
-	VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error
-}
-
-type WflPurchaseFulfillmentGet200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflPurchaseFulfillmentGet200JSONResponse) VisitWflPurchaseFulfillmentGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflPurchaseFulfillmentQueryRequestObject struct {
-	Body *WflPurchaseFulfillmentQueryJSONRequestBody
-}
-
-type WflPurchaseFulfillmentQueryResponseObject interface {
-	VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error
-}
-
-type WflPurchaseFulfillmentQuery200JSONResponse WflPurchaseQueryResponse
-
-func (response WflPurchaseFulfillmentQuery200JSONResponse) VisitWflPurchaseFulfillmentQueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6948,72 +6741,6 @@ func (response WflPurchaseFulfillmentShortCloseUnconfirm200JSONResponse) VisitWf
 	return err
 }
 
-type WflSalesFulfillmentAuditHistoryRequestObject struct {
-	Body *WflSalesFulfillmentAuditHistoryJSONRequestBody
-}
-
-type WflSalesFulfillmentAuditHistoryResponseObject interface {
-	VisitWflSalesFulfillmentAuditHistoryResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentAuditHistory200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentAuditHistory200JSONResponse) VisitWflSalesFulfillmentAuditHistoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentGetRequestObject struct {
-	Body *WflSalesFulfillmentGetJSONRequestBody
-}
-
-type WflSalesFulfillmentGetResponseObject interface {
-	VisitWflSalesFulfillmentGetResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentGet200JSONResponse struct{ BusinessJSONResponse }
-
-func (response WflSalesFulfillmentGet200JSONResponse) VisitWflSalesFulfillmentGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type WflSalesFulfillmentQueryRequestObject struct {
-	Body *WflSalesFulfillmentQueryJSONRequestBody
-}
-
-type WflSalesFulfillmentQueryResponseObject interface {
-	VisitWflSalesFulfillmentQueryResponse(w http.ResponseWriter) error
-}
-
-type WflSalesFulfillmentQuery200JSONResponse WflSalesQueryResponse
-
-func (response WflSalesFulfillmentQuery200JSONResponse) VisitWflSalesFulfillmentQueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type WflSalesFulfillmentShortCloseCancelRequestObject struct {
 	Body *WflSalesFulfillmentShortCloseCancelJSONRequestBody
 }
@@ -7091,6 +6818,75 @@ type WflSalesFulfillmentShortCloseUnconfirmResponseObject interface {
 type WflSalesFulfillmentShortCloseUnconfirm200JSONResponse struct{ BusinessJSONResponse }
 
 func (response WflSalesFulfillmentShortCloseUnconfirm200JSONResponse) VisitWflSalesFulfillmentShortCloseUnconfirmResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflDynamicProcessAuditHistoryRequestObject struct {
+	ProcessName string `json:"processName"`
+	Body        *WflDynamicProcessAuditHistoryJSONRequestBody
+}
+
+type WflDynamicProcessAuditHistoryResponseObject interface {
+	VisitWflDynamicProcessAuditHistoryResponse(w http.ResponseWriter) error
+}
+
+type WflDynamicProcessAuditHistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflDynamicProcessAuditHistory200JSONResponse) VisitWflDynamicProcessAuditHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflDynamicProcessGetRequestObject struct {
+	ProcessName string `json:"processName"`
+	Body        *WflDynamicProcessGetJSONRequestBody
+}
+
+type WflDynamicProcessGetResponseObject interface {
+	VisitWflDynamicProcessGetResponse(w http.ResponseWriter) error
+}
+
+type WflDynamicProcessGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflDynamicProcessGet200JSONResponse) VisitWflDynamicProcessGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflDynamicProcessQueryRequestObject struct {
+	ProcessName string `json:"processName"`
+	Body        *WflDynamicProcessQueryJSONRequestBody
+}
+
+type WflDynamicProcessQueryResponseObject interface {
+	VisitWflDynamicProcessQueryResponse(w http.ResponseWriter) error
+}
+
+type WflDynamicProcessQuery200JSONResponse WflInstanceQueryResponse
+
+func (response WflDynamicProcessQuery200JSONResponse) VisitWflDynamicProcessQueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7380,15 +7176,6 @@ type StrictServerInterface interface {
 	// WflProcessInstanceQuery 查询流程实例
 	// (POST /wfl/process-instance/query)
 	WflProcessInstanceQuery(ctx context.Context, request WflProcessInstanceQueryRequestObject) (WflProcessInstanceQueryResponseObject, error)
-	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
-	// (POST /wfl/purchase-fulfillment/audit-history)
-	WflPurchaseFulfillmentAuditHistory(ctx context.Context, request WflPurchaseFulfillmentAuditHistoryRequestObject) (WflPurchaseFulfillmentAuditHistoryResponseObject, error)
-	// WflPurchaseFulfillmentGet 读取采购履约流程
-	// (POST /wfl/purchase-fulfillment/get)
-	WflPurchaseFulfillmentGet(ctx context.Context, request WflPurchaseFulfillmentGetRequestObject) (WflPurchaseFulfillmentGetResponseObject, error)
-	// WflPurchaseFulfillmentQuery 查询采购履约流程
-	// (POST /wfl/purchase-fulfillment/query)
-	WflPurchaseFulfillmentQuery(ctx context.Context, request WflPurchaseFulfillmentQueryRequestObject) (WflPurchaseFulfillmentQueryResponseObject, error)
 	// WflPurchaseFulfillmentShortCloseCancel 取消采购履约短结申请
 	// (POST /wfl/purchase-fulfillment/short-close-cancel)
 	WflPurchaseFulfillmentShortCloseCancel(ctx context.Context, request WflPurchaseFulfillmentShortCloseCancelRequestObject) (WflPurchaseFulfillmentShortCloseCancelResponseObject, error)
@@ -7401,15 +7188,6 @@ type StrictServerInterface interface {
 	// WflPurchaseFulfillmentShortCloseUnconfirm 撤销采购履约短结
 	// (POST /wfl/purchase-fulfillment/short-close-unconfirm)
 	WflPurchaseFulfillmentShortCloseUnconfirm(ctx context.Context, request WflPurchaseFulfillmentShortCloseUnconfirmRequestObject) (WflPurchaseFulfillmentShortCloseUnconfirmResponseObject, error)
-	// WflSalesFulfillmentAuditHistory 查询销售履约审计
-	// (POST /wfl/sales-fulfillment/audit-history)
-	WflSalesFulfillmentAuditHistory(ctx context.Context, request WflSalesFulfillmentAuditHistoryRequestObject) (WflSalesFulfillmentAuditHistoryResponseObject, error)
-	// WflSalesFulfillmentGet 读取销售履约流程
-	// (POST /wfl/sales-fulfillment/get)
-	WflSalesFulfillmentGet(ctx context.Context, request WflSalesFulfillmentGetRequestObject) (WflSalesFulfillmentGetResponseObject, error)
-	// WflSalesFulfillmentQuery 查询销售履约流程
-	// (POST /wfl/sales-fulfillment/query)
-	WflSalesFulfillmentQuery(ctx context.Context, request WflSalesFulfillmentQueryRequestObject) (WflSalesFulfillmentQueryResponseObject, error)
 	// WflSalesFulfillmentShortCloseCancel 取消销售履约短结申请
 	// (POST /wfl/sales-fulfillment/short-close-cancel)
 	WflSalesFulfillmentShortCloseCancel(ctx context.Context, request WflSalesFulfillmentShortCloseCancelRequestObject) (WflSalesFulfillmentShortCloseCancelResponseObject, error)
@@ -7422,6 +7200,15 @@ type StrictServerInterface interface {
 	// WflSalesFulfillmentShortCloseUnconfirm 撤销销售履约短结
 	// (POST /wfl/sales-fulfillment/short-close-unconfirm)
 	WflSalesFulfillmentShortCloseUnconfirm(ctx context.Context, request WflSalesFulfillmentShortCloseUnconfirmRequestObject) (WflSalesFulfillmentShortCloseUnconfirmResponseObject, error)
+	// WflDynamicProcessAuditHistory 按流程类型查询流程实例审计
+	// (POST /wfl/{processName}/audit-history)
+	WflDynamicProcessAuditHistory(ctx context.Context, request WflDynamicProcessAuditHistoryRequestObject) (WflDynamicProcessAuditHistoryResponseObject, error)
+	// WflDynamicProcessGet 按流程类型读取流程实例
+	// (POST /wfl/{processName}/get)
+	WflDynamicProcessGet(ctx context.Context, request WflDynamicProcessGetRequestObject) (WflDynamicProcessGetResponseObject, error)
+	// WflDynamicProcessQuery 按流程类型查询流程实例
+	// (POST /wfl/{processName}/query)
+	WflDynamicProcessQuery(ctx context.Context, request WflDynamicProcessQueryRequestObject) (WflDynamicProcessQueryResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx *gin.Context, request any) (any, error)
@@ -10390,99 +10177,6 @@ func (sh *strictHandler) WflProcessInstanceQuery(ctx *gin.Context) {
 	}
 }
 
-// WflPurchaseFulfillmentAuditHistory operation middleware
-func (sh *strictHandler) WflPurchaseFulfillmentAuditHistory(ctx *gin.Context) {
-	var request WflPurchaseFulfillmentAuditHistoryRequestObject
-
-	var body WflPurchaseFulfillmentAuditHistoryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflPurchaseFulfillmentAuditHistory(ctx, request.(WflPurchaseFulfillmentAuditHistoryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflPurchaseFulfillmentAuditHistory")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflPurchaseFulfillmentAuditHistoryResponseObject); ok {
-		if err := validResponse.VisitWflPurchaseFulfillmentAuditHistoryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflPurchaseFulfillmentGet operation middleware
-func (sh *strictHandler) WflPurchaseFulfillmentGet(ctx *gin.Context) {
-	var request WflPurchaseFulfillmentGetRequestObject
-
-	var body WflPurchaseFulfillmentGetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflPurchaseFulfillmentGet(ctx, request.(WflPurchaseFulfillmentGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflPurchaseFulfillmentGet")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflPurchaseFulfillmentGetResponseObject); ok {
-		if err := validResponse.VisitWflPurchaseFulfillmentGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflPurchaseFulfillmentQuery operation middleware
-func (sh *strictHandler) WflPurchaseFulfillmentQuery(ctx *gin.Context) {
-	var request WflPurchaseFulfillmentQueryRequestObject
-
-	var body WflPurchaseFulfillmentQueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflPurchaseFulfillmentQuery(ctx, request.(WflPurchaseFulfillmentQueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflPurchaseFulfillmentQuery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflPurchaseFulfillmentQueryResponseObject); ok {
-		if err := validResponse.VisitWflPurchaseFulfillmentQueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // WflPurchaseFulfillmentShortCloseCancel operation middleware
 func (sh *strictHandler) WflPurchaseFulfillmentShortCloseCancel(ctx *gin.Context) {
 	var request WflPurchaseFulfillmentShortCloseCancelRequestObject
@@ -10600,99 +10294,6 @@ func (sh *strictHandler) WflPurchaseFulfillmentShortCloseUnconfirm(ctx *gin.Cont
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(WflPurchaseFulfillmentShortCloseUnconfirmResponseObject); ok {
 		if err := validResponse.VisitWflPurchaseFulfillmentShortCloseUnconfirmResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentAuditHistory operation middleware
-func (sh *strictHandler) WflSalesFulfillmentAuditHistory(ctx *gin.Context) {
-	var request WflSalesFulfillmentAuditHistoryRequestObject
-
-	var body WflSalesFulfillmentAuditHistoryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentAuditHistory(ctx, request.(WflSalesFulfillmentAuditHistoryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentAuditHistory")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentAuditHistoryResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentAuditHistoryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentGet operation middleware
-func (sh *strictHandler) WflSalesFulfillmentGet(ctx *gin.Context) {
-	var request WflSalesFulfillmentGetRequestObject
-
-	var body WflSalesFulfillmentGetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentGet(ctx, request.(WflSalesFulfillmentGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentGet")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentGetResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// WflSalesFulfillmentQuery operation middleware
-func (sh *strictHandler) WflSalesFulfillmentQuery(ctx *gin.Context) {
-	var request WflSalesFulfillmentQueryRequestObject
-
-	var body WflSalesFulfillmentQueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WflSalesFulfillmentQuery(ctx, request.(WflSalesFulfillmentQueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WflSalesFulfillmentQuery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(WflSalesFulfillmentQueryResponseObject); ok {
-		if err := validResponse.VisitWflSalesFulfillmentQueryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -10824,150 +10425,246 @@ func (sh *strictHandler) WflSalesFulfillmentShortCloseUnconfirm(ctx *gin.Context
 	}
 }
 
+// WflDynamicProcessAuditHistory operation middleware
+func (sh *strictHandler) WflDynamicProcessAuditHistory(ctx *gin.Context, processName string) {
+	var request WflDynamicProcessAuditHistoryRequestObject
+
+	request.ProcessName = processName
+
+	var body WflDynamicProcessAuditHistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflDynamicProcessAuditHistory(ctx, request.(WflDynamicProcessAuditHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflDynamicProcessAuditHistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflDynamicProcessAuditHistoryResponseObject); ok {
+		if err := validResponse.VisitWflDynamicProcessAuditHistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflDynamicProcessGet operation middleware
+func (sh *strictHandler) WflDynamicProcessGet(ctx *gin.Context, processName string) {
+	var request WflDynamicProcessGetRequestObject
+
+	request.ProcessName = processName
+
+	var body WflDynamicProcessGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflDynamicProcessGet(ctx, request.(WflDynamicProcessGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflDynamicProcessGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflDynamicProcessGetResponseObject); ok {
+		if err := validResponse.VisitWflDynamicProcessGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflDynamicProcessQuery operation middleware
+func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName string) {
+	var request WflDynamicProcessQueryRequestObject
+
+	request.ProcessName = processName
+
+	var body WflDynamicProcessQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflDynamicProcessQuery(ctx, request.(WflDynamicProcessQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflDynamicProcessQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflDynamicProcessQueryResponseObject); ok {
+		if err := validResponse.VisitWflDynamicProcessQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"MdN8dr1972rr/R+bG5fDdXxvh6wvrf9vAAAA//8=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

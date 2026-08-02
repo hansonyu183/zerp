@@ -237,7 +237,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     page.locator('tbody tr').filter({ hasText: orderNo! }),
   ).toContainText('订购 / 出库 / 净签收')
 
-  await page.goto('/wfl/process-instance')
+  await page.goto('/wfl/sales-fulfillment')
   await page.getByRole('textbox', { name: '根单号或流程名称' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
@@ -261,7 +261,8 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const desktopProcessRow = page
     .locator('tbody tr')
     .filter({ hasText: orderNo! })
-  await desktopProcessRow.click()
+  await desktopProcessRow.getByRole('button', { name: '更多操作' }).click()
+  await page.getByRole('menuitem', { name: '查看流程' }).click()
   const composition = page.getByRole('dialog')
   await expect(composition).toContainText(orderNo!)
   const outbound = composition
@@ -350,14 +351,15 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
     page.locator('tbody tr').filter({ hasText: orderNo! }),
   ).toContainText('订购 / 净入库')
 
-  await page.goto('/wfl/process-instance')
+  await page.goto('/wfl/purchase-fulfillment')
   await page.getByRole('textbox', { name: '根单号或流程名称' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('采购履约')
   await expect(processRow).toContainText('进行中')
-  await processRow.click()
+  await processRow.getByRole('button', { name: '更多操作' }).click()
+  await page.getByRole('menuitem', { name: '查看流程' }).click()
   const processDialog = page.getByRole('dialog')
   await expect(processDialog).toContainText('采购订单')
   await expect(processDialog).toContainText('采购入库')

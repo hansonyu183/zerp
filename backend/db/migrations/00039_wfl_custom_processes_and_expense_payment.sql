@@ -256,6 +256,19 @@ WHERE child.document_id=document.id
   AND parent.process_id=child.process_id;
 
 INSERT INTO app_permissions(id,path,domain,entity,action,description,status)
+SELECT 'WD' || substring(md5('/wfl/' || definition.code || '/' || permission.action),1,24),
+       '/wfl/' || definition.code || '/' || permission.action,
+       'wfl',definition.code,permission.action,permission.label || definition.name || '流程','ENABLED'
+FROM wfl_process_definitions definition
+CROSS JOIN (VALUES
+    ('query','查询'),('get','读取'),('audit-history','查询审计')
+) AS permission(action,label)
+WHERE definition.status='ENABLED'
+ON CONFLICT (path) DO UPDATE SET
+    domain='wfl',entity=excluded.entity,action=excluded.action,
+    description=excluded.description,status='ENABLED',updated_at=now();
+
+INSERT INTO app_permissions(id,path,domain,entity,action,description,status)
 SELECT 'WG' || substring(md5('/wfl/' || entity || '/' || action),1,24),
        '/wfl/' || entity || '/' || action,
        'wfl',entity,action,description,'ENABLED'
@@ -274,13 +287,6 @@ FROM (VALUES
 ) AS permission(entity,action,description)
 ON CONFLICT (path) DO NOTHING;
 
-INSERT INTO app_role_permissions(role_id,permission_id,created_by)
-SELECT role.id,permission.id,'01JAPPSYST3MACTR0000000000'
-FROM app_roles role CROSS JOIN app_permissions permission
-WHERE role.code='superadmin' AND permission.domain='wfl'
-  AND permission.entity IN ('process-definition','process-instance')
-ON CONFLICT DO NOTHING;
-
 INSERT INTO app_permissions(id,path,domain,entity,action,description,status)
 SELECT 'VE' || substring(md5('/vou/expense-payment/' || action),1,24),
        '/vou/expense-payment/' || action,
@@ -296,12 +302,6 @@ FROM (VALUES
     ('attachment-remove','删除费用付款附件')
 ) AS permission(action,description)
 ON CONFLICT (path) DO NOTHING;
-
-INSERT INTO app_role_permissions(role_id,permission_id,created_by)
-SELECT role.id,permission.id,'01JAPPSYST3MACTR0000000000'
-FROM app_roles role CROSS JOIN app_permissions permission
-WHERE role.code='superadmin' AND permission.entity='expense-payment'
-ON CONFLICT DO NOTHING;
 
 -- +goose Down
 

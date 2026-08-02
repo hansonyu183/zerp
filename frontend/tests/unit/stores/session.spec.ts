@@ -74,6 +74,39 @@ describe('useSessionStore permissions', () => {
     expect(session.menus).toEqual([])
   })
 
+  it('只用一次 session 返回的 API 权限生成动态流程菜单', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: {
+        user: { id: '1', username: 'admin', displayName: '管理员' },
+        csrfToken: 'csrf-1',
+        permissions: [
+          '/wfl/process-instance/query',
+          '/wfl/sales-fulfillment/query',
+          '/wfl/sales-fulfillment/get',
+          '/wfl/purchase-fulfillment/short-close-request',
+        ],
+      },
+    })
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(true)
+
+    expect(session.menus).toMatchObject([
+      {
+        domain: 'wfl',
+        children: [
+          {
+            entity: 'sales-fulfillment',
+            title: 'Sales Fulfillment',
+            actions: ['query', 'get'],
+          },
+        ],
+      },
+    ])
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(1)
+    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/session', {})
+  })
+
   it('支持强制恢复会话以处理 BFCache 恢复', async () => {
     mockedApiClient.post.mockResolvedValue({
       data: {

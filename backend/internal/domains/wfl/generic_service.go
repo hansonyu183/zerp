@@ -13,6 +13,11 @@ import (
 
 var definitionCodePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}[a-z0-9]$`)
 
+var reservedDefinitionCodes = map[string]bool{
+	"process-definition": true,
+	"process-instance":   true,
+}
+
 var workflowNodes = []CatalogNode{
 	{Entity: "sale-order", Name: "销售订单"},
 	{Entity: "sale-outbound", Name: "销售出库"},
@@ -173,20 +178,27 @@ func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput,
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var actual int64
 	var status string
-	if err = tx.QueryRow(ctx, `SELECT revision,status FROM wfl_process_definitions WHERE id=$1 FOR UPDATE`, input.DefinitionID).Scan(&actual, &status); err != nil {
+	var actualCode string
+	if err = tx.QueryRow(ctx, `SELECT revision,status,code FROM wfl_process_definitions WHERE id=$1 FOR UPDATE`, input.DefinitionID).Scan(&actual, &status, &actualCode); err != nil {
 		return DefinitionView{}, validation("process definition not found", nil)
 	}
 	if actual != input.Revision {
 		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": actual})
+	}
+	if strings.TrimSpace(input.Code) != actualCode {
+		return DefinitionView{}, validation("process definition code is immutable", nil)
 	}
 	if status == DefinitionEnabled {
 		if err = validateRequiredDefaults(input.Nodes, input.Edges); err != nil {
 			return DefinitionView{}, err
 		}
 	}
-	if _, err = tx.Exec(ctx, `UPDATE wfl_process_definitions SET code=$1,name=$2,root_node_id=$3,start_condition=$4,
-		revision=revision+1,updated_at=now(),updated_by=$5 WHERE id=$6`, strings.TrimSpace(input.Code), strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID, input.DefinitionID); err != nil {
-		return DefinitionView{}, conflict("process definition code already exists", nil)
+	if _, err = tx.Exec(ctx, `UPDATE wfl_process_definitions SET name=$1,root_node_id=$2,start_condition=$3,
+		revision=revision+1,updated_at=now(),updated_by=$4 WHERE id=$5`, strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID, input.DefinitionID); err != nil {
+		return DefinitionView{}, internal("save process definition", err)
+	}
+	if err = syncDefinitionPermissionDescriptions(ctx, tx, actualCode, strings.TrimSpace(input.Name), actorID); err != nil {
+		return DefinitionView{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE wfl_definition_edges SET archived=true WHERE definition_id=$1`, input.DefinitionID); err != nil {
 		return DefinitionView{}, err
@@ -251,14 +263,83 @@ func (s *Service) DefinitionAction(ctx context.Context, action string, input Def
 			return nil, err
 		}
 	}
-	command, err := s.pool.Exec(ctx, `UPDATE wfl_process_definitions SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2 WHERE id=$3 AND revision=$4`, status, actorID, input.DefinitionID, input.Revision)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, internal("begin change definition status", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var code, name string
+	var actualRevision int64
+	if err = tx.QueryRow(ctx, `SELECT code,name,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE`, input.DefinitionID).Scan(&code, &name, &actualRevision); err != nil {
+		return nil, validation("process definition not found", nil)
+	}
+	if actualRevision != input.Revision {
+		return nil, conflict("process definition changed", map[string]any{"revision": actualRevision})
+	}
+	if action == "enable" {
+		err = enableDefinitionPermissions(ctx, tx, code, name, actorID)
+	} else {
+		err = disableDefinitionPermissions(ctx, tx, code, actorID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	command, err := tx.Exec(ctx, `UPDATE wfl_process_definitions SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2 WHERE id=$3 AND revision=$4`, status, actorID, input.DefinitionID, input.Revision)
 	if err != nil {
 		return nil, internal("change definition status", err)
 	}
 	if command.RowsAffected() != 1 {
 		return nil, conflict("process definition changed", nil)
 	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, internal("commit definition status", err)
+	}
 	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+}
+
+var definitionPermissionActions = []struct {
+	action string
+	label  string
+}{
+	{action: "query", label: "查询"},
+	{action: "get", label: "读取"},
+	{action: "audit-history", label: "查询审计"},
+}
+
+func enableDefinitionPermissions(ctx context.Context, tx pgx.Tx, code, name, actorID string) error {
+	for _, permission := range definitionPermissionActions {
+		path := "/wfl/" + code + "/" + permission.action
+		_, err := tx.Exec(ctx, `INSERT INTO app_permissions(id,path,domain,entity,action,description,status,created_by,updated_by)
+			VALUES($1,$2,'wfl',$3,$4,$5,'ENABLED',$6,$6)
+			ON CONFLICT(path) DO UPDATE SET domain='wfl',entity=excluded.entity,action=excluded.action,
+				description=excluded.description,status='ENABLED',revision=app_permissions.revision+1,
+				updated_at=now(),updated_by=excluded.updated_by`, newID(), path, code, permission.action, permission.label+name+"流程", actorID)
+		if err != nil {
+			return internal("enable process definition permission", err)
+		}
+	}
+	return nil
+}
+
+func disableDefinitionPermissions(ctx context.Context, tx pgx.Tx, code, actorID string) error {
+	for _, permission := range definitionPermissionActions {
+		path := "/wfl/" + code + "/" + permission.action
+		if _, err := tx.Exec(ctx, `UPDATE app_permissions SET status='DISABLED',revision=revision+1,
+			updated_at=now(),updated_by=$1 WHERE path=$2 AND status<>'DISABLED'`, actorID, path); err != nil {
+			return internal("disable process definition permission", err)
+		}
+	}
+	return nil
+}
+
+func syncDefinitionPermissionDescriptions(ctx context.Context, tx pgx.Tx, code, name, actorID string) error {
+	for _, permission := range definitionPermissionActions {
+		if _, err := tx.Exec(ctx, `UPDATE app_permissions SET description=$1,revision=revision+1,
+			updated_at=now(),updated_by=$2 WHERE path=$3`, permission.label+name+"流程", actorID, "/wfl/"+code+"/"+permission.action); err != nil {
+			return internal("update process definition permission", err)
+		}
+	}
+	return nil
 }
 
 func writeDefinitionGraph(ctx context.Context, tx pgx.Tx, definitionID string, nodes []DefinitionNodeInput, edges []DefinitionEdgeInput) error {
@@ -286,7 +367,8 @@ func writeDefinitionGraph(ctx context.Context, tx pgx.Tx, definitionID string, n
 }
 
 func validateDefinitionInput(input DefinitionCreateInput) error {
-	if !definitionCodePattern.MatchString(strings.TrimSpace(input.Code)) || strings.TrimSpace(input.Name) == "" || len(input.Nodes) == 0 {
+	code := strings.TrimSpace(input.Code)
+	if !definitionCodePattern.MatchString(code) || reservedDefinitionCodes[code] || strings.TrimSpace(input.Name) == "" || len(input.Nodes) == 0 {
 		return validation("invalid process definition", nil)
 	}
 	allowed := map[string]bool{}
@@ -493,14 +575,98 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 	}
 	defer rows.Close()
 	items := []InstanceListItem{}
+	processIDs := []string{}
 	for rows.Next() {
 		var item InstanceListItem
 		if err = rows.Scan(&item.ProcessID, &item.DefinitionID, &item.DefinitionCode, &item.DefinitionName, &item.Status, &item.Revision, &item.RootDocumentID, &item.RootDocumentNo, &item.RootEntity, &item.UpdatedAt); err != nil {
 			return Page[InstanceListItem]{}, err
 		}
+		item.CurrentNodes = []CurrentNodeView{}
 		items = append(items, item)
+		processIDs = append(processIDs, item.ProcessID)
 	}
-	return Page[InstanceListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, rows.Err()
+	if err = rows.Err(); err != nil {
+		return Page[InstanceListItem]{}, err
+	}
+	if len(processIDs) > 0 {
+		currentRows, queryErr := s.pool.Query(ctx, `SELECT n.process_id,n.id,n.node_name,n.document_id,d.document_no,n.document_entity,d.status
+			FROM wfl_node_instances n JOIN vou_documents d ON d.id=n.document_id
+			WHERE n.process_id=ANY($1::varchar[]) AND d.status<>'FINALIZED'
+			  AND NOT EXISTS(SELECT 1 FROM wfl_node_instances child WHERE child.parent_node_instance_id=n.id)
+			ORDER BY n.created_at,n.id`, processIDs)
+		if queryErr != nil {
+			return Page[InstanceListItem]{}, queryErr
+		}
+		defer currentRows.Close()
+		byProcess := make(map[string][]CurrentNodeView, len(processIDs))
+		for currentRows.Next() {
+			var processID string
+			var node CurrentNodeView
+			if err = currentRows.Scan(&processID, &node.NodeInstanceID, &node.NodeName, &node.DocumentID, &node.DocumentNo, &node.DocumentEntity, &node.DocumentStatus); err != nil {
+				return Page[InstanceListItem]{}, err
+			}
+			byProcess[processID] = append(byProcess[processID], node)
+		}
+		if err = currentRows.Err(); err != nil {
+			return Page[InstanceListItem]{}, err
+		}
+		for index := range items {
+			if nodes := byProcess[items[index].ProcessID]; nodes != nil {
+				items[index].CurrentNodes = nodes
+			}
+		}
+	}
+	return Page[InstanceListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func (s *Service) InstanceQueryByDefinitionCode(ctx context.Context, code string, input InstanceQueryInput) (Page[InstanceListItem], error) {
+	definitionID, err := s.enabledDefinitionID(ctx, code)
+	if err != nil {
+		return Page[InstanceListItem]{}, err
+	}
+	input.DefinitionID = definitionID
+	return s.InstanceQuery(ctx, input)
+}
+
+func (s *Service) InstanceGetByDefinitionCode(ctx context.Context, code string, input InstanceGetInput) (InstanceView, error) {
+	if _, err := s.enabledDefinitionID(ctx, code); err != nil {
+		return InstanceView{}, err
+	}
+	result, err := s.InstanceGet(ctx, input)
+	if err == nil && result.DefinitionCode != code {
+		return InstanceView{}, validation("process instance not found", nil)
+	}
+	return result, err
+}
+
+func (s *Service) InstanceHistoryByDefinitionCode(ctx context.Context, code string, input InstanceHistoryInput) (Page[RuntimeAuditView], error) {
+	if _, err := s.enabledDefinitionID(ctx, code); err != nil {
+		return Page[RuntimeAuditView]{}, err
+	}
+	var matches bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM wfl_definition_instances i
+		JOIN wfl_process_definitions d ON d.id=i.definition_id WHERE i.id=$1 AND d.code=$2)`, input.ProcessID, code).Scan(&matches); err != nil {
+		return Page[RuntimeAuditView]{}, err
+	}
+	if !matches {
+		return Page[RuntimeAuditView]{}, validation("process instance not found", nil)
+	}
+	return s.InstanceHistory(ctx, input)
+}
+
+func (s *Service) enabledDefinitionID(ctx context.Context, code string) (string, error) {
+	if !definitionCodePattern.MatchString(code) || reservedDefinitionCodes[code] {
+		return "", validation("process definition not found", nil)
+	}
+	var definitionID string
+	err := s.pool.QueryRow(ctx, `SELECT id FROM wfl_process_definitions WHERE code=$1 AND status='ENABLED'`, code).Scan(&definitionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", validation("process definition not found", nil)
+	}
+	if err != nil {
+		return "", internal("resolve process definition", err)
+	}
+	return definitionID, nil
 }
 
 func (s *Service) InstanceGet(ctx context.Context, input InstanceGetInput) (InstanceView, error) {

@@ -97,6 +97,32 @@ describe('ApiClient', () => {
     expect(requestedPath).toBe('/bob/customer/query')
   })
 
+  it('将流程类型模板展开为定义 code 对应的真实路径', async () => {
+    let requestedPath = ''
+    mockServer.use(
+      http.post(
+        'https://api.test/wfl/customer-onboarding/query',
+        ({ request }) => {
+          requestedPath = new URL(request.url).pathname
+          return HttpResponse.json({
+            code: 0,
+            message: 'ok',
+            data: { items: [], total: 0, page: 1, pageSize: 20 },
+            requestId: 'req-wfl',
+          })
+        },
+      ),
+    )
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+
+    await client.post('wfl/customer-onboarding/query', {
+      page: 1,
+      pageSize: 20,
+    })
+
+    expect(requestedPath).toBe('/wfl/customer-onboarding/query')
+  })
+
   it('通过受限技术端点上传和下载附件', async () => {
     let uploadedType: string | null = null
     let uploaded = false

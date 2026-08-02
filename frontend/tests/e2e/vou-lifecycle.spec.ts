@@ -262,7 +262,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     .locator('tbody tr')
     .filter({ hasText: orderNo! })
   await desktopProcessRow.getByRole('button', { name: '更多操作' }).click()
-  await page.getByRole('menuitem', { name: '查看流程' }).click()
+  await page.getByText('查看流程', { exact: true }).click()
   const composition = page.getByRole('dialog')
   await expect(composition).toContainText(orderNo!)
   const outbound = composition
@@ -359,7 +359,7 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({ pa
   await expect(processRow).toContainText('采购履约')
   await expect(processRow).toContainText('进行中')
   await processRow.getByRole('button', { name: '更多操作' }).click()
-  await page.getByRole('menuitem', { name: '查看流程' }).click()
+  await page.getByText('查看流程', { exact: true }).click()
   const processDialog = page.getByRole('dialog')
   await expect(processDialog).toContainText('采购订单')
   await expect(processDialog).toContainText('采购入库')

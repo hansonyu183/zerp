@@ -357,7 +357,7 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('vou', 'intermediary-sale-order')).toBe(false)
   })
 
-  it('仅按登录权限生成流程定义和各流程类型菜单', () => {
+  it('仅按登录权限生成流程定义、流程实例和各流程类型菜单', () => {
     expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(false)
     expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(false)
     expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(false)
@@ -387,6 +387,12 @@ describe('permission menu registry', () => {
           actions: ['query'],
         },
         {
+          entity: 'process-instance',
+          title: '流程实例',
+          order: 20,
+          actions: ['query'],
+        },
+        {
           entity: 'purchase-fulfillment',
           title: '采购履约',
           order: Number.MAX_SAFE_INTEGER,
@@ -402,7 +408,7 @@ describe('permission menu registry', () => {
     })
 
     const router = createTestRouter()
-    expect(registerMenuRoutes(router, menus)).toBe(5)
+    expect(registerMenuRoutes(router, menus)).toBe(6)
     expect(router.resolve('/wfl/purchase-fulfillment').meta).toMatchObject({
       developing: false,
       processName: 'purchase-fulfillment',
@@ -411,7 +417,10 @@ describe('permission menu registry', () => {
       developing: false,
       processName: 'sales-fulfillment',
     })
-    expect(router.resolve('/wfl/process-instance').name).toBe('not-found')
+    expect(router.resolve('/wfl/process-instance').meta).toMatchObject({
+      title: '流程实例',
+      developing: false,
+    })
   })
 
   it('没有 query 权限的流程专用动作不生成菜单', () => {

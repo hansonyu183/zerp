@@ -96,6 +96,11 @@ describe('useSessionStore permissions', () => {
         domain: 'wfl',
         children: [
           {
+            entity: 'process-instance',
+            title: '流程实例',
+            actions: ['query'],
+          },
+          {
             entity: 'sales-fulfillment',
             title: '销售履约',
             actions: ['query', 'get'],

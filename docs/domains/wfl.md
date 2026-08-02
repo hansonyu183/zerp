@@ -52,9 +52,9 @@ WFL 只以 VOU 的 `APPROVED` 状态事件创建流程实例和下级单据。`F
 
 ## 6. API、权限与前端
 
-流程定义 API 位于 `/wfl/process-definition/{query,get,create,save,enable,disable,delete,catalog}`。每个已启用定义按其 `code` 提供 `/wfl/{code}/{query,get,audit-history}` 三个实例 API；`/wfl/process-instance/*` 仅保留为兼容入口，不生成固定菜单。销售和采购流程的查询、详情与审计同样使用通用实例服务，短结等专用动作继续保留在各自流程类型下。
+流程定义 API 位于 `/wfl/process-definition/{query,get,create,save,enable,disable,delete,catalog}`。每个已启用定义按其 `code` 提供 `/wfl/{code}/{query,get,audit-history}` 三个实例 API；`/wfl/process-instance/*` 提供全部流程实例的统一列表，并在“业务流程”下生成“流程实例”二级菜单。销售和采购流程的查询、详情与审计同样使用通用实例服务，短结等专用动作继续保留在各自流程类型下。
 
-启用定义时事务性登记并启用上述三个 APP 权限，停用时禁用权限但保留普通角色的授权关联，重新启用后原授权继续生效。`superadmin` 按 APP 规则动态获得全部启用权限，不写逐项关联。登录和 session 恢复仍一次性返回 `permissions: string[]`，前端只从该数组中识别拥有 `query` 的 WFL 流程类型并生成二级菜单，不提供或调用 menu 接口，也不额外查询流程定义。权限变更后前端强制恢复当前 session 来刷新权限数组。
+启用定义时事务性登记并启用上述三个 APP 权限，停用时禁用权限但保留普通角色的授权关联，重新启用后原授权继续生效。`superadmin` 按 APP 规则动态获得全部启用权限，不写逐项关联。登录和 session 恢复仍一次性返回 `permissions: string[]`，前端只从该数组中识别拥有 `query` 的统一流程实例入口和 WFL 流程类型并生成二级菜单，不提供或调用 menu 接口，也不额外查询流程定义。权限变更后前端强制恢复当前 session 来刷新权限数组。
 
 流程定义页面提供节点画布、拖拽位置、一对多分支、条件和默认值编辑。每个流程类型的二级页面共用实例列表、实际单据树和运行记录组件；列表返回根单据往来单位快照、未完成的实际叶子 `currentNodes`，以及按实际已生成节点统计的 `progress`。有下级节点的节点视为已完成当前流程步骤，实际叶子以单据 `FINALIZED` 作为完成条件；未命中的条件分支不进入统计。列表不展示流程状态、根单据类型和更新时间，关键词只匹配流程内产品编码/名称与根单据往来单位编码/名称，往来单位筛选使用对象 ID 精确匹配。单节点直接处理，多节点先选择分支，也可查看流程或打开根单据。跳转后的正文仍由 `/vou/{entity}/get` 权限控制。
 

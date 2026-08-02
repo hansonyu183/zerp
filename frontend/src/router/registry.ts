@@ -34,7 +34,6 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
-const HIDDEN_COMPATIBILITY_PAGES = new Set(['wfl/process-instance'])
 const WORKFLOW_ENTITY_TITLES: Readonly<Record<string, string>> = {
   'purchase-fulfillment': '采购履约',
   'sales-fulfillment': '销售履约',
@@ -435,7 +434,6 @@ export function buildMenus(
     if (domain === 'app') continue
 
     const key = `${domain}/${entity}`
-    if (HIDDEN_COMPATIBILITY_PAGES.has(key)) continue
     const actions = actionsByPage.get(key) ?? []
     if (!actions.includes(action)) actions.push(action)
     actionsByPage.set(key, actions)

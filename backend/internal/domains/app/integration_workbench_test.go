@@ -183,9 +183,9 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouByID[documentIDs[2]].PendingStage != "FINALIZE" {
 		t.Fatalf("unexpected VOU workbench items: %+v", vouByID)
 	}
-	if slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
+	if !slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
 		!slices.Contains(vouByID[documentIDs[0]].AvailableActions, "edit") {
-		t.Fatalf("incomplete VOU draft actions = %v, want edit without check",
+		t.Fatalf("incomplete VOU draft actions = %v, want edit and check",
 			vouByID[documentIDs[0]].AvailableActions)
 	}
 	vouApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{

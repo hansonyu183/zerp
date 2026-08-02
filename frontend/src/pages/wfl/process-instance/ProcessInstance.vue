@@ -1,16 +1,50 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
+import { VoucherReferenceAutocomplete } from '@/components/voucher'
 import {
   documentEntityText,
   runtimeEventText,
   stageStatusText,
   workflowStageText,
 } from '@/components/wfl/config'
-import { useProcessInstanceViewModel } from './vm'
+import { useProcessInstanceViewModel, type InstanceListItem } from './vm'
 
 const vm = useProcessInstanceViewModel()
+
+function partyText(item: InstanceListItem): string {
+  if (!item.partyCode && !item.partyName) return '—'
+  return [item.partyCode, item.partyName].filter(Boolean).join(' · ')
+}
+
+function progressLabels(item: InstanceListItem): string[] {
+  return item.progress.length
+    ? item.progress.map((progress) => workflowStageText(progress.nodeName))
+    : ['暂无节点']
+}
+
+function progressValues(item: InstanceListItem): string[] {
+  return item.progress.length
+    ? item.progress.map(
+        (progress) => `${progress.completedCount}/${progress.totalCount}`,
+      )
+    : ['—']
+}
+
+function progressNote(item: InstanceListItem): string | undefined {
+  if (!item.progress.length) return undefined
+  const completed = item.progress.reduce(
+    (sum, progress) => sum + progress.completedCount,
+    0,
+  )
+  const total = item.progress.reduce(
+    (sum, progress) => sum + progress.totalCount,
+    0,
+  )
+  return `已完成 ${completed}/${total} 个节点单据`
+}
 </script>
 
 <template>
@@ -18,16 +52,18 @@ const vm = useProcessInstanceViewModel()
     <EntityListControls
       :keyword="vm.keyword.value"
       :loading="vm.loading.value"
-      search-label="根单号或流程名称"
+      filterable
+      search-label="产品或往来单位"
+      @apply-filters="vm.query({ resetPage: true })"
       @query="vm.query({ resetPage: true })"
+      @reset-filters="vm.resetFilters"
       @update:keyword="vm.keyword.value = $event"
     >
-      <template #toolbar>
+      <template #filters>
         <v-select
           v-model="vm.statuses.value"
-          class="instance-status-filter"
+          chips
           clearable
-          density="comfortable"
           hide-details
           :items="[
             { title: '进行中', value: 'ACTIVE' },
@@ -38,6 +74,15 @@ const vm = useProcessInstanceViewModel()
           label="状态"
           multiple
           variant="outlined"
+        />
+        <VoucherReferenceAutocomplete
+          :error-message="vm.partyError.value"
+          label="往来单位"
+          :loading="vm.partyLoading.value"
+          :model-value="vm.selectedParty.value"
+          :options="vm.partyOptions.value"
+          @search="vm.searchParty"
+          @update:model-value="vm.selectedParty.value = $event"
         />
       </template>
     </EntityListControls>
@@ -53,9 +98,9 @@ const vm = useProcessInstanceViewModel()
             <th>流程</th>
             <th>根单号</th>
             <th>根单据</th>
+            <th>往来单位</th>
             <th>当前节点</th>
-            <th>状态</th>
-            <th>更新时间</th>
+            <th>流程完成情况</th>
             <th class="text-right">操作</th>
           </tr>
         </thead>
@@ -67,6 +112,7 @@ const vm = useProcessInstanceViewModel()
             </td>
             <td>{{ item.rootDocumentNo }}</td>
             <td>{{ documentEntityText(item.rootEntity) }}</td>
+            <td>{{ partyText(item) }}</td>
             <td>
               <div
                 v-if="item.currentNodes.length"
@@ -85,13 +131,12 @@ const vm = useProcessInstanceViewModel()
               <span v-else class="text-medium-emphasis">—</span>
             </td>
             <td>
-              <v-chip
-                size="small"
-                :color="item.status === 'COMPLETED' ? 'success' : 'primary'"
-                >{{ item.status === 'COMPLETED' ? '已完成' : '进行中' }}</v-chip
-              >
+              <FulfillmentSummary
+                :labels="progressLabels(item)"
+                :note="progressNote(item)"
+                :values="progressValues(item)"
+              />
             </td>
-            <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
             <td>
               <ListRowActions
                 :loading="vm.loading.value"
@@ -140,13 +185,9 @@ const vm = useProcessInstanceViewModel()
           class="instance-card"
         >
           <span class="instance-card__title">{{ item.definitionName }}</span>
-          <v-chip
-            size="x-small"
-            :color="item.status === 'COMPLETED' ? 'success' : 'primary'"
-            >{{ item.status === 'COMPLETED' ? '已完成' : '进行中' }}</v-chip
-          >
           <strong>{{ item.rootDocumentNo }}</strong>
           <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
+          <span>往来单位：{{ partyText(item) }}</span>
           <span>
             当前节点：{{
               item.currentNodes.length
@@ -159,7 +200,14 @@ const vm = useProcessInstanceViewModel()
                 : '—'
             }}
           </span>
-          <span>更新时间：{{ new Date(item.updatedAt).toLocaleString() }}</span>
+          <div class="instance-card__progress">
+            <span>流程完成情况</span>
+            <FulfillmentSummary
+              :labels="progressLabels(item)"
+              :note="progressNote(item)"
+              :values="progressValues(item)"
+            />
+          </div>
           <ListRowActions
             class="instance-card__actions"
             :loading="vm.loading.value"
@@ -341,9 +389,6 @@ const vm = useProcessInstanceViewModel()
 </template>
 
 <style scoped>
-.instance-status-filter {
-  min-width: 190px;
-}
 .instance-list__mobile {
   display: none;
 }
@@ -360,8 +405,13 @@ const vm = useProcessInstanceViewModel()
 }
 .instance-card strong,
 .instance-card span:not(.instance-card__title),
+.instance-card__progress,
 .instance-card__actions {
   grid-column: 1 / -1;
+}
+.instance-card__progress {
+  display: grid;
+  gap: 4px;
 }
 .instance-card span:not(.instance-card__title) {
   color: rgb(var(--v-theme-on-surface-variant));

@@ -549,6 +549,7 @@
           'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
           'keyword': { 'type': 'string' },
           'definitionId': { 'type': 'string' },
+          'partyObjectId': { 'type': 'string' },
           'statuses': { 'type': 'array', 'items': { 'type': 'string' } },
         },
     },
@@ -575,6 +576,28 @@
           'documentStatus': { 'type': 'string' },
         },
     },
+  'WflInstanceProgressItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'nodeKey',
+          'nodeName',
+          'documentEntity',
+          'totalCount',
+          'completedCount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'nodeKey': { 'type': 'string' },
+          'nodeName': { 'type': 'string' },
+          'documentEntity': { 'type': 'string' },
+          'totalCount': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+          'completedCount':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+        },
+    },
   'WflInstanceListItem':
     {
       'type': 'object',
@@ -589,7 +612,10 @@
           'rootDocumentId',
           'rootDocumentNo',
           'rootEntity',
+          'partyCode',
+          'partyName',
           'currentNodes',
+          'progress',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -604,8 +630,15 @@
           'rootDocumentId': { 'type': 'string' },
           'rootDocumentNo': { 'type': 'string' },
           'rootEntity': { 'type': 'string' },
+          'partyCode': { 'type': 'string' },
+          'partyName': { 'type': 'string' },
           'currentNodes':
             { 'type': 'array', 'items': { '$ref': '#/WflCurrentNode' } },
+          'progress':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflInstanceProgressItem' },
+            },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },

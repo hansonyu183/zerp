@@ -551,9 +551,44 @@ func normalizedJSON(value json.RawMessage) json.RawMessage {
 	return value
 }
 
+const instancePartyJoin = ` LEFT JOIN LATERAL (
+	SELECT party_object_id,party_code,party_name FROM (
+		SELECT customer_object_id AS party_object_id,customer_code AS party_code,customer_name AS party_name FROM vou_sale_order_details WHERE document_id=d.id
+		UNION ALL SELECT customer_object_id,customer_code,customer_name FROM vou_sale_outbound_details WHERE document_id=d.id
+		UNION ALL SELECT customer_object_id,customer_code,customer_name FROM vou_sale_delivery_details WHERE document_id=d.id
+		UNION ALL SELECT customer_object_id,customer_code,customer_name FROM vou_sale_signoff_details WHERE document_id=d.id
+		UNION ALL SELECT customer_object_id,customer_code,customer_name FROM vou_sale_return_details WHERE document_id=d.id
+		UNION ALL SELECT supplier_object_id,supplier_code,supplier_name FROM vou_purchase_inquiry_details WHERE document_id=d.id
+		UNION ALL SELECT supplier_object_id,supplier_code,supplier_name FROM vou_purchase_order_details WHERE document_id=d.id
+		UNION ALL SELECT supplier_object_id,supplier_code,supplier_name FROM vou_purchase_inbound_details WHERE document_id=d.id
+		UNION ALL SELECT supplier_object_id,supplier_code,supplier_name FROM vou_purchase_return_details WHERE document_id=d.id
+		UNION ALL SELECT counterparty_object_id,counterparty_code,counterparty_name FROM vou_receipt_details WHERE document_id=d.id
+		UNION ALL SELECT counterparty_object_id,counterparty_code,counterparty_name FROM vou_payment_details WHERE document_id=d.id
+		UNION ALL SELECT employee_object_id,employee_code,employee_name FROM vou_expense_reimbursement_details WHERE document_id=d.id
+		UNION ALL SELECT employee_object_id,employee_code,employee_name FROM vou_expense_payment_details WHERE document_id=d.id
+		UNION ALL SELECT counterparty_object_id,COALESCE(counterparty_code,''),COALESCE(NULLIF(counterparty_name,''),source_name) FROM vou_other_income_details WHERE document_id=d.id
+	) parties LIMIT 1
+) party ON true `
+
+const instanceKeywordCondition = `($1='' OR party.party_code ILIKE '%'||$1||'%' OR party.party_name ILIKE '%'||$1||'%' OR EXISTS(
+	SELECT 1 FROM wfl_node_instances search_node WHERE search_node.process_id=i.id AND (
+		EXISTS(SELECT 1 FROM vou_product_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_sale_outbound_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_sale_signoff_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_sale_return_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_purchase_inbound_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_purchase_return_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_production_output_lines line WHERE line.document_id=search_node.document_id AND (line.product_code ILIKE '%'||$1||'%' OR line.product_name ILIKE '%'||$1||'%'))
+		OR EXISTS(SELECT 1 FROM vou_production_material_lines material JOIN vou_production_output_lines output ON output.id=material.output_line_id WHERE output.document_id=search_node.document_id AND (material.formula_material_code ILIKE '%'||$1||'%' OR material.formula_material_name ILIKE '%'||$1||'%' OR material.actual_material_code ILIKE '%'||$1||'%' OR material.actual_material_name ILIKE '%'||$1||'%'))
+	)
+))`
+
 func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (Page[InstanceListItem], error) {
 	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
 		return Page[InstanceListItem]{}, validation("invalid pagination", nil)
+	}
+	if input.PartyObjectID != "" && !validID(strings.TrimSpace(input.PartyObjectID)) {
+		return Page[InstanceListItem]{}, validation("invalid partyObjectId", nil)
 	}
 	statuses := input.Statuses
 	if statuses == nil {
@@ -565,11 +600,11 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 		}
 	}
 	var total int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%' OR f.name ILIKE '%'||$1||'%') AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[]))`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses).Scan(&total)
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id`+instancePartyJoin+`WHERE `+instanceKeywordCondition+` AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[])) AND ($4='' OR party.party_object_id=$4)`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses, strings.TrimSpace(input.PartyObjectID)).Scan(&total)
 	if err != nil {
 		return Page[InstanceListItem]{}, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT i.id,i.definition_id,f.code,f.name,i.status,i.revision,i.root_document_id,d.document_no,d.entity,i.updated_at FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%' OR f.name ILIKE '%'||$1||'%') AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[])) ORDER BY i.updated_at DESC,i.id DESC LIMIT $4 OFFSET $5`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses, input.PageSize, (input.Page-1)*input.PageSize)
+	rows, err := s.pool.Query(ctx, `SELECT i.id,i.definition_id,f.code,f.name,i.status,i.revision,i.root_document_id,d.document_no,d.entity,COALESCE(party.party_code,''),COALESCE(party.party_name,''),i.updated_at FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id`+instancePartyJoin+`WHERE `+instanceKeywordCondition+` AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[])) AND ($4='' OR party.party_object_id=$4) ORDER BY i.updated_at DESC,i.id DESC LIMIT $5 OFFSET $6`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses, strings.TrimSpace(input.PartyObjectID), input.PageSize, (input.Page-1)*input.PageSize)
 	if err != nil {
 		return Page[InstanceListItem]{}, err
 	}
@@ -578,10 +613,11 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 	processIDs := []string{}
 	for rows.Next() {
 		var item InstanceListItem
-		if err = rows.Scan(&item.ProcessID, &item.DefinitionID, &item.DefinitionCode, &item.DefinitionName, &item.Status, &item.Revision, &item.RootDocumentID, &item.RootDocumentNo, &item.RootEntity, &item.UpdatedAt); err != nil {
+		if err = rows.Scan(&item.ProcessID, &item.DefinitionID, &item.DefinitionCode, &item.DefinitionName, &item.Status, &item.Revision, &item.RootDocumentID, &item.RootDocumentNo, &item.RootEntity, &item.PartyCode, &item.PartyName, &item.UpdatedAt); err != nil {
 			return Page[InstanceListItem]{}, err
 		}
 		item.CurrentNodes = []CurrentNodeView{}
+		item.Progress = []InstanceProgressItem{}
 		items = append(items, item)
 		processIDs = append(processIDs, item.ProcessID)
 	}
@@ -589,6 +625,33 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 		return Page[InstanceListItem]{}, err
 	}
 	if len(processIDs) > 0 {
+		progressRows, queryErr := s.pool.Query(ctx, `WITH RECURSIVE node_depth AS (
+			SELECT id,0 AS depth FROM wfl_node_instances WHERE process_id=ANY($1::varchar[]) AND parent_node_instance_id IS NULL
+			UNION ALL
+			SELECT child.id,parent.depth+1 FROM wfl_node_instances child JOIN node_depth parent ON parent.id=child.parent_node_instance_id
+		)
+			SELECT n.process_id,n.node_key,n.node_name,n.document_entity,count(*)::bigint,
+			count(*) FILTER (WHERE d.status='FINALIZED' OR EXISTS(SELECT 1 FROM wfl_node_instances child WHERE child.parent_node_instance_id=n.id))::bigint
+			FROM wfl_node_instances n JOIN node_depth depth ON depth.id=n.id JOIN vou_documents d ON d.id=n.document_id
+			WHERE n.process_id=ANY($1::varchar[])
+			GROUP BY n.process_id,n.node_key,n.node_name,n.document_entity
+			ORDER BY min(depth.depth),min(n.created_at),n.node_key`, processIDs)
+		if queryErr != nil {
+			return Page[InstanceListItem]{}, queryErr
+		}
+		defer progressRows.Close()
+		progressByProcess := make(map[string][]InstanceProgressItem, len(processIDs))
+		for progressRows.Next() {
+			var processID string
+			var progress InstanceProgressItem
+			if err = progressRows.Scan(&processID, &progress.NodeKey, &progress.NodeName, &progress.DocumentEntity, &progress.TotalCount, &progress.CompletedCount); err != nil {
+				return Page[InstanceListItem]{}, err
+			}
+			progressByProcess[processID] = append(progressByProcess[processID], progress)
+		}
+		if err = progressRows.Err(); err != nil {
+			return Page[InstanceListItem]{}, err
+		}
 		currentRows, queryErr := s.pool.Query(ctx, `SELECT n.process_id,n.id,n.node_name,n.document_id,d.document_no,n.document_entity,d.status
 			FROM wfl_node_instances n JOIN vou_documents d ON d.id=n.document_id
 			WHERE n.process_id=ANY($1::varchar[]) AND d.status<>'FINALIZED'
@@ -611,6 +674,9 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 			return Page[InstanceListItem]{}, err
 		}
 		for index := range items {
+			if progress := progressByProcess[items[index].ProcessID]; progress != nil {
+				items[index].Progress = progress
+			}
 			if nodes := byProcess[items[index].ProcessID]; nodes != nil {
 				items[index].CurrentNodes = nodes
 			}

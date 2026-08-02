@@ -87,11 +87,12 @@ type DefinitionView struct {
 }
 
 type InstanceQueryInput struct {
-	Page         int      `json:"page"`
-	PageSize     int      `json:"pageSize"`
-	Keyword      string   `json:"keyword,omitempty"`
-	DefinitionID string   `json:"definitionId,omitempty"`
-	Statuses     []string `json:"statuses,omitempty"`
+	Page          int      `json:"page"`
+	PageSize      int      `json:"pageSize"`
+	Keyword       string   `json:"keyword,omitempty"`
+	DefinitionID  string   `json:"definitionId,omitempty"`
+	PartyObjectID string   `json:"partyObjectId,omitempty"`
+	Statuses      []string `json:"statuses,omitempty"`
 }
 
 type InstanceGetInput struct {
@@ -105,17 +106,28 @@ type InstanceHistoryInput struct {
 }
 
 type InstanceListItem struct {
-	ProcessID      string            `json:"processId"`
-	DefinitionID   string            `json:"definitionId"`
-	DefinitionCode string            `json:"definitionCode"`
-	DefinitionName string            `json:"definitionName"`
-	Status         string            `json:"status"`
-	Revision       int64             `json:"revision"`
-	RootDocumentID string            `json:"rootDocumentId"`
-	RootDocumentNo string            `json:"rootDocumentNo"`
-	RootEntity     string            `json:"rootEntity"`
-	CurrentNodes   []CurrentNodeView `json:"currentNodes"`
-	UpdatedAt      time.Time         `json:"updatedAt"`
+	ProcessID      string                 `json:"processId"`
+	DefinitionID   string                 `json:"definitionId"`
+	DefinitionCode string                 `json:"definitionCode"`
+	DefinitionName string                 `json:"definitionName"`
+	Status         string                 `json:"status"`
+	Revision       int64                  `json:"revision"`
+	RootDocumentID string                 `json:"rootDocumentId"`
+	RootDocumentNo string                 `json:"rootDocumentNo"`
+	RootEntity     string                 `json:"rootEntity"`
+	PartyCode      string                 `json:"partyCode"`
+	PartyName      string                 `json:"partyName"`
+	CurrentNodes   []CurrentNodeView      `json:"currentNodes"`
+	Progress       []InstanceProgressItem `json:"progress"`
+	UpdatedAt      time.Time              `json:"updatedAt"`
+}
+
+type InstanceProgressItem struct {
+	NodeKey        string `json:"nodeKey"`
+	NodeName       string `json:"nodeName"`
+	DocumentEntity string `json:"documentEntity"`
+	TotalCount     int64  `json:"totalCount"`
+	CompletedCount int64  `json:"completedCount"`
 }
 
 type CurrentNodeView struct {

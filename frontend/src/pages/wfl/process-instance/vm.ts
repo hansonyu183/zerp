@@ -1,7 +1,8 @@
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { apiClient, type BobApiEntity } from '@/api/client'
+import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import type { VoucherReference } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 
 export interface CurrentNode {
@@ -23,8 +24,30 @@ export interface InstanceListItem {
   rootDocumentId: string
   rootDocumentNo: string
   rootEntity: string
+  partyCode: string
+  partyName: string
   currentNodes: CurrentNode[]
+  progress: InstanceProgressItem[]
   updatedAt: string
+}
+
+export interface InstanceProgressItem {
+  nodeKey: string
+  nodeName: string
+  documentEntity: string
+  totalCount: number
+  completedCount: number
+}
+
+interface ReferenceListItem {
+  objectId: string
+  code: string
+  effectiveVersionId: string | null
+  currentVersion: {
+    versionId: string
+    status: string
+    summary: Record<string, unknown> & { name?: string }
+  }
 }
 
 export interface NodeInstance extends CurrentNode {
@@ -60,6 +83,10 @@ export function useProcessInstanceViewModel() {
   const history = ref<AuditEvent[]>([])
   const keyword = ref('')
   const statuses = ref<string[]>([])
+  const selectedParty = ref<VoucherReference | null>(null)
+  const partyOptions = ref<VoucherReference[]>([])
+  const partyLoading = ref(false)
+  const partyError = ref<string | null>(null)
   const page = ref(1)
   const pageSize = ref(20)
   const total = ref(0)
@@ -68,6 +95,8 @@ export function useProcessInstanceViewModel() {
   const chooserOpen = ref(false)
   const chooserNodes = ref<CurrentNode[]>([])
   const errorMessage = ref<string | null>(null)
+  let partySearchTimer: ReturnType<typeof setTimeout> | null = null
+  let partySearchSequence = 0
   const can = (action: string) =>
     Boolean(processName.value) &&
     session.can(`/wfl/${processName.value}/${action}`)
@@ -118,12 +147,16 @@ export function useProcessInstanceViewModel() {
           pageSize: number
           keyword?: string
           statuses?: string[]
+          partyObjectId?: string
         }
       >(`wfl/${processName.value}/query`, {
         page: page.value,
         pageSize: pageSize.value,
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
         ...(statuses.value.length ? { statuses: statuses.value } : {}),
+        ...(selectedParty.value
+          ? { partyObjectId: selectedParty.value.objectId }
+          : {}),
       })
       items.value = data.items ?? []
       total.value = data.total ?? 0
@@ -134,6 +167,81 @@ export function useProcessInstanceViewModel() {
     } finally {
       loading.value = false
     }
+  }
+
+  function searchParty(keywordValue: string): void {
+    if (partySearchTimer) clearTimeout(partySearchTimer)
+    partySearchTimer = setTimeout(
+      () => void loadPartyOptions(keywordValue),
+      250,
+    )
+  }
+
+  async function loadPartyOptions(keywordValue: string): Promise<void> {
+    const entities = (['customer', 'supplier'] as BobApiEntity[]).filter(
+      (entity) => session.can(`/bob/${entity}/query`),
+    )
+    if (entities.length === 0) {
+      partyOptions.value = []
+      partyError.value = '缺少客户或供应商查询权限。'
+      return
+    }
+    const sequence = ++partySearchSequence
+    partyLoading.value = true
+    partyError.value = null
+    try {
+      const pages = await Promise.all(
+        entities.map(async (entity) => {
+          const { data } = await apiClient.post<
+            PageResult<ReferenceListItem>,
+            PageRequest
+          >(`bob/${entity}/query`, {
+            page: 1,
+            pageSize: 20,
+            filters: {
+              status: ['EFFECTIVE'],
+              ...(keywordValue.trim() ? { keyword: keywordValue.trim() } : {}),
+              ...(entity === 'supplier' ? { supplierType: 'GENERAL' } : {}),
+            },
+            sort: [{ field: 'name', order: 'asc' }],
+          })
+          return (data.items ?? []).flatMap((item): VoucherReference[] => {
+            const name = item.currentVersion.summary.name
+            if (
+              item.currentVersion.status !== 'EFFECTIVE' ||
+              !item.effectiveVersionId ||
+              item.effectiveVersionId !== item.currentVersion.versionId ||
+              typeof name !== 'string'
+            ) {
+              return []
+            }
+            return [
+              {
+                objectId: item.objectId,
+                versionId: item.effectiveVersionId,
+                entity,
+                code: item.code,
+                name,
+              },
+            ]
+          })
+        }),
+      )
+      if (sequence === partySearchSequence) partyOptions.value = pages.flat()
+    } catch (error) {
+      if (sequence === partySearchSequence) {
+        partyError.value = getErrorMessage(error)
+      }
+    } finally {
+      if (sequence === partySearchSequence) partyLoading.value = false
+    }
+  }
+
+  async function resetFilters(): Promise<void> {
+    keyword.value = ''
+    statuses.value = []
+    selectedParty.value = null
+    await query({ resetPage: true })
   }
 
   async function open(item: InstanceListItem): Promise<void> {
@@ -214,6 +322,9 @@ export function useProcessInstanceViewModel() {
     void query()
   })
   onMounted(() => void query())
+  onBeforeUnmount(() => {
+    if (partySearchTimer) clearTimeout(partySearchTimer)
+  })
 
   return {
     processName,
@@ -222,6 +333,10 @@ export function useProcessInstanceViewModel() {
     history,
     keyword,
     statuses,
+    selectedParty,
+    partyOptions,
+    partyLoading,
+    partyError,
     page,
     pageSize,
     total,
@@ -235,6 +350,8 @@ export function useProcessInstanceViewModel() {
     nodeMap,
     can,
     query,
+    resetFilters,
+    searchParty,
     open,
     openRoot,
     processCurrent,

@@ -2612,6 +2612,7 @@ export interface components {
             pageSize: number;
             keyword?: string;
             definitionId?: string;
+            partyObjectId?: string;
             statuses?: string[];
         };
         WflCurrentNode: {
@@ -2621,6 +2622,15 @@ export interface components {
             documentNo: string;
             documentEntity: string;
             documentStatus: string;
+        };
+        WflInstanceProgressItem: {
+            nodeKey: string;
+            nodeName: string;
+            documentEntity: string;
+            /** Format: int64 */
+            totalCount: number;
+            /** Format: int64 */
+            completedCount: number;
         };
         WflInstanceListItem: {
             processId: string;
@@ -2634,7 +2644,10 @@ export interface components {
             rootDocumentId: string;
             rootDocumentNo: string;
             rootEntity: string;
+            partyCode: string;
+            partyName: string;
             currentNodes: components["schemas"]["WflCurrentNode"][];
+            progress: components["schemas"]["WflInstanceProgressItem"][];
             /** Format: date-time */
             updatedAt: string;
         };

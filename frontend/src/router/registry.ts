@@ -35,6 +35,10 @@ const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
 const HIDDEN_COMPATIBILITY_PAGES = new Set(['wfl/process-instance'])
+const WORKFLOW_ENTITY_TITLES: Readonly<Record<string, string>> = {
+  'purchase-fulfillment': '采购履约',
+  'sales-fulfillment': '销售履约',
+}
 const developingPage: PageLoader = () =>
   import('@/pages/system/developing/Developing.vue')
 const workflowInstancePage: PageLoader = () =>
@@ -485,7 +489,10 @@ export function buildMenus(
 
     domain.children.push({
       entity: entityId,
-      title: registration?.entityTitle ?? formatIdentifierTitle(entityId),
+      title:
+        registration?.entityTitle ??
+        (domainId === 'wfl' ? WORKFLOW_ENTITY_TITLES[entityId] : undefined) ??
+        formatIdentifierTitle(entityId),
       ...(registration?.icon ? { icon: registration.icon } : {}),
       order: registration?.order ?? FALLBACK_ORDER,
       actions,

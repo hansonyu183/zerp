@@ -268,7 +268,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const outbound = composition
     .locator('.instance-node')
     .filter({ hasText: '销售出库' })
-  await expect(outbound).toContainText(/^.*销售出库.*SOB-\d{8}-\d{4}.*DRAFT.*$/)
+  await expect(outbound).toContainText(/^.*销售出库.*SOB-\d{8}-\d{4}.*草稿.*$/)
   const outboundNo = (await outbound.textContent())?.match(
     /SOB-\d{8}-\d{4}/,
   )?.[0]

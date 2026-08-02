@@ -2,6 +2,12 @@
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
+import {
+  documentEntityText,
+  runtimeEventText,
+  stageStatusText,
+  workflowStageText,
+} from '@/components/wfl/config'
 import { useProcessInstanceViewModel } from './vm'
 
 const vm = useProcessInstanceViewModel()
@@ -60,7 +66,7 @@ const vm = useProcessInstanceViewModel()
               ><small>{{ item.definitionCode }}</small>
             </td>
             <td>{{ item.rootDocumentNo }}</td>
-            <td>{{ item.rootEntity }}</td>
+            <td>{{ documentEntityText(item.rootEntity) }}</td>
             <td>
               <div
                 v-if="item.currentNodes.length"
@@ -72,7 +78,8 @@ const vm = useProcessInstanceViewModel()
                   size="x-small"
                   variant="tonal"
                 >
-                  {{ node.nodeName }} · {{ node.documentNo }}
+                  {{ workflowStageText(node.nodeName) }} ·
+                  {{ node.documentNo }}
                 </v-chip>
               </div>
               <span v-else class="text-medium-emphasis">—</span>
@@ -139,12 +146,15 @@ const vm = useProcessInstanceViewModel()
             >{{ item.status === 'COMPLETED' ? '已完成' : '进行中' }}</v-chip
           >
           <strong>{{ item.rootDocumentNo }}</strong>
-          <span>根单据：{{ item.rootEntity }}</span>
+          <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
           <span>
             当前节点：{{
               item.currentNodes.length
                 ? item.currentNodes
-                    .map((node) => `${node.nodeName} · ${node.documentNo}`)
+                    .map(
+                      (node) =>
+                        `${workflowStageText(node.nodeName)} · ${node.documentNo}`,
+                    )
                     .join('、')
                 : '—'
             }}
@@ -210,8 +220,8 @@ const vm = useProcessInstanceViewModel()
           <v-list-item
             v-for="node in vm.chooserNodes.value"
             :key="node.nodeInstanceId"
-            :subtitle="`${node.documentEntity} · ${node.documentStatus}`"
-            :title="`${node.nodeName} · ${node.documentNo}`"
+            :subtitle="`${documentEntityText(node.documentEntity)} · ${stageStatusText(node.documentStatus)}`"
+            :title="`${workflowStageText(node.nodeName)} · ${node.documentNo}`"
             append-icon="mdi-chevron-right"
             @click="vm.chooseNode(node)"
           />
@@ -289,10 +299,10 @@ const vm = useProcessInstanceViewModel()
               type="button"
               @click="vm.openDocument(node)"
             >
-              <span>{{ node.nodeName }}</span>
+              <span>{{ workflowStageText(node.nodeName) }}</span>
               <strong>{{ node.documentNo }}</strong>
               <small
-                >{{ node.documentStatus
+                >{{ stageStatusText(node.documentStatus)
                 }}{{ node.legacy ? ' · 历史节点' : '' }}</small
               >
             </button>
@@ -307,7 +317,7 @@ const vm = useProcessInstanceViewModel()
                 size="x-small"
               >
                 <div class="text-subtitle-2">
-                  {{ event.eventType
+                  {{ runtimeEventText(event.eventType)
                   }}<span v-if="event.documentNo">
                     · {{ event.documentNo }}</span
                   >

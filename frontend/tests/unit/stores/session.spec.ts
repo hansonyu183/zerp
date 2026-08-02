@@ -97,7 +97,7 @@ describe('useSessionStore permissions', () => {
         children: [
           {
             entity: 'sales-fulfillment',
-            title: 'Sales Fulfillment',
+            title: '销售履约',
             actions: ['query', 'get'],
           },
         ],

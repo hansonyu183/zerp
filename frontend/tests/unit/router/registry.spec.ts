@@ -388,13 +388,13 @@ describe('permission menu registry', () => {
         },
         {
           entity: 'purchase-fulfillment',
-          title: 'Purchase Fulfillment',
+          title: '采购履约',
           order: Number.MAX_SAFE_INTEGER,
           actions: ['query'],
         },
         {
           entity: 'sales-fulfillment',
-          title: 'Sales Fulfillment',
+          title: '销售履约',
           order: Number.MAX_SAFE_INTEGER,
           actions: ['query'],
         },

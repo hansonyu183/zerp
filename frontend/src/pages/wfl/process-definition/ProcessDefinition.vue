@@ -2,6 +2,10 @@
 import { computed, ref } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
+import {
+  definitionStatusText,
+  documentEntityText,
+} from '@/components/wfl/config'
 import { useProcessDefinitionViewModel } from './vm'
 
 const vm = useProcessDefinitionViewModel()
@@ -102,10 +106,12 @@ function removeSelectedNode(): void {
           >
             <td>{{ item.code }}</td>
             <td>{{ item.name }}</td>
-            <td>{{ item.rootEntity }}</td>
+            <td>{{ documentEntityText(item.rootEntity) }}</td>
             <td>{{ item.nodeCount }}</td>
             <td>
-              <v-chip size="small">{{ item.status }}</v-chip>
+              <v-chip size="small">{{
+                definitionStatusText(item.status)
+              }}</v-chip>
             </td>
             <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
           </tr>
@@ -125,9 +131,11 @@ function removeSelectedNode(): void {
           @click="vm.open(item)"
         >
           <span class="definition-card__title">{{ item.name }}</span>
-          <v-chip size="x-small">{{ item.status }}</v-chip>
+          <v-chip size="x-small">{{
+            definitionStatusText(item.status)
+          }}</v-chip>
           <span>编码：{{ item.code }}</span>
-          <span>根单据：{{ item.rootEntity }}</span>
+          <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
           <span>节点：{{ item.nodeCount }}</span>
         </button>
         <div
@@ -329,7 +337,7 @@ function removeSelectedNode(): void {
             >
               <v-icon size="20">mdi-file-document-outline</v-icon>
               <span>{{ node.name }}</span>
-              <small>{{ node.documentEntity }}</small>
+              <small>{{ documentEntityText(node.documentEntity) }}</small>
             </button>
           </div>
         </v-card-text>

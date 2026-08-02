@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  definitionStatusText,
+  documentEntityText,
+  runtimeEventText,
   stageStatusText,
   workflowStageText,
   workflowStatusText,
@@ -57,6 +60,26 @@ describe('WFL Chinese labels', () => {
     ])
     expect(stageStatusText('FINALIZED')).toBe('已完成')
     expect(workflowStageText('FUTURE_STAGE')).toBe('FUTURE_STAGE')
+  })
+
+  it('translates definition-list and instance-list values', () => {
+    expect(['DRAFT', 'ENABLED', 'DISABLED'].map(definitionStatusText)).toEqual([
+      '草稿',
+      '已启用',
+      '已停用',
+    ])
+    expect(
+      ['sale-order', 'purchase-inbound', 'expense-payment'].map(
+        documentEntityText,
+      ),
+    ).toEqual(['销售订单', '采购入库', '费用付款'])
+    expect(['STARTED', 'CHILD_CREATED'].map(runtimeEventText)).toEqual([
+      '流程已启动',
+      '已创建下级单据',
+    ])
+    expect(documentEntityText('future-document')).toBe('future-document')
+    expect(definitionStatusText('FUTURE_STATUS')).toBe('FUTURE_STATUS')
+    expect(runtimeEventText('FUTURE_EVENT')).toBe('FUTURE_EVENT')
   })
 })
 

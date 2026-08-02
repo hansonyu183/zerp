@@ -97,7 +97,6 @@ function progressNote(item: InstanceListItem): string | undefined {
           <tr>
             <th>流程</th>
             <th>根单号</th>
-            <th>根单据</th>
             <th>往来单位</th>
             <th>当前节点</th>
             <th>流程完成情况</th>
@@ -111,7 +110,6 @@ function progressNote(item: InstanceListItem): string | undefined {
               ><small>{{ item.definitionCode }}</small>
             </td>
             <td>{{ item.rootDocumentNo }}</td>
-            <td>{{ documentEntityText(item.rootEntity) }}</td>
             <td>{{ partyText(item) }}</td>
             <td>
               <div
@@ -172,7 +170,7 @@ function progressNote(item: InstanceListItem): string | undefined {
             </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.items.value.length === 0">
-            <td colspan="7" class="text-center py-8 text-medium-emphasis">
+            <td colspan="6" class="text-center py-8 text-medium-emphasis">
               暂无流程实例
             </td>
           </tr>
@@ -186,7 +184,6 @@ function progressNote(item: InstanceListItem): string | undefined {
         >
           <span class="instance-card__title">{{ item.definitionName }}</span>
           <strong>{{ item.rootDocumentNo }}</strong>
-          <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
           <span>往来单位：{{ partyText(item) }}</span>
           <span>
             当前节点：{{

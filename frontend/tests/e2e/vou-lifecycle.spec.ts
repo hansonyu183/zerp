@@ -254,6 +254,9 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(
     page.getByRole('columnheader', { name: '往来单位' }),
   ).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '根单据' })).toHaveCount(
+    0,
+  )
   await expect(page.getByRole('columnheader', { name: '状态' })).toHaveCount(0)
   await expect(
     page.getByRole('columnheader', { name: '更新时间' }),
@@ -274,6 +277,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(mobileProcess).toBeVisible()
   await expect(mobileProcess).toContainText('销售履约')
   await expect(mobileProcess).toContainText('流程完成情况')
+  await expect(mobileProcess).not.toContainText('根单据：')
   await expect(mobileProcess).not.toContainText('更新时间')
   await expect(mobileProcess).not.toContainText('进行中')
   await expectNoPageHorizontalOverflow(page)

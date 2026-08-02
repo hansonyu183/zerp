@@ -45,14 +45,14 @@ export function calculateLineAmount(
   unitPrice: string,
 ): string | null {
   const quantityMicros = parseFixed(quantity, 6)
-  const priceCents = parseFixed(unitPrice, 2)
+  const priceCents = parseFixed(unitPrice, 2, true)
   if (quantityMicros === null || priceCents === null) return null
 
   const product = quantityMicros * priceCents
   const divisor = 1_000_000n
   let cents = product / divisor
   if ((product % divisor) * 2n >= divisor) cents += 1n
-  return cents > 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
+  return cents >= 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
 }
 
 export function calculatePricedLineAmount(
@@ -61,27 +61,24 @@ export function calculatePricedLineAmount(
   pricingQuantityPerInventoryUnit = '1',
 ): string | null {
   const quantityMicros = parseFixed(inventoryQuantity, 6)
-  const conversionMicros = parseFixed(
-    pricingQuantityPerInventoryUnit,
-    6,
-  )
-  const priceCents = parseFixed(unitPrice, 2)
+  const conversionMicros = parseFixed(pricingQuantityPerInventoryUnit, 6)
+  const priceCents = parseFixed(unitPrice, 2, true)
   if (
     quantityMicros === null ||
     conversionMicros === null ||
     priceCents === null
-  ) return null
-  const pricingQuantityMicros =
-    (quantityMicros * conversionMicros) / 1_000_000n
+  )
+    return null
+  const pricingQuantityMicros = (quantityMicros * conversionMicros) / 1_000_000n
   const product = pricingQuantityMicros * priceCents
   const divisor = 1_000_000n
   let cents = product / divisor
   if ((product % divisor) * 2n >= divisor) cents += 1n
-  return cents > 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
+  return cents >= 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
 }
 
 export function addMoney(left: string, right?: string): string | null {
-  const leftCents = parseFixed(left, 2)
+  const leftCents = parseFixed(left, 2, true)
   const rightCents = parseFixed(right || '0', 2, true)
   if (leftCents === null || rightCents === null) return null
   const total = leftCents + rightCents

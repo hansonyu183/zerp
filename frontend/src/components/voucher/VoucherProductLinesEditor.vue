@@ -187,7 +187,7 @@ function removeLine(index: number): void {
             <th>#</th>
             <th class="voucher-lines__reference">产品</th>
             <th>数量</th>
-            <th>{{ settlementSurchargeEnabled ? '基础售价' : '售价' }}</th>
+            <th>{{ settlementSurchargeEnabled ? '基础售价' : '单价' }}</th>
             <th v-if="settlementSurchargeEnabled">结算加价/kg</th>
             <th v-if="purchasePriceRequired">采购价</th>
             <th>金额</th>
@@ -231,18 +231,30 @@ function removeLine(index: number): void {
               />
               <span v-else>{{ line.orderedQuantity }}</span>
             </td>
-            <td :data-label="settlementSurchargeEnabled ? '基础售价' : '售价'">
+            <td :data-label="settlementSurchargeEnabled ? '基础售价' : '单价'">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
                 :model-value="line.unitPrice"
                 :rules="[
                   (v: string) =>
-                    isMoney(v) || '请输入大于零且最多两位小数的单价。',
+                    isMoney(v, true) || '请输入不小于零且最多两位小数的单价。',
                 ]"
-                @update:model-value="updateLine(index, { unitPrice: $event })"
+                @update:model-value="
+                  updateLine(index, { unitPrice: $event, priceDirty: true })
+                "
               />
               <span v-else>{{ line.unitPrice }}</span>
+              <small
+                v-if="line.referenceUnitPrice !== undefined"
+                class="voucher-lines__reference-price"
+              >
+                参考 {{ line.referenceUnitPrice
+                }}<template v-if="line.referenceDocumentNo">
+                  · {{ line.referenceDocumentNo }}</template
+                >
+                <template v-else> · 无来源</template>
+              </small>
             </td>
             <td v-if="settlementSurchargeEnabled" data-label="结算加价/kg">
               <CompactTableField
@@ -419,5 +431,11 @@ function removeLine(index: number): void {
 }
 .voucher-lines__table :deep(.v-input) {
   min-width: 140px;
+}
+.voucher-lines__reference-price {
+  display: block;
+  margin-top: 4px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 11px;
 }
 </style>

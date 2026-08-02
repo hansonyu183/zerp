@@ -7,6 +7,7 @@ export { default as VoucherExpenseLinesEditor } from './VoucherExpenseLinesEdito
 export { default as VoucherLifecycleActions } from './VoucherLifecycleActions.vue'
 export { default as VoucherList } from './VoucherList.vue'
 export { default as VoucherProductLinesEditor } from './VoucherProductLinesEditor.vue'
+export { default as VoucherPriceLinesEditor } from './VoucherPriceLinesEditor.vue'
 export { default as VoucherProductionLinesEditor } from './VoucherProductionLinesEditor.vue'
 export { default as VoucherReferenceAutocomplete } from './VoucherReferenceAutocomplete.vue'
 export { default as VoucherWorkspace } from './VoucherWorkspace.vue'

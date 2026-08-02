@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	EntitySalePricing          = "sale-pricing"
 	EntitySaleOrder            = "sale-order"
 	EntitySaleOutbound         = "sale-outbound"
 	EntitySaleDelivery         = "sale-delivery"
@@ -14,6 +15,7 @@ const (
 	EntityPurchaseOrder        = "purchase-order"
 	EntityPurchaseInbound      = "purchase-inbound"
 	EntityPurchaseReturn       = "purchase-return"
+	EntityPurchaseInquiry      = "purchase-inquiry"
 	EntityOrderProduction      = "order-production"
 	EntitySelfProduction       = "self-production"
 	EntityReceipt              = "receipt"
@@ -31,6 +33,7 @@ const (
 )
 
 var entities = [...]string{
+	EntitySalePricing,
 	EntitySaleOrder,
 	EntitySaleOutbound,
 	EntitySaleDelivery,
@@ -39,6 +42,7 @@ var entities = [...]string{
 	EntityPurchaseOrder,
 	EntityPurchaseInbound,
 	EntityPurchaseReturn,
+	EntityPurchaseInquiry,
 	EntityOrderProduction,
 	EntitySelfProduction,
 	EntityReceipt,
@@ -49,7 +53,7 @@ var entities = [...]string{
 
 func publicCreateEntity(entity string) bool {
 	switch entity {
-	case EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
+	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
 		EntitySaleReturn, EntityPurchaseReturn, EntityOrderProduction, EntitySelfProduction,
 		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
 		return true
@@ -95,6 +99,12 @@ type ProductLineInput struct {
 	ContainerType        *string        `json:"containerType,omitempty"`
 	QuantityPerContainer *string        `json:"quantityPerContainer,omitempty"`
 	Formula              *FormulaInput  `json:"formula,omitempty"`
+}
+
+type PriceLineInput struct {
+	Product   ReferenceInput `json:"product"`
+	UnitPrice string         `json:"unitPrice"`
+	Remark    string         `json:"remark,omitempty"`
 }
 
 type FormulaInput struct {
@@ -180,6 +190,7 @@ type DraftInput struct {
 	SourceName        string                    `json:"sourceName,omitempty"`
 	Amount            string                    `json:"amount,omitempty"`
 	ProductLines      []ProductLineInput        `json:"productLines,omitempty"`
+	PriceLines        []PriceLineInput          `json:"priceLines,omitempty"`
 	ExpenseLines      []ExpenseLineInput        `json:"expenseLines,omitempty"`
 	SourceLines       []SourceQuantityLineInput `json:"sourceLines,omitempty"`
 	SignoffLines      []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
@@ -243,6 +254,25 @@ type GetInput struct {
 	permissions []string
 }
 
+type PriceReferenceInput struct {
+	BusinessDate string           `json:"businessDate"`
+	Currency     string           `json:"currency"`
+	Supplier     *ReferenceInput  `json:"supplier,omitempty"`
+	Products     []ReferenceInput `json:"products"`
+}
+
+type PriceReferenceLineView struct {
+	ProductObjectID    string `json:"productObjectId"`
+	UnitPrice          string `json:"unitPrice"`
+	SourceDocumentID   string `json:"sourceDocumentId,omitempty"`
+	SourceDocumentNo   string `json:"sourceDocumentNo,omitempty"`
+	SourceBusinessDate string `json:"sourceBusinessDate,omitempty"`
+}
+
+type PriceReferenceView struct {
+	Lines []PriceReferenceLineView `json:"lines"`
+}
+
 type QueryFilters struct {
 	Keyword       string   `json:"keyword,omitempty"`
 	Status        []string `json:"status,omitempty"`
@@ -304,28 +334,40 @@ type ReferenceView struct {
 }
 
 type ProductLineView struct {
-	LineID               string        `json:"lineId"`
-	LineNo               int32         `json:"lineNo"`
-	Product              ReferenceView `json:"product"`
-	OrderedQuantity      string        `json:"orderedQuantity"`
-	UnitPrice            string        `json:"unitPrice"`
-	BaseUnitPrice        string        `json:"baseUnitPrice"`
-	SettlementSurcharge  string        `json:"settlementSurcharge"`
-	PurchaseUnitPrice    string        `json:"purchaseUnitPrice,omitempty"`
-	LineAmount           string        `json:"lineAmount"`
-	Remark               string        `json:"remark,omitempty"`
-	OutboundQuantity     string        `json:"outboundQuantity,omitempty"`
-	SignedQuantity       string        `json:"signedQuantity,omitempty"`
-	RejectedQuantity     string        `json:"rejectedQuantity,omitempty"`
-	LossQuantity         string        `json:"lossQuantity,omitempty"`
-	InboundQuantity      string        `json:"inboundQuantity,omitempty"`
-	ContainerType        string        `json:"containerType,omitempty"`
-	QuantityPerContainer string        `json:"quantityPerContainer,omitempty"`
-	SourceLineID         string        `json:"sourceLineId,omitempty"`
-	Quantity             string        `json:"quantity,omitempty"`
-	AvailableQuantity    string        `json:"availableQuantity,omitempty"`
-	ReturnableQuantity   string        `json:"returnableQuantity,omitempty"`
-	Formula              *FormulaView  `json:"formula,omitempty"`
+	LineID                string        `json:"lineId"`
+	LineNo                int32         `json:"lineNo"`
+	Product               ReferenceView `json:"product"`
+	OrderedQuantity       string        `json:"orderedQuantity"`
+	UnitPrice             string        `json:"unitPrice"`
+	BaseUnitPrice         string        `json:"baseUnitPrice"`
+	SettlementSurcharge   string        `json:"settlementSurcharge"`
+	PurchaseUnitPrice     string        `json:"purchaseUnitPrice,omitempty"`
+	LineAmount            string        `json:"lineAmount"`
+	Remark                string        `json:"remark,omitempty"`
+	OutboundQuantity      string        `json:"outboundQuantity,omitempty"`
+	SignedQuantity        string        `json:"signedQuantity,omitempty"`
+	RejectedQuantity      string        `json:"rejectedQuantity,omitempty"`
+	LossQuantity          string        `json:"lossQuantity,omitempty"`
+	InboundQuantity       string        `json:"inboundQuantity,omitempty"`
+	ContainerType         string        `json:"containerType,omitempty"`
+	QuantityPerContainer  string        `json:"quantityPerContainer,omitempty"`
+	SourceLineID          string        `json:"sourceLineId,omitempty"`
+	Quantity              string        `json:"quantity,omitempty"`
+	AvailableQuantity     string        `json:"availableQuantity,omitempty"`
+	ReturnableQuantity    string        `json:"returnableQuantity,omitempty"`
+	Formula               *FormulaView  `json:"formula,omitempty"`
+	ReferenceUnitPrice    string        `json:"referenceUnitPrice"`
+	ReferenceDocumentID   string        `json:"referenceDocumentId,omitempty"`
+	ReferenceDocumentNo   string        `json:"referenceDocumentNo,omitempty"`
+	ReferenceBusinessDate string        `json:"referenceBusinessDate,omitempty"`
+}
+
+type PriceLineView struct {
+	LineID    string        `json:"lineId"`
+	LineNo    int32         `json:"lineNo"`
+	Product   ReferenceView `json:"product"`
+	UnitPrice string        `json:"unitPrice"`
+	Remark    string        `json:"remark,omitempty"`
 }
 
 type FormulaView struct {
@@ -468,6 +510,7 @@ type DocumentDataView struct {
 	SupplierSettlementMethod  *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
 	SourceName                string                        `json:"sourceName,omitempty"`
 	ProductLines              []ProductLineView             `json:"productLines,omitempty"`
+	PriceLines                []PriceLineView               `json:"priceLines,omitempty"`
 	ExpenseLines              []ExpenseLineView             `json:"expenseLines,omitempty"`
 	OutboundDate              string                        `json:"outboundDate,omitempty"`
 	SignoffDate               string                        `json:"signoffDate,omitempty"`

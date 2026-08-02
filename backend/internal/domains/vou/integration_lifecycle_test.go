@@ -51,6 +51,10 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		entity string
 		draft  DraftInput
 	}{
+		{EntitySalePricing, DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY",
+			PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "11.20"}},
+		}},
 		{EntitySaleOrder, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 			Warehouse: &refs.warehouse, ProductLines: productLine,
@@ -76,6 +80,10 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			BusinessDate: "2026-07-24", Currency: "CNY", SourceName: "废料收入",
 			CounterpartyType: "customer", Counterparty: &refs.customer,
 			FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "60.00",
+		}},
+		{EntityPurchaseInquiry, DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
+			PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "8.30"}},
 		}},
 	}
 
@@ -294,7 +302,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 209
+	wantPermissions := 241
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -318,7 +326,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
-	if legacyPermissions != 0 || purchaseWritePermissions != 11 ||
+	if legacyPermissions != 0 || purchaseWritePermissions != 12 ||
 		purchaseWorkflowPermissions != 7 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)

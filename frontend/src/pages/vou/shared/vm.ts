@@ -31,8 +31,8 @@ import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
 import { canRunListLifecycleAction } from './lifecycle'
 import { useVoucherProduction } from './production'
-
-const PERSONNEL_KEYS = new Set(['salesperson', 'purchaser'])
+import { useVoucherPricing } from './pricing'
+import { createVoucherReferenceChangeHandler } from './reference-change'
 
 export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const session = useSessionStore()
@@ -63,11 +63,19 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = ref<VoucherDraftForm>(emptyForm(config))
   const {
-    changeLineProduct,
+    changeLineProduct: changeFormulaLineProduct,
     resolveLineFormula,
     refreshCustomFormulas,
     updateLineFormula,
   } = useVoucherFormula(config, form)
+  const { changeLineProduct, refreshPriceReferences } = useVoucherPricing(
+    config,
+    form,
+    changeFormulaLineProduct,
+    editing,
+    workspaceLoading,
+    (error) => (workspaceError.value = getErrorMessage(error)),
+  )
   const {
     addProductionLine,
     changeProductionProduct,
@@ -75,6 +83,13 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   } = useVoucherProduction(config, form)
   const initialForm = ref(snapshot(form.value))
   const personnelDirty = new Set<string>()
+  const markReferenceChanged = createVoucherReferenceChangeHandler(
+    config,
+    form,
+    personnelDirty,
+    refreshCustomFormulas,
+    refreshPriceReferences,
+  )
 
   const executionOpen = ref(false)
   const executionError = ref<string | null>(null)
@@ -155,13 +170,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       attachmentLoading.value,
   )
 
-  function permission(action: string): string {
-    return `/vou/${config.entity}/${action}`
-  }
-
-  function canView(): boolean {
-    return session.can(permission('get'))
-  }
+  const permission = (action: string) => `/vou/${config.entity}/${action}`
+  const canView = () => session.can(permission('get'))
 
   function canEdit(row: VoucherListItem): boolean {
     return (
@@ -359,18 +369,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     personnelDirty.clear()
     clearReferenceSearches()
     clearSourceDocuments()
-  }
-
-  function markReferenceChanged(key: keyof VoucherDraftForm): void {
-    if (PERSONNEL_KEYS.has(key)) personnelDirty.add(key)
-    if (key === 'customer' && config.entity === 'sale-order') {
-      void refreshCustomFormulas()
-    }
-    if (key === 'fundAccount') {
-      form.value.currency = form.value.fundAccount?.currency ?? ''
-    }
-    if (key === 'platform') form.value.vehicle = null
-    if (key === 'counterpartyType') form.value.counterparty = null
   }
 
   async function save(): Promise<boolean> {

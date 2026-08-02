@@ -21,6 +21,7 @@ type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[ListItem], error)
 	Get(context.Context, string, GetInput) (DocumentView, error)
 	FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error)
+	PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
@@ -53,6 +54,7 @@ var actionRoutes = [...]actionRoute{
 	{action: "query", handle: (*Handler).query},
 	{action: "get", handle: (*Handler).get},
 	{action: "formula-default", handle: (*Handler).formulaDefault},
+	{action: "price-reference", handle: (*Handler).priceReference},
 	{action: "create", handle: (*Handler).create},
 	{action: "save", handle: (*Handler).save},
 	{action: "check", handle: (*Handler).check},
@@ -92,6 +94,9 @@ func (h *Handler) Register(router *gin.Engine) {
 				entity != EntitySelfProduction {
 				continue
 			}
+			if route.action == "price-reference" && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
+				continue
+			}
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
@@ -102,6 +107,14 @@ func (h *Handler) Register(router *gin.Engine) {
 	}
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
+}
+
+func (h *Handler) priceReference(c *gin.Context, entity string) {
+	var input PriceReferenceInput
+	if h.bind(c, &input) {
+		result, err := h.service.PriceReference(c.Request.Context(), entity, input)
+		h.result(c, result, err)
+	}
 }
 
 func (h *Handler) formulaDefault(c *gin.Context, entity string) {

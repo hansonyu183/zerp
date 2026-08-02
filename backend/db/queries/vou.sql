@@ -15,6 +15,75 @@ SELECT
      JOIN vou_production_output_lines output ON output.id = material.output_line_id
      WHERE output.document_id = sqlc.arg(target_document_id)) AS materials;
 
+-- name: InsertVouSalePricingDetail :exec
+INSERT INTO vou_sale_pricing_details(document_id, entity)
+VALUES (sqlc.arg(document_id), 'sale-pricing');
+
+-- name: InsertVouPurchaseInquiryDetail :exec
+INSERT INTO vou_purchase_inquiry_details(
+    document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name
+) VALUES (
+    sqlc.arg(document_id), 'purchase-inquiry', sqlc.arg(supplier_object_id),
+    sqlc.arg(supplier_version_id), sqlc.arg(supplier_code), sqlc.arg(supplier_name)
+);
+
+-- name: UpdateVouPurchaseInquiryDetail :execrows
+UPDATE vou_purchase_inquiry_details SET
+    supplier_object_id=sqlc.arg(supplier_object_id), supplier_version_id=sqlc.arg(supplier_version_id),
+    supplier_code=sqlc.arg(supplier_code), supplier_name=sqlc.arg(supplier_name)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouPurchaseInquiryDetail :one
+SELECT * FROM vou_purchase_inquiry_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouPriceLines :exec
+DELETE FROM vou_price_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouPriceLine :exec
+INSERT INTO vou_price_lines(
+    id,document_id,document_entity,line_no,product_object_id,product_version_id,
+    product_code,product_name,product_unit,product_kind,
+    pricing_quantity_per_inventory_unit_micros,unit_price_cents,remark
+) VALUES (
+    sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(document_entity),sqlc.arg(line_no),
+    sqlc.arg(product_object_id),sqlc.arg(product_version_id),sqlc.arg(product_code),
+    sqlc.arg(product_name),sqlc.arg(product_unit),sqlc.arg(product_kind),
+    sqlc.arg(pricing_quantity_per_inventory_unit_micros),sqlc.arg(unit_price_cents),sqlc.narg(remark)
+);
+
+-- name: ListVouPriceLines :many
+SELECT * FROM vou_price_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: FindVouSalePriceReference :one
+SELECT line.id AS source_line_id, document.id AS source_document_id,
+       document.document_no AS source_document_no, document.business_date,
+       line.unit_price_cents
+FROM vou_price_lines line
+JOIN vou_documents document ON document.id=line.document_id
+WHERE line.document_entity='sale-pricing'
+  AND line.product_object_id=sqlc.arg(product_object_id)
+  AND document.currency=sqlc.arg(currency)
+  AND document.business_date <= sqlc.arg(business_date)
+  AND document.status IN ('APPROVED','FINALIZED')
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1;
+
+-- name: FindVouPurchasePriceReference :one
+SELECT line.id AS source_line_id, document.id AS source_document_id,
+       document.document_no AS source_document_no, document.business_date,
+       line.unit_price_cents
+FROM vou_price_lines line
+JOIN vou_documents document ON document.id=line.document_id
+JOIN vou_purchase_inquiry_details inquiry ON inquiry.document_id=document.id
+WHERE line.document_entity='purchase-inquiry'
+  AND line.product_object_id=sqlc.arg(product_object_id)
+  AND inquiry.supplier_object_id=sqlc.arg(supplier_object_id)
+  AND document.currency=sqlc.arg(currency)
+  AND document.business_date <= sqlc.arg(business_date)
+  AND document.status IN ('APPROVED','FINALIZED')
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1;
+
 -- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
     id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,
@@ -110,6 +179,7 @@ WHERE d.entity = sqlc.arg(entity)
   AND (
       sqlc.arg(party_object_id)::text = ''
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
@@ -126,6 +196,8 @@ WHERE d.entity = sqlc.arg(entity)
       OR d.document_no ILIKE '%' || sqlc.arg(keyword) || '%'
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.customer_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id
@@ -151,7 +223,7 @@ WHERE d.entity = sqlc.arg(entity)
 -- name: ListVouDocuments :many
 SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
-                po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
+                pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
 FROM vou_documents d
@@ -160,6 +232,7 @@ LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
 LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
 LEFT JOIN vou_sale_return_details sr ON sr.document_id = d.id
+LEFT JOIN vou_purchase_inquiry_details pqi ON pqi.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = d.id
 LEFT JOIN vou_purchase_return_details pr ON pr.document_id = d.id
@@ -496,7 +569,9 @@ INSERT INTO vou_product_lines (
     product_code, product_name, product_unit, ordered_qty_micros,
     product_kind, pricing_quantity_per_inventory_unit_micros,
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
-    line_amount_cents, purchase_unit_price_cents, remark
+    line_amount_cents, purchase_unit_price_cents, remark,
+    reference_unit_price_cents, reference_document_id, reference_document_no,
+    reference_business_date, reference_line_id
 ) VALUES (
     sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(document_entity), sqlc.arg(line_no),
     sqlc.arg(product_object_id), sqlc.arg(product_version_id), sqlc.arg(product_code),
@@ -504,7 +579,10 @@ INSERT INTO vou_product_lines (
     sqlc.arg(product_kind), sqlc.arg(pricing_quantity_per_inventory_unit_micros),
     sqlc.arg(base_unit_price_cents), sqlc.arg(settlement_surcharge_cents),
     sqlc.arg(unit_price_cents), sqlc.arg(line_amount_cents),
-    sqlc.narg(purchase_unit_price_cents), sqlc.narg(remark)
+    sqlc.narg(purchase_unit_price_cents), sqlc.narg(remark),
+    sqlc.arg(reference_unit_price_cents), sqlc.narg(reference_document_id),
+    sqlc.narg(reference_document_no), sqlc.narg(reference_business_date),
+    sqlc.narg(reference_line_id)
 );
 
 -- name: ListVouProductLines :many

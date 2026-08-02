@@ -1313,6 +1313,48 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/price-reference':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '解析订单产品参考价',
+              'operationId': 'vouPriceReference',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouPriceReferenceRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '订单参考价响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouPriceReferenceResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/vou/{entity}/create':
         {
           'post':

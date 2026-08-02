@@ -64,7 +64,7 @@ func (s *Service) resolveDraftPersonnel(
 		result.Salesperson, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Salesperson)
 	} else if preserved.Salesperson != nil {
 		result.Salesperson = preserved.Salesperson
-	} else if allowDefaults && result.Customer != nil {
+	} else if entity == EntitySaleOrder && allowDefaults && result.Customer != nil {
 		result.Salesperson, err = s.resolveCurrentEmployee(
 			ctx,
 			tx,
@@ -82,7 +82,7 @@ func (s *Service) resolveDraftPersonnel(
 		result.Purchaser, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Purchaser)
 	} else if preserved.Purchaser != nil {
 		result.Purchaser = preserved.Purchaser
-	} else if allowDefaults && result.Supplier != nil {
+	} else if entity == EntityPurchaseOrder && allowDefaults && result.Supplier != nil {
 		result.Purchaser, err = s.resolveCurrentEmployee(
 			ctx,
 			tx,
@@ -170,6 +170,13 @@ func (s *Service) resolveDraftProducts(
 	result *resolvedDraft,
 ) error {
 	q := s.queries.WithTx(tx)
+	for index := range draft.PriceLines {
+		product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &draft.PriceLines[index].Product)
+		if err != nil {
+			return err
+		}
+		result.Products = append(result.Products, *product)
+	}
 	for index := range draft.ProductLines {
 		line := &draft.ProductLines[index]
 		product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &line.Product)

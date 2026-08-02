@@ -65,6 +65,7 @@ WHERE (
         UNION ALL SELECT customer_name FROM vou_sale_delivery_details WHERE document_id = document.id
         UNION ALL SELECT customer_name FROM vou_sale_signoff_details WHERE document_id = document.id
         UNION ALL SELECT customer_name FROM vou_sale_return_details WHERE document_id = document.id
+        UNION ALL SELECT supplier_name FROM vou_purchase_inquiry_details WHERE document_id = document.id
         UNION ALL SELECT supplier_name FROM vou_purchase_order_details WHERE document_id = document.id
         UNION ALL SELECT supplier_name FROM vou_purchase_inbound_details WHERE document_id = document.id
         UNION ALL SELECT supplier_name FROM vou_purchase_return_details WHERE document_id = document.id
@@ -180,7 +181,7 @@ SELECT document.id AS document_id, document.entity, document.document_no,
        COALESCE(document.currency, '') AS currency, document.total_amount_cents,
        document.updated_at,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
-                sr.customer_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
+                sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '') AS party_name
 FROM vou_documents document
@@ -189,6 +190,7 @@ LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = document.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = document.id
 LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = document.id
 LEFT JOIN vou_sale_return_details sr ON sr.document_id = document.id
+LEFT JOIN vou_purchase_inquiry_details pqi ON pqi.document_id = document.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = document.id
 LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = document.id
 LEFT JOIN vou_purchase_return_details pr ON pr.document_id = document.id
@@ -205,7 +207,7 @@ WHERE (
     $4::text = ''
     OR document.document_no ILIKE '%' || $4 || '%'
     OR COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
-                sr.customer_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
+                sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '')
        ILIKE '%' || $4 || '%'

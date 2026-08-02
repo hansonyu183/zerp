@@ -147,7 +147,7 @@ func (s *Service) postSaleSignoff(
 	}
 	rows.Close()
 	for _, line := range lines {
-		if line.signed > 0 {
+		if line.signed > 0 && line.amount != 0 {
 			err = q.InsertLedPartyEntry(ctx, partyParams(
 				posting, doc, line.id, doc.BusinessDate,
 				customerObjectID, customerVersionID, customerCode, customerName, "customer", line.amount,
@@ -227,7 +227,7 @@ func (s *Service) postSaleReturn(
 		}); err != nil {
 			return s.writeError("post sale return inventory", err)
 		}
-		if kind == "AFTER_SALE" {
+		if kind == "AFTER_SALE" && line.amount != 0 {
 			if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.id, doc.BusinessDate,
 				customerObjectID, customerVersionID, customerCode, customerName, "customer", -line.amount)); err != nil {
 				return s.writeError("post sale return receivable", err)
@@ -279,12 +279,14 @@ func (s *Service) postPurchase(
 		}); err != nil {
 			return s.writeError("post purchase inventory", err)
 		}
-		if err = q.InsertLedPartyEntry(ctx, partyParams(
-			posting, doc, line.ID, doc.BusinessDate,
-			detail.SupplierObjectID, detail.SupplierVersionID,
-			detail.SupplierCode, detail.SupplierName, "supplier", -line.LineAmountCents,
-		)); err != nil {
-			return s.writeError("post purchase payable", err)
+		if line.LineAmountCents != 0 {
+			if err = q.InsertLedPartyEntry(ctx, partyParams(
+				posting, doc, line.ID, doc.BusinessDate,
+				detail.SupplierObjectID, detail.SupplierVersionID,
+				detail.SupplierCode, detail.SupplierName, "supplier", -line.LineAmountCents,
+			)); err != nil {
+				return s.writeError("post purchase payable", err)
+			}
 		}
 	}
 	return nil
@@ -357,11 +359,13 @@ func (s *Service) postPurchaseReturn(
 		}); err != nil {
 			return s.writeError("post purchase return inventory", err)
 		}
-		if err = q.InsertLedPartyEntry(ctx, partyParams(
-			posting, doc, line.id, doc.BusinessDate, supplierID, supplierVersion,
-			supplierCode, supplierName, "supplier", line.amount,
-		)); err != nil {
-			return s.writeError("post purchase return payable", err)
+		if line.amount != 0 {
+			if err = q.InsertLedPartyEntry(ctx, partyParams(
+				posting, doc, line.id, doc.BusinessDate, supplierID, supplierVersion,
+				supplierCode, supplierName, "supplier", line.amount,
+			)); err != nil {
+				return s.writeError("post purchase return payable", err)
+			}
 		}
 	}
 	return nil

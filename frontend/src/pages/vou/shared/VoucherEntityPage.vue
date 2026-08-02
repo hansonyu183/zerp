@@ -17,6 +17,7 @@ import {
   VoucherLifecycleActions,
   VoucherList,
   VoucherProductLinesEditor,
+  VoucherPriceLinesEditor,
   VoucherProductionLinesEditor,
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
@@ -820,6 +821,15 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :settlement-surcharge-enabled="vm.config.entity === 'sale-order'"
             @product-search="vm.searchReference('product', $event)"
             @product-change="vm.changeLineProduct"
+          />
+          <VoucherPriceLinesEditor
+            v-if="vm.config.lineKind === 'price'"
+            v-model="vm.form.priceLines"
+            :editable="vm.editing"
+            :product-error="vm.referenceError('product')"
+            :product-loading="vm.referenceLoading('product')"
+            :product-options="vm.referenceOptions('product')"
+            @product-search="vm.searchReference('product', $event)"
           />
           <VoucherExpenseLinesEditor
             v-if="vm.config.lineKind === 'expense'"

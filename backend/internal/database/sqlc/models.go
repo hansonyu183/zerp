@@ -994,7 +994,7 @@ type VouPaymentDetail struct {
 	HandlerName           *string `db:"handler_name" json:"handler_name"`
 }
 
-type VouProductLine struct {
+type VouPriceLine struct {
 	ID                                    string  `db:"id" json:"id"`
 	DocumentID                            string  `db:"document_id" json:"document_id"`
 	DocumentEntity                        string  `db:"document_entity" json:"document_entity"`
@@ -1004,20 +1004,41 @@ type VouProductLine struct {
 	ProductCode                           string  `db:"product_code" json:"product_code"`
 	ProductName                           string  `db:"product_name" json:"product_name"`
 	ProductUnit                           string  `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros                      int64   `db:"ordered_qty_micros" json:"ordered_qty_micros"`
-	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents                       int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	OutboundQtyMicros                     *int64  `db:"outbound_qty_micros" json:"outbound_qty_micros"`
-	SignedQtyMicros                       *int64  `db:"signed_qty_micros" json:"signed_qty_micros"`
-	RejectedQtyMicros                     *int64  `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	LossQtyMicros                         *int64  `db:"loss_qty_micros" json:"loss_qty_micros"`
-	InboundQtyMicros                      *int64  `db:"inbound_qty_micros" json:"inbound_qty_micros"`
-	Remark                                *string `db:"remark" json:"remark"`
-	PurchaseUnitPriceCents                *int64  `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
-	BaseUnitPriceCents                    int64   `db:"base_unit_price_cents" json:"base_unit_price_cents"`
-	SettlementSurchargeCents              int64   `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
 	ProductKind                           string  `db:"product_kind" json:"product_kind"`
 	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                                *string `db:"remark" json:"remark"`
+}
+
+type VouProductLine struct {
+	ID                                    string      `db:"id" json:"id"`
+	DocumentID                            string      `db:"document_id" json:"document_id"`
+	DocumentEntity                        string      `db:"document_entity" json:"document_entity"`
+	LineNo                                int32       `db:"line_no" json:"line_no"`
+	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
+	ProductCode                           string      `db:"product_code" json:"product_code"`
+	ProductName                           string      `db:"product_name" json:"product_name"`
+	ProductUnit                           string      `db:"product_unit" json:"product_unit"`
+	OrderedQtyMicros                      int64       `db:"ordered_qty_micros" json:"ordered_qty_micros"`
+	UnitPriceCents                        int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	OutboundQtyMicros                     *int64      `db:"outbound_qty_micros" json:"outbound_qty_micros"`
+	SignedQtyMicros                       *int64      `db:"signed_qty_micros" json:"signed_qty_micros"`
+	RejectedQtyMicros                     *int64      `db:"rejected_qty_micros" json:"rejected_qty_micros"`
+	LossQtyMicros                         *int64      `db:"loss_qty_micros" json:"loss_qty_micros"`
+	InboundQtyMicros                      *int64      `db:"inbound_qty_micros" json:"inbound_qty_micros"`
+	Remark                                *string     `db:"remark" json:"remark"`
+	PurchaseUnitPriceCents                *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
+	BaseUnitPriceCents                    int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
+	SettlementSurchargeCents              int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	ProductKind                           string      `db:"product_kind" json:"product_kind"`
+	PricingQuantityPerInventoryUnitMicros int64       `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	ReferenceUnitPriceCents               int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	ReferenceDocumentID                   *string     `db:"reference_document_id" json:"reference_document_id"`
+	ReferenceDocumentNo                   *string     `db:"reference_document_no" json:"reference_document_no"`
+	ReferenceBusinessDate                 pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
+	ReferenceLineID                       *string     `db:"reference_line_id" json:"reference_line_id"`
 }
 
 type VouProductionDetail struct {
@@ -1098,6 +1119,15 @@ type VouPurchaseInboundLine struct {
 	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
 	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark            *string `db:"remark" json:"remark"`
+}
+
+type VouPurchaseInquiryDetail struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	Entity            string `db:"entity" json:"entity"`
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
 }
 
 type VouPurchaseOrderDetail struct {
@@ -1286,6 +1316,11 @@ type VouSaleOutboundLine struct {
 	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
 	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark            *string `db:"remark" json:"remark"`
+}
+
+type VouSalePricingDetail struct {
+	DocumentID string `db:"document_id" json:"document_id"`
+	Entity     string `db:"entity" json:"entity"`
 }
 
 type VouSaleReturnDetail struct {

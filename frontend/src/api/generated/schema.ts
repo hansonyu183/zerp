@@ -854,6 +854,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/price-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解析订单产品参考价 */
+        post: operations["vouPriceReference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/create": {
         parameters: {
             query?: never;
@@ -1657,7 +1674,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2060,8 +2077,37 @@ export interface components {
                 versionId: string;
             };
         };
+        VouPriceReferenceRequest: {
+            /** Format: date */
+            businessDate: string;
+            currency: string;
+            supplier?: {
+                objectId: string;
+                versionId: string;
+            };
+            products: {
+                objectId: string;
+                versionId: string;
+            }[];
+        };
+        VouPriceReferenceResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            requestId: string;
+            data: {
+                lines: {
+                    productObjectId: string;
+                    unitPrice: string;
+                    sourceDocumentId?: string;
+                    sourceDocumentNo?: string;
+                    /** Format: date */
+                    sourceBusinessDate?: string;
+                }[];
+            };
+        };
         /** @enum {string} */
-        VouCreatableEntity: "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2096,6 +2142,14 @@ export interface components {
             sourceDocumentId?: string;
             sourceDocumentNo?: string;
             components: components["schemas"]["VouFormulaComponentInput"][];
+        };
+        VouPriceLineInput: {
+            product: {
+                objectId: string;
+                versionId: string;
+            };
+            unitPrice: string;
+            remark?: string;
         };
         VouCreateRequest: {
             parentEntity?: components["schemas"]["VouEntity"];
@@ -2176,6 +2230,7 @@ export interface components {
                     quantityPerContainer?: string | null;
                     formula?: components["schemas"]["VouFormulaInput"] | null;
                 }[];
+                priceLines?: components["schemas"]["VouPriceLineInput"][];
                 expenseLines?: {
                     category: string;
                     description: string;
@@ -2280,6 +2335,7 @@ export interface components {
                     quantityPerContainer?: string | null;
                     formula?: components["schemas"]["VouFormulaInput"] | null;
                 }[];
+                priceLines?: components["schemas"]["VouPriceLineInput"][];
                 expenseLines?: {
                     category: string;
                     description: string;
@@ -3468,6 +3524,32 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    vouPriceReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouPriceReferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description 订单参考价响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouPriceReferenceResponse"];
+                };
+            };
         };
     };
     voucreate: {

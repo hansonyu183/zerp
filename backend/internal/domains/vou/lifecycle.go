@@ -114,6 +114,9 @@ func (s *Service) createDocument(
 	if err = applySettlementTerms(entity, &draft, resolved); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.applyPriceReferences(ctx, q, entity, &draft, resolved); err != nil {
+		return MutationResult{}, err
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
 		ID: documentID, Entity: entity, DocumentNo: documentNo,
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
@@ -195,6 +198,9 @@ func (s *Service) Save(
 		return MutationResult{}, err
 	}
 	if err = applySettlementTerms(entity, &draft, resolved); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.applyPriceReferences(ctx, q, entity, &draft, resolved); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.updateDetail(ctx, q, entity, input.DocumentID, draft, resolved); err != nil {

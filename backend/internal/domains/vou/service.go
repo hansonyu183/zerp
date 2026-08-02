@@ -110,6 +110,7 @@ func mutation(document dbsqlc.VouDocument, status string, revision int64) Mutati
 
 func entityPrefix(entity string) string {
 	return map[string]string{
+		EntitySalePricing: "SPR", EntityPurchaseInquiry: "PIQ",
 		EntitySaleOrder: "SOR", EntitySaleOutbound: "SOB", EntitySaleDelivery: "SDL",
 		EntitySaleSignoff: "SSF", EntityPurchaseOrder: "POR", EntityPurchaseInbound: "PIN",
 		EntitySaleReturn:      "SRT",

@@ -209,6 +209,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/aux/account-subject/AccountSubject.vue'),
   }),
   registerPage('vou', {
+    entity: 'sale-pricing',
+    entityTitle: '销售定价',
+    icon: 'mdi-tag-multiple-outline',
+    order: 5,
+    component: () => import('@/pages/vou/sale-pricing/SalePricing.vue'),
+  }),
+  registerPage('vou', {
     entity: 'sale-order',
     entityTitle: '销售订单',
     icon: 'mdi-cart-arrow-down',
@@ -256,6 +263,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-cog-transfer-outline',
     order: 56,
     component: () => import('@/pages/vou/self-production/SelfProduction.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'purchase-inquiry',
+    entityTitle: '采购询价',
+    icon: 'mdi-comment-question-outline',
+    order: 58,
+    component: () => import('@/pages/vou/purchase-inquiry/PurchaseInquiry.vue'),
   }),
   registerPage('vou', {
     entity: 'purchase-order',

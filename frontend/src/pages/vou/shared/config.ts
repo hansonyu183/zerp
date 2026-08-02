@@ -35,6 +35,15 @@ export const voucherStatusText: Record<VoucherStatus, string> = {
 export const voucherEntityConfigs: Readonly<
   Record<VoucherEntity, VoucherEntityConfig>
 > = {
+  'sale-pricing': {
+    entity: 'sale-pricing',
+    title: '销售定价',
+    icon: 'mdi-tag-multiple-outline',
+    order: 5,
+    partyMode: 'none',
+    lineKind: 'price',
+    finalizationKind: 'direct',
+  },
   'sale-order': {
     entity: 'sale-order',
     title: '销售订单',
@@ -119,6 +128,15 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     usesPurchaser: true,
     usesWarehouse: true,
+  },
+  'purchase-inquiry': {
+    entity: 'purchase-inquiry',
+    title: '采购询价',
+    icon: 'mdi-comment-question-outline',
+    order: 58,
+    partyMode: 'supplier',
+    lineKind: 'price',
+    finalizationKind: 'direct',
   },
   'purchase-inbound': {
     entity: 'purchase-inbound',

@@ -123,7 +123,7 @@ export function validateVoucherDraft(
       if (
         !line.product ||
         !isQuantity(line.orderedQuantity) ||
-        !isMoney(line.unitPrice) ||
+        !isMoney(line.unitPrice, true) ||
         ((line.settlementSurcharge ?? '') !== '' &&
           !isMoney(line.settlementSurcharge ?? '', true))
       )
@@ -164,6 +164,24 @@ export function validateVoucherDraft(
       }
     }
     if (!sumMoney(lineAmounts)) return '单据总金额超出允许范围。'
+  }
+  if (config.lineKind === 'price') {
+    if (value.priceLines.length < 1 || value.priceLines.length > 200) {
+      return '价格明细必须包含 1 到 200 行。'
+    }
+    const seen = new Set<string>()
+    for (const [index, line] of value.priceLines.entries()) {
+      if (!line.product || !isMoney(line.unitPrice, true)) {
+        return `第 ${index + 1} 行 · 产品/单价：请完整填写有效值。`
+      }
+      if (seen.has(line.product.objectId)) {
+        return `第 ${index + 1} 行 · 产品：不能重复添加。`
+      }
+      seen.add(line.product.objectId)
+      if (Array.from(line.remark).length > 1000) {
+        return `第 ${index + 1} 行 · 备注：不能超过 1000 字。`
+      }
+    }
   }
   if (config.lineKind === 'expense') {
     if (value.expenseLines.length < 1 || value.expenseLines.length > 200) {

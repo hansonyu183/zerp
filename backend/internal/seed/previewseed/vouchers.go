@@ -790,7 +790,7 @@ func (s *Seeder) ensureVoucher(
 	err := s.pool.QueryRow(ctx, `
 		SELECT document_id
 		FROM vou_audit_events
-		WHERE request_id=$1 AND event_type='CREATED'
+		WHERE request_id=$1 AND event_type IN ('CREATED','SAVED')
 		ORDER BY occurred_at,id
 		LIMIT 1
 	`, requestID(key, "create")).Scan(&documentID)

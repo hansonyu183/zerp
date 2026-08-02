@@ -315,6 +315,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/vou/expense-reimbursement/ExpenseReimbursement.vue'),
   }),
   registerPage('vou', {
+    entity: 'expense-payment',
+    entityTitle: '费用付款',
+    icon: 'mdi-cash-check',
+    order: 105,
+    component: () => import('@/pages/vou/expense-payment/ExpensePayment.vue'),
+  }),
+  registerPage('vou', {
     entity: 'other-income',
     entityTitle: '其他收入',
     icon: 'mdi-cash-multiple',
@@ -322,20 +329,19 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
   }),
   registerPage('wfl', {
-    entity: 'sales-fulfillment',
-    entityTitle: '销售履约',
-    icon: 'mdi-truck-check-outline',
+    entity: 'process-definition',
+    entityTitle: '流程定义',
+    icon: 'mdi-source-branch',
     order: 10,
     component: () =>
-      import('@/pages/wfl/sales-fulfillment/SalesFulfillment.vue'),
+      import('@/pages/wfl/process-definition/ProcessDefinition.vue'),
   }),
   registerPage('wfl', {
-    entity: 'purchase-fulfillment',
-    entityTitle: '采购履约',
-    icon: 'mdi-warehouse',
+    entity: 'process-instance',
+    entityTitle: '流程实例',
+    icon: 'mdi-sitemap-outline',
     order: 20,
-    component: () =>
-      import('@/pages/wfl/purchase-fulfillment/PurchaseFulfillment.vue'),
+    component: () => import('@/pages/wfl/process-instance/ProcessInstance.vue'),
   }),
   registerPage('led', {
     entity: 'closing',

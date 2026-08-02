@@ -315,7 +315,7 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('为全部十一类原子单据注册独立 VOU 页面', () => {
+  it('为全部十二类核心原子单据注册独立 VOU 页面', () => {
     const entities = [
       'sale-order',
       'sale-outbound',
@@ -327,6 +327,7 @@ describe('permission menu registry', () => {
       'receipt',
       'payment',
       'expense-reimbursement',
+      'expense-payment',
       'other-income',
     ]
 
@@ -348,6 +349,7 @@ describe('permission menu registry', () => {
       '往来收款',
       '往来付款',
       '费用报销',
+      '费用付款',
       '其他收入',
     ])
     expect(hasRegisteredPage('vou', 'sale-order')).toBe(true)
@@ -355,16 +357,18 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('vou', 'intermediary-sale-order')).toBe(false)
   })
 
-  it('将销售与采购履约注册在 VOU 与 LED 之间', () => {
+  it('将通用流程定义和实例注册在 VOU 与 LED 之间', () => {
     expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(false)
-    expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(true)
-    expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(false)
+    expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(false)
+    expect(hasRegisteredPage('wfl', 'process-definition')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'process-instance')).toBe(true)
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
       '/led/closing/get',
-      '/wfl/purchase-fulfillment/query',
-      '/wfl/sales-fulfillment/query',
+      '/wfl/process-definition/query',
+      '/wfl/process-instance/query',
       '/vou/purchase-order/query',
     ])
 
@@ -375,14 +379,14 @@ describe('permission menu registry', () => {
       order: 30,
       children: [
         {
-          entity: 'sales-fulfillment',
-          title: '销售履约',
+          entity: 'process-definition',
+          title: '流程定义',
           order: 10,
           actions: ['query'],
         },
         {
-          entity: 'purchase-fulfillment',
-          title: '采购履约',
+          entity: 'process-instance',
+          title: '流程实例',
           order: 20,
           actions: ['query'],
         },

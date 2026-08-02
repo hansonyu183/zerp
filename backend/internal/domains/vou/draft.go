@@ -419,6 +419,12 @@ func (s *Service) validateStoredAttributes(
 		missing = detail.HandlerObjectID == nil
 	case EntityExpenseReimbursement:
 		return nil
+	case EntityExpensePayment:
+		detail, err := q.GetVouExpensePaymentDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read expense payment attributes", err)
+		}
+		missing = detail.FundAccountObjectID == "" || detail.EmployeeObjectID == ""
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}

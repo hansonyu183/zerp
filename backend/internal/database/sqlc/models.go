@@ -923,17 +923,32 @@ type VouExpenseLine struct {
 	Remark         *string `db:"remark" json:"remark"`
 }
 
+type VouExpensePaymentDetail struct {
+	DocumentID            string `db:"document_id" json:"document_id"`
+	Entity                string `db:"entity" json:"entity"`
+	SourceReimbursementID string `db:"source_reimbursement_id" json:"source_reimbursement_id"`
+	EmployeeObjectID      string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID     string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode          string `db:"employee_code" json:"employee_code"`
+	EmployeeName          string `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID   string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID  string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode       string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName       string `db:"fund_account_name" json:"fund_account_name"`
+}
+
 type VouExpenseReimbursementDetail struct {
-	DocumentID           string `db:"document_id" json:"document_id"`
-	Entity               string `db:"entity" json:"entity"`
-	EmployeeObjectID     string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID    string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode         string `db:"employee_code" json:"employee_code"`
-	EmployeeName         string `db:"employee_name" json:"employee_name"`
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	Entity               string  `db:"entity" json:"entity"`
+	EmployeeObjectID     string  `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID    string  `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode         string  `db:"employee_code" json:"employee_code"`
+	EmployeeName         string  `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID  *string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID *string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      *string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      *string `db:"fund_account_name" json:"fund_account_name"`
+	SettlementMode       string  `db:"settlement_mode" json:"settlement_mode"`
 }
 
 type VouFile struct {
@@ -1409,6 +1424,83 @@ type WflAuditEvent struct {
 	Summary        []byte             `db:"summary" json:"summary"`
 }
 
+type WflDefinitionEdge struct {
+	ID           string             `db:"id" json:"id"`
+	DefinitionID string             `db:"definition_id" json:"definition_id"`
+	SourceNodeID string             `db:"source_node_id" json:"source_node_id"`
+	TargetNodeID string             `db:"target_node_id" json:"target_node_id"`
+	ConverterKey string             `db:"converter_key" json:"converter_key"`
+	Condition    []byte             `db:"condition" json:"condition"`
+	Archived     bool               `db:"archived" json:"archived"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type WflDefinitionInstance struct {
+	ID                        string             `db:"id" json:"id"`
+	DefinitionID              string             `db:"definition_id" json:"definition_id"`
+	RootDocumentID            string             `db:"root_document_id" json:"root_document_id"`
+	Status                    string             `db:"status" json:"status"`
+	Revision                  int64              `db:"revision" json:"revision"`
+	StartedDefinitionRevision int64              `db:"started_definition_revision" json:"started_definition_revision"`
+	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy                 string             `db:"created_by" json:"created_by"`
+	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
+	CompletedAt               pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+}
+
+type WflDefinitionNode struct {
+	ID             string             `db:"id" json:"id"`
+	DefinitionID   string             `db:"definition_id" json:"definition_id"`
+	NodeKey        string             `db:"node_key" json:"node_key"`
+	Name           string             `db:"name" json:"name"`
+	DocumentEntity string             `db:"document_entity" json:"document_entity"`
+	PositionX      int32              `db:"position_x" json:"position_x"`
+	PositionY      int32              `db:"position_y" json:"position_y"`
+	Defaults       []byte             `db:"defaults" json:"defaults"`
+	Archived       bool               `db:"archived" json:"archived"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type WflEdgeExecution struct {
+	ProcessID            string             `db:"process_id" json:"process_id"`
+	SourceNodeInstanceID string             `db:"source_node_instance_id" json:"source_node_instance_id"`
+	EdgeID               string             `db:"edge_id" json:"edge_id"`
+	Matched              bool               `db:"matched" json:"matched"`
+	TargetNodeInstanceID *string            `db:"target_node_instance_id" json:"target_node_instance_id"`
+	DefinitionRevision   int64              `db:"definition_revision" json:"definition_revision"`
+	ExecutedAt           pgtype.Timestamptz `db:"executed_at" json:"executed_at"`
+}
+
+type WflNodeInstance struct {
+	ID                          string             `db:"id" json:"id"`
+	ProcessID                   string             `db:"process_id" json:"process_id"`
+	DefinitionNodeID            *string            `db:"definition_node_id" json:"definition_node_id"`
+	ParentNodeInstanceID        *string            `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	DocumentID                  string             `db:"document_id" json:"document_id"`
+	NodeKey                     string             `db:"node_key" json:"node_key"`
+	NodeName                    string             `db:"node_name" json:"node_name"`
+	DocumentEntity              string             `db:"document_entity" json:"document_entity"`
+	EvaluatedDefinitionRevision *int64             `db:"evaluated_definition_revision" json:"evaluated_definition_revision"`
+	EvaluatedAt                 pgtype.Timestamptz `db:"evaluated_at" json:"evaluated_at"`
+	Legacy                      bool               `db:"legacy" json:"legacy"`
+	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type WflProcessDefinition struct {
+	ID             string             `db:"id" json:"id"`
+	Code           string             `db:"code" json:"code"`
+	Name           string             `db:"name" json:"name"`
+	Status         string             `db:"status" json:"status"`
+	Revision       int64              `db:"revision" json:"revision"`
+	RootNodeID     string             `db:"root_node_id" json:"root_node_id"`
+	StartCondition []byte             `db:"start_condition" json:"start_condition"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy      string             `db:"created_by" json:"created_by"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy      string             `db:"updated_by" json:"updated_by"`
+}
+
 type WflProcessDocument struct {
 	ProcessID  string             `db:"process_id" json:"process_id"`
 	DocumentID string             `db:"document_id" json:"document_id"`
@@ -1429,4 +1521,17 @@ type WflProcessInstance struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
 	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+}
+
+type WflRuntimeAuditEvent struct {
+	ID             string             `db:"id" json:"id"`
+	ProcessID      string             `db:"process_id" json:"process_id"`
+	EventType      string             `db:"event_type" json:"event_type"`
+	NodeInstanceID *string            `db:"node_instance_id" json:"node_instance_id"`
+	DocumentID     *string            `db:"document_id" json:"document_id"`
+	DocumentNo     *string            `db:"document_no" json:"document_no"`
+	ActorID        string             `db:"actor_id" json:"actor_id"`
+	RequestID      string             `db:"request_id" json:"request_id"`
+	Summary        []byte             `db:"summary" json:"summary"`
+	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 }

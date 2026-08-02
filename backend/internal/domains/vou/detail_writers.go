@@ -179,12 +179,19 @@ func (s *Service) writeExpenseDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
+	var fundObjectID, fundVersionID, fundCode, fundName *string
+	if refs.FundAccount != nil {
+		fundObjectID = stringPtr(refs.FundAccount.ObjectID)
+		fundVersionID = stringPtr(refs.FundAccount.VersionID)
+		fundCode = stringPtr(refs.FundAccount.Code)
+		fundName = stringPtr(refs.FundAccount.Data.Name)
+	}
 	params := dbsqlc.InsertVouExpenseReimbursementDetailParams{
 		DocumentID: documentID, EmployeeObjectID: refs.Employee.ObjectID,
 		EmployeeVersionID: refs.Employee.VersionID, EmployeeCode: refs.Employee.Code,
-		EmployeeName: refs.Employee.Data.Name, FundAccountObjectID: refs.FundAccount.ObjectID,
-		FundAccountVersionID: refs.FundAccount.VersionID, FundAccountCode: refs.FundAccount.Code,
-		FundAccountName: refs.FundAccount.Data.Name,
+		EmployeeName: refs.Employee.Data.Name, FundAccountObjectID: fundObjectID,
+		FundAccountVersionID: fundVersionID, FundAccountCode: fundCode,
+		FundAccountName: fundName,
 	}
 	if update {
 		rows, err := q.UpdateVouExpenseReimbursementDetail(ctx, dbsqlc.UpdateVouExpenseReimbursementDetailParams{

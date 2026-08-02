@@ -19,6 +19,7 @@
           'receipt',
           'payment',
           'expense-reimbursement',
+          'expense-payment',
           'other-income',
         ],
     },

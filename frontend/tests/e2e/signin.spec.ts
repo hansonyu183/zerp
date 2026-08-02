@@ -189,7 +189,7 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({ pa
     ['/bob/customer', '客户'],
     ['/aux/product-category', '产品分类'],
     ['/vou/sale-order', '销售订单'],
-    ['/wfl/sales-fulfillment', '销售履约'],
+    ['/wfl/process-instance', '流程实例'],
     ['/led/inventory', '库存台账'],
   ] as const
 

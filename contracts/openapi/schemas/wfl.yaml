@@ -427,4 +427,148 @@
           'fileId': { 'type': 'string' },
         },
     },
+  'WflDefinitionQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'keyword': { 'type': 'string' },
+          'statuses': { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
+  'WflDefinitionGetRequest':
+    {
+      'type': 'object',
+      'required': ['definitionId'],
+      'additionalProperties': false,
+      'properties': { 'definitionId': { 'type': 'string' } },
+    },
+  'WflDefinitionNodeInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'key',
+          'name',
+          'documentEntity',
+          'positionX',
+          'positionY',
+          'defaults',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'key': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'documentEntity': { 'type': 'string' },
+          'positionX': { 'type': 'integer' },
+          'positionY': { 'type': 'integer' },
+          'defaults': { 'type': 'object', 'additionalProperties': true },
+        },
+    },
+  'WflDefinitionEdgeInput':
+    {
+      'type': 'object',
+      'required':
+        ['id', 'sourceNodeId', 'targetNodeId', 'converterKey', 'condition'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'sourceNodeId': { 'type': 'string' },
+          'targetNodeId': { 'type': 'string' },
+          'converterKey': { 'type': 'string' },
+          'condition': { 'type': 'object', 'additionalProperties': true },
+        },
+    },
+  'WflDefinitionCreateRequest':
+    {
+      'type': 'object',
+      'required':
+        ['code', 'name', 'rootNodeId', 'startCondition', 'nodes', 'edges'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'rootNodeId': { 'type': 'string' },
+          'startCondition': { 'type': 'object', 'additionalProperties': true },
+          'nodes':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflDefinitionNodeInput' },
+            },
+          'edges':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WflDefinitionEdgeInput' },
+            },
+        },
+    },
+  'WflDefinitionSaveRequest':
+    {
+      'allOf':
+        [
+          { '$ref': '#/WflDefinitionCreateRequest' },
+          {
+            'type': 'object',
+            'required': ['definitionId', 'revision'],
+            'properties':
+              {
+                'definitionId': { 'type': 'string' },
+                'revision': { 'type': 'integer', 'format': 'int64' },
+              },
+          },
+        ],
+    },
+  'WflDefinitionActionRequest':
+    {
+      'type': 'object',
+      'required': ['definitionId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'definitionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'WflInstanceQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'keyword': { 'type': 'string' },
+          'definitionId': { 'type': 'string' },
+          'statuses': { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
+  'WflInstanceGetRequest':
+    {
+      'type': 'object',
+      'required': ['processId'],
+      'additionalProperties': false,
+      'properties': { 'processId': { 'type': 'string' } },
+    },
+  'WflInstanceHistoryRequest':
+    {
+      'type': 'object',
+      'required': ['processId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'processId': { 'type': 'string' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
 }

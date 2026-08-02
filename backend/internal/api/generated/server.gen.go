@@ -316,6 +316,7 @@ func (e VouCreatableEntity) Valid() bool {
 
 // Defines values for VouEntity.
 const (
+	VouEntityExpensePayment       VouEntity = "expense-payment"
 	VouEntityExpenseReimbursement VouEntity = "expense-reimbursement"
 	VouEntityOrderProduction      VouEntity = "order-production"
 	VouEntityOtherIncome          VouEntity = "other-income"
@@ -337,6 +338,8 @@ const (
 // Valid indicates whether the value is a known member of the VouEntity enum.
 func (e VouEntity) Valid() bool {
 	switch e {
+	case VouEntityExpensePayment:
+		return true
 	case VouEntityExpenseReimbursement:
 		return true
 	case VouEntityOrderProduction:
@@ -1536,6 +1539,67 @@ type WflActionRequest struct {
 	Reason           *string                 `json:"reason,omitempty"`
 }
 
+// WflDefinitionActionRequest defines model for WflDefinitionActionRequest.
+type WflDefinitionActionRequest struct {
+	DefinitionId string `json:"definitionId"`
+	Revision     int64  `json:"revision"`
+}
+
+// WflDefinitionCreateRequest defines model for WflDefinitionCreateRequest.
+type WflDefinitionCreateRequest struct {
+	Code           string                   `json:"code"`
+	Edges          []WflDefinitionEdgeInput `json:"edges"`
+	Name           string                   `json:"name"`
+	Nodes          []WflDefinitionNodeInput `json:"nodes"`
+	RootNodeId     string                   `json:"rootNodeId"`
+	StartCondition map[string]interface{}   `json:"startCondition"`
+}
+
+// WflDefinitionEdgeInput defines model for WflDefinitionEdgeInput.
+type WflDefinitionEdgeInput struct {
+	Condition    map[string]interface{} `json:"condition"`
+	ConverterKey string                 `json:"converterKey"`
+	Id           string                 `json:"id"`
+	SourceNodeId string                 `json:"sourceNodeId"`
+	TargetNodeId string                 `json:"targetNodeId"`
+}
+
+// WflDefinitionGetRequest defines model for WflDefinitionGetRequest.
+type WflDefinitionGetRequest struct {
+	DefinitionId string `json:"definitionId"`
+}
+
+// WflDefinitionNodeInput defines model for WflDefinitionNodeInput.
+type WflDefinitionNodeInput struct {
+	Defaults       map[string]interface{} `json:"defaults"`
+	DocumentEntity string                 `json:"documentEntity"`
+	Id             string                 `json:"id"`
+	Key            string                 `json:"key"`
+	Name           string                 `json:"name"`
+	PositionX      int                    `json:"positionX"`
+	PositionY      int                    `json:"positionY"`
+}
+
+// WflDefinitionQueryRequest defines model for WflDefinitionQueryRequest.
+type WflDefinitionQueryRequest struct {
+	Keyword  *string   `json:"keyword,omitempty"`
+	Page     int       `json:"page"`
+	PageSize int       `json:"pageSize"`
+	Statuses *[]string `json:"statuses,omitempty"`
+}
+
+// WflDefinitionSaveRequest defines model for WflDefinitionSaveRequest.
+type WflDefinitionSaveRequest struct {
+	Code           string                   `json:"code"`
+	DefinitionId   string                   `json:"definitionId"`
+	Edges          []WflDefinitionEdgeInput `json:"edges"`
+	Name           string                   `json:"name"`
+	Nodes          []WflDefinitionNodeInput `json:"nodes"`
+	Revision       int64                    `json:"revision"`
+	RootNodeId     string                   `json:"rootNodeId"`
+	StartCondition map[string]interface{}   `json:"startCondition"`
+}
+
 // WflGetRequest defines model for WflGetRequest.
 type WflGetRequest struct {
 	ProcessId string `json:"processId"`
@@ -1546,6 +1610,27 @@ type WflHistoryRequest struct {
 	Page      int    `json:"page"`
 	PageSize  int    `json:"pageSize"`
 	ProcessId string `json:"processId"`
+}
+
+// WflInstanceGetRequest defines model for WflInstanceGetRequest.
+type WflInstanceGetRequest struct {
+	ProcessId string `json:"processId"`
+}
+
+// WflInstanceHistoryRequest defines model for WflInstanceHistoryRequest.
+type WflInstanceHistoryRequest struct {
+	Page      int    `json:"page"`
+	PageSize  int    `json:"pageSize"`
+	ProcessId string `json:"processId"`
+}
+
+// WflInstanceQueryRequest defines model for WflInstanceQueryRequest.
+type WflInstanceQueryRequest struct {
+	DefinitionId *string   `json:"definitionId,omitempty"`
+	Keyword      *string   `json:"keyword,omitempty"`
+	Page         int       `json:"page"`
+	PageSize     int       `json:"pageSize"`
+	Statuses     *[]string `json:"statuses,omitempty"`
 }
 
 // WflPurchaseKgSummary defines model for WflPurchaseKgSummary.
@@ -2010,6 +2095,39 @@ type VouuncheckJSONRequestBody = VouReverseRequest
 // VouunfinalizeJSONRequestBody defines body for Vouunfinalize for application/json ContentType.
 type VouunfinalizeJSONRequestBody = VouReverseRequest
 
+// WflProcessDefinitionCatalogJSONRequestBody defines body for WflProcessDefinitionCatalog for application/json ContentType.
+type WflProcessDefinitionCatalogJSONRequestBody = EmptyObject
+
+// WflProcessDefinitionCreateJSONRequestBody defines body for WflProcessDefinitionCreate for application/json ContentType.
+type WflProcessDefinitionCreateJSONRequestBody = WflDefinitionCreateRequest
+
+// WflProcessDefinitionDeleteJSONRequestBody defines body for WflProcessDefinitionDelete for application/json ContentType.
+type WflProcessDefinitionDeleteJSONRequestBody = WflDefinitionActionRequest
+
+// WflProcessDefinitionDisableJSONRequestBody defines body for WflProcessDefinitionDisable for application/json ContentType.
+type WflProcessDefinitionDisableJSONRequestBody = WflDefinitionActionRequest
+
+// WflProcessDefinitionEnableJSONRequestBody defines body for WflProcessDefinitionEnable for application/json ContentType.
+type WflProcessDefinitionEnableJSONRequestBody = WflDefinitionActionRequest
+
+// WflProcessDefinitionGetJSONRequestBody defines body for WflProcessDefinitionGet for application/json ContentType.
+type WflProcessDefinitionGetJSONRequestBody = WflDefinitionGetRequest
+
+// WflProcessDefinitionQueryJSONRequestBody defines body for WflProcessDefinitionQuery for application/json ContentType.
+type WflProcessDefinitionQueryJSONRequestBody = WflDefinitionQueryRequest
+
+// WflProcessDefinitionSaveJSONRequestBody defines body for WflProcessDefinitionSave for application/json ContentType.
+type WflProcessDefinitionSaveJSONRequestBody = WflDefinitionSaveRequest
+
+// WflProcessInstanceAuditHistoryJSONRequestBody defines body for WflProcessInstanceAuditHistory for application/json ContentType.
+type WflProcessInstanceAuditHistoryJSONRequestBody = WflInstanceHistoryRequest
+
+// WflProcessInstanceGetJSONRequestBody defines body for WflProcessInstanceGet for application/json ContentType.
+type WflProcessInstanceGetJSONRequestBody = WflInstanceGetRequest
+
+// WflProcessInstanceQueryJSONRequestBody defines body for WflProcessInstanceQuery for application/json ContentType.
+type WflProcessInstanceQueryJSONRequestBody = WflInstanceQueryRequest
+
 // WflPurchaseFulfillmentAuditHistoryJSONRequestBody defines body for WflPurchaseFulfillmentAuditHistory for application/json ContentType.
 type WflPurchaseFulfillmentAuditHistoryJSONRequestBody = WflHistoryRequest
 
@@ -2425,6 +2543,39 @@ type ServerInterface interface {
 	// Vouunfinalize 撤销业务单据最终处理
 	// (POST /vou/{entity}/unfinalize)
 	Vouunfinalize(c *gin.Context, entity VouEntity)
+	// WflProcessDefinitionCatalog 读取流程配置目录
+	// (POST /wfl/process-definition/catalog)
+	WflProcessDefinitionCatalog(c *gin.Context)
+	// WflProcessDefinitionCreate 新建流程定义
+	// (POST /wfl/process-definition/create)
+	WflProcessDefinitionCreate(c *gin.Context)
+	// WflProcessDefinitionDelete 删除流程定义
+	// (POST /wfl/process-definition/delete)
+	WflProcessDefinitionDelete(c *gin.Context)
+	// WflProcessDefinitionDisable 停用流程定义
+	// (POST /wfl/process-definition/disable)
+	WflProcessDefinitionDisable(c *gin.Context)
+	// WflProcessDefinitionEnable 启用流程定义
+	// (POST /wfl/process-definition/enable)
+	WflProcessDefinitionEnable(c *gin.Context)
+	// WflProcessDefinitionGet 读取流程定义
+	// (POST /wfl/process-definition/get)
+	WflProcessDefinitionGet(c *gin.Context)
+	// WflProcessDefinitionQuery 查询流程定义
+	// (POST /wfl/process-definition/query)
+	WflProcessDefinitionQuery(c *gin.Context)
+	// WflProcessDefinitionSave 保存流程定义
+	// (POST /wfl/process-definition/save)
+	WflProcessDefinitionSave(c *gin.Context)
+	// WflProcessInstanceAuditHistory 查询流程实例审计
+	// (POST /wfl/process-instance/audit-history)
+	WflProcessInstanceAuditHistory(c *gin.Context)
+	// WflProcessInstanceGet 读取流程实例
+	// (POST /wfl/process-instance/get)
+	WflProcessInstanceGet(c *gin.Context)
+	// WflProcessInstanceQuery 查询流程实例
+	// (POST /wfl/process-instance/query)
+	WflProcessInstanceQuery(c *gin.Context)
 	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
 	// (POST /wfl/purchase-fulfillment/audit-history)
 	WflPurchaseFulfillmentAuditHistory(c *gin.Context)
@@ -4047,6 +4198,149 @@ func (siw *ServerInterfaceWrapper) Vouunfinalize(c *gin.Context) {
 	siw.Handler.Vouunfinalize(c, entity)
 }
 
+// WflProcessDefinitionCatalog operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionCatalog(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionCatalog(c)
+}
+
+// WflProcessDefinitionCreate operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionCreate(c)
+}
+
+// WflProcessDefinitionDelete operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionDelete(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionDelete(c)
+}
+
+// WflProcessDefinitionDisable operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionDisable(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionDisable(c)
+}
+
+// WflProcessDefinitionEnable operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionEnable(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionEnable(c)
+}
+
+// WflProcessDefinitionGet operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionGet(c)
+}
+
+// WflProcessDefinitionQuery operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionQuery(c)
+}
+
+// WflProcessDefinitionSave operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessDefinitionSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessDefinitionSave(c)
+}
+
+// WflProcessInstanceAuditHistory operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessInstanceAuditHistory(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessInstanceAuditHistory(c)
+}
+
+// WflProcessInstanceGet operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessInstanceGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessInstanceGet(c)
+}
+
+// WflProcessInstanceQuery operation middleware
+func (siw *ServerInterfaceWrapper) WflProcessInstanceQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.WflProcessInstanceQuery(c)
+}
+
 // WflPurchaseFulfillmentAuditHistory operation middleware
 func (siw *ServerInterfaceWrapper) WflPurchaseFulfillmentAuditHistory(c *gin.Context) {
 
@@ -4320,6 +4614,17 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/vou/:entity/attachment-initiate", wrapper.Vouattachmentinitiate)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-download", wrapper.Vouattachmentdownload)
 	router.POST(options.BaseURL+"/vou/:entity/attachment-remove", wrapper.Vouattachmentremove)
+	router.POST(options.BaseURL+"/wfl/process-definition/query", wrapper.WflProcessDefinitionQuery)
+	router.POST(options.BaseURL+"/wfl/process-definition/get", wrapper.WflProcessDefinitionGet)
+	router.POST(options.BaseURL+"/wfl/process-definition/create", wrapper.WflProcessDefinitionCreate)
+	router.POST(options.BaseURL+"/wfl/process-definition/save", wrapper.WflProcessDefinitionSave)
+	router.POST(options.BaseURL+"/wfl/process-definition/enable", wrapper.WflProcessDefinitionEnable)
+	router.POST(options.BaseURL+"/wfl/process-definition/disable", wrapper.WflProcessDefinitionDisable)
+	router.POST(options.BaseURL+"/wfl/process-definition/delete", wrapper.WflProcessDefinitionDelete)
+	router.POST(options.BaseURL+"/wfl/process-definition/catalog", wrapper.WflProcessDefinitionCatalog)
+	router.POST(options.BaseURL+"/wfl/process-instance/query", wrapper.WflProcessInstanceQuery)
+	router.POST(options.BaseURL+"/wfl/process-instance/get", wrapper.WflProcessInstanceGet)
+	router.POST(options.BaseURL+"/wfl/process-instance/audit-history", wrapper.WflProcessInstanceAuditHistory)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/query", wrapper.WflSalesFulfillmentQuery)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/get", wrapper.WflSalesFulfillmentGet)
 	router.POST(options.BaseURL+"/wfl/sales-fulfillment/audit-history", wrapper.WflSalesFulfillmentAuditHistory)
@@ -6247,6 +6552,248 @@ func (response Vouunfinalize200JSONResponse) VisitVouunfinalizeResponse(w http.R
 	return err
 }
 
+type WflProcessDefinitionCatalogRequestObject struct {
+	Body *WflProcessDefinitionCatalogJSONRequestBody
+}
+
+type WflProcessDefinitionCatalogResponseObject interface {
+	VisitWflProcessDefinitionCatalogResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionCatalog200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionCatalog200JSONResponse) VisitWflProcessDefinitionCatalogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionCreateRequestObject struct {
+	Body *WflProcessDefinitionCreateJSONRequestBody
+}
+
+type WflProcessDefinitionCreateResponseObject interface {
+	VisitWflProcessDefinitionCreateResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionCreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionCreate200JSONResponse) VisitWflProcessDefinitionCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionDeleteRequestObject struct {
+	Body *WflProcessDefinitionDeleteJSONRequestBody
+}
+
+type WflProcessDefinitionDeleteResponseObject interface {
+	VisitWflProcessDefinitionDeleteResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionDelete200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionDelete200JSONResponse) VisitWflProcessDefinitionDeleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionDisableRequestObject struct {
+	Body *WflProcessDefinitionDisableJSONRequestBody
+}
+
+type WflProcessDefinitionDisableResponseObject interface {
+	VisitWflProcessDefinitionDisableResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionDisable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionDisable200JSONResponse) VisitWflProcessDefinitionDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionEnableRequestObject struct {
+	Body *WflProcessDefinitionEnableJSONRequestBody
+}
+
+type WflProcessDefinitionEnableResponseObject interface {
+	VisitWflProcessDefinitionEnableResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionEnable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionEnable200JSONResponse) VisitWflProcessDefinitionEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionGetRequestObject struct {
+	Body *WflProcessDefinitionGetJSONRequestBody
+}
+
+type WflProcessDefinitionGetResponseObject interface {
+	VisitWflProcessDefinitionGetResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionGet200JSONResponse) VisitWflProcessDefinitionGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionQueryRequestObject struct {
+	Body *WflProcessDefinitionQueryJSONRequestBody
+}
+
+type WflProcessDefinitionQueryResponseObject interface {
+	VisitWflProcessDefinitionQueryResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionQuery200JSONResponse) VisitWflProcessDefinitionQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessDefinitionSaveRequestObject struct {
+	Body *WflProcessDefinitionSaveJSONRequestBody
+}
+
+type WflProcessDefinitionSaveResponseObject interface {
+	VisitWflProcessDefinitionSaveResponse(w http.ResponseWriter) error
+}
+
+type WflProcessDefinitionSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessDefinitionSave200JSONResponse) VisitWflProcessDefinitionSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessInstanceAuditHistoryRequestObject struct {
+	Body *WflProcessInstanceAuditHistoryJSONRequestBody
+}
+
+type WflProcessInstanceAuditHistoryResponseObject interface {
+	VisitWflProcessInstanceAuditHistoryResponse(w http.ResponseWriter) error
+}
+
+type WflProcessInstanceAuditHistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessInstanceAuditHistory200JSONResponse) VisitWflProcessInstanceAuditHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessInstanceGetRequestObject struct {
+	Body *WflProcessInstanceGetJSONRequestBody
+}
+
+type WflProcessInstanceGetResponseObject interface {
+	VisitWflProcessInstanceGetResponse(w http.ResponseWriter) error
+}
+
+type WflProcessInstanceGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessInstanceGet200JSONResponse) VisitWflProcessInstanceGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WflProcessInstanceQueryRequestObject struct {
+	Body *WflProcessInstanceQueryJSONRequestBody
+}
+
+type WflProcessInstanceQueryResponseObject interface {
+	VisitWflProcessInstanceQueryResponse(w http.ResponseWriter) error
+}
+
+type WflProcessInstanceQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response WflProcessInstanceQuery200JSONResponse) VisitWflProcessInstanceQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type WflPurchaseFulfillmentAuditHistoryRequestObject struct {
 	Body *WflPurchaseFulfillmentAuditHistoryJSONRequestBody
 }
@@ -6800,6 +7347,39 @@ type StrictServerInterface interface {
 	// Vouunfinalize 撤销业务单据最终处理
 	// (POST /vou/{entity}/unfinalize)
 	Vouunfinalize(ctx context.Context, request VouunfinalizeRequestObject) (VouunfinalizeResponseObject, error)
+	// WflProcessDefinitionCatalog 读取流程配置目录
+	// (POST /wfl/process-definition/catalog)
+	WflProcessDefinitionCatalog(ctx context.Context, request WflProcessDefinitionCatalogRequestObject) (WflProcessDefinitionCatalogResponseObject, error)
+	// WflProcessDefinitionCreate 新建流程定义
+	// (POST /wfl/process-definition/create)
+	WflProcessDefinitionCreate(ctx context.Context, request WflProcessDefinitionCreateRequestObject) (WflProcessDefinitionCreateResponseObject, error)
+	// WflProcessDefinitionDelete 删除流程定义
+	// (POST /wfl/process-definition/delete)
+	WflProcessDefinitionDelete(ctx context.Context, request WflProcessDefinitionDeleteRequestObject) (WflProcessDefinitionDeleteResponseObject, error)
+	// WflProcessDefinitionDisable 停用流程定义
+	// (POST /wfl/process-definition/disable)
+	WflProcessDefinitionDisable(ctx context.Context, request WflProcessDefinitionDisableRequestObject) (WflProcessDefinitionDisableResponseObject, error)
+	// WflProcessDefinitionEnable 启用流程定义
+	// (POST /wfl/process-definition/enable)
+	WflProcessDefinitionEnable(ctx context.Context, request WflProcessDefinitionEnableRequestObject) (WflProcessDefinitionEnableResponseObject, error)
+	// WflProcessDefinitionGet 读取流程定义
+	// (POST /wfl/process-definition/get)
+	WflProcessDefinitionGet(ctx context.Context, request WflProcessDefinitionGetRequestObject) (WflProcessDefinitionGetResponseObject, error)
+	// WflProcessDefinitionQuery 查询流程定义
+	// (POST /wfl/process-definition/query)
+	WflProcessDefinitionQuery(ctx context.Context, request WflProcessDefinitionQueryRequestObject) (WflProcessDefinitionQueryResponseObject, error)
+	// WflProcessDefinitionSave 保存流程定义
+	// (POST /wfl/process-definition/save)
+	WflProcessDefinitionSave(ctx context.Context, request WflProcessDefinitionSaveRequestObject) (WflProcessDefinitionSaveResponseObject, error)
+	// WflProcessInstanceAuditHistory 查询流程实例审计
+	// (POST /wfl/process-instance/audit-history)
+	WflProcessInstanceAuditHistory(ctx context.Context, request WflProcessInstanceAuditHistoryRequestObject) (WflProcessInstanceAuditHistoryResponseObject, error)
+	// WflProcessInstanceGet 读取流程实例
+	// (POST /wfl/process-instance/get)
+	WflProcessInstanceGet(ctx context.Context, request WflProcessInstanceGetRequestObject) (WflProcessInstanceGetResponseObject, error)
+	// WflProcessInstanceQuery 查询流程实例
+	// (POST /wfl/process-instance/query)
+	WflProcessInstanceQuery(ctx context.Context, request WflProcessInstanceQueryRequestObject) (WflProcessInstanceQueryResponseObject, error)
 	// WflPurchaseFulfillmentAuditHistory 查询采购履约审计
 	// (POST /wfl/purchase-fulfillment/audit-history)
 	WflPurchaseFulfillmentAuditHistory(ctx context.Context, request WflPurchaseFulfillmentAuditHistoryRequestObject) (WflPurchaseFulfillmentAuditHistoryResponseObject, error)
@@ -9469,6 +10049,347 @@ func (sh *strictHandler) Vouunfinalize(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
+// WflProcessDefinitionCatalog operation middleware
+func (sh *strictHandler) WflProcessDefinitionCatalog(ctx *gin.Context) {
+	var request WflProcessDefinitionCatalogRequestObject
+
+	var body WflProcessDefinitionCatalogJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionCatalog(ctx, request.(WflProcessDefinitionCatalogRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionCatalog")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionCatalogResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionCatalogResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionCreate operation middleware
+func (sh *strictHandler) WflProcessDefinitionCreate(ctx *gin.Context) {
+	var request WflProcessDefinitionCreateRequestObject
+
+	var body WflProcessDefinitionCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionCreate(ctx, request.(WflProcessDefinitionCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionCreateResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionDelete operation middleware
+func (sh *strictHandler) WflProcessDefinitionDelete(ctx *gin.Context) {
+	var request WflProcessDefinitionDeleteRequestObject
+
+	var body WflProcessDefinitionDeleteJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionDelete(ctx, request.(WflProcessDefinitionDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionDeleteResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionDeleteResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionDisable operation middleware
+func (sh *strictHandler) WflProcessDefinitionDisable(ctx *gin.Context) {
+	var request WflProcessDefinitionDisableRequestObject
+
+	var body WflProcessDefinitionDisableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionDisable(ctx, request.(WflProcessDefinitionDisableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionDisable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionDisableResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionDisableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionEnable operation middleware
+func (sh *strictHandler) WflProcessDefinitionEnable(ctx *gin.Context) {
+	var request WflProcessDefinitionEnableRequestObject
+
+	var body WflProcessDefinitionEnableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionEnable(ctx, request.(WflProcessDefinitionEnableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionEnable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionEnableResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionEnableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionGet operation middleware
+func (sh *strictHandler) WflProcessDefinitionGet(ctx *gin.Context) {
+	var request WflProcessDefinitionGetRequestObject
+
+	var body WflProcessDefinitionGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionGet(ctx, request.(WflProcessDefinitionGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionGetResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionQuery operation middleware
+func (sh *strictHandler) WflProcessDefinitionQuery(ctx *gin.Context) {
+	var request WflProcessDefinitionQueryRequestObject
+
+	var body WflProcessDefinitionQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionQuery(ctx, request.(WflProcessDefinitionQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionQueryResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessDefinitionSave operation middleware
+func (sh *strictHandler) WflProcessDefinitionSave(ctx *gin.Context) {
+	var request WflProcessDefinitionSaveRequestObject
+
+	var body WflProcessDefinitionSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessDefinitionSave(ctx, request.(WflProcessDefinitionSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessDefinitionSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessDefinitionSaveResponseObject); ok {
+		if err := validResponse.VisitWflProcessDefinitionSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessInstanceAuditHistory operation middleware
+func (sh *strictHandler) WflProcessInstanceAuditHistory(ctx *gin.Context) {
+	var request WflProcessInstanceAuditHistoryRequestObject
+
+	var body WflProcessInstanceAuditHistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessInstanceAuditHistory(ctx, request.(WflProcessInstanceAuditHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessInstanceAuditHistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessInstanceAuditHistoryResponseObject); ok {
+		if err := validResponse.VisitWflProcessInstanceAuditHistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessInstanceGet operation middleware
+func (sh *strictHandler) WflProcessInstanceGet(ctx *gin.Context) {
+	var request WflProcessInstanceGetRequestObject
+
+	var body WflProcessInstanceGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessInstanceGet(ctx, request.(WflProcessInstanceGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessInstanceGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessInstanceGetResponseObject); ok {
+		if err := validResponse.VisitWflProcessInstanceGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WflProcessInstanceQuery operation middleware
+func (sh *strictHandler) WflProcessInstanceQuery(ctx *gin.Context) {
+	var request WflProcessInstanceQueryRequestObject
+
+	var body WflProcessInstanceQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WflProcessInstanceQuery(ctx, request.(WflProcessInstanceQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WflProcessInstanceQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(WflProcessInstanceQueryResponseObject); ok {
+		if err := validResponse.VisitWflProcessInstanceQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // WflPurchaseFulfillmentAuditHistory operation middleware
 func (sh *strictHandler) WflPurchaseFulfillmentAuditHistory(ctx *gin.Context) {
 	var request WflPurchaseFulfillmentAuditHistoryRequestObject
@@ -9908,137 +10829,145 @@ func (sh *strictHandler) WflSalesFulfillmentShortCloseUnconfirm(ctx *gin.Context
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"AP//",
+	"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",
+	"MdN8dr1972rr/R+bG5fDdXxvh6wvrf9vAAAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

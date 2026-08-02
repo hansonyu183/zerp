@@ -457,16 +457,44 @@ func (s *Service) postExpense(ctx context.Context, q *dbsqlc.Queries, posting po
 	if err != nil {
 		return s.internal("read expense ledger detail", err)
 	}
+	if detail.SettlementMode != "LEGACY_DIRECT" {
+		return nil
+	}
+	if detail.FundAccountObjectID == nil || detail.FundAccountVersionID == nil ||
+		detail.FundAccountCode == nil || detail.FundAccountName == nil {
+		return domainError(ErrorConflict, "legacy expense fund account is missing", nil, nil)
+	}
 	if err = q.InsertLedFundEntry(ctx, fundParams(
 		posting,
 		doc,
-		detail.FundAccountObjectID,
-		detail.FundAccountVersionID,
-		detail.FundAccountCode,
-		detail.FundAccountName,
+		*detail.FundAccountObjectID,
+		*detail.FundAccountVersionID,
+		*detail.FundAccountCode,
+		*detail.FundAccountName,
 		-doc.TotalAmountCents,
 	)); err != nil {
 		return s.writeError("post expense fund", err)
+	}
+	return nil
+}
+
+func (s *Service) postExpensePayment(ctx context.Context, q *dbsqlc.Queries, posting postingContext) error {
+	doc := posting.Document
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouExpensePaymentDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read expense payment ledger detail", err)
+	}
+	if err = q.InsertLedFundEntry(ctx, fundParams(
+		posting, doc,
+		detail.FundAccountObjectID, detail.FundAccountVersionID,
+		detail.FundAccountCode, detail.FundAccountName,
+		-doc.TotalAmountCents,
+	)); err != nil {
+		return s.writeError("post expense payment fund", err)
 	}
 	return nil
 }

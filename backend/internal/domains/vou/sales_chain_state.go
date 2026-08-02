@@ -494,6 +494,8 @@ func (s *Service) Delete(
 	case EntityExpenseReimbursement:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_lines WHERE document_id=$1;
 			DELETE FROM vou_expense_reimbursement_details WHERE document_id=$1`, input.DocumentID)
+	case EntityExpensePayment:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_payment_details WHERE document_id=$1`, input.DocumentID)
 	case EntityOtherIncome:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_other_income_details WHERE document_id=$1`, input.DocumentID)
 	}

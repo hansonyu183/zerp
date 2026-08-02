@@ -20,12 +20,13 @@ self-production
 receipt
 payment
 expense-reimbursement
+expense-payment
 other-income
 ```
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-十六类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+十七类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -39,11 +40,11 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/REC/PAY/EXR/OIN-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/REC/PAY/EXR/EXP/OIN-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
-采购退货、生产配货、生产自制品、收款、付款、费用报销和其他收入。流水按实体和业务日期分别从 `0001` 开始，
+采购退货、生产配货、生产自制品、收款、付款、费用报销、费用付款和其他收入。流水按实体和业务日期分别从 `0001` 开始，
 达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
@@ -256,9 +257,13 @@ WFL 流程或 LED 流水。
 
 ### 3.7 费用报销
 
-草稿包含员工、统一费用日期、统一支出账户、币种、备注及至少一条费用明细。员工即经办人，不增加重复的 `handler`。每条费用包含费用类别文本、说明、金额和可选备注（最多 1000 字）；总金额由后端汇总，币种必须与支出账户一致。
+草稿包含员工、统一费用日期、币种、备注及至少一条费用明细，不再选择资金账户。员工即经办人，不增加重复的 `handler`。每条费用包含费用类别文本、说明、金额和可选备注（最多 1000 字）；总金额由后端汇总。新单据使用 `FLOW_PAYMENT` 结算模式，批准后由已启用的 WFL 定义生成费用付款；迁移前单据保留 `LEGACY_DIRECT` 模式和原资金账户快照。
 
-### 3.8 其他收入
+### 3.8 费用付款
+
+费用付款只能由 WFL 从费用报销批准事件生成，不提供公开 `create`。单据继承来源报销、员工、币种和金额，目标流程节点提供资金账户；草稿只允许修改业务日期、备注和资金账户。资金账户币种必须与报销币种一致，最终处理后由 LED 产生资金支出。
+
+### 3.9 其他收入
 
 草稿包含来源名称、可选客户或供应商、资金账户、必填经办人、业务日期、币种、金额和备注。币种必须与资金账户一致。
 
@@ -266,7 +271,7 @@ WFL 流程或 LED 流水。
 
 新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check`、`approve` 和 `finalize` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
 
-### 3.9 草稿与执行载荷
+### 3.10 草稿与执行载荷
 
 贸易单据草稿使用统一 `data` 结构。销售订单示例：
 
@@ -305,10 +310,11 @@ WFL 流程或 LED 流水。
 | `purchase-inquiry`      | 必填 `supplier`、`priceLines`（产品、采购询价、可选备注）                                |
 | `purchase-inbound`      | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                            |
 | `receipt`、`payment`    | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                   |
-| `expense-reimbursement` | `employee`、`fundAccount`、`expenseLines`                                                |
+| `expense-reimbursement` | `employee`、`expenseLines`                                                               |
+| `expense-payment`       | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                       |
 | `other-income`          | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount` |
 
-往来收付款、费用报销和其他收入执行只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
+往来收付款、费用报销、费用付款和其他收入执行只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
 `reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
 
 ## 4. 查询与展示语义
@@ -512,6 +518,7 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 | `receipt`                                                                                    | 往来收款 |
 | `payment`                                                                                    | 往来付款 |
 | `expense-reimbursement`                                                                      | 费用报销 |
+| `expense-payment`                                                                            | 费用付款 |
 | `other-income`                                                                               | 其他收入 |
 | 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。 |
 

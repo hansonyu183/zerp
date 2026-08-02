@@ -1,0 +1,557 @@
+package wfl
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+)
+
+var definitionCodePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}[a-z0-9]$`)
+
+var workflowNodes = []CatalogNode{
+	{Entity: "sale-order", Name: "销售订单"},
+	{Entity: "sale-outbound", Name: "销售出库"},
+	{Entity: "sale-delivery", Name: "销售送货"},
+	{Entity: "sale-signoff", Name: "销售签收"},
+	{Entity: "sale-return", Name: "销售退货"},
+	{Entity: "purchase-order", Name: "采购订单"},
+	{Entity: "purchase-inbound", Name: "采购入库"},
+	{Entity: "purchase-return", Name: "采购退货"},
+	{Entity: "order-production", Name: "生产配货"},
+	{Entity: "self-production", Name: "生产自制品"},
+	{Entity: "receipt", Name: "往来收款"},
+	{Entity: "payment", Name: "往来付款"},
+	{Entity: "expense-reimbursement", Name: "费用报销"},
+	{Entity: "expense-payment", Name: "费用付款"},
+}
+
+var workflowConverters = []CatalogConverter{
+	{Key: "sale-order-to-outbound", SourceEntity: "sale-order", TargetEntity: "sale-outbound"},
+	{Key: "sale-outbound-to-delivery", SourceEntity: "sale-outbound", TargetEntity: "sale-delivery", RequiredDefaults: []string{"platformObjectId", "vehicleObjectId"}},
+	{Key: "sale-delivery-to-signoff", SourceEntity: "sale-delivery", TargetEntity: "sale-signoff"},
+	{Key: "sale-signoff-to-receipt", SourceEntity: "sale-signoff", TargetEntity: "receipt", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
+	{Key: "purchase-order-to-inbound", SourceEntity: "purchase-order", TargetEntity: "purchase-inbound"},
+	{Key: "purchase-inbound-to-payment", SourceEntity: "purchase-inbound", TargetEntity: "payment", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
+	{Key: "expense-reimbursement-to-payment", SourceEntity: "expense-reimbursement", TargetEntity: "expense-payment", RequiredDefaults: []string{"fundAccountObjectId"}},
+}
+
+func (s *Service) DefinitionCatalog(context.Context) (DefinitionCatalog, error) {
+	return DefinitionCatalog{
+		Nodes: workflowNodes, Converters: workflowConverters,
+		Operators: []string{"EQ", "NE", "GT", "GTE", "LT", "LTE", "IN", "CONTAINS"},
+	}, nil
+}
+
+func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInput) (Page[DefinitionListItem], error) {
+	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
+		return Page[DefinitionListItem]{}, validation("invalid pagination", nil)
+	}
+	allowed := map[string]bool{DefinitionDraft: true, DefinitionEnabled: true, DefinitionDisabled: true}
+	for _, status := range input.Statuses {
+		if !allowed[status] {
+			return Page[DefinitionListItem]{}, validation("invalid definition status", nil)
+		}
+	}
+	statuses := input.Statuses
+	if statuses == nil {
+		statuses = []string{}
+	}
+	var total int64
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_process_definitions d
+		WHERE ($1='' OR d.code ILIKE '%'||$1||'%' OR d.name ILIKE '%'||$1||'%')
+		  AND (cardinality($2::text[])=0 OR d.status=ANY($2::text[]))`, strings.TrimSpace(input.Keyword), statuses).Scan(&total)
+	if err != nil {
+		return Page[DefinitionListItem]{}, internal("count process definitions", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT d.id,d.code,d.name,d.status,d.revision,n.document_entity,
+		(SELECT count(*) FROM wfl_definition_nodes x WHERE x.definition_id=d.id AND NOT x.archived),d.updated_at
+		FROM wfl_process_definitions d JOIN wfl_definition_nodes n ON n.id=d.root_node_id
+		WHERE ($1='' OR d.code ILIKE '%'||$1||'%' OR d.name ILIKE '%'||$1||'%')
+		  AND (cardinality($2::text[])=0 OR d.status=ANY($2::text[]))
+		ORDER BY d.updated_at DESC,d.id DESC LIMIT $3 OFFSET $4`, strings.TrimSpace(input.Keyword), statuses,
+		input.PageSize, (input.Page-1)*input.PageSize)
+	if err != nil {
+		return Page[DefinitionListItem]{}, internal("query process definitions", err)
+	}
+	defer rows.Close()
+	items := make([]DefinitionListItem, 0)
+	for rows.Next() {
+		var item DefinitionListItem
+		if err = rows.Scan(&item.DefinitionID, &item.Code, &item.Name, &item.Status, &item.Revision,
+			&item.RootEntity, &item.NodeCount, &item.UpdatedAt); err != nil {
+			return Page[DefinitionListItem]{}, internal("scan process definition", err)
+		}
+		items = append(items, item)
+	}
+	return Page[DefinitionListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, rows.Err()
+}
+
+func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (DefinitionView, error) {
+	if !validWorkflowID(input.DefinitionID) {
+		return DefinitionView{}, validation("invalid definitionId", nil)
+	}
+	var result DefinitionView
+	err := s.pool.QueryRow(ctx, `SELECT id,code,name,status,revision,root_node_id,start_condition,updated_at
+		FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID).Scan(
+		&result.DefinitionID, &result.Code, &result.Name, &result.Status, &result.Revision,
+		&result.RootNodeID, &result.StartCondition, &result.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, validation("process definition not found", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("get process definition", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id,node_key,name,document_entity,position_x,position_y,defaults
+		FROM wfl_definition_nodes WHERE definition_id=$1 AND NOT archived ORDER BY created_at,id`, input.DefinitionID)
+	if err != nil {
+		return DefinitionView{}, internal("get definition nodes", err)
+	}
+	for rows.Next() {
+		var node DefinitionNodeInput
+		if err = rows.Scan(&node.ID, &node.Key, &node.Name, &node.DocumentEntity, &node.PositionX, &node.PositionY, &node.Defaults); err != nil {
+			rows.Close()
+			return DefinitionView{}, err
+		}
+		result.Nodes = append(result.Nodes, node)
+	}
+	rows.Close()
+	rows, err = s.pool.Query(ctx, `SELECT id,source_node_id,target_node_id,converter_key,condition
+		FROM wfl_definition_edges WHERE definition_id=$1 AND NOT archived ORDER BY created_at,id`, input.DefinitionID)
+	if err != nil {
+		return DefinitionView{}, internal("get definition edges", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var edge DefinitionEdgeInput
+		if err = rows.Scan(&edge.ID, &edge.SourceNodeID, &edge.TargetNodeID, &edge.ConverterKey, &edge.Condition); err != nil {
+			return DefinitionView{}, err
+		}
+		result.Edges = append(result.Edges, edge)
+	}
+	return result, rows.Err()
+}
+
+func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateInput, actorID string) (DefinitionView, error) {
+	if err := validateDefinitionInput(input); err != nil {
+		return DefinitionView{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, internal("begin create definition", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	id := newID()
+	if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_definitions(id,code,name,status,root_node_id,start_condition,created_by,updated_by)
+		VALUES($1,$2,$3,'DRAFT',$4,$5,$6,$6)`, id, strings.TrimSpace(input.Code), strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID); err != nil {
+		return DefinitionView{}, conflict("process definition code already exists", nil)
+	}
+	if err = writeDefinitionGraph(ctx, tx, id, input.Nodes, input.Edges); err != nil {
+		return DefinitionView{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, internal("commit create definition", err)
+	}
+	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: id})
+}
+
+func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput, actorID string) (DefinitionView, error) {
+	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+		return DefinitionView{}, validation("invalid definition revision", nil)
+	}
+	if err := validateDefinitionInput(input.DefinitionCreateInput); err != nil {
+		return DefinitionView{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var actual int64
+	var status string
+	if err = tx.QueryRow(ctx, `SELECT revision,status FROM wfl_process_definitions WHERE id=$1 FOR UPDATE`, input.DefinitionID).Scan(&actual, &status); err != nil {
+		return DefinitionView{}, validation("process definition not found", nil)
+	}
+	if actual != input.Revision {
+		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": actual})
+	}
+	if status == DefinitionEnabled {
+		if err = validateRequiredDefaults(input.Nodes, input.Edges); err != nil {
+			return DefinitionView{}, err
+		}
+	}
+	if _, err = tx.Exec(ctx, `UPDATE wfl_process_definitions SET code=$1,name=$2,root_node_id=$3,start_condition=$4,
+		revision=revision+1,updated_at=now(),updated_by=$5 WHERE id=$6`, strings.TrimSpace(input.Code), strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID, input.DefinitionID); err != nil {
+		return DefinitionView{}, conflict("process definition code already exists", nil)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE wfl_definition_edges SET archived=true WHERE definition_id=$1`, input.DefinitionID); err != nil {
+		return DefinitionView{}, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE wfl_definition_nodes SET archived=true WHERE definition_id=$1`, input.DefinitionID); err != nil {
+		return DefinitionView{}, err
+	}
+	if err = writeDefinitionGraph(ctx, tx, input.DefinitionID, input.Nodes, input.Edges); err != nil {
+		return DefinitionView{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, err
+	}
+	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+}
+
+func (s *Service) DefinitionAction(ctx context.Context, action string, input DefinitionActionInput, actorID string) (any, error) {
+	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+		return nil, validation("invalid definition action", nil)
+	}
+	if action == "delete" {
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return nil, internal("begin delete process definition", err)
+		}
+		defer tx.Rollback(ctx) //nolint:errcheck
+		var deletable bool
+		if err = tx.QueryRow(ctx, `SELECT status='DRAFT' AND revision=$2 AND NOT EXISTS(
+			SELECT 1 FROM wfl_definition_instances i WHERE i.definition_id=d.id)
+			FROM wfl_process_definitions d WHERE d.id=$1 FOR UPDATE`, input.DefinitionID, input.Revision).Scan(&deletable); err != nil || !deletable {
+			return nil, conflict("only unused draft definitions can be deleted", nil)
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM wfl_definition_edges WHERE definition_id=$1`, input.DefinitionID); err != nil {
+			return nil, internal("delete process definition edges", err)
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM wfl_definition_nodes WHERE definition_id=$1`, input.DefinitionID); err != nil {
+			return nil, internal("delete process definition nodes", err)
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID); err != nil {
+			return nil, internal("delete process definition", err)
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return nil, internal("commit delete process definition", err)
+		}
+		return map[string]any{"definitionId": input.DefinitionID}, nil
+	}
+	status := DefinitionEnabled
+	if action == "disable" {
+		status = DefinitionDisabled
+	} else if action != "enable" {
+		return nil, validation("invalid definition action", nil)
+	}
+	if action == "enable" {
+		definition, err := s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+		if err != nil {
+			return nil, err
+		}
+		if definition.Revision != input.Revision {
+			return nil, conflict("process definition changed", map[string]any{"revision": definition.Revision})
+		}
+		if err = validateRequiredDefaults(definition.Nodes, definition.Edges); err != nil {
+			return nil, err
+		}
+	}
+	command, err := s.pool.Exec(ctx, `UPDATE wfl_process_definitions SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2 WHERE id=$3 AND revision=$4`, status, actorID, input.DefinitionID, input.Revision)
+	if err != nil {
+		return nil, internal("change definition status", err)
+	}
+	if command.RowsAffected() != 1 {
+		return nil, conflict("process definition changed", nil)
+	}
+	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+}
+
+func writeDefinitionGraph(ctx context.Context, tx pgx.Tx, definitionID string, nodes []DefinitionNodeInput, edges []DefinitionEdgeInput) error {
+	for _, node := range nodes {
+		_, err := tx.Exec(ctx, `INSERT INTO wfl_definition_nodes(id,definition_id,node_key,name,document_entity,position_x,position_y,defaults,archived)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,false)
+		ON CONFLICT(id) DO UPDATE SET node_key=excluded.node_key,name=excluded.name,document_entity=excluded.document_entity,
+		position_x=excluded.position_x,position_y=excluded.position_y,defaults=excluded.defaults,archived=false
+		WHERE wfl_definition_nodes.definition_id=excluded.definition_id`, node.ID, definitionID, node.Key, node.Name, node.DocumentEntity, node.PositionX, node.PositionY, normalizedJSON(node.Defaults))
+		if err != nil {
+			return conflict("invalid definition node", map[string]any{"nodeId": node.ID})
+		}
+	}
+	for _, edge := range edges {
+		_, err := tx.Exec(ctx, `INSERT INTO wfl_definition_edges(id,definition_id,source_node_id,target_node_id,converter_key,condition,archived)
+		VALUES($1,$2,$3,$4,$5,$6,false)
+		ON CONFLICT(id) DO UPDATE SET source_node_id=excluded.source_node_id,target_node_id=excluded.target_node_id,
+		converter_key=excluded.converter_key,condition=excluded.condition,archived=false
+		WHERE wfl_definition_edges.definition_id=excluded.definition_id`, edge.ID, definitionID, edge.SourceNodeID, edge.TargetNodeID, edge.ConverterKey, normalizedJSON(edge.Condition))
+		if err != nil {
+			return conflict("invalid definition edge", map[string]any{"edgeId": edge.ID})
+		}
+	}
+	return nil
+}
+
+func validateDefinitionInput(input DefinitionCreateInput) error {
+	if !definitionCodePattern.MatchString(strings.TrimSpace(input.Code)) || strings.TrimSpace(input.Name) == "" || len(input.Nodes) == 0 {
+		return validation("invalid process definition", nil)
+	}
+	allowed := map[string]bool{}
+	for _, node := range workflowNodes {
+		allowed[node.Entity] = true
+	}
+	converters := map[string]CatalogConverter{}
+	for _, converter := range workflowConverters {
+		converters[converter.Key] = converter
+	}
+	nodes := map[string]DefinitionNodeInput{}
+	keys := map[string]bool{}
+	for _, node := range input.Nodes {
+		if !validWorkflowID(node.ID) || strings.TrimSpace(node.Key) == "" || strings.TrimSpace(node.Name) == "" || !allowed[node.DocumentEntity] || keys[node.Key] {
+			return validation("invalid or duplicate process node", map[string]any{"nodeId": node.ID})
+		}
+		nodes[node.ID] = node
+		keys[node.Key] = true
+	}
+	if _, ok := nodes[input.RootNodeID]; !ok {
+		return validation("root node is missing", nil)
+	}
+	if err := validateConditionSyntax(input.StartCondition); err != nil {
+		return validation("invalid start condition", nil)
+	}
+	indegree := map[string]int{}
+	adj := map[string][]string{}
+	edgePairs := map[string]bool{}
+	for _, edge := range input.Edges {
+		source, sok := nodes[edge.SourceNodeID]
+		target, tok := nodes[edge.TargetNodeID]
+		converter, cok := converters[edge.ConverterKey]
+		pair := edge.SourceNodeID + ":" + edge.TargetNodeID
+		if !validWorkflowID(edge.ID) || !sok || !tok || !cok || edgePairs[pair] || converter.SourceEntity != source.DocumentEntity || converter.TargetEntity != target.DocumentEntity {
+			return validation("invalid process edge", map[string]any{"edgeId": edge.ID})
+		}
+		if err := validateConditionSyntax(edge.Condition); err != nil {
+			return validation("invalid branch condition", map[string]any{"edgeId": edge.ID})
+		}
+		edgePairs[pair] = true
+		indegree[edge.TargetNodeID]++
+		adj[edge.SourceNodeID] = append(adj[edge.SourceNodeID], edge.TargetNodeID)
+	}
+	if indegree[input.RootNodeID] != 0 {
+		return validation("root node cannot have a parent", nil)
+	}
+	for id := range nodes {
+		if id != input.RootNodeID && indegree[id] != 1 {
+			return validation("every non-root node must have exactly one parent", map[string]any{"nodeId": id})
+		}
+	}
+	seen := map[string]bool{}
+	active := map[string]bool{}
+	var visit func(string) bool
+	visit = func(id string) bool {
+		if active[id] {
+			return false
+		}
+		if seen[id] {
+			return true
+		}
+		active[id] = true
+		for _, next := range adj[id] {
+			if !visit(next) {
+				return false
+			}
+		}
+		active[id] = false
+		seen[id] = true
+		return true
+	}
+	if !visit(input.RootNodeID) || len(seen) != len(nodes) {
+		return validation("process graph must be connected and acyclic", nil)
+	}
+	return nil
+}
+
+func validateConditionSyntax(raw json.RawMessage) error {
+	if len(raw) == 0 || string(raw) == "null" || string(raw) == "{}" {
+		return nil
+	}
+	var condition map[string]any
+	if err := json.Unmarshal(raw, &condition); err != nil {
+		return err
+	}
+	return validateConditionObject(condition)
+}
+
+func validateConditionObject(condition map[string]any) error {
+	if len(condition) == 0 {
+		return nil
+	}
+	if len(condition) != 1 && (condition["field"] == nil || condition["operator"] == nil) {
+		return errors.New("condition must contain one group or one predicate")
+	}
+	for _, group := range []string{"all", "any"} {
+		if raw, ok := condition[group]; ok {
+			if len(condition) != 1 {
+				return errors.New("condition group cannot contain siblings")
+			}
+			items, ok := raw.([]any)
+			if !ok {
+				return errors.New("condition group must be an array")
+			}
+			for _, item := range items {
+				child, ok := item.(map[string]any)
+				if !ok {
+					return errors.New("condition item must be an object")
+				}
+				if err := validateConditionObject(child); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+	for _, group := range []string{"lineAll", "lineAny"} {
+		if raw, ok := condition[group]; ok {
+			if len(condition) != 1 {
+				return errors.New("line condition cannot contain siblings")
+			}
+			predicate, ok := raw.(map[string]any)
+			if !ok {
+				return errors.New("line condition must be an object")
+			}
+			return validatePredicateSyntax(predicate)
+		}
+	}
+	return validatePredicateSyntax(condition)
+}
+
+func validatePredicateSyntax(predicate map[string]any) error {
+	field, fieldOK := predicate["field"].(string)
+	operator, operatorOK := predicate["operator"].(string)
+	_, valueOK := predicate["value"]
+	allowed := map[string]bool{"EQ": true, "NE": true, "GT": true, "GTE": true, "LT": true, "LTE": true, "IN": true, "CONTAINS": true}
+	if !fieldOK || strings.TrimSpace(field) == "" || !operatorOK || !allowed[operator] || !valueOK {
+		return errors.New("invalid condition predicate")
+	}
+	if operator == "IN" {
+		if _, ok := predicate["value"].([]any); !ok {
+			return errors.New("IN condition value must be an array")
+		}
+	}
+	return nil
+}
+
+func validateRequiredDefaults(nodes []DefinitionNodeInput, edges []DefinitionEdgeInput) error {
+	nodeByID := make(map[string]DefinitionNodeInput, len(nodes))
+	for _, node := range nodes {
+		nodeByID[node.ID] = node
+	}
+	converterByKey := make(map[string]CatalogConverter, len(workflowConverters))
+	for _, converter := range workflowConverters {
+		converterByKey[converter.Key] = converter
+	}
+	for _, edge := range edges {
+		converter := converterByKey[edge.ConverterKey]
+		if len(converter.RequiredDefaults) == 0 {
+			continue
+		}
+		var defaults map[string]any
+		if err := json.Unmarshal(normalizedJSON(nodeByID[edge.TargetNodeID].Defaults), &defaults); err != nil {
+			return validation("invalid node defaults", map[string]any{"nodeId": edge.TargetNodeID})
+		}
+		for _, field := range converter.RequiredDefaults {
+			value, ok := defaults[field]
+			if !ok || strings.TrimSpace(fmt.Sprint(value)) == "" || value == nil {
+				return validation("workflow node default is required", map[string]any{"nodeId": edge.TargetNodeID, "field": field})
+			}
+		}
+	}
+	return nil
+}
+
+func normalizedJSON(value json.RawMessage) json.RawMessage {
+	if len(value) == 0 || string(value) == "null" {
+		return json.RawMessage(`{}`)
+	}
+	return value
+}
+
+func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (Page[InstanceListItem], error) {
+	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
+		return Page[InstanceListItem]{}, validation("invalid pagination", nil)
+	}
+	statuses := input.Statuses
+	if statuses == nil {
+		statuses = []string{}
+	}
+	for _, status := range statuses {
+		if status != InstanceActive && status != InstanceCompleted {
+			return Page[InstanceListItem]{}, validation("invalid instance status", nil)
+		}
+	}
+	var total int64
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%' OR f.name ILIKE '%'||$1||'%') AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[]))`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses).Scan(&total)
+	if err != nil {
+		return Page[InstanceListItem]{}, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT i.id,i.definition_id,f.code,f.name,i.status,i.revision,i.root_document_id,d.document_no,d.entity,i.updated_at FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id WHERE ($1='' OR d.document_no ILIKE '%'||$1||'%' OR f.name ILIKE '%'||$1||'%') AND ($2='' OR i.definition_id=$2) AND (cardinality($3::text[])=0 OR i.status=ANY($3::text[])) ORDER BY i.updated_at DESC,i.id DESC LIMIT $4 OFFSET $5`, strings.TrimSpace(input.Keyword), input.DefinitionID, statuses, input.PageSize, (input.Page-1)*input.PageSize)
+	if err != nil {
+		return Page[InstanceListItem]{}, err
+	}
+	defer rows.Close()
+	items := []InstanceListItem{}
+	for rows.Next() {
+		var item InstanceListItem
+		if err = rows.Scan(&item.ProcessID, &item.DefinitionID, &item.DefinitionCode, &item.DefinitionName, &item.Status, &item.Revision, &item.RootDocumentID, &item.RootDocumentNo, &item.RootEntity, &item.UpdatedAt); err != nil {
+			return Page[InstanceListItem]{}, err
+		}
+		items = append(items, item)
+	}
+	return Page[InstanceListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, rows.Err()
+}
+
+func (s *Service) InstanceGet(ctx context.Context, input InstanceGetInput) (InstanceView, error) {
+	if !validWorkflowID(input.ProcessID) {
+		return InstanceView{}, validation("invalid processId", nil)
+	}
+	var result InstanceView
+	err := s.pool.QueryRow(ctx, `SELECT i.id,i.definition_id,f.code,f.name,i.status,i.revision,i.root_document_id,d.document_no,d.entity,i.updated_at,i.started_definition_revision FROM wfl_definition_instances i JOIN vou_documents d ON d.id=i.root_document_id JOIN wfl_process_definitions f ON f.id=i.definition_id WHERE i.id=$1`, input.ProcessID).Scan(&result.ProcessID, &result.DefinitionID, &result.DefinitionCode, &result.DefinitionName, &result.Status, &result.Revision, &result.RootDocumentID, &result.RootDocumentNo, &result.RootEntity, &result.UpdatedAt, &result.StartedDefinitionRevision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return InstanceView{}, validation("process instance not found", nil)
+	}
+	if err != nil {
+		return InstanceView{}, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT n.id,n.definition_node_id,n.parent_node_instance_id,n.node_key,n.node_name,n.document_id,d.document_no,n.document_entity,d.status,d.revision,to_char(d.business_date,'YYYY-MM-DD'),n.legacy,n.evaluated_definition_revision,n.evaluated_at FROM wfl_node_instances n JOIN vou_documents d ON d.id=n.document_id WHERE n.process_id=$1 ORDER BY n.created_at,n.id`, input.ProcessID)
+	if err != nil {
+		return InstanceView{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var node NodeInstanceView
+		if err = rows.Scan(&node.NodeInstanceID, &node.DefinitionNodeID, &node.ParentNodeInstanceID, &node.NodeKey, &node.NodeName, &node.DocumentID, &node.DocumentNo, &node.DocumentEntity, &node.DocumentStatus, &node.DocumentRevision, &node.BusinessDate, &node.Legacy, &node.EvaluatedRevision, &node.EvaluatedAt); err != nil {
+			return InstanceView{}, err
+		}
+		result.Nodes = append(result.Nodes, node)
+	}
+	return result, rows.Err()
+}
+
+func (s *Service) InstanceHistory(ctx context.Context, input InstanceHistoryInput) (Page[RuntimeAuditView], error) {
+	if !validWorkflowID(input.ProcessID) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
+		return Page[RuntimeAuditView]{}, validation("invalid history query", nil)
+	}
+	var total int64
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_runtime_audit_events WHERE process_id=$1`, input.ProcessID).Scan(&total); err != nil {
+		return Page[RuntimeAuditView]{}, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary,occurred_at FROM wfl_runtime_audit_events WHERE process_id=$1 ORDER BY occurred_at DESC,id DESC LIMIT $2 OFFSET $3`, input.ProcessID, input.PageSize, (input.Page-1)*input.PageSize)
+	if err != nil {
+		return Page[RuntimeAuditView]{}, err
+	}
+	defer rows.Close()
+	items := []RuntimeAuditView{}
+	for rows.Next() {
+		var item RuntimeAuditView
+		if err = rows.Scan(&item.ID, &item.EventType, &item.NodeInstanceID, &item.DocumentID, &item.DocumentNo, &item.ActorID, &item.RequestID, &item.Summary, &item.OccurredAt); err != nil {
+			return Page[RuntimeAuditView]{}, err
+		}
+		items = append(items, item)
+	}
+	return Page[RuntimeAuditView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, rows.Err()
+}
+
+func validWorkflowID(value string) bool { return len(strings.TrimSpace(value)) == 26 }

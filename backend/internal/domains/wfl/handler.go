@@ -31,9 +31,22 @@ type purchaseApplicationService interface {
 	PurchaseHistory(context.Context, HistoryInput) (Page[AuditView], error)
 }
 
+type genericApplicationService interface {
+	DefinitionCatalog(context.Context) (DefinitionCatalog, error)
+	DefinitionQuery(context.Context, DefinitionQueryInput) (Page[DefinitionListItem], error)
+	DefinitionGet(context.Context, DefinitionGetInput) (DefinitionView, error)
+	DefinitionCreate(context.Context, DefinitionCreateInput, string) (DefinitionView, error)
+	DefinitionSave(context.Context, DefinitionSaveInput, string) (DefinitionView, error)
+	DefinitionAction(context.Context, string, DefinitionActionInput, string) (any, error)
+	InstanceQuery(context.Context, InstanceQueryInput) (Page[InstanceListItem], error)
+	InstanceGet(context.Context, InstanceGetInput) (InstanceView, error)
+	InstanceHistory(context.Context, InstanceHistoryInput) (Page[RuntimeAuditView], error)
+}
+
 var (
 	_ salesApplicationService    = (*Service)(nil)
 	_ purchaseApplicationService = (*Service)(nil)
+	_ genericApplicationService  = (*Service)(nil)
 )
 
 type Handler struct {
@@ -61,8 +74,125 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 }
 
 func (h *Handler) Register(router *gin.Engine) {
+	h.registerGenericWorkflow(router)
 	h.registerSalesWorkflow(router)
 	h.registerPurchaseWorkflow(router)
+}
+
+func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
+	definitions := router.Group("/wfl/process-definition")
+	definitions.POST("/catalog", h.authorize("/wfl/process-definition/catalog"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input struct{}
+		if h.bind(c, &input) {
+			result, err := service.DefinitionCatalog(c.Request.Context())
+			h.result(c, result, err)
+		}
+	})
+	definitions.POST("/query", h.authorize("/wfl/process-definition/query"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input DefinitionQueryInput
+		if h.bind(c, &input) {
+			result, err := service.DefinitionQuery(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	})
+	definitions.POST("/get", h.authorize("/wfl/process-definition/get"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input DefinitionGetInput
+		if h.bind(c, &input) {
+			result, err := service.DefinitionGet(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	})
+	definitions.POST("/create", h.authorize("/wfl/process-definition/create"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input DefinitionCreateInput
+		if h.bind(c, &input) {
+			result, err := service.DefinitionCreate(c.Request.Context(), input, h.principal(c).ActorID)
+			h.result(c, result, err)
+		}
+	})
+	definitions.POST("/save", h.authorize("/wfl/process-definition/save"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input DefinitionSaveInput
+		if h.bind(c, &input) {
+			result, err := service.DefinitionSave(c.Request.Context(), input, h.principal(c).ActorID)
+			h.result(c, result, err)
+		}
+	})
+	for _, value := range []string{"enable", "disable", "delete"} {
+		action := value
+		definitions.POST("/"+action, h.authorize("/wfl/process-definition/"+action), func(c *gin.Context) {
+			service, ok := h.service.(genericApplicationService)
+			if !ok {
+				h.writeError(c, internal("generic workflow service is unavailable", nil))
+				return
+			}
+			var input DefinitionActionInput
+			if h.bind(c, &input) {
+				result, err := service.DefinitionAction(c.Request.Context(), action, input, h.principal(c).ActorID)
+				h.result(c, result, err)
+			}
+		})
+	}
+	instances := router.Group("/wfl/process-instance")
+	instances.POST("/query", h.authorize("/wfl/process-instance/query"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceQueryInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceQuery(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	})
+	instances.POST("/get", h.authorize("/wfl/process-instance/get"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceGetInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceGet(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	})
+	instances.POST("/audit-history", h.authorize("/wfl/process-instance/audit-history"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input InstanceHistoryInput
+		if h.bind(c, &input) {
+			result, err := service.InstanceHistory(c.Request.Context(), input)
+			h.result(c, result, err)
+		}
+	})
 }
 
 func (h *Handler) registerPurchaseWorkflow(router *gin.Engine) {

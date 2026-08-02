@@ -169,6 +169,9 @@ func (s *Service) Save(
 	if entity == EntityPurchaseReturn {
 		return s.SavePurchaseReturn(ctx, input, actorID, requestID)
 	}
+	if entity == EntityExpensePayment {
+		return s.SaveExpensePayment(ctx, input, actorID, requestID)
+	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -412,26 +415,13 @@ func (s *Service) reverseTransition(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
 		return MutationResult{}, err
 	}
-	if managedSalesDocument(document) && from == StatusApproved && to == StatusChecked {
+	if from == StatusApproved && to == StatusChecked {
 		if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
 			return MutationResult{}, err
 		}
 	} else if managedSalesDocument(document) {
 		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, to); err != nil {
 			return MutationResult{}, err
-		}
-	}
-	if managedPurchaseDocument(document) && document.Entity == EntityPurchaseOrder &&
-		from == StatusApproved && to == StatusChecked {
-		var children int64
-		if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_purchase_inbound_details
-			WHERE source_order_id=$1`, document.ID).Scan(&children); err != nil {
-			return MutationResult{}, err
-		}
-		if children != 0 {
-			return MutationResult{}, domainError(
-				ErrorConflict, "purchase order has inbound documents", nil, nil,
-			)
 		}
 	}
 	var revision int64

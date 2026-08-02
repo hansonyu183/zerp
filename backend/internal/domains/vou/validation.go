@@ -225,7 +225,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		if err = validateReference(input.Employee, "employee", true); err != nil {
 			return validatedDraft{}, err
 		}
-		if err = validateReference(input.FundAccount, "fundAccount", true); err != nil {
+		if err = validateReference(input.FundAccount, "fundAccount", false); err != nil {
 			return validatedDraft{}, err
 		}
 		result.ExpenseLines, result.TotalAmount, err = validateExpenseLines(input.ExpenseLines)

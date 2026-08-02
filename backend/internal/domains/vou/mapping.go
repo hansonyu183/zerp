@@ -181,8 +181,11 @@ func (s *Service) loadData(
 		}
 		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
-		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
-			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
+		data.SettlementMode = detail.SettlementMode
+		if detail.FundAccountObjectID != nil {
+			data.FundAccount = reference(deref(detail.FundAccountObjectID), deref(detail.FundAccountVersionID), "fund-account",
+				deref(detail.FundAccountCode), deref(detail.FundAccountName), "", deref(document.Currency), "")
+		}
 		rows, err := q.ListVouExpenseLines(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -194,6 +197,15 @@ func (s *Service) loadData(
 				Description: row.Description, Amount: formatMoney(row.AmountCents), Remark: deref(row.Remark),
 			})
 		}
+	case EntityExpensePayment:
+		detail, err := q.GetVouExpensePaymentDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
+			detail.EmployeeCode, detail.EmployeeName, "", "", "")
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 	case EntityOtherIncome:
 		detail, err := q.GetVouOtherIncomeDetail(ctx, document.ID)
 		if err != nil {

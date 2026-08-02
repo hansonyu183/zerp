@@ -4,6 +4,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -140,7 +141,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		t.Fatalf("BOB total = %d, want at least 2", bobPage.Total)
 	}
 	bobApprovalPage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
-		Category: WorkbenchCategoryBob, Keyword: "工作台", Entities: []string{"warehouse"},
+		Category: WorkbenchCategoryBob, Keyword: pendingName, Entities: []string{"warehouse"},
 		PendingStages: []string{"APPROVE"}, Page: 1, PageSize: 20,
 	})
 	if err != nil || bobApprovalPage.Total != 1 || len(bobApprovalPage.Items) != 1 ||
@@ -182,10 +183,15 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouByID[documentIDs[2]].PendingStage != "FINALIZE" {
 		t.Fatalf("unexpected VOU workbench items: %+v", vouByID)
 	}
+	if slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
+		!slices.Contains(vouByID[documentIDs[0]].AvailableActions, "edit") {
+		t.Fatalf("incomplete VOU draft actions = %v, want edit without check",
+			vouByID[documentIDs[0]].AvailableActions)
+	}
 	vouApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/approve",
 	}}, WorkbenchQueryInput{
-		Category: WorkbenchCategoryVou, Entities: []string{"other-income"},
+		Category: WorkbenchCategoryVou, Keyword: documentNos[1], Entities: []string{"other-income"},
 		PendingStages: []string{"APPROVE"}, Page: 1, PageSize: 20,
 	})
 	if err != nil || vouApprovalPage.Total != 1 || len(vouApprovalPage.Items) != 1 ||

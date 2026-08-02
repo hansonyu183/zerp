@@ -182,7 +182,56 @@ SELECT document.id AS document_id, document.entity, document.document_no,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name,
-                NULLIF(income.counterparty_name, ''), income.source_name, '') AS party_name
+                NULLIF(income.counterparty_name, ''), income.source_name, '') AS party_name,
+       CASE
+         WHEN document.status <> 'DRAFT' THEN true
+         WHEN document.entity = 'sale-order' THEN
+           so.salesperson_object_id IS NOT NULL
+           AND so.warehouse_object_id IS NOT NULL
+           AND so.settlement_method_object_id IS NOT NULL
+         WHEN document.entity = 'sale-outbound' THEN
+           sob.warehouse_object_id IS NOT NULL
+           AND sob.warehouse_version_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM vou_sale_outbound_lines line
+             WHERE line.document_id = document.id AND line.quantity_micros > 0
+           )
+         WHEN document.entity = 'sale-delivery' THEN
+           sd.platform_object_id IS NOT NULL
+           AND sd.platform_version_id IS NOT NULL
+           AND sd.vehicle_object_id IS NOT NULL
+           AND sd.vehicle_version_id IS NOT NULL
+         WHEN document.entity = 'sale-signoff' THEN EXISTS (
+           SELECT 1 FROM vou_sale_signoff_lines line
+           WHERE line.document_id = document.id
+         )
+         WHEN document.entity IN ('sale-return', 'purchase-return', 'expense-reimbursement') THEN true
+         WHEN document.entity = 'purchase-order' THEN
+           po.purchaser_object_id IS NOT NULL
+           AND po.warehouse_object_id IS NOT NULL
+           AND po.settlement_method_object_id IS NOT NULL
+         WHEN document.entity = 'purchase-inbound' THEN
+           NULLIF(pi.warehouse_object_id, '') IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM vou_purchase_inbound_lines line
+             WHERE line.document_id = document.id
+           )
+         WHEN document.entity IN ('order-production', 'self-production') THEN
+           EXISTS (
+             SELECT 1 FROM vou_production_output_lines output
+             WHERE output.document_id = document.id
+           )
+           AND EXISTS (
+             SELECT 1
+             FROM vou_production_material_lines material
+             JOIN vou_production_output_lines output ON output.id = material.output_line_id
+             WHERE output.document_id = document.id
+           )
+         WHEN document.entity = 'receipt' THEN receipt.handler_object_id IS NOT NULL
+         WHEN document.entity = 'payment' THEN payment.handler_object_id IS NOT NULL
+         WHEN document.entity = 'other-income' THEN income.handler_object_id IS NOT NULL
+         ELSE false
+       END AS forward_action_ready
 FROM vou_documents document
 LEFT JOIN vou_sale_order_details so ON so.document_id = document.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = document.id
@@ -224,16 +273,17 @@ type ListWorkbenchVouItemsParams struct {
 }
 
 type ListWorkbenchVouItemsRow struct {
-	DocumentID       string             `db:"document_id" json:"document_id"`
-	Entity           string             `db:"entity" json:"entity"`
-	DocumentNo       string             `db:"document_no" json:"document_no"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
-	BusinessDate     string             `db:"business_date" json:"business_date"`
-	Currency         string             `db:"currency" json:"currency"`
-	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	PartyName        string             `db:"party_name" json:"party_name"`
+	DocumentID         string             `db:"document_id" json:"document_id"`
+	Entity             string             `db:"entity" json:"entity"`
+	DocumentNo         string             `db:"document_no" json:"document_no"`
+	Status             string             `db:"status" json:"status"`
+	Revision           int64              `db:"revision" json:"revision"`
+	BusinessDate       string             `db:"business_date" json:"business_date"`
+	Currency           string             `db:"currency" json:"currency"`
+	TotalAmountCents   int64              `db:"total_amount_cents" json:"total_amount_cents"`
+	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	PartyName          string             `db:"party_name" json:"party_name"`
+	ForwardActionReady bool               `db:"forward_action_ready" json:"forward_action_ready"`
 }
 
 func (q *Queries) ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVouItemsParams) ([]ListWorkbenchVouItemsRow, error) {
@@ -263,6 +313,7 @@ func (q *Queries) ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVo
 			&i.TotalAmountCents,
 			&i.UpdatedAt,
 			&i.PartyName,
+			&i.ForwardActionReady,
 		); err != nil {
 			return nil, err
 		}

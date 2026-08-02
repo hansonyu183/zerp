@@ -265,4 +265,30 @@ describe('Dashboard workbench', () => {
       '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
     )
   })
+
+  it('单据核对失败时保留操作并显示具体业务原因', async () => {
+    const delivery = {
+      ...documentItem,
+      entity: 'sale-delivery' as const,
+      documentNo: 'SDL-20260715-0001',
+    }
+    mockedPost
+      .mockRejectedValueOnce(
+        new ApiError(
+          'business',
+          'generated sales draft is missing required business data',
+          { code: 2001 },
+        ),
+      )
+      .mockResolvedValueOnce(page([delivery]))
+    const vm = useDashboardViewModel()
+
+    const success = await vm.runAction(delivery, 'check')
+
+    expect(success).toBe(false)
+    expect(delivery.availableActions).toContain('check')
+    expect(vm.states.VOU.errorMessage).toBe(
+      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。',
+    )
+  })
 })

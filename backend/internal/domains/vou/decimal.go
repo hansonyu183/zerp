@@ -20,6 +20,9 @@ func moneyCents(value string) (int64, error) {
 }
 
 func lineAmountCents(quantity, unitPrice int64) (int64, error) {
+	if unitPrice == 0 {
+		return 0, nil
+	}
 	return fixeddecimal.LineAmountCents(quantity, unitPrice)
 }
 

@@ -165,6 +165,7 @@ WHERE d.entity = $1
   AND (
       $5::text = ''
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = $5)
@@ -181,6 +182,8 @@ WHERE d.entity = $1
       OR d.document_no ILIKE '%' || $6 || '%'
       OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id
           AND (x.customer_code ILIKE '%' || $6 || '%' OR x.customer_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id
@@ -309,6 +312,15 @@ func (q *Queries) DeleteVouFile(ctx context.Context, id string) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const deleteVouPriceLines = `-- name: DeleteVouPriceLines :exec
+DELETE FROM vou_price_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouPriceLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouPriceLines, documentID)
+	return err
+}
+
 const deleteVouProductLines = `-- name: DeleteVouProductLines :exec
 DELETE FROM vou_product_lines WHERE document_id = $1
 `
@@ -391,6 +403,98 @@ func (q *Queries) FindLatestCustomerSaleOrderFormula(ctx context.Context, arg Fi
 		&i.BaseOutputQuantityMicros,
 		&i.SourceDocumentID,
 		&i.SourceDocumentNo,
+	)
+	return i, err
+}
+
+const findVouPurchasePriceReference = `-- name: FindVouPurchasePriceReference :one
+SELECT line.id AS source_line_id, document.id AS source_document_id,
+       document.document_no AS source_document_no, document.business_date,
+       line.unit_price_cents
+FROM vou_price_lines line
+JOIN vou_documents document ON document.id=line.document_id
+JOIN vou_purchase_inquiry_details inquiry ON inquiry.document_id=document.id
+WHERE line.document_entity='purchase-inquiry'
+  AND line.product_object_id=$1
+  AND inquiry.supplier_object_id=$2
+  AND document.currency=$3
+  AND document.business_date <= $4
+  AND document.status IN ('APPROVED','FINALIZED')
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1
+`
+
+type FindVouPurchasePriceReferenceParams struct {
+	ProductObjectID  string      `db:"product_object_id" json:"product_object_id"`
+	SupplierObjectID string      `db:"supplier_object_id" json:"supplier_object_id"`
+	Currency         *string     `db:"currency" json:"currency"`
+	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+}
+
+type FindVouPurchasePriceReferenceRow struct {
+	SourceLineID     string      `db:"source_line_id" json:"source_line_id"`
+	SourceDocumentID string      `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo string      `db:"source_document_no" json:"source_document_no"`
+	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	UnitPriceCents   int64       `db:"unit_price_cents" json:"unit_price_cents"`
+}
+
+func (q *Queries) FindVouPurchasePriceReference(ctx context.Context, arg FindVouPurchasePriceReferenceParams) (FindVouPurchasePriceReferenceRow, error) {
+	row := q.db.QueryRow(ctx, findVouPurchasePriceReference,
+		arg.ProductObjectID,
+		arg.SupplierObjectID,
+		arg.Currency,
+		arg.BusinessDate,
+	)
+	var i FindVouPurchasePriceReferenceRow
+	err := row.Scan(
+		&i.SourceLineID,
+		&i.SourceDocumentID,
+		&i.SourceDocumentNo,
+		&i.BusinessDate,
+		&i.UnitPriceCents,
+	)
+	return i, err
+}
+
+const findVouSalePriceReference = `-- name: FindVouSalePriceReference :one
+SELECT line.id AS source_line_id, document.id AS source_document_id,
+       document.document_no AS source_document_no, document.business_date,
+       line.unit_price_cents
+FROM vou_price_lines line
+JOIN vou_documents document ON document.id=line.document_id
+WHERE line.document_entity='sale-pricing'
+  AND line.product_object_id=$1
+  AND document.currency=$2
+  AND document.business_date <= $3
+  AND document.status IN ('APPROVED','FINALIZED')
+ORDER BY document.business_date DESC, document.document_no DESC
+LIMIT 1
+`
+
+type FindVouSalePriceReferenceParams struct {
+	ProductObjectID string      `db:"product_object_id" json:"product_object_id"`
+	Currency        *string     `db:"currency" json:"currency"`
+	BusinessDate    pgtype.Date `db:"business_date" json:"business_date"`
+}
+
+type FindVouSalePriceReferenceRow struct {
+	SourceLineID     string      `db:"source_line_id" json:"source_line_id"`
+	SourceDocumentID string      `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo string      `db:"source_document_no" json:"source_document_no"`
+	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	UnitPriceCents   int64       `db:"unit_price_cents" json:"unit_price_cents"`
+}
+
+func (q *Queries) FindVouSalePriceReference(ctx context.Context, arg FindVouSalePriceReferenceParams) (FindVouSalePriceReferenceRow, error) {
+	row := q.db.QueryRow(ctx, findVouSalePriceReference, arg.ProductObjectID, arg.Currency, arg.BusinessDate)
+	var i FindVouSalePriceReferenceRow
+	err := row.Scan(
+		&i.SourceLineID,
+		&i.SourceDocumentID,
+		&i.SourceDocumentNo,
+		&i.BusinessDate,
+		&i.UnitPriceCents,
 	)
 	return i, err
 }
@@ -588,6 +692,24 @@ func (q *Queries) GetVouPurchaseInboundDetail(ctx context.Context, documentID st
 		&i.WarehouseVersionID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
+	)
+	return i, err
+}
+
+const getVouPurchaseInquiryDetail = `-- name: GetVouPurchaseInquiryDetail :one
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name FROM vou_purchase_inquiry_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID string) (VouPurchaseInquiryDetail, error) {
+	row := q.db.QueryRow(ctx, getVouPurchaseInquiryDetail, documentID)
+	var i VouPurchaseInquiryDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.SupplierObjectID,
+		&i.SupplierVersionID,
+		&i.SupplierCode,
+		&i.SupplierName,
 	)
 	return i, err
 }
@@ -1063,25 +1185,20 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 	return err
 }
 
-const insertVouProductLine = `-- name: InsertVouProductLine :exec
-INSERT INTO vou_product_lines (
-    id, document_id, document_entity, line_no, product_object_id, product_version_id,
-    product_code, product_name, product_unit, ordered_qty_micros,
-    product_kind, pricing_quantity_per_inventory_unit_micros,
-    base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
-    line_amount_cents, purchase_unit_price_cents, remark
+const insertVouPriceLine = `-- name: InsertVouPriceLine :exec
+INSERT INTO vou_price_lines(
+    id,document_id,document_entity,line_no,product_object_id,product_version_id,
+    product_code,product_name,product_unit,product_kind,
+    pricing_quantity_per_inventory_unit_micros,unit_price_cents,remark
 ) VALUES (
-    $1, $2, $3, $4,
-    $5, $6, $7,
-    $8, $9, $10,
-    $11, $12,
-    $13, $14,
-    $15, $16,
-    $17, $18
+    $1,$2,$3,$4,
+    $5,$6,$7,
+    $8,$9,$10,
+    $11,$12,$13
 )
 `
 
-type InsertVouProductLineParams struct {
+type InsertVouPriceLineParams struct {
 	ID                                    string  `db:"id" json:"id"`
 	DocumentID                            string  `db:"document_id" json:"document_id"`
 	DocumentEntity                        string  `db:"document_entity" json:"document_entity"`
@@ -1091,15 +1208,78 @@ type InsertVouProductLineParams struct {
 	ProductCode                           string  `db:"product_code" json:"product_code"`
 	ProductName                           string  `db:"product_name" json:"product_name"`
 	ProductUnit                           string  `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros                      int64   `db:"ordered_qty_micros" json:"ordered_qty_micros"`
 	ProductKind                           string  `db:"product_kind" json:"product_kind"`
 	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	BaseUnitPriceCents                    int64   `db:"base_unit_price_cents" json:"base_unit_price_cents"`
-	SettlementSurchargeCents              int64   `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
 	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents                       int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	PurchaseUnitPriceCents                *int64  `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
 	Remark                                *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouPriceLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.DocumentEntity,
+		arg.LineNo,
+		arg.ProductObjectID,
+		arg.ProductVersionID,
+		arg.ProductCode,
+		arg.ProductName,
+		arg.ProductUnit,
+		arg.ProductKind,
+		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.UnitPriceCents,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertVouProductLine = `-- name: InsertVouProductLine :exec
+INSERT INTO vou_product_lines (
+    id, document_id, document_entity, line_no, product_object_id, product_version_id,
+    product_code, product_name, product_unit, ordered_qty_micros,
+    product_kind, pricing_quantity_per_inventory_unit_micros,
+    base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
+    line_amount_cents, purchase_unit_price_cents, remark,
+    reference_unit_price_cents, reference_document_id, reference_document_no,
+    reference_business_date, reference_line_id
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7,
+    $8, $9, $10,
+    $11, $12,
+    $13, $14,
+    $15, $16,
+    $17, $18,
+    $19, $20,
+    $21, $22,
+    $23
+)
+`
+
+type InsertVouProductLineParams struct {
+	ID                                    string      `db:"id" json:"id"`
+	DocumentID                            string      `db:"document_id" json:"document_id"`
+	DocumentEntity                        string      `db:"document_entity" json:"document_entity"`
+	LineNo                                int32       `db:"line_no" json:"line_no"`
+	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
+	ProductCode                           string      `db:"product_code" json:"product_code"`
+	ProductName                           string      `db:"product_name" json:"product_name"`
+	ProductUnit                           string      `db:"product_unit" json:"product_unit"`
+	OrderedQtyMicros                      int64       `db:"ordered_qty_micros" json:"ordered_qty_micros"`
+	ProductKind                           string      `db:"product_kind" json:"product_kind"`
+	PricingQuantityPerInventoryUnitMicros int64       `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	BaseUnitPriceCents                    int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
+	SettlementSurchargeCents              int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	UnitPriceCents                        int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	PurchaseUnitPriceCents                *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
+	Remark                                *string     `db:"remark" json:"remark"`
+	ReferenceUnitPriceCents               int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	ReferenceDocumentID                   *string     `db:"reference_document_id" json:"reference_document_id"`
+	ReferenceDocumentNo                   *string     `db:"reference_document_no" json:"reference_document_no"`
+	ReferenceBusinessDate                 pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
+	ReferenceLineID                       *string     `db:"reference_line_id" json:"reference_line_id"`
 }
 
 func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error {
@@ -1122,6 +1302,11 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 		arg.LineAmountCents,
 		arg.PurchaseUnitPriceCents,
 		arg.Remark,
+		arg.ReferenceUnitPriceCents,
+		arg.ReferenceDocumentID,
+		arg.ReferenceDocumentNo,
+		arg.ReferenceBusinessDate,
+		arg.ReferenceLineID,
 	)
 	return err
 }
@@ -1214,6 +1399,34 @@ func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVo
 		arg.UnitPriceCents,
 		arg.LineAmountCents,
 		arg.Remark,
+	)
+	return err
+}
+
+const insertVouPurchaseInquiryDetail = `-- name: InsertVouPurchaseInquiryDetail :exec
+INSERT INTO vou_purchase_inquiry_details(
+    document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name
+) VALUES (
+    $1, 'purchase-inquiry', $2,
+    $3, $4, $5
+)
+`
+
+type InsertVouPurchaseInquiryDetailParams struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+}
+
+func (q *Queries) InsertVouPurchaseInquiryDetail(ctx context.Context, arg InsertVouPurchaseInquiryDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouPurchaseInquiryDetail,
+		arg.DocumentID,
+		arg.SupplierObjectID,
+		arg.SupplierVersionID,
+		arg.SupplierCode,
+		arg.SupplierName,
 	)
 	return err
 }
@@ -1525,6 +1738,16 @@ func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertV
 	return err
 }
 
+const insertVouSalePricingDetail = `-- name: InsertVouSalePricingDetail :exec
+INSERT INTO vou_sale_pricing_details(document_id, entity)
+VALUES ($1, 'sale-pricing')
+`
+
+func (q *Queries) InsertVouSalePricingDetail(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, insertVouSalePricingDetail, documentID)
+	return err
+}
+
 const listAllVouStorageKeys = `-- name: ListAllVouStorageKeys :many
 SELECT storage_key FROM vou_files
 `
@@ -1692,7 +1915,7 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
-                po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
+                pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
 FROM vou_documents d
@@ -1701,6 +1924,7 @@ LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
 LEFT JOIN vou_sale_signoff_details ss ON ss.document_id = d.id
 LEFT JOIN vou_sale_return_details sr ON sr.document_id = d.id
+LEFT JOIN vou_purchase_inquiry_details pqi ON pqi.document_id = d.id
 LEFT JOIN vou_purchase_order_details po ON po.document_id = d.id
 LEFT JOIN vou_purchase_inbound_details pi ON pi.document_id = d.id
 LEFT JOIN vou_purchase_return_details pr ON pr.document_id = d.id
@@ -1889,8 +2113,46 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 	return items, nil
 }
 
+const listVouPriceLines = `-- name: ListVouPriceLines :many
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, product_kind, pricing_quantity_per_inventory_unit_micros, unit_price_cents, remark FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error) {
+	rows, err := q.db.Query(ctx, listVouPriceLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouPriceLine{}
+	for rows.Next() {
+		var i VouPriceLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.DocumentEntity,
+			&i.LineNo,
+			&i.ProductObjectID,
+			&i.ProductVersionID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.ProductUnit,
+			&i.ProductKind,
+			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.UnitPriceCents,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVouProductLines = `-- name: ListVouProductLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, product_kind, pricing_quantity_per_inventory_unit_micros FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, product_kind, pricing_quantity_per_inventory_unit_micros, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error) {
@@ -1926,6 +2188,11 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.SettlementSurchargeCents,
 			&i.ProductKind,
 			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.ReferenceUnitPriceCents,
+			&i.ReferenceDocumentID,
+			&i.ReferenceDocumentNo,
+			&i.ReferenceBusinessDate,
+			&i.ReferenceLineID,
 		); err != nil {
 			return nil, err
 		}
@@ -2590,6 +2857,35 @@ func (q *Queries) UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg Upd
 		arg.WarehouseVersionID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouPurchaseInquiryDetail = `-- name: UpdateVouPurchaseInquiryDetail :execrows
+UPDATE vou_purchase_inquiry_details SET
+    supplier_object_id=$1, supplier_version_id=$2,
+    supplier_code=$3, supplier_name=$4
+WHERE document_id=$5
+`
+
+type UpdateVouPurchaseInquiryDetailParams struct {
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+	DocumentID        string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouPurchaseInquiryDetail(ctx context.Context, arg UpdateVouPurchaseInquiryDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouPurchaseInquiryDetail,
+		arg.SupplierObjectID,
+		arg.SupplierVersionID,
+		arg.SupplierCode,
+		arg.SupplierName,
 		arg.DocumentID,
 	)
 	if err != nil {

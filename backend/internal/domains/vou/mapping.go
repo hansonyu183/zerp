@@ -19,6 +19,19 @@ func (s *Service) loadData(
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntitySalePricing:
+		lines, err := loadPriceLines(ctx, q, document.ID)
+		data.PriceLines = lines
+		return data, err
+	case EntityPurchaseInquiry:
+		detail, err := q.GetVouPurchaseInquiryDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierVersionID, "supplier",
+			detail.SupplierCode, detail.SupplierName, "", "", "")
+		data.PriceLines, err = loadPriceLines(ctx, q, document.ID)
+		return data, err
 	case EntityOrderProduction, EntitySelfProduction:
 		return s.loadProductionData(ctx, document, data)
 	case EntitySaleOrder:
@@ -212,12 +225,16 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 			LineID: row.ID, LineNo: row.LineNo,
 			Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
 				row.ProductCode, row.ProductName, row.ProductUnit, "", ""),
-			OrderedQuantity:     formatQuantity(row.OrderedQtyMicros),
-			UnitPrice:           formatMoney(row.UnitPriceCents),
-			BaseUnitPrice:       formatMoney(row.BaseUnitPriceCents),
-			SettlementSurcharge: formatMoney(row.SettlementSurchargeCents),
-			LineAmount:          formatMoney(row.LineAmountCents),
-			Remark:              deref(row.Remark),
+			OrderedQuantity:       formatQuantity(row.OrderedQtyMicros),
+			UnitPrice:             formatMoney(row.UnitPriceCents),
+			BaseUnitPrice:         formatMoney(row.BaseUnitPriceCents),
+			SettlementSurcharge:   formatMoney(row.SettlementSurchargeCents),
+			LineAmount:            formatMoney(row.LineAmountCents),
+			Remark:                deref(row.Remark),
+			ReferenceUnitPrice:    formatMoney(row.ReferenceUnitPriceCents),
+			ReferenceDocumentID:   deref(row.ReferenceDocumentID),
+			ReferenceDocumentNo:   deref(row.ReferenceDocumentNo),
+			ReferenceBusinessDate: formatDate(row.ReferenceBusinessDate),
 		}
 		item.Product.ProductKind = row.ProductKind
 		item.Product.PricingQuantityPerInventoryUnit =
@@ -235,6 +252,23 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 			return nil, err
 		}
 		items = append(items, item)
+	}
+	return items, nil
+}
+
+func loadPriceLines(ctx context.Context, q *dbsqlc.Queries, documentID string) ([]PriceLineView, error) {
+	rows, err := q.ListVouPriceLines(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PriceLineView, 0, len(rows))
+	for _, row := range rows {
+		product := *reference(row.ProductObjectID, row.ProductVersionID, bobdomain.EntityProduct,
+			row.ProductCode, row.ProductName, row.ProductUnit, "", "")
+		product.ProductKind = row.ProductKind
+		product.PricingQuantityPerInventoryUnit = formatQuantity(row.PricingQuantityPerInventoryUnitMicros)
+		items = append(items, PriceLineView{LineID: row.ID, LineNo: row.LineNo, Product: product,
+			UnitPrice: formatMoney(row.UnitPriceCents), Remark: deref(row.Remark)})
 	}
 	return items, nil
 }

@@ -110,12 +110,15 @@ type Querier interface {
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
+	DeleteVouPriceLines(ctx context.Context, documentID string) error
 	DeleteVouProductLines(ctx context.Context, documentID string) error
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
 	FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindLatestCustomerSaleOrderFormula(ctx context.Context, arg FindLatestCustomerSaleOrderFormulaParams) (FindLatestCustomerSaleOrderFormulaRow, error)
+	FindVouPurchasePriceReference(ctx context.Context, arg FindVouPurchasePriceReferenceParams) (FindVouPurchasePriceReferenceRow, error)
+	FindVouSalePriceReference(ctx context.Context, arg FindVouSalePriceReferenceParams) (FindVouSalePriceReferenceRow, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
@@ -137,6 +140,7 @@ type Querier interface {
 	GetVouOtherIncomeDetail(ctx context.Context, documentID string) (VouOtherIncomeDetail, error)
 	GetVouPaymentDetail(ctx context.Context, documentID string) (VouPaymentDetail, error)
 	GetVouPurchaseInboundDetail(ctx context.Context, documentID string) (VouPurchaseInboundDetail, error)
+	GetVouPurchaseInquiryDetail(ctx context.Context, documentID string) (VouPurchaseInquiryDetail, error)
 	GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error)
 	GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
@@ -195,14 +199,17 @@ type Querier interface {
 	InsertVouFile(ctx context.Context, arg InsertVouFileParams) error
 	InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouOtherIncomeDetailParams) error
 	InsertVouPaymentDetail(ctx context.Context, arg InsertVouPaymentDetailParams) error
+	InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLineParams) error
 	InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error
 	InsertVouPurchaseInboundDetail(ctx context.Context, arg InsertVouPurchaseInboundDetailParams) error
 	InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVouPurchaseInboundLineParams) error
+	InsertVouPurchaseInquiryDetail(ctx context.Context, arg InsertVouPurchaseInquiryDetailParams) error
 	InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVouPurchaseOrderDetailParams) error
 	InsertVouReceiptDetail(ctx context.Context, arg InsertVouReceiptDetailParams) error
 	InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error
 	InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSaleOrderFormulaParams) error
 	InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error
+	InsertVouSalePricingDetail(ctx context.Context, documentID string) error
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
@@ -248,6 +255,7 @@ type Querier interface {
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
+	ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
 	ListVouPurchaseInboundLines(ctx context.Context, documentID string) ([]VouPurchaseInboundLine, error)
 	ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error)
@@ -321,6 +329,7 @@ type Querier interface {
 	UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouOtherIncomeDetailParams) (int64, error)
 	UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPaymentDetailParams) (int64, error)
 	UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg UpdateVouPurchaseInboundWarehouseParams) (int64, error)
+	UpdateVouPurchaseInquiryDetail(ctx context.Context, arg UpdateVouPurchaseInquiryDetailParams) (int64, error)
 	UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error)
 	UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error)
 	UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error)

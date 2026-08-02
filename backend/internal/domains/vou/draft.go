@@ -217,6 +217,25 @@ func (s *Service) writeDetail(
 	ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft validatedDraft, refs resolvedDraft, update bool,
 ) error {
 	switch entity {
+	case EntitySalePricing:
+		if update {
+			return nil
+		}
+		return q.InsertVouSalePricingDetail(ctx, documentID)
+	case EntityPurchaseInquiry:
+		params := dbsqlc.InsertVouPurchaseInquiryDetailParams{
+			DocumentID: documentID, SupplierObjectID: refs.Supplier.ObjectID,
+			SupplierVersionID: refs.Supplier.VersionID, SupplierCode: refs.Supplier.Code,
+			SupplierName: refs.Supplier.Data.Name,
+		}
+		if !update {
+			return q.InsertVouPurchaseInquiryDetail(ctx, params)
+		}
+		return oneRow(q.UpdateVouPurchaseInquiryDetail(ctx, dbsqlc.UpdateVouPurchaseInquiryDetailParams{
+			DocumentID: params.DocumentID, SupplierObjectID: params.SupplierObjectID,
+			SupplierVersionID: params.SupplierVersionID, SupplierCode: params.SupplierCode,
+			SupplierName: params.SupplierName,
+		}))
 	case EntitySaleOrder:
 		return s.writeSaleDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityPurchaseOrder:
@@ -235,6 +254,24 @@ func (s *Service) writeDetail(
 func (s *Service) replaceLines(
 	ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft validatedDraft, refs resolvedDraft,
 ) error {
+	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
+		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
+			return err
+		}
+		for index, line := range draft.PriceLines {
+			ref := refs.Products[index]
+			if err := q.InsertVouPriceLine(ctx, dbsqlc.InsertVouPriceLineParams{
+				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
+				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID, ProductCode: ref.Code,
+				ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit, ProductKind: ref.Data.ProductKind,
+				PricingQuantityPerInventoryUnitMicros: fixedMicrosOrOne(ref.Data.PricingQuantityPerInventoryUnit),
+				UnitPriceCents:                        line.UnitPrice, Remark: line.Remark,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if len(draft.ProductLines) > 0 {
 		if err := q.DeleteVouProductLines(ctx, documentID); err != nil {
 			return err
@@ -252,6 +289,11 @@ func (s *Service) replaceLines(
 				SettlementSurchargeCents: line.SettlementSurcharge,
 				UnitPriceCents:           line.UnitPrice, LineAmountCents: line.LineAmount,
 				PurchaseUnitPriceCents: line.PurchaseUnitPrice, Remark: line.Remark,
+				ReferenceUnitPriceCents: line.Reference.UnitPrice,
+				ReferenceDocumentID:     nullableString(line.Reference.DocumentID),
+				ReferenceDocumentNo:     nullableString(line.Reference.DocumentNo),
+				ReferenceBusinessDate:   optionalDate(line.Reference.BusinessDate),
+				ReferenceLineID:         nullableString(line.Reference.LineID),
 			}); err != nil {
 				return err
 			}
@@ -317,6 +359,12 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntitySalePricing, EntityPurchaseInquiry:
+		lines, err := q.ListVouPriceLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read price lines", err)
+		}
+		missing = len(lines) == 0
 	case EntitySaleOrder:
 		detail, err := q.GetVouSaleOrderDetail(ctx, documentID)
 		if err != nil {

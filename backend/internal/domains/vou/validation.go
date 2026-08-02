@@ -28,6 +28,19 @@ type fixedProductLine struct {
 	LineAmount          int64
 	Remark              *string
 	Formula             *fixedFormula
+	Reference           priceReference
+}
+
+type fixedPriceLine struct {
+	Product   ReferenceInput
+	UnitPrice int64
+	Remark    *string
+}
+
+type priceReference struct {
+	UnitPrice                      int64
+	DocumentID, DocumentNo, LineID string
+	BusinessDate                   *time.Time
 }
 
 type fixedFormula struct {
@@ -59,6 +72,7 @@ type validatedDraft struct {
 	CounterpartyType                                        string
 	SourceName                                              string
 	ProductLines                                            []fixedProductLine
+	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
 	TotalAmount                                             int64
 }
@@ -140,6 +154,25 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	}
 
 	switch entity {
+	case EntitySalePricing:
+		if input.Customer != nil || input.Supplier != nil || input.Counterparty != nil ||
+			input.Employee != nil || input.Salesperson != nil || input.Purchaser != nil ||
+			input.Handler != nil || input.Warehouse != nil || input.FundAccount != nil ||
+			len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 {
+			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
+		}
+		result.PriceLines, err = validatePriceLines(input.PriceLines)
+	case EntityPurchaseInquiry:
+		if err = validateReference(input.Supplier, "supplier", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if input.Customer != nil || input.Counterparty != nil || input.Employee != nil ||
+			input.Salesperson != nil || input.Purchaser != nil || input.Handler != nil ||
+			input.Warehouse != nil || input.FundAccount != nil || len(input.ProductLines) != 0 ||
+			len(input.ExpenseLines) != 0 {
+			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
+		}
+		result.PriceLines, err = validatePriceLines(input.PriceLines)
 	case EntitySaleOrder:
 		if err = requireOnlyDraftRefs(input, true, false, false, false, true, false, false, true, false, false); err != nil {
 			return validatedDraft{}, err
@@ -244,6 +277,9 @@ func requireOnlyDraftRefs(
 	if len(input.ProductLines) > 0 && !(customer || supplier) {
 		return domainError(ErrorValidation, "productLines do not match entity", nil, nil)
 	}
+	if len(input.PriceLines) > 0 {
+		return domainError(ErrorValidation, "priceLines do not match entity", nil, nil)
+	}
 	if len(input.ExpenseLines) > 0 && !employee {
 		return domainError(ErrorValidation, "expenseLines do not match entity", nil, nil)
 	}
@@ -275,7 +311,7 @@ func validateProductLines(
 		if err != nil {
 			return nil, 0, err
 		}
-		price, err := moneyCents(line.UnitPrice)
+		price, err := parseFixed(line.UnitPrice, 2, true)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -318,6 +354,33 @@ func validateProductLines(
 		})
 	}
 	return result, total, nil
+}
+
+func validatePriceLines(lines []PriceLineInput) ([]fixedPriceLine, error) {
+	if len(lines) == 0 || len(lines) > 200 {
+		return nil, domainError(ErrorValidation, "priceLines must contain 1 to 200 items", nil, nil)
+	}
+	result := make([]fixedPriceLine, 0, len(lines))
+	seen := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		if err := validateReference(&line.Product, "product", true); err != nil {
+			return nil, err
+		}
+		if _, ok := seen[line.Product.ObjectID]; ok {
+			return nil, domainError(ErrorValidation, "duplicate price product", nil, nil)
+		}
+		seen[line.Product.ObjectID] = struct{}{}
+		price, err := parseFixed(line.UnitPrice, 2, true)
+		if err != nil {
+			return nil, domainError(ErrorValidation, "invalid price", nil, err)
+		}
+		remark, err := lineRemark(line.Remark)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, fixedPriceLine{Product: line.Product, UnitPrice: price, Remark: remark})
+	}
+	return result, nil
 }
 
 func validateFormula(input *FormulaInput, allowed bool) (*fixedFormula, error) {

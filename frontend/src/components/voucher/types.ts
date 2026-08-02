@@ -1,4 +1,5 @@
 export type VoucherEntity =
+  | 'sale-pricing'
   | 'sale-order'
   | 'sale-outbound'
   | 'sale-delivery'
@@ -9,6 +10,7 @@ export type VoucherEntity =
   | 'purchase-order'
   | 'purchase-inbound'
   | 'purchase-return'
+  | 'purchase-inquiry'
   | 'receipt'
   | 'payment'
   | 'expense-reimbursement'
@@ -53,6 +55,19 @@ export interface VoucherProductLineDraft {
   formula: ProductFormulaDraft | null
   formulaLoading?: boolean
   formulaError?: string
+  referenceUnitPrice?: string
+  referenceDocumentId?: string
+  referenceDocumentNo?: string
+  referenceBusinessDate?: string
+  priceDirty?: boolean
+}
+
+export interface VoucherPriceLineDraft {
+  key: string
+  lineId?: string
+  product: VoucherReference | null
+  unitPrice: string
+  remark: string
 }
 
 export interface VoucherExpenseLineDraft {
@@ -130,6 +145,7 @@ export interface VoucherDraftForm {
   parentDocumentId: string
   parentDocumentNo: string
   productLines: VoucherProductLineDraft[]
+  priceLines: VoucherPriceLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
   productionLines: VoucherProductionOutputDraft[]
@@ -176,6 +192,18 @@ export interface VoucherProductLineView {
       quantity: string
     }>
   }
+  referenceUnitPrice?: string
+  referenceDocumentId?: string
+  referenceDocumentNo?: string
+  referenceBusinessDate?: string
+}
+
+export interface VoucherPriceLineView {
+  lineId: string
+  lineNo: number
+  product: VoucherReferenceView
+  unitPrice: string
+  remark?: string
 }
 
 export interface VoucherSaleSignoffLineView {
@@ -315,6 +343,7 @@ export interface VoucherDocumentData {
   supplierSettlementMethod?: SettlementMethodSnapshot
   sourceName?: string
   productLines?: VoucherProductLineView[]
+  priceLines?: VoucherPriceLineView[]
   expenseLines?: VoucherExpenseLineView[]
   outboundDate?: string
   signoffDate?: string
@@ -477,7 +506,7 @@ export interface VoucherExecutionForm {
   purchaseLines: VoucherExecutionPurchaseLine[]
 }
 
-export type VoucherLineKind = 'product' | 'expense' | 'none'
+export type VoucherLineKind = 'product' | 'price' | 'expense' | 'none'
 export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
 
 export interface VoucherLifecycleLabels {

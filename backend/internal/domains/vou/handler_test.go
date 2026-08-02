@@ -30,6 +30,9 @@ func (*handlerServiceStub) Get(context.Context, string, GetInput) (DocumentView,
 func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error) {
 	return FormulaDefaultView{}, nil
 }
+func (*handlerServiceStub) PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error) {
+	return PriceReferenceView{}, nil
+}
 func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
@@ -109,11 +112,15 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 				entity != EntitySelfProduction {
 				continue
 			}
+			if route.action == "price-reference" && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
+				continue
+			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost
 		}
 	}
 	wanted["/files/attachments/upload/:token"] = http.MethodPut
 	wanted["/files/attachments/download/:token"] = http.MethodGet
+	wantedCount := len(wanted)
 	for _, route := range router.Routes() {
 		if method, exists := wanted[route.Path]; exists && method == route.Method {
 			delete(wanted, route.Path)
@@ -122,7 +129,7 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 	for path, method := range wanted {
 		t.Errorf("route %s %s is not registered", method, path)
 	}
-	if got, want := len(router.Routes()), len(entities)*len(actionRoutes)-3-(len(entities)-2)+2; got != want {
+	if got, want := len(router.Routes()), wantedCount; got != want {
 		t.Fatalf("route count = %d, want %d", got, want)
 	}
 }

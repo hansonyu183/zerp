@@ -39,6 +39,11 @@ export interface DraftPayload {
     remark?: string
     formula?: FormulaPayload
   }>
+  priceLines?: Array<{
+    product: VoucherReferenceInput
+    unitPrice: string
+    remark?: string
+  }>
   expenseLines?: Array<{
     category: string
     description: string
@@ -116,6 +121,17 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
             },
           ]
         : [],
+    priceLines:
+      config.lineKind === 'price'
+        ? [
+            {
+              key: crypto.randomUUID(),
+              product: null,
+              unitPrice: '',
+              remark: '',
+            },
+          ]
+        : [],
     expenseLines:
       config.lineKind === 'expense'
         ? [
@@ -190,6 +206,18 @@ export function formFromDocument(
       purchaseUnitPrice: line.purchaseUnitPrice ?? '',
       remark: line.remark ?? '',
       formula: formulaFromPayload(line.formula),
+      referenceUnitPrice: line.referenceUnitPrice ?? '0.00',
+      referenceDocumentId: line.referenceDocumentId,
+      referenceDocumentNo: line.referenceDocumentNo,
+      referenceBusinessDate: line.referenceBusinessDate,
+      priceDirty: false,
+    })),
+    priceLines: (data.priceLines ?? []).map((line) => ({
+      key: line.lineId,
+      lineId: line.lineId,
+      product: formReference(line.product),
+      unitPrice: line.unitPrice,
+      remark: line.remark ?? '',
     })),
     expenseLines: (data.expenseLines ?? []).map((line) => ({
       key: line.lineId,

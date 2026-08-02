@@ -100,6 +100,13 @@ export function buildVoucherDraftPayload(
         : {}),
     }))
   }
+  if (config.lineKind === 'price') {
+    payload.priceLines = value.priceLines.map((line) => ({
+      product: inputReference(line.product)!,
+      unitPrice: line.unitPrice.trim(),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
   if (config.lineKind === 'expense') {
     payload.expenseLines = value.expenseLines.map((line) => ({
       category: line.category.trim(),

@@ -78,6 +78,13 @@ function documentView(
         lineAmount: '10.00',
         remark: line.remark,
       })),
+      priceLines: form.priceLines.map((line, index) => ({
+        lineId: `PRICE-${index}`,
+        lineNo: index + 1,
+        product: line.product!,
+        unitPrice: line.unitPrice,
+        remark: line.remark,
+      })),
       expenseLines: form.expenseLines.map((line, index) => ({
         lineId: `EXP-${index}`,
         lineNo: index + 1,
@@ -216,6 +223,16 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
       },
     ]
   }
+  if (config.lineKind === 'price') {
+    form.priceLines = [
+      {
+        key: 'price',
+        product: { ...reference('product'), unit: 'kg' },
+        unitPrice: '4.00',
+        remark: '',
+      },
+    ]
+  }
 }
 
 describe('shared VOU entity view model', () => {
@@ -245,8 +262,9 @@ describe('shared VOU entity view model', () => {
     expect(vm.editing.value).toBe(true)
   })
 
-  it('defines all fourteen atomic document entities', () => {
+  it('defines all sixteen atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
+      'sale-pricing',
       'sale-order',
       'sale-outbound',
       'sale-delivery',
@@ -255,6 +273,7 @@ describe('shared VOU entity view model', () => {
       'order-production',
       'self-production',
       'purchase-order',
+      'purchase-inquiry',
       'purchase-inbound',
       'purchase-return',
       'receipt',
@@ -313,6 +332,8 @@ describe('shared VOU entity view model', () => {
         expect(data).not.toHaveProperty('productLines')
       if (config.lineKind !== 'expense')
         expect(data).not.toHaveProperty('expenseLines')
+      if (config.lineKind !== 'price')
+        expect(data).not.toHaveProperty('priceLines')
       if (!config.directAmount) expect(data).not.toHaveProperty('amount')
       if (config.lineKind === 'product') {
         const productLine = (
@@ -338,6 +359,50 @@ describe('shared VOU entity view model', () => {
         }
       }
     }
+  })
+
+  it('fills purchase reference prices and preserves manually edited prices', async () => {
+    const config = voucherEntityConfigs['purchase-order']
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    populate(config, vm.form.value)
+    mockedPost.mockResolvedValueOnce({
+      data: {
+        lines: [
+          {
+            productObjectId: 'product-object',
+            unitPrice: '8.60',
+            sourceDocumentId: 'INQUIRY-1',
+            sourceDocumentNo: 'PIQ-20260720-0001',
+            sourceBusinessDate: '2026-07-20',
+          },
+        ],
+      },
+    })
+
+    await vm.changeLineProduct(0, vm.form.value.productLines[0]!.product)
+    expect(vm.form.value.productLines[0]).toMatchObject({
+      unitPrice: '8.60',
+      referenceUnitPrice: '8.60',
+      referenceDocumentNo: 'PIQ-20260720-0001',
+      priceDirty: false,
+    })
+
+    vm.form.value.productLines[0]!.unitPrice = '9.10'
+    vm.form.value.productLines[0]!.priceDirty = true
+    mockedPost.mockResolvedValueOnce({
+      data: {
+        lines: [{ productObjectId: 'product-object', unitPrice: '8.80' }],
+      },
+    })
+    vm.markReferenceChanged('supplier')
+    await vi.waitFor(() => {
+      expect(vm.form.value.productLines[0]).toMatchObject({
+        unitPrice: '9.10',
+        referenceUnitPrice: '8.80',
+        priceDirty: true,
+      })
+    })
   })
 
   it('builds manual and automatic sales return payloads', () => {

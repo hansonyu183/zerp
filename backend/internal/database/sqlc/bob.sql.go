@@ -208,6 +208,13 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1
+    FROM vou_purchase_inquiry_details purchase_inquiry
+    WHERE purchase_inquiry.supplier_object_id = $1
+       OR purchase_inquiry.supplier_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
     FROM vou_purchase_order_details purchase_order
     WHERE purchase_order.supplier_object_id = $1
        OR purchase_order.supplier_version_id = $2
@@ -268,6 +275,13 @@ SELECT EXISTS (
        OR other_income.fund_account_version_id = $2
        OR other_income.handler_object_id = $1
        OR other_income.handler_version_id = $2
+
+    UNION ALL
+
+    SELECT 1
+    FROM vou_price_lines price_line
+    WHERE price_line.product_object_id = $1
+       OR price_line.product_version_id = $2
 
     UNION ALL
 

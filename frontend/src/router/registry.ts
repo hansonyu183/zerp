@@ -34,6 +34,10 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
+const HIDDEN_COMPATIBILITY_PAGES = new Set([
+  'wfl/purchase-fulfillment',
+  'wfl/sales-fulfillment',
+])
 const developingPage: PageLoader = () =>
   import('@/pages/system/developing/Developing.vue')
 
@@ -428,6 +432,7 @@ export function buildMenus(
     if (domain === 'app') continue
 
     const key = `${domain}/${entity}`
+    if (HIDDEN_COMPATIBILITY_PAGES.has(key)) continue
     const actions = actionsByPage.get(key) ?? []
     if (!actions.includes(action)) actions.push(action)
     actionsByPage.set(key, actions)

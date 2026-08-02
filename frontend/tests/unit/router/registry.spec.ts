@@ -369,6 +369,8 @@ describe('permission menu registry', () => {
       '/led/closing/get',
       '/wfl/process-definition/query',
       '/wfl/process-instance/query',
+      '/wfl/purchase-fulfillment/query',
+      '/wfl/sales-fulfillment/query',
       '/vou/purchase-order/query',
     ])
 

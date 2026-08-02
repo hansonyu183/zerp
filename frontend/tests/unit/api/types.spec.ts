@@ -27,6 +27,16 @@ describe('API user messages', () => {
       getErrorMessage(
         new ApiError(
           'business',
+          'generated sales draft is missing required business data',
+          { code: 2001 },
+        ),
+      ),
+    ).toBe('自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。')
+
+    expect(
+      getErrorMessage(
+        new ApiError(
+          'business',
           'document attributes are incomplete; return to draft and save before continuing',
           { code: 3001 },
         ),

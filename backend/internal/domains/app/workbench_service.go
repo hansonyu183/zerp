@@ -264,7 +264,7 @@ func (s *Service) queryWorkbenchVou(
 		} else if row.Status == "APPROVED" {
 			pendingStage, action = "FINALIZE", "finalize"
 		}
-		if scope.can("vou", row.Entity, action) {
+		if row.ForwardActionReady && scope.can("vou", row.Entity, action) {
 			actions = append(actions, action)
 		}
 		items = append(items, WorkbenchItem{

@@ -57,6 +57,8 @@ export class ApiError extends Error {
 }
 
 const businessMessageTranslations: Readonly<Record<string, string>> = {
+  'generated sales draft is missing required business data':
+    '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。',
   'document attributes are incomplete; return to draft and save before continuing':
     '单据资料不完整，请先编辑并补全必填信息，保存后再重试。',
   'inventory timeline would become negative':

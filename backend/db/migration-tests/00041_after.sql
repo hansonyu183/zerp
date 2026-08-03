@@ -8,6 +8,10 @@ BEGIN
        (SELECT entity FROM vou_payment_details WHERE document_id='01J00000000000000000000412') <> 'supplier-payment' THEN
         RAISE EXCEPTION 'migration 00041 did not classify the supplier payment';
     END IF;
+    IF (SELECT entity FROM vou_audit_events WHERE document_id='01J00000000000000000000411') <> 'customer-receipt' OR
+       (SELECT entity FROM vou_audit_events WHERE document_id='01J00000000000000000000412') <> 'supplier-payment' THEN
+        RAISE EXCEPTION 'migration 00041 did not reclassify audit events';
+    END IF;
     IF EXISTS (SELECT 1 FROM app_permissions WHERE (domain='vou' AND entity IN ('receipt','payment')) OR (domain='led' AND entity='party')) THEN
         RAISE EXCEPTION 'migration 00041 left legacy permissions enabled';
     END IF;

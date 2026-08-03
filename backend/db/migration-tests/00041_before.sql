@@ -7,4 +7,8 @@ INSERT INTO vou_receipt_details(document_id,counterparty_entity,counterparty_obj
 VALUES('01J00000000000000000000411','customer','01J0000000000000000000411A','01J0000000000000000000411B','CUS-9001','迁移客户','01J0000000000000000000411C','01J0000000000000000000411D','FAC-9001','迁移账户');
 INSERT INTO vou_payment_details(document_id,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name)
 VALUES('01J00000000000000000000412','supplier','01J0000000000000000000412A','01J0000000000000000000412B','SUP-9001','迁移供应商','01J0000000000000000000412C','01J0000000000000000000412D','FAC-9001','迁移账户');
+INSERT INTO vou_audit_events(id,document_id,entity,event_type,to_status,actor_id,request_id)
+VALUES
+('01J0000000000000000000411E','01J00000000000000000000411','receipt','CREATED','DRAFT','01JAPPSYST3MACTR0000000000','migration-00041-receipt'),
+('01J0000000000000000000412E','01J00000000000000000000412','payment','CREATED','DRAFT','01JAPPSYST3MACTR0000000000','migration-00041-payment');
 COMMIT;

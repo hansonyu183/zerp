@@ -20,6 +20,8 @@ ALTER TABLE vou_payment_details
     DROP CONSTRAINT vou_payment_details_document_id_entity_fkey,
     DROP CONSTRAINT vou_payment_details_entity_check,
     DROP CONSTRAINT vou_payment_details_counterparty_entity_check;
+ALTER TABLE vou_audit_events
+    DROP CONSTRAINT vou_audit_events_document_id_entity_fkey;
 
 UPDATE vou_receipt_details
 SET entity = CASE counterparty_entity
@@ -42,6 +44,10 @@ FROM vou_documents parent
 WHERE child.parent_document_id=parent.id AND child.parent_entity IN ('receipt','payment');
 
 SET CONSTRAINTS ALL IMMEDIATE;
+
+ALTER TABLE vou_audit_events
+    ADD CONSTRAINT vou_audit_events_document_id_entity_fkey
+        FOREIGN KEY (document_id,entity) REFERENCES vou_documents(id,entity) ON DELETE RESTRICT;
 
 ALTER TABLE vou_documents
     ADD CONSTRAINT vou_documents_entity_check CHECK (entity IN (
@@ -195,6 +201,7 @@ ALTER TABLE led_party_entries ADD CONSTRAINT led_party_entries_counterparty_enti
 
 ALTER TABLE vou_receipt_details DROP CONSTRAINT vou_receipt_details_document_id_entity_fkey, DROP CONSTRAINT vou_receipt_details_entity_check, DROP CONSTRAINT vou_receipt_details_counterparty_entity_check, DROP CONSTRAINT vou_receipt_details_entity_party_check;
 ALTER TABLE vou_payment_details DROP CONSTRAINT vou_payment_details_document_id_entity_fkey, DROP CONSTRAINT vou_payment_details_entity_check, DROP CONSTRAINT vou_payment_details_counterparty_entity_check, DROP CONSTRAINT vou_payment_details_entity_party_check;
+ALTER TABLE vou_audit_events DROP CONSTRAINT vou_audit_events_document_id_entity_fkey;
 ALTER TABLE vou_documents DROP CONSTRAINT vou_documents_entity_check;
 UPDATE vou_receipt_details SET entity='receipt';
 UPDATE vou_payment_details SET entity='payment';
@@ -206,6 +213,7 @@ UPDATE wfl_definition_nodes SET document_entity='receipt' WHERE document_entity=
 UPDATE wfl_definition_nodes SET document_entity='payment' WHERE document_entity='supplier-payment';
 UPDATE wfl_node_instances n SET document_entity=d.entity FROM vou_documents d WHERE n.document_id=d.id;
 SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE vou_audit_events ADD CONSTRAINT vou_audit_events_document_id_entity_fkey FOREIGN KEY(document_id,entity) REFERENCES vou_documents(id,entity) ON DELETE RESTRICT;
 ALTER TABLE vou_documents ADD CONSTRAINT vou_documents_entity_check CHECK (entity IN (
     'sale-pricing','sale-order','sale-outbound','sale-delivery','sale-signoff','sale-return',
     'purchase-inquiry','purchase-order','purchase-inbound','purchase-return','order-production','self-production',

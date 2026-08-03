@@ -60,6 +60,48 @@ CREATE TABLE vou_inventory_count_lines (
     UNIQUE (document_id, product_object_id)
 );
 
+CREATE CONSTRAINT TRIGGER vou_inventory_count_detail_ck
+    AFTER INSERT OR UPDATE OR DELETE ON vou_inventory_count_details
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION vou_validate_document_detail();
+
+-- +goose StatementBegin
+CREATE OR REPLACE FUNCTION vou_validate_document_detail() RETURNS trigger AS $$
+DECLARE target_id varchar(26); detail_count integer;
+BEGIN
+    IF TG_TABLE_NAME = 'vou_documents' THEN
+        target_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+    ELSE
+        target_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.document_id ELSE NEW.document_id END;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM vou_documents WHERE id = target_id) THEN
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    SELECT
+        (SELECT count(*) FROM vou_sale_pricing_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_inquiry_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_order_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_outbound_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_delivery_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_signoff_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_return_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_order_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_inbound_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_return_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_production_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_inventory_count_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_receipt_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_payment_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_other_income_details WHERE document_id = target_id)
+    INTO detail_count;
+    IF detail_count <> 1 THEN
+        RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE = '23514';
+    END IF;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$ LANGUAGE plpgsql;
+-- +goose StatementEnd
+
 INSERT INTO app_permissions(id, path, domain, entity, action, description, status)
 SELECT 'IC' || substring(md5('/vou/inventory-count/' || action), 1, 24),
        '/vou/inventory-count/' || action,
@@ -94,7 +136,44 @@ DELETE FROM app_role_permissions
 WHERE permission_id IN (SELECT id FROM app_permissions WHERE domain='vou' AND entity='inventory-count');
 DELETE FROM app_permissions WHERE domain='vou' AND entity='inventory-count';
 DROP TABLE vou_inventory_count_lines;
+DROP TRIGGER vou_inventory_count_detail_ck ON vou_inventory_count_details;
 DROP TABLE vou_inventory_count_details;
+-- +goose StatementBegin
+CREATE OR REPLACE FUNCTION vou_validate_document_detail() RETURNS trigger AS $$
+DECLARE target_id varchar(26); detail_count integer;
+BEGIN
+    IF TG_TABLE_NAME = 'vou_documents' THEN
+        target_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+    ELSE
+        target_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.document_id ELSE NEW.document_id END;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM vou_documents WHERE id = target_id) THEN
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    SELECT
+        (SELECT count(*) FROM vou_sale_pricing_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_inquiry_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_order_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_outbound_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_delivery_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_signoff_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_sale_return_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_order_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_inbound_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_purchase_return_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_production_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_receipt_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_payment_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_other_income_details WHERE document_id = target_id)
+    INTO detail_count;
+    IF detail_count <> 1 THEN
+        RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE = '23514';
+    END IF;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 ALTER TABLE vou_documents
     DROP CONSTRAINT vou_documents_total_amount_ck,
     ADD CONSTRAINT vou_documents_total_amount_ck CHECK (

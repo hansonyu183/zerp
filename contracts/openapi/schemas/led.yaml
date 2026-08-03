@@ -1,19 +1,32 @@
 {
   'LedAssetQueryRequest':
     {
-      'type': 'object', 'required': ['page','pageSize','filters'], 'additionalProperties': false,
+      'type': 'object',
+      'required': ['page', 'pageSize', 'filters'],
+      'additionalProperties': false,
       'properties':
         {
           'page': { 'type': 'integer', 'minimum': 1 },
           'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
           'filters':
             {
-              'type': 'object', 'additionalProperties': false,
+              'type': 'object',
+              'additionalProperties': false,
               'properties':
                 {
                   'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'status': { 'type': 'array', 'uniqueItems': true, 'items': { 'type': 'string', 'enum': ['ACTIVE','SOLD','RETIRED'] } },
-                  'categoryObjectId': { 'type': 'string' }, 'departmentObjectId': { 'type': 'string' },
+                  'status':
+                    {
+                      'type': 'array',
+                      'uniqueItems': true,
+                      'items':
+                        {
+                          'type': 'string',
+                          'enum': ['ACTIVE', 'SOLD', 'RETIRED'],
+                        },
+                    },
+                  'categoryObjectId': { 'type': 'string' },
+                  'departmentObjectId': { 'type': 'string' },
                   'custodianObjectId': { 'type': 'string' },
                 },
             },
@@ -21,7 +34,9 @@
     },
   'LedAssetGetRequest':
     {
-      'type': 'object', 'required': ['assetId'], 'additionalProperties': false,
+      'type': 'object',
+      'required': ['assetId'],
+      'additionalProperties': false,
       'properties': { 'assetId': { 'type': 'string' } },
     },
   'LedClosingRequest':

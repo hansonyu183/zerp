@@ -413,11 +413,36 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouProductionOutputInput' },
                     },
-                  'depreciationMonth': { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
-                  'assetAcquisitionLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetAcquisitionLineInput' } },
-                  'assetDepreciationLines': { 'type': 'array', 'minItems': 1, 'maxItems': 500, 'items': { '$ref': '#/VouAssetDepreciationLineInput' } },
-                  'assetSaleLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetSaleLineInput' } },
-                  'assetLiquidationLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetLiquidationLineInput' } },
+                  'depreciationMonth':
+                    { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
+                  'assetAcquisitionLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetAcquisitionLineInput' },
+                    },
+                  'assetDepreciationLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 500,
+                      'items': { '$ref': '#/VouAssetDepreciationLineInput' },
+                    },
+                  'assetSaleLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetSaleLineInput' },
+                    },
+                  'assetLiquidationLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetLiquidationLineInput' },
+                    },
                   'platform':
                     {
                       'type': 'object',
@@ -720,11 +745,36 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouProductionOutputInput' },
                     },
-                  'depreciationMonth': { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
-                  'assetAcquisitionLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetAcquisitionLineInput' } },
-                  'assetDepreciationLines': { 'type': 'array', 'minItems': 1, 'maxItems': 500, 'items': { '$ref': '#/VouAssetDepreciationLineInput' } },
-                  'assetSaleLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetSaleLineInput' } },
-                  'assetLiquidationLines': { 'type': 'array', 'minItems': 1, 'maxItems': 200, 'items': { '$ref': '#/VouAssetLiquidationLineInput' } },
+                  'depreciationMonth':
+                    { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
+                  'assetAcquisitionLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetAcquisitionLineInput' },
+                    },
+                  'assetDepreciationLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 500,
+                      'items': { '$ref': '#/VouAssetDepreciationLineInput' },
+                    },
+                  'assetSaleLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetSaleLineInput' },
+                    },
+                  'assetLiquidationLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouAssetLiquidationLineInput' },
+                    },
                   'platform':
                     {
                       'type': 'object',
@@ -1028,12 +1078,21 @@
       'type': 'object',
       'required': ['objectId', 'versionId'],
       'additionalProperties': false,
-      'properties': { 'objectId': { 'type': 'string' }, 'versionId': { 'type': 'string' } },
+      'properties':
+        { 'objectId': { 'type': 'string' }, 'versionId': { 'type': 'string' } },
     },
   'VouAssetAcquisitionLineInput':
     {
       'type': 'object',
-      'required': ['assetName','category','originalValue','usefulLifeMonths','residualRate','department'],
+      'required':
+        [
+          'assetName',
+          'category',
+          'originalValue',
+          'usefulLifeMonths',
+          'residualRate',
+          'department',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -1041,7 +1100,8 @@
           'specification': { 'type': 'string', 'maxLength': 200 },
           'category': { '$ref': '#/VouAssetReferenceInput' },
           'originalValue': { 'type': 'string' },
-          'usefulLifeMonths': { 'type': 'integer', 'minimum': 1, 'maximum': 1200 },
+          'usefulLifeMonths':
+            { 'type': 'integer', 'minimum': 1, 'maximum': 1200 },
           'residualRate': { 'type': 'string' },
           'department': { '$ref': '#/VouAssetReferenceInput' },
           'custodian': { '$ref': '#/VouAssetReferenceInput' },
@@ -1051,31 +1111,52 @@
     },
   'VouAssetDepreciationLineInput':
     {
-      'type': 'object', 'required': ['assetId'], 'additionalProperties': false,
-      'properties': { 'assetId': { 'type': 'string' }, 'remark': { 'type': 'string', 'maxLength': 1000 } },
+      'type': 'object',
+      'required': ['assetId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'assetId': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
     },
   'VouAssetSaleLineInput':
     {
-      'type': 'object', 'required': ['assetId','saleAmount'], 'additionalProperties': false,
-      'properties': { 'assetId': { 'type': 'string' }, 'saleAmount': { 'type': 'string' }, 'remark': { 'type': 'string', 'maxLength': 1000 } },
+      'type': 'object',
+      'required': ['assetId', 'saleAmount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'assetId': { 'type': 'string' },
+          'saleAmount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
     },
   'VouAssetLiquidationLineInput':
     {
-      'type': 'object', 'required': ['assetId','reason','salvageIncome','disposalExpense'], 'additionalProperties': false,
+      'type': 'object',
+      'required': ['assetId', 'reason', 'salvageIncome', 'disposalExpense'],
+      'additionalProperties': false,
       'properties':
         {
-          'assetId': { 'type': 'string' }, 'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
-          'salvageIncome': { 'type': 'string' }, 'disposalExpense': { 'type': 'string' },
+          'assetId': { 'type': 'string' },
+          'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+          'salvageIncome': { 'type': 'string' },
+          'disposalExpense': { 'type': 'string' },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
   'VouAssetDepreciationPreviewRequest':
     {
-      'type': 'object', 'required': ['depreciationMonth'], 'additionalProperties': false,
+      'type': 'object',
+      'required': ['depreciationMonth'],
+      'additionalProperties': false,
       'properties':
         {
-          'depreciationMonth': { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
-          'categoryObjectId': { 'type': 'string' }, 'departmentObjectId': { 'type': 'string' },
+          'depreciationMonth':
+            { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
+          'categoryObjectId': { 'type': 'string' },
+          'departmentObjectId': { 'type': 'string' },
         },
     },
   'VouProductionMaterialInput':

@@ -1420,9 +1420,19 @@
               'requestBody':
                 {
                   'required': true,
-                  'content': { 'application/json': { 'schema': { '$ref': './schemas/vou.yaml#/VouAssetDepreciationPreviewRequest' } } },
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAssetDepreciationPreviewRequest',
+                            },
+                        },
+                    },
                 },
-              'responses': { '200': { '$ref': '#/components/responses/Business' } },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
       '/vou/{entity}/save':
@@ -2736,20 +2746,52 @@
         {
           'post':
             {
-              'tags': ['led'], 'summary': '查询固定资产台账', 'operationId': 'ledassetquery',
+              'tags': ['led'],
+              'summary': '查询固定资产台账',
+              'operationId': 'ledassetquery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/led.yaml#/LedAssetQueryRequest' } } } },
-              'responses': { '200': { '$ref': '#/components/responses/Business' } },
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedAssetQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
       '/led/asset/get':
         {
           'post':
             {
-              'tags': ['led'], 'summary': '查看固定资产台账', 'operationId': 'ledassetget',
+              'tags': ['led'],
+              'summary': '查看固定资产台账',
+              'operationId': 'ledassetget',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/led.yaml#/LedAssetGetRequest' } } } },
-              'responses': { '200': { '$ref': '#/components/responses/Business' } },
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedAssetGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
       '/files/feedback/attachments/upload/{token}':

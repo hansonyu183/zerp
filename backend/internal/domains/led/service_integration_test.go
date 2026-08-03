@@ -1200,8 +1200,8 @@ func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 18 {
-		t.Fatalf("LED permission count = %d, want 18", count)
+	if count != 20 {
+		t.Fatalf("LED permission count = %d, want 20", count)
 	}
 }
 

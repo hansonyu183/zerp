@@ -25,6 +25,8 @@ const fundSourceEntities: readonly LedgerOption[] = [
   { title: '往来付款-客户', value: 'customer-payment' },
   { title: '往来付款-供应商', value: 'supplier-payment' },
   { title: '往来付款-其他', value: 'other-payment' },
+  { title: '员工借款', value: 'employee-loan' },
+  { title: '员工还款', value: 'employee-repayment' },
   { title: '费用报销', value: 'expense-reimbursement' },
   { title: '其他收入', value: 'other-income' },
 ]
@@ -49,6 +51,12 @@ const otherPartySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
   { title: '往来收款', value: 'other-receipt' },
   { title: '往来付款', value: 'other-payment' },
+]
+
+const employeePartySourceEntities: readonly LedgerOption[] = [
+  { title: '员工借款', value: 'employee-loan' },
+  { title: '员工还款', value: 'employee-repayment' },
+  { title: '员工借款核销', value: 'employee-loan-writeoff' },
 ]
 
 const containerSourceEntities: readonly LedgerOption[] = [
@@ -289,6 +297,33 @@ export const ledgerEntityConfigs: Readonly<
     ],
     balanceColumns: [
       col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('balanceType', '性质', (row) =>
+        translated(row, 'balanceType', balanceText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+    ],
+  },
+  employee: {
+    entity: 'employee',
+    title: '往来台账-员工',
+    objectLabel: '员工',
+    referenceSources: [{ entity: 'employee' }],
+    sourceEntities: employeePartySourceEntities,
+    directions: [
+      { title: '借记', value: 'DEBIT' },
+      { title: '贷记', value: 'CREDIT' },
+    ],
+    entryColumns: [
+      ...commonEntryColumns,
+      col('counterparty', '员工', (row) => reference(row, 'counterparty')),
+      col('direction', '方向', (row) =>
+        translated(row, 'direction', directionText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+      ...endingEntryColumns,
+    ],
+    balanceColumns: [
+      col('counterparty', '员工', (row) => reference(row, 'counterparty')),
       col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText),
       ),

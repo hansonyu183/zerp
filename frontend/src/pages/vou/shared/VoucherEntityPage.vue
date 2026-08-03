@@ -72,6 +72,7 @@ const partyEnabled = computed(() => vm.config.partyMode !== 'none')
 const partyLabel = computed(() => {
   if (vm.config.partyMode === 'customer') return '客户'
   if (vm.config.partyMode === 'supplier') return '供应商'
+  if (vm.config.fixedCounterpartyType === 'employee') return '借款员工'
   return '往来方'
 })
 const businessDateLabel = computed(
@@ -461,6 +462,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         ? '供应商'
                         : vm.form.counterpartyType === 'other-party'
                           ? '其他往来单位'
+                          : vm.form.counterpartyType === 'employee'
+                            ? '借款员工'
                           : '客户'
                     "
                     :model-value="vm.form.counterparty"

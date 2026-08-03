@@ -631,6 +631,13 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1
+    FROM vou_employee_loan_writeoff_details writeoff
+    WHERE writeoff.employee_object_id = sqlc.arg(target_object_id)
+       OR writeoff.employee_version_id = sqlc.arg(target_version_id)
+
+    UNION ALL
+
+    SELECT 1
     FROM vou_other_income_details other_income
     WHERE other_income.counterparty_object_id = sqlc.arg(target_object_id)
        OR other_income.counterparty_version_id = sqlc.arg(target_version_id)

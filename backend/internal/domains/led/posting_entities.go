@@ -492,6 +492,44 @@ func (s *Service) postPayment(ctx context.Context, q *dbsqlc.Queries, posting po
 	return nil
 }
 
+func (s *Service) postEmployeeLoanWriteoff(
+	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, posting postingContext,
+) error {
+	doc := posting.Document
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouEmployeeLoanWriteoffDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read employee loan writeoff ledger detail", err)
+	}
+	currency := deref(doc.Currency)
+	if err = lockPartyDimension(ctx, tx, "employee", detail.EmployeeObjectID, currency); err != nil {
+		return s.writeError("lock employee loan balance", err)
+	}
+	balance, err := q.GetLedPartyBalanceAtDate(ctx, dbsqlc.GetLedPartyBalanceAtDateParams{
+		GenerationID: posting.GenerationID, CounterpartyEntity: "employee",
+		CounterpartyObjectID: detail.EmployeeObjectID, Currency: currency, AsOfDate: doc.BusinessDate,
+	})
+	if err != nil {
+		return s.internal("read employee loan balance", err)
+	}
+	if balance < doc.TotalAmountCents {
+		return domainError(ErrorConflict, "employee loan balance is insufficient for writeoff", map[string]any{
+			"availableAmount": formatMoney(balance), "writeoffAmount": formatMoney(doc.TotalAmountCents),
+		}, nil)
+	}
+	if err = q.InsertLedPartyEntry(ctx, partyParams(
+		posting, doc, "", doc.BusinessDate,
+		detail.EmployeeObjectID, detail.EmployeeVersionID, detail.EmployeeCode, detail.EmployeeName,
+		"employee", -doc.TotalAmountCents,
+	)); err != nil {
+		return s.writeError("post employee loan writeoff", err)
+	}
+	return nil
+}
+
 func (s *Service) postExpense(ctx context.Context, q *dbsqlc.Queries, posting postingContext) error {
 	doc := posting.Document
 	include, err := requireEffectiveDate(posting, doc.BusinessDate)

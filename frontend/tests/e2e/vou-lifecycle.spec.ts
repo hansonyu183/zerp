@@ -119,10 +119,60 @@ async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
     })
 }
 
-test('收款单完成附件、完整生命周期、反向流转和审计', async ({ page }) => {
+async function finalizeCurrentDraft(workspace: Locator): Promise<void> {
+  await workspace.getByRole('button', { name: '取消编辑' }).click()
+  await workspace.getByRole('button', { name: '核对', exact: true }).click()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await workspace.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+}
+
+async function verifyEmployeeLoanLifecycle(
+  page: Page,
+  fixture: ReturnType<typeof vouFixture>,
+): Promise<void> {
+  for (const document of [
+    { entity: 'employee-loan', prefix: 'ELN', amount: '100.00' },
+    { entity: 'employee-repayment', prefix: 'ERP', amount: '30.00' },
+  ]) {
+    await page.goto(`/vou/${document.entity}`)
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const workspace = page.locator('.voucher-workspace')
+    await selectReference(page, '借款员工', fixture.employee, workspace)
+    await selectReference(page, '经办人', fixture.employee, workspace)
+    await selectReference(page, '资金账户', fixture.fundAccount, workspace)
+    await workspace.getByLabel('金额').fill(document.amount)
+    await workspace.getByRole('button', { name: '保存', exact: true }).click()
+    await expectDraftCreated(
+      workspace,
+      new RegExp(`^${document.prefix}-\\d{8}-\\d{4}$`),
+    )
+    await finalizeCurrentDraft(workspace)
+  }
+
+  await page.goto('/vou/employee-loan-writeoff')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '员工', fixture.employee, workspace)
+  const expenseInputs = workspace
+    .locator('.voucher-expense-lines__table tbody tr')
+    .first()
+    .locator('input')
+  await expenseInputs.nth(0).fill('员工借款核销')
+  await expenseInputs.nth(1).fill('E2E 核销明细')
+  await expenseInputs.nth(2).fill('50.00')
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  await expectDraftCreated(workspace, /^ELW-\d{8}-\d{4}$/)
+  await finalizeCurrentDraft(workspace)
+}
+
+test('员工借还核销及收款单完成真实后端生命周期', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
+  if (test.info().project.name !== 'mobile-chromium') {
+    await verifyEmployeeLoanLifecycle(page, fixture)
+  }
   await page.goto('/vou/customer-receipt')
   await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')

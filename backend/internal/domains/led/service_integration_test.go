@@ -76,7 +76,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
-			vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
@@ -1101,6 +1101,84 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	}
 	if oldStatus != "ARCHIVED" || newStatus != "ACTIVE" {
 		t.Fatalf("generation statuses = %s/%s", oldStatus, newStatus)
+	}
+}
+
+func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	loan, _ := advanceToApproved(t, vouchers, voudomain.EntityEmployeeLoan, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Counterparty: &refs.employee,
+		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityEmployeeLoan, voudomain.FinalizeInput{
+		DocumentID: loan.DocumentID, Revision: loan.Revision,
+	}, integrationActorOne, "employee-loan-finalize"); err != nil {
+		t.Fatalf("finalize employee loan: %v", err)
+	}
+
+	repayment, _ := advanceToApproved(t, vouchers, voudomain.EntityEmployeeRepayment, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Counterparty: &refs.employee,
+		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "30.00",
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityEmployeeRepayment, voudomain.FinalizeInput{
+		DocumentID: repayment.DocumentID, Revision: repayment.Revision,
+	}, integrationActorOne, "employee-repayment-finalize"); err != nil {
+		t.Fatalf("finalize employee repayment: %v", err)
+	}
+
+	writeoff, _ := advanceToApproved(t, vouchers, voudomain.EntityEmployeeLoanWriteoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Employee: &refs.employee,
+		ExpenseLines: []voudomain.ExpenseLineInput{
+			{Category: "差旅", Description: "员工借款核销", Amount: "40.00"},
+			{Category: "交通", Description: "员工借款核销", Amount: "10.00"},
+		},
+	})
+	writeoffFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityEmployeeLoanWriteoff, voudomain.FinalizeInput{
+		DocumentID: writeoff.DocumentID, Revision: writeoff.Revision,
+	}, integrationActorOne, "employee-writeoff-finalize")
+	if err != nil {
+		t.Fatalf("finalize employee loan writeoff: %v", err)
+	}
+
+	fund, err := ledger.FundBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	})
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].BalanceType != "OVERDRAFT" || fund.Items[0].Amount != "70.00" {
+		t.Fatalf("employee fund balance = %+v, err=%v", fund, err)
+	}
+	party, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	}, EntityEmployee)
+	if err != nil || len(party.Items) != 1 || party.Items[0].BalanceType != "RECEIVABLE" || party.Items[0].Amount != "20.00" {
+		t.Fatalf("employee party balance = %+v, err=%v", party, err)
+	}
+
+	excess, _ := advanceToApproved(t, vouchers, voudomain.EntityEmployeeLoanWriteoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Employee: &refs.employee,
+		ExpenseLines: []voudomain.ExpenseLineInput{{Category: "差旅", Description: "超额核销", Amount: "20.01"}},
+	})
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityEmployeeLoanWriteoff, voudomain.FinalizeInput{
+		DocumentID: excess.DocumentID, Revision: excess.Revision,
+	}, integrationActorOne, "employee-writeoff-excess"); err == nil {
+		t.Fatal("employee loan writeoff exceeded the as-of-date balance")
+	}
+
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityEmployeeLoanWriteoff, voudomain.ReverseInput{
+		DocumentID: writeoffFinalized.DocumentID, Revision: writeoffFinalized.Revision, Reason: "核销撤回测试",
+	}, integrationActorOne, "employee-writeoff-unfinalize"); err != nil {
+		t.Fatalf("unfinalize employee loan writeoff: %v", err)
+	}
+	party, err = ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	}, EntityEmployee)
+	if err != nil || len(party.Items) != 1 || party.Items[0].Amount != "70.00" {
+		t.Fatalf("employee balance after writeoff reversal = %+v, err=%v", party, err)
 	}
 }
 

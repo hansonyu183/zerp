@@ -18,6 +18,7 @@ const (
 	EntityCustomer  = "customer"
 	EntitySupplier  = "supplier"
 	EntityOther     = "other"
+	EntityEmployee  = "employee"
 	EntityContainer = "container"
 	EntityAsset     = "asset"
 )

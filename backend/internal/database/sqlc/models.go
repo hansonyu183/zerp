@@ -1068,6 +1068,15 @@ type VouDownloadToken struct {
 	CreatedBy string             `db:"created_by" json:"created_by"`
 }
 
+type VouEmployeeLoanWriteoffDetail struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	Entity            string `db:"entity" json:"entity"`
+	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string `db:"employee_code" json:"employee_code"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
+}
+
 type VouExpenseLine struct {
 	ID             string  `db:"id" json:"id"`
 	DocumentID     string  `db:"document_id" json:"document_id"`

@@ -205,6 +205,28 @@ func (s *Service) writeExpenseDetail(
 	return q.InsertVouExpenseReimbursementDetail(ctx, params)
 }
 
+func (s *Service) writeEmployeeLoanWriteoffDetail(
+	ctx context.Context,
+	q *dbsqlc.Queries,
+	documentID string,
+	refs resolvedDraft,
+	update bool,
+) error {
+	params := dbsqlc.InsertVouEmployeeLoanWriteoffDetailParams{
+		DocumentID: documentID, EmployeeObjectID: refs.Employee.ObjectID,
+		EmployeeVersionID: refs.Employee.VersionID, EmployeeCode: refs.Employee.Code,
+		EmployeeName: refs.Employee.Data.Name,
+	}
+	if update {
+		rows, err := q.UpdateVouEmployeeLoanWriteoffDetail(ctx, dbsqlc.UpdateVouEmployeeLoanWriteoffDetailParams{
+			EmployeeObjectID: params.EmployeeObjectID, EmployeeVersionID: params.EmployeeVersionID,
+			EmployeeCode: params.EmployeeCode, EmployeeName: params.EmployeeName, DocumentID: documentID,
+		})
+		return oneRow(rows, err)
+	}
+	return q.InsertVouEmployeeLoanWriteoffDetail(ctx, params)
+}
+
 func (s *Service) writeOtherIncomeDetail(
 	ctx context.Context,
 	q *dbsqlc.Queries,

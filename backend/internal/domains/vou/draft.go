@@ -241,10 +241,12 @@ func (s *Service) writeDetail(
 	case EntityPurchaseOrder:
 		return s.writePurchaseDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
+		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		return s.writeCashDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityExpenseReimbursement:
 		return s.writeExpenseDetail(ctx, q, entity, documentID, draft, refs, update)
+	case EntityEmployeeLoanWriteoff:
+		return s.writeEmployeeLoanWriteoffDetail(ctx, q, documentID, refs, update)
 	case EntityOtherIncome:
 		return s.writeOtherIncomeDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityInventoryCount:
@@ -354,13 +356,13 @@ func (s *Service) replaceLines(
 			}
 		}
 	}
-	if entity == EntityExpenseReimbursement {
+	if entity == EntityExpenseReimbursement || entity == EntityEmployeeLoanWriteoff {
 		if err := q.DeleteVouExpenseLines(ctx, documentID); err != nil {
 			return err
 		}
 		for index, line := range draft.ExpenseLines {
 			if err := q.InsertVouExpenseLine(ctx, dbsqlc.InsertVouExpenseLineParams{
-				ID: newID(), DocumentID: documentID, LineNo: int32(index + 1),
+				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
 				Category: line.Category, Description: line.Description, AmountCents: line.Amount,
 				Remark: line.Remark,
 			}); err != nil {
@@ -455,13 +457,13 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read purchase inbound lines", lineErr)
 		}
 		missing = detail.WarehouseObjectID == "" || len(lines) == 0
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
+	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read receipt attributes", err)
 		}
 		missing = detail.HandlerObjectID == nil
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
+	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read payment attributes", err)
@@ -475,6 +477,16 @@ func (s *Service) validateStoredAttributes(
 		missing = detail.HandlerObjectID == nil
 	case EntityExpenseReimbursement:
 		return nil
+	case EntityEmployeeLoanWriteoff:
+		detail, err := q.GetVouEmployeeLoanWriteoffDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read employee loan writeoff attributes", err)
+		}
+		lines, lineErr := q.ListVouExpenseLines(ctx, documentID)
+		if lineErr != nil {
+			return s.internal("read employee loan writeoff lines", lineErr)
+		}
+		missing = detail.EmployeeObjectID == "" || len(lines) == 0
 	case EntityExpensePayment:
 		detail, err := q.GetVouExpensePaymentDetail(ctx, documentID)
 		if err != nil {

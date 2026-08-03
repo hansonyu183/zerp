@@ -46,6 +46,7 @@ func TestSplitCashEntitiesFixCounterpartyType(t *testing.T) {
 		{EntityCustomerReceipt, "customer"}, {EntitySupplierReceipt, "supplier"},
 		{EntityOtherReceipt, "other-party"}, {EntityCustomerPayment, "customer"},
 		{EntitySupplierPayment, "supplier"}, {EntityOtherPayment, "other-party"},
+		{EntityEmployeeLoan, "employee"}, {EntityEmployeeRepayment, "employee"},
 	} {
 		draft, err := validateDraft(test.entity, DraftInput{
 			BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
@@ -60,6 +61,24 @@ func TestSplitCashEntitiesFixCounterpartyType(t *testing.T) {
 		Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
 	}); err == nil {
 		t.Fatal("customer receipt accepted supplier counterparty type")
+	}
+}
+
+func TestEmployeeLoanWriteoffUsesExpenseLinesOnly(t *testing.T) {
+	t.Parallel()
+	draft, err := validateDraft(EntityEmployeeLoanWriteoff, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", Employee: refInput(),
+		ExpenseLines: []ExpenseLineInput{{Category: "差旅", Description: "借款核销", Amount: "12.30"}},
+	})
+	if err != nil || draft.TotalAmount != 1230 {
+		t.Fatalf("writeoff = %+v, err=%v", draft, err)
+	}
+	if _, err = validateDraft(EntityEmployeeLoanWriteoff, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", Employee: refInput(),
+		FundAccount:  refInput(),
+		ExpenseLines: []ExpenseLineInput{{Category: "差旅", Description: "借款核销", Amount: "12.30"}},
+	}); err == nil {
+		t.Fatal("employee loan writeoff accepted a fund account")
 	}
 }
 

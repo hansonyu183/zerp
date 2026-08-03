@@ -370,6 +370,29 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/vou/expense-reimbursement/ExpenseReimbursement.vue'),
   }),
   registerPage('vou', {
+    entity: 'employee-loan',
+    entityTitle: '员工借款',
+    icon: 'mdi-account-cash-outline',
+    order: 95,
+    component: () => import('@/pages/vou/employee-loan/EmployeeLoan.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'employee-repayment',
+    entityTitle: '员工还款',
+    icon: 'mdi-cash-refund',
+    order: 96,
+    component: () =>
+      import('@/pages/vou/employee-repayment/EmployeeRepayment.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'employee-loan-writeoff',
+    entityTitle: '员工借款核销',
+    icon: 'mdi-receipt-text-check-outline',
+    order: 97,
+    component: () =>
+      import('@/pages/vou/employee-loan-writeoff/EmployeeLoanWriteoff.vue'),
+  }),
+  registerPage('vou', {
     entity: 'expense-payment',
     entityTitle: '费用付款',
     icon: 'mdi-cash-check',
@@ -477,6 +500,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-barrel',
     order: 50,
     component: () => import('@/pages/led/container/Container.vue'),
+  }),
+  registerPage('led', {
+    entity: 'employee',
+    entityTitle: '往来台账-员工',
+    icon: 'mdi-account-cash-outline',
+    order: 43,
+    component: () => import('@/pages/led/employee/Employee.vue'),
   }),
   registerPage('led', {
     entity: 'asset',

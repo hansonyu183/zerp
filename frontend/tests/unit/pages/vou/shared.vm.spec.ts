@@ -180,8 +180,8 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
     form.supplier = reference('supplier')
   }
   if (config.partyMode === 'counterparty') {
-    form.counterpartyType = 'customer'
-    form.counterparty = reference('customer')
+    form.counterpartyType = config.fixedCounterpartyType ?? 'customer'
+    form.counterparty = reference(config.fixedCounterpartyType ?? 'customer')
   }
   if (config.usesSalesperson) form.salesperson = reference('employee', 'SALE')
   if (config.usesPurchaser) form.purchaser = reference('employee', 'BUYER')
@@ -392,7 +392,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('defines all atomic document entities', () => {
+  it('defines all twenty-five atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -413,6 +413,9 @@ describe('shared VOU entity view model', () => {
       'customer-payment',
       'supplier-payment',
       'other-payment',
+      'employee-loan',
+      'employee-repayment',
+      'employee-loan-writeoff',
       'expense-reimbursement',
       'expense-payment',
       'other-income',

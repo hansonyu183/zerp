@@ -72,6 +72,8 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntitySupplier, "balance", h.partyBalance(EntitySupplier)},
 		{EntityOther, "query", h.queryParty("other-party")},
 		{EntityOther, "balance", h.partyBalance("other-party")},
+		{EntityEmployee, "query", h.queryParty(EntityEmployee)},
+		{EntityEmployee, "balance", h.partyBalance(EntityEmployee)},
 		{EntityContainer, "query", h.queryContainer},
 		{EntityContainer, "balance", h.containerBalance},
 		{EntityAsset, "query", h.queryAssets},

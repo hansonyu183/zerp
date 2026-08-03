@@ -2694,6 +2694,54 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/led/employee/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询员工往来流水',
+              'operationId': 'ledemployeequery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/employee/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询员工往来余额',
+              'operationId': 'ledemployeebalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/led/container/query':
         {
           'post':

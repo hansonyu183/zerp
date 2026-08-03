@@ -1,7 +1,13 @@
 import type { BobApiEntity } from '@/api/client'
 
 export type LedgerEntity =
-  'inventory' | 'fund' | 'customer' | 'supplier' | 'other' | 'container'
+  | 'inventory'
+  | 'fund'
+  | 'customer'
+  | 'supplier'
+  | 'other'
+  | 'employee'
+  | 'container'
 export type LedgerMode = 'entries' | 'balances'
 export type LedgerRecord = Record<string, unknown>
 

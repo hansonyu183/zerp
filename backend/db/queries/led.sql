@@ -619,6 +619,15 @@ SELECT count(*) FROM (
     GROUP BY counterparty_entity, counterparty_object_id, currency
 ) balances;
 
+-- name: GetLedPartyBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
+FROM led_party_entries
+WHERE generation_id=sqlc.arg(generation_id)
+  AND counterparty_entity=sqlc.arg(counterparty_entity)
+  AND counterparty_object_id=sqlc.arg(counterparty_object_id)
+  AND currency=sqlc.arg(currency)
+  AND effective_date<=sqlc.arg(as_of_date);
+
 -- name: ListLedPartyBalances :many
 SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_version_id ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(26) AS counterparty_version_id,

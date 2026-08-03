@@ -57,6 +57,7 @@ WHERE (
         UNION ALL SELECT counterparty_name FROM vou_receipt_details WHERE document_id = document.id
         UNION ALL SELECT counterparty_name FROM vou_payment_details WHERE document_id = document.id
         UNION ALL SELECT employee_name FROM vou_expense_reimbursement_details WHERE document_id = document.id
+        UNION ALL SELECT employee_name FROM vou_employee_loan_writeoff_details WHERE document_id = document.id
         UNION ALL SELECT COALESCE(NULLIF(counterparty_name, ''), source_name) FROM vou_other_income_details WHERE document_id = document.id
       ) parties
       WHERE parties.party_name ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -70,7 +71,7 @@ SELECT document.id AS document_id, document.entity, document.document_no,
        document.updated_at,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
-                receipt.counterparty_name, payment.counterparty_name, expense.employee_name,
+                receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '') AS party_name
 FROM vou_documents document
 LEFT JOIN vou_sale_order_details so ON so.document_id = document.id
@@ -85,6 +86,7 @@ LEFT JOIN vou_purchase_return_details pr ON pr.document_id = document.id
 LEFT JOIN vou_receipt_details receipt ON receipt.document_id = document.id
 LEFT JOIN vou_payment_details payment ON payment.document_id = document.id
 LEFT JOIN vou_expense_reimbursement_details expense ON expense.document_id = document.id
+LEFT JOIN vou_employee_loan_writeoff_details writeoff ON writeoff.document_id = document.id
 LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
     (document.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
@@ -96,7 +98,7 @@ WHERE (
     OR document.document_no ILIKE '%' || sqlc.arg(keyword) || '%'
     OR COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
-                receipt.counterparty_name, payment.counterparty_name, expense.employee_name,
+                receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '')
        ILIKE '%' || sqlc.arg(keyword) || '%'
   )

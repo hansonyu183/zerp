@@ -55,13 +55,14 @@ describe('LED shared ledger view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines the six exact query ledgers and their backend dimensions', () => {
+  it('defines the seven exact query ledgers and their backend dimensions', () => {
     expect(Object.keys(ledgerEntityConfigs)).toEqual([
       'inventory',
       'fund',
       'customer',
       'supplier',
       'other',
+      'employee',
       'container',
     ])
     expect(
@@ -75,6 +76,16 @@ describe('LED shared ledger view model', () => {
     ])
     expect(ledgerEntityConfigs.other.referenceSources).toEqual([
       { entity: 'other-party' },
+    ])
+    expect(ledgerEntityConfigs.employee.referenceSources).toEqual([
+      { entity: 'employee' },
+    ])
+    expect(
+      ledgerEntityConfigs.employee.sourceEntities.map((item) => item.value),
+    ).toEqual([
+      'employee-loan',
+      'employee-repayment',
+      'employee-loan-writeoff',
     ])
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([

@@ -583,6 +583,37 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 	return i, err
 }
 
+const getLedPartyBalanceAtDate = `-- name: GetLedPartyBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
+FROM led_party_entries
+WHERE generation_id=$1
+  AND counterparty_entity=$2
+  AND counterparty_object_id=$3
+  AND currency=$4
+  AND effective_date<=$5
+`
+
+type GetLedPartyBalanceAtDateParams struct {
+	GenerationID         string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity   string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	Currency             string      `db:"currency" json:"currency"`
+	AsOfDate             pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) GetLedPartyBalanceAtDate(ctx context.Context, arg GetLedPartyBalanceAtDateParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLedPartyBalanceAtDate,
+		arg.GenerationID,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.Currency,
+		arg.AsOfDate,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const hasIncompleteLedDraftInventoryPricing = `-- name: HasIncompleteLedDraftInventoryPricing :one
 SELECT EXISTS (
     SELECT 1

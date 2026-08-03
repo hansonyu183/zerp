@@ -287,7 +287,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/WorkbenchPage' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/WorkbenchPage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },

@@ -249,6 +249,93 @@ func TestOpenAPIValidatorRejectsInvalidBusinessRequest(t *testing.T) {
 	}
 }
 
+func TestOpenAPIValidatorRejectsInvalidBusinessResponse(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		router.POST("/app/workbench/query", func(context *gin.Context) {
+			response.OK(context, gin.H{})
+		})
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/workbench/query",
+		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Request-ID", "invalid-response-request-id")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusOK)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeInternal {
+		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeInternal)
+	}
+	if envelope.RequestID != "invalid-response-request-id" {
+		t.Fatalf("requestId = %q, want %q", envelope.RequestID, "invalid-response-request-id")
+	}
+}
+
+func TestOpenAPIValidatorPreservesValidBusinessResponse(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		router.POST("/app/workbench/query", func(context *gin.Context) {
+			response.OK(context, gin.H{
+				"items":    []any{},
+				"total":    0,
+				"page":     1,
+				"pageSize": 20,
+			})
+		})
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/workbench/query",
+		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusOK)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeOK {
+		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeOK)
+	}
+}
+
+func TestOpenAPIValidatorPreservesPreciseEndpointBusinessError(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		router.POST("/app/workbench/query", func(context *gin.Context) {
+			response.BusinessError(context, response.CodeConflict, "workbench conflict", nil)
+		})
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/app/workbench/query",
+		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	var envelope response.Envelope
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeConflict || envelope.Message != "workbench conflict" {
+		t.Fatalf("envelope = %#v", envelope)
+	}
+}
+
 func TestOpenAPIValidatorPreservesTechnicalNotFoundResponse(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
 	request := httptest.NewRequest(http.MethodGet, "/missing", nil)

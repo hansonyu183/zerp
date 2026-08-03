@@ -1,6 +1,6 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import {
   type VoucherActionAvailability,
   type VoucherDocumentView,
@@ -192,10 +192,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<VoucherListItem>,
-        PageRequest
-      >(
+      const { data } = await apiClient.postContract(
         `vou/${config.entity}/query`,
         {
           page: page.value,

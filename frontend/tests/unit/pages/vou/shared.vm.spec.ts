@@ -12,14 +12,18 @@ import { buildVoucherDraftPayload } from '@/pages/vou/shared/payload'
 import { useVoucherEntityViewModel } from '@/pages/vou/shared/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({
-  apiClient: {
-    post: vi.fn(),
-    uploadAttachment: vi.fn(),
-    fetchAttachment: vi.fn(),
-    setCsrfToken: vi.fn(),
-  },
-}))
+vi.mock('@/api/client', () => {
+  const post = vi.fn()
+  return {
+    apiClient: {
+      post,
+      postContract: post,
+      uploadAttachment: vi.fn(),
+      fetchAttachment: vi.fn(),
+      setCsrfToken: vi.fn(),
+    },
+  }
+})
 
 const mockedPost = vi.mocked(apiClient.post)
 

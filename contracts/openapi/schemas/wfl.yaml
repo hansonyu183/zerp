@@ -665,7 +665,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/WflInstancePage' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/WflInstancePage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },

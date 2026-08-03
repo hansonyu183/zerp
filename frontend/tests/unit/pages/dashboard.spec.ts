@@ -11,9 +11,10 @@ import {
 } from '@/pages/home/dashboard/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn() },
-}))
+vi.mock('@/api/client', () => {
+  const post = vi.fn()
+  return { apiClient: { post, postContract: post } }
+})
 
 const mockedPost = vi.mocked(apiClient.post)
 
@@ -249,11 +250,9 @@ describe('Dashboard workbench', () => {
     }
     mockedPost
       .mockRejectedValueOnce(
-        new ApiError(
-          'business',
-          'submitter cannot review the same version',
-          { code: 3001 },
-        ),
+        new ApiError('business', 'submitter cannot review the same version', {
+          code: 3001,
+        }),
       )
       .mockResolvedValueOnce(page([pending]))
     const vm = useDashboardViewModel()

@@ -26,6 +26,45 @@ type ConcretePostPath<Path extends string> =
 
 export type ApiPostPath = ConcretePostPath<ContractPostPath>
 
+type ContractPathFor<Path extends ApiPostPath> =
+  `/${Path}` extends ContractPostPath
+    ? `/${Path}`
+    : Path extends `bob/${BobApiEntity}/${infer Action}`
+      ? `/bob/{entity}/${Action}`
+      : Path extends `aux/${AuxApiEntity}/${infer Action}`
+        ? `/aux/{entity}/${Action}`
+        : Path extends `vou/${VouApiEntity}/${infer Action}`
+          ? `/vou/{entity}/${Action}`
+          : Path extends `wfl/${string}/${infer Action}`
+            ? `/wfl/{processName}/${Action}` extends ContractPostPath
+              ? `/wfl/{processName}/${Action}`
+              : never
+            : never
+
+type ContractPostOperation<Path extends ApiPostPath> =
+  paths[ContractPathFor<Path>] extends {
+    post: infer Operation
+  }
+    ? Operation
+    : never
+
+export type ApiPostRequest<Path extends ApiPostPath> =
+  ContractPostOperation<Path> extends {
+    requestBody: { content: { 'application/json': infer Request } }
+  }
+    ? Request
+    : never
+
+type ApiPostResponse<Path extends ApiPostPath> =
+  ContractPostOperation<Path> extends {
+    responses: { 200: { content: { 'application/json': infer Response } } }
+  }
+    ? Response
+    : never
+
+export type ApiPostData<Path extends ApiPostPath> =
+  ApiPostResponse<Path> extends { data: infer Data } ? NonNullable<Data> : never
+
 interface ApiClientOptions {
   baseUrl?: string
   timeoutMs?: number
@@ -216,6 +255,21 @@ export class ApiClient {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abortFromCaller)
     }
+  }
+
+  async postContract<Path extends ApiPostPath>(
+    path: Path,
+    body: ApiPostRequest<Path>,
+    options: PostOptions = {},
+  ): Promise<ApiResult<ApiPostData<Path>>> {
+    const result = await this.post<
+      ApiPostData<Path> | null,
+      ApiPostRequest<Path>
+    >(path, body, options)
+    if (result.data === null) {
+      throw new ApiError('protocol', '后端成功响应缺少契约数据。')
+    }
+    return { ...result, data: result.data }
   }
 
   private resolveContractPost(path: string): {

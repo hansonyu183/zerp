@@ -135,29 +135,18 @@ export function useProcessInstanceViewModel() {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
+      const { data } = await apiClient.postContract(
+        `wfl/${processName.value}/query`,
         {
-          items: InstanceListItem[]
-          total: number
-          page: number
-          pageSize: number
+          page: page.value,
+          pageSize: pageSize.value,
+          ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+          ...(statuses.value.length ? { statuses: statuses.value } : {}),
+          ...(selectedParty.value
+            ? { partyObjectId: selectedParty.value.objectId }
+            : {}),
         },
-        {
-          page: number
-          pageSize: number
-          keyword?: string
-          statuses?: string[]
-          partyObjectId?: string
-        }
-      >(`wfl/${processName.value}/query`, {
-        page: page.value,
-        pageSize: pageSize.value,
-        ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-        ...(statuses.value.length ? { statuses: statuses.value } : {}),
-        ...(selectedParty.value
-          ? { partyObjectId: selectedParty.value.objectId }
-          : {}),
-      })
+      )
       items.value = data.items ?? []
       total.value = data.total ?? 0
       page.value = data.page ?? page.value

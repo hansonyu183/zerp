@@ -99,19 +99,21 @@ func newRouter(
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	router := gin.New()
-	router.Use(
-		middleware.RequestID(),
-		middleware.RequestLogger(logger),
-		middleware.Recovery(logger),
-		middleware.CORS(cfg.CORSAllowedOrigins),
-		limitRequestBody(),
-	)
 	swagger, err := generated.GetSpec()
 	if err != nil {
 		panic("load embedded OpenAPI contract: " + err.Error())
 	}
 	swagger.Servers = nil
+
+	router := gin.New()
+	router.Use(
+		middleware.RequestID(),
+		middleware.RequestLogger(logger),
+		validateOpenAPIResponses(swagger, logger),
+		middleware.Recovery(logger),
+		middleware.CORS(cfg.CORSAllowedOrigins),
+		limitRequestBody(),
+	)
 	router.Use(oapigin.OapiRequestValidatorWithOptions(swagger, &oapigin.Options{
 		Options: openapi3filter.Options{
 			AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error {
@@ -124,7 +126,6 @@ func newRouter(
 			writeOpenAPIError(c, statusCode)
 		},
 	}))
-
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})

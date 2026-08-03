@@ -43,6 +43,20 @@
           'other-income',
         ],
     },
+  'VouStatus':
+    {
+      'type': 'string',
+      'enum':
+        [
+          'DRAFT',
+          'CHECKED',
+          'APPROVED',
+          'FINALIZED',
+          'ORDERED',
+          'CONFIRMED',
+          'EXECUTED',
+        ],
+    },
   'VouQueryRequest':
     {
       'type': 'object',
@@ -51,15 +65,20 @@
       'properties':
         {
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
           'filters':
             {
               'type': 'object',
               'additionalProperties': false,
               'properties':
                 {
-                  'keyword': { 'type': 'string' },
-                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'status':
+                    {
+                      'type': 'array',
+                      'uniqueItems': true,
+                      'items': { '$ref': '#/VouStatus' },
+                    },
                   'dateFrom': { 'type': 'string', 'format': 'date' },
                   'dateTo': { 'type': 'string', 'format': 'date' },
                   'partyObjectId': { 'type': 'string' },
@@ -68,6 +87,7 @@
           'sort':
             {
               'type': 'array',
+              'maxItems': 1,
               'items':
                 {
                   'type': 'object',
@@ -154,7 +174,7 @@
           'documentId': { 'type': 'string' },
           'entity': { '$ref': '#/VouEntity' },
           'documentNo': { 'type': 'string' },
-          'status': { 'type': 'string' },
+          'status': { '$ref': '#/VouStatus' },
           'revision': { 'type': 'integer', 'format': 'int64' },
           'businessDate': { 'type': 'string', 'format': 'date' },
           'partyName': { 'type': 'string' },
@@ -187,7 +207,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/VouListPage' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/VouListPage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -862,6 +887,7 @@
           'data':
             {
               'type': 'object',
+              'nullable': true,
               'required': ['lines'],
               'additionalProperties': false,
               'properties':
@@ -1109,7 +1135,7 @@
         {
           'documentId': { 'type': 'string' },
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
         },
     },
   'VouAttachmentInitiateRequest':

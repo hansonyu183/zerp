@@ -33,6 +33,9 @@ func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) 
 func (*handlerServiceStub) PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error) {
 	return PriceReferenceView{}, nil
 }
+func (*handlerServiceStub) AssetDepreciationPreview(context.Context, AssetDepreciationPreviewInput) (AssetDepreciationPreviewView, error) {
+	return AssetDepreciationPreviewView{Items: []AssetDepreciationPreviewItem{}}, nil
+}
 func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
@@ -119,6 +122,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 				continue
 			}
 			if route.action == "book-balance" && entity != EntityInventoryCount {
+				continue
+			}
+			if route.action == "preview" && entity != EntityAssetDepreciation {
 				continue
 			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost

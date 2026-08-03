@@ -188,6 +188,8 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
   )
   AND (
       $6::text = ''
@@ -218,6 +220,10 @@ WHERE d.entity = $1
           AND (x.employee_code ILIKE '%' || $6 || '%' OR x.employee_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || $6 || '%' OR x.supplier_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id
+          AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
   )
 `
 
@@ -297,6 +303,42 @@ DELETE FROM vou_download_tokens WHERE expires_at <= now() OR used_at IS NOT NULL
 
 func (q *Queries) DeleteExpiredVouDownloadTokens(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredVouDownloadTokens)
+	return err
+}
+
+const deleteVouAssetAcquisitionLines = `-- name: DeleteVouAssetAcquisitionLines :exec
+DELETE FROM vou_asset_acquisition_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouAssetAcquisitionLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouAssetAcquisitionLines, documentID)
+	return err
+}
+
+const deleteVouAssetDepreciationLines = `-- name: DeleteVouAssetDepreciationLines :exec
+DELETE FROM vou_asset_depreciation_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouAssetDepreciationLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouAssetDepreciationLines, documentID)
+	return err
+}
+
+const deleteVouAssetLiquidationLines = `-- name: DeleteVouAssetLiquidationLines :exec
+DELETE FROM vou_asset_liquidation_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouAssetLiquidationLines, documentID)
+	return err
+}
+
+const deleteVouAssetSaleLines = `-- name: DeleteVouAssetSaleLines :exec
+DELETE FROM vou_asset_sale_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouAssetSaleLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouAssetSaleLines, documentID)
 	return err
 }
 
@@ -547,6 +589,49 @@ func (q *Queries) FindVouSalePriceReference(ctx context.Context, arg FindVouSale
 	return i, err
 }
 
+const getActiveLedAssetForVou = `-- name: GetActiveLedAssetForVou :one
+SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=$1
+`
+
+func (q *Queries) GetActiveLedAssetForVou(ctx context.Context, assetID string) (LedAsset, error) {
+	row := q.db.QueryRow(ctx, getActiveLedAssetForVou, assetID)
+	var i LedAsset
+	err := row.Scan(
+		&i.GenerationID,
+		&i.ID,
+		&i.AssetNo,
+		&i.AssetName,
+		&i.Specification,
+		&i.CategoryObjectID,
+		&i.CategoryVersionID,
+		&i.CategoryCode,
+		&i.CategoryName,
+		&i.DepartmentObjectID,
+		&i.DepartmentVersionID,
+		&i.DepartmentCode,
+		&i.DepartmentName,
+		&i.CustodianObjectID,
+		&i.CustodianVersionID,
+		&i.CustodianCode,
+		&i.CustodianName,
+		&i.Location,
+		&i.AcquisitionDate,
+		&i.DepreciationStartMonth,
+		&i.OriginalValueCents,
+		&i.ResidualValueCents,
+		&i.UsefulLifeMonths,
+		&i.AccumulatedDepreciationCents,
+		&i.LastDepreciationMonth,
+		&i.Status,
+		&i.SourceDocumentID,
+		&i.SourceLineID,
+		&i.SourceRevision,
+		&i.Remark,
+	)
+	return i, err
+}
+
 const getReadyVouAttachment = `-- name: GetReadyVouAttachment :one
 SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.created_at, f.created_by, a.document_id, d.entity
 FROM vou_files f
@@ -595,6 +680,65 @@ func (q *Queries) GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAtta
 		&i.CreatedBy,
 		&i.DocumentID,
 		&i.Entity,
+	)
+	return i, err
+}
+
+const getVouAssetAcquisitionDetail = `-- name: GetVouAssetAcquisitionDetail :one
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name FROM vou_asset_acquisition_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error) {
+	row := q.db.QueryRow(ctx, getVouAssetAcquisitionDetail, documentID)
+	var i VouAssetAcquisitionDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.SupplierObjectID,
+		&i.SupplierVersionID,
+		&i.SupplierCode,
+		&i.SupplierName,
+	)
+	return i, err
+}
+
+const getVouAssetDepreciationDetail = `-- name: GetVouAssetDepreciationDetail :one
+SELECT document_id, entity, depreciation_month FROM vou_asset_depreciation_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouAssetDepreciationDetail(ctx context.Context, documentID string) (VouAssetDepreciationDetail, error) {
+	row := q.db.QueryRow(ctx, getVouAssetDepreciationDetail, documentID)
+	var i VouAssetDepreciationDetail
+	err := row.Scan(&i.DocumentID, &i.Entity, &i.DepreciationMonth)
+	return i, err
+}
+
+const getVouAssetLiquidationDetail = `-- name: GetVouAssetLiquidationDetail :one
+SELECT document_id, entity FROM vou_asset_liquidation_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouAssetLiquidationDetail(ctx context.Context, documentID string) (VouAssetLiquidationDetail, error) {
+	row := q.db.QueryRow(ctx, getVouAssetLiquidationDetail, documentID)
+	var i VouAssetLiquidationDetail
+	err := row.Scan(&i.DocumentID, &i.Entity)
+	return i, err
+}
+
+const getVouAssetSaleDetail = `-- name: GetVouAssetSaleDetail :one
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name FROM vou_asset_sale_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error) {
+	row := q.db.QueryRow(ctx, getVouAssetSaleDetail, documentID)
+	var i VouAssetSaleDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.CounterpartyEntity,
+		&i.CounterpartyObjectID,
+		&i.CounterpartyVersionID,
+		&i.CounterpartyCode,
+		&i.CounterpartyName,
 	)
 	return i, err
 }
@@ -976,6 +1120,244 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 		&i.BaseOutputQuantityMicros,
 	)
 	return i, err
+}
+
+const insertVouAssetAcquisitionDetail = `-- name: InsertVouAssetAcquisitionDetail :exec
+INSERT INTO vou_asset_acquisition_details(document_id,entity,supplier_object_id,supplier_version_id,supplier_code,supplier_name)
+VALUES($1,'asset-acquisition',$2,$3,$4,$5)
+`
+
+type InsertVouAssetAcquisitionDetailParams struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+}
+
+func (q *Queries) InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetAcquisitionDetail,
+		arg.DocumentID,
+		arg.SupplierObjectID,
+		arg.SupplierVersionID,
+		arg.SupplierCode,
+		arg.SupplierName,
+	)
+	return err
+}
+
+const insertVouAssetAcquisitionLine = `-- name: InsertVouAssetAcquisitionLine :exec
+INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
+ category_object_id,category_version_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
+ department_object_id,department_version_id,department_code,department_name,
+ custodian_object_id,custodian_version_id,custodian_code,custodian_name,location,remark)
+VALUES($1,$2,$3,$4,$5,
+ $6,$7,$8,$9,$10,$11,$12,
+ $13,$14,$15,$16,
+ $17,$18,$19,$20,$21,$22)
+`
+
+type InsertVouAssetAcquisitionLineParams struct {
+	ID                  string  `db:"id" json:"id"`
+	DocumentID          string  `db:"document_id" json:"document_id"`
+	LineNo              int32   `db:"line_no" json:"line_no"`
+	AssetName           string  `db:"asset_name" json:"asset_name"`
+	Specification       string  `db:"specification" json:"specification"`
+	CategoryObjectID    string  `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID   string  `db:"category_version_id" json:"category_version_id"`
+	CategoryCode        string  `db:"category_code" json:"category_code"`
+	CategoryName        string  `db:"category_name" json:"category_name"`
+	OriginalValueCents  int64   `db:"original_value_cents" json:"original_value_cents"`
+	UsefulLifeMonths    int32   `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps     int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
+	DepartmentObjectID  string  `db:"department_object_id" json:"department_object_id"`
+	DepartmentVersionID string  `db:"department_version_id" json:"department_version_id"`
+	DepartmentCode      string  `db:"department_code" json:"department_code"`
+	DepartmentName      string  `db:"department_name" json:"department_name"`
+	CustodianObjectID   *string `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianVersionID  *string `db:"custodian_version_id" json:"custodian_version_id"`
+	CustodianCode       *string `db:"custodian_code" json:"custodian_code"`
+	CustodianName       *string `db:"custodian_name" json:"custodian_name"`
+	Location            string  `db:"location" json:"location"`
+	Remark              *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetAcquisitionLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.AssetName,
+		arg.Specification,
+		arg.CategoryObjectID,
+		arg.CategoryVersionID,
+		arg.CategoryCode,
+		arg.CategoryName,
+		arg.OriginalValueCents,
+		arg.UsefulLifeMonths,
+		arg.ResidualRateBps,
+		arg.DepartmentObjectID,
+		arg.DepartmentVersionID,
+		arg.DepartmentCode,
+		arg.DepartmentName,
+		arg.CustodianObjectID,
+		arg.CustodianVersionID,
+		arg.CustodianCode,
+		arg.CustodianName,
+		arg.Location,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertVouAssetDepreciationDetail = `-- name: InsertVouAssetDepreciationDetail :exec
+INSERT INTO vou_asset_depreciation_details(document_id,entity,depreciation_month)
+VALUES($1,'asset-depreciation',$2)
+`
+
+type InsertVouAssetDepreciationDetailParams struct {
+	DocumentID        string      `db:"document_id" json:"document_id"`
+	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+}
+
+func (q *Queries) InsertVouAssetDepreciationDetail(ctx context.Context, arg InsertVouAssetDepreciationDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetDepreciationDetail, arg.DocumentID, arg.DepreciationMonth)
+	return err
+}
+
+const insertVouAssetDepreciationLine = `-- name: InsertVouAssetDepreciationLine :exec
+INSERT INTO vou_asset_depreciation_lines(id,document_id,line_no,depreciation_month,asset_id,asset_no,asset_name,amount_cents,opening_accumulated_cents,closing_accumulated_cents,remark)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+`
+
+type InsertVouAssetDepreciationLineParams struct {
+	ID                      string      `db:"id" json:"id"`
+	DocumentID              string      `db:"document_id" json:"document_id"`
+	LineNo                  int32       `db:"line_no" json:"line_no"`
+	DepreciationMonth       pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+	AssetID                 string      `db:"asset_id" json:"asset_id"`
+	AssetNo                 string      `db:"asset_no" json:"asset_no"`
+	AssetName               string      `db:"asset_name" json:"asset_name"`
+	AmountCents             int64       `db:"amount_cents" json:"amount_cents"`
+	OpeningAccumulatedCents int64       `db:"opening_accumulated_cents" json:"opening_accumulated_cents"`
+	ClosingAccumulatedCents int64       `db:"closing_accumulated_cents" json:"closing_accumulated_cents"`
+	Remark                  *string     `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouAssetDepreciationLine(ctx context.Context, arg InsertVouAssetDepreciationLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetDepreciationLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.DepreciationMonth,
+		arg.AssetID,
+		arg.AssetNo,
+		arg.AssetName,
+		arg.AmountCents,
+		arg.OpeningAccumulatedCents,
+		arg.ClosingAccumulatedCents,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertVouAssetLiquidationDetail = `-- name: InsertVouAssetLiquidationDetail :exec
+INSERT INTO vou_asset_liquidation_details(document_id,entity) VALUES($1,'asset-liquidation')
+`
+
+func (q *Queries) InsertVouAssetLiquidationDetail(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, insertVouAssetLiquidationDetail, documentID)
+	return err
+}
+
+const insertVouAssetLiquidationLine = `-- name: InsertVouAssetLiquidationLine :exec
+INSERT INTO vou_asset_liquidation_lines(id,document_id,line_no,asset_id,asset_no,asset_name,reason,salvage_income_cents,disposal_expense_cents,remark)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+`
+
+type InsertVouAssetLiquidationLineParams struct {
+	ID                   string  `db:"id" json:"id"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	LineNo               int32   `db:"line_no" json:"line_no"`
+	AssetID              string  `db:"asset_id" json:"asset_id"`
+	AssetNo              string  `db:"asset_no" json:"asset_no"`
+	AssetName            string  `db:"asset_name" json:"asset_name"`
+	Reason               string  `db:"reason" json:"reason"`
+	SalvageIncomeCents   int64   `db:"salvage_income_cents" json:"salvage_income_cents"`
+	DisposalExpenseCents int64   `db:"disposal_expense_cents" json:"disposal_expense_cents"`
+	Remark               *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouAssetLiquidationLine(ctx context.Context, arg InsertVouAssetLiquidationLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetLiquidationLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.AssetID,
+		arg.AssetNo,
+		arg.AssetName,
+		arg.Reason,
+		arg.SalvageIncomeCents,
+		arg.DisposalExpenseCents,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertVouAssetSaleDetail = `-- name: InsertVouAssetSaleDetail :exec
+INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name)
+VALUES($1,'asset-sale',$2,$3,$4,$5,$6)
+`
+
+type InsertVouAssetSaleDetailParams struct {
+	DocumentID            string `db:"document_id" json:"document_id"`
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+}
+
+func (q *Queries) InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAssetSaleDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetSaleDetail,
+		arg.DocumentID,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.CounterpartyVersionID,
+		arg.CounterpartyCode,
+		arg.CounterpartyName,
+	)
+	return err
+}
+
+const insertVouAssetSaleLine = `-- name: InsertVouAssetSaleLine :exec
+INSERT INTO vou_asset_sale_lines(id,document_id,line_no,asset_id,asset_no,asset_name,sale_amount_cents,remark)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+`
+
+type InsertVouAssetSaleLineParams struct {
+	ID              string  `db:"id" json:"id"`
+	DocumentID      string  `db:"document_id" json:"document_id"`
+	LineNo          int32   `db:"line_no" json:"line_no"`
+	AssetID         string  `db:"asset_id" json:"asset_id"`
+	AssetNo         string  `db:"asset_no" json:"asset_no"`
+	AssetName       string  `db:"asset_name" json:"asset_name"`
+	SaleAmountCents int64   `db:"sale_amount_cents" json:"sale_amount_cents"`
+	Remark          *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouAssetSaleLine(ctx context.Context, arg InsertVouAssetSaleLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouAssetSaleLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.AssetID,
+		arg.AssetNo,
+		arg.AssetName,
+		arg.SaleAmountCents,
+		arg.Remark,
+	)
+	return err
 }
 
 const insertVouAuditEvent = `-- name: InsertVouAuditEvent :exec
@@ -2021,6 +2403,75 @@ func (q *Queries) ListAllVouStorageKeys(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const listDepreciableLedAssetsForVou = `-- name: ListDepreciableLedAssetsForVou :many
+SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.status='ACTIVE'
+  AND a.depreciation_start_month<=$1
+  AND ((a.last_depreciation_month IS NULL AND a.depreciation_start_month=$1)
+    OR a.last_depreciation_month + interval '1 month'=$1)
+  AND a.accumulated_depreciation_cents<a.original_value_cents-a.residual_value_cents
+  AND ($2::text='' OR a.category_object_id=$2)
+  AND ($3::text='' OR a.department_object_id=$3)
+ORDER BY a.asset_no
+`
+
+type ListDepreciableLedAssetsForVouParams struct {
+	DepreciationMonth  pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+	CategoryObjectID   string      `db:"category_object_id" json:"category_object_id"`
+	DepartmentObjectID string      `db:"department_object_id" json:"department_object_id"`
+}
+
+func (q *Queries) ListDepreciableLedAssetsForVou(ctx context.Context, arg ListDepreciableLedAssetsForVouParams) ([]LedAsset, error) {
+	rows, err := q.db.Query(ctx, listDepreciableLedAssetsForVou, arg.DepreciationMonth, arg.CategoryObjectID, arg.DepartmentObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedAsset{}
+	for rows.Next() {
+		var i LedAsset
+		if err := rows.Scan(
+			&i.GenerationID,
+			&i.ID,
+			&i.AssetNo,
+			&i.AssetName,
+			&i.Specification,
+			&i.CategoryObjectID,
+			&i.CategoryVersionID,
+			&i.CategoryCode,
+			&i.CategoryName,
+			&i.DepartmentObjectID,
+			&i.DepartmentVersionID,
+			&i.DepartmentCode,
+			&i.DepartmentName,
+			&i.CustodianObjectID,
+			&i.CustodianVersionID,
+			&i.CustodianCode,
+			&i.CustodianName,
+			&i.Location,
+			&i.AcquisitionDate,
+			&i.DepreciationStartMonth,
+			&i.OriginalValueCents,
+			&i.ResidualValueCents,
+			&i.UsefulLifeMonths,
+			&i.AccumulatedDepreciationCents,
+			&i.LastDepreciationMonth,
+			&i.Status,
+			&i.SourceDocumentID,
+			&i.SourceLineID,
+			&i.SourceRevision,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExpiredPendingVouFiles = `-- name: ListExpiredPendingVouFiles :many
 SELECT id, storage_key
 FROM vou_files
@@ -2044,6 +2495,157 @@ func (q *Queries) ListExpiredPendingVouFiles(ctx context.Context, batchSize int3
 	for rows.Next() {
 		var i ListExpiredPendingVouFilesRow
 		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouAssetAcquisitionLines = `-- name: ListVouAssetAcquisitionLines :many
+SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_version_id, category_code, category_name, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_version_id, department_code, department_name, custodian_object_id, custodian_version_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error) {
+	rows, err := q.db.Query(ctx, listVouAssetAcquisitionLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouAssetAcquisitionLine{}
+	for rows.Next() {
+		var i VouAssetAcquisitionLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.AssetName,
+			&i.Specification,
+			&i.CategoryObjectID,
+			&i.CategoryVersionID,
+			&i.CategoryCode,
+			&i.CategoryName,
+			&i.OriginalValueCents,
+			&i.UsefulLifeMonths,
+			&i.ResidualRateBps,
+			&i.DepartmentObjectID,
+			&i.DepartmentVersionID,
+			&i.DepartmentCode,
+			&i.DepartmentName,
+			&i.CustodianObjectID,
+			&i.CustodianVersionID,
+			&i.CustodianCode,
+			&i.CustodianName,
+			&i.Location,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouAssetDepreciationLines = `-- name: ListVouAssetDepreciationLines :many
+SELECT id, document_id, line_no, depreciation_month, asset_id, asset_no, asset_name, amount_cents, opening_accumulated_cents, closing_accumulated_cents, remark FROM vou_asset_depreciation_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouAssetDepreciationLines(ctx context.Context, documentID string) ([]VouAssetDepreciationLine, error) {
+	rows, err := q.db.Query(ctx, listVouAssetDepreciationLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouAssetDepreciationLine{}
+	for rows.Next() {
+		var i VouAssetDepreciationLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.DepreciationMonth,
+			&i.AssetID,
+			&i.AssetNo,
+			&i.AssetName,
+			&i.AmountCents,
+			&i.OpeningAccumulatedCents,
+			&i.ClosingAccumulatedCents,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouAssetLiquidationLines = `-- name: ListVouAssetLiquidationLines :many
+SELECT id, document_id, line_no, asset_id, asset_no, asset_name, reason, salvage_income_cents, disposal_expense_cents, remark FROM vou_asset_liquidation_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error) {
+	rows, err := q.db.Query(ctx, listVouAssetLiquidationLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouAssetLiquidationLine{}
+	for rows.Next() {
+		var i VouAssetLiquidationLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.AssetID,
+			&i.AssetNo,
+			&i.AssetName,
+			&i.Reason,
+			&i.SalvageIncomeCents,
+			&i.DisposalExpenseCents,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouAssetSaleLines = `-- name: ListVouAssetSaleLines :many
+SELECT id, document_id, line_no, asset_id, asset_no, asset_name, sale_amount_cents, remark FROM vou_asset_sale_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error) {
+	rows, err := q.db.Query(ctx, listVouAssetSaleLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouAssetSaleLine{}
+	for rows.Next() {
+		var i VouAssetSaleLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.AssetID,
+			&i.AssetNo,
+			&i.AssetName,
+			&i.SaleAmountCents,
+			&i.Remark,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2166,7 +2768,7 @@ SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.c
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, oi.counterparty_name,
-                oi.source_name, '') AS party_name
+                aa.supplier_name, asl.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
@@ -2182,6 +2784,8 @@ LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_expense_payment_details ep ON ep.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
+LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
+LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
 WHERE d.entity = $1
   AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
@@ -2200,6 +2804,8 @@ WHERE d.entity = $1
       OR p.counterparty_object_id = $5
       OR ep.employee_object_id = $5
       OR oi.counterparty_object_id = $5
+      OR aa.supplier_object_id = $5
+      OR asl.counterparty_object_id = $5
   )
   AND (
       $6::text = ''
@@ -2216,6 +2822,8 @@ WHERE d.entity = $1
       OR p.counterparty_code ILIKE '%' || $6 || '%' OR p.counterparty_name ILIKE '%' || $6 || '%'
       OR ep.employee_code ILIKE '%' || $6 || '%' OR ep.employee_name ILIKE '%' || $6 || '%'
       OR oi.source_name ILIKE '%' || $6 || '%' OR oi.counterparty_name ILIKE '%' || $6 || '%'
+      OR aa.supplier_code ILIKE '%' || $6 || '%' OR aa.supplier_name ILIKE '%' || $6 || '%'
+      OR asl.counterparty_code ILIKE '%' || $6 || '%' OR asl.counterparty_name ILIKE '%' || $6 || '%'
   )
 ORDER BY
   CASE WHEN $7::text = 'updatedAt' AND $8::text = 'asc' THEN d.updated_at END ASC,
@@ -3029,6 +3637,79 @@ func (q *Queries) UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDo
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
+}
+
+const updateVouAssetAcquisitionDetail = `-- name: UpdateVouAssetAcquisitionDetail :execrows
+UPDATE vou_asset_acquisition_details SET supplier_object_id=$1,supplier_version_id=$2,supplier_code=$3,supplier_name=$4
+WHERE document_id=$5
+`
+
+type UpdateVouAssetAcquisitionDetailParams struct {
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+	DocumentID        string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouAssetAcquisitionDetail,
+		arg.SupplierObjectID,
+		arg.SupplierVersionID,
+		arg.SupplierCode,
+		arg.SupplierName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouAssetDepreciationDetail = `-- name: UpdateVouAssetDepreciationDetail :execrows
+UPDATE vou_asset_depreciation_details SET depreciation_month=$1 WHERE document_id=$2
+`
+
+type UpdateVouAssetDepreciationDetailParams struct {
+	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+	DocumentID        string      `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouAssetDepreciationDetail(ctx context.Context, arg UpdateVouAssetDepreciationDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouAssetDepreciationDetail, arg.DepreciationMonth, arg.DocumentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouAssetSaleDetail = `-- name: UpdateVouAssetSaleDetail :execrows
+UPDATE vou_asset_sale_details SET counterparty_entity=$1,counterparty_object_id=$2,counterparty_version_id=$3,counterparty_code=$4,counterparty_name=$5
+WHERE document_id=$6
+`
+
+type UpdateVouAssetSaleDetailParams struct {
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	DocumentID            string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouAssetSaleDetail,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.CounterpartyVersionID,
+		arg.CounterpartyCode,
+		arg.CounterpartyName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateVouDraft = `-- name: UpdateVouDraft :one

@@ -70,6 +70,7 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 	}
 	for _, table := range []string{
 		"led_inventory_entries", "led_fund_entries", "led_party_entries", "led_container_entries",
+		"led_asset_entries", "led_assets",
 	} {
 		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE generation_id=$1", *generationID); err != nil {
 			return s.writeError("clear ledger for zero rebuild", err)

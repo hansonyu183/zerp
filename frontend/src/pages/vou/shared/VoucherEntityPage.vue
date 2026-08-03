@@ -8,6 +8,7 @@ import {
   parseFixed,
   toVouAtomicDocument,
   VoucherAttachmentPanel,
+  VoucherAssetLinesEditor,
   VoucherAuditHistory,
   VoucherDocumentHeader,
   VoucherExecutionDialog,
@@ -21,6 +22,7 @@ import {
   VoucherWorkspace,
   type VoucherDraftForm,
   type VoucherLifecycleAction,
+  type VoucherLineKind,
   type VoucherListItem,
   type VoucherReference,
   type VoucherSalesChainLineDraft,
@@ -47,6 +49,9 @@ const vm = reactive(props.model)
 const route = useRoute()
 const router = useRouter()
 const labels = computed(() => lifecycleLabels(vm.config))
+const assetLineKind = computed(
+  () => vm.config.lineKind as Extract<VoucherLineKind, `asset-${string}`>,
+)
 
 const workspaceTitle = computed(
   () => `${vm.documentView ? '查看' : '新增'}${vm.config.title}`,
@@ -363,6 +368,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               <v-expansion-panel-text>
                 <div class="voucher-form__grid">
                   <v-text-field
+                    v-if="vm.config.entity !== 'asset-depreciation'"
                     v-model="vm.form.businessDate"
                     :disabled="!vm.editing"
                     :label="businessDateLabel"
@@ -430,10 +436,17 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :disabled="!vm.editing"
                     item-title="title"
                     item-value="value"
-                    :items="[
-                      { title: '客户', value: 'customer' },
-                      { title: '供应商', value: 'supplier' },
-                    ]"
+                    :items="
+                      vm.config.entity === 'asset-sale'
+                        ? [
+                            { title: '客户', value: 'customer' },
+                            { title: '其他往来单位', value: 'other-party' },
+                          ]
+                        : [
+                            { title: '客户', value: 'customer' },
+                            { title: '供应商', value: 'supplier' },
+                          ]
+                    "
                     label="往来方类型"
                     :model-value="vm.form.counterpartyType"
                     variant="outlined"
@@ -647,6 +660,13 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :product-options="vm.referenceOptions('product')"
             @load-balance="vm.loadInventoryCountBalance"
             @product-search="vm.searchReference('product', $event)"
+          />
+          <VoucherAssetLinesEditor
+            v-if="vm.config.lineKind.startsWith('asset-')"
+            v-model="vm.form.assetLines"
+            v-model:depreciation-month="vm.form.depreciationMonth"
+            :editable="vm.editing"
+            :kind="assetLineKind"
           />
           <VoucherProductionLinesEditor
             v-if="vm.config.productionMode"

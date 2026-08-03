@@ -1,4 +1,5 @@
 export { default as VoucherAttachmentPanel } from './VoucherAttachmentPanel.vue'
+export { default as VoucherAssetLinesEditor } from './VoucherAssetLinesEditor.vue'
 export { default as VoucherAuditHistory } from './VoucherAuditHistory.vue'
 export { default as VoucherDocumentHeader } from './VoucherDocumentHeader.vue'
 export { default as VoucherDocumentShell } from './VoucherDocumentShell.vue'

@@ -8,8 +8,10 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
 
@@ -26,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	service, err := voudomain.NewService(pool, bobdomain.NewService(pool), txevent.NewBus(), voudomain.AttachmentOptions{
+	service, err := voudomain.NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), txevent.NewBus(), voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger)
 	if err != nil {

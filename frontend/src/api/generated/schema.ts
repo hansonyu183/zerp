@@ -905,6 +905,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 预览固定资产折旧 */
+        post: operations["vouassetdepreciationpreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/save": {
         parameters: {
             query?: never;
@@ -1755,6 +1772,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/led/asset/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询固定资产台账 */
+        post: operations["ledassetquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/asset/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查看固定资产台账 */
+        post: operations["ledassetget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/feedback/attachments/upload/{token}": {
         parameters: {
             query?: never;
@@ -1895,7 +1946,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "expense-payment" | "other-income";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2009,7 +2060,7 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject";
+        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
         AuxQueryRequest: {
             page: number;
             pageSize: number;
@@ -2337,7 +2388,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "other-income";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2357,6 +2408,38 @@ export interface components {
             lossRate: string;
             remark?: string;
             materials: components["schemas"]["VouProductionMaterialInput"][];
+        };
+        VouAssetReferenceInput: {
+            objectId: string;
+            versionId: string;
+        };
+        VouAssetAcquisitionLineInput: {
+            assetName: string;
+            specification?: string;
+            category: components["schemas"]["VouAssetReferenceInput"];
+            originalValue: string;
+            usefulLifeMonths: number;
+            residualRate: string;
+            department: components["schemas"]["VouAssetReferenceInput"];
+            custodian?: components["schemas"]["VouAssetReferenceInput"];
+            location?: string;
+            remark?: string;
+        };
+        VouAssetDepreciationLineInput: {
+            assetId: string;
+            remark?: string;
+        };
+        VouAssetSaleLineInput: {
+            assetId: string;
+            saleAmount: string;
+            remark?: string;
+        };
+        VouAssetLiquidationLineInput: {
+            assetId: string;
+            reason: string;
+            salvageIncome: string;
+            disposalExpense: string;
+            remark?: string;
         };
         VouFormulaComponentInput: {
             material: {
@@ -2440,6 +2523,11 @@ export interface components {
                     versionId: string;
                 };
                 productionLines?: components["schemas"]["VouProductionOutputInput"][];
+                depreciationMonth?: string;
+                assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
+                assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
+                assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
+                assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
                 platform?: {
                     objectId: string;
                     versionId: string;
@@ -2494,6 +2582,11 @@ export interface components {
                 }[];
             };
         };
+        VouAssetDepreciationPreviewRequest: {
+            depreciationMonth: string;
+            categoryObjectId?: string;
+            departmentObjectId?: string;
+        };
         VouSaveRequest: {
             documentId: string;
             /** Format: int64 */
@@ -2546,6 +2639,11 @@ export interface components {
                     versionId: string;
                 };
                 productionLines?: components["schemas"]["VouProductionOutputInput"][];
+                depreciationMonth?: string;
+                assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
+                assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
+                assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
+                assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
                 platform?: {
                     objectId: string;
                     versionId: string;
@@ -2831,6 +2929,20 @@ export interface components {
                 asOfDate: string;
                 objectId?: string;
             };
+        };
+        LedAssetQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                keyword?: string;
+                status?: ("ACTIVE" | "SOLD" | "RETIRED")[];
+                categoryObjectId?: string;
+                departmentObjectId?: string;
+                custodianObjectId?: string;
+            };
+        };
+        LedAssetGetRequest: {
+            assetId: string;
         };
         TechnicalError: {
             error: string;
@@ -3812,6 +3924,24 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    vouassetdepreciationpreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouAssetDepreciationPreviewRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
     vousave: {
         parameters: {
             query?: never;
@@ -4652,6 +4782,38 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LedBalanceRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledassetquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedAssetQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledassetget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedAssetGetRequest"];
             };
         };
         responses: {

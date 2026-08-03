@@ -498,6 +498,18 @@ func (s *Service) Delete(
 		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_payment_details WHERE document_id=$1`, input.DocumentID)
 	case EntityOtherIncome:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_other_income_details WHERE document_id=$1`, input.DocumentID)
+	case EntityAssetAcquisition:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_acquisition_lines WHERE document_id=$1;
+			DELETE FROM vou_asset_acquisition_details WHERE document_id=$1`, input.DocumentID)
+	case EntityAssetDepreciation:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_depreciation_lines WHERE document_id=$1;
+			DELETE FROM vou_asset_depreciation_details WHERE document_id=$1`, input.DocumentID)
+	case EntityAssetSale:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_sale_lines WHERE document_id=$1;
+			DELETE FROM vou_asset_sale_details WHERE document_id=$1`, input.DocumentID)
+	case EntityAssetLiquidation:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_liquidation_lines WHERE document_id=$1;
+			DELETE FROM vou_asset_liquidation_details WHERE document_id=$1`, input.DocumentID)
 	}
 	if err != nil {
 		return MutationResult{}, err

@@ -14,6 +14,7 @@ dictionary-item
 measurement-unit
 income-expense-type
 account-subject
+asset-category
 ```
 
 不具有明确业务语义和用途的“通用分类”或字典不得建立。字典只归集不参与业务逻辑的稳定选项；客户类型、车辆类型可由字典提供，供应商类型和币种仍是业务枚举。
@@ -46,7 +47,7 @@ product-category PCT         department DEP
 position POS                 settlement-method STM
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
-account-subject ACS
+account-subject ACS             asset-category ACT
 ```
 
 ### 3.1 产品分类
@@ -83,6 +84,10 @@ account-subject ACS
 `income-expense-type` 是收入或支出的树形业务分类，字段为 `direction`、`parentId`、`accountSubjectId` 和 `description`。父子方向必须一致；只有叶子节点可被单据使用，叶子必须关联当前有效的会计科目。它不自动生成会计凭证，只为未来自动记账保存稳定映射。
 
 `account-subject` 管理会计科目树，方向为资产、负债、权益、收入、费用或成本。本阶段只建立科目与收支类型的稳定映射，不生成会计凭证，也不预置生产科目。
+
+### 3.7 资产类别
+
+`asset-category` 为固定资产购置和台账提供稳定分类。字段为 `name`、`defaultUsefulLifeMonths`、`defaultResidualRate` 和 `description`；默认使用期限为 1–1200 个自然月，默认残值率为 `0.00`–`99.99`。购置单选择类别后默认带入这两个值，允许在单据行覆盖，历史资产保留购置时快照。
 
 ## 4. 数据与引用
 

@@ -17,6 +17,7 @@ const (
 	EntityMeasurementUnit  = "measurement-unit"
 	EntityIncomeExpense    = "income-expense-type"
 	EntityAccountSubject   = "account-subject"
+	EntityAssetCategory    = "asset-category"
 )
 
 var entities = [...]string{
@@ -29,6 +30,7 @@ var entities = [...]string{
 	EntityMeasurementUnit,
 	EntityIncomeExpense,
 	EntityAccountSubject,
+	EntityAssetCategory,
 }
 
 type ErrorKind int

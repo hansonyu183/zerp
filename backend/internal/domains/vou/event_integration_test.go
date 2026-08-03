@@ -10,7 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,7 +38,7 @@ func setupEventEffectsTable(t *testing.T, pool *pgxpool.Pool) {
 
 func integrationServiceWithEvents(t *testing.T, pool *pgxpool.Pool, events eventPublisher) *Service {
 	t.Helper()
-	service, err := NewService(pool, bobdomain.NewService(pool), events, AttachmentOptions{Root: t.TempDir()},
+	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), events, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)

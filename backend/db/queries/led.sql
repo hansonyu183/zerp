@@ -308,6 +308,101 @@ INSERT INTO led_party_entries (
     sqlc.arg(counterparty_name), sqlc.arg(currency), sqlc.arg(amount_delta_cents)
 ) ON CONFLICT DO NOTHING;
 
+-- name: NextLedAssetNumber :one
+INSERT INTO led_asset_number_counters(business_date,last_value) VALUES(sqlc.arg(business_date),1)
+ON CONFLICT(business_date) DO UPDATE SET last_value=led_asset_number_counters.last_value+1
+WHERE led_asset_number_counters.last_value<9999 RETURNING last_value;
+
+-- name: FindLedAssetNoBySourceLine :one
+SELECT asset_no FROM led_asset_number_assignments WHERE source_line_id=sqlc.arg(source_line_id);
+
+-- name: InsertLedAssetNumberAssignment :exec
+INSERT INTO led_asset_number_assignments(source_line_id,asset_no)
+VALUES(sqlc.arg(source_line_id),sqlc.arg(asset_no));
+
+-- name: InsertLedAsset :exec
+INSERT INTO led_assets(generation_id,id,asset_no,asset_name,specification,
+ category_object_id,category_version_id,category_code,category_name,
+ department_object_id,department_version_id,department_code,department_name,
+ custodian_object_id,custodian_version_id,custodian_code,custodian_name,location,
+ acquisition_date,depreciation_start_month,original_value_cents,residual_value_cents,useful_life_months,
+ source_document_id,source_line_id,source_revision,remark)
+VALUES(sqlc.arg(generation_id),sqlc.arg(id),sqlc.arg(asset_no),sqlc.arg(asset_name),sqlc.arg(specification),
+ sqlc.arg(category_object_id),sqlc.arg(category_version_id),sqlc.arg(category_code),sqlc.arg(category_name),
+ sqlc.arg(department_object_id),sqlc.arg(department_version_id),sqlc.arg(department_code),sqlc.arg(department_name),
+ sqlc.narg(custodian_object_id),sqlc.narg(custodian_version_id),sqlc.narg(custodian_code),sqlc.narg(custodian_name),sqlc.arg(location),
+ sqlc.arg(acquisition_date),sqlc.arg(depreciation_start_month),sqlc.arg(original_value_cents),sqlc.arg(residual_value_cents),sqlc.arg(useful_life_months),
+ sqlc.arg(source_document_id),sqlc.arg(source_line_id),sqlc.arg(source_revision),sqlc.narg(remark));
+
+-- name: InsertLedAssetEntry :exec
+INSERT INTO led_asset_entries(id,generation_id,asset_id,entry_type,source_entity,source_document_id,source_document_no,
+ source_line_id,source_revision,effective_date,occurred_at,amount_cents,status_from,status_to,actor_id,request_id,summary)
+VALUES(sqlc.arg(id),sqlc.arg(generation_id),sqlc.arg(asset_id),sqlc.arg(entry_type),sqlc.arg(source_entity),sqlc.arg(source_document_id),sqlc.arg(source_document_no),
+ sqlc.arg(source_line_id),sqlc.arg(source_revision),sqlc.arg(effective_date),sqlc.arg(occurred_at),sqlc.arg(amount_cents),sqlc.narg(status_from),sqlc.arg(status_to),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
+
+-- name: LockLedAsset :one
+SELECT * FROM led_assets WHERE generation_id=sqlc.arg(generation_id) AND id=sqlc.arg(asset_id) FOR UPDATE;
+
+-- name: ApplyLedAssetDepreciation :execrows
+UPDATE led_assets SET accumulated_depreciation_cents=accumulated_depreciation_cents+sqlc.arg(amount_cents),
+ last_depreciation_month=sqlc.arg(depreciation_month)
+WHERE generation_id=sqlc.arg(generation_id) AND id=sqlc.arg(asset_id) AND status='ACTIVE'
+ AND accumulated_depreciation_cents=sqlc.arg(opening_accumulated_cents);
+
+-- name: SetLedAssetStatus :execrows
+UPDATE led_assets SET status=sqlc.arg(status)
+WHERE generation_id=sqlc.arg(generation_id) AND id=sqlc.arg(asset_id) AND status='ACTIVE';
+
+-- name: HasLaterLedAssetEntries :one
+SELECT EXISTS(SELECT 1 FROM led_asset_entries WHERE generation_id=sqlc.arg(generation_id)
+ AND asset_id=sqlc.arg(asset_id) AND source_document_id<>sqlc.arg(source_document_id)
+ AND effective_date>=sqlc.arg(effective_date))::boolean;
+
+-- name: DeleteLedAssetsBySource :exec
+DELETE FROM led_assets WHERE generation_id=sqlc.arg(generation_id) AND source_document_id=sqlc.arg(source_document_id);
+
+-- name: ReverseLedAssetDepreciation :execrows
+UPDATE led_assets a SET accumulated_depreciation_cents=a.accumulated_depreciation_cents-x.amount,
+ last_depreciation_month=(SELECT max(e.effective_date) FROM led_asset_entries e WHERE e.generation_id=a.generation_id AND e.asset_id=a.id AND e.entry_type='DEPRECIATION' AND e.source_document_id<>sqlc.arg(source_document_id))
+FROM (SELECT asset_id,sum(amount_cents)::bigint amount FROM led_asset_entries WHERE generation_id=sqlc.arg(generation_id) AND source_document_id=sqlc.arg(source_document_id) GROUP BY asset_id) x
+WHERE a.generation_id=sqlc.arg(generation_id) AND a.id=x.asset_id AND a.status='ACTIVE';
+
+-- name: RestoreLedAssetStatusBySource :execrows
+UPDATE led_assets a SET status='ACTIVE' FROM led_asset_entries e
+WHERE e.generation_id=sqlc.arg(generation_id) AND e.source_document_id=sqlc.arg(source_document_id)
+ AND e.asset_id=a.id AND a.generation_id=e.generation_id AND a.status=e.status_to;
+
+-- name: DeleteLedAssetEntriesBySource :exec
+DELETE FROM led_asset_entries WHERE generation_id=sqlc.arg(generation_id) AND source_document_id=sqlc.arg(source_document_id);
+
+-- name: CountLedAssets :one
+SELECT count(*) FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE'
+ AND (sqlc.arg(keyword)::text='' OR a.asset_no ILIKE '%'||sqlc.arg(keyword)||'%' OR a.asset_name ILIKE '%'||sqlc.arg(keyword)||'%')
+ AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]),0)=0 OR a.status=ANY(sqlc.arg(statuses)::text[]))
+ AND (sqlc.arg(category_object_id)::text='' OR a.category_object_id=sqlc.arg(category_object_id))
+ AND (sqlc.arg(department_object_id)::text='' OR a.department_object_id=sqlc.arg(department_object_id))
+ AND (sqlc.arg(custodian_object_id)::text='' OR a.custodian_object_id=sqlc.arg(custodian_object_id));
+
+-- name: ListLedAssets :many
+SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE'
+ AND (sqlc.arg(keyword)::text='' OR a.asset_no ILIKE '%'||sqlc.arg(keyword)||'%' OR a.asset_name ILIKE '%'||sqlc.arg(keyword)||'%')
+ AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]),0)=0 OR a.status=ANY(sqlc.arg(statuses)::text[]))
+ AND (sqlc.arg(category_object_id)::text='' OR a.category_object_id=sqlc.arg(category_object_id))
+ AND (sqlc.arg(department_object_id)::text='' OR a.department_object_id=sqlc.arg(department_object_id))
+ AND (sqlc.arg(custodian_object_id)::text='' OR a.custodian_object_id=sqlc.arg(custodian_object_id))
+ORDER BY a.asset_no LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetActiveLedAsset :one
+SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=sqlc.arg(asset_id);
+
+-- name: ListLedAssetHistory :many
+SELECT e.* FROM led_asset_entries e JOIN led_control c ON c.active_generation_id=e.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND e.asset_id=sqlc.arg(asset_id)
+ORDER BY e.effective_date,e.id;
+
 -- name: ListLedInventoryEntriesBySource :many
 SELECT * FROM led_inventory_entries
 WHERE generation_id = sqlc.arg(generation_id)
@@ -355,6 +450,7 @@ SELECT (
     OR EXISTS (SELECT 1 FROM led_fund_entries f WHERE f.generation_id = sqlc.arg(target_generation_id) AND f.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = sqlc.arg(target_generation_id) AND p.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = sqlc.arg(target_generation_id) AND c.source_document_id = sqlc.arg(target_document_id))
+    OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = sqlc.arg(target_generation_id) AND a.source_document_id = sqlc.arg(target_document_id))
 )::boolean;
 
 -- name: HasNegativeLedInventoryTimeline :one

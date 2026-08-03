@@ -26,6 +26,7 @@ import (
 // Defines values for AuxEntity.
 const (
 	AccountSubject    AuxEntity = "account-subject"
+	AssetCategory     AuxEntity = "asset-category"
 	Department        AuxEntity = "department"
 	DictionaryItem    AuxEntity = "dictionary-item"
 	DictionaryType    AuxEntity = "dictionary-type"
@@ -40,6 +41,8 @@ const (
 func (e AuxEntity) Valid() bool {
 	switch e {
 	case AccountSubject:
+		return true
+	case AssetCategory:
 		return true
 	case Department:
 		return true
@@ -230,6 +233,27 @@ func (e FeedbackCreateRequestCategory) Valid() bool {
 	}
 }
 
+// Defines values for LedAssetQueryRequestFiltersStatus.
+const (
+	LedAssetQueryRequestFiltersStatusACTIVE  LedAssetQueryRequestFiltersStatus = "ACTIVE"
+	LedAssetQueryRequestFiltersStatusRETIRED LedAssetQueryRequestFiltersStatus = "RETIRED"
+	LedAssetQueryRequestFiltersStatusSOLD    LedAssetQueryRequestFiltersStatus = "SOLD"
+)
+
+// Valid indicates whether the value is a known member of the LedAssetQueryRequestFiltersStatus enum.
+func (e LedAssetQueryRequestFiltersStatus) Valid() bool {
+	switch e {
+	case LedAssetQueryRequestFiltersStatusACTIVE:
+		return true
+	case LedAssetQueryRequestFiltersStatusRETIRED:
+		return true
+	case LedAssetQueryRequestFiltersStatusSOLD:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LedQueryRequestSortOrder.
 const (
 	LedQueryRequestSortOrderAsc  LedQueryRequestSortOrder = "asc"
@@ -268,6 +292,10 @@ func (e PageRequestSortOrder) Valid() bool {
 
 // Defines values for VouCreatableEntity.
 const (
+	VouCreatableEntityAssetAcquisition     VouCreatableEntity = "asset-acquisition"
+	VouCreatableEntityAssetDepreciation    VouCreatableEntity = "asset-depreciation"
+	VouCreatableEntityAssetLiquidation     VouCreatableEntity = "asset-liquidation"
+	VouCreatableEntityAssetSale            VouCreatableEntity = "asset-sale"
 	VouCreatableEntityCustomerPayment      VouCreatableEntity = "customer-payment"
 	VouCreatableEntityCustomerReceipt      VouCreatableEntity = "customer-receipt"
 	VouCreatableEntityExpenseReimbursement VouCreatableEntity = "expense-reimbursement"
@@ -291,6 +319,14 @@ const (
 // Valid indicates whether the value is a known member of the VouCreatableEntity enum.
 func (e VouCreatableEntity) Valid() bool {
 	switch e {
+	case VouCreatableEntityAssetAcquisition:
+		return true
+	case VouCreatableEntityAssetDepreciation:
+		return true
+	case VouCreatableEntityAssetLiquidation:
+		return true
+	case VouCreatableEntityAssetSale:
+		return true
 	case VouCreatableEntityCustomerPayment:
 		return true
 	case VouCreatableEntityCustomerReceipt:
@@ -334,6 +370,10 @@ func (e VouCreatableEntity) Valid() bool {
 
 // Defines values for VouEntity.
 const (
+	VouEntityAssetAcquisition     VouEntity = "asset-acquisition"
+	VouEntityAssetDepreciation    VouEntity = "asset-depreciation"
+	VouEntityAssetLiquidation     VouEntity = "asset-liquidation"
+	VouEntityAssetSale            VouEntity = "asset-sale"
 	VouEntityCustomerPayment      VouEntity = "customer-payment"
 	VouEntityCustomerReceipt      VouEntity = "customer-receipt"
 	VouEntityExpensePayment       VouEntity = "expense-payment"
@@ -361,6 +401,14 @@ const (
 // Valid indicates whether the value is a known member of the VouEntity enum.
 func (e VouEntity) Valid() bool {
 	switch e {
+	case VouEntityAssetAcquisition:
+		return true
+	case VouEntityAssetDepreciation:
+		return true
+	case VouEntityAssetLiquidation:
+		return true
+	case VouEntityAssetSale:
+		return true
 	case VouEntityCustomerPayment:
 		return true
 	case VouEntityCustomerReceipt:
@@ -517,16 +565,16 @@ func (e VouStatus) Valid() bool {
 
 // Defines values for WflInstanceListItemStatus.
 const (
-	ACTIVE    WflInstanceListItemStatus = "ACTIVE"
-	COMPLETED WflInstanceListItemStatus = "COMPLETED"
+	WflInstanceListItemStatusACTIVE    WflInstanceListItemStatus = "ACTIVE"
+	WflInstanceListItemStatusCOMPLETED WflInstanceListItemStatus = "COMPLETED"
 )
 
 // Valid indicates whether the value is a known member of the WflInstanceListItemStatus enum.
 func (e WflInstanceListItemStatus) Valid() bool {
 	switch e {
-	case ACTIVE:
+	case WflInstanceListItemStatusACTIVE:
 		return true
-	case COMPLETED:
+	case WflInstanceListItemStatusCOMPLETED:
 		return true
 	default:
 		return false
@@ -1017,6 +1065,27 @@ type IdRequest struct {
 	Id string `json:"id"`
 }
 
+// LedAssetGetRequest defines model for LedAssetGetRequest.
+type LedAssetGetRequest struct {
+	AssetId string `json:"assetId"`
+}
+
+// LedAssetQueryRequest defines model for LedAssetQueryRequest.
+type LedAssetQueryRequest struct {
+	Filters struct {
+		CategoryObjectId   *string                              `json:"categoryObjectId,omitempty"`
+		CustodianObjectId  *string                              `json:"custodianObjectId,omitempty"`
+		DepartmentObjectId *string                              `json:"departmentObjectId,omitempty"`
+		Keyword            *string                              `json:"keyword,omitempty"`
+		Status             *[]LedAssetQueryRequestFiltersStatus `json:"status,omitempty"`
+	} `json:"filters"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+// LedAssetQueryRequestFiltersStatus defines model for LedAssetQueryRequest.Filters.Status.
+type LedAssetQueryRequestFiltersStatus string
+
 // LedBalanceRequest defines model for LedBalanceRequest.
 type LedBalanceRequest struct {
 	Filters struct {
@@ -1121,6 +1190,55 @@ type TechnicalError struct {
 	RequestId string `json:"requestId"`
 }
 
+// VouAssetAcquisitionLineInput defines model for VouAssetAcquisitionLineInput.
+type VouAssetAcquisitionLineInput struct {
+	AssetName        string                  `json:"assetName"`
+	Category         VouAssetReferenceInput  `json:"category"`
+	Custodian        *VouAssetReferenceInput `json:"custodian,omitempty"`
+	Department       VouAssetReferenceInput  `json:"department"`
+	Location         *string                 `json:"location,omitempty"`
+	OriginalValue    string                  `json:"originalValue"`
+	Remark           *string                 `json:"remark,omitempty"`
+	ResidualRate     string                  `json:"residualRate"`
+	Specification    *string                 `json:"specification,omitempty"`
+	UsefulLifeMonths int                     `json:"usefulLifeMonths"`
+}
+
+// VouAssetDepreciationLineInput defines model for VouAssetDepreciationLineInput.
+type VouAssetDepreciationLineInput struct {
+	AssetId string  `json:"assetId"`
+	Remark  *string `json:"remark,omitempty"`
+}
+
+// VouAssetDepreciationPreviewRequest defines model for VouAssetDepreciationPreviewRequest.
+type VouAssetDepreciationPreviewRequest struct {
+	CategoryObjectId   *string `json:"categoryObjectId,omitempty"`
+	DepartmentObjectId *string `json:"departmentObjectId,omitempty"`
+	DepreciationMonth  string  `json:"depreciationMonth"`
+}
+
+// VouAssetLiquidationLineInput defines model for VouAssetLiquidationLineInput.
+type VouAssetLiquidationLineInput struct {
+	AssetId         string  `json:"assetId"`
+	DisposalExpense string  `json:"disposalExpense"`
+	Reason          string  `json:"reason"`
+	Remark          *string `json:"remark,omitempty"`
+	SalvageIncome   string  `json:"salvageIncome"`
+}
+
+// VouAssetReferenceInput defines model for VouAssetReferenceInput.
+type VouAssetReferenceInput struct {
+	ObjectId  string `json:"objectId"`
+	VersionId string `json:"versionId"`
+}
+
+// VouAssetSaleLineInput defines model for VouAssetSaleLineInput.
+type VouAssetSaleLineInput struct {
+	AssetId    string  `json:"assetId"`
+	Remark     *string `json:"remark,omitempty"`
+	SaleAmount string  `json:"saleAmount"`
+}
+
 // VouAttachmentDownloadRequest defines model for VouAttachmentDownloadRequest.
 type VouAttachmentDownloadRequest struct {
 	DocumentId string `json:"documentId"`
@@ -1150,9 +1268,13 @@ type VouCreatableEntity string
 // VouCreateRequest defines model for VouCreateRequest.
 type VouCreateRequest struct {
 	Data struct {
-		Amount       *string             `json:"amount,omitempty"`
-		BusinessDate *openapi_types.Date `json:"businessDate,omitempty"`
-		Counterparty *struct {
+		Amount                 *string                          `json:"amount,omitempty"`
+		AssetAcquisitionLines  *[]VouAssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
+		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
+		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
+		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
+		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
+		Counterparty           *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
@@ -1162,7 +1284,8 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"customer,omitempty"`
-		Employee *struct {
+		DepreciationMonth *string `json:"depreciationMonth,omitempty"`
+		Employee          *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"employee,omitempty"`
@@ -1500,9 +1623,13 @@ type VouSalesKgSummaryUnit string
 // VouSaveRequest defines model for VouSaveRequest.
 type VouSaveRequest struct {
 	Data struct {
-		Amount       *string             `json:"amount,omitempty"`
-		BusinessDate *openapi_types.Date `json:"businessDate,omitempty"`
-		Counterparty *struct {
+		Amount                 *string                          `json:"amount,omitempty"`
+		AssetAcquisitionLines  *[]VouAssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
+		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
+		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
+		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
+		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
+		Counterparty           *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
@@ -1512,7 +1639,8 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"customer,omitempty"`
-		Employee *struct {
+		DepreciationMonth *string `json:"depreciationMonth,omitempty"`
+		Employee          *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"employee,omitempty"`
@@ -1993,6 +2121,12 @@ type BobunsubmitJSONRequestBody = BobReverseRequest
 // BobversionsJSONRequestBody defines body for Bobversions for application/json ContentType.
 type BobversionsJSONRequestBody = BobHistoryRequest
 
+// LedassetgetJSONRequestBody defines body for Ledassetget for application/json ContentType.
+type LedassetgetJSONRequestBody = LedAssetGetRequest
+
+// LedassetqueryJSONRequestBody defines body for Ledassetquery for application/json ContentType.
+type LedassetqueryJSONRequestBody = LedAssetQueryRequest
+
 // LedclosingcloseJSONRequestBody defines body for Ledclosingclose for application/json ContentType.
 type LedclosingcloseJSONRequestBody = LedClosingRequest
 
@@ -2076,6 +2210,9 @@ type VouSaleOrderFormulaDefaultJSONRequestBody = VouFormulaDefaultRequest
 
 // VougetJSONRequestBody defines body for Vouget for application/json ContentType.
 type VougetJSONRequestBody = VouGetRequest
+
+// VouassetdepreciationpreviewJSONRequestBody defines body for Vouassetdepreciationpreview for application/json ContentType.
+type VouassetdepreciationpreviewJSONRequestBody = VouAssetDepreciationPreviewRequest
 
 // VouPriceReferenceJSONRequestBody defines body for VouPriceReference for application/json ContentType.
 type VouPriceReferenceJSONRequestBody = VouPriceReferenceRequest
@@ -2444,6 +2581,12 @@ type ServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(c *gin.Context)
+	// Ledassetget 查看固定资产台账
+	// (POST /led/asset/get)
+	Ledassetget(c *gin.Context)
+	// Ledassetquery 查询固定资产台账
+	// (POST /led/asset/query)
+	Ledassetquery(c *gin.Context)
 	// Ledclosingclose 执行月末结账
 	// (POST /led/closing/close)
 	Ledclosingclose(c *gin.Context)
@@ -2531,6 +2674,9 @@ type ServerInterface interface {
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(c *gin.Context, entity VouEntity)
+	// Vouassetdepreciationpreview 预览固定资产折旧
+	// (POST /vou/{entity}/preview)
+	Vouassetdepreciationpreview(c *gin.Context, entity VouEntity)
 	// VouPriceReference 解析订单产品参考价
 	// (POST /vou/{entity}/price-reference)
 	VouPriceReference(c *gin.Context, entity VouEntity)
@@ -3601,6 +3747,32 @@ func (siw *ServerInterfaceWrapper) Health(c *gin.Context) {
 	siw.Handler.Health(c)
 }
 
+// Ledassetget operation middleware
+func (siw *ServerInterfaceWrapper) Ledassetget(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledassetget(c)
+}
+
+// Ledassetquery operation middleware
+func (siw *ServerInterfaceWrapper) Ledassetquery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledassetquery(c)
+}
+
 // Ledclosingclose operation middleware
 func (siw *ServerInterfaceWrapper) Ledclosingclose(c *gin.Context) {
 
@@ -4120,6 +4292,31 @@ func (siw *ServerInterfaceWrapper) Vouget(c *gin.Context) {
 	}
 
 	siw.Handler.Vouget(c, entity)
+}
+
+// Vouassetdepreciationpreview operation middleware
+func (siw *ServerInterfaceWrapper) Vouassetdepreciationpreview(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Vouassetdepreciationpreview(c, entity)
 }
 
 // VouPriceReference operation middleware
@@ -4674,6 +4871,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/vou/:entity/formula-default", wrapper.VouSaleOrderFormulaDefault)
 	router.POST(options.BaseURL+"/vou/:entity/price-reference", wrapper.VouPriceReference)
 	router.POST(options.BaseURL+"/vou/:entity/create", wrapper.Voucreate)
+	router.POST(options.BaseURL+"/vou/:entity/preview", wrapper.Vouassetdepreciationpreview)
 	router.POST(options.BaseURL+"/vou/:entity/save", wrapper.Vousave)
 	router.POST(options.BaseURL+"/vou/:entity/delete", wrapper.Voudelete)
 	router.POST(options.BaseURL+"/vou/:entity/check", wrapper.Voucheck)
@@ -4724,6 +4922,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/led/other/balance", wrapper.Ledotherbalance)
 	router.POST(options.BaseURL+"/led/container/query", wrapper.Ledcontainerquery)
 	router.POST(options.BaseURL+"/led/container/balance", wrapper.Ledcontainerbalance)
+	router.POST(options.BaseURL+"/led/asset/query", wrapper.Ledassetquery)
+	router.POST(options.BaseURL+"/led/asset/get", wrapper.Ledassetget)
 	router.PUT(options.BaseURL+"/files/feedback/attachments/upload/:token", wrapper.UploadFeedbackAttachment)
 	router.PUT(options.BaseURL+"/files/attachments/upload/:token", wrapper.UploadAttachment)
 	router.GET(options.BaseURL+"/files/attachments/download/:token", wrapper.DownloadAttachment)
@@ -5935,6 +6135,50 @@ func (response Health200JSONResponse) VisitHealthResponse(w http.ResponseWriter)
 	return err
 }
 
+type LedassetgetRequestObject struct {
+	Body *LedassetgetJSONRequestBody
+}
+
+type LedassetgetResponseObject interface {
+	VisitLedassetgetResponse(w http.ResponseWriter) error
+}
+
+type Ledassetget200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledassetget200JSONResponse) VisitLedassetgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedassetqueryRequestObject struct {
+	Body *LedassetqueryJSONRequestBody
+}
+
+type LedassetqueryResponseObject interface {
+	VisitLedassetqueryResponse(w http.ResponseWriter) error
+}
+
+type Ledassetquery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledassetquery200JSONResponse) VisitLedassetqueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LedclosingcloseRequestObject struct {
 	Body *LedclosingcloseJSONRequestBody
 }
@@ -6587,6 +6831,29 @@ type VougetResponseObject interface {
 type Vouget200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Vouget200JSONResponse) VisitVougetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouassetdepreciationpreviewRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouassetdepreciationpreviewJSONRequestBody
+}
+
+type VouassetdepreciationpreviewResponseObject interface {
+	VisitVouassetdepreciationpreviewResponse(w http.ResponseWriter) error
+}
+
+type Vouassetdepreciationpreview200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Vouassetdepreciationpreview200JSONResponse) VisitVouassetdepreciationpreviewResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7378,6 +7645,12 @@ type StrictServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
+	// Ledassetget 查看固定资产台账
+	// (POST /led/asset/get)
+	Ledassetget(ctx context.Context, request LedassetgetRequestObject) (LedassetgetResponseObject, error)
+	// Ledassetquery 查询固定资产台账
+	// (POST /led/asset/query)
+	Ledassetquery(ctx context.Context, request LedassetqueryRequestObject) (LedassetqueryResponseObject, error)
 	// Ledclosingclose 执行月末结账
 	// (POST /led/closing/close)
 	Ledclosingclose(ctx context.Context, request LedclosingcloseRequestObject) (LedclosingcloseResponseObject, error)
@@ -7465,6 +7738,9 @@ type StrictServerInterface interface {
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(ctx context.Context, request VougetRequestObject) (VougetResponseObject, error)
+	// Vouassetdepreciationpreview 预览固定资产折旧
+	// (POST /vou/{entity}/preview)
+	Vouassetdepreciationpreview(ctx context.Context, request VouassetdepreciationpreviewRequestObject) (VouassetdepreciationpreviewResponseObject, error)
 	// VouPriceReference 解析订单产品参考价
 	// (POST /vou/{entity}/price-reference)
 	VouPriceReference(ctx context.Context, request VouPriceReferenceRequestObject) (VouPriceReferenceResponseObject, error)
@@ -9219,6 +9495,68 @@ func (sh *strictHandler) Health(ctx *gin.Context) {
 	}
 }
 
+// Ledassetget operation middleware
+func (sh *strictHandler) Ledassetget(ctx *gin.Context) {
+	var request LedassetgetRequestObject
+
+	var body LedassetgetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledassetget(ctx, request.(LedassetgetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledassetget")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedassetgetResponseObject); ok {
+		if err := validResponse.VisitLedassetgetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledassetquery operation middleware
+func (sh *strictHandler) Ledassetquery(ctx *gin.Context) {
+	var request LedassetqueryRequestObject
+
+	var body LedassetqueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledassetquery(ctx, request.(LedassetqueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledassetquery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedassetqueryResponseObject); ok {
+		if err := validResponse.VisitLedassetqueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Ledclosingclose operation middleware
 func (sh *strictHandler) Ledclosingclose(ctx *gin.Context) {
 	var request LedclosingcloseRequestObject
@@ -10135,6 +10473,39 @@ func (sh *strictHandler) Vouget(ctx *gin.Context, entity VouEntity) {
 	}
 }
 
+// Vouassetdepreciationpreview operation middleware
+func (sh *strictHandler) Vouassetdepreciationpreview(ctx *gin.Context, entity VouEntity) {
+	var request VouassetdepreciationpreviewRequestObject
+
+	request.Entity = entity
+
+	var body VouassetdepreciationpreviewJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Vouassetdepreciationpreview(ctx, request.(VouassetdepreciationpreviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Vouassetdepreciationpreview")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouassetdepreciationpreviewResponseObject); ok {
+		if err := validResponse.VisitVouassetdepreciationpreviewResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // VouPriceReference operation middleware
 func (sh *strictHandler) VouPriceReference(ctx *gin.Context, entity VouEntity) {
 	var request VouPriceReferenceRequestObject
@@ -11026,149 +11397,157 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"Z82Vi+E8vrsslueW/zcAAP//",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

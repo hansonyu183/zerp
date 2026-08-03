@@ -391,6 +391,30 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntityAssetAcquisition:
+		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read asset acquisition lines", err)
+		}
+		missing = len(lines) == 0
+	case EntityAssetDepreciation:
+		lines, err := q.ListVouAssetDepreciationLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read asset depreciation lines", err)
+		}
+		missing = len(lines) == 0
+	case EntityAssetSale:
+		lines, err := q.ListVouAssetSaleLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read asset sale lines", err)
+		}
+		missing = len(lines) == 0
+	case EntityAssetLiquidation:
+		lines, err := q.ListVouAssetLiquidationLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read asset liquidation lines", err)
+		}
+		missing = len(lines) == 0
 	case EntitySalePricing, EntityPurchaseInquiry:
 		lines, err := q.ListVouPriceLines(ctx, documentID)
 		if err != nil {

@@ -32,6 +32,11 @@ type containerApplicationService interface {
 	ContainerBalance(context.Context, BalanceInput) (Page[ContainerBalanceView], error)
 }
 
+type assetApplicationService interface {
+	QueryAssets(context.Context, AssetQueryInput) (Page[AssetView], error)
+	GetAsset(context.Context, AssetGetInput) (AssetDetailView, error)
+}
+
 type Handler struct {
 	service    applicationService
 	authorizer authorization.Authorizer
@@ -69,10 +74,38 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityOther, "balance", h.partyBalance("other-party")},
 		{EntityContainer, "query", h.queryContainer},
 		{EntityContainer, "balance", h.containerBalance},
+		{EntityAsset, "query", h.queryAssets},
+		{EntityAsset, "get", h.getAsset},
 	}
 	for _, route := range routes {
 		path := "/led/" + route.entity + "/" + route.action
 		router.POST(path, h.authorize(path), route.handle)
+	}
+}
+
+func (h *Handler) queryAssets(c *gin.Context) {
+	var input AssetQueryInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(assetApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "asset ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.QueryAssets(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) getAsset(c *gin.Context) {
+	var input AssetGetInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(assetApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "asset ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.GetAsset(c.Request.Context(), input)
+		h.result(c, result, err)
 	}
 }
 

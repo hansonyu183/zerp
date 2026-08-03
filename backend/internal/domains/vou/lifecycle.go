@@ -15,6 +15,9 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isAssetEntity(entity) {
+		return s.CreateAssetDocument(ctx, entity, input, actorID, requestID)
+	}
 	if isProductionEntity(entity) {
 		return s.CreateProduction(ctx, entity, input, actorID, requestID)
 	}
@@ -157,6 +160,9 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if isAssetEntity(entity) {
+		return s.SaveAssetDocument(ctx, entity, input, actorID, requestID)
+	}
 	if isProductionEntity(entity) {
 		return s.SaveProduction(ctx, entity, input, actorID, requestID)
 	}

@@ -29,6 +29,27 @@ const text = (
 const description = text('description', '说明', { type: 'textarea' })
 
 export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
+  'asset-category': {
+    entity: 'asset-category',
+    title: '资产类别',
+    defaults: () => ({
+      name: '',
+      defaultUsefulLifeMonths: 60,
+      defaultResidualRate: '5.00',
+      description: '',
+    }),
+    fields: [
+      text('name', '名称', { required: true }),
+      {
+        key: 'defaultUsefulLifeMonths',
+        label: '默认使用月数',
+        type: 'number',
+        required: true,
+      },
+      text('defaultResidualRate', '默认残值率（%）', { required: true }),
+      description,
+    ],
+  },
   'product-category': {
     entity: 'product-category',
     title: '产品分类',

@@ -10,6 +10,7 @@ inventory
 fund
 party
 container
+asset
 ```
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护入账、结账、期初、余额和前端交互语义。
@@ -52,10 +53,15 @@ LED 提供库存、资金、往来流水与指定日期余额，并保存库存�
 | `expense-reimbursement` | 无                     | 新单据无；历史直付单据为业务日期 `OUT` | 无                                       |
 | `expense-payment`       | 无                     | 业务日期 `OUT`                         | 无                                       |
 | `other-income`          | 无                     | 业务日期 `IN`                          | 无                                       |
+| `asset-acquisition`     | 无                     | 无                                     | 按资产行原值贷记供应商，形成应付         |
+| `asset-depreciation`    | 无                     | 无                                     | 无                                       |
+| `asset-sale`            | 无                     | 无                                     | 按出让金额借记客户或其他往来方，形成应收 |
+| `asset-liquidation`     | 无                     | 无                                     | 无                                       |
 
 销售库存由出库单扣减，拒收及签收后退货均由销售退货单重新入库；应收只按签收数量形成，
 其中签收后退货按原价冲减应收，拒收和损耗不形成应收。
 其他收入即使携带往来方也不改变往来余额。
+四类资产单据同时写入固定资产台账：购置创建在用资产卡片，折旧增加累计折旧，出让改为 `SOLD`，清算改为 `RETIRED`。资产卡片保留类别、部门、保管人、原值、残值、期限和来源快照；折旧采用 VOU 已确定的只读金额。
 
 ### 2.2 最终处理与反最终处理
 
@@ -120,6 +126,8 @@ POST /led/supplier/query
 POST /led/supplier/balance
 POST /led/other/query
 POST /led/other/balance
+POST /led/asset/query
+POST /led/asset/get
 POST /led/container/query
 POST /led/container/balance
 ```
@@ -216,8 +224,9 @@ requestId 和摘要。
 
 ## 6. WFL 履约扩展
 
-LED 订阅十二类会记账 VOU 原子单据的最终处理与反最终处理事件：销售出库、销售签收、
-销售退货、采购入库、采购退货、生产配货、生产自制品、往来收款、往来付款、费用报销、费用付款和其他收入。
+LED 订阅会记账 VOU 原子单据的最终处理与反最终处理事件：销售出库、销售签收、
+销售退货、采购入库、采购退货、生产配货、生产自制品、六类往来收付款、费用报销、费用付款、其他收入，
+库存盘点，以及资产购置、折旧、出让和清算。
 已删除的居间流程和五类居间单据不再作为流水来源；迁移同时删除其既有 LED 流水。
 两类生产单按实际领料生成无价格的材料出库流水，并按成品数量生成无价格的成品入库流水；
 两组流水必须同事务成功或回滚。
@@ -233,7 +242,7 @@ LED 订阅十二类会记账 VOU 原子单据的最终处理与反最终处理�
 
 - 首次结账、跳月结账、反结最近一期和四类期初快照满足 revision 与原子性；
 - 需要记账的 VOU/WFL 原子单据按映射生成正确流水，执行和反执行与 VOU 保持同事务；
-- 九类会记账 VOU 单据生成各自正确的库存、资金和往来流水；
+- 各类会记账 VOU 单据生成正确的库存、资金、往来或固定资产流水；
 - 任一历史时点负库存均阻止销售执行、采购反执行或账簿重建；
 - 完整历史 generation、结账快照和结账审计均保留且相互一致；
 - 查询严格执行分页、过滤、排序和 as-of 日期契约；
@@ -256,8 +265,9 @@ LED（Ledger）把已经执行或最终确认的 VOU/WFL 业务结果展示为�
 | `supplier`  | 往来台账-供应商 | 查询供应商借贷流水、指定日期余额                   |
 | `other`     | 往来台账-其他   | 查询其他往来单位借贷流水、指定日期余额             |
 | `container` | 空桶台账        | 查询客户空桶增量和指定日期欠桶余额                 |
+| `asset`     | 固定资产台账    | 查询资产卡片、折旧余额、状态和完整变动历史         |
 
-页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other` 和 `/led/container`。三类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有 `query` 或 `balance` 权限时，不发起对应请求。
+页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other`、`/led/container` 和 `/led/asset`。三类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有相应权限时不发起请求。
 
 ### 8.2 期初与结账
 

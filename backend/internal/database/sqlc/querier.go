@@ -14,6 +14,7 @@ type Querier interface {
 	AcquireAppAuthorizationLock(ctx context.Context) error
 	ActivateLedControl(ctx context.Context, arg ActivateLedControlParams) (int64, error)
 	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
+	ApplyLedAssetDepreciation(ctx context.Context, arg ApplyLedAssetDepreciationParams) (int64, error)
 	ApproveBobVersion(ctx context.Context, arg ApproveBobVersionParams) (int64, error)
 	ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error)
 	ArchiveActiveLedGeneration(ctx context.Context, generationID string) error
@@ -58,6 +59,7 @@ type Querier interface {
 	CountEnabledUsersMissingPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
+	CountLedAssets(ctx context.Context, arg CountLedAssetsParams) (int64, error)
 	CountLedAuditEvents(ctx context.Context) (int64, error)
 	CountLedFundBalances(ctx context.Context, arg CountLedFundBalancesParams) (int64, error)
 	CountLedFundEntries(ctx context.Context, arg CountLedFundEntriesParams) (int64, error)
@@ -103,6 +105,8 @@ type Querier interface {
 	DeleteBobVehicleDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobWarehouseDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
+	DeleteLedAssetEntriesBySource(ctx context.Context, arg DeleteLedAssetEntriesBySourceParams) error
+	DeleteLedAssetsBySource(ctx context.Context, arg DeleteLedAssetsBySourceParams) error
 	DeleteLedContainerEntriesBySource(ctx context.Context, arg DeleteLedContainerEntriesBySourceParams) error
 	DeleteLedDraftContainer(ctx context.Context) error
 	DeleteLedDraftFund(ctx context.Context) error
@@ -111,6 +115,10 @@ type Querier interface {
 	DeleteLedFundEntriesBySource(ctx context.Context, arg DeleteLedFundEntriesBySourceParams) error
 	DeleteLedInventoryEntriesBySource(ctx context.Context, arg DeleteLedInventoryEntriesBySourceParams) error
 	DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteLedPartyEntriesBySourceParams) error
+	DeleteVouAssetAcquisitionLines(ctx context.Context, documentID string) error
+	DeleteVouAssetDepreciationLines(ctx context.Context, documentID string) error
+	DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error
+	DeleteVouAssetSaleLines(ctx context.Context, documentID string) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
@@ -123,8 +131,11 @@ type Querier interface {
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindLatestCustomerSaleOrderFormula(ctx context.Context, arg FindLatestCustomerSaleOrderFormulaParams) (FindLatestCustomerSaleOrderFormulaRow, error)
+	FindLedAssetNoBySourceLine(ctx context.Context, sourceLineID string) (string, error)
 	FindVouPurchasePriceReference(ctx context.Context, arg FindVouPurchasePriceReferenceParams) (FindVouPurchasePriceReferenceRow, error)
 	FindVouSalePriceReference(ctx context.Context, arg FindVouSalePriceReferenceParams) (FindVouSalePriceReferenceRow, error)
+	GetActiveLedAsset(ctx context.Context, assetID string) (LedAsset, error)
+	GetActiveLedAssetForVou(ctx context.Context, assetID string) (LedAsset, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
@@ -141,6 +152,10 @@ type Querier interface {
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
 	GetLedControl(ctx context.Context) (LedControl, error)
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
+	GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error)
+	GetVouAssetDepreciationDetail(ctx context.Context, documentID string) (VouAssetDepreciationDetail, error)
+	GetVouAssetLiquidationDetail(ctx context.Context, documentID string) (VouAssetLiquidationDetail, error)
+	GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error)
 	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
@@ -157,6 +172,7 @@ type Querier interface {
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error)
 	GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error)
 	HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bool, error)
+	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
@@ -184,6 +200,9 @@ type Querier interface {
 	InsertBobVehicleDetail(ctx context.Context, arg InsertBobVehicleDetailParams) error
 	InsertBobVersion(ctx context.Context, arg InsertBobVersionParams) error
 	InsertBobWarehouseDetail(ctx context.Context, arg InsertBobWarehouseDetailParams) error
+	InsertLedAsset(ctx context.Context, arg InsertLedAssetParams) error
+	InsertLedAssetEntry(ctx context.Context, arg InsertLedAssetEntryParams) error
+	InsertLedAssetNumberAssignment(ctx context.Context, arg InsertLedAssetNumberAssignmentParams) error
 	InsertLedAuditEvent(ctx context.Context, arg InsertLedAuditEventParams) error
 	InsertLedDraftContainer(ctx context.Context, arg InsertLedDraftContainerParams) error
 	InsertLedDraftFund(ctx context.Context, arg InsertLedDraftFundParams) error
@@ -201,6 +220,14 @@ type Querier interface {
 	InsertLedOpeningPartyEntries(ctx context.Context, arg InsertLedOpeningPartyEntriesParams) error
 	InsertLedOpeningPartyFromDraft(ctx context.Context, generationID string) error
 	InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEntryParams) error
+	InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error
+	InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error
+	InsertVouAssetDepreciationDetail(ctx context.Context, arg InsertVouAssetDepreciationDetailParams) error
+	InsertVouAssetDepreciationLine(ctx context.Context, arg InsertVouAssetDepreciationLineParams) error
+	InsertVouAssetLiquidationDetail(ctx context.Context, documentID string) error
+	InsertVouAssetLiquidationLine(ctx context.Context, arg InsertVouAssetLiquidationLineParams) error
+	InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAssetSaleDetailParams) error
+	InsertVouAssetSaleLine(ctx context.Context, arg InsertVouAssetSaleLineParams) error
 	InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEventParams) error
 	InsertVouDocument(ctx context.Context, arg InsertVouDocumentParams) error
 	InsertVouDocumentAttachment(ctx context.Context, arg InsertVouDocumentAttachmentParams) error
@@ -237,8 +264,11 @@ type Querier interface {
 	ListBobObjectsEnabled(ctx context.Context, ids []string) ([]ListBobObjectsEnabledRow, error)
 	ListBobProductFormulaLines(ctx context.Context, productVersionID string) ([]ListBobProductFormulaLinesRow, error)
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
+	ListDepreciableLedAssetsForVou(ctx context.Context, arg ListDepreciableLedAssetsForVouParams) ([]LedAsset, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
 	ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
+	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
+	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
 	ListLedDraftContainer(ctx context.Context) ([]LedDraftContainer, error)
 	ListLedDraftFund(ctx context.Context) ([]LedDraftFund, error)
@@ -265,6 +295,10 @@ type Querier interface {
 	ListSalesWorkflowProgress(ctx context.Context, processIds []string) ([]ListSalesWorkflowProgressRow, error)
 	ListSalesWorkflowSummaries(ctx context.Context, arg ListSalesWorkflowSummariesParams) ([]ListSalesWorkflowSummariesRow, error)
 	ListStaleAppFeedbackFiles(ctx context.Context, arg ListStaleAppFeedbackFilesParams) ([]AppFeedbackFile, error)
+	ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error)
+	ListVouAssetDepreciationLines(ctx context.Context, documentID string) ([]VouAssetDepreciationLine, error)
+	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)
+	ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error)
 	ListVouAttachments(ctx context.Context, documentID string) ([]ListVouAttachmentsRow, error)
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
@@ -288,6 +322,7 @@ type Querier interface {
 	LockEffectiveCategoryReference(ctx context.Context, targetCategoryID string) (string, error)
 	LockEffectiveLogisticsPlatform(ctx context.Context, platformObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
+	LockLedAsset(ctx context.Context, arg LockLedAssetParams) (LedAsset, error)
 	LockLedControl(ctx context.Context) (LedControl, error)
 	LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
@@ -300,6 +335,7 @@ type Querier interface {
 	MarkBobVersionPendingCopy(ctx context.Context, arg MarkBobVersionPendingCopyParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
+	NextLedAssetNumber(ctx context.Context, businessDate pgtype.Date) (int32, error)
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
@@ -310,6 +346,8 @@ type Querier interface {
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
 	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)
+	RestoreLedAssetStatusBySource(ctx context.Context, arg RestoreLedAssetStatusBySourceParams) (int64, error)
+	ReverseLedAssetDepreciation(ctx context.Context, arg ReverseLedAssetDepreciationParams) (int64, error)
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
@@ -318,6 +356,7 @@ type Querier interface {
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)
 	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
+	SetLedAssetStatus(ctx context.Context, arg SetLedAssetStatusParams) (int64, error)
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
@@ -344,6 +383,9 @@ type Querier interface {
 	UpdateBobVehicleDetail(ctx context.Context, arg UpdateBobVehicleDetailParams) (int64, error)
 	UpdateBobWarehouseDetail(ctx context.Context, arg UpdateBobWarehouseDetailParams) (int64, error)
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
+	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)
+	UpdateVouAssetDepreciationDetail(ctx context.Context, arg UpdateVouAssetDepreciationDetailParams) (int64, error)
+	UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error)
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)

@@ -22,6 +22,10 @@ type effectiveReferenceResolver interface {
 	ResolveCurrentEffectiveReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 }
 
+type auxiliaryReferenceResolver interface {
+	ResolveAuxiliaryReference(context.Context, pgx.Tx, string, string, string) (bobdomain.AuxiliaryReference, error)
+}
+
 type eventPublisher interface {
 	Publish(context.Context, pgx.Tx, txevent.Event) error
 }
@@ -30,6 +34,7 @@ type Service struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
 	resolver    effectiveReferenceResolver
+	auxResolver auxiliaryReferenceResolver
 	events      eventPublisher
 	storage     *localStorage
 	uploadTTL   time.Duration
@@ -46,12 +51,13 @@ type AttachmentOptions struct {
 func NewService(
 	pool *pgxpool.Pool,
 	resolver effectiveReferenceResolver,
+	auxResolver auxiliaryReferenceResolver,
 	events eventPublisher,
 	options AttachmentOptions,
 	logger *slog.Logger,
 ) (*Service, error) {
-	if pool == nil || resolver == nil || events == nil {
-		return nil, errors.New("VOU pool, BOB resolver, and event publisher are required")
+	if pool == nil || resolver == nil || auxResolver == nil || events == nil {
+		return nil, errors.New("VOU pool, BOB/AUX resolvers, and event publisher are required")
 	}
 	storage, err := newLocalStorage(options.Root)
 	if err != nil {
@@ -67,7 +73,7 @@ func NewService(
 		logger = slog.Default()
 	}
 	return &Service{
-		pool: pool, queries: dbsqlc.New(pool), resolver: resolver, events: events, storage: storage,
+		pool: pool, queries: dbsqlc.New(pool), resolver: resolver, auxResolver: auxResolver, events: events, storage: storage,
 		uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL, logger: logger,
 	}, nil
 }
@@ -122,6 +128,8 @@ func entityPrefix(entity string) string {
 		EntityPayment: "PAY", EntityCustomerPayment: "PAY", EntitySupplierPayment: "PAY", EntityOtherPayment: "PAY",
 		EntityExpenseReimbursement: "EXR",
 		EntityExpensePayment:       "EXP", EntityOtherIncome: "OIN",
+		EntityAssetAcquisition: "ACQ", EntityAssetDepreciation: "DEP",
+		EntityAssetSale: "DSL", EntityAssetLiquidation: "LIQ",
 	}[entity]
 }
 

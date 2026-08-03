@@ -526,6 +526,69 @@ type IdentifierObjectRenumberHistory struct {
 	NewCode  string `db:"new_code" json:"new_code"`
 }
 
+type LedAsset struct {
+	GenerationID                 string      `db:"generation_id" json:"generation_id"`
+	ID                           string      `db:"id" json:"id"`
+	AssetNo                      string      `db:"asset_no" json:"asset_no"`
+	AssetName                    string      `db:"asset_name" json:"asset_name"`
+	Specification                string      `db:"specification" json:"specification"`
+	CategoryObjectID             string      `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID            string      `db:"category_version_id" json:"category_version_id"`
+	CategoryCode                 string      `db:"category_code" json:"category_code"`
+	CategoryName                 string      `db:"category_name" json:"category_name"`
+	DepartmentObjectID           string      `db:"department_object_id" json:"department_object_id"`
+	DepartmentVersionID          string      `db:"department_version_id" json:"department_version_id"`
+	DepartmentCode               string      `db:"department_code" json:"department_code"`
+	DepartmentName               string      `db:"department_name" json:"department_name"`
+	CustodianObjectID            *string     `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianVersionID           *string     `db:"custodian_version_id" json:"custodian_version_id"`
+	CustodianCode                *string     `db:"custodian_code" json:"custodian_code"`
+	CustodianName                *string     `db:"custodian_name" json:"custodian_name"`
+	Location                     string      `db:"location" json:"location"`
+	AcquisitionDate              pgtype.Date `db:"acquisition_date" json:"acquisition_date"`
+	DepreciationStartMonth       pgtype.Date `db:"depreciation_start_month" json:"depreciation_start_month"`
+	OriginalValueCents           int64       `db:"original_value_cents" json:"original_value_cents"`
+	ResidualValueCents           int64       `db:"residual_value_cents" json:"residual_value_cents"`
+	UsefulLifeMonths             int32       `db:"useful_life_months" json:"useful_life_months"`
+	AccumulatedDepreciationCents int64       `db:"accumulated_depreciation_cents" json:"accumulated_depreciation_cents"`
+	LastDepreciationMonth        pgtype.Date `db:"last_depreciation_month" json:"last_depreciation_month"`
+	Status                       string      `db:"status" json:"status"`
+	SourceDocumentID             string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID                 string      `db:"source_line_id" json:"source_line_id"`
+	SourceRevision               int64       `db:"source_revision" json:"source_revision"`
+	Remark                       *string     `db:"remark" json:"remark"`
+}
+
+type LedAssetEntry struct {
+	ID               string             `db:"id" json:"id"`
+	GenerationID     string             `db:"generation_id" json:"generation_id"`
+	AssetID          string             `db:"asset_id" json:"asset_id"`
+	EntryType        string             `db:"entry_type" json:"entry_type"`
+	SourceEntity     string             `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo string             `db:"source_document_no" json:"source_document_no"`
+	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
+	SourceRevision   int64              `db:"source_revision" json:"source_revision"`
+	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
+	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	AmountCents      int64              `db:"amount_cents" json:"amount_cents"`
+	StatusFrom       *string            `db:"status_from" json:"status_from"`
+	StatusTo         string             `db:"status_to" json:"status_to"`
+	ActorID          string             `db:"actor_id" json:"actor_id"`
+	RequestID        string             `db:"request_id" json:"request_id"`
+	Summary          []byte             `db:"summary" json:"summary"`
+}
+
+type LedAssetNumberAssignment struct {
+	SourceLineID string `db:"source_line_id" json:"source_line_id"`
+	AssetNo      string `db:"asset_no" json:"asset_no"`
+}
+
+type LedAssetNumberCounter struct {
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+	LastValue    int32       `db:"last_value" json:"last_value"`
+}
+
 type LedAuditEvent struct {
 	ID           string             `db:"id" json:"id"`
 	EventType    string             `db:"event_type" json:"event_type"`
@@ -847,6 +910,99 @@ type ObjectNumberCounter struct {
 type RemovedIntermediaryFile struct {
 	ID         string `db:"id" json:"id"`
 	StorageKey string `db:"storage_key" json:"storage_key"`
+}
+
+type VouAssetAcquisitionDetail struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	Entity            string `db:"entity" json:"entity"`
+	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
+	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+}
+
+type VouAssetAcquisitionLine struct {
+	ID                  string  `db:"id" json:"id"`
+	DocumentID          string  `db:"document_id" json:"document_id"`
+	LineNo              int32   `db:"line_no" json:"line_no"`
+	AssetName           string  `db:"asset_name" json:"asset_name"`
+	Specification       string  `db:"specification" json:"specification"`
+	CategoryObjectID    string  `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID   string  `db:"category_version_id" json:"category_version_id"`
+	CategoryCode        string  `db:"category_code" json:"category_code"`
+	CategoryName        string  `db:"category_name" json:"category_name"`
+	OriginalValueCents  int64   `db:"original_value_cents" json:"original_value_cents"`
+	UsefulLifeMonths    int32   `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps     int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
+	DepartmentObjectID  string  `db:"department_object_id" json:"department_object_id"`
+	DepartmentVersionID string  `db:"department_version_id" json:"department_version_id"`
+	DepartmentCode      string  `db:"department_code" json:"department_code"`
+	DepartmentName      string  `db:"department_name" json:"department_name"`
+	CustodianObjectID   *string `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianVersionID  *string `db:"custodian_version_id" json:"custodian_version_id"`
+	CustodianCode       *string `db:"custodian_code" json:"custodian_code"`
+	CustodianName       *string `db:"custodian_name" json:"custodian_name"`
+	Location            string  `db:"location" json:"location"`
+	Remark              *string `db:"remark" json:"remark"`
+}
+
+type VouAssetDepreciationDetail struct {
+	DocumentID        string      `db:"document_id" json:"document_id"`
+	Entity            string      `db:"entity" json:"entity"`
+	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+}
+
+type VouAssetDepreciationLine struct {
+	ID                      string      `db:"id" json:"id"`
+	DocumentID              string      `db:"document_id" json:"document_id"`
+	LineNo                  int32       `db:"line_no" json:"line_no"`
+	DepreciationMonth       pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+	AssetID                 string      `db:"asset_id" json:"asset_id"`
+	AssetNo                 string      `db:"asset_no" json:"asset_no"`
+	AssetName               string      `db:"asset_name" json:"asset_name"`
+	AmountCents             int64       `db:"amount_cents" json:"amount_cents"`
+	OpeningAccumulatedCents int64       `db:"opening_accumulated_cents" json:"opening_accumulated_cents"`
+	ClosingAccumulatedCents int64       `db:"closing_accumulated_cents" json:"closing_accumulated_cents"`
+	Remark                  *string     `db:"remark" json:"remark"`
+}
+
+type VouAssetLiquidationDetail struct {
+	DocumentID string `db:"document_id" json:"document_id"`
+	Entity     string `db:"entity" json:"entity"`
+}
+
+type VouAssetLiquidationLine struct {
+	ID                   string  `db:"id" json:"id"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	LineNo               int32   `db:"line_no" json:"line_no"`
+	AssetID              string  `db:"asset_id" json:"asset_id"`
+	AssetNo              string  `db:"asset_no" json:"asset_no"`
+	AssetName            string  `db:"asset_name" json:"asset_name"`
+	Reason               string  `db:"reason" json:"reason"`
+	SalvageIncomeCents   int64   `db:"salvage_income_cents" json:"salvage_income_cents"`
+	DisposalExpenseCents int64   `db:"disposal_expense_cents" json:"disposal_expense_cents"`
+	Remark               *string `db:"remark" json:"remark"`
+}
+
+type VouAssetSaleDetail struct {
+	DocumentID            string `db:"document_id" json:"document_id"`
+	Entity                string `db:"entity" json:"entity"`
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+}
+
+type VouAssetSaleLine struct {
+	ID              string  `db:"id" json:"id"`
+	DocumentID      string  `db:"document_id" json:"document_id"`
+	LineNo          int32   `db:"line_no" json:"line_no"`
+	AssetID         string  `db:"asset_id" json:"asset_id"`
+	AssetNo         string  `db:"asset_no" json:"asset_no"`
+	AssetName       string  `db:"asset_name" json:"asset_name"`
+	SaleAmountCents int64   `db:"sale_amount_cents" json:"sale_amount_cents"`
+	Remark          *string `db:"remark" json:"remark"`
 }
 
 type VouAuditEvent struct {

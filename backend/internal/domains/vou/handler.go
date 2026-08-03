@@ -22,6 +22,7 @@ type applicationService interface {
 	Get(context.Context, string, GetInput) (DocumentView, error)
 	FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error)
 	PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error)
+	AssetDepreciationPreview(context.Context, AssetDepreciationPreviewInput) (AssetDepreciationPreviewView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
@@ -57,6 +58,7 @@ var actionRoutes = [...]actionRoute{
 	{action: "book-balance", handle: (*Handler).inventoryCountBookBalance},
 	{action: "formula-default", handle: (*Handler).formulaDefault},
 	{action: "price-reference", handle: (*Handler).priceReference},
+	{action: "preview", handle: (*Handler).assetDepreciationPreview},
 	{action: "create", handle: (*Handler).create},
 	{action: "save", handle: (*Handler).save},
 	{action: "check", handle: (*Handler).check},
@@ -102,6 +104,9 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "book-balance" && entity != EntityInventoryCount {
 				continue
 			}
+			if route.action == "preview" && entity != EntityAssetDepreciation {
+				continue
+			}
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
@@ -122,6 +127,18 @@ func (h *Handler) inventoryCountBookBalance(c *gin.Context, entity string) {
 	var input InventoryCountBalanceInput
 	if h.bind(c, &input) {
 		result, err := h.service.InventoryCountBookBalance(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) assetDepreciationPreview(c *gin.Context, entity string) {
+	if entity != EntityAssetDepreciation {
+		h.result(c, AssetDepreciationPreviewView{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input AssetDepreciationPreviewInput
+	if h.bind(c, &input) {
+		result, err := h.service.AssetDepreciationPreview(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }

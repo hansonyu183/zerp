@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,7 +52,8 @@ func ledIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE led_inventory_cost_allocations,led_closing_container,led_closing_party,
+		TRUNCATE led_asset_entries,led_assets,led_asset_number_assignments,led_asset_number_counters,
+			led_inventory_cost_allocations,led_closing_container,led_closing_party,
 			led_closing_fund,led_closing_inventory,led_closings,
 			led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
 			led_opening_container, led_draft_container,
@@ -59,6 +62,10 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_asset_liquidation_lines,vou_asset_liquidation_details,
+			vou_asset_sale_lines,vou_asset_sale_details,
+			vou_asset_depreciation_lines,vou_asset_depreciation_details,
+			vou_asset_acquisition_lines,vou_asset_acquisition_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -161,7 +168,7 @@ func newIntegratedServices(t *testing.T, pool *pgxpool.Pool) (*Service, *voudoma
 		t.Fatalf("register LED subscriptions: %v", err)
 	}
 	vouchers, err := voudomain.NewService(
-		pool, bobService, bus, voudomain.AttachmentOptions{Root: t.TempDir()},
+		pool, bobService, auxiliaryrefs.New(auxdomain.NewService(pool)), bus, voudomain.AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	if err != nil {
@@ -185,6 +192,17 @@ func activateEmptyLedger(t *testing.T, ledger *Service) MutationResult {
 		t.Fatalf("activate ledger: %v", err)
 	}
 	return activated
+}
+
+func createAuxReference(t *testing.T, pool *pgxpool.Pool, entity string, data map[string]any) voudomain.ReferenceInput {
+	t.Helper()
+	created, err := auxdomain.NewService(pool).Create(t.Context(), entity, auxdomain.CreateInput{
+		Data: auxdomain.CreateData{Data: data},
+	}, integrationActorOne, "led-aux-create")
+	if err != nil {
+		t.Fatalf("create %s: %v", entity, err)
+	}
+	return voudomain.ReferenceInput{ObjectID: created.ObjectID, VersionID: created.VersionID}
 }
 
 func advanceToApproved(
@@ -318,6 +336,120 @@ func advanceSaleOutboundToApproved(
 			Remark: "销售出库行",
 		}},
 	})
+}
+
+func TestFixedAssetLifecycleIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	category := createAuxReference(t, pool, auxdomain.EntityAssetCategory, map[string]any{
+		"name": "机器设备", "defaultUsefulLifeMonths": 12, "defaultResidualRate": "10.00", "description": "集成测试",
+	})
+	department := createAuxReference(t, pool, auxdomain.EntityDepartment, map[string]any{"name": "生产部", "description": "集成测试"})
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	acquisition, _ := advanceToApproved(t, vouchers, voudomain.EntityAssetAcquisition, voudomain.DraftInput{
+		BusinessDate: "2026-02-15", Currency: "CNY", Supplier: &refs.supplier,
+		AssetAcquisitionLines: []voudomain.AssetAcquisitionLineInput{{
+			AssetName: "测试设备", Category: category, Department: department, Custodian: &refs.employee,
+			OriginalValue: "1200.00", UsefulLifeMonths: 12, ResidualRate: "10.00", Location: "一号车间",
+		}, {
+			AssetName: "待清算设备", Category: category, Department: department,
+			OriginalValue: "600.00", UsefulLifeMonths: 12, ResidualRate: "10.00", Location: "二号车间",
+		}},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityAssetAcquisition, voudomain.FinalizeInput{
+		DocumentID: acquisition.DocumentID, Revision: acquisition.Revision,
+	}, integrationActorOne, "asset-acquisition-finalize"); err != nil {
+		t.Fatalf("finalize acquisition: %v", err)
+	}
+	assets, err := ledger.QueryAssets(t.Context(), AssetQueryInput{Page: 1, PageSize: 20, Filters: AssetQueryFilters{Status: []string{"ACTIVE"}}})
+	if err != nil || len(assets.Items) != 2 {
+		t.Fatalf("asset card after acquisition = %+v, err=%v", assets, err)
+	}
+	var assetID, liquidationAssetID string
+	for _, item := range assets.Items {
+		if item.AssetName == "测试设备" {
+			assetID = item.AssetID
+		}
+		if item.AssetName == "待清算设备" {
+			liquidationAssetID = item.AssetID
+		}
+	}
+	if assetID == "" || liquidationAssetID == "" {
+		t.Fatalf("missing acquired asset cards: %+v", assets.Items)
+	}
+
+	for _, period := range []struct{ month, date string }{{"2026-03", "2026-03-31"}, {"2026-04", "2026-04-30"}} {
+		month := period.month
+		preview, previewErr := vouchers.AssetDepreciationPreview(t.Context(), voudomain.AssetDepreciationPreviewInput{DepreciationMonth: month})
+		if previewErr != nil || len(preview.Items) != 2 {
+			t.Fatalf("preview %s = %+v, err=%v", month, preview, previewErr)
+		}
+		lines := make([]voudomain.AssetDepreciationLineInput, 0, len(preview.Items))
+		for _, item := range preview.Items {
+			lines = append(lines, voudomain.AssetDepreciationLineInput{AssetID: item.AssetID})
+		}
+		approved, _ := advanceToApproved(t, vouchers, voudomain.EntityAssetDepreciation, voudomain.DraftInput{
+			BusinessDate: period.date, Currency: "CNY", DepreciationMonth: month,
+			AssetDepreciationLines: lines,
+		})
+		if _, err = vouchers.Finalize(t.Context(), voudomain.EntityAssetDepreciation, voudomain.FinalizeInput{
+			DocumentID: approved.DocumentID, Revision: approved.Revision,
+		}, integrationActorOne, "asset-depreciation-finalize"); err != nil {
+			t.Fatalf("finalize depreciation %s: %v", month, err)
+		}
+	}
+
+	sale, _ := advanceToApproved(t, vouchers, voudomain.EntityAssetSale, voudomain.DraftInput{
+		BusinessDate: "2026-04-20", Currency: "CNY", CounterpartyType: "customer", Counterparty: &refs.customer,
+		AssetSaleLines: []voudomain.AssetSaleLineInput{{AssetID: assetID, SaleAmount: "900.00"}},
+	})
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityAssetSale, voudomain.FinalizeInput{
+		DocumentID: sale.DocumentID, Revision: sale.Revision,
+	}, integrationActorOne, "asset-sale-finalize"); err != nil {
+		t.Fatalf("finalize asset sale: %v", err)
+	}
+	detail, err := ledger.GetAsset(t.Context(), AssetGetInput{AssetID: assetID})
+	if err != nil || detail.Asset.Status != "SOLD" || len(detail.History) != 4 {
+		t.Fatalf("asset after sale = %+v, err=%v", detail, err)
+	}
+	var receivable int64
+	if err = pool.QueryRow(t.Context(), `SELECT amount_delta_cents FROM led_party_entries WHERE source_document_id=$1`, sale.DocumentID).Scan(&receivable); err != nil || receivable != 90000 {
+		t.Fatalf("sale receivable = %d, err=%v", receivable, err)
+	}
+	liquidation, _ := advanceToApproved(t, vouchers, voudomain.EntityAssetLiquidation, voudomain.DraftInput{
+		BusinessDate: "2026-04-20", Currency: "CNY",
+		AssetLiquidationLines: []voudomain.AssetLiquidationLineInput{{AssetID: liquidationAssetID, Reason: "设备损坏", SalvageIncome: "20.00", DisposalExpense: "5.00"}},
+	})
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityAssetLiquidation, voudomain.FinalizeInput{DocumentID: liquidation.DocumentID, Revision: liquidation.Revision}, integrationActorOne, "asset-liquidation-finalize"); err != nil {
+		t.Fatalf("finalize asset liquidation: %v", err)
+	}
+	liquidated, err := ledger.GetAsset(t.Context(), AssetGetInput{AssetID: liquidationAssetID})
+	if err != nil || liquidated.Asset.Status != "RETIRED" || len(liquidated.History) != 4 {
+		t.Fatalf("liquidated asset = %+v, err=%v", liquidated, err)
+	}
+	var liquidationPartyEntries int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM led_party_entries WHERE source_document_id=$1`, liquidation.DocumentID).Scan(&liquidationPartyEntries); err != nil || liquidationPartyEntries != 0 {
+		t.Fatalf("liquidation party entries = %d, err=%v", liquidationPartyEntries, err)
+	}
+	assetNo := detail.Asset.AssetNo
+	if _, err = pool.Exec(t.Context(), `UPDATE led_control SET rebuild_required=true WHERE singleton=true`); err != nil {
+		t.Fatal(err)
+	}
+	if err = ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("rebuild ledger with fixed assets: %v", err)
+	}
+	rebuilt, err := ledger.GetAsset(t.Context(), AssetGetInput{AssetID: assetID})
+	if err != nil || rebuilt.Asset.Status != "SOLD" || rebuilt.Asset.AssetNo != assetNo || len(rebuilt.History) != 4 {
+		t.Fatalf("rebuilt asset = %+v, err=%v", rebuilt, err)
+	}
+	rebuiltLiquidation, err := ledger.GetAsset(t.Context(), AssetGetInput{AssetID: liquidationAssetID})
+	if err != nil || rebuiltLiquidation.Asset.Status != "RETIRED" || len(rebuiltLiquidation.History) != 4 {
+		t.Fatalf("rebuilt liquidation asset = %+v, err=%v", rebuiltLiquidation, err)
+	}
 }
 
 func TestLEDInventoryPostingStrictBalanceAndDeletionIntegration(t *testing.T) {
@@ -978,8 +1110,8 @@ func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 16 {
-		t.Fatalf("LED permission count = %d, want 16", count)
+	if count != 18 {
+		t.Fatalf("LED permission count = %d, want 18", count)
 	}
 }
 

@@ -19,6 +19,7 @@ const (
 	EntitySupplier  = "supplier"
 	EntityOther     = "other"
 	EntityContainer = "container"
+	EntityAsset     = "asset"
 )
 
 type ReferenceInput struct {
@@ -211,6 +212,64 @@ type Page[T any] struct {
 	Total    int64 `json:"total"`
 	Page     int   `json:"page"`
 	PageSize int   `json:"pageSize"`
+}
+
+type AssetQueryFilters struct {
+	Keyword            string   `json:"keyword,omitempty"`
+	Status             []string `json:"status,omitempty"`
+	CategoryObjectID   string   `json:"categoryObjectId,omitempty"`
+	DepartmentObjectID string   `json:"departmentObjectId,omitempty"`
+	CustodianObjectID  string   `json:"custodianObjectId,omitempty"`
+}
+
+type AssetQueryInput struct {
+	Page     int               `json:"page"`
+	PageSize int               `json:"pageSize"`
+	Filters  AssetQueryFilters `json:"filters"`
+}
+
+type AssetGetInput struct {
+	AssetID string `json:"assetId"`
+}
+
+type AssetView struct {
+	AssetID                 string         `json:"assetId"`
+	AssetNo                 string         `json:"assetNo"`
+	AssetName               string         `json:"assetName"`
+	Specification           string         `json:"specification,omitempty"`
+	Category                ReferenceView  `json:"category"`
+	Department              ReferenceView  `json:"department"`
+	Custodian               *ReferenceView `json:"custodian,omitempty"`
+	Location                string         `json:"location,omitempty"`
+	AcquisitionDate         string         `json:"acquisitionDate"`
+	DepreciationStartMonth  string         `json:"depreciationStartMonth"`
+	OriginalValue           string         `json:"originalValue"`
+	ResidualValue           string         `json:"residualValue"`
+	UsefulLifeMonths        int32          `json:"usefulLifeMonths"`
+	AccumulatedDepreciation string         `json:"accumulatedDepreciation"`
+	NetValue                string         `json:"netValue"`
+	LastDepreciationMonth   string         `json:"lastDepreciationMonth,omitempty"`
+	Status                  string         `json:"status"`
+	Remark                  string         `json:"remark,omitempty"`
+}
+
+type AssetHistoryView struct {
+	ID               string          `json:"id"`
+	EntryType        string          `json:"entryType"`
+	SourceEntity     string          `json:"sourceEntity"`
+	SourceDocumentID string          `json:"sourceDocumentId"`
+	SourceDocumentNo string          `json:"sourceDocumentNo"`
+	EffectiveDate    string          `json:"effectiveDate"`
+	Amount           string          `json:"amount"`
+	StatusFrom       string          `json:"statusFrom,omitempty"`
+	StatusTo         string          `json:"statusTo"`
+	OccurredAt       time.Time       `json:"occurredAt"`
+	Summary          json.RawMessage `json:"summary"`
+}
+
+type AssetDetailView struct {
+	Asset   AssetView          `json:"asset"`
+	History []AssetHistoryView `json:"history"`
 }
 
 type InventoryEntryView struct {

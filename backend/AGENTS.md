@@ -9,6 +9,7 @@
 
 - 后端使用 Go、Gin、pgx 和 sqlc；数据库结构变更统一使用 Goose SQL 迁移。
 - 事务边界由领域用例控制；Handler 仅负责协议适配、参数校验和响应转换，不承载业务规则。
+- 事务内领域事件的订阅者必须复用发布者的同一个 `pgx.Tx` 并同步执行；任一订阅失败时整体回滚，订阅期间不得产生外部网络、文件、异步任务等不可回滚副作用。
 - 查询 SQL 写入 `db/queries/`，迁移写入 `db/migrations/`。修改后执行 `make generate`，不得手工编辑 `internal/database/sqlc/` 下的生成代码。
 - 开发期至少运行与变更相关的生成、测试和静态检查；涉及运行环境时额外验证 Docker Compose 服务及健康检查。形成可验收提交后按根规则运行 `make pre-push`。
 

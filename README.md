@@ -110,7 +110,7 @@ make generate
 https://zerp-preview.bytesucceed.com
 ```
 
-首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、随机初始化密码、迁移数据库并初始化管理员和 BOB 演示数据。该环境不复用 E2E 数据，也不会被 `make e2e` 清理。完整生命周期、Cloudflare Tunnel 配置和验收方法见固定预览运维说明。
+首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、随机初始化密码、迁移数据库、初始化管理员，并按 AUX、BOB、VOU/WFL、LED 顺序补齐全业务测试数据。该环境不复用 E2E 数据，也不会被 `make e2e` 清理。完整生命周期、Cloudflare Tunnel 配置和验收方法见固定预览运维说明。
 
 临时检查可用 `make preview-up` 构建当前工作区；需要固定预览的变更先通过本地门禁、推送草稿 PR 并等待五项必需检查全绿，再使用 `make preview-deploy PREVIEW_REF=<PR-head-full-sha>` 从隔离工作树更新固定预览。推送、PR 门禁、合并与自动上线规则见开发与发布规范。
 
@@ -129,7 +129,7 @@ https://zerp-preview.bytesucceed.com
 ## 安全
 
 - 本地环境文件、数据库、附件和测试凭证均被 Git 忽略。
-- 所有浏览器会话使用 HttpOnly Cookie 与 CSRF Token；生产 Cookie 必须为 `Secure + SameSite=Lax + Path=/`。
+- 所有浏览器会话使用 HttpOnly Cookie 与 CSRF Token；当前同站生产拓扑使用 `Secure + SameSite=Lax + Path=/`，真正跨站且必须携带 Cookie 时使用 `SameSite=None + Secure`。
 - 后端鉴权是最终安全边界，前端权限只控制菜单和交互。
 - 错误、日志和用户反馈不得包含凭证、Cookie、Token 或敏感业务数据。
 

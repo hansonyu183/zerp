@@ -30,6 +30,84 @@ function markdownFiles(directory) {
     .sort()
 }
 
+function duplicates(values) {
+  const seen = new Set()
+  const repeated = new Set()
+  for (const value of values) {
+    if (seen.has(value)) repeated.add(value)
+    seen.add(value)
+  }
+  return [...repeated].sort()
+}
+
+function compareSets(label, actualValues, expectedValues) {
+  const actual = new Set(actualValues)
+  const expected = new Set(expectedValues)
+  const missing = [...expected].filter((value) => !actual.has(value)).sort()
+  const extra = [...actual].filter((value) => !expected.has(value)).sort()
+  const repeated = duplicates(actualValues)
+
+  if (missing.length > 0) {
+    failures.push(`${label} 缺少：${missing.join('、')}`)
+  }
+  if (extra.length > 0) {
+    failures.push(`${label} 多出：${extra.join('、')}`)
+  }
+  if (repeated.length > 0) {
+    failures.push(`${label} 重复：${repeated.join('、')}`)
+  }
+}
+
+function extractSchemaEnum(source, schemaName) {
+  const schemaMarker = `  '${schemaName}':`
+  const schemaStart = source.indexOf(schemaMarker)
+  if (schemaStart < 0) {
+    failures.push(`contracts/openapi/schemas/vou.yaml 缺少 ${schemaName}`)
+    return []
+  }
+
+  const nextSchemaStart = source.indexOf(
+    "\n  '",
+    schemaStart + schemaMarker.length,
+  )
+  const section = source.slice(
+    schemaStart,
+    nextSchemaStart < 0 ? source.length : nextSchemaStart,
+  )
+  const enumMarker = "'enum':"
+  const enumStart = section.indexOf(enumMarker)
+  const listStart = section.indexOf('[', enumStart + enumMarker.length)
+  const listEnd = section.indexOf(']', listStart + 1)
+  if (enumStart < 0 || listStart < 0 || listEnd < 0) {
+    failures.push(
+      `contracts/openapi/schemas/vou.yaml 的 ${schemaName} 缺少可解析的 enum`,
+    )
+    return []
+  }
+
+  return [...section.slice(listStart + 1, listEnd).matchAll(/'([^']+)'/g)].map(
+    (match) => match[1],
+  )
+}
+
+function extractTextListAfter(source, marker, label) {
+  const markerStart = source.indexOf(marker)
+  const fenceMatch =
+    markerStart < 0
+      ? null
+      : source
+          .slice(markerStart + marker.length)
+          .match(/```text\n([\s\S]*?)\n```/)
+  if (!fenceMatch) {
+    failures.push(`${label} 缺少可解析的 text 清单`)
+    return []
+  }
+  return fenceMatch[1]
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
 const documentationFiles = trackedMarkdownFiles()
 
 for (const file of documentationFiles) {
@@ -111,6 +189,12 @@ for (const match of registrySource.matchAll(/registerPage\('([^']+)'/g)) {
   registeredDomains.add(match[1])
 }
 
+const vouRegistryEntities = [
+  ...registrySource.matchAll(
+    /registerPage\('vou',\s*\{[\s\S]*?entity:\s*'([^']+)'/g,
+  ),
+].map((match) => match[1])
+
 const openapiSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'openapi.yaml'),
   'utf8',
@@ -134,6 +218,66 @@ for (const domain of [...documentedDomains].sort()) {
     failures.push(`领域文档 ${domain} 缺少 OpenAPI 路径`)
   }
 }
+
+const vouSchemaSource = fs.readFileSync(
+  path.join(root, 'contracts', 'openapi', 'schemas', 'vou.yaml'),
+  'utf8',
+)
+const vouEntities = extractSchemaEnum(vouSchemaSource, 'VouEntity')
+const vouCreatableEntities = extractSchemaEnum(
+  vouSchemaSource,
+  'VouCreatableEntity',
+)
+const vouDocumentSource = fs.readFileSync(
+  path.join(root, 'docs', 'domains', 'vou.md'),
+  'utf8',
+)
+const vouDocumentEntities = extractTextListAfter(
+  vouDocumentSource,
+  '首批实体为：',
+  'docs/domains/vou.md 首批实体',
+)
+const vouDocumentCountMatch = vouDocumentSource.match(/当前共 (\d+) 类原子单据/)
+if (!vouDocumentCountMatch) {
+  failures.push('docs/domains/vou.md 缺少“当前共 N 类原子单据”数量声明')
+} else if (Number(vouDocumentCountMatch[1]) !== vouEntities.length) {
+  failures.push(
+    `docs/domains/vou.md 声明 ${vouDocumentCountMatch[1]} 类原子单据，OpenAPI 实际为 ${vouEntities.length} 类`,
+  )
+}
+const vouPageSection = vouDocumentSource.match(
+  /^### 9\.1 实体与页面\n([\s\S]*?)(?=^### |(?![\s\S]))/m,
+)
+const vouPageRows = vouPageSection
+  ? [
+      ...vouPageSection[1].matchAll(
+        /^\|\s*`([^`]+)`\s*\|\s*[^|]+\|\s*(公开|WFL 自动)\s*\|$/gm,
+      ),
+    ].map((match) => ({ entity: match[1], creation: match[2] }))
+  : []
+if (!vouPageSection) {
+  failures.push('docs/domains/vou.md 缺少 9.1 实体与页面章节')
+}
+
+compareSets('docs/domains/vou.md 首批实体', vouDocumentEntities, vouEntities)
+compareSets(
+  'docs/domains/vou.md 页面表',
+  vouPageRows.map((row) => row.entity),
+  vouEntities,
+)
+compareSets('frontend VOU 页面注册', vouRegistryEntities, vouEntities)
+compareSets(
+  'docs/domains/vou.md 公开创建入口',
+  vouPageRows.filter((row) => row.creation === '公开').map((row) => row.entity),
+  vouCreatableEntities,
+)
+compareSets(
+  'docs/domains/vou.md WFL 自动创建入口',
+  vouPageRows
+    .filter((row) => row.creation === 'WFL 自动')
+    .map((row) => row.entity),
+  vouEntities.filter((entity) => !vouCreatableEntities.includes(entity)),
+)
 
 if (failures.length > 0) {
   process.stderr.write(

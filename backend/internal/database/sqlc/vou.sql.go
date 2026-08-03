@@ -1206,22 +1206,24 @@ func (q *Queries) InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouO
 
 const insertVouPaymentDetail = `-- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
-    document_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
     fund_account_code, fund_account_name,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8,
-    $9, $10,
-    $11, $12,
-    $13, $14
+    $1, $2,
+    $3, $4,
+    $5, $6, $7,
+    $8, $9,
+    $10, $11,
+    $12, $13,
+    $14, $15
 )
 `
 
 type InsertVouPaymentDetailParams struct {
 	DocumentID            string  `db:"document_id" json:"document_id"`
+	Entity                string  `db:"entity" json:"entity"`
 	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
 	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
 	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
@@ -1240,6 +1242,7 @@ type InsertVouPaymentDetailParams struct {
 func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPaymentDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouPaymentDetail,
 		arg.DocumentID,
+		arg.Entity,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
 		arg.CounterpartyVersionID,
@@ -1598,22 +1601,24 @@ func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVo
 
 const insertVouReceiptDetail = `-- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
-    document_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
     fund_account_code, fund_account_name,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8,
-    $9, $10,
-    $11, $12,
-    $13, $14
+    $1, $2,
+    $3, $4,
+    $5, $6, $7,
+    $8, $9,
+    $10, $11,
+    $12, $13,
+    $14, $15
 )
 `
 
 type InsertVouReceiptDetailParams struct {
 	DocumentID            string  `db:"document_id" json:"document_id"`
+	Entity                string  `db:"entity" json:"entity"`
 	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
 	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
 	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
@@ -1632,6 +1637,7 @@ type InsertVouReceiptDetailParams struct {
 func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouReceiptDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouReceiptDetail,
 		arg.DocumentID,
+		arg.Entity,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
 		arg.CounterpartyVersionID,

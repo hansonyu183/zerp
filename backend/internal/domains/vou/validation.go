@@ -97,12 +97,38 @@ type validatedSaleExecution struct {
 }
 
 func validEntity(entity string) bool {
+	if entity == EntityReceipt || entity == EntityPayment {
+		return true
+	}
 	for _, candidate := range entities {
 		if candidate == entity {
 			return true
 		}
 	}
 	return false
+}
+
+func receiptEntity(entity string) bool {
+	return entity == EntityReceipt || entity == EntityCustomerReceipt ||
+		entity == EntitySupplierReceipt || entity == EntityOtherReceipt
+}
+
+func paymentEntity(entity string) bool {
+	return entity == EntityPayment || entity == EntityCustomerPayment ||
+		entity == EntitySupplierPayment || entity == EntityOtherPayment
+}
+
+func fixedCounterpartyType(entity string) string {
+	switch entity {
+	case EntityCustomerReceipt, EntityCustomerPayment:
+		return "customer"
+	case EntitySupplierReceipt, EntitySupplierPayment:
+		return "supplier"
+	case EntityOtherReceipt, EntityOtherPayment:
+		return "other-party"
+	default:
+		return ""
+	}
 }
 
 func isSalesChainEntity(entity string) bool {
@@ -201,11 +227,18 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false, false)
-	case EntityReceipt, EntityPayment:
+	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
+		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
 		}
-		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" {
+		if fixed := fixedCounterpartyType(entity); fixed != "" {
+			if result.CounterpartyType != "" && result.CounterpartyType != fixed {
+				return validatedDraft{}, domainError(ErrorValidation, "counterparty type does not match entity", nil, nil)
+			}
+			result.CounterpartyType = fixed
+		}
+		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {

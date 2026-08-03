@@ -34,10 +34,7 @@ async function expectMobileCards(
 }
 
 test.describe('LED 真实后端只读流程', () => {
-  test.skip(
-    !ledReadonlyEnabled,
-    '设置 E2E_LED_READONLY=1 后在隔离账簿运行。',
-  )
+  test.skip(!ledReadonlyEnabled, '设置 E2E_LED_READONLY=1 后在隔离账簿运行。')
 
   test.beforeEach(async ({ page }) => {
     await signIn(page)
@@ -60,36 +57,53 @@ test.describe('LED 真实后端只读流程', () => {
     }
   })
 
+  async function verifyLedger(
+    page: Page,
+    testInfo: TestInfo,
+    ledger: { entity: string; title: string },
+  ): Promise<void> {
+    const entryResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/led/${ledger.entity}/query`) &&
+        response.request().method() === 'POST',
+    )
+    await page.goto(`/led/${ledger.entity}`)
+    await expect(pageBreadcrumb(page)).toHaveText(`ZERP / ${ledger.title}`)
+    const entryPayload = (await (await entryResponse).json()) as {
+      code: number | string
+    }
+    expect(String(entryPayload.code)).toBe('0')
+    await expectMobileCards(page, '.ledger-workspace__table', testInfo)
+
+    const balanceResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/led/${ledger.entity}/balance`) &&
+        response.request().method() === 'POST',
+    )
+    await page.getByRole('button', { name: '余额', exact: true }).click()
+    const balancePayload = (await (await balanceResponse).json()) as {
+      code: number | string
+    }
+    expect(String(balancePayload.code)).toBe('0')
+  }
+
   for (const ledger of [
     { entity: 'inventory', title: '库存台账' },
     { entity: 'fund', title: '资金台账' },
-    { entity: 'party', title: '往来台账' },
     { entity: 'container', title: '空桶台账' },
   ]) {
     test(`${ledger.title}查询流水和余额`, async ({ page }, testInfo) => {
-      const entryResponse = page.waitForResponse(
-        (response) =>
-          response.url().endsWith(`/led/${ledger.entity}/query`) &&
-          response.request().method() === 'POST',
-      )
-      await page.goto(`/led/${ledger.entity}`)
-      await expect(pageBreadcrumb(page)).toHaveText(`ZERP / ${ledger.title}`)
-      const entryPayload = (await (await entryResponse).json()) as {
-        code: number | string
-      }
-      expect(String(entryPayload.code)).toBe('0')
-      await expectMobileCards(page, '.ledger-workspace__table', testInfo)
-
-      const balanceResponse = page.waitForResponse(
-        (response) =>
-          response.url().endsWith(`/led/${ledger.entity}/balance`) &&
-          response.request().method() === 'POST',
-      )
-      await page.getByRole('button', { name: '余额', exact: true }).click()
-      const balancePayload = (await (await balanceResponse).json()) as {
-        code: number | string
-      }
-      expect(String(balancePayload.code)).toBe('0')
+      await verifyLedger(page, testInfo, ledger)
     })
   }
+
+  test('三类往来台账分别查询流水和余额', async ({ page }, testInfo) => {
+    for (const ledger of [
+      { entity: 'customer', title: '往来台账-客户' },
+      { entity: 'supplier', title: '往来台账-供应商' },
+      { entity: 'other', title: '往来台账-其他' },
+    ]) {
+      await verifyLedger(page, testInfo, ledger)
+    }
+  })
 })

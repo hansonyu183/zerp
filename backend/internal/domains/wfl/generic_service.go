@@ -30,8 +30,12 @@ var workflowNodes = []CatalogNode{
 	{Entity: "purchase-return", Name: "采购退货"},
 	{Entity: "order-production", Name: "生产配货"},
 	{Entity: "self-production", Name: "生产自制品"},
-	{Entity: "receipt", Name: "往来收款"},
-	{Entity: "payment", Name: "往来付款"},
+	{Entity: "customer-receipt", Name: "往来收款-客户"},
+	{Entity: "supplier-receipt", Name: "往来收款-供应商"},
+	{Entity: "other-receipt", Name: "往来收款-其他"},
+	{Entity: "customer-payment", Name: "往来付款-客户"},
+	{Entity: "supplier-payment", Name: "往来付款-供应商"},
+	{Entity: "other-payment", Name: "往来付款-其他"},
 	{Entity: "expense-reimbursement", Name: "费用报销"},
 	{Entity: "expense-payment", Name: "费用付款"},
 }
@@ -40,9 +44,9 @@ var workflowConverters = []CatalogConverter{
 	{Key: "sale-order-to-outbound", SourceEntity: "sale-order", TargetEntity: "sale-outbound"},
 	{Key: "sale-outbound-to-delivery", SourceEntity: "sale-outbound", TargetEntity: "sale-delivery", RequiredDefaults: []string{"platformObjectId", "vehicleObjectId"}},
 	{Key: "sale-delivery-to-signoff", SourceEntity: "sale-delivery", TargetEntity: "sale-signoff"},
-	{Key: "sale-signoff-to-receipt", SourceEntity: "sale-signoff", TargetEntity: "receipt", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
+	{Key: "sale-signoff-to-receipt", SourceEntity: "sale-signoff", TargetEntity: "customer-receipt", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
 	{Key: "purchase-order-to-inbound", SourceEntity: "purchase-order", TargetEntity: "purchase-inbound"},
-	{Key: "purchase-inbound-to-payment", SourceEntity: "purchase-inbound", TargetEntity: "payment", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
+	{Key: "purchase-inbound-to-payment", SourceEntity: "purchase-inbound", TargetEntity: "supplier-payment", RequiredDefaults: []string{"fundAccountObjectId", "handlerObjectId"}},
 	{Key: "expense-reimbursement-to-payment", SourceEntity: "expense-reimbursement", TargetEntity: "expense-payment", RequiredDefaults: []string{"fundAccountObjectId"}},
 }
 

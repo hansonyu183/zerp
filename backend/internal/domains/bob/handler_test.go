@@ -114,7 +114,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "employee", "product", "service", "warehouse",
+		"customer", "supplier", "other-party", "employee", "product", "service", "warehouse",
 		"vehicle", "fund-account",
 	}
 	expectedActions := []string{

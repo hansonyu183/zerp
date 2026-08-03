@@ -435,6 +435,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 -- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
 WHERE generation_id = sqlc.arg(generation_id)
+  AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
@@ -445,6 +446,7 @@ WHERE generation_id = sqlc.arg(generation_id)
 -- name: ListLedPartyEntries :many
 SELECT * FROM led_party_entries
 WHERE generation_id = sqlc.arg(generation_id)
+  AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
@@ -514,7 +516,9 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = sqlc.arg(generation_id) AND effective_date <= sqlc.arg(as_of_date)
+    WHERE generation_id = sqlc.arg(generation_id)
+      AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
+      AND effective_date <= sqlc.arg(as_of_date)
       AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
     GROUP BY counterparty_entity, counterparty_object_id, currency
 ) balances;
@@ -526,7 +530,9 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id) AND effective_date <= sqlc.arg(as_of_date)
+WHERE generation_id = sqlc.arg(generation_id)
+  AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
+  AND effective_date <= sqlc.arg(as_of_date)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
 GROUP BY counterparty_entity, counterparty_object_id, currency
 ORDER BY counterparty_entity, max(counterparty_code), currency, counterparty_object_id

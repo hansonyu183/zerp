@@ -30,7 +30,7 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		supplierType = &value
 	}
 	customerType := input.CustomerType
-	if entity == EntityCustomer && customerType == nil {
+	if (entity == EntityCustomer || entity == EntityOtherParty) && customerType == nil {
 		value := CustomerTypeEndUser
 		customerType = &value
 	}
@@ -174,7 +174,7 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	if entity == EntitySupplier {
 		current.SupplierType = SupplierTypeGeneral
 	}
-	if entity == EntityCustomer {
+	if entity == EntityCustomer || entity == EntityOtherParty {
 		current.CustomerType = CustomerTypeEndUser
 	}
 	if entity == EntityProduct {
@@ -194,7 +194,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntitySupplier:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
@@ -381,7 +381,7 @@ func validateEntityFields(entity string, input DetailView) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
@@ -767,7 +767,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	}
 	var unexpected bool
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		unexpected = hasUnexpected("customerType", "salespersonEmployeeId")
 	case EntitySupplier:
 		unexpected = hasUnexpected("supplierType", "salespersonEmployeeId")

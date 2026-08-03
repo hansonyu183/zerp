@@ -17,8 +17,12 @@ purchase-return
 purchase-inquiry
 order-production
 self-production
-receipt
-payment
+customer-receipt
+supplier-receipt
+other-receipt
+customer-payment
+supplier-payment
+other-payment
 expense-reimbursement
 expense-payment
 other-income
@@ -26,7 +30,7 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 17 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+当前共 21 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -44,7 +48,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/REC/PAY/EXR/EXP/OIN-YYYYMMDD-###
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
-采购退货、生产配货、生产自制品、收款、付款、费用报销、费用付款和其他收入。流水按实体和业务日期分别从 `0001` 开始，
+采购退货、生产配货、生产自制品、收款、付款、费用报销、费用付款和其他收入。三类收款共享 REC 序列，三类付款共享 PAY 序列；其他流水按实体和业务日期分别从 `0001` 开始，
 达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
@@ -253,7 +257,7 @@ WFL 流程或 LED 流水。
 
 ### 3.6 往来收款与往来付款
 
-草稿包含一个客户或供应商、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；执行只确认单据已实际发生。
+往来收付款按客户、供应商和其他往来单位拆为六个独立实体：`customer-receipt`、`supplier-receipt`、`other-receipt`、`customer-payment`、`supplier-payment`、`other-payment`。各实体拥有独立路由与权限，往来方类型由实体固定，草稿不再提交 `counterpartyType`。草稿包含对应往来方、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；执行只确认单据已实际发生。
 
 ### 3.7 费用报销
 
@@ -309,7 +313,7 @@ WFL 流程或 LED 流水。
 | `purchase-order`        | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`              |
 | `purchase-inquiry`      | 必填 `supplier`、`priceLines`（产品、采购询价、可选备注）                                |
 | `purchase-inbound`      | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                            |
-| `receipt`、`payment`    | `counterpartyType`、`counterparty`、`fundAccount`、`handler`、`amount`                   |
+| 六类往来收付款实体      | 对应类型 `counterparty`、`fundAccount`、`handler`、`amount`                              |
 | `expense-reimbursement` | `employee`、`expenseLines`                                                               |
 | `expense-payment`       | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                       |
 | `other-income`          | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount` |
@@ -505,25 +509,29 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 
 ### 9.1 实体与页面
 
-| 实体                    | 页面       | 创建入口 |
-| ----------------------- | ---------- | -------- |
-| `sale-pricing`          | 销售定价   | 公开     |
-| `sale-order`            | 销售订单   | 公开     |
-| `sale-outbound`         | 销售出库   | WFL 自动 |
-| `sale-delivery`         | 销售送货   | WFL 自动 |
-| `sale-signoff`          | 销售签收   | WFL 自动 |
-| `sale-return`           | 销售退货   | 公开     |
-| `purchase-order`        | 采购订单   | 公开     |
-| `purchase-inbound`      | 采购入库   | 公开     |
-| `purchase-return`       | 采购退货   | 公开     |
-| `purchase-inquiry`      | 采购询价   | 公开     |
-| `order-production`      | 生产配货   | 公开     |
-| `self-production`       | 生产自制品 | 公开     |
-| `receipt`               | 往来收款   | 公开     |
-| `payment`               | 往来付款   | 公开     |
-| `expense-reimbursement` | 费用报销   | 公开     |
-| `expense-payment`       | 费用付款   | WFL 自动 |
-| `other-income`          | 其他收入   | 公开     |
+| 实体                    | 页面            | 创建入口 |
+| ----------------------- | --------------- | -------- |
+| `sale-pricing`          | 销售定价        | 公开     |
+| `sale-order`            | 销售订单        | 公开     |
+| `sale-outbound`         | 销售出库        | WFL 自动 |
+| `sale-delivery`         | 销售送货        | WFL 自动 |
+| `sale-signoff`          | 销售签收        | WFL 自动 |
+| `sale-return`           | 销售退货        | 公开     |
+| `purchase-order`        | 采购订单        | 公开     |
+| `purchase-inbound`      | 采购入库        | 公开     |
+| `purchase-return`       | 采购退货        | 公开     |
+| `purchase-inquiry`      | 采购询价        | 公开     |
+| `order-production`      | 生产配货        | 公开     |
+| `self-production`       | 生产自制品      | 公开     |
+| `customer-receipt`      | 往来收款-客户   | 公开     |
+| `supplier-receipt`      | 往来收款-供应商 | 公开     |
+| `other-receipt`         | 往来收款-其他   | 公开     |
+| `customer-payment`      | 往来付款-客户   | 公开     |
+| `supplier-payment`      | 往来付款-供应商 | 公开     |
+| `other-payment`         | 往来付款-其他   | 公开     |
+| `expense-reimbursement` | 费用报销        | 公开     |
+| `expense-payment`       | 费用付款        | WFL 自动 |
+| `other-income`          | 其他收入        | 公开     |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 

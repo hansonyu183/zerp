@@ -456,12 +456,13 @@ ORDER BY line_no;
 
 -- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
-    document_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
     fund_account_code, fund_account_name,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
-    sqlc.arg(document_id), sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
+    sqlc.arg(document_id), sqlc.arg(entity),
+    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name),
@@ -485,12 +486,13 @@ SELECT * FROM vou_receipt_details WHERE document_id = sqlc.arg(document_id);
 
 -- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
-    document_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
     fund_account_code, fund_account_name,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
-    sqlc.arg(document_id), sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
+    sqlc.arg(document_id), sqlc.arg(entity),
+    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name),

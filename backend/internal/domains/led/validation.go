@@ -101,7 +101,7 @@ func validateSave(input OpeningSaveInput) (time.Time, error) {
 	}
 	partyKeys := make(map[string]struct{}, len(input.Party))
 	for _, item := range input.Party {
-		if item.CounterpartyType != "customer" && item.CounterpartyType != "supplier" {
+		if item.CounterpartyType != "customer" && item.CounterpartyType != "supplier" && item.CounterpartyType != "other-party" {
 			return time.Time{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(item.Counterparty); err != nil {

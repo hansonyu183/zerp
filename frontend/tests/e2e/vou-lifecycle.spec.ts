@@ -116,7 +116,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
-  await page.goto('/vou/receipt')
+  await page.goto('/vou/customer-receipt')
   await page.getByRole('button', { name: '新增', exact: true }).click()
   const workspace = page.locator('.voucher-workspace')
   await expect(workspace.getByText('币种', { exact: true })).toHaveCount(0)
@@ -159,7 +159,7 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await workbenchRow.getByLabel(`完成 ${documentNo}`).click()
   await expect(workbenchRow).toHaveCount(0)
 
-  await page.goto('/vou/receipt')
+  await page.goto('/vou/customer-receipt')
   await page
     .getByRole('textbox', { name: '单号或往来方关键字' })
     .fill(documentNo!)

@@ -55,19 +55,26 @@ describe('LED shared ledger view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines the four exact query ledgers and their backend dimensions', () => {
+  it('defines the six exact query ledgers and their backend dimensions', () => {
     expect(Object.keys(ledgerEntityConfigs)).toEqual([
       'inventory',
       'fund',
-      'party',
+      'customer',
+      'supplier',
+      'other',
       'container',
     ])
     expect(
       ledgerEntityConfigs.inventory.referenceSources.map((item) => item.entity),
     ).toEqual(['warehouse', 'product'])
-    expect(ledgerEntityConfigs.party.referenceSources).toEqual([
+    expect(ledgerEntityConfigs.customer.referenceSources).toEqual([
       { entity: 'customer' },
+    ])
+    expect(ledgerEntityConfigs.supplier.referenceSources).toEqual([
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
+    ])
+    expect(ledgerEntityConfigs.other.referenceSources).toEqual([
+      { entity: 'other-party' },
     ])
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
@@ -115,7 +122,7 @@ describe('LED shared ledger view model', () => {
       ledgerEntityConfigs.fund.balanceColumns.map((column) => column.label),
     ).toEqual(['账户', '性质', '金额'])
     expect(
-      ledgerEntityConfigs.party.balanceColumns.map((column) => column.label),
+      ledgerEntityConfigs.customer.balanceColumns.map((column) => column.label),
     ).toEqual(['往来方', '性质', '金额'])
     expect(
       ledgerEntityConfigs.container.balanceColumns.map(

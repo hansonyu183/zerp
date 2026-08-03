@@ -254,20 +254,28 @@ const countLedPartyBalances = `-- name: CountLedPartyBalances :one
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = $1 AND effective_date <= $2
-      AND ($3::text = '' OR counterparty_object_id = $3)
+    WHERE generation_id = $1
+      AND ($2::text = '' OR counterparty_entity = $2)
+      AND effective_date <= $3
+      AND ($4::text = '' OR counterparty_object_id = $4)
     GROUP BY counterparty_entity, counterparty_object_id, currency
 ) balances
 `
 
 type CountLedPartyBalancesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	AsOfDate           pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
 }
 
 func (q *Queries) CountLedPartyBalances(ctx context.Context, arg CountLedPartyBalancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countLedPartyBalances, arg.GenerationID, arg.AsOfDate, arg.ObjectID)
+	row := q.db.QueryRow(ctx, countLedPartyBalances,
+		arg.GenerationID,
+		arg.CounterpartyEntity,
+		arg.AsOfDate,
+		arg.ObjectID,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -276,27 +284,30 @@ func (q *Queries) CountLedPartyBalances(ctx context.Context, arg CountLedPartyBa
 const countLedPartyEntries = `-- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
 WHERE generation_id = $1
-  AND effective_date >= $2 AND effective_date <= $3
-  AND ($4::text = '' OR counterparty_object_id = $4)
-  AND ($5::text = '' OR source_entity = $5)
-  AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (COALESCE(cardinality($7::text[]), 0) = 0
-       OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($7::text[]))
+  AND ($2::text = '' OR counterparty_entity = $2)
+  AND effective_date >= $3 AND effective_date <= $4
+  AND ($5::text = '' OR counterparty_object_id = $5)
+  AND ($6::text = '' OR source_entity = $6)
+  AND ($7::text = '' OR source_document_no ILIKE '%' || $7 || '%')
+  AND (COALESCE(cardinality($8::text[]), 0) = 0
+       OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($8::text[]))
 `
 
 type CountLedPartyEntriesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	DateFrom     pgtype.Date `db:"date_from" json:"date_from"`
-	DateTo       pgtype.Date `db:"date_to" json:"date_to"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
-	SourceEntity string      `db:"source_entity" json:"source_entity"`
-	DocumentNo   string      `db:"document_no" json:"document_no"`
-	Directions   []string    `db:"directions" json:"directions"`
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	DateFrom           pgtype.Date `db:"date_from" json:"date_from"`
+	DateTo             pgtype.Date `db:"date_to" json:"date_to"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	SourceEntity       string      `db:"source_entity" json:"source_entity"`
+	DocumentNo         string      `db:"document_no" json:"document_no"`
+	Directions         []string    `db:"directions" json:"directions"`
 }
 
 func (q *Queries) CountLedPartyEntries(ctx context.Context, arg CountLedPartyEntriesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countLedPartyEntries,
 		arg.GenerationID,
+		arg.CounterpartyEntity,
 		arg.DateFrom,
 		arg.DateTo,
 		arg.ObjectID,
@@ -1928,19 +1939,22 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = $1 AND effective_date <= $2
-  AND ($3::text = '' OR counterparty_object_id = $3)
+WHERE generation_id = $1
+  AND ($2::text = '' OR counterparty_entity = $2)
+  AND effective_date <= $3
+  AND ($4::text = '' OR counterparty_object_id = $4)
 GROUP BY counterparty_entity, counterparty_object_id, currency
 ORDER BY counterparty_entity, max(counterparty_code), currency, counterparty_object_id
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type ListLedPartyBalancesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
-	PageOffset   int32       `db:"page_offset" json:"page_offset"`
-	PageSize     int32       `db:"page_size" json:"page_size"`
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	AsOfDate           pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	PageOffset         int32       `db:"page_offset" json:"page_offset"`
+	PageSize           int32       `db:"page_size" json:"page_size"`
 }
 
 type ListLedPartyBalancesRow struct {
@@ -1956,6 +1970,7 @@ type ListLedPartyBalancesRow struct {
 func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBalancesParams) ([]ListLedPartyBalancesRow, error) {
 	rows, err := q.db.Query(ctx, listLedPartyBalances,
 		arg.GenerationID,
+		arg.CounterpartyEntity,
 		arg.AsOfDate,
 		arg.ObjectID,
 		arg.PageOffset,
@@ -1990,40 +2005,43 @@ func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBala
 const listLedPartyEntries = `-- name: ListLedPartyEntries :many
 SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
 WHERE generation_id = $1
-  AND effective_date >= $2 AND effective_date <= $3
-  AND ($4::text = '' OR counterparty_object_id = $4)
-  AND ($5::text = '' OR source_entity = $5)
-  AND ($6::text = '' OR source_document_no ILIKE '%' || $6 || '%')
-  AND (COALESCE(cardinality($7::text[]), 0) = 0
-       OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($7::text[]))
+  AND ($2::text = '' OR counterparty_entity = $2)
+  AND effective_date >= $3 AND effective_date <= $4
+  AND ($5::text = '' OR counterparty_object_id = $5)
+  AND ($6::text = '' OR source_entity = $6)
+  AND ($7::text = '' OR source_document_no ILIKE '%' || $7 || '%')
+  AND (COALESCE(cardinality($8::text[]), 0) = 0
+       OR CASE WHEN amount_delta_cents > 0 THEN 'DEBIT' ELSE 'CREDIT' END = ANY($8::text[]))
 ORDER BY
-  CASE WHEN $8::text = 'effectiveDate' AND $9::text = 'asc' THEN effective_date END ASC,
-  CASE WHEN $8::text = 'effectiveDate' AND $9::text = 'desc' THEN effective_date END DESC,
-  CASE WHEN $8::text = 'occurredAt' AND $9::text = 'asc' THEN occurred_at END ASC,
-  CASE WHEN $8::text = 'occurredAt' AND $9::text = 'desc' THEN occurred_at END DESC,
-  CASE WHEN $8::text = 'documentNo' AND $9::text = 'asc' THEN source_document_no END ASC,
-  CASE WHEN $8::text = 'documentNo' AND $9::text = 'desc' THEN source_document_no END DESC,
+  CASE WHEN $9::text = 'effectiveDate' AND $10::text = 'asc' THEN effective_date END ASC,
+  CASE WHEN $9::text = 'effectiveDate' AND $10::text = 'desc' THEN effective_date END DESC,
+  CASE WHEN $9::text = 'occurredAt' AND $10::text = 'asc' THEN occurred_at END ASC,
+  CASE WHEN $9::text = 'occurredAt' AND $10::text = 'desc' THEN occurred_at END DESC,
+  CASE WHEN $9::text = 'documentNo' AND $10::text = 'asc' THEN source_document_no END ASC,
+  CASE WHEN $9::text = 'documentNo' AND $10::text = 'desc' THEN source_document_no END DESC,
   effective_date DESC, occurred_at DESC, id DESC
-LIMIT $11 OFFSET $10
+LIMIT $12 OFFSET $11
 `
 
 type ListLedPartyEntriesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	DateFrom     pgtype.Date `db:"date_from" json:"date_from"`
-	DateTo       pgtype.Date `db:"date_to" json:"date_to"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
-	SourceEntity string      `db:"source_entity" json:"source_entity"`
-	DocumentNo   string      `db:"document_no" json:"document_no"`
-	Directions   []string    `db:"directions" json:"directions"`
-	SortField    string      `db:"sort_field" json:"sort_field"`
-	SortOrder    string      `db:"sort_order" json:"sort_order"`
-	PageOffset   int32       `db:"page_offset" json:"page_offset"`
-	PageSize     int32       `db:"page_size" json:"page_size"`
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	DateFrom           pgtype.Date `db:"date_from" json:"date_from"`
+	DateTo             pgtype.Date `db:"date_to" json:"date_to"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	SourceEntity       string      `db:"source_entity" json:"source_entity"`
+	DocumentNo         string      `db:"document_no" json:"document_no"`
+	Directions         []string    `db:"directions" json:"directions"`
+	SortField          string      `db:"sort_field" json:"sort_field"`
+	SortOrder          string      `db:"sort_order" json:"sort_order"`
+	PageOffset         int32       `db:"page_offset" json:"page_offset"`
+	PageSize           int32       `db:"page_size" json:"page_size"`
 }
 
 func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntriesParams) ([]LedPartyEntry, error) {
 	rows, err := q.db.Query(ctx, listLedPartyEntries,
 		arg.GenerationID,
+		arg.CounterpartyEntity,
 		arg.DateFrom,
 		arg.DateTo,
 		arg.ObjectID,

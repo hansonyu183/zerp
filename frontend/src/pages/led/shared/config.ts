@@ -18,20 +18,36 @@ const inventorySourceEntities: readonly LedgerOption[] = [
 
 const fundSourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
-  { title: '往来收款', value: 'receipt' },
-  { title: '往来付款', value: 'payment' },
+  { title: '往来收款-客户', value: 'customer-receipt' },
+  { title: '往来收款-供应商', value: 'supplier-receipt' },
+  { title: '往来收款-其他', value: 'other-receipt' },
+  { title: '往来付款-客户', value: 'customer-payment' },
+  { title: '往来付款-供应商', value: 'supplier-payment' },
+  { title: '往来付款-其他', value: 'other-payment' },
   { title: '费用报销', value: 'expense-reimbursement' },
   { title: '其他收入', value: 'other-income' },
 ]
 
-const partySourceEntities: readonly LedgerOption[] = [
+const customerPartySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
   { title: '销售签收', value: 'sale-signoff' },
   { title: '销售退货', value: 'sale-return' },
+  { title: '往来收款', value: 'customer-receipt' },
+  { title: '往来付款', value: 'customer-payment' },
+]
+
+const supplierPartySourceEntities: readonly LedgerOption[] = [
+  { title: '期初', value: 'opening' },
   { title: '采购入库', value: 'purchase-inbound' },
   { title: '采购退货', value: 'purchase-return' },
-  { title: '往来收款', value: 'receipt' },
-  { title: '往来付款', value: 'payment' },
+  { title: '往来收款', value: 'supplier-receipt' },
+  { title: '往来付款', value: 'supplier-payment' },
+]
+
+const otherPartySourceEntities: readonly LedgerOption[] = [
+  { title: '期初', value: 'opening' },
+  { title: '往来收款', value: 'other-receipt' },
+  { title: '往来付款', value: 'other-payment' },
 ]
 
 const containerSourceEntities: readonly LedgerOption[] = [
@@ -66,9 +82,7 @@ const containerTypeText: Record<string, string> = {
 
 function nested(row: LedgerRecord, key: string): LedgerReference | null {
   const value = row[key]
-  return value && typeof value === 'object'
-    ? value as LedgerReference
-    : null
+  return value && typeof value === 'object' ? (value as LedgerReference) : null
 }
 
 function reference(row: LedgerRecord, key: string): string {
@@ -110,9 +124,9 @@ const commonEntryColumns: readonly LedgerColumn[] = [
   col('effectiveDate', '日期', (row) => text(row, 'effectiveDate')),
   col('occurredAt', '入账', (row) => time(row, 'occurredAt')),
   col('entryType', '类型', (row) =>
-    translated(row, 'entryType', entryTypeText)),
-  col('sourceDocumentNo', '单号', (row) =>
-    text(row, 'sourceDocumentNo')),
+    translated(row, 'entryType', entryTypeText),
+  ),
+  col('sourceDocumentNo', '单号', (row) => text(row, 'sourceDocumentNo')),
 ]
 
 const endingEntryColumns: readonly LedgerColumn[] = [
@@ -184,26 +198,25 @@ export const ledgerEntityConfigs: Readonly<
       ...commonEntryColumns,
       col('fundAccount', '账户', (row) => reference(row, 'fundAccount')),
       col('direction', '方向', (row) =>
-        translated(row, 'direction', directionText)),
+        translated(row, 'direction', directionText),
+      ),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
       ...endingEntryColumns,
     ],
     balanceColumns: [
       col('fundAccount', '账户', (row) => reference(row, 'fundAccount')),
       col('balanceType', '性质', (row) =>
-        translated(row, 'balanceType', balanceText)),
+        translated(row, 'balanceType', balanceText),
+      ),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
     ],
   },
-  party: {
-    entity: 'party',
-    title: '往来台账',
-    objectLabel: '客户或供应商',
-    referenceSources: [
-      { entity: 'customer' },
-      { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
-    ],
-    sourceEntities: partySourceEntities,
+  customer: {
+    entity: 'customer',
+    title: '往来台账-客户',
+    objectLabel: '客户',
+    referenceSources: [{ entity: 'customer' }],
+    sourceEntities: customerPartySourceEntities,
     directions: [
       { title: '借记', value: 'DEBIT' },
       { title: '贷记', value: 'CREDIT' },
@@ -212,14 +225,72 @@ export const ledgerEntityConfigs: Readonly<
       ...commonEntryColumns,
       col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
       col('direction', '方向', (row) =>
-        translated(row, 'direction', directionText)),
+        translated(row, 'direction', directionText),
+      ),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
       ...endingEntryColumns,
     ],
     balanceColumns: [
       col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
       col('balanceType', '性质', (row) =>
-        translated(row, 'balanceType', balanceText)),
+        translated(row, 'balanceType', balanceText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+    ],
+  },
+  supplier: {
+    entity: 'supplier',
+    title: '往来台账-供应商',
+    objectLabel: '供应商',
+    referenceSources: [
+      { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
+    ],
+    sourceEntities: supplierPartySourceEntities,
+    directions: [
+      { title: '借记', value: 'DEBIT' },
+      { title: '贷记', value: 'CREDIT' },
+    ],
+    entryColumns: [
+      ...commonEntryColumns,
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('direction', '方向', (row) =>
+        translated(row, 'direction', directionText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+      ...endingEntryColumns,
+    ],
+    balanceColumns: [
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('balanceType', '性质', (row) =>
+        translated(row, 'balanceType', balanceText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+    ],
+  },
+  other: {
+    entity: 'other',
+    title: '往来台账-其他',
+    objectLabel: '其他往来单位',
+    referenceSources: [{ entity: 'other-party' }],
+    sourceEntities: otherPartySourceEntities,
+    directions: [
+      { title: '借记', value: 'DEBIT' },
+      { title: '贷记', value: 'CREDIT' },
+    ],
+    entryColumns: [
+      ...commonEntryColumns,
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('direction', '方向', (row) =>
+        translated(row, 'direction', directionText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+      ...endingEntryColumns,
+    ],
+    balanceColumns: [
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('balanceType', '性质', (row) =>
+        translated(row, 'balanceType', balanceText),
+      ),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
     ],
   },
@@ -235,7 +306,8 @@ export const ledgerEntityConfigs: Readonly<
       col('rootDocumentNo', '根单', (row) => text(row, 'rootDocumentNo')),
       col('customer', '客户', (row) => reference(row, 'customer')),
       col('containerType', '桶型', (row) =>
-        translated(row, 'containerType', containerTypeText)),
+        translated(row, 'containerType', containerTypeText),
+      ),
       col('quantity', '增量', (row) => text(row, 'quantity'), {
         align: 'end',
       }),
@@ -244,7 +316,8 @@ export const ledgerEntityConfigs: Readonly<
     balanceColumns: [
       col('customer', '客户', (row) => reference(row, 'customer')),
       col('containerType', '桶型', (row) =>
-        translated(row, 'containerType', containerTypeText)),
+        translated(row, 'containerType', containerTypeText),
+      ),
       col('quantity', '欠桶', (row) => text(row, 'quantity'), {
         align: 'end',
       }),

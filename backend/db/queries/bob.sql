@@ -22,10 +22,10 @@ INSERT INTO bob_versions (
 
 -- name: InsertBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
-    version_id, name, customer_type, short_name, category_id, tax_number,
+    version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id, salesperson_employee_id
 ) VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(customer_type),
+    sqlc.arg(version_id), sqlc.arg(entity), sqlc.arg(name), sqlc.arg(customer_type),
     sqlc.narg(short_name), sqlc.narg(category_id), sqlc.narg(tax_number),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(email),
     sqlc.narg(address), sqlc.narg(remark), sqlc.narg(settlement_method_id),

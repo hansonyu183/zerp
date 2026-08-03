@@ -22,7 +22,10 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		"/led/closing/unclose", "/led/closing/history",
 		"/led/inventory/query", "/led/inventory/balance",
 		"/led/fund/query", "/led/fund/balance",
-		"/led/party/query", "/led/party/balance",
+		"/led/customer/query", "/led/customer/balance",
+		"/led/supplier/query", "/led/supplier/balance",
+		"/led/other/query", "/led/other/balance",
+		"/led/container/query", "/led/container/balance",
 	}
 	for _, path := range expected {
 		if !got["POST "+path] {

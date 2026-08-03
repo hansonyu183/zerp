@@ -422,7 +422,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   />
 
                   <v-select
-                    v-if="vm.config.partyMode === 'counterparty'"
+                    v-if="
+                      vm.config.partyMode === 'counterparty' &&
+                      !vm.config.fixedCounterpartyType
+                    "
                     :disabled="!vm.editing"
                     item-title="title"
                     item-value="value"
@@ -442,7 +445,9 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :label="
                       vm.form.counterpartyType === 'supplier'
                         ? '供应商'
-                        : '客户'
+                        : vm.form.counterpartyType === 'other-party'
+                          ? '其他往来单位'
+                          : '客户'
                     "
                     :model-value="vm.form.counterparty"
                     :required="vm.config.entity !== 'other-income'"

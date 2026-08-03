@@ -20,6 +20,12 @@ const (
 	EntitySelfProduction       = "self-production"
 	EntityReceipt              = "receipt"
 	EntityPayment              = "payment"
+	EntityCustomerReceipt      = "customer-receipt"
+	EntitySupplierReceipt      = "supplier-receipt"
+	EntityOtherReceipt         = "other-receipt"
+	EntityCustomerPayment      = "customer-payment"
+	EntitySupplierPayment      = "supplier-payment"
+	EntityOtherPayment         = "other-payment"
 	EntityExpenseReimbursement = "expense-reimbursement"
 	EntityExpensePayment       = "expense-payment"
 	EntityOtherIncome          = "other-income"
@@ -46,8 +52,12 @@ var entities = [...]string{
 	EntityPurchaseInquiry,
 	EntityOrderProduction,
 	EntitySelfProduction,
-	EntityReceipt,
-	EntityPayment,
+	EntityCustomerReceipt,
+	EntitySupplierReceipt,
+	EntityOtherReceipt,
+	EntityCustomerPayment,
+	EntitySupplierPayment,
+	EntityOtherPayment,
 	EntityExpenseReimbursement,
 	EntityExpensePayment,
 	EntityOtherIncome,
@@ -57,7 +67,9 @@ func publicCreateEntity(entity string) bool {
 	switch entity {
 	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
 		EntitySaleReturn, EntityPurchaseReturn, EntityOrderProduction, EntitySelfProduction,
-		EntityReceipt, EntityPayment, EntityExpenseReimbursement, EntityOtherIncome:
+		EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
+		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
+		EntityExpenseReimbursement, EntityOtherIncome:
 		return true
 	default:
 		return false

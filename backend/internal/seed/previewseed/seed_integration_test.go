@@ -97,14 +97,14 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("find finalized receipt: %v", err)
 	}
 	receipt, err := seeder.vouchers.Get(
-		t.Context(), voudomain.EntityReceipt, voudomain.GetInput{DocumentID: receiptID},
+		t.Context(), voudomain.EntityCustomerReceipt, voudomain.GetInput{DocumentID: receiptID},
 	)
 	if err != nil {
 		t.Fatalf("get finalized receipt: %v", err)
 	}
 	if _, err = seeder.vouchers.Unfinalize(
 		t.Context(),
-		voudomain.EntityReceipt,
+		voudomain.EntityCustomerReceipt,
 		voudomain.ReverseInput{
 			DocumentID: receipt.DocumentID, Revision: receipt.Revision, Reason: "测试人员接管",
 		},
@@ -117,7 +117,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("repeat seed after tester takeover: %v", err)
 	}
 	receipt, err = seeder.vouchers.Get(
-		t.Context(), voudomain.EntityReceipt, voudomain.GetInput{DocumentID: receiptID},
+		t.Context(), voudomain.EntityCustomerReceipt, voudomain.GetInput{DocumentID: receiptID},
 	)
 	if err != nil {
 		t.Fatalf("get tester-owned receipt: %v", err)

@@ -324,8 +324,12 @@ describe('permission menu registry', () => {
       'sale-return',
       'purchase-order',
       'purchase-inbound',
-      'receipt',
-      'payment',
+      'customer-receipt',
+      'supplier-receipt',
+      'other-receipt',
+      'customer-payment',
+      'supplier-payment',
+      'other-payment',
       'expense-reimbursement',
       'expense-payment',
       'other-income',
@@ -346,8 +350,12 @@ describe('permission menu registry', () => {
       '销售退货',
       '采购订单',
       '采购入库',
-      '往来收款',
-      '往来付款',
+      '往来收款-客户',
+      '往来收款-供应商',
+      '往来收款-其他',
+      '往来付款-客户',
+      '往来付款-供应商',
+      '往来付款-其他',
       '费用报销',
       '费用付款',
       '其他收入',
@@ -432,8 +440,16 @@ describe('permission menu registry', () => {
     ).toEqual([])
   })
 
-  it('注册 LED 五类账簿页面并保持业务顺序', () => {
-    const entities = ['closing', 'inventory', 'fund', 'party', 'container']
+  it('注册 LED 七类账簿页面并保持业务顺序', () => {
+    const entities = [
+      'closing',
+      'inventory',
+      'fund',
+      'customer',
+      'supplier',
+      'other',
+      'container',
+    ]
     const router = createTestRouter()
     const menus = buildMenus([
       '/led/closing/get',

@@ -1215,19 +1215,20 @@ func (q *Queries) InsertBobCategoryDetail(ctx context.Context, arg InsertBobCate
 
 const insertBobCustomerDetail = `-- name: InsertBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
-    version_id, name, customer_type, short_name, category_id, tax_number,
+    version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id, salesperson_employee_id
 ) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8, $9,
-    $10, $11, $12,
-    $13
+    $1, $2, $3, $4,
+    $5, $6, $7,
+    $8, $9, $10,
+    $11, $12, $13,
+    $14
 )
 `
 
 type InsertBobCustomerDetailParams struct {
 	VersionID             string  `db:"version_id" json:"version_id"`
+	Entity                string  `db:"entity" json:"entity"`
 	Name                  string  `db:"name" json:"name"`
 	CustomerType          string  `db:"customer_type" json:"customer_type"`
 	ShortName             *string `db:"short_name" json:"short_name"`
@@ -1245,6 +1246,7 @@ type InsertBobCustomerDetailParams struct {
 func (q *Queries) InsertBobCustomerDetail(ctx context.Context, arg InsertBobCustomerDetailParams) error {
 	_, err := q.db.Exec(ctx, insertBobCustomerDetail,
 		arg.VersionID,
+		arg.Entity,
 		arg.Name,
 		arg.CustomerType,
 		arg.ShortName,

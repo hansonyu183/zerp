@@ -203,7 +203,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 
 func objectPrefix(entity string) string {
 	return map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherParty: "OTP", EntityEmployee: "EMP",
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
@@ -800,7 +800,7 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 			return EffectiveReference{}, s.internal("read effective product formula", err)
 		}
 	}
-	if entity == EntityCustomer {
+	if entity == EntityCustomer || entity == EntityOtherParty {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return EffectiveReference{}, err
 		}
@@ -937,7 +937,7 @@ func (s *Service) validateDetailReferences(
 			return err
 		}
 	}
-	if entity == EntityCustomer {
+	if entity == EntityCustomer || entity == EntityOtherParty {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return err
 		}

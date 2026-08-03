@@ -2,7 +2,6 @@ import type {
   VoucherEntity,
   VoucherEntityConfig,
   VoucherLifecycleLabels,
-  VoucherStatus,
 } from '@/components/voucher'
 
 const defaultLifecycleLabels: VoucherLifecycleLabels = {
@@ -20,16 +19,6 @@ export function lifecycleLabels(
   config: VoucherEntityConfig,
 ): VoucherLifecycleLabels {
   return { ...defaultLifecycleLabels, ...config.lifecycleLabels }
-}
-
-export const voucherStatusText: Record<VoucherStatus, string> = {
-  DRAFT: '草稿',
-  CHECKED: '已核对',
-  APPROVED: '已批准',
-  FINALIZED: '已完成',
-  ORDERED: '已下单',
-  CONFIRMED: '已确认',
-  EXECUTED: '已执行',
 }
 
 export const voucherEntityConfigs: Readonly<

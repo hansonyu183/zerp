@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
-import LedgerReferenceAutocomplete from './LedgerReferenceAutocomplete.vue'
+import LedgerReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'

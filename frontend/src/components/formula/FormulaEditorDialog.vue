@@ -1,27 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
+import { useProductReferenceSearch } from '@/composables/use-product-reference-search'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import type { FormulaMaterialReference, ProductFormulaDraft } from './types'
 
 defineOptions({ name: 'FormulaEditorDialog' })
-
-interface ProductListItem {
-  objectId: string
-  code: string
-  currentVersion: {
-    versionId: string
-    summary: {
-      name: string
-      unit?: string
-      productKind?: string
-    }
-  }
-}
 
 const props = withDefaults(
   defineProps<{
@@ -47,10 +33,17 @@ const emit = defineEmits<{
 }>()
 
 const draft = ref<ProductFormulaDraft>(emptyFormula())
-const options = ref<FormulaMaterialReference[]>([])
-const loading = ref(false)
-const errorMessage = ref<string | null>(null)
 const validationMessage = ref<string | null>(null)
+const {
+  options,
+  loading,
+  errorMessage,
+  search: searchMaterials,
+} = useProductReferenceSearch('RAW_MATERIAL', () =>
+  draft.value.components
+    .map((component) => component.material)
+    .filter((material): material is FormulaMaterialReference => Boolean(material)),
+)
 
 const sourceLabel = computed(
   () =>
@@ -83,56 +76,6 @@ function emptyFormula(): ProductFormulaDraft {
 
 function materialTitle(material: FormulaMaterialReference): string {
   return formatReferenceLabel(material)
-}
-
-async function searchMaterials(keyword: string): Promise<void> {
-  loading.value = true
-  errorMessage.value = null
-  try {
-    const { data } = await apiClient.post<
-      PageResult<ProductListItem>,
-      {
-        page: number
-        pageSize: number
-        filters: Record<string, unknown>
-        sort: Array<{ field: string; order: 'asc' | 'desc' }>
-      }
-    >('bob/product/query', {
-      page: 1,
-      pageSize: 100,
-      filters: {
-        productKind: 'RAW_MATERIAL',
-        status: ['EFFECTIVE'],
-        ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-      },
-      sort: [{ field: 'name', order: 'asc' }],
-    })
-    const selected = draft.value.components
-      .map((component) => component.material)
-      .filter((material): material is FormulaMaterialReference =>
-        Boolean(material),
-      )
-    const fetched = (data.items ?? []).map((item) => ({
-      objectId: item.objectId,
-      versionId: item.currentVersion.versionId,
-      entity: 'product',
-      code: item.code,
-      name: item.currentVersion.summary.name,
-      unit: item.currentVersion.summary.unit ?? '',
-      productKind: item.currentVersion.summary.productKind,
-    }))
-    options.value = [
-      ...selected,
-      ...fetched.filter(
-        (candidate) =>
-          !selected.some((item) => item.objectId === candidate.objectId),
-      ),
-    ]
-  } catch (error) {
-    errorMessage.value = getErrorMessage(error)
-  } finally {
-    loading.value = false
-  }
 }
 
 function addComponent(): void {

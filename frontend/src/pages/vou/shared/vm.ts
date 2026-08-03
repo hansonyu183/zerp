@@ -33,6 +33,8 @@ import { canRunListLifecycleAction } from './lifecycle'
 import { useVoucherProduction } from './production'
 import { useVoucherPricing } from './pricing'
 import { createVoucherReferenceChangeHandler } from './reference-change'
+import { createReturnSourceInitializer } from './return-source'
+import { useVoucherActionAvailability } from './action-availability'
 
 export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const session = useSessionStore()
@@ -115,34 +117,22 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   )
   const canQuery = computed(() => session.can(permission('query')))
   const canCreate = computed(() => session.can(permission('create')))
-  const actionAvailability = computed<VoucherActionAvailability>(() => {
-    const status = documentView.value?.status
-    return {
-      get: session.can(permission('get')),
-      save: status === 'DRAFT' && session.can(permission('save')),
-      check: status === 'DRAFT' && session.can(permission('check')),
-      uncheck: status === 'CHECKED' && session.can(permission('uncheck')),
-      approve: status === 'CHECKED' && session.can(permission('approve')),
-      unapprove: status === 'APPROVED' && session.can(permission('unapprove')),
-      finalize: status === 'APPROVED' && session.can(permission('finalize')),
-      unfinalize:
-        status === 'FINALIZED' && session.can(permission('unfinalize')),
-      delete: status === 'DRAFT' && session.can(permission('delete')),
-      shortCloseRequest: false,
-      shortCloseCancel: false,
-      shortCloseConfirm: false,
-      shortCloseUnconfirm: false,
-      audit:
-        Boolean(documentView.value) && session.can(permission('audit-history')),
-      attachmentInitiate:
-        status === 'DRAFT' && session.can(permission('attachment-initiate')),
-      attachmentDownload:
-        Boolean(documentView.value) &&
-        session.can(permission('attachment-download')),
-      attachmentRemove:
-        status === 'DRAFT' && session.can(permission('attachment-remove')),
-    }
+  const initializeReturnFromSources = createReturnSourceInitializer({
+    entity: config.entity,
+    canCreate: () => canCreate.value,
+    openCreate,
+    applyDraft: (draft) => {
+      Object.assign(form.value, draft)
+      initialForm.value = snapshot(form.value)
+    },
+    setLoading: (value) => (workspaceLoading.value = value),
+    setError: (message) => (workspaceError.value = message),
   })
+  const actionAvailability = useVoucherActionAvailability(
+    config,
+    documentView,
+    session.can,
+  )
   const {
     attachmentLoading,
     attachmentError,
@@ -638,6 +628,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     changePage,
     resetFilters,
     openCreate,
+    initializeReturnFromSources,
     openDocument,
     loadDocument,
     reloadDocument,

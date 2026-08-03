@@ -1,14 +1,21 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends ReferenceOption">
 import { computed } from 'vue'
-import type { VoucherReference } from './types'
 import { formatReferenceLabel } from '@/utils/reference-label'
 
-defineOptions({ name: 'VoucherReferenceAutocomplete' })
+export interface ReferenceOption {
+  objectId: string
+  versionId: string
+  entity?: string
+  code: string
+  name: string
+}
+
+defineOptions({ name: 'ReferenceAutocomplete' })
 
 const props = withDefaults(
   defineProps<{
-    modelValue: VoucherReference | null
-    options: readonly VoucherReference[]
+    modelValue: T | null
+    options: readonly T[]
     label: string
     loading?: boolean
     disabled?: boolean
@@ -28,7 +35,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  'update:modelValue': [value: VoucherReference | null]
+  'update:modelValue': [value: T | null]
   search: [keyword: string]
 }>()
 
@@ -41,19 +48,15 @@ const items = computed(() => {
   )
   return selected ? props.options : [props.modelValue, ...props.options]
 })
-
-function title(item: VoucherReference): string {
-  return formatReferenceLabel(item)
-}
 </script>
 
 <template>
   <v-autocomplete
     :clearable="clearable && !required"
     :density="table ? 'compact' : 'comfortable'"
-    :disabled="disabled || Boolean(errorMessage)"
+    :disabled="disabled"
     :error-messages="errorMessage ? [errorMessage] : []"
-    :item-title="title"
+    :item-title="formatReferenceLabel"
     :items="items"
     :label="label"
     :loading="loading"
@@ -72,7 +75,7 @@ function title(item: VoucherReference): string {
       <v-list-item
         v-bind="itemProps"
         :subtitle="item.entity"
-        :title="title(item)"
+        :title="formatReferenceLabel(item)"
       />
     </template>
   </v-autocomplete>

@@ -262,6 +262,51 @@ describe('shared VOU entity view model', () => {
     expect(vm.editing.value).toBe(true)
   })
 
+  it('initializes a sales return draft from finalized signoff sources', async () => {
+    const config = voucherEntityConfigs['sale-return']
+    useSessionStore().permissions = ['/vou/sale-return/create']
+    const vm = useVoucherEntityViewModel(config)
+    mockedPost.mockImplementation(async (path) => {
+      if (path !== 'vou/sale-signoff/get') {
+        return { data: { items: [], total: 0, page: 1, pageSize: 50 } }
+      }
+      return {
+        data: {
+          data: {
+            warehouse: reference('warehouse'),
+            signoffLines: [
+              {
+                lineId: 'SIGNOFF-LINE-1',
+                product: { ...reference('product'), unit: '件' },
+                signedQuantity: '3',
+                returnableQuantity: '2',
+              },
+            ],
+          },
+        },
+      }
+    })
+
+    await vm.initializeReturnFromSources(['SIGNOFF-1'])
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/sale-signoff/get', {
+      documentId: 'SIGNOFF-1',
+    })
+    expect(vm.workspaceOpen.value).toBe(true)
+    expect(vm.form.value).toMatchObject({
+      returnKind: 'AFTER_SALE',
+      warehouse: { objectId: 'warehouse-object' },
+      salesChainLines: [
+        {
+          sourceLineId: 'SIGNOFF-LINE-1',
+          productCode: 'PRODUCT',
+          availableQuantity: '2',
+          quantity: '2',
+        },
+      ],
+    })
+  })
+
   it('defines all seventeen atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',

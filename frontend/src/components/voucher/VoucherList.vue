@@ -8,8 +8,9 @@ import type {
   VoucherSort,
   VoucherStatus,
 } from './types'
+import { formatVoucherStatus, voucherStatusOptions } from './status'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
@@ -89,27 +90,6 @@ const emit = defineEmits<{
 }>()
 
 const hasNext = computed(() => props.page * props.pageSize < props.total)
-const statusOptions = [
-  { title: '草稿', value: 'DRAFT' },
-  { title: '已核对', value: 'CHECKED' },
-  { title: '已批准', value: 'APPROVED' },
-  { title: '已完成', value: 'FINALIZED' },
-  { title: '已下单', value: 'ORDERED' },
-  { title: '已确认', value: 'CONFIRMED' },
-  { title: '已执行', value: 'EXECUTED' },
-]
-function statusText(status: VoucherStatus): string {
-  return {
-    DRAFT: '草稿',
-    CHECKED: '已核对',
-    APPROVED: '已批准',
-    FINALIZED: '已完成',
-    ORDERED: '已下单',
-    CONFIRMED: '已确认',
-    EXECUTED: '已执行',
-  }[status]
-}
-
 function changeSort(field: VoucherSort['field']): void {
   emit('update:sort', {
     field,
@@ -282,7 +262,7 @@ function summaryNote(row: T): string | undefined {
             hide-details
             item-title="title"
             item-value="value"
-            :items="statusOptions"
+            :items="voucherStatusOptions"
             label="状态"
             :model-value="statuses"
             multiple
@@ -406,7 +386,7 @@ function summaryNote(row: T): string | undefined {
               <td class="voucher-list__column--compact" data-label="状态">
                 <slot name="cell-status" :row="row">
                   <v-chip size="small" variant="tonal">{{
-                    statusText(row.status)
+                    formatVoucherStatus(row.status)
                   }}</v-chip>
                 </slot>
               </td>

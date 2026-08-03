@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherDocumentView } from './types'
+import { formatVoucherStatus } from './status'
 
 defineOptions({ name: 'VoucherWorkspace' })
 
@@ -58,15 +59,7 @@ function forceClose(): void {
 
 function statusText(): string {
   if (!props.document) return props.editing ? '新增草稿' : '加载中'
-  return {
-    DRAFT: '草稿',
-    CHECKED: '已核对',
-    APPROVED: '已批准',
-    FINALIZED: '已完成',
-    ORDERED: '已下单',
-    CONFIRMED: '已确认',
-    EXECUTED: '已执行',
-  }[props.document.status]
+  return formatVoucherStatus(props.document.status)
 }
 </script>
 

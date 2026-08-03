@@ -8,7 +8,7 @@ import type {
   VoucherFinalizationKind,
   VoucherReference,
 } from './types'
-import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 

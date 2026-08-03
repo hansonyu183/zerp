@@ -1,27 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { isQuantity } from '@/components/voucher/decimal'
+import { useProductReferenceSearch } from '@/composables/use-product-reference-search'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import type { PackagingProductReference, PackagingSpecDraft } from './types'
 
 defineOptions({ name: 'PackagingSpecsEditorDialog' })
-
-interface ProductListItem {
-  objectId: string
-  code: string
-  currentVersion: {
-    versionId: string
-    summary: {
-      name: string
-      unit?: string
-      productKind?: string
-    }
-  }
-}
 
 const props = withDefaults(
   defineProps<{
@@ -43,11 +29,18 @@ const emit = defineEmits<{
 }>()
 
 const draft = ref<PackagingSpecDraft[]>([])
-const options = ref<PackagingProductReference[]>([])
-const loading = ref(false)
-const errorMessage = ref<string | null>(null)
 const validationMessage = ref<string | null>(null)
-let searchVersion = 0
+const {
+  options,
+  loading,
+  errorMessage,
+  search: searchPackagingProducts,
+} = useProductReferenceSearch('PACKAGING', () =>
+  draft.value
+    .map((spec) => spec.packagingProduct)
+    .filter((product): product is PackagingProductReference => Boolean(product))
+    .map((product) => ({ ...product, entity: 'product' as const })),
+)
 
 watch(
   () => props.open,
@@ -62,57 +55,6 @@ watch(
 
 function productTitle(product: PackagingProductReference): string {
   return formatReferenceLabel(product)
-}
-
-async function searchPackagingProducts(keyword: string): Promise<void> {
-  const version = ++searchVersion
-  loading.value = true
-  errorMessage.value = null
-  try {
-    const { data } = await apiClient.post<
-      PageResult<ProductListItem>,
-      {
-        page: number
-        pageSize: number
-        filters: Record<string, unknown>
-        sort: Array<{ field: string; order: 'asc' | 'desc' }>
-      }
-    >('bob/product/query', {
-      page: 1,
-      pageSize: 100,
-      filters: {
-        productKind: 'PACKAGING',
-        status: ['EFFECTIVE'],
-        ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-      },
-      sort: [{ field: 'name', order: 'asc' }],
-    })
-    if (version !== searchVersion) return
-    const selected = draft.value
-      .map((spec) => spec.packagingProduct)
-      .filter((product): product is PackagingProductReference =>
-        Boolean(product),
-      )
-    const fetched = (data.items ?? []).map((item) => ({
-      objectId: item.objectId,
-      versionId: item.currentVersion.versionId,
-      code: item.code,
-      name: item.currentVersion.summary.name,
-      unit: item.currentVersion.summary.unit ?? '',
-      productKind: item.currentVersion.summary.productKind,
-    }))
-    options.value = [
-      ...selected,
-      ...fetched.filter(
-        (candidate) =>
-          !selected.some((item) => item.objectId === candidate.objectId),
-      ),
-    ]
-  } catch (error) {
-    if (version === searchVersion) errorMessage.value = getErrorMessage(error)
-  } finally {
-    if (version === searchVersion) loading.value = false
-  }
 }
 
 function addSpec(): void {

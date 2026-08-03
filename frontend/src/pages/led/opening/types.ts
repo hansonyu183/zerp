@@ -1,4 +1,4 @@
-import type { LedgerReference } from '@/components/ledger'
+import type { LedgerReference } from '@/pages/led/shared'
 
 export interface InventoryOpeningView {
   id: string

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { VoucherPriceLineDraft, VoucherReference } from './types'
 import { isMoney } from './decimal'
-import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 

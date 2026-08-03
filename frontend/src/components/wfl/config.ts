@@ -1,9 +1,3 @@
-import type { WflStageDefinition } from './types'
-
-export function stagePrefix(stage: WflStageDefinition): string {
-  return stage.prefix ?? stage.stage.toLowerCase().replace('_', '-')
-}
-
 export function statusText(
   statuses: Readonly<Record<string, string>>,
   value?: string,

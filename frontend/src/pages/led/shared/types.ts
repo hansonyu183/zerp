@@ -1,3 +1,5 @@
+import type { BobApiEntity } from '@/api/client'
+
 export type LedgerEntity = 'inventory' | 'fund' | 'party' | 'container'
 export type LedgerMode = 'entries' | 'balances'
 export type LedgerRecord = Record<string, unknown>
@@ -77,4 +79,3 @@ export interface LedgerReferenceSearch {
   search: (keyword: string) => void
   dispose: () => void
 }
-import type { BobApiEntity } from '@/api/client'

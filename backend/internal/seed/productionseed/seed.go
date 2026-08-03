@@ -72,6 +72,7 @@ func New(
 	}
 	workflow.SetSalesVoucherService(vouchers)
 	workflow.SetPurchaseVoucherService(vouchers)
+	workflow.SetWorkflowDocumentConverter(vouchers)
 	return &Seeder{pool: pool, bob: bobService, ledger: ledger, vouchers: vouchers}, nil
 }
 
@@ -520,7 +521,7 @@ func (s *Seeder) findDocumentID(ctx context.Context, request string) (string, er
 	err := s.pool.QueryRow(ctx, `
 		SELECT document_id
 		FROM vou_audit_events
-		WHERE request_id = $1 AND event_type = 'CREATED'
+		WHERE request_id = $1 AND event_type IN ('CREATED','SAVED')
 		ORDER BY occurred_at, id
 		LIMIT 1
 	`, request).Scan(&id)

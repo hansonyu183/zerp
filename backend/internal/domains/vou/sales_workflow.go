@@ -731,19 +731,21 @@ func (s *Service) ensureAutoSignoffDraft(
 func (s *Service) removeUntouchedGeneratedChildren(
 	ctx context.Context, tx pgx.Tx, parentID string,
 ) error {
-	rows, err := tx.Query(ctx, `SELECT id,entity,status,revision
+	rows, err := tx.Query(ctx, `SELECT id,entity,status,revision,created_by,
+		EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id)
 		FROM vou_documents WHERE parent_document_id=$1 FOR UPDATE`, parentID)
 	if err != nil {
 		return err
 	}
 	type child struct {
-		id, entity, status string
-		revision           int64
+		id, entity, status, createdBy string
+		revision                      int64
+		hasAttachments                bool
 	}
 	children := make([]child, 0)
 	for rows.Next() {
 		var value child
-		if err = rows.Scan(&value.id, &value.entity, &value.status, &value.revision); err != nil {
+		if err = rows.Scan(&value.id, &value.entity, &value.status, &value.revision, &value.createdBy, &value.hasAttachments); err != nil {
 			rows.Close()
 			return err
 		}
@@ -751,8 +753,10 @@ func (s *Service) removeUntouchedGeneratedChildren(
 	}
 	rows.Close()
 	for _, value := range children {
-		if value.status != StatusDraft || value.revision != 1 {
-			return domainError(ErrorConflict, "downstream sales document has changed", nil, nil)
+		if value.status != StatusDraft || value.revision != 1 || value.createdBy != systemidentity.UserID || value.hasAttachments {
+			return domainError(ErrorConflict, "downstream workflow document has changed", map[string]any{
+				"documentId": value.id, "entity": value.entity,
+			}, nil)
 		}
 		if err = s.deleteGeneratedSalesDocument(ctx, tx, value.id, value.entity); err != nil {
 			return err
@@ -764,6 +768,11 @@ func (s *Service) removeUntouchedGeneratedChildren(
 func (s *Service) deleteGeneratedSalesDocument(
 	ctx context.Context, tx pgx.Tx, documentID, entity string,
 ) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM wfl_edge_executions execution
+		USING wfl_node_instances node
+		WHERE execution.target_node_instance_id=node.id AND node.document_id=$1`, documentID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM wfl_process_documents WHERE document_id=$1`, documentID); err != nil {
 		return err
 	}
@@ -789,6 +798,29 @@ func (s *Service) deleteGeneratedSalesDocument(
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_sale_signoff_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
+	case EntityPurchaseInbound:
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_purchase_inbound_lines WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_purchase_inbound_details WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+	case EntityReceipt:
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_receipt_details WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+	case EntityPayment:
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_payment_details WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+	case EntityExpensePayment:
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_expense_payment_details WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+	default:
+		return domainError(ErrorConflict, "downstream workflow document cannot be removed", map[string]any{
+			"documentId": documentID, "entity": entity,
+		}, nil)
 	}
 	_, err := tx.Exec(ctx, `DELETE FROM vou_documents WHERE id=$1`, documentID)
 	return err

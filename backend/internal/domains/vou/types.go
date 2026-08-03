@@ -21,6 +21,7 @@ const (
 	EntityReceipt              = "receipt"
 	EntityPayment              = "payment"
 	EntityExpenseReimbursement = "expense-reimbursement"
+	EntityExpensePayment       = "expense-payment"
 	EntityOtherIncome          = "other-income"
 	StatusDraft                = "DRAFT"
 	StatusChecked              = "CHECKED"
@@ -48,6 +49,7 @@ var entities = [...]string{
 	EntityReceipt,
 	EntityPayment,
 	EntityExpenseReimbursement,
+	EntityExpensePayment,
 	EntityOtherIncome,
 }
 
@@ -509,6 +511,7 @@ type DocumentDataView struct {
 	CustomerSettlementMethod  *SettlementMethodSnapshotView `json:"customerSettlementMethod,omitempty"`
 	SupplierSettlementMethod  *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
 	SourceName                string                        `json:"sourceName,omitempty"`
+	SettlementMode            string                        `json:"settlementMode,omitempty"`
 	ProductLines              []ProductLineView             `json:"productLines,omitempty"`
 	PriceLines                []PriceLineView               `json:"priceLines,omitempty"`
 	ExpenseLines              []ExpenseLineView             `json:"expenseLines,omitempty"`

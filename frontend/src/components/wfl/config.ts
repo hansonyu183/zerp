@@ -25,6 +25,46 @@ export function stageStatusText(value: string): string {
   )
 }
 
+export function definitionStatusText(value: string): string {
+  return (
+    {
+      DRAFT: '草稿',
+      ENABLED: '已启用',
+      DISABLED: '已停用',
+    }[value] ?? value
+  )
+}
+
+export function documentEntityText(value: string): string {
+  return (
+    {
+      'sale-order': '销售订单',
+      'sale-outbound': '销售出库',
+      'sale-delivery': '销售送货',
+      'sale-signoff': '销售签收',
+      'sale-return': '销售退货',
+      'purchase-order': '采购订单',
+      'purchase-inbound': '采购入库',
+      'purchase-return': '采购退货',
+      'order-production': '生产配货',
+      'self-production': '生产自制品',
+      receipt: '往来收款',
+      payment: '往来付款',
+      'expense-reimbursement': '费用报销',
+      'expense-payment': '费用付款',
+    }[value] ?? value
+  )
+}
+
+export function runtimeEventText(value: string): string {
+  return (
+    {
+      STARTED: '流程已启动',
+      CHILD_CREATED: '已创建下级单据',
+    }[value] ?? value
+  )
+}
+
 export function workflowStatusText(value?: string): string {
   return statusText(
     {

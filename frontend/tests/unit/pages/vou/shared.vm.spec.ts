@@ -262,7 +262,7 @@ describe('shared VOU entity view model', () => {
     expect(vm.editing.value).toBe(true)
   })
 
-  it('defines all sixteen atomic document entities', () => {
+  it('defines all seventeen atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -279,6 +279,7 @@ describe('shared VOU entity view model', () => {
       'receipt',
       'payment',
       'expense-reimbursement',
+      'expense-payment',
       'other-income',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')

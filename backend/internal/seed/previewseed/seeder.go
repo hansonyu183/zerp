@@ -142,6 +142,7 @@ func New(
 	}
 	workflow.SetSalesVoucherService(vouchers)
 	workflow.SetPurchaseVoucherService(vouchers)
+	workflow.SetWorkflowDocumentConverter(vouchers)
 	return &Seeder{
 		pool: pool, auxiliary: auxiliary, business: business, ledger: ledger,
 		vouchers: vouchers, auxRefs: make(map[string]auxdomain.ObjectView),

@@ -14,6 +14,7 @@ export type VoucherEntity =
   | 'receipt'
   | 'payment'
   | 'expense-reimbursement'
+  | 'expense-payment'
   | 'other-income'
 
 export type VoucherStatus =
@@ -351,6 +352,7 @@ export interface VoucherDocumentData {
   platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
   differenceReason?: string
+  settlementMode?: 'LEGACY_DIRECT' | 'FLOW_PAYMENT'
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?:
     'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
@@ -542,6 +544,7 @@ export interface VoucherEntityConfig {
   usesSourceName?: boolean
   directAmount?: boolean
   productionMode?: 'order' | 'self'
+  generatedOnly?: boolean
 }
 
 export interface VoucherActionAvailability {

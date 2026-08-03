@@ -83,6 +83,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	}
 	wflService.SetSalesVoucherService(vouService)
 	wflService.SetPurchaseVoucherService(vouService)
+	wflService.SetWorkflowDocumentConverter(vouService)
 	appService := appdomain.NewService(db, cfg, logger)
 	ledService, err := leddomain.NewService(db, bobService)
 	if err != nil {

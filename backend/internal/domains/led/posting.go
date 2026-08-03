@@ -26,6 +26,7 @@ var vouEntities = [...]string{
 	voudomain.EntityReceipt,
 	voudomain.EntityPayment,
 	voudomain.EntityExpenseReimbursement,
+	voudomain.EntityExpensePayment,
 	voudomain.EntityOtherIncome,
 }
 
@@ -203,6 +204,8 @@ func (s *Service) postDocument(
 		return s.postPayment(ctx, q, posting)
 	case voudomain.EntityExpenseReimbursement:
 		return s.postExpense(ctx, q, posting)
+	case voudomain.EntityExpensePayment:
+		return s.postExpensePayment(ctx, q, posting)
 	case voudomain.EntityOtherIncome:
 		return s.postOtherIncome(ctx, q, posting)
 	default:

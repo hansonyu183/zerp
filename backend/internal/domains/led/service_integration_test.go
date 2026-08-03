@@ -56,7 +56,8 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			led_opening_container, led_draft_container,
 			led_opening_party, led_opening_fund, led_opening_inventory,
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
-			vou_audit_events, vou_download_tokens, vou_document_attachments,
+			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
+			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -67,7 +68,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
-			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
@@ -788,7 +789,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	fund, err := ledger.FundBalance(t.Context(), BalanceInput{
 		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
 	})
-	if err != nil || len(fund.Items) != 1 || fund.Items[0].Amount != "55.00" {
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].Amount != "75.00" {
 		t.Fatalf("fund balances = %+v, err=%v", fund, err)
 	}
 	party, err := ledger.PartyBalance(t.Context(), BalanceInput{

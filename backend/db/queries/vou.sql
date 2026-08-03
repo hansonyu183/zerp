@@ -189,6 +189,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
   )
   AND (
@@ -216,6 +217,8 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id
+          AND (x.employee_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.employee_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
   );
@@ -224,7 +227,7 @@ WHERE d.entity = sqlc.arg(entity)
 SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
-                p.counterparty_name, er.employee_name, oi.counterparty_name,
+                p.counterparty_name, er.employee_name, ep.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
@@ -239,6 +242,7 @@ LEFT JOIN vou_purchase_return_details pr ON pr.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
+LEFT JOIN vou_expense_payment_details ep ON ep.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
 WHERE d.entity = sqlc.arg(entity)
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
@@ -256,6 +260,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR pr.supplier_object_id = sqlc.arg(party_object_id)
       OR r.counterparty_object_id = sqlc.arg(party_object_id)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
+      OR ep.employee_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
   )
   AND (
@@ -271,6 +276,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR pr.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR pr.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR r.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR r.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR ep.employee_code ILIKE '%' || sqlc.arg(keyword) || '%' OR ep.employee_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
 ORDER BY
@@ -509,24 +515,51 @@ SELECT * FROM vou_payment_details WHERE document_id = sqlc.arg(document_id);
 -- name: InsertVouExpenseReimbursementDetail :exec
 INSERT INTO vou_expense_reimbursement_details (
     document_id, employee_object_id, employee_version_id, employee_code, employee_name,
-    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
+    settlement_mode
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(employee_object_id), sqlc.arg(employee_version_id),
-    sqlc.arg(employee_code), sqlc.arg(employee_name), sqlc.arg(fund_account_object_id),
-    sqlc.arg(fund_account_version_id), sqlc.arg(fund_account_code), sqlc.arg(fund_account_name)
+    sqlc.arg(employee_code), sqlc.arg(employee_name), sqlc.narg(fund_account_object_id),
+    sqlc.narg(fund_account_version_id), sqlc.narg(fund_account_code), sqlc.narg(fund_account_name),
+    'FLOW_PAYMENT'
 );
 
 -- name: UpdateVouExpenseReimbursementDetail :execrows
 UPDATE vou_expense_reimbursement_details
 SET employee_object_id = sqlc.arg(employee_object_id), employee_version_id = sqlc.arg(employee_version_id),
     employee_code = sqlc.arg(employee_code), employee_name = sqlc.arg(employee_name),
-    fund_account_object_id = sqlc.arg(fund_account_object_id),
-    fund_account_version_id = sqlc.arg(fund_account_version_id),
-    fund_account_code = sqlc.arg(fund_account_code), fund_account_name = sqlc.arg(fund_account_name)
+    fund_account_object_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_object_id) ELSE NULL END,
+    fund_account_version_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_version_id) ELSE NULL END,
+    fund_account_code = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_code) ELSE NULL END,
+    fund_account_name = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_name) ELSE NULL END
 WHERE document_id = sqlc.arg(document_id);
 
 -- name: GetVouExpenseReimbursementDetail :one
 SELECT * FROM vou_expense_reimbursement_details WHERE document_id = sqlc.arg(document_id);
+
+-- name: InsertVouExpensePaymentDetail :exec
+INSERT INTO vou_expense_payment_details (
+    document_id, source_reimbursement_id,
+    employee_object_id, employee_version_id, employee_code, employee_name,
+    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+) VALUES (
+    sqlc.arg(document_id), sqlc.arg(source_reimbursement_id),
+    sqlc.arg(employee_object_id), sqlc.arg(employee_version_id),
+    sqlc.arg(employee_code), sqlc.arg(employee_name),
+    sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
+    sqlc.arg(fund_account_code), sqlc.arg(fund_account_name)
+);
+
+-- name: UpdateVouExpensePaymentFundAccount :execrows
+UPDATE vou_expense_payment_details
+SET fund_account_object_id=sqlc.arg(fund_account_object_id),
+    fund_account_version_id=sqlc.arg(fund_account_version_id),
+    fund_account_code=sqlc.arg(fund_account_code),
+    fund_account_name=sqlc.arg(fund_account_name)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouExpensePaymentDetail :one
+SELECT * FROM vou_expense_payment_details WHERE document_id=sqlc.arg(document_id);
 
 -- name: InsertVouOtherIncomeDetail :exec
 INSERT INTO vou_other_income_details (

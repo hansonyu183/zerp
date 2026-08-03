@@ -34,8 +34,14 @@ export interface PageRegistration {
 const PERMISSION_PATTERN =
   /^\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const FALLBACK_ORDER = Number.MAX_SAFE_INTEGER
+const WORKFLOW_ENTITY_TITLES: Readonly<Record<string, string>> = {
+  'purchase-fulfillment': '采购履约',
+  'sales-fulfillment': '销售履约',
+}
 const developingPage: PageLoader = () =>
   import('@/pages/system/developing/Developing.vue')
+const workflowInstancePage: PageLoader = () =>
+  import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
 type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
 type DomainRegistration = Pick<
@@ -315,6 +321,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/vou/expense-reimbursement/ExpenseReimbursement.vue'),
   }),
   registerPage('vou', {
+    entity: 'expense-payment',
+    entityTitle: '费用付款',
+    icon: 'mdi-cash-check',
+    order: 105,
+    component: () => import('@/pages/vou/expense-payment/ExpensePayment.vue'),
+  }),
+  registerPage('vou', {
     entity: 'other-income',
     entityTitle: '其他收入',
     icon: 'mdi-cash-multiple',
@@ -322,20 +335,19 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
   }),
   registerPage('wfl', {
-    entity: 'sales-fulfillment',
-    entityTitle: '销售履约',
-    icon: 'mdi-truck-check-outline',
+    entity: 'process-definition',
+    entityTitle: '流程定义',
+    icon: 'mdi-source-branch',
     order: 10,
     component: () =>
-      import('@/pages/wfl/sales-fulfillment/SalesFulfillment.vue'),
+      import('@/pages/wfl/process-definition/ProcessDefinition.vue'),
   }),
   registerPage('wfl', {
-    entity: 'purchase-fulfillment',
-    entityTitle: '采购履约',
-    icon: 'mdi-warehouse',
+    entity: 'process-instance',
+    entityTitle: '流程实例',
+    icon: 'mdi-sitemap-outline',
     order: 20,
-    component: () =>
-      import('@/pages/wfl/purchase-fulfillment/PurchaseFulfillment.vue'),
+    component: () => import('@/pages/wfl/process-instance/ProcessInstance.vue'),
   }),
   registerPage('led', {
     entity: 'closing',
@@ -452,6 +464,13 @@ export function buildMenus(
 
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
+    if (
+      domainId === 'wfl' &&
+      entityId !== 'process-definition' &&
+      !actions.includes('query')
+    ) {
+      continue
+    }
     const registration = registrationsByPage.get(key)
     const domainRegistration =
       registration ?? registrationsByDomain.get(domainId)
@@ -468,7 +487,10 @@ export function buildMenus(
 
     domain.children.push({
       entity: entityId,
-      title: registration?.entityTitle ?? formatIdentifierTitle(entityId),
+      title:
+        registration?.entityTitle ??
+        (domainId === 'wfl' ? WORKFLOW_ENTITY_TITLES[entityId] : undefined) ??
+        formatIdentifierTitle(entityId),
       ...(registration?.icon ? { icon: registration.icon } : {}),
       order: registration?.order ?? FALLBACK_ORDER,
       actions,
@@ -513,16 +535,22 @@ export function registerMenuRoutes(
     for (const entity of domain.children) {
       const key = `${domain.domain}/${entity.entity}`
       const registration = pageRegistry[key]
+      const dynamicWorkflow =
+        domain.domain === 'wfl' &&
+        entity.entity !== 'process-definition' &&
+        !registration
 
       const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
       const currentRoute = router
         .getRoutes()
         .find((route) => route.name === routeName)
-      const developing = !registration
+      const developing = !registration && !dynamicWorkflow
       const routeIsCurrent =
         currentRoute?.meta.title === entity.title &&
         currentRoute.meta.developing === developing &&
+        currentRoute.meta.processName ===
+          (dynamicWorkflow ? entity.entity : undefined) &&
         hasSameActions(currentRoute.meta.actions, entity.actions)
 
       registeredRouteNames.add(routeName)
@@ -532,12 +560,15 @@ export function registerMenuRoutes(
       router.addRoute('app', {
         path: key,
         name: routeName,
-        component: registration?.component ?? developingPage,
+        component:
+          registration?.component ??
+          (dynamicWorkflow ? workflowInstancePage : developingPage),
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
           developing,
+          ...(dynamicWorkflow ? { processName: entity.entity } : {}),
         },
       })
       added += 1

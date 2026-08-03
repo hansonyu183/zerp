@@ -233,6 +233,51 @@ func (s *Service) CreatePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	var generatedID, generatedNo string
+	var generatedRevision int64
+	err = tx.QueryRow(ctx, `SELECT id,document_no,revision FROM vou_documents
+		WHERE parent_document_id=$1 AND entity='purchase-inbound' AND status='DRAFT'
+		  AND revision=1 AND created_by=$2 ORDER BY created_at,id LIMIT 1 FOR UPDATE`,
+		order.ID, systemidentity.UserID).Scan(&generatedID, &generatedNo, &generatedRevision)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, err
+	}
+	if err == nil {
+		lines, total, reserveErr := s.validateAndReserveInboundLines(ctx, tx, order.ID, generatedID, input.Data.SourceLines)
+		if reserveErr != nil {
+			return MutationResult{}, reserveErr
+		}
+		q := s.queries.WithTx(tx)
+		revision, updateErr := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
+			BusinessDate: dateValue(businessDate), Currency: order.Currency,
+			TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
+			ID: generatedID, Entity: EntityPurchaseInbound, Revision: generatedRevision,
+		})
+		if updateErr != nil {
+			return MutationResult{}, s.writeError("adopt generated purchase inbound", updateErr)
+		}
+		if _, updateErr = q.UpdateVouPurchaseInboundWarehouse(ctx, dbsqlc.UpdateVouPurchaseInboundWarehouseParams{
+			WarehouseObjectID: warehouse.ObjectID, WarehouseVersionID: warehouse.VersionID,
+			WarehouseCode: warehouse.Code, WarehouseName: warehouse.Data.Name, DocumentID: generatedID,
+		}); updateErr != nil {
+			return MutationResult{}, updateErr
+		}
+		if updateErr = q.DeleteVouPurchaseInboundLines(ctx, generatedID); updateErr != nil {
+			return MutationResult{}, updateErr
+		}
+		if updateErr = s.insertPurchaseInboundLines(ctx, q, generatedID, lines); updateErr != nil {
+			return MutationResult{}, updateErr
+		}
+		if updateErr = insertAudit(ctx, q, auditInput{DocumentID: generatedID, Entity: EntityPurchaseInbound,
+			Event: "SAVED", From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID,
+			RequestID: requestID, Summary: map[string]any{"adoptedWorkflowDraft": true, "lineCount": len(lines)}}); updateErr != nil {
+			return MutationResult{}, updateErr
+		}
+		if updateErr = tx.Commit(ctx); updateErr != nil {
+			return MutationResult{}, updateErr
+		}
+		return MutationResult{DocumentID: generatedID, DocumentNo: generatedNo, Status: StatusDraft, Revision: revision}, nil
+	}
 	lines, total, err := s.validateAndReserveInboundLines(ctx, tx, order.ID, "", input.Data.SourceLines)
 	if err != nil {
 		return MutationResult{}, err

@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiClient, type ApiPostPath } from '@/api/client'
-import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
@@ -41,11 +40,42 @@ interface ProcessView {
   updatedAt: string
 }
 
-type SalesProcessListItem = components['schemas']['WflSalesProcessListItem']
-type PurchaseProcessListItem =
-  components['schemas']['WflPurchaseProcessListItem']
+interface ProgressGroup {
+  unit: string
+  productCount: number
+  [key: string]: string | number
+}
+
+interface ProcessListItemBase {
+  processId: string
+  rootDocumentNo: string
+  businessDate: string
+  partyName: string
+  currency: string
+  amount: string
+  status: string
+  currentStage: string
+  progressGroups: ProgressGroup[]
+}
+
+interface SalesProcessListItem extends ProcessListItemBase {
+  summary: {
+    excludedPackaging: boolean
+    orderedQuantity: string
+    outboundQuantity: string
+    netSignedQuantity: string
+  }
+}
+
+interface PurchaseProcessListItem extends ProcessListItemBase {
+  summary: {
+    excludedPackaging: boolean
+    orderedQuantity: string
+    netInboundQuantity: string
+  }
+}
+
 type ProcessListItem = SalesProcessListItem | PurchaseProcessListItem
-type ProgressGroup = ProcessListItem['progressGroups'][number]
 
 interface ProcessPage {
   items: ProcessListItem[]

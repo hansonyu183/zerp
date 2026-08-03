@@ -175,6 +175,7 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
   )
   AND (
@@ -202,6 +203,8 @@ WHERE d.entity = $1
           AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id
+          AND (x.employee_code ILIKE '%' || $6 || '%' OR x.employee_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
   )
@@ -595,8 +598,31 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 	return i, err
 }
 
+const getVouExpensePaymentDetail = `-- name: GetVouExpensePaymentDetail :one
+SELECT document_id, entity, source_reimbursement_id, employee_object_id, employee_version_id, employee_code, employee_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name FROM vou_expense_payment_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error) {
+	row := q.db.QueryRow(ctx, getVouExpensePaymentDetail, documentID)
+	var i VouExpensePaymentDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.SourceReimbursementID,
+		&i.EmployeeObjectID,
+		&i.EmployeeVersionID,
+		&i.EmployeeCode,
+		&i.EmployeeName,
+		&i.FundAccountObjectID,
+		&i.FundAccountVersionID,
+		&i.FundAccountCode,
+		&i.FundAccountName,
+	)
+	return i, err
+}
+
 const getVouExpenseReimbursementDetail = `-- name: GetVouExpenseReimbursementDetail :one
-SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name FROM vou_expense_reimbursement_details WHERE document_id = $1
+SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, settlement_mode FROM vou_expense_reimbursement_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error) {
@@ -613,6 +639,7 @@ func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, document
 		&i.FundAccountVersionID,
 		&i.FundAccountCode,
 		&i.FundAccountName,
+		&i.SettlementMode,
 	)
 	return i, err
 }
@@ -1000,27 +1027,72 @@ func (q *Queries) InsertVouExpenseLine(ctx context.Context, arg InsertVouExpense
 	return err
 }
 
+const insertVouExpensePaymentDetail = `-- name: InsertVouExpensePaymentDetail :exec
+INSERT INTO vou_expense_payment_details (
+    document_id, source_reimbursement_id,
+    employee_object_id, employee_version_id, employee_code, employee_name,
+    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+) VALUES (
+    $1, $2,
+    $3, $4,
+    $5, $6,
+    $7, $8,
+    $9, $10
+)
+`
+
+type InsertVouExpensePaymentDetailParams struct {
+	DocumentID            string `db:"document_id" json:"document_id"`
+	SourceReimbursementID string `db:"source_reimbursement_id" json:"source_reimbursement_id"`
+	EmployeeObjectID      string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID     string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode          string `db:"employee_code" json:"employee_code"`
+	EmployeeName          string `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID   string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID  string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode       string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName       string `db:"fund_account_name" json:"fund_account_name"`
+}
+
+func (q *Queries) InsertVouExpensePaymentDetail(ctx context.Context, arg InsertVouExpensePaymentDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouExpensePaymentDetail,
+		arg.DocumentID,
+		arg.SourceReimbursementID,
+		arg.EmployeeObjectID,
+		arg.EmployeeVersionID,
+		arg.EmployeeCode,
+		arg.EmployeeName,
+		arg.FundAccountObjectID,
+		arg.FundAccountVersionID,
+		arg.FundAccountCode,
+		arg.FundAccountName,
+	)
+	return err
+}
+
 const insertVouExpenseReimbursementDetail = `-- name: InsertVouExpenseReimbursementDetail :exec
 INSERT INTO vou_expense_reimbursement_details (
     document_id, employee_object_id, employee_version_id, employee_code, employee_name,
-    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
+    settlement_mode
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6,
-    $7, $8, $9
+    $7, $8, $9,
+    'FLOW_PAYMENT'
 )
 `
 
 type InsertVouExpenseReimbursementDetailParams struct {
-	DocumentID           string `db:"document_id" json:"document_id"`
-	EmployeeObjectID     string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID    string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode         string `db:"employee_code" json:"employee_code"`
-	EmployeeName         string `db:"employee_name" json:"employee_name"`
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	EmployeeObjectID     string  `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID    string  `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode         string  `db:"employee_code" json:"employee_code"`
+	EmployeeName         string  `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID  *string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID *string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      *string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      *string `db:"fund_account_name" json:"fund_account_name"`
 }
 
 func (q *Queries) InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error {
@@ -1916,7 +1988,7 @@ const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
-                p.counterparty_name, er.employee_name, oi.counterparty_name,
+                p.counterparty_name, er.employee_name, ep.employee_name, oi.counterparty_name,
                 oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
@@ -1931,6 +2003,7 @@ LEFT JOIN vou_purchase_return_details pr ON pr.document_id = d.id
 LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
+LEFT JOIN vou_expense_payment_details ep ON ep.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
 WHERE d.entity = $1
   AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
@@ -1948,6 +2021,7 @@ WHERE d.entity = $1
       OR pr.supplier_object_id = $5
       OR r.counterparty_object_id = $5
       OR p.counterparty_object_id = $5
+      OR ep.employee_object_id = $5
       OR oi.counterparty_object_id = $5
   )
   AND (
@@ -1963,6 +2037,7 @@ WHERE d.entity = $1
       OR pr.supplier_code ILIKE '%' || $6 || '%' OR pr.supplier_name ILIKE '%' || $6 || '%'
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'
       OR p.counterparty_code ILIKE '%' || $6 || '%' OR p.counterparty_name ILIKE '%' || $6 || '%'
+      OR ep.employee_code ILIKE '%' || $6 || '%' OR ep.employee_name ILIKE '%' || $6 || '%'
       OR oi.source_name ILIKE '%' || $6 || '%' OR oi.counterparty_name ILIKE '%' || $6 || '%'
   )
 ORDER BY
@@ -2686,26 +2761,58 @@ func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) 
 	return revision, err
 }
 
-const updateVouExpenseReimbursementDetail = `-- name: UpdateVouExpenseReimbursementDetail :execrows
-UPDATE vou_expense_reimbursement_details
-SET employee_object_id = $1, employee_version_id = $2,
-    employee_code = $3, employee_name = $4,
-    fund_account_object_id = $5,
-    fund_account_version_id = $6,
-    fund_account_code = $7, fund_account_name = $8
-WHERE document_id = $9
+const updateVouExpensePaymentFundAccount = `-- name: UpdateVouExpensePaymentFundAccount :execrows
+UPDATE vou_expense_payment_details
+SET fund_account_object_id=$1,
+    fund_account_version_id=$2,
+    fund_account_code=$3,
+    fund_account_name=$4
+WHERE document_id=$5
 `
 
-type UpdateVouExpenseReimbursementDetailParams struct {
-	EmployeeObjectID     string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID    string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode         string `db:"employee_code" json:"employee_code"`
-	EmployeeName         string `db:"employee_name" json:"employee_name"`
+type UpdateVouExpensePaymentFundAccountParams struct {
 	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
 	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
 	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
 	DocumentID           string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouExpensePaymentFundAccount,
+		arg.FundAccountObjectID,
+		arg.FundAccountVersionID,
+		arg.FundAccountCode,
+		arg.FundAccountName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouExpenseReimbursementDetail = `-- name: UpdateVouExpenseReimbursementDetail :execrows
+UPDATE vou_expense_reimbursement_details
+SET employee_object_id = $1, employee_version_id = $2,
+    employee_code = $3, employee_name = $4,
+    fund_account_object_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $5 ELSE NULL END,
+    fund_account_version_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $6 ELSE NULL END,
+    fund_account_code = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $7 ELSE NULL END,
+    fund_account_name = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $8 ELSE NULL END
+WHERE document_id = $9
+`
+
+type UpdateVouExpenseReimbursementDetailParams struct {
+	EmployeeObjectID     string  `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID    string  `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode         string  `db:"employee_code" json:"employee_code"`
+	EmployeeName         string  `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID  *string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID *string `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      *string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      *string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error) {

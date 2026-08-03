@@ -1693,13 +1693,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/sales-fulfillment/query':
+      '/wfl/process-definition/query':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '查询销售履约流程',
-              'operationId': 'wflSalesFulfillmentQuery',
+              'summary': '查询流程定义',
+              'operationId': 'wflProcessDefinitionQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1709,46 +1709,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '销售履约流程分页响应。',
-                      'content':
-                        {
-                          'application/json':
                             {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflSalesQueryResponse',
-                                },
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionQueryRequest',
                             },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/sales-fulfillment/get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取销售履约流程',
-              'operationId': 'wflSalesFulfillmentGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
                         },
                     },
                 },
@@ -1756,13 +1719,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/wfl/sales-fulfillment/audit-history':
+      '/wfl/process-definition/get':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '查询销售履约审计',
-              'operationId': 'wflSalesFulfillmentAuditHistory',
+              'summary': '读取流程定义',
+              'operationId': 'wflProcessDefinitionGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1772,7 +1735,376 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/create':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '新建流程定义',
+              'operationId': 'wflProcessDefinitionCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/save':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '保存流程定义',
+              'operationId': 'wflProcessDefinitionSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/enable':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '启用流程定义',
+              'operationId': 'wflProcessDefinitionEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/disable':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '停用流程定义',
+              'operationId': 'wflProcessDefinitionDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/delete':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '删除流程定义',
+              'operationId': 'wflProcessDefinitionDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-definition/catalog':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取流程配置目录',
+              'operationId': 'wflProcessDefinitionCatalog',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-instance/query':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询流程实例',
+              'operationId': 'wflProcessInstanceQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程实例分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/{processName}/query':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '按流程类型查询流程实例',
+              'operationId': 'wflDynamicProcessQuery',
+              'parameters':
+                [
+                  {
+                    'name': 'processName',
+                    'in': 'path',
+                    'required': true,
+                    'schema': { 'type': 'string' },
+                  },
+                ],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程实例分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/{processName}/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '按流程类型读取流程实例',
+              'operationId': 'wflDynamicProcessGet',
+              'parameters':
+                [
+                  {
+                    'name': 'processName',
+                    'in': 'path',
+                    'required': true,
+                    'schema': { 'type': 'string' },
+                  },
+                ],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/{processName}/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '按流程类型查询流程实例审计',
+              'operationId': 'wflDynamicProcessAuditHistory',
+              'parameters':
+                [
+                  {
+                    'name': 'processName',
+                    'in': 'path',
+                    'required': true,
+                    'schema': { 'type': 'string' },
+                  },
+                ],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-instance/get':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '读取流程实例',
+              'operationId': 'wflProcessInstanceGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/wfl/process-instance/audit-history':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询流程实例审计',
+              'operationId': 'wflProcessInstanceAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflInstanceHistoryRequest',
+                            },
                         },
                     },
                 },
@@ -1869,93 +2201,6 @@
                         {
                           'schema':
                             { '$ref': './schemas/wfl.yaml#/WflActionRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/purchase-fulfillment/query':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询采购履约流程',
-              'operationId': 'wflPurchaseFulfillmentQuery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '采购履约流程分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflPurchaseQueryResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/purchase-fulfillment/get':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取采购履约流程',
-              'operationId': 'wflPurchaseFulfillmentGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflGetRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/purchase-fulfillment/audit-history':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询采购履约审计',
-              'operationId': 'wflPurchaseFulfillmentAuditHistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/wfl.yaml#/WflHistoryRequest' },
                         },
                     },
                 },

@@ -738,7 +738,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.usesEmployee"
-                    :disabled="!vm.editing"
+                    :disabled="!vm.editing || vm.config.generatedOnly"
                     v-bind="referenceProps('employee')"
                     label="员工"
                     :model-value="vm.form.employee"
@@ -777,7 +777,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   <v-text-field
                     v-if="vm.config.directAmount"
                     v-model="vm.form.amount"
-                    :disabled="!vm.editing"
+                    :disabled="!vm.editing || vm.config.generatedOnly"
                     inputmode="decimal"
                     label="金额"
                     variant="outlined"

@@ -315,7 +315,7 @@ describe('permission menu registry', () => {
     }
   })
 
-  it('为全部十一类原子单据注册独立 VOU 页面', () => {
+  it('为全部十二类核心原子单据注册独立 VOU 页面', () => {
     const entities = [
       'sale-order',
       'sale-outbound',
@@ -327,6 +327,7 @@ describe('permission menu registry', () => {
       'receipt',
       'payment',
       'expense-reimbursement',
+      'expense-payment',
       'other-income',
     ]
 
@@ -348,6 +349,7 @@ describe('permission menu registry', () => {
       '往来收款',
       '往来付款',
       '费用报销',
+      '费用付款',
       '其他收入',
     ])
     expect(hasRegisteredPage('vou', 'sale-order')).toBe(true)
@@ -355,14 +357,18 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('vou', 'intermediary-sale-order')).toBe(false)
   })
 
-  it('将销售与采购履约注册在 VOU 与 LED 之间', () => {
+  it('仅按登录权限生成流程定义、流程实例和各流程类型菜单', () => {
     expect(hasRegisteredPage('wfl', 'intermediary-trade')).toBe(false)
-    expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(true)
-    expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'sales-fulfillment')).toBe(false)
+    expect(hasRegisteredPage('wfl', 'purchase-fulfillment')).toBe(false)
+    expect(hasRegisteredPage('wfl', 'process-definition')).toBe(true)
+    expect(hasRegisteredPage('wfl', 'process-instance')).toBe(true)
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
       '/led/closing/get',
+      '/wfl/process-definition/query',
+      '/wfl/process-instance/query',
       '/wfl/purchase-fulfillment/query',
       '/wfl/sales-fulfillment/query',
       '/vou/purchase-order/query',
@@ -375,19 +381,55 @@ describe('permission menu registry', () => {
       order: 30,
       children: [
         {
-          entity: 'sales-fulfillment',
-          title: '销售履约',
+          entity: 'process-definition',
+          title: '流程定义',
           order: 10,
+          actions: ['query'],
+        },
+        {
+          entity: 'process-instance',
+          title: '流程实例',
+          order: 20,
           actions: ['query'],
         },
         {
           entity: 'purchase-fulfillment',
           title: '采购履约',
-          order: 20,
+          order: Number.MAX_SAFE_INTEGER,
+          actions: ['query'],
+        },
+        {
+          entity: 'sales-fulfillment',
+          title: '销售履约',
+          order: Number.MAX_SAFE_INTEGER,
           actions: ['query'],
         },
       ],
     })
+
+    const router = createTestRouter()
+    expect(registerMenuRoutes(router, menus)).toBe(6)
+    expect(router.resolve('/wfl/purchase-fulfillment').meta).toMatchObject({
+      developing: false,
+      processName: 'purchase-fulfillment',
+    })
+    expect(router.resolve('/wfl/sales-fulfillment').meta).toMatchObject({
+      developing: false,
+      processName: 'sales-fulfillment',
+    })
+    expect(router.resolve('/wfl/process-instance').meta).toMatchObject({
+      title: '流程实例',
+      developing: false,
+    })
+  })
+
+  it('没有 query 权限的流程专用动作不生成菜单', () => {
+    expect(
+      buildMenus([
+        '/wfl/sales-fulfillment/short-close-request',
+        '/wfl/custom-flow/get',
+      ]),
+    ).toEqual([])
   })
 
   it('注册 LED 五类账簿页面并保持业务顺序', () => {

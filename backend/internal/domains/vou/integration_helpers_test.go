@@ -53,7 +53,8 @@ func vouIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE vou_audit_events, vou_download_tokens, vou_document_attachments,
+		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
+			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -64,7 +65,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
-			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {

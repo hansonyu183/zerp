@@ -24,8 +24,8 @@ const (
 )
 
 type workflowReferences struct {
-	customer, supplier, employee, warehouse, platform, vehicle voudomain.ReferenceInput
-	products                                                   []voudomain.ReferenceInput
+	customer, supplier, employee, warehouse, platform, vehicle, fundAccount voudomain.ReferenceInput
+	products                                                                []voudomain.ReferenceInput
 }
 
 func workflowIntegrationPool(t *testing.T) *pgxpool.Pool {
@@ -50,7 +50,8 @@ func workflowIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE vou_audit_events, vou_download_tokens, vou_document_attachments,
+		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
+			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -61,7 +62,7 @@ func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
-			vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details, vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
 		t.Fatalf("truncate workflow integration data: %v", err)
@@ -131,6 +132,9 @@ func prepareWorkflowReferences(t *testing.T, service *bobdomain.Service) workflo
 			Code: "WVE" + suffix, Name: "流程车辆", PlateNumber: "粤B" + suffix[len(suffix)-6:],
 			VehicleType: "厢式货车", PlatformObjectID: platform.ObjectID,
 		}),
+		fundAccount: createWorkflowReference(t, service, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
+			Code: "WFA" + suffix, Name: "流程资金账户", Currency: "CNY",
+		}),
 	}
 	for index, unit := range []string{"吨", "吨", "件"} {
 		refs.products = append(refs.products, createWorkflowReference(
@@ -163,6 +167,7 @@ func newWorkflowIntegrationServices(
 	}
 	workflows.SetSalesVoucherService(vouchers)
 	workflows.SetPurchaseVoucherService(vouchers)
+	workflows.SetWorkflowDocumentConverter(vouchers)
 	return workflows, vouchers, refs
 }
 

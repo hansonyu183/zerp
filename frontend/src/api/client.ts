@@ -16,11 +16,13 @@ type ConcretePostPath<Path extends string> =
     ? `bob/${BobApiEntity}/${Action}`
     : Path extends `/aux/{entity}/${infer Action}`
       ? `aux/${AuxApiEntity}/${Action}`
-    : Path extends `/vou/{entity}/${infer Action}`
-      ? `vou/${VouApiEntity}/${Action}`
-      : Path extends `/${infer Concrete}`
-        ? Concrete
-        : never
+      : Path extends `/vou/{entity}/${infer Action}`
+        ? `vou/${VouApiEntity}/${Action}`
+        : Path extends `/wfl/{processName}/${infer Action}`
+          ? `wfl/${string}/${Action}`
+          : Path extends `/${infer Concrete}`
+            ? Concrete
+            : never
 
 export type ApiPostPath = ConcretePostPath<ContractPostPath>
 
@@ -133,7 +135,7 @@ export class ApiClient {
           body: unknown
           credentials: RequestCredentials
           headers: Headers
-          params?: { path: { entity: string } }
+          params?: { path: { entity?: string; processName?: string } }
           parseAs: 'text'
           signal: AbortSignal
         },
@@ -142,8 +144,19 @@ export class ApiClient {
         body,
         credentials: 'include',
         headers,
-        ...(contractRequest.entity
-          ? { params: { path: { entity: contractRequest.entity } } }
+        ...(contractRequest.entity || contractRequest.processName
+          ? {
+              params: {
+                path: {
+                  ...(contractRequest.entity
+                    ? { entity: contractRequest.entity }
+                    : {}),
+                  ...(contractRequest.processName
+                    ? { processName: contractRequest.processName }
+                    : {}),
+                },
+              },
+            }
           : {}),
         parseAs: 'text',
         signal: controller.signal,
@@ -208,17 +221,28 @@ export class ApiClient {
   private resolveContractPost(path: string): {
     path: ContractPostPath
     entity?: string
+    processName?: string
   } {
     const segments = path.split('/')
     if (
       segments.length === 3 &&
-      (segments[0] === 'bob' ||
-        segments[0] === 'aux' ||
-        segments[0] === 'vou')
+      (segments[0] === 'bob' || segments[0] === 'aux' || segments[0] === 'vou')
     ) {
       return {
         path: `/${segments[0]}/{entity}/${segments[2]}` as ContractPostPath,
         entity: segments[1],
+      }
+    }
+    if (
+      segments.length === 3 &&
+      segments[0] === 'wfl' &&
+      segments[1] !== 'process-definition' &&
+      segments[1] !== 'process-instance' &&
+      ['query', 'get', 'audit-history'].includes(segments[2] ?? '')
+    ) {
+      return {
+        path: `/wfl/{processName}/${segments[2]}` as ContractPostPath,
+        processName: segments[1],
       }
     }
     return { path: `/${path}` as ContractPostPath }

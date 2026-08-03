@@ -14,11 +14,12 @@ import (
 )
 
 type Service struct {
-	pool     *pgxpool.Pool
-	queries  *sqlc.Queries
-	sales    salesVoucherService
-	purchase purchaseVoucherService
-	logger   *slog.Logger
+	pool      *pgxpool.Pool
+	queries   *sqlc.Queries
+	sales     salesVoucherService
+	purchase  purchaseVoucherService
+	converter workflowDocumentConverter
+	logger    *slog.Logger
 }
 
 func NewService(
@@ -35,6 +36,9 @@ func NewService(
 	}
 	service := &Service{pool: pool, queries: sqlc.New(pool), logger: logger}
 	if err := service.registerDocumentSubscriptions(events); err != nil {
+		return nil, err
+	}
+	if err := service.registerGenericSubscriptions(events); err != nil {
 		return nil, err
 	}
 	return service, nil

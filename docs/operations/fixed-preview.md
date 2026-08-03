@@ -71,7 +71,20 @@ brew services info colima
 
 修改前备份配置；通过现有 Tunnel 创建代理 DNS CNAME；运行 `cloudflared tunnel ingress validate` 后重载现有 launchd 服务。不得复制或输出 Tunnel 凭据。
 
-## 5. 验收
+## 5. 故障分层与凭证安全
+
+`preview-deploy` 同时覆盖构建、迁移、seed、本机健康和公网资源预热。失败时按层定位，避免把入口故障误判为应用故障：
+
+1. 先从命令输出确认镜像构建、migration 和 preview seed 是否成功；
+2. 检查本机端点：`http://127.0.0.1:15176/healthz` 与 `http://127.0.0.1:18082/readyz`；
+3. 检查预览容器的 `io.zerp.release` 是否为本次 PR head 完整 SHA；
+4. 本机健康但公网返回 `530`、TLS 失败或资源预热失败时，运行 `cloudflared tunnel ingress validate` 和 `cloudflared tunnel ingress rule https://zerp-preview.bytesucceed.com`，再核对实际承载该配置的 launchd 服务及日志是否仍有已注册 edge 连接；
+5. 只有确认准确的 Tunnel 实例丢失全部 edge 连接且未自行恢复时才重启该实例。不得停止其他 Tunnel，不得用 `preview-reset`、清空卷或重建测试数据修复公网入口；
+6. 入口恢复后重新运行 `make preview-status`，同时确认本机、公网和发布 SHA。
+
+预览登录凭证只从 `backend/.env.preview.local` 读取，并通过 `make preview-password` 放入剪贴板。浏览器自动化或人工调试应在填写密码前采集页面结构，登录后再采集业务页面；禁止在敏感输入框已填充时输出 DOM 快照、截图、表单值或网络请求。若凭证意外进入输出，立即通过 `/app/user/change-password` 轮换、撤销旧会话、同步本地预览环境并用新密码重新登录验证。
+
+## 6. 验收
 
 需要固定预览的变更在草稿 PR 五项必需检查全绿后执行：
 

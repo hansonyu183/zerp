@@ -220,14 +220,22 @@ test('库存盘点加载账面库存并按完成时差异过账', async ({ page 
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成', exact: true }).click()
-  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
-  await expect(countLine.locator('td[data-label="账面数量"]')).toHaveText(
-    String(bookQuantity),
-  )
-  await expect(countLine.locator('td[data-label="差异"]')).toHaveText('1')
+  await workspace.getByRole('button', { name: '完成盘点', exact: true }).click()
+  await expect(workspace.getByText(/^已盘点 · r\d+$/)).toBeVisible()
+  await expect
+    .poll(async () =>
+      Number(
+        await countLine.locator('td[data-label="账面数量"]').textContent(),
+      ),
+    )
+    .toBe(bookQuantity)
+  await expect
+    .poll(async () =>
+      Number(await countLine.locator('td[data-label="差异"]').textContent()),
+    )
+    .toBe(1)
 
-  await reverse(page, '撤销完成')
+  await reverse(page, '撤销盘点')
 })
 
 test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {

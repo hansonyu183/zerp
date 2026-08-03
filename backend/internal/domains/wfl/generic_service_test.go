@@ -56,6 +56,33 @@ func TestValidateDefinitionInputRejectsReservedRouteCodes(t *testing.T) {
 	}
 }
 
+func TestValidateDefinitionInputRejectsDuplicateGraphIDs(t *testing.T) {
+	root := "01J00000000000000000000010"
+	child := "01J00000000000000000000011"
+	input := DefinitionCreateInput{
+		Code: "duplicate-graph", Name: "重复图", RootNodeID: root,
+		Nodes: []DefinitionNodeInput{
+			{ID: root, Key: "root", Name: "销售订单", DocumentEntity: "sale-order"},
+			{ID: root, Key: "duplicate", Name: "重复节点", DocumentEntity: "sale-order"},
+		},
+	}
+	if err := validateDefinitionInput(input); err == nil {
+		t.Fatal("duplicate node ID was accepted")
+	}
+	input.Nodes = []DefinitionNodeInput{
+		{ID: root, Key: "root", Name: "销售订单", DocumentEntity: "sale-order"},
+		{ID: child, Key: "outbound", Name: "销售出库", DocumentEntity: "sale-outbound"},
+	}
+	edgeID := "01J00000000000000000000020"
+	input.Edges = []DefinitionEdgeInput{
+		{ID: edgeID, SourceNodeID: root, TargetNodeID: child, ConverterKey: "sale-order-to-outbound"},
+		{ID: edgeID, SourceNodeID: root, TargetNodeID: child, ConverterKey: "sale-order-to-outbound"},
+	}
+	if err := validateDefinitionInput(input); err == nil {
+		t.Fatal("duplicate edge ID was accepted")
+	}
+}
+
 func TestValidateRequiredDefaults(t *testing.T) {
 	nodes := []DefinitionNodeInput{{
 		ID: "01J00000000000000000000011", DocumentEntity: "receipt", Defaults: json.RawMessage(`{"fundAccountObjectId":"fund"}`),

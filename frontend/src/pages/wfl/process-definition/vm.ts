@@ -157,9 +157,7 @@ export function useProcessDefinitionViewModel() {
         { definitionId: string }
       >('wfl/process-definition/get', { definitionId: item.definitionId })
       selected.value = data
-      selectedNodeId.value = data.rootNodeId
-      selectedEdgeId.value = null
-      syncEditors()
+      selectNode(data.rootNodeId, false)
       editorOpen.value = true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -188,7 +186,7 @@ export function useProcessDefinitionViewModel() {
   }
 
   function addRoot(entity: string): void {
-    if (!selected.value || selected.value.nodes.length) return
+    if (!selected.value || selected.value.nodes.length || !applyJson()) return
     const nodeType = catalogNodes.value.find((item) => item.entity === entity)
     if (!nodeType) return
     const id = workflowId('N')
@@ -202,11 +200,11 @@ export function useProcessDefinitionViewModel() {
       defaults: {},
     })
     selected.value.rootNodeId = id
-    selectNode(id)
+    selectNode(id, false)
   }
 
   function addChild(sourceNodeId: string, converterKey: string): void {
-    if (!selected.value) return
+    if (!selected.value || !applyJson()) return
     const source = selected.value.nodes.find((node) => node.id === sourceNodeId)
     const converter = converters.value.find(
       (item) =>
@@ -240,11 +238,16 @@ export function useProcessDefinitionViewModel() {
       converterKey,
       condition: {},
     })
-    selectNode(nodeId)
+    selectNode(nodeId, false)
   }
 
   function removeNode(nodeId: string): void {
-    if (!selected.value || nodeId === selected.value.rootNodeId) return
+    if (
+      !selected.value ||
+      nodeId === selected.value.rootNodeId ||
+      !applyJson()
+    )
+      return
     const descendants = new Set([nodeId])
     let changed = true
     while (changed) {
@@ -267,19 +270,23 @@ export function useProcessDefinitionViewModel() {
         !descendants.has(edge.sourceNodeId) &&
         !descendants.has(edge.targetNodeId),
     )
-    selectNode(selected.value.rootNodeId)
+    selectNode(selected.value.rootNodeId, false)
   }
 
-  function selectNode(id: string): void {
+  function selectNode(id: string, commitCurrent = true): boolean {
+    if (commitCurrent && !applyJson()) return false
     selectedNodeId.value = id
     selectedEdgeId.value = null
     syncEditors()
+    return true
   }
 
-  function selectEdge(id: string): void {
+  function selectEdge(id: string, commitCurrent = true): boolean {
+    if (commitCurrent && !applyJson()) return false
     selectedEdgeId.value = id
     selectedNodeId.value = null
     syncEditors()
+    return true
   }
 
   function applyJson(): boolean {
@@ -337,7 +344,7 @@ export function useProcessDefinitionViewModel() {
             body,
           )
       selected.value = data
-      selectNode(data.rootNodeId)
+      selectNode(data.rootNodeId, false)
       await query()
     } catch (error) {
       errorMessage.value = getErrorMessage(error)

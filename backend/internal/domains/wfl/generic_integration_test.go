@@ -3,6 +3,7 @@
 package wfl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -29,14 +31,21 @@ func TestDefinitionPermissionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create definition: %v", err)
 	}
+	borrowedCode := "borrowed-node-" + strings.ToLower(ulid.Make().String()[:8])
+	if _, err = workflows.DefinitionCreate(t.Context(), DefinitionCreateInput{
+		Code: borrowedCode, Name: "跨定义节点", RootNodeID: rootID,
+		Nodes: []DefinitionNodeInput{{
+			ID: rootID, Key: "root", Name: "销售订单", DocumentEntity: "sale-order", Defaults: json.RawMessage(`{}`),
+		}},
+	}, workflowIntegrationActor); err == nil {
+		t.Fatal("cross-definition node ID was accepted")
+	}
 	roleID := newID()
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM app_role_permissions WHERE role_id=$1`, roleID)
 		_, _ = pool.Exec(t.Context(), `DELETE FROM app_roles WHERE id=$1`, roleID)
 		_, _ = pool.Exec(t.Context(), `DELETE FROM app_permissions WHERE entity=$1 AND domain='wfl'`, code)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_definition_edges WHERE definition_id=$1`, created.DefinitionID)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_definition_nodes WHERE definition_id=$1`, created.DefinitionID)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_process_definitions WHERE id=$1`, created.DefinitionID)
+		deleteDefinitionForCleanup(t, pool, created.DefinitionID)
 	})
 
 	var count int
@@ -149,6 +158,19 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 	}
 
 	approved := createReimbursement("expense-flow")
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin expense condition projection: %v", err)
+	}
+	expenseProjection, err := loadConditionProjection(t.Context(), tx, approved.DocumentID)
+	_ = tx.Rollback(t.Context())
+	if err != nil {
+		t.Fatalf("load expense condition projection: %v", err)
+	}
+	matched, err := evaluateCondition(json.RawMessage(`{"lineAny":{"field":"category","operator":"EQ","value":"交通"}}`), expenseProjection)
+	if err != nil || !matched {
+		t.Fatalf("expense line condition matched=%t err=%v projection=%+v", matched, err, expenseProjection)
+	}
 	var paymentID, processID string
 	var paymentRevision int64
 	if err := pool.QueryRow(t.Context(), `SELECT child.id,child.revision,instance.id
@@ -230,9 +252,7 @@ func TestDynamicWorkflowMultipleCurrentNodesAndIsolationIntegration(t *testing.T
 	t.Cleanup(func() {
 		truncateWorkflowIntegration(t, pool)
 		_, _ = pool.Exec(t.Context(), `DELETE FROM app_permissions WHERE domain='wfl' AND entity=$1`, code)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_definition_edges WHERE definition_id=$1`, created.DefinitionID)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_definition_nodes WHERE definition_id=$1`, created.DefinitionID)
-		_, _ = pool.Exec(t.Context(), `DELETE FROM wfl_process_definitions WHERE id=$1`, created.DefinitionID)
+		deleteDefinitionForCleanup(t, pool, created.DefinitionID)
 	})
 	if _, err = workflows.DefinitionAction(t.Context(), "enable", DefinitionActionInput{DefinitionID: created.DefinitionID, Revision: created.Revision}, workflowIntegrationActor); err != nil {
 		t.Fatalf("enable branch definition: %v", err)
@@ -289,5 +309,29 @@ func TestDynamicWorkflowMultipleCurrentNodesAndIsolationIntegration(t *testing.T
 	}
 	if _, err = workflows.InstanceGetByDefinitionCode(t.Context(), "purchase-fulfillment", InstanceGetInput{ProcessID: page.Items[0].ProcessID}); err == nil {
 		t.Fatal("cross-definition instance read was accepted")
+	}
+}
+
+func deleteDefinitionForCleanup(t *testing.T, pool *pgxpool.Pool, definitionID string) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Errorf("begin definition cleanup: %v", err)
+		return
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	for _, statement := range []string{
+		`DELETE FROM wfl_definition_edges WHERE definition_id=$1`,
+		`DELETE FROM wfl_definition_nodes WHERE definition_id=$1`,
+		`DELETE FROM wfl_process_definitions WHERE id=$1`,
+	} {
+		if _, err = tx.Exec(ctx, statement, definitionID); err != nil {
+			t.Errorf("delete definition cleanup data: %v", err)
+			return
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Errorf("commit definition cleanup: %v", err)
 	}
 }

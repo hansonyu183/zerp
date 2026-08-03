@@ -19,7 +19,7 @@ WFL 是以 VOU 单据为节点的可配置流程引擎。VOU 仍独立负责单�
 - 保存和状态切换使用 `revision` 乐观并发控制。已启用定义也可修改，修改只影响之后发生的批准事件，不回放既有事件。
 - 启用前校验图结构、转换器兼容性以及转换器要求的默认值。未使用的草稿定义可以删除。
 
-条件使用结构化 JSON DSL，支持头字段规则组 `all`、`any`，以及明细规则组 `lineAll`、`lineAny`。操作符为 `EQ`、`NE`、`GT`、`GTE`、`LT`、`LTE`、`IN`、`CONTAINS`。空对象表示无条件匹配。
+条件使用结构化 JSON DSL，支持头字段规则组 `all`、`any`，以及明细规则组 `lineAll`、`lineAny`。头字段包括 `entity`、`status`、`currency`、`businessDate`、`amount`；订单、出库、送货、签收和采购入库的产品明细字段包括 `productCode`、`unit`、`quantity`、`unitPrice`、`amount`，送货使用其来源出库明细；费用报销明细字段包括 `category`、`description`、`amount`。操作符为 `EQ`、`NE`、`GT`、`GTE`、`LT`、`LTE`、`IN`、`CONTAINS`。空对象表示无条件匹配。
 
 ## 3. 事件与原子性
 

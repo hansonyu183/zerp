@@ -70,7 +70,7 @@ func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 			vou_production_material_lines, vou_production_output_lines, vou_production_details,
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
-			vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details, vou_sale_order_details, vou_documents, vou_number_counters`)
 	if err != nil {
 		t.Fatalf("truncate workflow integration data: %v", err)

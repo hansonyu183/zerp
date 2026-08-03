@@ -8,6 +8,7 @@ import type {
   VoucherReference,
 } from '@/components/voucher'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
+import { formFromDocument } from '@/pages/vou/shared/form'
 import { buildVoucherDraftPayload } from '@/pages/vou/shared/payload'
 import { useVoucherEntityViewModel } from '@/pages/vou/shared/vm'
 import { useSessionStore } from '@/stores/session'
@@ -180,8 +181,8 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
     form.supplier = reference('supplier')
   }
   if (config.partyMode === 'counterparty') {
-    form.counterpartyType = 'customer'
-    form.counterparty = reference('customer')
+    form.counterpartyType = config.fixedCounterpartyType ?? 'customer'
+    form.counterparty = reference(config.fixedCounterpartyType ?? 'customer')
   }
   if (config.usesSalesperson) form.salesperson = reference('employee', 'SALE')
   if (config.usesPurchaser) form.purchaser = reference('employee', 'BUYER')
@@ -392,7 +393,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('defines all atomic document entities', () => {
+  it('defines all twenty-five atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -413,6 +414,9 @@ describe('shared VOU entity view model', () => {
       'customer-payment',
       'supplier-payment',
       'other-payment',
+      'employee-loan',
+      'employee-repayment',
+      'employee-loan-writeoff',
       'expense-reimbursement',
       'expense-payment',
       'other-income',
@@ -960,6 +964,17 @@ describe('shared VOU entity view model', () => {
       check: false,
       finalize: false,
       unapprove: false,
+    })
+  })
+
+  it('hydrates the employee counterparty type from an existing loan', () => {
+    const config = voucherEntityConfigs['employee-loan']
+    const currentForm = useVoucherEntityViewModel(config).form.value
+    populate(config, currentForm)
+
+    expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
+      counterpartyType: 'employee',
+      counterparty: { entity: 'employee' },
     })
   })
 

@@ -619,6 +619,33 @@ SELECT count(*) FROM (
     GROUP BY counterparty_entity, counterparty_object_id, currency
 ) balances;
 
+-- name: GetLedPartyBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
+FROM led_party_entries
+WHERE generation_id=sqlc.arg(generation_id)
+  AND counterparty_entity=sqlc.arg(counterparty_entity)
+  AND counterparty_object_id=sqlc.arg(counterparty_object_id)
+  AND currency=sqlc.arg(currency)
+  AND effective_date<=sqlc.arg(as_of_date);
+
+-- name: HasInvalidEmployeeWriteoffTimeline :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_party_entries writeoff
+    WHERE writeoff.generation_id=sqlc.arg(generation_id)
+      AND writeoff.counterparty_entity='employee'
+      AND writeoff.source_entity='employee-loan-writeoff'
+      AND (
+          SELECT COALESCE(sum(entry.amount_delta_cents), 0)
+          FROM led_party_entries entry
+          WHERE entry.generation_id=writeoff.generation_id
+            AND entry.counterparty_entity=writeoff.counterparty_entity
+            AND entry.counterparty_object_id=writeoff.counterparty_object_id
+            AND entry.currency=writeoff.currency
+            AND entry.effective_date<=writeoff.effective_date
+      ) < 0
+);
+
 -- name: ListLedPartyBalances :many
 SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_version_id ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(26) AS counterparty_version_id,

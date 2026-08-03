@@ -30,6 +30,9 @@ var vouEntities = [...]string{
 	voudomain.EntityCustomerPayment,
 	voudomain.EntitySupplierPayment,
 	voudomain.EntityOtherPayment,
+	voudomain.EntityEmployeeLoan,
+	voudomain.EntityEmployeeRepayment,
+	voudomain.EntityEmployeeLoanWriteoff,
 	voudomain.EntityExpenseReimbursement,
 	voudomain.EntityExpensePayment,
 	voudomain.EntityOtherIncome,
@@ -183,6 +186,15 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 	if negative {
 		return txevent.Reject("purchase reversal would make inventory negative", nil)
 	}
+	if event.Entity == voudomain.EntityEmployeeLoan {
+		invalidWriteoff, queryErr := q.HasInvalidEmployeeWriteoffTimeline(ctx, generationID)
+		if queryErr != nil {
+			return queryErr
+		}
+		if invalidWriteoff {
+			return txevent.Reject("employee loan reversal would invalidate a later writeoff", nil)
+		}
+	}
 	return nil
 }
 
@@ -218,10 +230,12 @@ func (s *Service) postDocument(
 		return s.postProduction(ctx, tx, q, posting)
 	case voudomain.EntityInventoryCount:
 		return s.postInventoryCount(ctx, tx, q, posting)
-	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt:
+	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt, voudomain.EntityEmployeeRepayment:
 		return s.postReceipt(ctx, q, posting)
-	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment:
+	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment, voudomain.EntityEmployeeLoan:
 		return s.postPayment(ctx, q, posting)
+	case voudomain.EntityEmployeeLoanWriteoff:
+		return s.postEmployeeLoanWriteoff(ctx, tx, q, posting)
 	case voudomain.EntityExpenseReimbursement:
 		return s.postExpense(ctx, q, posting)
 	case voudomain.EntityExpensePayment:
@@ -268,6 +282,11 @@ func partyParams(
 
 func lockInventoryDimension(ctx context.Context, tx pgx.Tx, warehouseID, productID string) error {
 	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, warehouseID+"/"+productID)
+	return err
+}
+
+func lockPartyDimension(ctx context.Context, tx pgx.Tx, entity, objectID, currency string) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, entity+"/"+objectID+"/"+currency)
 	return err
 }
 

@@ -27,7 +27,9 @@ export function validateVoucherDraft(
     config.entity !== 'other-income' &&
     (!value.counterpartyType || !value.counterparty)
   ) {
-    return '请选择往来方类型和往来方。'
+    return config.fixedCounterpartyType === 'employee'
+      ? '请选择借款员工。'
+      : '请选择往来方类型和往来方。'
   }
   if (value.counterparty && !value.counterpartyType) return '请选择往来方类型。'
   if (config.usesEmployee && !value.employee) return '请选择员工。'

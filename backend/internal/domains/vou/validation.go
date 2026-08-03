@@ -117,12 +117,12 @@ func validEntity(entity string) bool {
 
 func receiptEntity(entity string) bool {
 	return entity == EntityReceipt || entity == EntityCustomerReceipt ||
-		entity == EntitySupplierReceipt || entity == EntityOtherReceipt
+		entity == EntitySupplierReceipt || entity == EntityOtherReceipt || entity == EntityEmployeeRepayment
 }
 
 func paymentEntity(entity string) bool {
 	return entity == EntityPayment || entity == EntityCustomerPayment ||
-		entity == EntitySupplierPayment || entity == EntityOtherPayment
+		entity == EntitySupplierPayment || entity == EntityOtherPayment || entity == EntityEmployeeLoan
 }
 
 func fixedCounterpartyType(entity string) string {
@@ -133,6 +133,8 @@ func fixedCounterpartyType(entity string) string {
 		return "supplier"
 	case EntityOtherReceipt, EntityOtherPayment:
 		return "other-party"
+	case EntityEmployeeLoan, EntityEmployeeRepayment:
+		return "employee"
 	default:
 		return ""
 	}
@@ -254,7 +256,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		}
 		result.InventoryCountLines, err = validateInventoryCountLines(input.InventoryCountLines)
 	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
+		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
 		}
@@ -264,7 +266,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			}
 			result.CounterpartyType = fixed
 		}
-		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" {
+		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" && result.CounterpartyType != "employee" {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
@@ -277,6 +279,14 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.TotalAmount, err = moneyCents(input.Amount)
+	case EntityEmployeeLoanWriteoff:
+		if err = requireOnlyDraftRefs(input, false, false, false, true, false, false, false, false, false, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if err = validateReference(input.Employee, "employee", true); err != nil {
+			return validatedDraft{}, err
+		}
+		result.ExpenseLines, result.TotalAmount, err = validateExpenseLines(input.ExpenseLines)
 	case EntityExpenseReimbursement:
 		if err = requireOnlyDraftRefs(input, false, false, false, true, false, false, false, false, true, false); err != nil {
 			return validatedDraft{}, err

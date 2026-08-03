@@ -187,6 +187,7 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = $5)
+      OR EXISTS (SELECT 1 FROM vou_employee_loan_writeoff_details x WHERE x.document_id = d.id AND x.employee_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = $5)
       OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = $5)
@@ -217,6 +218,8 @@ WHERE d.entity = $1
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id
+          AND (x.employee_code ILIKE '%' || $6 || '%' OR x.employee_name ILIKE '%' || $6 || '%'))
+      OR EXISTS (SELECT 1 FROM vou_employee_loan_writeoff_details x WHERE x.document_id = d.id
           AND (x.employee_code ILIKE '%' || $6 || '%' OR x.employee_name ILIKE '%' || $6 || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || $6 || '%' OR x.counterparty_name ILIKE '%' || $6 || '%'))
@@ -783,6 +786,24 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 		&i.ParentDocumentID,
 		&i.ParentEntity,
 		&i.DueDate,
+	)
+	return i, err
+}
+
+const getVouEmployeeLoanWriteoffDetail = `-- name: GetVouEmployeeLoanWriteoffDetail :one
+SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name FROM vou_employee_loan_writeoff_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error) {
+	row := q.db.QueryRow(ctx, getVouEmployeeLoanWriteoffDetail, documentID)
+	var i VouEmployeeLoanWriteoffDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.EmployeeObjectID,
+		&i.EmployeeVersionID,
+		&i.EmployeeCode,
+		&i.EmployeeName,
 	)
 	return i, err
 }
@@ -1480,29 +1501,59 @@ func (q *Queries) InsertVouDownloadToken(ctx context.Context, arg InsertVouDownl
 	return err
 }
 
-const insertVouExpenseLine = `-- name: InsertVouExpenseLine :exec
-INSERT INTO vou_expense_lines (
-    id, document_id, line_no, category, description, amount_cents, remark
+const insertVouEmployeeLoanWriteoffDetail = `-- name: InsertVouEmployeeLoanWriteoffDetail :exec
+INSERT INTO vou_employee_loan_writeoff_details (
+    document_id, employee_object_id, employee_version_id, employee_code, employee_name
 ) VALUES (
     $1, $2, $3,
-    $4, $5, $6, $7
+    $4, $5
+)
+`
+
+type InsertVouEmployeeLoanWriteoffDetailParams struct {
+	DocumentID        string `db:"document_id" json:"document_id"`
+	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string `db:"employee_code" json:"employee_code"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
+}
+
+func (q *Queries) InsertVouEmployeeLoanWriteoffDetail(ctx context.Context, arg InsertVouEmployeeLoanWriteoffDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouEmployeeLoanWriteoffDetail,
+		arg.DocumentID,
+		arg.EmployeeObjectID,
+		arg.EmployeeVersionID,
+		arg.EmployeeCode,
+		arg.EmployeeName,
+	)
+	return err
+}
+
+const insertVouExpenseLine = `-- name: InsertVouExpenseLine :exec
+INSERT INTO vou_expense_lines (
+    id, document_id, document_entity, line_no, category, description, amount_cents, remark
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8
 )
 `
 
 type InsertVouExpenseLineParams struct {
-	ID          string  `db:"id" json:"id"`
-	DocumentID  string  `db:"document_id" json:"document_id"`
-	LineNo      int32   `db:"line_no" json:"line_no"`
-	Category    string  `db:"category" json:"category"`
-	Description string  `db:"description" json:"description"`
-	AmountCents int64   `db:"amount_cents" json:"amount_cents"`
-	Remark      *string `db:"remark" json:"remark"`
+	ID             string  `db:"id" json:"id"`
+	DocumentID     string  `db:"document_id" json:"document_id"`
+	DocumentEntity string  `db:"document_entity" json:"document_entity"`
+	LineNo         int32   `db:"line_no" json:"line_no"`
+	Category       string  `db:"category" json:"category"`
+	Description    string  `db:"description" json:"description"`
+	AmountCents    int64   `db:"amount_cents" json:"amount_cents"`
+	Remark         *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouExpenseLine(ctx context.Context, arg InsertVouExpenseLineParams) error {
 	_, err := q.db.Exec(ctx, insertVouExpenseLine,
 		arg.ID,
 		arg.DocumentID,
+		arg.DocumentEntity,
 		arg.LineNo,
 		arg.Category,
 		arg.Description,
@@ -2767,7 +2818,7 @@ const listVouDocuments = `-- name: ListVouDocuments :many
 SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
-                p.counterparty_name, er.employee_name, ep.employee_name, oi.counterparty_name,
+                p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
                 aa.supplier_name, asl.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
@@ -2783,6 +2834,7 @@ LEFT JOIN vou_receipt_details r ON r.document_id = d.id
 LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_expense_payment_details ep ON ep.document_id = d.id
+LEFT JOIN vou_employee_loan_writeoff_details elw ON elw.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
 LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
 LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
@@ -2803,6 +2855,7 @@ WHERE d.entity = $1
       OR r.counterparty_object_id = $5
       OR p.counterparty_object_id = $5
       OR ep.employee_object_id = $5
+      OR elw.employee_object_id = $5
       OR oi.counterparty_object_id = $5
       OR aa.supplier_object_id = $5
       OR asl.counterparty_object_id = $5
@@ -2821,6 +2874,7 @@ WHERE d.entity = $1
       OR r.counterparty_code ILIKE '%' || $6 || '%' OR r.counterparty_name ILIKE '%' || $6 || '%'
       OR p.counterparty_code ILIKE '%' || $6 || '%' OR p.counterparty_name ILIKE '%' || $6 || '%'
       OR ep.employee_code ILIKE '%' || $6 || '%' OR ep.employee_name ILIKE '%' || $6 || '%'
+      OR elw.employee_code ILIKE '%' || $6 || '%' OR elw.employee_name ILIKE '%' || $6 || '%'
       OR oi.source_name ILIKE '%' || $6 || '%' OR oi.counterparty_name ILIKE '%' || $6 || '%'
       OR aa.supplier_code ILIKE '%' || $6 || '%' OR aa.supplier_name ILIKE '%' || $6 || '%'
       OR asl.counterparty_code ILIKE '%' || $6 || '%' OR asl.counterparty_name ILIKE '%' || $6 || '%'
@@ -3749,6 +3803,35 @@ func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) 
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
+}
+
+const updateVouEmployeeLoanWriteoffDetail = `-- name: UpdateVouEmployeeLoanWriteoffDetail :execrows
+UPDATE vou_employee_loan_writeoff_details
+SET employee_object_id=$1, employee_version_id=$2,
+    employee_code=$3, employee_name=$4
+WHERE document_id=$5
+`
+
+type UpdateVouEmployeeLoanWriteoffDetailParams struct {
+	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string `db:"employee_code" json:"employee_code"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
+	DocumentID        string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouEmployeeLoanWriteoffDetail,
+		arg.EmployeeObjectID,
+		arg.EmployeeVersionID,
+		arg.EmployeeCode,
+		arg.EmployeeName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateVouExpensePaymentFundAccount = `-- name: UpdateVouExpensePaymentFundAccount :execrows

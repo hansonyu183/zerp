@@ -25,6 +25,7 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		"/led/customer/query", "/led/customer/balance",
 		"/led/supplier/query", "/led/supplier/balance",
 		"/led/other/query", "/led/other/balance",
+		"/led/employee/query", "/led/employee/balance",
 		"/led/container/query", "/led/container/balance",
 	}
 	for _, path := range expected {

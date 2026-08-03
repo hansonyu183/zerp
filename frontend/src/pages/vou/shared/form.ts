@@ -240,6 +240,20 @@ function formReference(
   return reference ? { ...reference } : null
 }
 
+function formCounterpartyType(
+  reference: VoucherReferenceView | undefined,
+): VoucherDraftForm['counterpartyType'] {
+  switch (reference?.entity) {
+    case 'customer':
+    case 'supplier':
+    case 'other-party':
+    case 'employee':
+      return reference.entity
+    default:
+      return ''
+  }
+}
+
 export function formFromDocument(
   document: VoucherDocumentView,
 ): VoucherDraftForm {
@@ -252,14 +266,7 @@ export function formFromDocument(
     returnKind: data.returnKind ?? '',
     customer: formReference(data.customer),
     supplier: formReference(data.supplier),
-    counterpartyType:
-      data.counterparty?.entity === 'supplier'
-        ? 'supplier'
-        : data.counterparty?.entity === 'other-party'
-          ? 'other-party'
-          : data.counterparty
-            ? 'customer'
-            : '',
+    counterpartyType: formCounterpartyType(data.counterparty),
     counterparty: formReference(data.counterparty),
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),

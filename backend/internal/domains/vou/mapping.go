@@ -181,7 +181,7 @@ func (s *Service) loadData(
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
 		return data, nil
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
+	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -194,7 +194,7 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
+	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -239,6 +239,24 @@ func (s *Service) loadData(
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
+	case EntityEmployeeLoanWriteoff:
+		detail, err := q.GetVouEmployeeLoanWriteoffDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
+			detail.EmployeeCode, detail.EmployeeName, "", "", "")
+		rows, err := q.ListVouExpenseLines(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.ExpenseLines = make([]ExpenseLineView, 0, len(rows))
+		for _, row := range rows {
+			data.ExpenseLines = append(data.ExpenseLines, ExpenseLineView{
+				LineID: row.ID, LineNo: row.LineNo, Category: row.Category,
+				Description: row.Description, Amount: formatMoney(row.AmountCents), Remark: deref(row.Remark),
+			})
+		}
 	case EntityOtherIncome:
 		detail, err := q.GetVouOtherIncomeDetail(ctx, document.ID)
 		if err != nil {

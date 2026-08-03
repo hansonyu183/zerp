@@ -27,6 +27,9 @@ const (
 	EntityCustomerPayment      = "customer-payment"
 	EntitySupplierPayment      = "supplier-payment"
 	EntityOtherPayment         = "other-payment"
+	EntityEmployeeLoan         = "employee-loan"
+	EntityEmployeeRepayment    = "employee-repayment"
+	EntityEmployeeLoanWriteoff = "employee-loan-writeoff"
 	EntityExpenseReimbursement = "expense-reimbursement"
 	EntityExpensePayment       = "expense-payment"
 	EntityOtherIncome          = "other-income"
@@ -64,6 +67,9 @@ var entities = [...]string{
 	EntityCustomerPayment,
 	EntitySupplierPayment,
 	EntityOtherPayment,
+	EntityEmployeeLoan,
+	EntityEmployeeRepayment,
+	EntityEmployeeLoanWriteoff,
 	EntityExpenseReimbursement,
 	EntityExpensePayment,
 	EntityOtherIncome,
@@ -80,6 +86,7 @@ func publicCreateEntity(entity string) bool {
 		EntityInventoryCount,
 		EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
 		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
+		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
 		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
 		return true

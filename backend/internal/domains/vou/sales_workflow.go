@@ -805,16 +805,21 @@ func (s *Service) deleteGeneratedSalesDocument(
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_purchase_inbound_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
+	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_receipt_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
+	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_payment_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
 	case EntityExpensePayment:
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_expense_payment_details WHERE document_id=$1`, documentID); err != nil {
+			return err
+		}
+	case EntityEmployeeLoanWriteoff:
+		if _, err := tx.Exec(ctx, `DELETE FROM vou_expense_lines WHERE document_id=$1;
+			DELETE FROM vou_employee_loan_writeoff_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
 	default:

@@ -8,7 +8,8 @@ func TestDocumentPrefixes(t *testing.T) {
 		EntitySaleOrder: "SOR", EntitySaleOutbound: "SOB", EntitySaleDelivery: "SDL",
 		EntitySaleSignoff: "SSF", EntitySaleReturn: "SRT", EntityPurchaseOrder: "POR",
 		EntityPurchaseInbound: "PIN", EntityPurchaseReturn: "PRT", EntityReceipt: "REC",
-		EntityPayment: "PAY", EntityExpenseReimbursement: "EXR", EntityOtherIncome: "OIN",
+		EntityPayment: "PAY", EntityEmployeeLoan: "ELN", EntityEmployeeRepayment: "ERP",
+		EntityEmployeeLoanWriteoff: "ELW", EntityExpenseReimbursement: "EXR", EntityOtherIncome: "OIN",
 	}
 	for entity, prefix := range expected {
 		if actual := entityPrefix(entity); actual != prefix {

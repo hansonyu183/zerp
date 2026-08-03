@@ -51,7 +51,6 @@ func New(
 	}
 	bobService := bobdomain.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
-	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	events := txevent.NewBus()
 	ledger, err := leddomain.NewService(pool, bobService)
 	if err != nil {

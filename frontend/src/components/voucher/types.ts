@@ -21,6 +21,10 @@ export type VoucherEntity =
   | 'expense-reimbursement'
   | 'expense-payment'
   | 'other-income'
+  | 'asset-acquisition'
+  | 'asset-depreciation'
+  | 'asset-sale'
+  | 'asset-liquidation'
 
 export type VoucherStatus =
   | 'DRAFT'
@@ -95,6 +99,30 @@ export interface VoucherInventoryCountLineDraft {
   remark: string
 }
 
+export interface VoucherAssetLineDraft {
+  key: string
+  lineId?: string
+  assetId: string
+  assetNo: string
+  assetName: string
+  specification: string
+  category: VoucherReference | null
+  department: VoucherReference | null
+  custodian: VoucherReference | null
+  originalValue: string
+  usefulLifeMonths: string
+  residualRate: string
+  location: string
+  accumulatedDepreciation: string
+  depreciationAmount: string
+  netValue: string
+  saleAmount: string
+  reason: string
+  salvageIncome: string
+  disposalExpense: string
+  remark: string
+}
+
 export interface VoucherSalesChainLineDraft {
   key: string
   sourceLineId: string
@@ -163,6 +191,8 @@ export interface VoucherDraftForm {
   productLines: VoucherProductLineDraft[]
   priceLines: VoucherPriceLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
+  depreciationMonth: string
+  assetLines: VoucherAssetLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
   productionLines: VoucherProductionOutputDraft[]
   inventoryCountLines: VoucherInventoryCountLineDraft[]
@@ -372,6 +402,11 @@ export interface VoucherDocumentData {
   productLines?: VoucherProductLineView[]
   priceLines?: VoucherPriceLineView[]
   expenseLines?: VoucherExpenseLineView[]
+  depreciationMonth?: string
+  assetAcquisitionLines?: VoucherAssetLineView[]
+  assetDepreciationLines?: VoucherAssetLineView[]
+  assetSaleLines?: VoucherAssetLineView[]
+  assetLiquidationLines?: VoucherAssetLineView[]
   outboundDate?: string
   signoffDate?: string
   inboundDate?: string
@@ -395,6 +430,32 @@ export interface VoucherDocumentData {
   returnedSolventContainers?: number
   returnedResinContainers?: number
   containerDifferenceReason?: string
+}
+
+export interface VoucherAssetLineView {
+  lineId: string
+  assetId?: string
+  assetNo?: string
+  assetName: string
+  specification?: string
+  category?: VoucherReferenceView
+  department?: VoucherReferenceView
+  custodian?: VoucherReferenceView
+  originalValue?: string
+  usefulLifeMonths?: number
+  residualRate?: string
+  location?: string
+  accumulatedDepreciation?: string
+  depreciationAmount?: string
+  amount?: string
+  openingAccumulated?: string
+  closingAccumulated?: string
+  netValue?: string
+  saleAmount?: string
+  reason?: string
+  salvageIncome?: string
+  disposalExpense?: string
+  remark?: string
 }
 
 export interface VoucherManagedLineView {
@@ -536,7 +597,15 @@ export interface VoucherExecutionForm {
 }
 
 export type VoucherLineKind =
-  'product' | 'price' | 'expense' | 'inventory-count' | 'none'
+  | 'product'
+  | 'price'
+  | 'expense'
+  | 'inventory-count'
+  | 'asset-acquisition'
+  | 'asset-depreciation'
+  | 'asset-sale'
+  | 'asset-liquidation'
+  | 'none'
 export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
 
 export interface VoucherLifecycleLabels {

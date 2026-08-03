@@ -41,7 +41,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	auxService := auxdomain.NewService(db)
 	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
 	eventBus := txevent.NewBus()
-	vouService, err := voudomain.NewService(db, bobService, eventBus, voudomain.AttachmentOptions{
+	vouService, err := voudomain.NewService(db, bobService, auxiliaryrefs.New(auxService), eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger)
 	if err != nil {

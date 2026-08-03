@@ -27,11 +27,15 @@ other-payment
 expense-reimbursement
 expense-payment
 other-income
+asset-acquisition
+asset-depreciation
+asset-sale
+asset-liquidation
 ```
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 22 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+当前共 26 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -45,11 +49,12 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/EXR/EXP/OIN-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
 采购退货、生产配货、生产自制品、收款、付款、费用报销、费用付款和其他收入。三类收款共享 REC 序列，三类付款共享 PAY 序列；其他流水按实体和业务日期分别从 `0001` 开始，
+`ACQ/DEP/DSL/LIQ` 分别对应资产购置、折旧、出让和清算。
 达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
@@ -286,7 +291,15 @@ WFL 流程或 LED 流水。
 `bookQuantity`、`actualQuantity` 与 `differenceQuantity`。正差异盘盈，负差异盘亏，零差异不生成库存流水。
 反完成删除该单库存流水并清除固定结果；若会破坏任一历史时点的严格库存约束则拒绝。
 
-### 3.11 草稿与执行载荷
+### 3.11 固定资产单据
+
+- `asset-acquisition` 必须选择供应商；一行形成一张独立资产卡片，保存资产名称、规格、资产类别、原值、使用月数、残值率、使用部门、可选保管人、地点和备注。类别默认值可覆盖。完成后生成资产编号并按每行原值形成供应商应付，不直接改变资金。
+- `asset-depreciation` 以 `YYYY-MM` 折旧月份生成只读金额明细，可按资产类别和部门筛选。直线法月折旧额为 `(原值-残值)/使用月数`，末月用差额收尾；购置次月开始折旧，出让或清算当月仍须先完成折旧。同一资产月份不可重复且必须连续。
+- `asset-sale` 必须选择客户或其他往来单位；只能选择在用且已折旧至处置月的资产，逐行填写出让金额。完成后资产状态为 `SOLD` 并形成应收，不直接收款。
+- `asset-liquidation` 只能选择在用且已折旧至处置月的资产，逐行填写清算原因、残值收入和处置费用。完成后资产状态为 `RETIRED`；首版只记录资产处置历史，不形成资金或往来流水。
+- 已有后续折旧或处置历史时，购置或前序折旧不得反完成；处置反完成后资产恢复为在用。首版不提供历史资产期初导入。
+
+### 3.12 草稿与执行载荷
 
 贸易单据草稿使用统一 `data` 结构。销售订单示例：
 
@@ -544,6 +557,10 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 | `expense-reimbursement` | 费用报销        | 公开     |
 | `expense-payment`       | 费用付款        | WFL 自动 |
 | `other-income`          | 其他收入        | 公开     |
+| `asset-acquisition`     | 资产购置        | 公开     |
+| `asset-depreciation`    | 资产折旧        | 公开     |
+| `asset-sale`            | 资产出让        | 公开     |
+| `asset-liquidation`     | 资产清算        | 公开     |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 

@@ -10,6 +10,7 @@ AuxEntity:
     - measurement-unit
     - income-expense-type
     - account-subject
+    - asset-category
 
 AuxData:
   type: object

@@ -30,6 +30,10 @@ const (
 	EntityExpenseReimbursement = "expense-reimbursement"
 	EntityExpensePayment       = "expense-payment"
 	EntityOtherIncome          = "other-income"
+	EntityAssetAcquisition     = "asset-acquisition"
+	EntityAssetDepreciation    = "asset-depreciation"
+	EntityAssetSale            = "asset-sale"
+	EntityAssetLiquidation     = "asset-liquidation"
 	StatusDraft                = "DRAFT"
 	StatusChecked              = "CHECKED"
 	StatusApproved             = "APPROVED"
@@ -63,6 +67,10 @@ var entities = [...]string{
 	EntityExpenseReimbursement,
 	EntityExpensePayment,
 	EntityOtherIncome,
+	EntityAssetAcquisition,
+	EntityAssetDepreciation,
+	EntityAssetSale,
+	EntityAssetLiquidation,
 }
 
 func publicCreateEntity(entity string) bool {
@@ -72,7 +80,8 @@ func publicCreateEntity(entity string) bool {
 		EntityInventoryCount,
 		EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
 		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
-		EntityExpenseReimbursement, EntityOtherIncome:
+		EntityExpenseReimbursement, EntityOtherIncome,
+		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
 		return true
 	default:
 		return false
@@ -190,36 +199,97 @@ type ProductionOutputInput struct {
 	Materials         []ProductionMaterialInput `json:"materials"`
 }
 
+type AssetAcquisitionLineInput struct {
+	AssetName        string          `json:"assetName"`
+	Specification    string          `json:"specification,omitempty"`
+	Category         ReferenceInput  `json:"category"`
+	OriginalValue    string          `json:"originalValue"`
+	UsefulLifeMonths int32           `json:"usefulLifeMonths"`
+	ResidualRate     string          `json:"residualRate"`
+	Department       ReferenceInput  `json:"department"`
+	Custodian        *ReferenceInput `json:"custodian,omitempty"`
+	Location         string          `json:"location,omitempty"`
+	Remark           string          `json:"remark,omitempty"`
+}
+
+type AssetDepreciationLineInput struct {
+	AssetID string `json:"assetId"`
+	Remark  string `json:"remark,omitempty"`
+}
+
+type AssetSaleLineInput struct {
+	AssetID    string `json:"assetId"`
+	SaleAmount string `json:"saleAmount"`
+	Remark     string `json:"remark,omitempty"`
+}
+
+type AssetLiquidationLineInput struct {
+	AssetID         string `json:"assetId"`
+	Reason          string `json:"reason"`
+	SalvageIncome   string `json:"salvageIncome"`
+	DisposalExpense string `json:"disposalExpense"`
+	Remark          string `json:"remark,omitempty"`
+}
+
 type DraftInput struct {
-	BusinessDate        string                    `json:"businessDate"`
-	Currency            string                    `json:"currency"`
-	Remark              string                    `json:"remark,omitempty"`
-	ReturnReason        string                    `json:"returnReason,omitempty"`
-	SourceDocumentID    string                    `json:"-"`
-	Customer            *ReferenceInput           `json:"customer,omitempty"`
-	Supplier            *ReferenceInput           `json:"supplier,omitempty"`
-	CounterpartyType    string                    `json:"counterpartyType,omitempty"`
-	Counterparty        *ReferenceInput           `json:"counterparty,omitempty"`
-	Employee            *ReferenceInput           `json:"employee,omitempty"`
-	Salesperson         *ReferenceInput           `json:"salesperson,omitempty"`
-	Purchaser           *ReferenceInput           `json:"purchaser,omitempty"`
-	Handler             *ReferenceInput           `json:"handler,omitempty"`
-	Warehouse           *ReferenceInput           `json:"warehouse,omitempty"`
-	MaterialWarehouse   *ReferenceInput           `json:"materialWarehouse,omitempty"`
-	FinishedWarehouse   *ReferenceInput           `json:"finishedWarehouse,omitempty"`
-	Platform            *ReferenceInput           `json:"platform,omitempty"`
-	Vehicle             *ReferenceInput           `json:"vehicle,omitempty"`
-	FundAccount         *ReferenceInput           `json:"fundAccount,omitempty"`
-	SourceName          string                    `json:"sourceName,omitempty"`
-	Amount              string                    `json:"amount,omitempty"`
-	ProductLines        []ProductLineInput        `json:"productLines,omitempty"`
-	PriceLines          []PriceLineInput          `json:"priceLines,omitempty"`
-	ExpenseLines        []ExpenseLineInput        `json:"expenseLines,omitempty"`
-	SourceLines         []SourceQuantityLineInput `json:"sourceLines,omitempty"`
-	SignoffLines        []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
-	ReturnLines         []ReturnLineInput         `json:"returnLines,omitempty"`
-	ProductionLines     []ProductionOutputInput   `json:"productionLines,omitempty"`
-	InventoryCountLines []InventoryCountLineInput `json:"inventoryCountLines,omitempty"`
+	BusinessDate           string                       `json:"businessDate"`
+	Currency               string                       `json:"currency"`
+	Remark                 string                       `json:"remark,omitempty"`
+	ReturnReason           string                       `json:"returnReason,omitempty"`
+	SourceDocumentID       string                       `json:"-"`
+	Customer               *ReferenceInput              `json:"customer,omitempty"`
+	Supplier               *ReferenceInput              `json:"supplier,omitempty"`
+	CounterpartyType       string                       `json:"counterpartyType,omitempty"`
+	Counterparty           *ReferenceInput              `json:"counterparty,omitempty"`
+	Employee               *ReferenceInput              `json:"employee,omitempty"`
+	Salesperson            *ReferenceInput              `json:"salesperson,omitempty"`
+	Purchaser              *ReferenceInput              `json:"purchaser,omitempty"`
+	Handler                *ReferenceInput              `json:"handler,omitempty"`
+	Warehouse              *ReferenceInput              `json:"warehouse,omitempty"`
+	MaterialWarehouse      *ReferenceInput              `json:"materialWarehouse,omitempty"`
+	FinishedWarehouse      *ReferenceInput              `json:"finishedWarehouse,omitempty"`
+	Platform               *ReferenceInput              `json:"platform,omitempty"`
+	Vehicle                *ReferenceInput              `json:"vehicle,omitempty"`
+	FundAccount            *ReferenceInput              `json:"fundAccount,omitempty"`
+	SourceName             string                       `json:"sourceName,omitempty"`
+	Amount                 string                       `json:"amount,omitempty"`
+	ProductLines           []ProductLineInput           `json:"productLines,omitempty"`
+	PriceLines             []PriceLineInput             `json:"priceLines,omitempty"`
+	ExpenseLines           []ExpenseLineInput           `json:"expenseLines,omitempty"`
+	SourceLines            []SourceQuantityLineInput    `json:"sourceLines,omitempty"`
+	SignoffLines           []SaleSignoffLineInput       `json:"signoffLines,omitempty"`
+	ReturnLines            []ReturnLineInput            `json:"returnLines,omitempty"`
+	ProductionLines        []ProductionOutputInput      `json:"productionLines,omitempty"`
+	InventoryCountLines    []InventoryCountLineInput    `json:"inventoryCountLines,omitempty"`
+	DepreciationMonth      string                       `json:"depreciationMonth,omitempty"`
+	AssetAcquisitionLines  []AssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
+	AssetDepreciationLines []AssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
+	AssetSaleLines         []AssetSaleLineInput         `json:"assetSaleLines,omitempty"`
+	AssetLiquidationLines  []AssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
+}
+
+type AssetDepreciationPreviewInput struct {
+	DepreciationMonth  string `json:"depreciationMonth"`
+	CategoryObjectID   string `json:"categoryObjectId,omitempty"`
+	DepartmentObjectID string `json:"departmentObjectId,omitempty"`
+}
+
+type AssetDepreciationPreviewItem struct {
+	AssetID                 string        `json:"assetId"`
+	AssetNo                 string        `json:"assetNo"`
+	AssetName               string        `json:"assetName"`
+	Category                ReferenceView `json:"category"`
+	Department              ReferenceView `json:"department"`
+	OriginalValue           string        `json:"originalValue"`
+	AccumulatedDepreciation string        `json:"accumulatedDepreciation"`
+	DepreciationAmount      string        `json:"depreciationAmount"`
+	NetValue                string        `json:"netValue"`
+}
+
+type AssetDepreciationPreviewView struct {
+	DepreciationMonth string                         `json:"depreciationMonth"`
+	Items             []AssetDepreciationPreviewItem `json:"items"`
+	TotalAmount       string                         `json:"totalAmount"`
 }
 
 type CreateInput struct {
@@ -503,6 +573,55 @@ type InventoryCountBalanceItem struct {
 	Quantity string        `json:"quantity"`
 }
 
+type AssetAcquisitionLineView struct {
+	LineID           string         `json:"lineId"`
+	LineNo           int32          `json:"lineNo"`
+	AssetName        string         `json:"assetName"`
+	Specification    string         `json:"specification,omitempty"`
+	Category         ReferenceView  `json:"category"`
+	OriginalValue    string         `json:"originalValue"`
+	UsefulLifeMonths int32          `json:"usefulLifeMonths"`
+	ResidualRate     string         `json:"residualRate"`
+	Department       ReferenceView  `json:"department"`
+	Custodian        *ReferenceView `json:"custodian,omitempty"`
+	Location         string         `json:"location,omitempty"`
+	Remark           string         `json:"remark,omitempty"`
+}
+
+type AssetDepreciationLineView struct {
+	LineID             string `json:"lineId"`
+	LineNo             int32  `json:"lineNo"`
+	AssetID            string `json:"assetId"`
+	AssetNo            string `json:"assetNo"`
+	AssetName          string `json:"assetName"`
+	Amount             string `json:"amount"`
+	OpeningAccumulated string `json:"openingAccumulated"`
+	ClosingAccumulated string `json:"closingAccumulated"`
+	Remark             string `json:"remark,omitempty"`
+}
+
+type AssetSaleLineView struct {
+	LineID     string `json:"lineId"`
+	LineNo     int32  `json:"lineNo"`
+	AssetID    string `json:"assetId"`
+	AssetNo    string `json:"assetNo"`
+	AssetName  string `json:"assetName"`
+	SaleAmount string `json:"saleAmount"`
+	Remark     string `json:"remark,omitempty"`
+}
+
+type AssetLiquidationLineView struct {
+	LineID          string `json:"lineId"`
+	LineNo          int32  `json:"lineNo"`
+	AssetID         string `json:"assetId"`
+	AssetNo         string `json:"assetNo"`
+	AssetName       string `json:"assetName"`
+	Reason          string `json:"reason"`
+	SalvageIncome   string `json:"salvageIncome"`
+	DisposalExpense string `json:"disposalExpense"`
+	Remark          string `json:"remark,omitempty"`
+}
+
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
 	VersionID             string `json:"versionId"`
@@ -580,6 +699,11 @@ type DocumentDataView struct {
 	ReturnedSolventContainers int64                         `json:"returnedSolventContainers,omitempty"`
 	ReturnedResinContainers   int64                         `json:"returnedResinContainers,omitempty"`
 	ContainerDifferenceReason string                        `json:"containerDifferenceReason,omitempty"`
+	DepreciationMonth         string                        `json:"depreciationMonth,omitempty"`
+	AssetAcquisitionLines     []AssetAcquisitionLineView    `json:"assetAcquisitionLines,omitempty"`
+	AssetDepreciationLines    []AssetDepreciationLineView   `json:"assetDepreciationLines,omitempty"`
+	AssetSaleLines            []AssetSaleLineView           `json:"assetSaleLines,omitempty"`
+	AssetLiquidationLines     []AssetLiquidationLineView    `json:"assetLiquidationLines,omitempty"`
 }
 
 type DocumentView struct {

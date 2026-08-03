@@ -95,6 +95,7 @@ func New(
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
+		auxiliaryrefs.New(auxiliary),
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,

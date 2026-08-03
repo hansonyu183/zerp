@@ -13,7 +13,10 @@ export function buildVoucherDraftPayload(
   personnelDirty: ReadonlySet<string>,
 ): DraftPayload {
   const payload: DraftPayload = {
-    businessDate: value.businessDate,
+    businessDate:
+      config.lineKind === 'asset-depreciation'
+        ? depreciationMonthEnd(value.depreciationMonth)
+        : value.businessDate,
     ...(config.productionMode
       ? {}
       : { currency: value.currency.trim().toUpperCase() || 'CNY' }),
@@ -124,6 +127,51 @@ export function buildVoucherDraftPayload(
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }
+  if (config.lineKind === 'asset-acquisition') {
+    payload.assetAcquisitionLines = value.assetLines.map((line) => ({
+      assetName: line.assetName.trim(),
+      ...(line.specification.trim()
+        ? { specification: line.specification.trim() }
+        : {}),
+      category: inputReference(line.category)!,
+      originalValue: line.originalValue.trim(),
+      usefulLifeMonths: Number(line.usefulLifeMonths),
+      residualRate: line.residualRate.trim(),
+      department: inputReference(line.department)!,
+      ...(line.custodian ? { custodian: inputReference(line.custodian) } : {}),
+      ...(line.location.trim() ? { location: line.location.trim() } : {}),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
+  if (config.lineKind === 'asset-depreciation') {
+    payload.depreciationMonth = value.depreciationMonth
+    payload.assetDepreciationLines = value.assetLines.map((line) => ({
+      assetId: line.assetId,
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
+  if (config.lineKind === 'asset-sale') {
+    payload.assetSaleLines = value.assetLines.map((line) => ({
+      assetId: line.assetId,
+      saleAmount: line.saleAmount.trim(),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
+  if (config.lineKind === 'asset-liquidation') {
+    payload.assetLiquidationLines = value.assetLines.map((line) => ({
+      assetId: line.assetId,
+      reason: line.reason.trim(),
+      salvageIncome: line.salvageIncome.trim(),
+      disposalExpense: line.disposalExpense.trim(),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
   appendSalesChainPayload(config, value, payload)
   return payload
+}
+
+function depreciationMonthEnd(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  if (!year || !monthNumber) return ''
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
 }

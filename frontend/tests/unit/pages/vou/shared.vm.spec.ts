@@ -97,6 +97,40 @@ function documentView(
         amount: line.amount,
         remark: line.remark,
       })),
+      depreciationMonth: form.depreciationMonth,
+      assetAcquisitionLines:
+        config.lineKind === 'asset-acquisition'
+          ? form.assetLines.map((line, index) => ({
+              ...line,
+              lineId: `ASSET-${index}`,
+              lineNo: index + 1,
+            }))
+          : [],
+      assetDepreciationLines:
+        config.lineKind === 'asset-depreciation'
+          ? form.assetLines.map((line, index) => ({
+              ...line,
+              lineId: `ASSET-${index}`,
+              lineNo: index + 1,
+              amount: line.depreciationAmount,
+            }))
+          : [],
+      assetSaleLines:
+        config.lineKind === 'asset-sale'
+          ? form.assetLines.map((line, index) => ({
+              ...line,
+              lineId: `ASSET-${index}`,
+              lineNo: index + 1,
+            }))
+          : [],
+      assetLiquidationLines:
+        config.lineKind === 'asset-liquidation'
+          ? form.assetLines.map((line, index) => ({
+              ...line,
+              lineId: `ASSET-${index}`,
+              lineNo: index + 1,
+            }))
+          : [],
       productionLines: form.productionLines.map((line, index) => ({
         lineId: `PRODUCTION-${index}`,
         lineNo: index + 1,
@@ -257,6 +291,33 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
       },
     ]
   }
+  if (config.lineKind.startsWith('asset-')) {
+    form.depreciationMonth = '2026-07'
+    form.assetLines = [
+      {
+        key: 'asset-line',
+        assetId: '01J00000000000000000000002',
+        assetNo: 'AST-001',
+        assetName: '测试设备',
+        specification: '',
+        category: reference('asset-category'),
+        department: reference('department'),
+        custodian: null,
+        originalValue: '1200.00',
+        usefulLifeMonths: '12',
+        residualRate: '10.00',
+        location: '',
+        accumulatedDepreciation: '100.00',
+        depreciationAmount: '90.00',
+        netValue: '1010.00',
+        saleAmount: '900.00',
+        reason: '正常报废',
+        salvageIncome: '10.00',
+        disposalExpense: '5.00',
+        remark: '',
+      },
+    ]
+  }
 }
 
 describe('shared VOU entity view model', () => {
@@ -355,6 +416,10 @@ describe('shared VOU entity view model', () => {
       'expense-reimbursement',
       'expense-payment',
       'other-income',
+      'asset-acquisition',
+      'asset-depreciation',
+      'asset-sale',
+      'asset-liquidation',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
     expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(
@@ -460,7 +525,10 @@ describe('shared VOU entity view model', () => {
       expect(data).not.toHaveProperty('dueDate')
       expect(data).not.toHaveProperty('outboundDate')
       expect(data).not.toHaveProperty('inboundDate')
-      expect(data).toHaveProperty('businessDate', '2026-07-24')
+      expect(data).toHaveProperty(
+        'businessDate',
+        config.entity === 'asset-depreciation' ? '2026-07-31' : '2026-07-24',
+      )
       if (config.lineKind !== 'product')
         expect(data).not.toHaveProperty('productLines')
       if (config.lineKind !== 'expense')

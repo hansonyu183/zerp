@@ -1,11 +1,17 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { loadEnv } from 'vite'
+import { wflBootstrapEnabled, wflOperatorAuthStatePath } from './wfl-runtime'
 
 const localE2EEnv = loadEnv('e2e', process.cwd(), '')
 const ledReadonlyEnabled =
   (process.env.E2E_LED_READONLY ?? localE2EEnv.E2E_LED_READONLY) === '1'
+const reuseBootstrapSession = wflBootstrapEnabled()
+test.use({
+  storageState: reuseBootstrapSession ? wflOperatorAuthStatePath : undefined,
+})
 
 async function signIn(page: Page): Promise<void> {
+  if (reuseBootstrapSession) return
   await page.goto('/signin')
   await page.getByLabel('用户名').fill(process.env.E2E_USERNAME!)
   await page.getByLabel('密码').fill(process.env.E2E_PASSWORD!)

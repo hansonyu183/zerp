@@ -224,5 +224,53 @@ export function validateVoucherDraft(
       }
     }
   }
+  if (config.lineKind.startsWith('asset-')) {
+    if (value.assetLines.length < 1 || value.assetLines.length > 500) {
+      return '资产明细不能为空。'
+    }
+    if (
+      config.lineKind === 'asset-depreciation' &&
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(value.depreciationMonth)
+    ) {
+      return '请选择有效的折旧月份。'
+    }
+    const seen = new Set<string>()
+    for (const [index, line] of value.assetLines.entries()) {
+      if (config.lineKind === 'asset-acquisition') {
+        const months = Number(line.usefulLifeMonths)
+        const rate = parseFixed(line.residualRate, 2, true)
+        if (
+          !line.assetName.trim() ||
+          !line.category ||
+          !line.department ||
+          !isMoney(line.originalValue) ||
+          !Number.isInteger(months) ||
+          months < 1 ||
+          months > 1200 ||
+          rate === null ||
+          rate < 0n ||
+          rate >= 10_000n
+        ) {
+          return `第 ${index + 1} 行 · 资产名称、类别、原值、期限、残值率和部门必须有效。`
+        }
+      } else if (!line.assetId) {
+        return `第 ${index + 1} 行 · 请选择资产。`
+      }
+      if (line.assetId && seen.has(line.assetId))
+        return `第 ${index + 1} 行 · 资产不能重复。`
+      if (line.assetId) seen.add(line.assetId)
+      if (config.lineKind === 'asset-sale' && !isMoney(line.saleAmount, true)) {
+        return `第 ${index + 1} 行 · 出让金额格式不正确。`
+      }
+      if (
+        config.lineKind === 'asset-liquidation' &&
+        (!line.reason.trim() ||
+          !isMoney(line.salvageIncome, true) ||
+          !isMoney(line.disposalExpense, true))
+      ) {
+        return `第 ${index + 1} 行 · 请填写清算原因及有效的残值收入、处置费用。`
+      }
+    }
+  }
   return null
 }

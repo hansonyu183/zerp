@@ -157,6 +157,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
   registerPage('aux', {
+    entity: 'asset-category',
+    entityTitle: '资产类别',
+    icon: 'mdi-shape-plus-outline',
+    order: 5,
+    component: () => import('@/pages/aux/asset-category/AssetCategory.vue'),
+  }),
+  registerPage('aux', {
     entity: 'product-category',
     entityTitle: '产品分类',
     icon: 'mdi-shape-outline',
@@ -376,6 +383,37 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 110,
     component: () => import('@/pages/vou/other-income/OtherIncome.vue'),
   }),
+  registerPage('vou', {
+    entity: 'asset-acquisition',
+    entityTitle: '资产购置',
+    icon: 'mdi-office-building-plus-outline',
+    order: 120,
+    component: () =>
+      import('@/pages/vou/asset-acquisition/AssetAcquisition.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'asset-depreciation',
+    entityTitle: '资产折旧',
+    icon: 'mdi-chart-timeline-variant-shimmer',
+    order: 121,
+    component: () =>
+      import('@/pages/vou/asset-depreciation/AssetDepreciation.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'asset-sale',
+    entityTitle: '资产出让',
+    icon: 'mdi-office-building-minus-outline',
+    order: 122,
+    component: () => import('@/pages/vou/asset-sale/AssetSale.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'asset-liquidation',
+    entityTitle: '资产清算',
+    icon: 'mdi-office-building-remove-outline',
+    order: 123,
+    component: () =>
+      import('@/pages/vou/asset-liquidation/AssetLiquidation.vue'),
+  }),
   registerPage('wfl', {
     entity: 'process-definition',
     entityTitle: '流程定义',
@@ -439,6 +477,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-barrel',
     order: 50,
     component: () => import('@/pages/led/container/Container.vue'),
+  }),
+  registerPage('led', {
+    entity: 'asset',
+    entityTitle: '固定资产台账',
+    icon: 'mdi-office-building-cog-outline',
+    order: 60,
+    component: () => import('@/pages/led/asset/Asset.vue'),
   }),
 ]
 

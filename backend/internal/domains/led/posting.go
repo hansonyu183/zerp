@@ -33,6 +33,10 @@ var vouEntities = [...]string{
 	voudomain.EntityExpenseReimbursement,
 	voudomain.EntityExpensePayment,
 	voudomain.EntityOtherIncome,
+	voudomain.EntityAssetAcquisition,
+	voudomain.EntityAssetDepreciation,
+	voudomain.EntityAssetSale,
+	voudomain.EntityAssetLiquidation,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -163,6 +167,12 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
+	if event.Entity == voudomain.EntityAssetAcquisition || event.Entity == voudomain.EntityAssetDepreciation ||
+		event.Entity == voudomain.EntityAssetSale || event.Entity == voudomain.EntityAssetLiquidation {
+		if err = s.reverseAssetDocument(ctx, q, generationID, event.Entity, event.DocumentID); err != nil {
+			return eventFailure(err)
+		}
+	}
 	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
 		return err
 	}
@@ -218,6 +228,9 @@ func (s *Service) postDocument(
 		return s.postExpensePayment(ctx, q, posting)
 	case voudomain.EntityOtherIncome:
 		return s.postOtherIncome(ctx, q, posting)
+	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
+		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
+		return s.postAssetDocument(ctx, tx, q, posting)
 	default:
 		return domainError(ErrorValidation, "unsupported VOU entity", nil, nil)
 	}

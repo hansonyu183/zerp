@@ -11,7 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -56,6 +58,10 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_asset_liquidation_lines,vou_asset_liquidation_details,
+			vou_asset_sale_lines,vou_asset_sale_details,
+			vou_asset_depreciation_lines,vou_asset_depreciation_details,
+			vou_asset_acquisition_lines,vou_asset_acquisition_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -176,7 +182,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 
 func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 	t.Helper()
-	service, err := NewService(pool, bobdomain.NewService(pool), txevent.NewBus(), AttachmentOptions{Root: t.TempDir()},
+	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), txevent.NewBus(), AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)

@@ -30,6 +30,7 @@ export interface DraftPayload {
   fundAccount?: VoucherReferenceInput
   sourceName?: string
   amount?: string
+  depreciationMonth?: string
   productLines?: Array<{
     product: VoucherReferenceInput
     orderedQuantity: string
@@ -48,6 +49,31 @@ export interface DraftPayload {
     category: string
     description: string
     amount: string
+    remark?: string
+  }>
+  assetAcquisitionLines?: Array<{
+    assetName: string
+    specification?: string
+    category: VoucherReferenceInput
+    originalValue: string
+    usefulLifeMonths: number
+    residualRate: string
+    department: VoucherReferenceInput
+    custodian?: VoucherReferenceInput
+    location?: string
+    remark?: string
+  }>
+  assetDepreciationLines?: Array<{ assetId: string; remark?: string }>
+  assetSaleLines?: Array<{
+    assetId: string
+    saleAmount: string
+    remark?: string
+  }>
+  assetLiquidationLines?: Array<{
+    assetId: string
+    reason: string
+    salvageIncome: string
+    disposalExpense: string
     remark?: string
   }>
   sourceLines?: Array<{
@@ -112,6 +138,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
+    depreciationMonth: localDate().slice(0, 7),
     parentDocumentId: '',
     parentDocumentNo: '',
     productLines:
@@ -152,6 +179,11 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
             },
           ]
         : [],
+    assetLines: config.lineKind.startsWith('asset-')
+      ? config.lineKind === 'asset-acquisition'
+        ? [emptyAssetLine()]
+        : []
+      : [],
     salesChainLines: [],
     productionLines: [],
     inventoryCountLines:
@@ -165,6 +197,32 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
             },
           ]
         : [],
+  }
+}
+
+export function emptyAssetLine() {
+  return {
+    key: crypto.randomUUID(),
+    lineId: undefined,
+    assetId: '',
+    assetNo: '',
+    assetName: '',
+    specification: '',
+    category: null,
+    department: null,
+    custodian: null,
+    originalValue: '',
+    usefulLifeMonths: '',
+    residualRate: '',
+    location: '',
+    accumulatedDepreciation: '',
+    depreciationAmount: '',
+    netValue: '',
+    saleAmount: '',
+    reason: '',
+    salvageIncome: '0.00',
+    disposalExpense: '0.00',
+    remark: '',
   }
 }
 
@@ -197,9 +255,11 @@ export function formFromDocument(
     counterpartyType:
       data.counterparty?.entity === 'supplier'
         ? 'supplier'
-        : data.counterparty
-          ? 'customer'
-          : '',
+        : data.counterparty?.entity === 'other-party'
+          ? 'other-party'
+          : data.counterparty
+            ? 'customer'
+            : '',
     counterparty: formReference(data.counterparty),
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),
@@ -213,6 +273,7 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
+    depreciationMonth: data.depreciationMonth ?? localDate().slice(0, 7),
     parentDocumentId: document.parentDocumentId ?? '',
     parentDocumentNo: document.parentDocumentNo ?? '',
     productLines: (data.productLines ?? []).map((line) => ({
@@ -244,6 +305,36 @@ export function formFromDocument(
       category: line.category,
       description: line.description,
       amount: line.amount,
+      remark: line.remark ?? '',
+    })),
+    assetLines: [
+      ...(data.assetAcquisitionLines ?? []),
+      ...(data.assetDepreciationLines ?? []),
+      ...(data.assetSaleLines ?? []),
+      ...(data.assetLiquidationLines ?? []),
+    ].map((line) => ({
+      ...emptyAssetLine(),
+      key: line.lineId,
+      lineId: line.lineId,
+      assetId: line.assetId ?? '',
+      assetNo: line.assetNo ?? '',
+      assetName: line.assetName,
+      specification: line.specification ?? '',
+      category: formReference(line.category),
+      department: formReference(line.department),
+      custodian: formReference(line.custodian),
+      originalValue: line.originalValue ?? '',
+      usefulLifeMonths: String(line.usefulLifeMonths ?? ''),
+      residualRate: line.residualRate ?? '',
+      location: line.location ?? '',
+      accumulatedDepreciation:
+        line.accumulatedDepreciation ?? line.openingAccumulated ?? '',
+      depreciationAmount: line.depreciationAmount ?? line.amount ?? '',
+      netValue: line.netValue ?? '',
+      saleAmount: line.saleAmount ?? '',
+      reason: line.reason ?? '',
+      salvageIncome: line.salvageIncome ?? '0.00',
+      disposalExpense: line.disposalExpense ?? '0.00',
       remark: line.remark ?? '',
     })),
     salesChainLines:

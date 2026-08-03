@@ -277,6 +277,7 @@ func objectPrefix(entity string) string {
 		EntityProductCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
 		EntitySettlementMethod: "STM", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
 		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAccountSubject: "ACS",
+		EntityAssetCategory: "ACT",
 	}[entity]
 }
 
@@ -523,6 +524,14 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		}
 	case EntityPosition, EntityDictionaryType:
 		allow("description")
+	case EntityAssetCategory:
+		allow("defaultUsefulLifeMonths", "defaultResidualRate", "description")
+		months, monthsOK := intValue(data["defaultUsefulLifeMonths"])
+		rate := strings.TrimSpace(stringValue(data["defaultResidualRate"]))
+		if !monthsOK || months < 1 || months > 1200 || !validPercent(rate) {
+			return nil, errors.New("defaultUsefulLifeMonths 1-1200 and defaultResidualRate 0-99.99 are required")
+		}
+		data["defaultUsefulLifeMonths"], data["defaultResidualRate"] = months, rate
 	case EntityDictionaryItem:
 		allow("dictionaryTypeCode", "sortOrder")
 		typeCode := strings.ToUpper(strings.TrimSpace(stringValue(data["dictionaryTypeCode"])))
@@ -800,6 +809,14 @@ func validMoney(value string) bool {
 	}
 	matched, _ := regexp.MatchString(`^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$`, value)
 	return matched
+}
+
+func validPercent(value string) bool {
+	matched, _ := regexp.MatchString(`^(0|[1-9][0-9]?)(\.[0-9]{1,2})?$`, value)
+	if !matched {
+		return false
+	}
+	return !strings.HasPrefix(value, "100")
 }
 
 func (s *Service) internal(operation string, err error) error {

@@ -7,10 +7,12 @@ import (
 	"log/slog"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -48,6 +50,7 @@ func New(
 		return nil, errors.New("production demo seed pool is required")
 	}
 	bobService := bobdomain.NewService(pool)
+	auxiliary := auxdomain.NewService(pool)
 	events := txevent.NewBus()
 	ledger, err := leddomain.NewService(pool, bobService)
 	if err != nil {
@@ -59,6 +62,7 @@ func New(
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
+		auxiliaryrefs.New(auxiliary),
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,

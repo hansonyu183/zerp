@@ -91,6 +91,105 @@ WHERE generation_id=sqlc.arg(generation_id)
 SELECT closing_date FROM led_closings
 WHERE id=sqlc.arg(id) AND status='ACTIVE';
 
+-- name: InsertVouAssetAcquisitionDetail :exec
+INSERT INTO vou_asset_acquisition_details(document_id,entity,supplier_object_id,supplier_version_id,supplier_code,supplier_name)
+VALUES(sqlc.arg(document_id),'asset-acquisition',sqlc.arg(supplier_object_id),sqlc.arg(supplier_version_id),sqlc.arg(supplier_code),sqlc.arg(supplier_name));
+
+-- name: UpdateVouAssetAcquisitionDetail :execrows
+UPDATE vou_asset_acquisition_details SET supplier_object_id=sqlc.arg(supplier_object_id),supplier_version_id=sqlc.arg(supplier_version_id),supplier_code=sqlc.arg(supplier_code),supplier_name=sqlc.arg(supplier_name)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouAssetAcquisitionDetail :one
+SELECT * FROM vou_asset_acquisition_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouAssetAcquisitionLines :exec
+DELETE FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouAssetAcquisitionLine :exec
+INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
+ category_object_id,category_version_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
+ department_object_id,department_version_id,department_code,department_name,
+ custodian_object_id,custodian_version_id,custodian_code,custodian_name,location,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_name),sqlc.arg(specification),
+ sqlc.arg(category_object_id),sqlc.arg(category_version_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(original_value_cents),sqlc.arg(useful_life_months),sqlc.arg(residual_rate_bps),
+ sqlc.arg(department_object_id),sqlc.arg(department_version_id),sqlc.arg(department_code),sqlc.arg(department_name),
+ sqlc.narg(custodian_object_id),sqlc.narg(custodian_version_id),sqlc.narg(custodian_code),sqlc.narg(custodian_name),sqlc.arg(location),sqlc.narg(remark));
+
+-- name: ListVouAssetAcquisitionLines :many
+SELECT * FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: InsertVouAssetDepreciationDetail :exec
+INSERT INTO vou_asset_depreciation_details(document_id,entity,depreciation_month)
+VALUES(sqlc.arg(document_id),'asset-depreciation',sqlc.arg(depreciation_month));
+
+-- name: UpdateVouAssetDepreciationDetail :execrows
+UPDATE vou_asset_depreciation_details SET depreciation_month=sqlc.arg(depreciation_month) WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouAssetDepreciationDetail :one
+SELECT * FROM vou_asset_depreciation_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouAssetDepreciationLines :exec
+DELETE FROM vou_asset_depreciation_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouAssetDepreciationLine :exec
+INSERT INTO vou_asset_depreciation_lines(id,document_id,line_no,depreciation_month,asset_id,asset_no,asset_name,amount_cents,opening_accumulated_cents,closing_accumulated_cents,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(depreciation_month),sqlc.arg(asset_id),sqlc.arg(asset_no),sqlc.arg(asset_name),sqlc.arg(amount_cents),sqlc.arg(opening_accumulated_cents),sqlc.arg(closing_accumulated_cents),sqlc.narg(remark));
+
+-- name: ListVouAssetDepreciationLines :many
+SELECT * FROM vou_asset_depreciation_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: InsertVouAssetSaleDetail :exec
+INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name)
+VALUES(sqlc.arg(document_id),'asset-sale',sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_version_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name));
+
+-- name: UpdateVouAssetSaleDetail :execrows
+UPDATE vou_asset_sale_details SET counterparty_entity=sqlc.arg(counterparty_entity),counterparty_object_id=sqlc.arg(counterparty_object_id),counterparty_version_id=sqlc.arg(counterparty_version_id),counterparty_code=sqlc.arg(counterparty_code),counterparty_name=sqlc.arg(counterparty_name)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouAssetSaleDetail :one
+SELECT * FROM vou_asset_sale_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouAssetSaleLines :exec
+DELETE FROM vou_asset_sale_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouAssetSaleLine :exec
+INSERT INTO vou_asset_sale_lines(id,document_id,line_no,asset_id,asset_no,asset_name,sale_amount_cents,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_id),sqlc.arg(asset_no),sqlc.arg(asset_name),sqlc.arg(sale_amount_cents),sqlc.narg(remark));
+
+-- name: ListVouAssetSaleLines :many
+SELECT * FROM vou_asset_sale_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: InsertVouAssetLiquidationDetail :exec
+INSERT INTO vou_asset_liquidation_details(document_id,entity) VALUES(sqlc.arg(document_id),'asset-liquidation');
+
+-- name: GetVouAssetLiquidationDetail :one
+SELECT * FROM vou_asset_liquidation_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouAssetLiquidationLines :exec
+DELETE FROM vou_asset_liquidation_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouAssetLiquidationLine :exec
+INSERT INTO vou_asset_liquidation_lines(id,document_id,line_no,asset_id,asset_no,asset_name,reason,salvage_income_cents,disposal_expense_cents,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_id),sqlc.arg(asset_no),sqlc.arg(asset_name),sqlc.arg(reason),sqlc.arg(salvage_income_cents),sqlc.arg(disposal_expense_cents),sqlc.narg(remark));
+
+-- name: ListVouAssetLiquidationLines :many
+SELECT * FROM vou_asset_liquidation_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: GetActiveLedAssetForVou :one
+SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=sqlc.arg(asset_id);
+
+-- name: ListDepreciableLedAssetsForVou :many
+SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.status='ACTIVE'
+  AND a.depreciation_start_month<=sqlc.arg(depreciation_month)
+  AND ((a.last_depreciation_month IS NULL AND a.depreciation_start_month=sqlc.arg(depreciation_month))
+    OR a.last_depreciation_month + interval '1 month'=sqlc.arg(depreciation_month))
+  AND a.accumulated_depreciation_cents<a.original_value_cents-a.residual_value_cents
+  AND (sqlc.arg(category_object_id)::text='' OR a.category_object_id=sqlc.arg(category_object_id))
+  AND (sqlc.arg(department_object_id)::text='' OR a.department_object_id=sqlc.arg(department_object_id))
+ORDER BY a.asset_no;
+
 -- name: CountVouProductionAttributes :one
 SELECT
     (SELECT count(*) FROM vou_production_output_lines production_output
@@ -276,6 +375,8 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -306,6 +407,10 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.employee_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.employee_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id
           AND (x.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id
+          AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id
+          AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
   );
 
 -- name: ListVouDocuments :many
@@ -313,7 +418,7 @@ SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, oi.counterparty_name,
-                oi.source_name, '') AS party_name
+                aa.supplier_name, asl.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
@@ -329,6 +434,8 @@ LEFT JOIN vou_payment_details p ON p.document_id = d.id
 LEFT JOIN vou_expense_reimbursement_details er ON er.document_id = d.id
 LEFT JOIN vou_expense_payment_details ep ON ep.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
+LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
+LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
 WHERE d.entity = sqlc.arg(entity)
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
@@ -347,6 +454,8 @@ WHERE d.entity = sqlc.arg(entity)
       OR p.counterparty_object_id = sqlc.arg(party_object_id)
       OR ep.employee_object_id = sqlc.arg(party_object_id)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
+      OR aa.supplier_object_id = sqlc.arg(party_object_id)
+      OR asl.counterparty_object_id = sqlc.arg(party_object_id)
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -363,6 +472,8 @@ WHERE d.entity = sqlc.arg(entity)
       OR p.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR p.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR ep.employee_code ILIKE '%' || sqlc.arg(keyword) || '%' OR ep.employee_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR aa.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR aa.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR asl.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR asl.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN d.updated_at END ASC,

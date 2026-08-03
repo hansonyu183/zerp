@@ -40,6 +40,35 @@ func (q *Queries) ActivateLedControl(ctx context.Context, arg ActivateLedControl
 	return revision, err
 }
 
+const applyLedAssetDepreciation = `-- name: ApplyLedAssetDepreciation :execrows
+UPDATE led_assets SET accumulated_depreciation_cents=accumulated_depreciation_cents+$1,
+ last_depreciation_month=$2
+WHERE generation_id=$3 AND id=$4 AND status='ACTIVE'
+ AND accumulated_depreciation_cents=$5
+`
+
+type ApplyLedAssetDepreciationParams struct {
+	AmountCents             int64       `db:"amount_cents" json:"amount_cents"`
+	DepreciationMonth       pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
+	GenerationID            string      `db:"generation_id" json:"generation_id"`
+	AssetID                 string      `db:"asset_id" json:"asset_id"`
+	OpeningAccumulatedCents int64       `db:"opening_accumulated_cents" json:"opening_accumulated_cents"`
+}
+
+func (q *Queries) ApplyLedAssetDepreciation(ctx context.Context, arg ApplyLedAssetDepreciationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, applyLedAssetDepreciation,
+		arg.AmountCents,
+		arg.DepreciationMonth,
+		arg.GenerationID,
+		arg.AssetID,
+		arg.OpeningAccumulatedCents,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const archiveActiveLedGeneration = `-- name: ArchiveActiveLedGeneration :exec
 UPDATE led_generations SET status = 'ARCHIVED'
 WHERE id = $1 AND status = 'ACTIVE'
@@ -119,6 +148,37 @@ FROM led_opening_party WHERE generation_id = $1
 func (q *Queries) CopyLedOpeningToDraftParty(ctx context.Context, generationID string) error {
 	_, err := q.db.Exec(ctx, copyLedOpeningToDraftParty, generationID)
 	return err
+}
+
+const countLedAssets = `-- name: CountLedAssets :one
+SELECT count(*) FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE'
+ AND ($1::text='' OR a.asset_no ILIKE '%'||$1||'%' OR a.asset_name ILIKE '%'||$1||'%')
+ AND (COALESCE(cardinality($2::text[]),0)=0 OR a.status=ANY($2::text[]))
+ AND ($3::text='' OR a.category_object_id=$3)
+ AND ($4::text='' OR a.department_object_id=$4)
+ AND ($5::text='' OR a.custodian_object_id=$5)
+`
+
+type CountLedAssetsParams struct {
+	Keyword            string   `db:"keyword" json:"keyword"`
+	Statuses           []string `db:"statuses" json:"statuses"`
+	CategoryObjectID   string   `db:"category_object_id" json:"category_object_id"`
+	DepartmentObjectID string   `db:"department_object_id" json:"department_object_id"`
+	CustodianObjectID  string   `db:"custodian_object_id" json:"custodian_object_id"`
+}
+
+func (q *Queries) CountLedAssets(ctx context.Context, arg CountLedAssetsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedAssets,
+		arg.Keyword,
+		arg.Statuses,
+		arg.CategoryObjectID,
+		arg.DepartmentObjectID,
+		arg.CustodianObjectID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countLedAuditEvents = `-- name: CountLedAuditEvents :one
@@ -320,6 +380,34 @@ func (q *Queries) CountLedPartyEntries(ctx context.Context, arg CountLedPartyEnt
 	return count, err
 }
 
+const deleteLedAssetEntriesBySource = `-- name: DeleteLedAssetEntriesBySource :exec
+DELETE FROM led_asset_entries WHERE generation_id=$1 AND source_document_id=$2
+`
+
+type DeleteLedAssetEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedAssetEntriesBySource(ctx context.Context, arg DeleteLedAssetEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedAssetEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
+const deleteLedAssetsBySource = `-- name: DeleteLedAssetsBySource :exec
+DELETE FROM led_assets WHERE generation_id=$1 AND source_document_id=$2
+`
+
+type DeleteLedAssetsBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedAssetsBySource(ctx context.Context, arg DeleteLedAssetsBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedAssetsBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
 const deleteLedContainerEntriesBySource = `-- name: DeleteLedContainerEntriesBySource :exec
 DELETE FROM led_container_entries
 WHERE generation_id = $1
@@ -420,6 +508,60 @@ func (q *Queries) DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteL
 	return err
 }
 
+const findLedAssetNoBySourceLine = `-- name: FindLedAssetNoBySourceLine :one
+SELECT asset_no FROM led_asset_number_assignments WHERE source_line_id=$1
+`
+
+func (q *Queries) FindLedAssetNoBySourceLine(ctx context.Context, sourceLineID string) (string, error) {
+	row := q.db.QueryRow(ctx, findLedAssetNoBySourceLine, sourceLineID)
+	var asset_no string
+	err := row.Scan(&asset_no)
+	return asset_no, err
+}
+
+const getActiveLedAsset = `-- name: GetActiveLedAsset :one
+SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=$1
+`
+
+func (q *Queries) GetActiveLedAsset(ctx context.Context, assetID string) (LedAsset, error) {
+	row := q.db.QueryRow(ctx, getActiveLedAsset, assetID)
+	var i LedAsset
+	err := row.Scan(
+		&i.GenerationID,
+		&i.ID,
+		&i.AssetNo,
+		&i.AssetName,
+		&i.Specification,
+		&i.CategoryObjectID,
+		&i.CategoryVersionID,
+		&i.CategoryCode,
+		&i.CategoryName,
+		&i.DepartmentObjectID,
+		&i.DepartmentVersionID,
+		&i.DepartmentCode,
+		&i.DepartmentName,
+		&i.CustodianObjectID,
+		&i.CustodianVersionID,
+		&i.CustodianCode,
+		&i.CustodianName,
+		&i.Location,
+		&i.AcquisitionDate,
+		&i.DepreciationStartMonth,
+		&i.OriginalValueCents,
+		&i.ResidualValueCents,
+		&i.UsefulLifeMonths,
+		&i.AccumulatedDepreciationCents,
+		&i.LastDepreciationMonth,
+		&i.Status,
+		&i.SourceDocumentID,
+		&i.SourceLineID,
+		&i.SourceRevision,
+		&i.Remark,
+	)
+	return i, err
+}
+
 const getLedControl = `-- name: GetLedControl :one
 SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by, last_closing_id, rebuild_required FROM led_control WHERE singleton = true
 `
@@ -456,12 +598,38 @@ func (q *Queries) HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bo
 	return column_1, err
 }
 
+const hasLaterLedAssetEntries = `-- name: HasLaterLedAssetEntries :one
+SELECT EXISTS(SELECT 1 FROM led_asset_entries WHERE generation_id=$1
+ AND asset_id=$2 AND source_document_id<>$3
+ AND effective_date>=$4)::boolean
+`
+
+type HasLaterLedAssetEntriesParams struct {
+	GenerationID     string      `db:"generation_id" json:"generation_id"`
+	AssetID          string      `db:"asset_id" json:"asset_id"`
+	SourceDocumentID string      `db:"source_document_id" json:"source_document_id"`
+	EffectiveDate    pgtype.Date `db:"effective_date" json:"effective_date"`
+}
+
+func (q *Queries) HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasLaterLedAssetEntries,
+		arg.GenerationID,
+		arg.AssetID,
+		arg.SourceDocumentID,
+		arg.EffectiveDate,
+	)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const hasLedEntriesForSource = `-- name: HasLedEntriesForSource :one
 SELECT (
     EXISTS (SELECT 1 FROM led_inventory_entries i WHERE i.generation_id = $1 AND i.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_fund_entries f WHERE f.generation_id = $1 AND f.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = $1 AND p.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = $1 AND c.source_document_id = $2)
+    OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = $1 AND a.source_document_id = $2)
 )::boolean
 `
 
@@ -500,6 +668,149 @@ func (q *Queries) HasNegativeLedInventoryTimeline(ctx context.Context, generatio
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const insertLedAsset = `-- name: InsertLedAsset :exec
+INSERT INTO led_assets(generation_id,id,asset_no,asset_name,specification,
+ category_object_id,category_version_id,category_code,category_name,
+ department_object_id,department_version_id,department_code,department_name,
+ custodian_object_id,custodian_version_id,custodian_code,custodian_name,location,
+ acquisition_date,depreciation_start_month,original_value_cents,residual_value_cents,useful_life_months,
+ source_document_id,source_line_id,source_revision,remark)
+VALUES($1,$2,$3,$4,$5,
+ $6,$7,$8,$9,
+ $10,$11,$12,$13,
+ $14,$15,$16,$17,$18,
+ $19,$20,$21,$22,$23,
+ $24,$25,$26,$27)
+`
+
+type InsertLedAssetParams struct {
+	GenerationID           string      `db:"generation_id" json:"generation_id"`
+	ID                     string      `db:"id" json:"id"`
+	AssetNo                string      `db:"asset_no" json:"asset_no"`
+	AssetName              string      `db:"asset_name" json:"asset_name"`
+	Specification          string      `db:"specification" json:"specification"`
+	CategoryObjectID       string      `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID      string      `db:"category_version_id" json:"category_version_id"`
+	CategoryCode           string      `db:"category_code" json:"category_code"`
+	CategoryName           string      `db:"category_name" json:"category_name"`
+	DepartmentObjectID     string      `db:"department_object_id" json:"department_object_id"`
+	DepartmentVersionID    string      `db:"department_version_id" json:"department_version_id"`
+	DepartmentCode         string      `db:"department_code" json:"department_code"`
+	DepartmentName         string      `db:"department_name" json:"department_name"`
+	CustodianObjectID      *string     `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianVersionID     *string     `db:"custodian_version_id" json:"custodian_version_id"`
+	CustodianCode          *string     `db:"custodian_code" json:"custodian_code"`
+	CustodianName          *string     `db:"custodian_name" json:"custodian_name"`
+	Location               string      `db:"location" json:"location"`
+	AcquisitionDate        pgtype.Date `db:"acquisition_date" json:"acquisition_date"`
+	DepreciationStartMonth pgtype.Date `db:"depreciation_start_month" json:"depreciation_start_month"`
+	OriginalValueCents     int64       `db:"original_value_cents" json:"original_value_cents"`
+	ResidualValueCents     int64       `db:"residual_value_cents" json:"residual_value_cents"`
+	UsefulLifeMonths       int32       `db:"useful_life_months" json:"useful_life_months"`
+	SourceDocumentID       string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID           string      `db:"source_line_id" json:"source_line_id"`
+	SourceRevision         int64       `db:"source_revision" json:"source_revision"`
+	Remark                 *string     `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertLedAsset(ctx context.Context, arg InsertLedAssetParams) error {
+	_, err := q.db.Exec(ctx, insertLedAsset,
+		arg.GenerationID,
+		arg.ID,
+		arg.AssetNo,
+		arg.AssetName,
+		arg.Specification,
+		arg.CategoryObjectID,
+		arg.CategoryVersionID,
+		arg.CategoryCode,
+		arg.CategoryName,
+		arg.DepartmentObjectID,
+		arg.DepartmentVersionID,
+		arg.DepartmentCode,
+		arg.DepartmentName,
+		arg.CustodianObjectID,
+		arg.CustodianVersionID,
+		arg.CustodianCode,
+		arg.CustodianName,
+		arg.Location,
+		arg.AcquisitionDate,
+		arg.DepreciationStartMonth,
+		arg.OriginalValueCents,
+		arg.ResidualValueCents,
+		arg.UsefulLifeMonths,
+		arg.SourceDocumentID,
+		arg.SourceLineID,
+		arg.SourceRevision,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertLedAssetEntry = `-- name: InsertLedAssetEntry :exec
+INSERT INTO led_asset_entries(id,generation_id,asset_id,entry_type,source_entity,source_document_id,source_document_no,
+ source_line_id,source_revision,effective_date,occurred_at,amount_cents,status_from,status_to,actor_id,request_id,summary)
+VALUES($1,$2,$3,$4,$5,$6,$7,
+ $8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+`
+
+type InsertLedAssetEntryParams struct {
+	ID               string             `db:"id" json:"id"`
+	GenerationID     string             `db:"generation_id" json:"generation_id"`
+	AssetID          string             `db:"asset_id" json:"asset_id"`
+	EntryType        string             `db:"entry_type" json:"entry_type"`
+	SourceEntity     string             `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo string             `db:"source_document_no" json:"source_document_no"`
+	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
+	SourceRevision   int64              `db:"source_revision" json:"source_revision"`
+	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
+	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	AmountCents      int64              `db:"amount_cents" json:"amount_cents"`
+	StatusFrom       *string            `db:"status_from" json:"status_from"`
+	StatusTo         string             `db:"status_to" json:"status_to"`
+	ActorID          string             `db:"actor_id" json:"actor_id"`
+	RequestID        string             `db:"request_id" json:"request_id"`
+	Summary          []byte             `db:"summary" json:"summary"`
+}
+
+func (q *Queries) InsertLedAssetEntry(ctx context.Context, arg InsertLedAssetEntryParams) error {
+	_, err := q.db.Exec(ctx, insertLedAssetEntry,
+		arg.ID,
+		arg.GenerationID,
+		arg.AssetID,
+		arg.EntryType,
+		arg.SourceEntity,
+		arg.SourceDocumentID,
+		arg.SourceDocumentNo,
+		arg.SourceLineID,
+		arg.SourceRevision,
+		arg.EffectiveDate,
+		arg.OccurredAt,
+		arg.AmountCents,
+		arg.StatusFrom,
+		arg.StatusTo,
+		arg.ActorID,
+		arg.RequestID,
+		arg.Summary,
+	)
+	return err
+}
+
+const insertLedAssetNumberAssignment = `-- name: InsertLedAssetNumberAssignment :exec
+INSERT INTO led_asset_number_assignments(source_line_id,asset_no)
+VALUES($1,$2)
+`
+
+type InsertLedAssetNumberAssignmentParams struct {
+	SourceLineID string `db:"source_line_id" json:"source_line_id"`
+	AssetNo      string `db:"asset_no" json:"asset_no"`
+}
+
+func (q *Queries) InsertLedAssetNumberAssignment(ctx context.Context, arg InsertLedAssetNumberAssignmentParams) error {
+	_, err := q.db.Exec(ctx, insertLedAssetNumberAssignment, arg.SourceLineID, arg.AssetNo)
+	return err
 }
 
 const insertLedAuditEvent = `-- name: InsertLedAuditEvent :exec
@@ -1162,6 +1473,130 @@ func (q *Queries) ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDoc
 			&i.ParentDocumentID,
 			&i.ParentEntity,
 			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLedAssetHistory = `-- name: ListLedAssetHistory :many
+SELECT e.id, e.generation_id, e.asset_id, e.entry_type, e.source_entity, e.source_document_id, e.source_document_no, e.source_line_id, e.source_revision, e.effective_date, e.occurred_at, e.amount_cents, e.status_from, e.status_to, e.actor_id, e.request_id, e.summary FROM led_asset_entries e JOIN led_control c ON c.active_generation_id=e.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE' AND e.asset_id=$1
+ORDER BY e.effective_date,e.id
+`
+
+func (q *Queries) ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error) {
+	rows, err := q.db.Query(ctx, listLedAssetHistory, assetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedAssetEntry{}
+	for rows.Next() {
+		var i LedAssetEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.GenerationID,
+			&i.AssetID,
+			&i.EntryType,
+			&i.SourceEntity,
+			&i.SourceDocumentID,
+			&i.SourceDocumentNo,
+			&i.SourceLineID,
+			&i.SourceRevision,
+			&i.EffectiveDate,
+			&i.OccurredAt,
+			&i.AmountCents,
+			&i.StatusFrom,
+			&i.StatusTo,
+			&i.ActorID,
+			&i.RequestID,
+			&i.Summary,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLedAssets = `-- name: ListLedAssets :many
+SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
+WHERE c.singleton=true AND c.status='ACTIVE'
+ AND ($1::text='' OR a.asset_no ILIKE '%'||$1||'%' OR a.asset_name ILIKE '%'||$1||'%')
+ AND (COALESCE(cardinality($2::text[]),0)=0 OR a.status=ANY($2::text[]))
+ AND ($3::text='' OR a.category_object_id=$3)
+ AND ($4::text='' OR a.department_object_id=$4)
+ AND ($5::text='' OR a.custodian_object_id=$5)
+ORDER BY a.asset_no LIMIT $7 OFFSET $6
+`
+
+type ListLedAssetsParams struct {
+	Keyword            string   `db:"keyword" json:"keyword"`
+	Statuses           []string `db:"statuses" json:"statuses"`
+	CategoryObjectID   string   `db:"category_object_id" json:"category_object_id"`
+	DepartmentObjectID string   `db:"department_object_id" json:"department_object_id"`
+	CustodianObjectID  string   `db:"custodian_object_id" json:"custodian_object_id"`
+	PageOffset         int32    `db:"page_offset" json:"page_offset"`
+	PageSize           int32    `db:"page_size" json:"page_size"`
+}
+
+func (q *Queries) ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error) {
+	rows, err := q.db.Query(ctx, listLedAssets,
+		arg.Keyword,
+		arg.Statuses,
+		arg.CategoryObjectID,
+		arg.DepartmentObjectID,
+		arg.CustodianObjectID,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LedAsset{}
+	for rows.Next() {
+		var i LedAsset
+		if err := rows.Scan(
+			&i.GenerationID,
+			&i.ID,
+			&i.AssetNo,
+			&i.AssetName,
+			&i.Specification,
+			&i.CategoryObjectID,
+			&i.CategoryVersionID,
+			&i.CategoryCode,
+			&i.CategoryName,
+			&i.DepartmentObjectID,
+			&i.DepartmentVersionID,
+			&i.DepartmentCode,
+			&i.DepartmentName,
+			&i.CustodianObjectID,
+			&i.CustodianVersionID,
+			&i.CustodianCode,
+			&i.CustodianName,
+			&i.Location,
+			&i.AcquisitionDate,
+			&i.DepreciationStartMonth,
+			&i.OriginalValueCents,
+			&i.ResidualValueCents,
+			&i.UsefulLifeMonths,
+			&i.AccumulatedDepreciationCents,
+			&i.LastDepreciationMonth,
+			&i.Status,
+			&i.SourceDocumentID,
+			&i.SourceLineID,
+			&i.SourceRevision,
+			&i.Remark,
 		); err != nil {
 			return nil, err
 		}
@@ -2146,6 +2581,53 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 	return items, nil
 }
 
+const lockLedAsset = `-- name: LockLedAsset :one
+SELECT generation_id, id, asset_no, asset_name, specification, category_object_id, category_version_id, category_code, category_name, department_object_id, department_version_id, department_code, department_name, custodian_object_id, custodian_version_id, custodian_code, custodian_name, location, acquisition_date, depreciation_start_month, original_value_cents, residual_value_cents, useful_life_months, accumulated_depreciation_cents, last_depreciation_month, status, source_document_id, source_line_id, source_revision, remark FROM led_assets WHERE generation_id=$1 AND id=$2 FOR UPDATE
+`
+
+type LockLedAssetParams struct {
+	GenerationID string `db:"generation_id" json:"generation_id"`
+	AssetID      string `db:"asset_id" json:"asset_id"`
+}
+
+func (q *Queries) LockLedAsset(ctx context.Context, arg LockLedAssetParams) (LedAsset, error) {
+	row := q.db.QueryRow(ctx, lockLedAsset, arg.GenerationID, arg.AssetID)
+	var i LedAsset
+	err := row.Scan(
+		&i.GenerationID,
+		&i.ID,
+		&i.AssetNo,
+		&i.AssetName,
+		&i.Specification,
+		&i.CategoryObjectID,
+		&i.CategoryVersionID,
+		&i.CategoryCode,
+		&i.CategoryName,
+		&i.DepartmentObjectID,
+		&i.DepartmentVersionID,
+		&i.DepartmentCode,
+		&i.DepartmentName,
+		&i.CustodianObjectID,
+		&i.CustodianVersionID,
+		&i.CustodianCode,
+		&i.CustodianName,
+		&i.Location,
+		&i.AcquisitionDate,
+		&i.DepreciationStartMonth,
+		&i.OriginalValueCents,
+		&i.ResidualValueCents,
+		&i.UsefulLifeMonths,
+		&i.AccumulatedDepreciationCents,
+		&i.LastDepreciationMonth,
+		&i.Status,
+		&i.SourceDocumentID,
+		&i.SourceLineID,
+		&i.SourceRevision,
+		&i.Remark,
+	)
+	return i, err
+}
+
 const lockLedControl = `-- name: LockLedControl :one
 SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by, last_closing_id, rebuild_required FROM led_control WHERE singleton = true FOR UPDATE
 `
@@ -2167,6 +2649,19 @@ func (q *Queries) LockLedControl(ctx context.Context) (LedControl, error) {
 	return i, err
 }
 
+const nextLedAssetNumber = `-- name: NextLedAssetNumber :one
+INSERT INTO led_asset_number_counters(business_date,last_value) VALUES($1,1)
+ON CONFLICT(business_date) DO UPDATE SET last_value=led_asset_number_counters.last_value+1
+WHERE led_asset_number_counters.last_value<9999 RETURNING last_value
+`
+
+func (q *Queries) NextLedAssetNumber(ctx context.Context, businessDate pgtype.Date) (int32, error) {
+	row := q.db.QueryRow(ctx, nextLedAssetNumber, businessDate)
+	var last_value int32
+	err := row.Scan(&last_value)
+	return last_value, err
+}
+
 const reopenLedControl = `-- name: ReopenLedControl :one
 UPDATE led_control
 SET status = 'REOPENING', revision = revision + 1,
@@ -2185,6 +2680,45 @@ func (q *Queries) ReopenLedControl(ctx context.Context, arg ReopenLedControlPara
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
+}
+
+const restoreLedAssetStatusBySource = `-- name: RestoreLedAssetStatusBySource :execrows
+UPDATE led_assets a SET status='ACTIVE' FROM led_asset_entries e
+WHERE e.generation_id=$1 AND e.source_document_id=$2
+ AND e.asset_id=a.id AND a.generation_id=e.generation_id AND a.status=e.status_to
+`
+
+type RestoreLedAssetStatusBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) RestoreLedAssetStatusBySource(ctx context.Context, arg RestoreLedAssetStatusBySourceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreLedAssetStatusBySource, arg.GenerationID, arg.SourceDocumentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const reverseLedAssetDepreciation = `-- name: ReverseLedAssetDepreciation :execrows
+UPDATE led_assets a SET accumulated_depreciation_cents=a.accumulated_depreciation_cents-x.amount,
+ last_depreciation_month=(SELECT max(e.effective_date) FROM led_asset_entries e WHERE e.generation_id=a.generation_id AND e.asset_id=a.id AND e.entry_type='DEPRECIATION' AND e.source_document_id<>$1)
+FROM (SELECT asset_id,sum(amount_cents)::bigint amount FROM led_asset_entries WHERE generation_id=$2 AND source_document_id=$1 GROUP BY asset_id) x
+WHERE a.generation_id=$2 AND a.id=x.asset_id AND a.status='ACTIVE'
+`
+
+type ReverseLedAssetDepreciationParams struct {
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+}
+
+func (q *Queries) ReverseLedAssetDepreciation(ctx context.Context, arg ReverseLedAssetDepreciationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reverseLedAssetDepreciation, arg.SourceDocumentID, arg.GenerationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const saveLedDraftControl = `-- name: SaveLedDraftControl :one
@@ -2208,4 +2742,23 @@ func (q *Queries) SaveLedDraftControl(ctx context.Context, arg SaveLedDraftContr
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
+}
+
+const setLedAssetStatus = `-- name: SetLedAssetStatus :execrows
+UPDATE led_assets SET status=$1
+WHERE generation_id=$2 AND id=$3 AND status='ACTIVE'
+`
+
+type SetLedAssetStatusParams struct {
+	Status       string `db:"status" json:"status"`
+	GenerationID string `db:"generation_id" json:"generation_id"`
+	AssetID      string `db:"asset_id" json:"asset_id"`
+}
+
+func (q *Queries) SetLedAssetStatus(ctx context.Context, arg SetLedAssetStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setLedAssetStatus, arg.Status, arg.GenerationID, arg.AssetID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

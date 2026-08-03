@@ -146,9 +146,12 @@ up() {
   compose run --rm migrate
 
   user_count=$(
-    # shellcheck disable=SC2016
-    compose exec -T db sh -eu -c \
-      'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT count(*) FROM app_users"'
+    printf '%s\n' "SELECT count(*) FROM app_users WHERE username = :'bootstrap_username';" | \
+      compose exec -T db psql \
+        -U "${POSTGRES_USER}" \
+        -d "${POSTGRES_DB}" \
+        -v bootstrap_username="${APP_BOOTSTRAP_USERNAME}" \
+        -Atq
   )
   if [ "${user_count}" = "0" ]; then
     compose run --rm --no-deps \

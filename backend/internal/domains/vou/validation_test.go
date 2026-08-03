@@ -193,3 +193,35 @@ func TestValidateAttachmentInitiate(t *testing.T) {
 		t.Fatal("path traversal filename accepted")
 	}
 }
+
+func TestValidateInventoryCountDraft(t *testing.T) {
+	t.Parallel()
+	warehouse := *refInput()
+	product := ReferenceInput{
+		ObjectID: "01J00000000000000000000002", VersionID: "01J00000000000000000000003",
+	}
+	draft, err := validateDraft(EntityInventoryCount, DraftInput{
+		BusinessDate: "2026-08-04", Currency: "CNY", Warehouse: &warehouse,
+		InventoryCountLines: []InventoryCountLineInput{{Product: product, ActualQuantity: "0"}},
+	})
+	if err != nil || len(draft.InventoryCountLines) != 1 || draft.InventoryCountLines[0].ActualQuantity != 0 {
+		t.Fatalf("valid inventory count = %+v err=%v", draft, err)
+	}
+	_, err = validateDraft(EntityInventoryCount, DraftInput{
+		BusinessDate: "2026-08-04", Currency: "USD", Warehouse: &warehouse,
+		InventoryCountLines: []InventoryCountLineInput{{Product: product, ActualQuantity: "1"}},
+	})
+	if err == nil {
+		t.Fatal("non-CNY inventory count was accepted")
+	}
+	_, err = validateDraft(EntityInventoryCount, DraftInput{
+		BusinessDate: "2026-08-04", Currency: "CNY", Warehouse: &warehouse,
+		InventoryCountLines: []InventoryCountLineInput{
+			{Product: product, ActualQuantity: "1"},
+			{Product: product, ActualQuantity: "2"},
+		},
+	})
+	if err == nil {
+		t.Fatal("duplicate inventory count product was accepted")
+	}
+}

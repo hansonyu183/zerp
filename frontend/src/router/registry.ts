@@ -278,6 +278,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/self-production/SelfProduction.vue'),
   }),
   registerPage('vou', {
+    entity: 'inventory-count',
+    entityTitle: '库存盘点',
+    icon: 'mdi-clipboard-list-outline',
+    order: 57,
+    component: () => import('@/pages/vou/inventory-count/InventoryCount.vue'),
+  }),
+  registerPage('vou', {
     entity: 'purchase-inquiry',
     entityTitle: '采购询价',
     icon: 'mdi-comment-question-outline',

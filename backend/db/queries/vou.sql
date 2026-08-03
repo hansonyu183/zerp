@@ -6,6 +6,91 @@ DO UPDATE SET last_value = vou_number_counters.last_value + 1
 WHERE vou_number_counters.last_value < 9999
 RETURNING last_value;
 
+-- name: InsertVouInventoryCountDetail :exec
+INSERT INTO vou_inventory_count_details(
+    document_id,entity,warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+) VALUES (
+    sqlc.arg(document_id),'inventory-count',sqlc.arg(warehouse_object_id),
+    sqlc.arg(warehouse_version_id),sqlc.arg(warehouse_code),sqlc.arg(warehouse_name)
+);
+
+-- name: UpdateVouInventoryCountDetail :execrows
+UPDATE vou_inventory_count_details SET
+    warehouse_object_id=sqlc.arg(warehouse_object_id),
+    warehouse_version_id=sqlc.arg(warehouse_version_id),
+    warehouse_code=sqlc.arg(warehouse_code),warehouse_name=sqlc.arg(warehouse_name)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouInventoryCountDetail :one
+SELECT * FROM vou_inventory_count_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: DeleteVouInventoryCountLines :exec
+DELETE FROM vou_inventory_count_lines WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouInventoryCountLine :exec
+INSERT INTO vou_inventory_count_lines(
+    id,document_id,line_no,product_object_id,product_version_id,product_code,
+    product_name,product_unit,actual_quantity_micros,remark
+) VALUES (
+    sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(product_object_id),
+    sqlc.arg(product_version_id),sqlc.arg(product_code),sqlc.arg(product_name),
+    sqlc.arg(product_unit),sqlc.arg(actual_quantity_micros),sqlc.narg(remark)
+);
+
+-- name: ListVouInventoryCountLines :many
+SELECT * FROM vou_inventory_count_lines
+WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: SetVouInventoryCountResult :execrows
+UPDATE vou_inventory_count_lines SET
+    book_quantity_micros=sqlc.arg(book_quantity_micros),
+    difference_quantity_micros=sqlc.arg(difference_quantity_micros)
+WHERE id=sqlc.arg(id) AND document_id=sqlc.arg(document_id);
+
+-- name: ClearVouInventoryCountResults :exec
+UPDATE vou_inventory_count_lines
+SET book_quantity_micros=NULL,difference_quantity_micros=NULL
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: CountVouInventoryCountBookBalances :one
+SELECT count(*) FROM (
+    SELECT product_object_id
+    FROM led_inventory_entries
+    WHERE generation_id=sqlc.arg(generation_id)
+      AND warehouse_object_id=sqlc.arg(warehouse_object_id)
+      AND effective_date <= sqlc.arg(as_of_date)
+    GROUP BY product_object_id
+    HAVING sum(quantity_delta_micros) <> 0
+) balances;
+
+-- name: ListVouInventoryCountBookBalances :many
+SELECT product_object_id,
+       (array_agg(product_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS product_version_id,
+       max(product_code)::varchar(64) AS product_code,
+       (array_agg(product_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS product_name,
+       (array_agg(product_unit ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(32) AS product_unit,
+       sum(quantity_delta_micros)::bigint AS quantity_micros
+FROM led_inventory_entries
+WHERE generation_id=sqlc.arg(generation_id)
+  AND warehouse_object_id=sqlc.arg(warehouse_object_id)
+  AND effective_date <= sqlc.arg(as_of_date)
+GROUP BY product_object_id
+HAVING sum(quantity_delta_micros) <> 0
+ORDER BY max(product_code),product_object_id
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetVouInventoryCountBookQuantity :one
+SELECT COALESCE(sum(quantity_delta_micros),0)::bigint
+FROM led_inventory_entries
+WHERE generation_id=sqlc.arg(generation_id)
+  AND warehouse_object_id=sqlc.arg(warehouse_object_id)
+  AND product_object_id=sqlc.arg(product_object_id)
+  AND effective_date <= sqlc.arg(as_of_date);
+
+-- name: GetVouInventoryCountClosingDate :one
+SELECT closing_date FROM led_closings
+WHERE id=sqlc.arg(id) AND status='ACTIVE';
+
 -- name: CountVouProductionAttributes :one
 SELECT
     (SELECT count(*) FROM vou_production_output_lines production_output

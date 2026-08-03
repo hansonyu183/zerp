@@ -75,6 +75,9 @@ func (*handlerServiceStub) ShortCloseUnconfirm(context.Context, ReverseInput, st
 func (*handlerServiceStub) AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error) {
 	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
 }
+func (*handlerServiceStub) InventoryCountBookBalance(context.Context, InventoryCountBalanceInput) (Page[InventoryCountBalanceItem], error) {
+	return Page[InventoryCountBalanceItem]{Items: []InventoryCountBalanceItem{}}, nil
+}
 func (*handlerServiceStub) InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error) {
 	return AttachmentInitiateResult{}, nil
 }
@@ -113,6 +116,9 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 				continue
 			}
 			if route.action == "price-reference" && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
+				continue
+			}
+			if route.action == "book-balance" && entity != EntityInventoryCount {
 				continue
 			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost

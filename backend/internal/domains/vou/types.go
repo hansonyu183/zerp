@@ -18,6 +18,7 @@ const (
 	EntityPurchaseInquiry      = "purchase-inquiry"
 	EntityOrderProduction      = "order-production"
 	EntitySelfProduction       = "self-production"
+	EntityInventoryCount       = "inventory-count"
 	EntityReceipt              = "receipt"
 	EntityPayment              = "payment"
 	EntityCustomerReceipt      = "customer-receipt"
@@ -52,6 +53,7 @@ var entities = [...]string{
 	EntityPurchaseInquiry,
 	EntityOrderProduction,
 	EntitySelfProduction,
+	EntityInventoryCount,
 	EntityCustomerReceipt,
 	EntitySupplierReceipt,
 	EntityOtherReceipt,
@@ -67,6 +69,7 @@ func publicCreateEntity(entity string) bool {
 	switch entity {
 	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
 		EntitySaleReturn, EntityPurchaseReturn, EntityOrderProduction, EntitySelfProduction,
+		EntityInventoryCount,
 		EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
 		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
 		EntityExpenseReimbursement, EntityOtherIncome:
@@ -119,6 +122,12 @@ type PriceLineInput struct {
 	Product   ReferenceInput `json:"product"`
 	UnitPrice string         `json:"unitPrice"`
 	Remark    string         `json:"remark,omitempty"`
+}
+
+type InventoryCountLineInput struct {
+	Product        ReferenceInput `json:"product"`
+	ActualQuantity string         `json:"actualQuantity"`
+	Remark         string         `json:"remark,omitempty"`
 }
 
 type FormulaInput struct {
@@ -182,34 +191,35 @@ type ProductionOutputInput struct {
 }
 
 type DraftInput struct {
-	BusinessDate      string                    `json:"businessDate"`
-	Currency          string                    `json:"currency"`
-	Remark            string                    `json:"remark,omitempty"`
-	ReturnReason      string                    `json:"returnReason,omitempty"`
-	SourceDocumentID  string                    `json:"-"`
-	Customer          *ReferenceInput           `json:"customer,omitempty"`
-	Supplier          *ReferenceInput           `json:"supplier,omitempty"`
-	CounterpartyType  string                    `json:"counterpartyType,omitempty"`
-	Counterparty      *ReferenceInput           `json:"counterparty,omitempty"`
-	Employee          *ReferenceInput           `json:"employee,omitempty"`
-	Salesperson       *ReferenceInput           `json:"salesperson,omitempty"`
-	Purchaser         *ReferenceInput           `json:"purchaser,omitempty"`
-	Handler           *ReferenceInput           `json:"handler,omitempty"`
-	Warehouse         *ReferenceInput           `json:"warehouse,omitempty"`
-	MaterialWarehouse *ReferenceInput           `json:"materialWarehouse,omitempty"`
-	FinishedWarehouse *ReferenceInput           `json:"finishedWarehouse,omitempty"`
-	Platform          *ReferenceInput           `json:"platform,omitempty"`
-	Vehicle           *ReferenceInput           `json:"vehicle,omitempty"`
-	FundAccount       *ReferenceInput           `json:"fundAccount,omitempty"`
-	SourceName        string                    `json:"sourceName,omitempty"`
-	Amount            string                    `json:"amount,omitempty"`
-	ProductLines      []ProductLineInput        `json:"productLines,omitempty"`
-	PriceLines        []PriceLineInput          `json:"priceLines,omitempty"`
-	ExpenseLines      []ExpenseLineInput        `json:"expenseLines,omitempty"`
-	SourceLines       []SourceQuantityLineInput `json:"sourceLines,omitempty"`
-	SignoffLines      []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
-	ReturnLines       []ReturnLineInput         `json:"returnLines,omitempty"`
-	ProductionLines   []ProductionOutputInput   `json:"productionLines,omitempty"`
+	BusinessDate        string                    `json:"businessDate"`
+	Currency            string                    `json:"currency"`
+	Remark              string                    `json:"remark,omitempty"`
+	ReturnReason        string                    `json:"returnReason,omitempty"`
+	SourceDocumentID    string                    `json:"-"`
+	Customer            *ReferenceInput           `json:"customer,omitempty"`
+	Supplier            *ReferenceInput           `json:"supplier,omitempty"`
+	CounterpartyType    string                    `json:"counterpartyType,omitempty"`
+	Counterparty        *ReferenceInput           `json:"counterparty,omitempty"`
+	Employee            *ReferenceInput           `json:"employee,omitempty"`
+	Salesperson         *ReferenceInput           `json:"salesperson,omitempty"`
+	Purchaser           *ReferenceInput           `json:"purchaser,omitempty"`
+	Handler             *ReferenceInput           `json:"handler,omitempty"`
+	Warehouse           *ReferenceInput           `json:"warehouse,omitempty"`
+	MaterialWarehouse   *ReferenceInput           `json:"materialWarehouse,omitempty"`
+	FinishedWarehouse   *ReferenceInput           `json:"finishedWarehouse,omitempty"`
+	Platform            *ReferenceInput           `json:"platform,omitempty"`
+	Vehicle             *ReferenceInput           `json:"vehicle,omitempty"`
+	FundAccount         *ReferenceInput           `json:"fundAccount,omitempty"`
+	SourceName          string                    `json:"sourceName,omitempty"`
+	Amount              string                    `json:"amount,omitempty"`
+	ProductLines        []ProductLineInput        `json:"productLines,omitempty"`
+	PriceLines          []PriceLineInput          `json:"priceLines,omitempty"`
+	ExpenseLines        []ExpenseLineInput        `json:"expenseLines,omitempty"`
+	SourceLines         []SourceQuantityLineInput `json:"sourceLines,omitempty"`
+	SignoffLines        []SaleSignoffLineInput    `json:"signoffLines,omitempty"`
+	ReturnLines         []ReturnLineInput         `json:"returnLines,omitempty"`
+	ProductionLines     []ProductionOutputInput   `json:"productionLines,omitempty"`
+	InventoryCountLines []InventoryCountLineInput `json:"inventoryCountLines,omitempty"`
 }
 
 type CreateInput struct {
@@ -471,6 +481,28 @@ type ExpenseLineView struct {
 	Remark      string `json:"remark,omitempty"`
 }
 
+type InventoryCountLineView struct {
+	LineID             string        `json:"lineId"`
+	LineNo             int32         `json:"lineNo"`
+	Product            ReferenceView `json:"product"`
+	ActualQuantity     string        `json:"actualQuantity"`
+	BookQuantity       *string       `json:"bookQuantity,omitempty"`
+	DifferenceQuantity *string       `json:"differenceQuantity,omitempty"`
+	Remark             string        `json:"remark,omitempty"`
+}
+
+type InventoryCountBalanceInput struct {
+	Page              int    `json:"page"`
+	PageSize          int    `json:"pageSize"`
+	WarehouseObjectID string `json:"warehouseObjectId"`
+	AsOfDate          string `json:"asOfDate"`
+}
+
+type InventoryCountBalanceItem struct {
+	Product  ReferenceView `json:"product"`
+	Quantity string        `json:"quantity"`
+}
+
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
 	VersionID             string `json:"versionId"`
@@ -542,6 +574,7 @@ type DocumentDataView struct {
 	ShortCloseReason          string                        `json:"shortCloseReason,omitempty"`
 	Lines                     []ManagedLineView             `json:"lines,omitempty"`
 	ProductionLines           []ProductionOutputLineView    `json:"productionLines,omitempty"`
+	InventoryCountLines       []InventoryCountLineView      `json:"inventoryCountLines,omitempty"`
 	ExpectedSolventContainers int64                         `json:"expectedSolventContainers,omitempty"`
 	ExpectedResinContainers   int64                         `json:"expectedResinContainers,omitempty"`
 	ReturnedSolventContainers int64                         `json:"returnedSolventContainers,omitempty"`

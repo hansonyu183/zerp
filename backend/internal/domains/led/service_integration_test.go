@@ -60,6 +60,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
+			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
 			vou_purchase_return_lines, vou_purchase_return_details,
 			vou_sale_signoff_lines, vou_sale_signoff_details,
@@ -431,6 +432,64 @@ func TestLEDInventoryPostingStrictBalanceAndDeletionIntegration(t *testing.T) {
 	}
 	if purchaseEntryCount != 0 {
 		t.Fatalf("unfinalized purchase entries = %d, want 0", purchaseEntryCount)
+	}
+}
+
+func TestInventoryCountPostingAndReversalIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	purchase, _ := advancePurchaseInboundToApproved(t, vouchers, refs, "5", "10.00")
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPurchaseInbound,
+		voudomain.FinalizeInput{DocumentID: purchase.DocumentID, Revision: purchase.Revision},
+		integrationActorOne, "inventory-count-purchase"); err != nil {
+		t.Fatalf("finalize purchase: %v", err)
+	}
+
+	approved, _ := advanceToApproved(t, vouchers, voudomain.EntityInventoryCount, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &refs.warehouse,
+		InventoryCountLines: []voudomain.InventoryCountLineInput{{
+			Product: refs.product, ActualQuantity: "7", Remark: "首次盘点",
+		}},
+	})
+	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityInventoryCount,
+		voudomain.FinalizeInput{DocumentID: approved.DocumentID, Revision: approved.Revision},
+		integrationActorOne, "inventory-count-finalize")
+	if err != nil {
+		t.Fatalf("finalize inventory count: %v", err)
+	}
+	view, err := vouchers.Get(t.Context(), voudomain.EntityInventoryCount,
+		voudomain.GetInput{DocumentID: finalized.DocumentID})
+	if err != nil || len(view.Data.InventoryCountLines) != 1 {
+		t.Fatalf("get inventory count: %+v err=%v", view, err)
+	}
+	line := view.Data.InventoryCountLines[0]
+	if line.BookQuantity == nil || *line.BookQuantity != "5.0" ||
+		line.DifferenceQuantity == nil || *line.DifferenceQuantity != "2.0" {
+		t.Fatalf("inventory count result = %+v", line)
+	}
+	balances, err := ledger.InventoryBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: BalanceFilters{AsOfDate: "2026-07-25", ObjectID: refs.warehouse.ObjectID},
+	})
+	if err != nil || len(balances.Items) != 1 || balances.Items[0].Quantity != "7.0" {
+		t.Fatalf("inventory count balance = %+v err=%v", balances, err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityInventoryCount,
+		voudomain.ReverseInput{DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "复盘"},
+		integrationActorOne, "inventory-count-unfinalize"); err != nil {
+		t.Fatalf("unfinalize inventory count: %v", err)
+	}
+	balances, err = ledger.InventoryBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: BalanceFilters{AsOfDate: "2026-07-25", ObjectID: refs.warehouse.ObjectID},
+	})
+	if err != nil || len(balances.Items) != 1 || balances.Items[0].Quantity != "5.0" {
+		t.Fatalf("reversed inventory count balance = %+v err=%v", balances, err)
 	}
 }
 
@@ -945,9 +1004,11 @@ func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 		t.Fatalf("get closing generation: %v", err)
 	}
 	warehouseID, warehouseVersionID := newID(), newID()
+	countWarehouseID, countWarehouseVersionID := newID(), newID()
 	productID, productVersionID := newID(), newID()
 	purchaseDocumentID, purchaseLineID := newID(), newID()
 	saleDocumentID, saleLineID := newID(), newID()
+	countDocumentID, countLineID := newID(), newID()
 	_, err = pool.Exec(t.Context(), `INSERT INTO led_inventory_entries(
 		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
 		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
@@ -958,10 +1019,13 @@ func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 		($1,$2,'POSTING','purchase-inbound',$3,'PIN-TEST',$4,1,'2026-06-01',now(),$5,'cost-in',
 		 $6,$7,'WH-1','测试仓库',$8,$9,'P-1','测试商品','件',10000000,'CNY',1000,10000),
 		($10,$2,'POSTING','sale-outbound',$11,'OUT-TEST',$12,1,'2026-06-15',now(),$5,'cost-out',
-		 $6,$7,'WH-1','测试仓库',$8,$9,'P-1','测试商品','件',-4000000,'CNY',1500,6000)`,
+		 $6,$7,'WH-1','测试仓库',$8,$9,'P-1','测试商品','件',-4000000,'CNY',1500,6000),
+		($13,$2,'POSTING','inventory-count',$14,'IVC-TEST',$15,1,'2026-06-20',now(),$5,'count-gain',
+		 $16,$17,'WH-2','盘点仓库',$8,$9,'P-1','测试商品','件',2000000,NULL,NULL,NULL)`,
 		newID(), generationID, purchaseDocumentID, purchaseLineID, integrationActorOne,
 		warehouseID, warehouseVersionID, productID, productVersionID,
-		newID(), saleDocumentID, saleLineID)
+		newID(), saleDocumentID, saleLineID,
+		newID(), countDocumentID, countLineID, countWarehouseID, countWarehouseVersionID)
 	if err != nil {
 		t.Fatalf("insert closing cost movements: %v", err)
 	}
@@ -978,8 +1042,17 @@ func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get generated opening: %v", err)
 	}
-	if len(after.Inventory) != 1 || after.Inventory[0].Quantity != "6.0" ||
-		after.Inventory[0].CostAmount != "60.00" {
+	if len(after.Inventory) != 2 {
+		t.Fatalf("generated inventory opening = %+v", after.Inventory)
+	}
+	byWarehouse := make(map[string]InventoryOpeningView, len(after.Inventory))
+	for _, item := range after.Inventory {
+		byWarehouse[item.Warehouse.ObjectID] = item
+	}
+	if byWarehouse[warehouseID].Quantity != "6.0" ||
+		byWarehouse[warehouseID].CostAmount != "60.00" ||
+		byWarehouse[countWarehouseID].Quantity != "2.0" ||
+		byWarehouse[countWarehouseID].CostAmount != "20.00" {
 		t.Fatalf("generated inventory opening = %+v", after.Inventory)
 	}
 	_, err = pool.Exec(t.Context(), `INSERT INTO vou_documents(

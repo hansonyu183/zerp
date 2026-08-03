@@ -16,6 +16,7 @@
           'purchase-inquiry',
           'order-production',
           'self-production',
+          'inventory-count',
           'customer-receipt',
           'supplier-receipt',
           'other-receipt',
@@ -41,6 +42,7 @@
           'purchase-inquiry',
           'order-production',
           'self-production',
+          'inventory-count',
           'customer-receipt',
           'supplier-receipt',
           'other-receipt',
@@ -64,6 +66,41 @@
           'CONFIRMED',
           'EXECUTED',
         ],
+    },
+  'VouInventoryCountLineInput':
+    {
+      'type': 'object',
+      'required': ['product', 'actualQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'product':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'actualQuantity': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouInventoryCountBalanceRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'warehouseObjectId', 'asOfDate'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'warehouseObjectId': { 'type': 'string' },
+          'asOfDate': { 'type': 'string', 'format': 'date' },
+        },
     },
   'VouQueryRequest':
     {
@@ -468,6 +505,13 @@
                             },
                         },
                     },
+                  'inventoryCountLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouInventoryCountLineInput' },
+                    },
                   'sourceLines':
                     {
                       'type': 'array',
@@ -762,6 +806,13 @@
                               'remark': { 'type': 'string' },
                             },
                         },
+                    },
+                  'inventoryCountLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 200,
+                      'items': { '$ref': '#/VouInventoryCountLineInput' },
                     },
                   'sourceLines':
                     {

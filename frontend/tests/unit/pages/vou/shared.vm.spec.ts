@@ -117,6 +117,15 @@ function documentView(
           adjustmentReason: material.adjustmentReason,
         })),
       })),
+      inventoryCountLines: form.inventoryCountLines.map((line, index) => ({
+        lineId: `COUNT-${index}`,
+        lineNo: index + 1,
+        product: line.product!,
+        actualQuantity: line.actualQuantity,
+        bookQuantity: line.bookQuantity,
+        differenceQuantity: line.differenceQuantity,
+        remark: line.remark,
+      })),
     },
     attachments: [],
     createdAt: '2026-07-24T00:00:00Z',
@@ -237,6 +246,17 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
       },
     ]
   }
+  if (config.lineKind === 'inventory-count') {
+    form.inventoryCountLines = [
+      {
+        key: 'inventory-count',
+        product: { ...reference('product'), unit: 'kg' },
+        actualQuantity: '2.5',
+        bookQuantity: '2',
+        remark: '',
+      },
+    ]
+  }
 }
 
 describe('shared VOU entity view model', () => {
@@ -311,7 +331,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('defines all seventeen atomic document entities', () => {
+  it('defines all atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -321,6 +341,7 @@ describe('shared VOU entity view model', () => {
       'sale-return',
       'order-production',
       'self-production',
+      'inventory-count',
       'purchase-order',
       'purchase-inquiry',
       'purchase-inbound',
@@ -342,6 +363,64 @@ describe('shared VOU entity view model', () => {
     expect(voucherEntityConfigs['purchase-inbound'].parentEntity).toBe(
       'purchase-order',
     )
+  })
+
+  it('loads nonzero warehouse balances without overwriting entered counts', async () => {
+    const config = voucherEntityConfigs['inventory-count']
+    useSessionStore().permissions = [
+      '/vou/inventory-count/create',
+      '/vou/inventory-count/book-balance',
+    ]
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    populate(config, vm.form.value)
+    vm.form.value.inventoryCountLines[0]!.actualQuantity = '3'
+    vm.form.value.inventoryCountLines.push({
+      key: 'manual-zero-stock',
+      product: {
+        ...reference('product', 'MANUAL'),
+        objectId: 'manual-product-object',
+        versionId: 'manual-product-version',
+      },
+      actualQuantity: '1',
+      bookQuantity: '',
+      remark: '手工零库存商品',
+    })
+    mockedPost.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            product: { ...reference('product'), unit: 'kg' },
+            quantity: '2',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 200,
+      },
+    })
+
+    await vm.loadInventoryCountBalance()
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      'vou/inventory-count/book-balance',
+      {
+        page: 1,
+        pageSize: 200,
+        warehouseObjectId: 'warehouse-object',
+        asOfDate: '2026-07-24',
+      },
+    )
+    expect(vm.form.value.inventoryCountLines[0]).toMatchObject({
+      actualQuantity: '3',
+      bookQuantity: '2',
+    })
+    expect(vm.form.value.inventoryCountLines[1]).toMatchObject({
+      key: 'manual-zero-stock',
+      actualQuantity: '1',
+      bookQuantity: '',
+      remark: '手工零库存商品',
+    })
   })
 
   it('builds entity-specific create payloads without dueDate or unrelated fields', async () => {

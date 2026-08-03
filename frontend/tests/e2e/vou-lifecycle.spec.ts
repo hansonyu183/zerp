@@ -186,6 +186,50 @@ test('收款单完成附件、完整生命周期、反向流转和审计', async
   await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
+test('库存盘点加载账面库存并按完成时差异过账', async ({ page }) => {
+  test.setTimeout(180_000)
+  const fixture = vouFixture()
+  await signIn(page)
+  await page.goto('/vou/inventory-count')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const workspace = page.locator('.voucher-workspace')
+
+  await selectReference(page, '仓库', fixture.warehouse, workspace)
+  await workspace
+    .getByRole('button', { name: '加载非零库存', exact: true })
+    .click()
+  const countLine = workspace
+    .locator('.inventory-count-lines__table tbody tr')
+    .filter({ hasText: fixture.product })
+    .first()
+  await expect(countLine).toBeVisible()
+  const bookQuantity = Number(
+    (
+      await countLine.locator('td[data-label="账面数量"]').textContent()
+    )?.trim(),
+  )
+  expect(Number.isFinite(bookQuantity)).toBe(true)
+  await countLine
+    .locator('input')
+    .nth(1)
+    .fill(String(bookQuantity + 1))
+  await expect(countLine.locator('td[data-label="差异"]')).toHaveText('1')
+
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  await expectDraftCreated(workspace, /^IVC-\d{8}-\d{4}$/)
+  await workspace.getByRole('button', { name: '取消编辑' }).click()
+  await workspace.getByRole('button', { name: '核对', exact: true }).click()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await workspace.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+  await expect(countLine.locator('td[data-label="账面数量"]')).toHaveText(
+    String(bookQuantity),
+  )
+  await expect(countLine.locator('td[data-label="差异"]')).toHaveText('1')
+
+  await reverse(page, '撤销完成')
+})
+
 test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',

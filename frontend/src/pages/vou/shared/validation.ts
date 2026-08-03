@@ -203,5 +203,26 @@ export function validateVoucherDraft(
       return '单据总金额超出允许范围。'
     }
   }
+  if (config.lineKind === 'inventory-count') {
+    if (
+      value.inventoryCountLines.length < 1 ||
+      value.inventoryCountLines.length > 200
+    ) {
+      return '盘点明细必须包含 1 到 200 行。'
+    }
+    const seen = new Set<string>()
+    for (const [index, line] of value.inventoryCountLines.entries()) {
+      if (!line.product || !isQuantity(line.actualQuantity, true)) {
+        return `第 ${index + 1} 行 · 产品/实盘数量：请完整填写有效值。`
+      }
+      if (seen.has(line.product.objectId)) {
+        return `第 ${index + 1} 行 · 产品：不能重复添加。`
+      }
+      seen.add(line.product.objectId)
+      if (Array.from(line.remark).length > 1000) {
+        return `第 ${index + 1} 行 · 备注：不能超过 1000 字。`
+      }
+    }
+  }
   return null
 }

@@ -23,6 +23,7 @@ var vouEntities = [...]string{
 	voudomain.EntityPurchaseReturn,
 	voudomain.EntityOrderProduction,
 	voudomain.EntitySelfProduction,
+	voudomain.EntityInventoryCount,
 	voudomain.EntityCustomerReceipt,
 	voudomain.EntitySupplierReceipt,
 	voudomain.EntityOtherReceipt,
@@ -157,6 +158,9 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		return err
 	}
 	if !exists {
+		if event.Entity == voudomain.EntityInventoryCount {
+			return nil
+		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
 	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
@@ -202,6 +206,8 @@ func (s *Service) postDocument(
 		return s.postPurchaseReturn(ctx, tx, q, posting)
 	case voudomain.EntityOrderProduction, voudomain.EntitySelfProduction:
 		return s.postProduction(ctx, tx, q, posting)
+	case voudomain.EntityInventoryCount:
+		return s.postInventoryCount(ctx, tx, q, posting)
 	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt:
 		return s.postReceipt(ctx, q, posting)
 	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment:

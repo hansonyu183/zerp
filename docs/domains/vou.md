@@ -17,6 +17,7 @@ purchase-return
 purchase-inquiry
 order-production
 self-production
+inventory-count
 customer-receipt
 supplier-receipt
 other-receipt
@@ -30,7 +31,7 @@ other-income
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 21 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+当前共 22 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -44,7 +45,7 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/REC/PAY/EXR/EXP/OIN-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/EXR/EXP/OIN-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
@@ -275,7 +276,17 @@ WFL 流程或 LED 流水。
 
 新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check`、`approve` 和 `finalize` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。
 
-### 3.10 草稿与执行载荷
+### 3.10 库存盘点
+
+`inventory-count` 为单仓盘点单，保存盘点日期、仓库、备注和一至两百条不重复商品实盘数量。
+实盘数量允许为零但不得为负；币种固定为 `CNY`，单据不产生资金或往来。
+
+草稿可手动选择商品，也可通过 `book-balance` 按仓库和盘点日期分页读取非零账面商品。该结果只用于
+录入预览。完成时服务端在同一事务内锁定仓库/商品维度、重新计算账面数量，并固定
+`bookQuantity`、`actualQuantity` 与 `differenceQuantity`。正差异盘盈，负差异盘亏，零差异不生成库存流水。
+反完成删除该单库存流水并清除固定结果；若会破坏任一历史时点的严格库存约束则拒绝。
+
+### 3.11 草稿与执行载荷
 
 贸易单据草稿使用统一 `data` 结构。销售订单示例：
 
@@ -523,6 +534,7 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 | `purchase-inquiry`      | 采购询价        | 公开     |
 | `order-production`      | 生产配货        | 公开     |
 | `self-production`       | 生产自制品      | 公开     |
+| `inventory-count`       | 库存盘点        | 公开     |
 | `customer-receipt`      | 往来收款-客户   | 公开     |
 | `supplier-receipt`      | 往来收款-供应商 | 公开     |
 | `other-receipt`         | 往来收款-其他   | 公开     |

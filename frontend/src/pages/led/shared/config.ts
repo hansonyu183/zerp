@@ -14,6 +14,7 @@ const inventorySourceEntities: readonly LedgerOption[] = [
   { title: '销售退货', value: 'sale-return' },
   { title: '采购入库', value: 'purchase-inbound' },
   { title: '采购退货', value: 'purchase-return' },
+  { title: '库存盘点', value: 'inventory-count' },
 ]
 
 const fundSourceEntities: readonly LedgerOption[] = [

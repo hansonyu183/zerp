@@ -69,6 +69,17 @@ func (q *Queries) CheckVouDocument(ctx context.Context, arg CheckVouDocumentPara
 	return revision, err
 }
 
+const clearVouInventoryCountResults = `-- name: ClearVouInventoryCountResults :exec
+UPDATE vou_inventory_count_lines
+SET book_quantity_micros=NULL,difference_quantity_micros=NULL
+WHERE document_id=$1
+`
+
+func (q *Queries) ClearVouInventoryCountResults(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, clearVouInventoryCountResults, documentID)
+	return err
+}
+
 const clearVouProductLineExecution = `-- name: ClearVouProductLineExecution :exec
 UPDATE vou_product_lines
 SET outbound_qty_micros = NULL, signed_qty_micros = NULL,
@@ -233,6 +244,31 @@ func (q *Queries) CountVouDocuments(ctx context.Context, arg CountVouDocumentsPa
 	return count, err
 }
 
+const countVouInventoryCountBookBalances = `-- name: CountVouInventoryCountBookBalances :one
+SELECT count(*) FROM (
+    SELECT product_object_id
+    FROM led_inventory_entries
+    WHERE generation_id=$1
+      AND warehouse_object_id=$2
+      AND effective_date <= $3
+    GROUP BY product_object_id
+    HAVING sum(quantity_delta_micros) <> 0
+) balances
+`
+
+type CountVouInventoryCountBookBalancesParams struct {
+	GenerationID      string      `db:"generation_id" json:"generation_id"`
+	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
+	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) CountVouInventoryCountBookBalances(ctx context.Context, arg CountVouInventoryCountBookBalancesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVouInventoryCountBookBalances, arg.GenerationID, arg.WarehouseObjectID, arg.AsOfDate)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countVouProductionAttributes = `-- name: CountVouProductionAttributes :one
 SELECT
     (SELECT count(*) FROM vou_production_output_lines production_output
@@ -313,6 +349,15 @@ func (q *Queries) DeleteVouFile(ctx context.Context, id string) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteVouInventoryCountLines = `-- name: DeleteVouInventoryCountLines :exec
+DELETE FROM vou_inventory_count_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouInventoryCountLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouInventoryCountLines, documentID)
+	return err
 }
 
 const deleteVouPriceLines = `-- name: DeleteVouPriceLines :exec
@@ -640,6 +685,64 @@ func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, document
 		&i.FundAccountCode,
 		&i.FundAccountName,
 		&i.SettlementMode,
+	)
+	return i, err
+}
+
+const getVouInventoryCountBookQuantity = `-- name: GetVouInventoryCountBookQuantity :one
+SELECT COALESCE(sum(quantity_delta_micros),0)::bigint
+FROM led_inventory_entries
+WHERE generation_id=$1
+  AND warehouse_object_id=$2
+  AND product_object_id=$3
+  AND effective_date <= $4
+`
+
+type GetVouInventoryCountBookQuantityParams struct {
+	GenerationID      string      `db:"generation_id" json:"generation_id"`
+	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
+	ProductObjectID   string      `db:"product_object_id" json:"product_object_id"`
+	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) GetVouInventoryCountBookQuantity(ctx context.Context, arg GetVouInventoryCountBookQuantityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getVouInventoryCountBookQuantity,
+		arg.GenerationID,
+		arg.WarehouseObjectID,
+		arg.ProductObjectID,
+		arg.AsOfDate,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getVouInventoryCountClosingDate = `-- name: GetVouInventoryCountClosingDate :one
+SELECT closing_date FROM led_closings
+WHERE id=$1 AND status='ACTIVE'
+`
+
+func (q *Queries) GetVouInventoryCountClosingDate(ctx context.Context, id string) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getVouInventoryCountClosingDate, id)
+	var closing_date pgtype.Date
+	err := row.Scan(&closing_date)
+	return closing_date, err
+}
+
+const getVouInventoryCountDetail = `-- name: GetVouInventoryCountDetail :one
+SELECT document_id, entity, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name FROM vou_inventory_count_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouInventoryCountDetail(ctx context.Context, documentID string) (VouInventoryCountDetail, error) {
+	row := q.db.QueryRow(ctx, getVouInventoryCountDetail, documentID)
+	var i VouInventoryCountDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.WarehouseObjectID,
+		&i.WarehouseVersionID,
+		&i.WarehouseCode,
+		&i.WarehouseName,
 	)
 	return i, err
 }
@@ -1144,6 +1247,74 @@ func (q *Queries) InsertVouFile(ctx context.Context, arg InsertVouFileParams) er
 		arg.UploadTokenHash,
 		arg.UploadExpiresAt,
 		arg.ActorID,
+	)
+	return err
+}
+
+const insertVouInventoryCountDetail = `-- name: InsertVouInventoryCountDetail :exec
+INSERT INTO vou_inventory_count_details(
+    document_id,entity,warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+) VALUES (
+    $1,'inventory-count',$2,
+    $3,$4,$5
+)
+`
+
+type InsertVouInventoryCountDetailParams struct {
+	DocumentID         string `db:"document_id" json:"document_id"`
+	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+}
+
+func (q *Queries) InsertVouInventoryCountDetail(ctx context.Context, arg InsertVouInventoryCountDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouInventoryCountDetail,
+		arg.DocumentID,
+		arg.WarehouseObjectID,
+		arg.WarehouseVersionID,
+		arg.WarehouseCode,
+		arg.WarehouseName,
+	)
+	return err
+}
+
+const insertVouInventoryCountLine = `-- name: InsertVouInventoryCountLine :exec
+INSERT INTO vou_inventory_count_lines(
+    id,document_id,line_no,product_object_id,product_version_id,product_code,
+    product_name,product_unit,actual_quantity_micros,remark
+) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7,
+    $8,$9,$10
+)
+`
+
+type InsertVouInventoryCountLineParams struct {
+	ID                   string  `db:"id" json:"id"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	LineNo               int32   `db:"line_no" json:"line_no"`
+	ProductObjectID      string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID     string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode          string  `db:"product_code" json:"product_code"`
+	ProductName          string  `db:"product_name" json:"product_name"`
+	ProductUnit          string  `db:"product_unit" json:"product_unit"`
+	ActualQuantityMicros int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
+	Remark               *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVouInventoryCountLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouInventoryCountLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.ProductObjectID,
+		arg.ProductVersionID,
+		arg.ProductCode,
+		arg.ProductName,
+		arg.ProductUnit,
+		arg.ActualQuantityMicros,
+		arg.Remark,
 	)
 	return err
 }
@@ -2194,6 +2365,111 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 	return items, nil
 }
 
+const listVouInventoryCountBookBalances = `-- name: ListVouInventoryCountBookBalances :many
+SELECT product_object_id,
+       (array_agg(product_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS product_version_id,
+       max(product_code)::varchar(64) AS product_code,
+       (array_agg(product_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS product_name,
+       (array_agg(product_unit ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(32) AS product_unit,
+       sum(quantity_delta_micros)::bigint AS quantity_micros
+FROM led_inventory_entries
+WHERE generation_id=$1
+  AND warehouse_object_id=$2
+  AND effective_date <= $3
+GROUP BY product_object_id
+HAVING sum(quantity_delta_micros) <> 0
+ORDER BY max(product_code),product_object_id
+LIMIT $5 OFFSET $4
+`
+
+type ListVouInventoryCountBookBalancesParams struct {
+	GenerationID      string      `db:"generation_id" json:"generation_id"`
+	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
+	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	PageOffset        int32       `db:"page_offset" json:"page_offset"`
+	PageSize          int32       `db:"page_size" json:"page_size"`
+}
+
+type ListVouInventoryCountBookBalancesRow struct {
+	ProductObjectID  string `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID string `db:"product_version_id" json:"product_version_id"`
+	ProductCode      string `db:"product_code" json:"product_code"`
+	ProductName      string `db:"product_name" json:"product_name"`
+	ProductUnit      string `db:"product_unit" json:"product_unit"`
+	QuantityMicros   int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error) {
+	rows, err := q.db.Query(ctx, listVouInventoryCountBookBalances,
+		arg.GenerationID,
+		arg.WarehouseObjectID,
+		arg.AsOfDate,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouInventoryCountBookBalancesRow{}
+	for rows.Next() {
+		var i ListVouInventoryCountBookBalancesRow
+		if err := rows.Scan(
+			&i.ProductObjectID,
+			&i.ProductVersionID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.ProductUnit,
+			&i.QuantityMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouInventoryCountLines = `-- name: ListVouInventoryCountLines :many
+SELECT id, document_id, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, actual_quantity_micros, book_quantity_micros, difference_quantity_micros, remark FROM vou_inventory_count_lines
+WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID string) ([]VouInventoryCountLine, error) {
+	rows, err := q.db.Query(ctx, listVouInventoryCountLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouInventoryCountLine{}
+	for rows.Next() {
+		var i VouInventoryCountLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.ProductObjectID,
+			&i.ProductVersionID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.ProductUnit,
+			&i.ActualQuantityMicros,
+			&i.BookQuantityMicros,
+			&i.DifferenceQuantityMicros,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVouPriceLines = `-- name: ListVouPriceLines :many
 SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, product_kind, pricing_quantity_per_inventory_unit_micros, unit_price_cents, remark FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
 `
@@ -2580,6 +2856,33 @@ func (q *Queries) NextVouNumberCounter(ctx context.Context, arg NextVouNumberCou
 	return last_value, err
 }
 
+const setVouInventoryCountResult = `-- name: SetVouInventoryCountResult :execrows
+UPDATE vou_inventory_count_lines SET
+    book_quantity_micros=$1,
+    difference_quantity_micros=$2
+WHERE id=$3 AND document_id=$4
+`
+
+type SetVouInventoryCountResultParams struct {
+	BookQuantityMicros       *int64 `db:"book_quantity_micros" json:"book_quantity_micros"`
+	DifferenceQuantityMicros *int64 `db:"difference_quantity_micros" json:"difference_quantity_micros"`
+	ID                       string `db:"id" json:"id"`
+	DocumentID               string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVouInventoryCountResult,
+		arg.BookQuantityMicros,
+		arg.DifferenceQuantityMicros,
+		arg.ID,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setVouSaleLineExecution = `-- name: SetVouSaleLineExecution :execrows
 UPDATE vou_product_lines
 SET outbound_qty_micros = $1,
@@ -2831,6 +3134,36 @@ func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg U
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouInventoryCountDetail = `-- name: UpdateVouInventoryCountDetail :execrows
+UPDATE vou_inventory_count_details SET
+    warehouse_object_id=$1,
+    warehouse_version_id=$2,
+    warehouse_code=$3,warehouse_name=$4
+WHERE document_id=$5
+`
+
+type UpdateVouInventoryCountDetailParams struct {
+	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID         string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouInventoryCountDetail(ctx context.Context, arg UpdateVouInventoryCountDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouInventoryCountDetail,
+		arg.WarehouseObjectID,
+		arg.WarehouseVersionID,
+		arg.WarehouseCode,
+		arg.WarehouseName,
 		arg.DocumentID,
 	)
 	if err != nil {

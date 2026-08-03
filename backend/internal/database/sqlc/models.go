@@ -966,6 +966,30 @@ type VouFile struct {
 	CreatedBy       string             `db:"created_by" json:"created_by"`
 }
 
+type VouInventoryCountDetail struct {
+	DocumentID         string `db:"document_id" json:"document_id"`
+	Entity             string `db:"entity" json:"entity"`
+	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+}
+
+type VouInventoryCountLine struct {
+	ID                       string  `db:"id" json:"id"`
+	DocumentID               string  `db:"document_id" json:"document_id"`
+	LineNo                   int32   `db:"line_no" json:"line_no"`
+	ProductObjectID          string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID         string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode              string  `db:"product_code" json:"product_code"`
+	ProductName              string  `db:"product_name" json:"product_name"`
+	ProductUnit              string  `db:"product_unit" json:"product_unit"`
+	ActualQuantityMicros     int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
+	BookQuantityMicros       *int64  `db:"book_quantity_micros" json:"book_quantity_micros"`
+	DifferenceQuantityMicros *int64  `db:"difference_quantity_micros" json:"difference_quantity_micros"`
+	Remark                   *string `db:"remark" json:"remark"`
+}
+
 type VouNumberCounter struct {
 	Entity       string      `db:"entity" json:"entity"`
 	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`

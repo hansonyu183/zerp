@@ -7,6 +7,7 @@ export type VoucherEntity =
   | 'sale-return'
   | 'order-production'
   | 'self-production'
+  | 'inventory-count'
   | 'purchase-order'
   | 'purchase-inbound'
   | 'purchase-return'
@@ -84,6 +85,16 @@ export interface VoucherExpenseLineDraft {
   remark: string
 }
 
+export interface VoucherInventoryCountLineDraft {
+  key: string
+  lineId?: string
+  product: VoucherReference | null
+  actualQuantity: string
+  bookQuantity?: string
+  differenceQuantity?: string
+  remark: string
+}
+
 export interface VoucherSalesChainLineDraft {
   key: string
   sourceLineId: string
@@ -154,6 +165,7 @@ export interface VoucherDraftForm {
   expenseLines: VoucherExpenseLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
   productionLines: VoucherProductionOutputDraft[]
+  inventoryCountLines: VoucherInventoryCountLineDraft[]
 }
 
 export interface VoucherReferenceView extends VoucherReferenceInput {
@@ -232,6 +244,16 @@ export interface VoucherExpenseLineView {
   category: string
   description: string
   amount: string
+  remark?: string
+}
+
+export interface VoucherInventoryCountLineView {
+  lineId: string
+  lineNo: number
+  product: VoucherReferenceView
+  actualQuantity: string
+  bookQuantity?: string
+  differenceQuantity?: string
   remark?: string
 }
 
@@ -367,6 +389,7 @@ export interface VoucherDocumentData {
   shortCloseReason?: string
   lines?: VoucherManagedLineView[]
   productionLines?: VoucherProductionOutputView[]
+  inventoryCountLines?: VoucherInventoryCountLineView[]
   expectedSolventContainers?: number
   expectedResinContainers?: number
   returnedSolventContainers?: number
@@ -512,7 +535,8 @@ export interface VoucherExecutionForm {
   purchaseLines: VoucherExecutionPurchaseLine[]
 }
 
-export type VoucherLineKind = 'product' | 'price' | 'expense' | 'none'
+export type VoucherLineKind =
+  'product' | 'price' | 'expense' | 'inventory-count' | 'none'
 export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
 
 export interface VoucherLifecycleLabels {

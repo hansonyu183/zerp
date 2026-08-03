@@ -269,5 +269,14 @@ func (s *Service) resolveDraftProducts(
 		}
 		result.FormulaMaterials = append(result.FormulaMaterials, materials)
 	}
+	for index := range draft.InventoryCountLines {
+		product, err := s.resolveReference(
+			ctx, tx, bobdomain.EntityProduct, &draft.InventoryCountLines[index].Product,
+		)
+		if err != nil {
+			return err
+		}
+		result.Products = append(result.Products, *product)
+	}
 	return nil
 }

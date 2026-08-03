@@ -79,6 +79,11 @@ export interface DraftPayload {
       adjustmentReason?: string
     }>
   }>
+  inventoryCountLines?: Array<{
+    product: VoucherReferenceInput
+    actualQuantity: string
+    remark?: string
+  }>
 }
 
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
@@ -149,6 +154,17 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         : [],
     salesChainLines: [],
     productionLines: [],
+    inventoryCountLines:
+      config.lineKind === 'inventory-count'
+        ? [
+            {
+              key: crypto.randomUUID(),
+              product: null,
+              actualQuantity: '',
+              remark: '',
+            },
+          ]
+        : [],
   }
 }
 
@@ -298,6 +314,15 @@ export function formFromDocument(
         actualQuantity: material.actualQuantity,
         adjustmentReason: material.adjustmentReason ?? '',
       })),
+    })),
+    inventoryCountLines: (data.inventoryCountLines ?? []).map((line) => ({
+      key: line.lineId,
+      lineId: line.lineId,
+      product: formReference(line.product),
+      actualQuantity: line.actualQuantity,
+      bookQuantity: line.bookQuantity,
+      differenceQuantity: line.differenceQuantity,
+      remark: line.remark ?? '',
     })),
   }
 }

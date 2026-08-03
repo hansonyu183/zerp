@@ -117,6 +117,7 @@ func entityPrefix(entity string) string {
 		EntityPurchaseReturn:  "PRT",
 		EntityOrderProduction: "MTO",
 		EntitySelfProduction:  "MTS",
+		EntityInventoryCount:  "IVC",
 		EntityReceipt:         "REC", EntityCustomerReceipt: "REC", EntitySupplierReceipt: "REC", EntityOtherReceipt: "REC",
 		EntityPayment: "PAY", EntityCustomerPayment: "PAY", EntitySupplierPayment: "PAY", EntityOtherPayment: "PAY",
 		EntityExpenseReimbursement: "EXR",

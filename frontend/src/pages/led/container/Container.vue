@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ledgerEntityConfigs, LedgerWorkspace } from '@/components/ledger'
+import { ledgerEntityConfigs, LedgerWorkspace } from '@/pages/led/shared'
 </script>
 
 <template>

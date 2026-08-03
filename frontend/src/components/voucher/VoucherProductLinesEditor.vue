@@ -8,7 +8,7 @@ import {
   isQuantity,
   sumMoney,
 } from './decimal'
-import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'

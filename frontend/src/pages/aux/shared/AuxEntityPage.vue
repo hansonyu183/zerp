@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
-import { BusinessObjectEditor } from '@/components/business-object'
+import { reactive } from 'vue'
+import {
+  BusinessObjectEditor,
+  BusinessObjectList,
+  type BusinessObjectColumn,
+} from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
-import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
-import MobileSortControl from '@/components/common/MobileSortControl.vue'
-import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
-import type { AuxEntityViewModel } from './vm'
+import type { AuxEntityViewModel, AuxListItem } from './vm'
 
 const props = defineProps<{ model: AuxEntityViewModel }>()
 const vm = reactive(props.model)
-const pageCount = computed(() => Math.max(1, Math.ceil(vm.total / vm.pageSize)))
-
-function changeSort(field: 'code'): void {
-  void vm.changeSort({
-    field,
-    order: vm.sort.field === field && vm.sort.order === 'asc' ? 'desc' : 'asc',
-  })
-}
+const columns: readonly BusinessObjectColumn<AuxListItem>[] = [
+  { key: 'code', label: '编码', value: (item) => item.code },
+  {
+    key: 'displayName',
+    label: '名称',
+    value: (item) => item.currentVersion.data.name,
+  },
+  { key: 'enabled', label: '状态', value: (item) => item.enabled },
+]
 
 function selectAction(action: string, item: (typeof vm.rows)[number]): void {
   if (action === 'edit') vm.openEdit(item)
@@ -32,17 +34,27 @@ void vm.query()
   <v-container fluid class="pa-5 pa-md-8">
     <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
 
-    <EntityListControls
+    <BusinessObjectList
+      :columns="columns"
       :creatable="vm.canCreate"
-      filterable
+      :deletable="vm.canDelete || vm.canEnable || vm.canDisable"
+      :editable="vm.canSave"
       :keyword="vm.keyword"
       :loading="vm.loading"
+      :page="vm.page"
+      :page-size="vm.pageSize"
+      :row-key="(item) => item.objectId"
+      :rows="vm.rows"
       :search-label="`${vm.config.title}关键字`"
+      :sort="vm.sort"
+      :total="vm.total"
       @apply-filters="vm.search"
       @create="vm.openCreate"
       @query="vm.search"
       @reset-filters="vm.resetFilters"
       @update:keyword="vm.keyword = $event"
+      @update:page="vm.changePage"
+      @update:sort="vm.changeSort({ field: 'code', order: $event.order })"
     >
       <template #filters>
         <v-select
@@ -59,106 +71,57 @@ void vm.query()
           variant="outlined"
         />
       </template>
-    </EntityListControls>
-
-    <MobileSortControl
-      :field="vm.sort.field"
-      :options="[{ title: '编码', value: 'code' }]"
-      :order="vm.sort.order"
-      @change="
-        vm.changeSort({
-          field: $event.field as 'code',
-          order: $event.order,
-        })
-      "
-    />
-
-    <v-card variant="outlined">
-      <v-progress-linear v-if="vm.loading" indeterminate />
-      <v-table class="responsive-table">
-        <thead>
-          <tr>
-            <SortableTableHeader
-              :active="vm.sort.field === 'code'"
-              :direction="vm.sort.order"
-              label="编码"
-              @sort="changeSort('code')"
-            />
-            <th>名称</th>
-            <th>状态</th>
-            <th class="text-end">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in vm.rows" :key="item.objectId">
-            <td data-label="编码">{{ item.code }}</td>
-            <td data-label="名称">{{ item.currentVersion.data.name }}</td>
-            <td data-label="状态">
-              <v-chip
-                :color="item.enabled ? 'success' : 'default'"
-                size="small"
-                variant="tonal"
-              >
-                {{ item.enabled ? '启用' : '停用' }}
-              </v-chip>
-            </td>
-            <td class="responsive-table__actions" data-label="操作">
-              <ListRowActions
-                :label="`操作 ${item.code}`"
-                :more="[
-                  ...((item.enabled ? vm.canDisable : vm.canEnable)
-                    ? [
-                        {
-                          key: 'toggle',
-                          label: item.enabled ? '停用' : '启用',
-                          icon: item.enabled
-                            ? 'mdi-pause-circle-outline'
-                            : 'mdi-play-circle-outline',
-                        },
-                      ]
-                    : []),
-                  ...(vm.canDelete
-                    ? [
-                        {
-                          key: 'delete',
-                          label: '删除',
-                          icon: 'mdi-delete-outline',
-                          color: 'error',
-                        },
-                      ]
-                    : []),
-                ]"
-                :primary="
-                  vm.canSave
-                    ? [
-                        {
-                          key: 'edit',
-                          label: '编辑',
-                          icon: 'mdi-pencil-outline',
-                          color: 'primary',
-                        },
-                      ]
-                    : []
-                "
-                @select="selectAction($event, item)"
-              />
-            </td>
-          </tr>
-          <tr
-            v-if="!vm.loading && vm.rows.length === 0"
-            class="responsive-table__empty-row"
-          >
-            <td colspan="4" class="text-center py-12">暂无数据</td>
-          </tr>
-        </tbody>
-      </v-table>
-      <v-pagination
-        :model-value="vm.page"
-        class="my-3"
-        :length="pageCount"
-        @update:model-value="vm.changePage"
-      />
-    </v-card>
+      <template #cell-enabled="{ row: item }">
+        <v-chip
+          :color="item.enabled ? 'success' : 'default'"
+          size="small"
+          variant="tonal"
+        >
+          {{ item.enabled ? '启用' : '停用' }}
+        </v-chip>
+      </template>
+      <template #actions="{ row: item }">
+        <ListRowActions
+          :label="`操作 ${item.code}`"
+          :more="[
+            ...((item.enabled ? vm.canDisable : vm.canEnable)
+              ? [
+                  {
+                    key: 'toggle',
+                    label: item.enabled ? '停用' : '启用',
+                    icon: item.enabled
+                      ? 'mdi-pause-circle-outline'
+                      : 'mdi-play-circle-outline',
+                  },
+                ]
+              : []),
+            ...(vm.canDelete
+              ? [
+                  {
+                    key: 'delete',
+                    label: '删除',
+                    icon: 'mdi-delete-outline',
+                    color: 'error',
+                  },
+                ]
+              : []),
+          ]"
+          :primary="
+            vm.canSave
+              ? [
+                  {
+                    key: 'edit',
+                    label: '编辑',
+                    icon: 'mdi-pencil-outline',
+                    color: 'primary',
+                  },
+                ]
+              : []
+          "
+          @select="selectAction($event, item)"
+        />
+      </template>
+    </BusinessObjectList>
   </v-container>
 
   <v-navigation-drawer

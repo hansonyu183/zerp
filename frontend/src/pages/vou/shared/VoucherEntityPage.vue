@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getErrorMessage } from '@/api/types'
-import { apiClient } from '@/api/client'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
-import { useSessionStore } from '@/stores/session'
 import {
   resolveDueDate,
+  formatVoucherStatus,
   parseFixed,
   toVouAtomicDocument,
   VoucherAttachmentPanel,
@@ -14,7 +12,6 @@ import {
   VoucherDocumentHeader,
   VoucherExecutionDialog,
   VoucherExpenseLinesEditor,
-  VoucherLifecycleActions,
   VoucherList,
   VoucherProductLinesEditor,
   VoucherPriceLinesEditor,
@@ -22,7 +19,6 @@ import {
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
   type VoucherDraftForm,
-  type VoucherDocumentView,
   type VoucherLifecycleAction,
   type VoucherListItem,
   type VoucherReference,
@@ -32,6 +28,8 @@ import { lifecycleLabels } from './config'
 import type { VoucherEntityViewModel } from './vm'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
+import VoucherWorkspaceActions from './VoucherWorkspaceActions.vue'
+import VoucherReasonDialog from './VoucherReasonDialog.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -47,7 +45,6 @@ const props = withDefaults(
 const vm = reactive(props.model)
 const route = useRoute()
 const router = useRouter()
-const session = useSessionStore()
 const labels = computed(() => lifecycleLabels(vm.config))
 
 const workspaceTitle = computed(
@@ -59,15 +56,10 @@ const atomicDocument = computed(() =>
 const atomicStatusLabel = computed(() => {
   const status = atomicDocument.value?.status
   return status
-    ? {
-        DRAFT: '草稿',
+    ? formatVoucherStatus(status, {
         CHECKED: labels.value.checked,
-        APPROVED: '已批准',
         FINALIZED: labels.value.finalized,
-        ORDERED: '已下单',
-        CONFIRMED: '已确认',
-        EXECUTED: '已执行',
-      }[status]
+      })
     : ''
 })
 const partyEnabled = computed(() => vm.config.partyMode !== 'none')
@@ -142,77 +134,7 @@ if (
   returnSourceQuery
 ) {
   const sourceIds = [...new Set(returnSourceQuery.split(',').filter(Boolean))]
-  if (sourceIds.length && session.can(`/vou/${vm.config.entity}/create`)) {
-    vm.openCreate()
-    vm.workspaceLoading = true
-    Promise.all(
-      sourceIds.map(async (documentId) => {
-        const response = await apiClient.post<
-          VoucherDocumentView,
-          { documentId: string }
-        >(
-          vm.config.entity === 'sale-return'
-            ? 'vou/sale-signoff/get'
-            : 'vou/purchase-inbound/get',
-          { documentId },
-        )
-        return response.data
-      }),
-    )
-      .then((sources) => {
-        vm.form.returnKind =
-          vm.config.entity === 'sale-return' ? 'AFTER_SALE' : ''
-        vm.form.warehouse = sources[0]?.data.warehouse
-          ? { ...sources[0].data.warehouse }
-          : null
-        vm.form.salesChainLines = sources.flatMap((source) =>
-          (vm.config.entity === 'sale-return'
-            ? (source.data.signoffLines ?? [])
-            : (source.data.productLines ?? [])
-          )
-            .filter(
-              (line) =>
-                Number(
-                  'signedQuantity' in line
-                    ? (line.returnableQuantity ?? line.signedQuantity ?? '')
-                    : (line.returnableQuantity ?? line.orderedQuantity),
-                ) > 0,
-            )
-            .map((line) => ({
-              key: crypto.randomUUID(),
-              sourceLineId: line.lineId,
-              productCode: line.product.code,
-              productName: line.product.name,
-              productUnit: line.product.unit ?? '',
-              availableQuantity: String(
-                line.returnableQuantity ??
-                  ('signedQuantity' in line
-                    ? line.signedQuantity
-                    : line.orderedQuantity) ??
-                  '',
-              ),
-              outboundQuantity: '',
-              quantity: String(
-                line.returnableQuantity ??
-                  ('signedQuantity' in line
-                    ? line.signedQuantity
-                    : line.orderedQuantity) ??
-                  '',
-              ),
-              signedQuantity: '',
-              rejectedQuantity: '',
-              lossQuantity: '',
-              remark: '',
-            })),
-        )
-      })
-      .catch((error: unknown) => {
-        vm.workspaceError = getErrorMessage(error)
-      })
-      .finally(() => {
-        vm.workspaceLoading = false
-      })
-  }
+  void vm.initializeReturnFromSources(sourceIds)
 }
 
 function updateReference(
@@ -379,51 +301,23 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     />
   </v-container>
 
-  <v-dialog
+  <VoucherReasonDialog
     :model-value="Boolean(listLifecycleTarget)"
-    max-width="560"
+    :confirm-label="`确认${listLifecycleTitle}`"
+    :loading="
+      vm.actionLoading ===
+      `${listLifecycleAction}:${listLifecycleTarget?.documentId}`
+    "
+    :reason="listLifecycleReason"
+    :title="listLifecycleTitle"
+    @confirm="confirmListLifecycleAction"
     @update:model-value="
       (value) => {
         if (!value) listLifecycleTarget = null
       }
     "
-  >
-    <v-card rounded="xl" :title="listLifecycleTitle">
-      <v-card-text>
-        <v-textarea
-          v-model="listLifecycleReason"
-          autofocus
-          counter="1000"
-          label="原因"
-          :rules="[
-            (value: string) => Boolean(value?.trim()) || '请输入原因。',
-            (value: string) =>
-              Array.from(value ?? '').length <= 1000 ||
-              '原因不能超过 1000 字。',
-          ]"
-          variant="outlined"
-        />
-      </v-card-text>
-      <v-card-actions class="px-6 pb-5">
-        <v-spacer />
-        <v-btn variant="text" @click="listLifecycleTarget = null">取消</v-btn>
-        <v-btn
-          color="warning"
-          :disabled="
-            !listLifecycleReason.trim() ||
-            Array.from(listLifecycleReason).length > 1000
-          "
-          :loading="
-            vm.actionLoading ===
-            `${listLifecycleAction}:${listLifecycleTarget?.documentId}`
-          "
-          @click="confirmListLifecycleAction"
-        >
-          确认{{ listLifecycleTitle }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    @update:reason="listLifecycleReason = $event"
+  />
 
   <VoucherWorkspace
     v-model="vm.workspaceOpen"
@@ -438,112 +332,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     @reload="vm.reloadDocument"
   >
     <template #actions>
-      <div class="voucher-page__workspace-actions">
-        <template v-if="vm.editing">
-          <v-btn
-            v-if="vm.documentView"
-            :disabled="vm.saving"
-            variant="text"
-            @click="vm.cancelEditing"
-          >
-            取消编辑
-          </v-btn>
-          <v-btn
-            color="primary"
-            :loading="vm.saving"
-            prepend-icon="mdi-content-save-outline"
-            @click="saveDocument"
-          >
-            保存
-          </v-btn>
-        </template>
-        <v-btn
-          v-else-if="vm.actionAvailability.save"
-          color="primary"
-          prepend-icon="mdi-pencil-outline"
-          variant="tonal"
-          @click="vm.startEditing"
-        >
-          编辑草稿
-        </v-btn>
-        <VoucherLifecycleActions
-          v-if="vm.documentView && !vm.editing"
-          :availability="vm.actionAvailability"
-          :disabled="vm.busy || vm.dirty"
-          :labels="labels"
-          :loading-action="vm.actionLoading"
-          :status="vm.documentView.status"
-          @action="vm.lifecycleAction"
-        />
-        <v-btn
-          v-if="
-            vm.config.entity === 'sale-signoff' &&
-            vm.documentView?.status === 'FINALIZED' &&
-            session.can('/vou/sale-return/create')
-          "
-          :to="{
-            path: '/vou/sale-return',
-            query: { sourceDocumentIds: vm.documentView.documentId },
-          }"
-          prepend-icon="mdi-keyboard-return"
-          variant="tonal"
-        >
-          发起退货
-        </v-btn>
-        <v-btn
-          v-if="
-            vm.config.entity === 'purchase-inbound' &&
-            vm.documentView?.status === 'FINALIZED' &&
-            session.can('/vou/purchase-return/create')
-          "
-          :to="{
-            path: '/vou/purchase-return',
-            query: { sourceDocumentIds: vm.documentView.documentId },
-          }"
-          prepend-icon="mdi-keyboard-return"
-          variant="tonal"
-        >
-          发起退货
-        </v-btn>
-        <v-btn
-          v-if="!vm.editing && vm.actionAvailability.delete"
-          color="error"
-          prepend-icon="mdi-delete-outline"
-          variant="tonal"
-          @click="openSecondary('delete', '删除草稿')"
-        >
-          删除草稿
-        </v-btn>
-        <v-btn
-          v-if="!vm.editing && vm.actionAvailability.shortCloseRequest"
-          color="warning"
-          variant="tonal"
-          @click="openSecondary('short-close-request', '申请短结')"
-        >
-          申请短结
-        </v-btn>
-        <v-btn
-          v-if="!vm.editing && vm.actionAvailability.shortCloseCancel"
-          variant="tonal"
-          @click="openSecondary('short-close-cancel', '取消短结申请')"
-        >
-          取消短结申请
-        </v-btn>
-        <v-btn
-          v-if="!vm.editing && vm.actionAvailability.shortCloseConfirm"
-          color="warning"
-          @click="vm.secondaryAction('short-close-confirm')"
-        >
-          确认短结
-        </v-btn>
-        <v-btn
-          v-if="!vm.editing && vm.actionAvailability.shortCloseUnconfirm"
-          variant="tonal"
-          @click="openSecondary('short-close-unconfirm', '撤销短结')"
-        >
-          撤销短结
-        </v-btn>
-      </div>
+      <VoucherWorkspaceActions
+        :labels="labels"
+        :model="model"
+        @save="saveDocument"
+        @secondary="openSecondary"
+      />
     </template>
 
     <template #document>
@@ -1236,47 +1030,16 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     @vehicle-search="vm.searchReference('vehicle', $event)"
   />
 
-  <v-dialog v-model="secondaryOpen" max-width="560">
-    <v-card rounded="xl" :title="secondaryTitle">
-      <v-card-text>
-        <v-textarea
-          v-model="secondaryReason"
-          autofocus
-          counter="1000"
-          label="原因"
-          :rules="[
-            (value: string) => Boolean(value?.trim()) || '请输入原因。',
-            (value: string) =>
-              Array.from(value ?? '').length <= 1000 ||
-              '原因不能超过 1000 字。',
-          ]"
-          variant="outlined"
-        />
-      </v-card-text>
-      <v-card-actions class="px-6 pb-5">
-        <v-spacer />
-        <v-btn variant="text" @click="secondaryOpen = false">取消</v-btn>
-        <v-btn
-          color="warning"
-          :disabled="
-            !secondaryReason.trim() || Array.from(secondaryReason).length > 1000
-          "
-          @click="confirmSecondary"
-        >
-          确认
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <VoucherReasonDialog
+    v-model="secondaryOpen"
+    :reason="secondaryReason"
+    :title="secondaryTitle"
+    @confirm="confirmSecondary"
+    @update:reason="secondaryReason = $event"
+  />
 </template>
 
 <style scoped>
-.voucher-page__workspace-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 12px;
-}
 .voucher-form__basic-panel {
   margin-bottom: 4px;
 }

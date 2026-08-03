@@ -7,7 +7,7 @@ import {
   ledgerSourceEntityOptions,
   useLedgerViewModel,
   type LedgerReference,
-} from '@/components/ledger'
+} from '@/pages/led/shared'
 import {
   lastCompletedMonthEnd,
   useOpeningViewModel,

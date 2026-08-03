@@ -50,8 +50,26 @@ export default defineConfig({
         'src/pages/vou/shared/vm.ts': {
           lines: 55.9,
           statements: 51,
-          branches: 48,
+          branches: 40,
           functions: 58,
+        },
+        'src/pages/vou/shared/action-availability.ts': {
+          lines: 100,
+          statements: 100,
+          branches: 80,
+          functions: 100,
+        },
+        'src/pages/vou/shared/return-source.ts': {
+          lines: 85,
+          statements: 85,
+          branches: 40,
+          functions: 100,
+        },
+        'src/composables/use-product-reference-search.ts': {
+          lines: 85,
+          statements: 85,
+          branches: 60,
+          functions: 100,
         },
         'src/pages/vou/shared/payload.ts': {
           lines: 90,

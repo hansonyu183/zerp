@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { VoucherProductionOutputDraft, VoucherReference } from './types'
 import CompactTableField from '@/components/common/CompactTableField.vue'
-import VoucherReferenceAutocomplete from './VoucherReferenceAutocomplete.vue'
+import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherProductionLinesEditor' })

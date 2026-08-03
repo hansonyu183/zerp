@@ -1,5 +1,4 @@
 export { ledgerEntityConfigs, ledgerSourceEntityOptions } from './config'
-export { default as LedgerReferenceAutocomplete } from './LedgerReferenceAutocomplete.vue'
 export { default as LedgerWorkspace } from './LedgerWorkspace.vue'
 export { createLedgerReferenceSearch } from './reference'
 export { useLedgerViewModel } from './vm'

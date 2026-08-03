@@ -6,6 +6,7 @@ import type { ClosingView } from '../../src/pages/led/opening/types'
 import {
   e2eEnv,
   wflBootstrapEnabled,
+  wflOperatorAuthStatePath,
   wflBootstrapStatePath,
   type WflBootstrapState,
 } from './wfl-runtime'
@@ -426,6 +427,9 @@ export default async function globalSetup(): Promise<void> {
       },
     }
     await mkdir(dirname(wflBootstrapStatePath), { recursive: true })
+    await operatorSession.context.storageState({
+      path: wflOperatorAuthStatePath,
+    })
     await writeFile(wflBootstrapStatePath, `${JSON.stringify(state)}\n`, {
       encoding: 'utf8',
       mode: 0o600,

@@ -3,7 +3,13 @@ import {
   e2eEnv,
   readWflBootstrapState,
   wflBootstrapEnabled,
+  wflOperatorAuthStatePath,
 } from './wfl-runtime'
+
+const reuseBootstrapSession = wflBootstrapEnabled()
+test.use({
+  storageState: reuseBootstrapSession ? wflOperatorAuthStatePath : undefined,
+})
 
 const requiredVouFixtureNames = [
   'E2E_VOU_CUSTOMER_KEYWORD',
@@ -61,6 +67,7 @@ function vouFixture() {
 }
 
 async function signIn(page: Page): Promise<void> {
+  if (reuseBootstrapSession) return
   await page.goto('/signin')
   await page.getByLabel('用户名').fill(credentials.username)
   await page.getByLabel('密码').fill(credentials.password)

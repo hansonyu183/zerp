@@ -7,6 +7,10 @@ export const wflBootstrapStatePath = resolve(
   process.cwd(),
   'test-results/wfl-bootstrap-state.json',
 )
+export const wflOperatorAuthStatePath = resolve(
+  process.cwd(),
+  'test-results/wfl-operator-auth-state.json',
+)
 
 export interface E2ECredentials {
   username: string

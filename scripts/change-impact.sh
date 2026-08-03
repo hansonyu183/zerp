@@ -43,6 +43,7 @@ fi
 impact=docs
 contracts=0
 frontend=0
+frontend_audit=0
 backend=0
 containers=0
 e2e=0
@@ -73,10 +74,21 @@ if [ -n "${changed_files}" ]; then
       AGENTS.md | README.md | docs/* | *.md | LICENSE)
         ;;
 
+      .github/workflows/*)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
+        contracts=1
+        frontend=1
+        backend=1
+        containers=1
+        e2e=1
+        ;;
+
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
         scripts/validation-check.sh | scripts/verify-pr-base.sh | \
-        scripts/verify-merged-pr.sh)
+        scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi
@@ -105,8 +117,17 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
-      package.json | pnpm-lock.yaml | pnpm-workspace.yaml | .nvmrc | \
-        frontend/package.json | tools/typescript-native/*)
+      package.json | pnpm-lock.yaml | pnpm-workspace.yaml | frontend/package.json)
+        mark_application
+        frontend=1
+        frontend_audit=1
+        containers=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      .nvmrc | tools/typescript-native/*)
         mark_application
         frontend=1
         containers=1
@@ -133,9 +154,15 @@ if [ -n "${changed_files}" ]; then
         ;;
 
       compose.e2e.yaml | backend/.env.e2e.example | scripts/e2e.sh | \
-        frontend/playwright.config.ts | frontend/tests/e2e/*)
+        frontend/playwright.config.ts)
         mark_application
         containers=1
+        e2e=1
+        local_e2e=1
+        ;;
+
+      frontend/tests/e2e/*)
+        mark_application
         e2e=1
         local_e2e=1
         ;;
@@ -156,16 +183,17 @@ if [ -n "${changed_files}" ]; then
         containers=1
         ;;
 
-      frontend/src/*.test.ts | frontend/src/*.spec.ts | frontend/src/*/*.test.ts | \
-        frontend/src/*/*.spec.ts | frontend/src/*/*/*.test.ts | \
-        frontend/src/*/*/*.spec.ts | frontend/src/*/*/*/*.test.ts | \
-        frontend/src/*/*/*/*.spec.ts | frontend/tests/unit/*)
+      backend/db/migration-tests/*)
+        mark_application
+        backend=1
+        ;;
+
+      frontend/src/*.test.ts | frontend/src/*.spec.ts | frontend/tests/unit/*)
         mark_application
         frontend=1
         ;;
 
-      backend/*_test.go | backend/*/*_test.go | backend/*/*/*_test.go | \
-        backend/*/*/*/*_test.go | backend/*/*/*/*/*_test.go)
+      backend/*_test.go)
         mark_application
         backend=1
         ;;
@@ -210,7 +238,8 @@ if [ -n "${changed_files}" ]; then
   IFS=${old_ifs}
 fi
 
-if [ "${frontend}" = "1" ] && [ "${backend}" = "1" ] && [ "${e2e}" = "1" ]; then
+if [ "${impact}" = "application" ] && [ "${frontend}" = "1" ] && \
+  [ "${backend}" = "1" ] && [ "${e2e}" = "1" ]; then
   local_e2e=1
 fi
 
@@ -219,6 +248,7 @@ if [ "${output}" = "checks" ]; then
     "impact=${impact}" \
     "contracts=${contracts}" \
     "frontend=${frontend}" \
+    "frontend_audit=${frontend_audit}" \
     "backend=${backend}" \
     "containers=${containers}" \
     "e2e=${e2e}" \

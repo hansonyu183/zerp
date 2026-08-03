@@ -3,6 +3,7 @@ QUALITY_IMAGE_TAG ?= zerp-api:quality
 ACTIONLINT_VERSION ?= v1.7.12
 STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
+BACKEND_COVERAGE_MIN ?= 10.5
 override E2E_ENV_FILE := .env.e2e.local
 override E2E_PROJECT := zerp-api-e2e
 override TEST_PROJECT := zerp-api-test
@@ -43,7 +44,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
 
 run:
 	go run ./cmd/server
@@ -72,16 +73,39 @@ test-db-prepare:
 	@test "$(TEST_POSTGRES_PORT)" != "$(POSTGRES_PORT)" || (echo "TEST_POSTGRES_PORT must differ from POSTGRES_PORT" && exit 1)
 	@$(TEST_COMPOSE) up -d --wait db
 	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
-		'createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB" 2>/dev/null || psql -U "$$POSTGRES_USER" -d "$$TEST_POSTGRES_DB" -Atqc "SELECT 1" >/dev/null'
-	@go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up
+		'dropdb -U "$$POSTGRES_USER" --if-exists --force "$$TEST_POSTGRES_DB" && createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB"'
 
 test-db-clean:
 	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
 	@$(TEST_COMPOSE) down --volumes --remove-orphans
 
-test-integration: test-db-prepare
-	@TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
-		go test -p 1 -tags=integration ./internal/domains/app ./internal/domains/auxiliary ./internal/domains/bob ./internal/domains/vou ./internal/domains/wfl ./internal/domains/led ./internal/seed/bobseed ./internal/seed/productionseed ./internal/seed/previewseed -run 'Integration|Database' -count=1 -v
+test-migration-upgrade: test-db-prepare
+	@latest_file="$$(find db/migrations -maxdepth 1 -type f -name '[0-9]*_*.sql' | LC_ALL=C sort | tail -n 1)"; \
+		test -n "$$latest_file" || { echo "no migrations found" >&2; exit 1; }; \
+		prefix="$$(basename "$$latest_file")"; prefix="$${prefix%%_*}"; \
+		latest_version="$$(printf '%s' "$$prefix" | sed 's/^0*//')"; \
+		previous_version="$$((latest_version - 1))"; \
+		before_fixture="db/migration-tests/$${prefix}_before.sql"; \
+		after_fixture="db/migration-tests/$${prefix}_after.sql"; \
+		test -f "$$before_fixture" || { echo "missing migration upgrade fixture: $$before_fixture" >&2; exit 1; }; \
+		test -f "$$after_fixture" || { echo "missing migration upgrade fixture: $$after_fixture" >&2; exit 1; }; \
+		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up-to "$$previous_version"; \
+		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$before_fixture"; \
+		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up; \
+		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$after_fixture"
+
+test-integration:
+	@packages="$$(git ls-files --cached --others --exclude-standard '*_test.go' | \
+		while IFS= read -r file; do \
+			if grep -q '^//go:build integration' "$$file"; then dirname "$$file"; fi; \
+		done | LC_ALL=C sort -u)"; \
+		test -n "$$packages" || { echo "no integration test packages found" >&2; exit 1; }; \
+		for package in $$packages; do \
+			echo "==> isolated integration package $$package"; \
+			$(MAKE) --no-print-directory test-migration-upgrade; \
+			TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
+				go test -tags=integration "./$$package" -count=1 -v; \
+		done
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml
@@ -141,7 +165,18 @@ quality-vet-build:
 	go build ./...
 
 quality-race:
-	go test -race ./...
+	@mkdir -p var
+	@cleanup() { rm -f var/coverage.unit.out; }; \
+		trap cleanup EXIT HUP INT TERM; \
+		go test -race -coverprofile=var/coverage.unit.out ./...; \
+		coverage="$$(go tool cover -func=var/coverage.unit.out | awk '/^total:/ { value=$$3; sub(/%$$/, "", value); print value }')"; \
+		awk -v actual="$$coverage" -v minimum="$(BACKEND_COVERAGE_MIN)" 'BEGIN { \
+			if ((actual + 0) < (minimum + 0)) { \
+				printf "backend unit coverage %.1f%% is below %.1f%%\n", actual, minimum > "/dev/stderr"; \
+				exit 1; \
+			} \
+			printf "backend unit coverage %.1f%% (minimum %.1f%%)\n", actual, minimum; \
+		}'
 
 quality-staticcheck:
 	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) $$(go list ./... | grep -v '/internal/api/generated$$')

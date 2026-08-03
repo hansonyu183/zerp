@@ -47,6 +47,7 @@ if [ "${PRE_PUSH_FULL:-0}" = "1" ]; then
   impact=application
   contracts=1
   frontend=1
+  frontend_audit=1
   backend=1
   containers=1
   e2e=1
@@ -60,6 +61,7 @@ print_plan() {
   if [ "${impact}" = "application" ]; then
     printf '  contracts: %s\n' "${contracts}"
     printf '  frontend: %s\n' "${frontend}"
+    printf '  frontend dependency audit: %s\n' "${frontend_audit}"
     printf '  backend: %s\n' "${backend}"
     printf '  containers: %s\n' "${containers}"
     printf '  PR E2E: %s\n' "${e2e}"
@@ -131,7 +133,7 @@ case "${impact}" in
       run_stage "backend quality" check_backend
     fi
     if [ "${containers}" = "1" ]; then
-      run_stage "container and release configuration" make check-containers
+      run_stage "container and release configuration" make check-runtime
     fi
     if [ "${local_e2e}" = "1" ]; then
       run_stage "isolated full-stack E2E" make e2e

@@ -39,26 +39,29 @@ curl http://localhost:8080/readyz
 
 ## 常用命令
 
-| 命令                       | 用途                           |
-| -------------------------- | ------------------------------ |
-| `make run`                 | 启动本机 Go 服务               |
-| `make build`               | 编译全部 Go 包                 |
-| `make test`                | 执行单元测试和数据库集成测试   |
-| `make test-unit`           | 执行不依赖数据库的测试         |
-| `make test-integration`    | 在独立测试库运行领域数据库测试 |
-| `make generate`            | 生成 sqlc 代码                 |
-| `make quality`             | 运行后端完整质量门禁           |
-| `make migrate-status`      | 查看迁移状态                   |
-| `make migrate-up`          | 应用全部迁移                   |
-| `make migrate-down`        | 回滚一个迁移版本               |
-| `make bootstrap-admin`     | 在空用户库创建首个管理员       |
-| `make seed-bob`            | 幂等写入非生产 BOB 演示数据    |
-| `make seed-preview`        | 幂等补齐开发预览全业务测试数据 |
-| `make cleanup-attachments` | 清理过期附件和未提交反馈截图   |
-| `make compose-up`          | 启动后端 API 与 PostgreSQL     |
-| `make compose-down`        | 停止后端 Compose               |
+| 命令                          | 用途                           |
+| ----------------------------- | ------------------------------ |
+| `make run`                    | 启动本机 Go 服务               |
+| `make build`                  | 编译全部 Go 包                 |
+| `make test`                   | 执行单元测试和数据库集成测试   |
+| `make test-unit`              | 执行不依赖数据库的测试         |
+| `make test-migration-upgrade` | 从上一版本带数据升级到最新迁移 |
+| `make test-integration`       | 在独立测试库运行领域数据库测试 |
+| `make generate`               | 生成 sqlc 代码                 |
+| `make quality`                | 运行后端完整质量门禁           |
+| `make migrate-status`         | 查看迁移状态                   |
+| `make migrate-up`             | 应用全部迁移                   |
+| `make migrate-down`           | 回滚一个迁移版本               |
+| `make bootstrap-admin`        | 在空用户库创建首个管理员       |
+| `make seed-bob`               | 幂等写入非生产 BOB 演示数据    |
+| `make seed-preview`           | 幂等补齐开发预览全业务测试数据 |
+| `make cleanup-attachments`    | 清理过期附件和未提交反馈截图   |
+| `make compose-up`             | 启动后端 API 与 PostgreSQL     |
+| `make compose-down`           | 停止后端 Compose               |
 
 根目录的 `make generate` 会同时生成 OpenAPI 客户端、服务端类型和 sqlc。模块命令用于开发期反馈；形成可验收提交后，在根目录统一运行 `make pre-push`。
+
+数据库集成门禁自动发现所有带 `integration` build tag 的 Go 包，并为每个包重建独立测试库，避免包顺序和残留数据影响结果。迁移测试先应用到最新版本的前一版，执行 `db/migration-tests/<最新版本>_before.sql`，再升级并执行对应的 `_after.sql`；新增迁移时必须补齐这两个升级夹具。普通 Go 测试在 race 模式下生成覆盖率并执行不低于当前基线的门禁。
 
 ## 配置
 

@@ -22,6 +22,7 @@ tools/                独立版本的构建工具
 - Go 1.26.5
 - Docker 与 Docker Compose
 - GNU Make
+- ShellCheck
 
 ## 快速开始
 

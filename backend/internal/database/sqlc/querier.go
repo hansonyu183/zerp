@@ -74,6 +74,7 @@ type Querier interface {
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
 	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
 	CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error)
+	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
@@ -146,6 +147,7 @@ type Querier interface {
 	GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error)
+	GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error)
 	HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
@@ -263,6 +265,9 @@ type Querier interface {
 	ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error)
 	ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error)
 	ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVouItemsParams) ([]ListWorkbenchVouItemsRow, error)
+	ListWorkflowDefinitionEdges(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgesRow, error)
+	ListWorkflowDefinitionNodes(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodesRow, error)
+	ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error)
 	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
 	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)

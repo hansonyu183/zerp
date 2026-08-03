@@ -35,6 +35,53 @@ WHERE p.process_type = 'SALES_FULFILLMENT'
 ORDER BY p.updated_at DESC, p.id DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
+-- name: CountWorkflowDefinitions :one
+SELECT count(*)
+FROM wfl_process_definitions d
+WHERE (sqlc.arg(keyword)::text = ''
+       OR d.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR d.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
+       OR d.status = ANY(sqlc.arg(statuses)::text[]));
+
+-- name: ListWorkflowDefinitions :many
+SELECT d.id,
+       d.code,
+       d.name,
+       d.status,
+       d.revision,
+       n.document_entity,
+       (SELECT count(*)
+        FROM wfl_definition_nodes child
+        WHERE child.definition_id = d.id AND NOT child.archived)::bigint AS node_count,
+       d.updated_at
+FROM wfl_process_definitions d
+JOIN wfl_definition_nodes n ON n.id = d.root_node_id
+WHERE (sqlc.arg(keyword)::text = ''
+       OR d.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR d.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
+       OR d.status = ANY(sqlc.arg(statuses)::text[]))
+ORDER BY d.updated_at DESC, d.id DESC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetWorkflowDefinition :one
+SELECT id, code, name, status, revision, root_node_id, start_condition, updated_at
+FROM wfl_process_definitions
+WHERE id = $1;
+
+-- name: ListWorkflowDefinitionNodes :many
+SELECT id, node_key, name, document_entity, position_x, position_y, defaults
+FROM wfl_definition_nodes
+WHERE definition_id = $1 AND NOT archived
+ORDER BY created_at, id;
+
+-- name: ListWorkflowDefinitionEdges :many
+SELECT id, source_node_id, target_node_id, converter_key, condition
+FROM wfl_definition_edges
+WHERE definition_id = $1 AND NOT archived
+ORDER BY created_at, id;
+
 -- name: CountSalesWorkflowSummaries :one
 SELECT count(*)
 FROM wfl_process_instances p

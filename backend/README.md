@@ -124,7 +124,7 @@ unset APP_BOOTSTRAP_PASSWORD
 ```
 
 该命令在已有用户时拒绝执行。`make seed-bob` 只允许在 `development` 或 `test` 环境运行。
-`make seed-preview` 只允许在 `development` 环境运行，按 AUX、BOB、VOU/WFL、LED
+`make seed-preview` 允许在 `development` 或隔离的 `test` 环境运行，按 AUX、BOB、VOU/WFL、LED
 顺序补齐预览数据；重复执行只恢复 seed 自身中断的步骤，不覆盖测试人员已经修改或推进的样本。
 
 ## 隔离 E2E 后端

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -66,79 +67,70 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 	if statuses == nil {
 		statuses = []string{}
 	}
-	var total int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wfl_process_definitions d
-		WHERE ($1='' OR d.code ILIKE '%'||$1||'%' OR d.name ILIKE '%'||$1||'%')
-		  AND (cardinality($2::text[])=0 OR d.status=ANY($2::text[]))`, strings.TrimSpace(input.Keyword), statuses).Scan(&total)
+	keyword := strings.TrimSpace(input.Keyword)
+	total, err := s.queries.CountWorkflowDefinitions(ctx, sqlc.CountWorkflowDefinitionsParams{
+		Keyword: keyword, Statuses: statuses,
+	})
 	if err != nil {
 		return Page[DefinitionListItem]{}, internal("count process definitions", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT d.id,d.code,d.name,d.status,d.revision,n.document_entity,
-		(SELECT count(*) FROM wfl_definition_nodes x WHERE x.definition_id=d.id AND NOT x.archived),d.updated_at
-		FROM wfl_process_definitions d JOIN wfl_definition_nodes n ON n.id=d.root_node_id
-		WHERE ($1='' OR d.code ILIKE '%'||$1||'%' OR d.name ILIKE '%'||$1||'%')
-		  AND (cardinality($2::text[])=0 OR d.status=ANY($2::text[]))
-		ORDER BY d.updated_at DESC,d.id DESC LIMIT $3 OFFSET $4`, strings.TrimSpace(input.Keyword), statuses,
-		input.PageSize, (input.Page-1)*input.PageSize)
+	rows, err := s.queries.ListWorkflowDefinitions(ctx, sqlc.ListWorkflowDefinitionsParams{
+		Keyword: keyword, Statuses: statuses,
+		PageSize: int32(input.PageSize), PageOffset: int32((input.Page - 1) * input.PageSize),
+	})
 	if err != nil {
 		return Page[DefinitionListItem]{}, internal("query process definitions", err)
 	}
-	defer rows.Close()
-	items := make([]DefinitionListItem, 0)
-	for rows.Next() {
-		var item DefinitionListItem
-		if err = rows.Scan(&item.DefinitionID, &item.Code, &item.Name, &item.Status, &item.Revision,
-			&item.RootEntity, &item.NodeCount, &item.UpdatedAt); err != nil {
-			return Page[DefinitionListItem]{}, internal("scan process definition", err)
-		}
-		items = append(items, item)
+	items := make([]DefinitionListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, DefinitionListItem{
+			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Status: row.Status,
+			Revision: row.Revision, RootEntity: row.DocumentEntity, NodeCount: int(row.NodeCount),
+			UpdatedAt: row.UpdatedAt.Time,
+		})
 	}
-	return Page[DefinitionListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, rows.Err()
+	return Page[DefinitionListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (DefinitionView, error) {
 	if !validWorkflowID(input.DefinitionID) {
 		return DefinitionView{}, validation("invalid definitionId", nil)
 	}
-	var result DefinitionView
-	err := s.pool.QueryRow(ctx, `SELECT id,code,name,status,revision,root_node_id,start_condition,updated_at
-		FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID).Scan(
-		&result.DefinitionID, &result.Code, &result.Name, &result.Status, &result.Revision,
-		&result.RootNodeID, &result.StartCondition, &result.UpdatedAt)
+	definition, err := s.queries.GetWorkflowDefinition(ctx, input.DefinitionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DefinitionView{}, validation("process definition not found", nil)
 	}
 	if err != nil {
 		return DefinitionView{}, internal("get process definition", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id,node_key,name,document_entity,position_x,position_y,defaults
-		FROM wfl_definition_nodes WHERE definition_id=$1 AND NOT archived ORDER BY created_at,id`, input.DefinitionID)
+	result := DefinitionView{
+		DefinitionID: definition.ID, Code: definition.Code, Name: definition.Name,
+		Status: definition.Status, Revision: definition.Revision, RootNodeID: definition.RootNodeID,
+		StartCondition: definition.StartCondition, UpdatedAt: definition.UpdatedAt.Time,
+	}
+	nodes, err := s.queries.ListWorkflowDefinitionNodes(ctx, input.DefinitionID)
 	if err != nil {
 		return DefinitionView{}, internal("get definition nodes", err)
 	}
-	for rows.Next() {
-		var node DefinitionNodeInput
-		if err = rows.Scan(&node.ID, &node.Key, &node.Name, &node.DocumentEntity, &node.PositionX, &node.PositionY, &node.Defaults); err != nil {
-			rows.Close()
-			return DefinitionView{}, err
-		}
-		result.Nodes = append(result.Nodes, node)
+	result.Nodes = make([]DefinitionNodeInput, 0, len(nodes))
+	for _, node := range nodes {
+		result.Nodes = append(result.Nodes, DefinitionNodeInput{
+			ID: node.ID, Key: node.NodeKey, Name: node.Name, DocumentEntity: node.DocumentEntity,
+			PositionX: int(node.PositionX), PositionY: int(node.PositionY), Defaults: node.Defaults,
+		})
 	}
-	rows.Close()
-	rows, err = s.pool.Query(ctx, `SELECT id,source_node_id,target_node_id,converter_key,condition
-		FROM wfl_definition_edges WHERE definition_id=$1 AND NOT archived ORDER BY created_at,id`, input.DefinitionID)
+	edges, err := s.queries.ListWorkflowDefinitionEdges(ctx, input.DefinitionID)
 	if err != nil {
 		return DefinitionView{}, internal("get definition edges", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var edge DefinitionEdgeInput
-		if err = rows.Scan(&edge.ID, &edge.SourceNodeID, &edge.TargetNodeID, &edge.ConverterKey, &edge.Condition); err != nil {
-			return DefinitionView{}, err
-		}
-		result.Edges = append(result.Edges, edge)
+	result.Edges = make([]DefinitionEdgeInput, 0, len(edges))
+	for _, edge := range edges {
+		result.Edges = append(result.Edges, DefinitionEdgeInput{
+			ID: edge.ID, SourceNodeID: edge.SourceNodeID, TargetNodeID: edge.TargetNodeID,
+			ConverterKey: edge.ConverterKey, Condition: edge.Condition,
+		})
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateInput, actorID string) (DefinitionView, error) {

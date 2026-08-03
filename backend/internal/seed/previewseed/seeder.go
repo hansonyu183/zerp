@@ -11,9 +11,9 @@ import (
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -60,40 +60,6 @@ const (
 	outcomeSkipped
 )
 
-type auxReferenceAdapter struct {
-	service *auxdomain.Service
-}
-
-func (adapter auxReferenceAdapter) ResolveAuxiliaryReference(
-	ctx context.Context,
-	tx pgx.Tx,
-	entity, objectID, versionID string,
-) (bobdomain.AuxiliaryReference, error) {
-	reference, err := adapter.service.Resolve(ctx, tx, entity, objectID, versionID)
-	if err != nil {
-		return bobdomain.AuxiliaryReference{}, err
-	}
-	return bobdomain.AuxiliaryReference{
-		ObjectID: reference.ObjectID, VersionID: reference.VersionID,
-		Entity: reference.Entity, Code: reference.Code, Data: reference.Data,
-	}, nil
-}
-
-func (adapter auxReferenceAdapter) ResolveAuxiliaryCode(
-	ctx context.Context,
-	tx pgx.Tx,
-	entity, code string,
-) (bobdomain.AuxiliaryReference, error) {
-	reference, err := adapter.service.ResolveCode(ctx, tx, entity, code)
-	if err != nil {
-		return bobdomain.AuxiliaryReference{}, err
-	}
-	return bobdomain.AuxiliaryReference{
-		ObjectID: reference.ObjectID, VersionID: reference.VersionID,
-		Entity: reference.Entity, Code: reference.Code, Data: reference.Data,
-	}, nil
-}
-
 type Seeder struct {
 	pool      *pgxpool.Pool
 	auxiliary *auxdomain.Service
@@ -117,7 +83,7 @@ func New(
 	}
 	auxiliary := auxdomain.NewService(pool)
 	business := bobdomain.NewService(pool)
-	business.SetAuxiliaryResolver(auxReferenceAdapter{service: auxiliary})
+	business.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	events := txevent.NewBus()
 	ledger, err := leddomain.NewService(pool, business)
 	if err != nil {
@@ -125,10 +91,6 @@ func New(
 	}
 	if err = ledger.RegisterSubscriptions(events); err != nil {
 		return nil, fmt.Errorf("register ledger subscriptions: %w", err)
-	}
-	workflow, err := wfldomain.NewService(pool, business, events, logger)
-	if err != nil {
-		return nil, fmt.Errorf("create workflow service: %w", err)
 	}
 	vouchers, err := voudomain.NewService(
 		pool,
@@ -140,9 +102,9 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	workflow.SetSalesVoucherService(vouchers)
-	workflow.SetPurchaseVoucherService(vouchers)
-	workflow.SetWorkflowDocumentConverter(vouchers)
+	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
+		return nil, fmt.Errorf("create workflow service: %w", err)
+	}
 	return &Seeder{
 		pool: pool, auxiliary: auxiliary, business: business, ledger: ledger,
 		vouchers: vouchers, auxRefs: make(map[string]auxdomain.ObjectView),

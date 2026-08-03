@@ -56,10 +56,6 @@ func New(
 	if err = ledger.RegisterSubscriptions(events); err != nil {
 		return nil, fmt.Errorf("register LED subscriptions: %w", err)
 	}
-	workflow, err := wfldomain.NewService(pool, bobService, events, logger)
-	if err != nil {
-		return nil, fmt.Errorf("create WFL service: %w", err)
-	}
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -70,9 +66,9 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
 	}
-	workflow.SetSalesVoucherService(vouchers)
-	workflow.SetPurchaseVoucherService(vouchers)
-	workflow.SetWorkflowDocumentConverter(vouchers)
+	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
+		return nil, fmt.Errorf("create WFL service: %w", err)
+	}
 	return &Seeder{pool: pool, bob: bobService, ledger: ledger, vouchers: vouchers}, nil
 }
 

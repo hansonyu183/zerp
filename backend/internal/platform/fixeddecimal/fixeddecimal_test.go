@@ -84,3 +84,30 @@ func TestLineAmountCents(t *testing.T) {
 		})
 	}
 }
+
+func TestFormat(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		value        int64
+		scale        int
+		trimFraction bool
+		want         string
+	}{
+		{name: "fixed money", value: 1234, scale: 2, want: "12.34"},
+		{name: "padded money", value: 5, scale: 2, want: "0.05"},
+		{name: "trimmed quantity", value: 1_200_000, scale: 6, trimFraction: true, want: "1.2"},
+		{name: "trimmed integer", value: 2_000_000, scale: 6, trimFraction: true, want: "2"},
+		{name: "signed", value: -250, scale: 2, want: "-2.50"},
+		{name: "minimum integer", value: math.MinInt64, scale: 0, want: "-9223372036854775808"},
+		{name: "zero scale", value: -2, scale: 0, want: "-2"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Format(test.value, test.scale, test.trimFraction); got != test.want {
+				t.Fatalf("Format() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

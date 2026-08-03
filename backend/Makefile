@@ -216,7 +216,7 @@ e2e-up: e2e-guard
 		else \
 			echo "E2E administrator already initialized"; \
 		fi
-	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) seed-bob
+	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) seed-preview
 	@$(E2E_COMPOSE) up --build -d --wait api
 	@echo "E2E API ready at http://127.0.0.1:18081"
 

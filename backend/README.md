@@ -164,6 +164,7 @@ backend/
 │  ├─ database/                # pgx 与 sqlc 生成代码
 │  ├─ domains/                 # 领域服务、Handler 和类型
 │  ├─ httpserver/              # 路由与健康检查
+│  ├─ integrations/            # 跨领域的定向适配器
 │  ├─ platform/                # 跨领域事务基础设施
 │  └─ seed/                    # 非生产数据初始化
 ├─ tools/                      # 锁定的 Go 开发工具
@@ -172,6 +173,17 @@ backend/
 ├─ Makefile
 └─ sqlc.yaml
 ```
+
+## 模块边界与复用
+
+后端按“领域规则、定向集成、领域无关平台能力”分层：
+
+- `internal/domains/<domain>` 拥有该领域模型、事务用例和业务规则；Handler 只做协议适配，Service 的必需依赖全部通过构造函数注入，实例创建后即可安全调用；
+- `internal/integrations/<purpose>` 承载两个既有领域之间稳定且无业务决策的映射，例如把 AUX 引用适配为 BOB 所需引用；适配器名称和 import 必须体现依赖方向；
+- `internal/platform` 承载事务事件、定点小数等领域无关能力。只有语义稳定、边界明确且确实跨领域复用的逻辑才进入该目录，金额含义、单据状态和默认业务规则仍留在领域内；
+- 固定形状查询统一命名并写入 `db/queries/`，由 sqlc 生成类型安全调用；动态 SQL 仅用于无法预先表达的动态筛选或排序，并集中在单一查询实现中。
+
+新增抽取前先判断所有权：协议或业务含义属于领域，两个领域间的翻译属于 `integrations`，完全不依赖领域语义的确定性能力才属于 `platform`。不要创建无边界的 `common`、`utils` 包。
 
 ## 跨领域事务事件
 

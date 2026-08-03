@@ -51,6 +51,8 @@ make preview-status
 
 发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。代理复用 `scripts/change-impact.sh`：文档和验证工具提交不等待已跳过的 Pages 检查，直接记录为成功 no-op；应用发布成功后自动更新已安装的控制器脚本。代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
 
+合并后的交付确认必须等待发布代理完整结束，不能在 API 容器刚切换时提前完成。最终运行 `make production-status`，确认 `current-sha`、API 和 Web 容器标签、Cloudflare Pages 精确 commit 标记及两个公网入口均指向同一 merge commit。若构建和容器已健康，但公网出现瞬时 TLS、`530` 或 release 标记尚未更新，应先查看发布代理日志，区分“仍在发布”“Tunnel/网络抖动”和“已写入失败标记”；仅外部入口瞬时失败时重新验证入口，只有代理明确熔断该 SHA 后才使用 `make production-retry`。
+
 ## 3. 生产隔离与凭证
 
 - Production Compose 项目固定为 `zerp-back`，环境文件固定为 `backend/.env.production.local`，权限必须为 `600`。

@@ -1842,7 +1842,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["WorkbenchPage"];
+            data: components["schemas"]["WorkbenchPage"] | null;
             requestId: string;
         };
         PageRequest: {
@@ -2130,12 +2130,14 @@ export interface components {
             page: number;
             pageSize: number;
         };
+        /** @enum {string} */
+        VouStatus: "DRAFT" | "CHECKED" | "APPROVED" | "FINALIZED" | "ORDERED" | "CONFIRMED" | "EXECUTED";
         VouQueryRequest: {
             page: number;
             pageSize: number;
             filters: {
                 keyword?: string;
-                status?: string[];
+                status?: components["schemas"]["VouStatus"][];
                 /** Format: date */
                 dateFrom?: string;
                 /** Format: date */
@@ -2173,7 +2175,7 @@ export interface components {
             documentId: string;
             entity: components["schemas"]["VouEntity"];
             documentNo: string;
-            status: string;
+            status: components["schemas"]["VouStatus"];
             /** Format: int64 */
             revision: number;
             /** Format: date */
@@ -2197,7 +2199,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["VouListPage"];
+            data: components["schemas"]["VouListPage"] | null;
             requestId: string;
         };
         VouGetRequest: {
@@ -2240,7 +2242,7 @@ export interface components {
                     /** Format: date */
                     sourceBusinessDate?: string;
                 }[];
-            };
+            } | null;
         };
         /** @enum {string} */
         VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
@@ -2662,7 +2664,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["WflInstancePage"];
+            data: components["schemas"]["WflInstancePage"] | null;
             requestId: string;
         };
         WflInstanceGetRequest: {

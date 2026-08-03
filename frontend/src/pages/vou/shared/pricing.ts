@@ -7,14 +7,6 @@ import type {
 } from '@/components/voucher'
 import { inputReference } from './form'
 
-interface PriceReferenceLine {
-  productObjectId: string
-  unitPrice: string
-  sourceDocumentId?: string
-  sourceDocumentNo?: string
-  sourceBusinessDate?: string
-}
-
 export function useVoucherPricing(
   config: VoucherEntityConfig,
   form: Ref<VoucherDraftForm>,
@@ -37,22 +29,17 @@ export function useVoucherPricing(
     if (!products.length || !form.value.businessDate || !form.value.currency)
       return
     if (config.entity === 'purchase-order' && !form.value.supplier) return
-    const { data } = await apiClient.post<
-      { lines: PriceReferenceLine[] },
+    const { data } = await apiClient.postContract(
+      `vou/${config.entity}/price-reference`,
       {
-        businessDate: string
-        currency: string
-        supplier?: { objectId: string; versionId: string }
-        products: Array<{ objectId: string; versionId: string }>
-      }
-    >(`vou/${config.entity}/price-reference`, {
-      businessDate: form.value.businessDate,
-      currency: form.value.currency.trim().toUpperCase(),
-      ...(form.value.supplier
-        ? { supplier: inputReference(form.value.supplier) }
-        : {}),
-      products,
-    })
+        businessDate: form.value.businessDate,
+        currency: form.value.currency.trim().toUpperCase(),
+        ...(form.value.supplier
+          ? { supplier: inputReference(form.value.supplier) }
+          : {}),
+        products,
+      },
+    )
     const byProduct = new Map(
       data.lines.map((line) => [line.productObjectId, line]),
     )

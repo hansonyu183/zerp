@@ -6,7 +6,7 @@ import {
   rejectBusinessObject,
   submitBusinessObject,
 } from '@/api/bob'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import { approveVoucher, checkVoucher, finalizeVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
@@ -64,10 +64,7 @@ export function useDashboardViewModel() {
     state.loading = true
     state.errorMessage = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<WorkbenchItem>,
-        components['schemas']['WorkbenchQueryRequest']
-      >('app/workbench/query', {
+      const { data } = await apiClient.postContract('app/workbench/query', {
         category,
         ...(state.keyword.trim() ? { keyword: state.keyword.trim() } : {}),
         ...(state.entities.length ? { entities: state.entities } : {}),

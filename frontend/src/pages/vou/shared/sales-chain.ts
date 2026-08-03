@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import {
   parseFixed,
   type VoucherDocumentView,
@@ -32,18 +32,18 @@ export function useVoucherSalesChain(
     sourceLoading.value = true
     sourceError.value = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<VoucherListItem>,
-        PageRequest
-      >(`vou/${config.parentEntity}/query`, {
-        page: 1,
-        pageSize: 50,
-        filters: {
-          status: ['FINALIZED'],
-          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+      const { data } = await apiClient.postContract(
+        `vou/${config.parentEntity}/query`,
+        {
+          page: 1,
+          pageSize: 50,
+          filters: {
+            status: ['FINALIZED'],
+            ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+          },
+          sort: [{ field: 'updatedAt', order: 'desc' }],
         },
-        sort: [{ field: 'updatedAt', order: 'desc' }],
-      })
+      )
       if (sequence === sourceSequence) sourceOptions.value = data.items ?? []
     } catch (error) {
       if (sequence === sourceSequence)

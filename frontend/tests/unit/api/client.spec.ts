@@ -1,10 +1,65 @@
 import { HttpResponse, http } from 'msw'
-import { describe, expect, it } from 'vitest'
-import { ApiClient, type ApiPostPath } from '@/api/client'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import type { components } from '@/api/generated/schema'
+import { ApiClient, type ApiPostPath, type ApiPostRequest } from '@/api/client'
 import { ApiError } from '@/api/types'
 import { mockServer } from '../../mocks/server'
 
 describe('ApiClient', () => {
+  it('从具体 OpenAPI 操作推导请求和响应数据类型', async () => {
+    expectTypeOf<ApiPostRequest<'wfl/process-instance/query'>>().toEqualTypeOf<
+      components['schemas']['WflInstanceQueryRequest']
+    >()
+    expectTypeOf<
+      ApiPostRequest<'wfl/process-definition/query'>
+    >().toEqualTypeOf<components['schemas']['WflDefinitionQueryRequest']>()
+
+    mockServer.use(
+      http.post('https://api.test/app/workbench/query', () =>
+        HttpResponse.json({
+          code: 0,
+          message: 'ok',
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+          requestId: 'req-contract',
+        }),
+      ),
+    )
+
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    const result = await client.postContract('app/workbench/query', {
+      category: 'BOB',
+      page: 1,
+      pageSize: 20,
+    })
+
+    expectTypeOf(result.data).toEqualTypeOf<
+      components['schemas']['WorkbenchPage']
+    >()
+    expect(result.data.items).toEqual([])
+  })
+
+  it('拒绝精确契约中的空成功数据', async () => {
+    mockServer.use(
+      http.post('https://api.test/app/workbench/query', () =>
+        HttpResponse.json({
+          code: 0,
+          message: 'ok',
+          data: null,
+          requestId: 'req-empty-contract',
+        }),
+      ),
+    )
+
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    await expect(
+      client.postContract('app/workbench/query', {
+        category: 'BOB',
+        page: 1,
+        pageSize: 20,
+      }),
+    ).rejects.toMatchObject<ApiError>({ kind: 'protocol' })
+  })
+
   it('通过 POST、Cookie 凭证和 CSRF 调用三级真实 API 契约', async () => {
     let credentials: RequestCredentials | undefined
     let csrfToken: string | null = null

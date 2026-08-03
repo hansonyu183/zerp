@@ -19,8 +19,21 @@ BEGIN
         SELECT 1 FROM pg_constraint
         WHERE conname='vou_documents_entity_check'
           AND pg_get_constraintdef(oid) LIKE '%asset-liquidation%'
+          AND pg_get_constraintdef(oid) LIKE '%inventory-count%'
     ) THEN
         RAISE EXCEPTION 'migration 00043 did not extend the voucher entity constraint';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname='vou_documents_total_amount_ck'
+          AND pg_get_constraintdef(oid) LIKE '%asset-liquidation%'
+          AND pg_get_constraintdef(oid) LIKE '%inventory-count%'
+    ) THEN
+        RAISE EXCEPTION 'migration 00043 did not preserve zero-amount voucher constraints';
+    END IF;
+    IF pg_get_functiondef('vou_validate_document_detail()'::regprocedure)
+        NOT LIKE '%vou_inventory_count_details%' THEN
+        RAISE EXCEPTION 'migration 00043 did not preserve inventory typed-detail validation';
     END IF;
 END
 $$;

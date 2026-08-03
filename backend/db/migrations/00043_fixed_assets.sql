@@ -11,7 +11,7 @@ ALTER TABLE vou_documents
     ADD CONSTRAINT vou_documents_entity_check CHECK (entity IN (
         'sale-pricing','sale-order','sale-outbound','sale-delivery','sale-signoff','sale-return',
         'purchase-inquiry','purchase-order','purchase-inbound','purchase-return',
-        'order-production','self-production','receipt','payment',
+        'order-production','self-production','inventory-count','receipt','payment',
         'customer-receipt','supplier-receipt','other-receipt',
         'customer-payment','supplier-payment','other-payment',
         'expense-reimbursement','expense-payment','other-income',
@@ -22,10 +22,10 @@ ALTER TABLE vou_documents
     ADD CONSTRAINT vou_documents_total_amount_ck CHECK (
         (entity IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                     'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
-                    'order-production','self-production','asset-liquidation') AND total_amount_cents >= 0)
+                    'order-production','self-production','inventory-count','asset-liquidation') AND total_amount_cents >= 0)
         OR (entity NOT IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                            'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
-                           'order-production','self-production','asset-liquidation') AND total_amount_cents > 0)
+                           'order-production','self-production','inventory-count','asset-liquidation') AND total_amount_cents > 0)
     );
 
 CREATE TABLE vou_asset_acquisition_details (
@@ -220,6 +220,7 @@ BEGIN
          + (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_payment_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_inventory_count_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_asset_acquisition_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_asset_depreciation_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_asset_sale_details WHERE document_id=target_id)
@@ -303,7 +304,8 @@ BEGIN
          + (SELECT count(*) FROM vou_payment_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_payment_details WHERE document_id=target_id)
-         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id) INTO detail_count;
+         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_inventory_count_details WHERE document_id=target_id) INTO detail_count;
     IF detail_count<>1 THEN RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE='23514'; END IF;
     RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END;
@@ -327,16 +329,16 @@ ALTER TABLE vou_documents
     ADD CONSTRAINT vou_documents_total_amount_ck CHECK (
         (entity IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                     'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
-                    'order-production','self-production') AND total_amount_cents >= 0)
+                    'order-production','self-production','inventory-count') AND total_amount_cents >= 0)
         OR (entity NOT IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                            'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
-                           'order-production','self-production') AND total_amount_cents > 0)
+                           'order-production','self-production','inventory-count') AND total_amount_cents > 0)
     ),
     DROP CONSTRAINT vou_documents_entity_check,
     ADD CONSTRAINT vou_documents_entity_check CHECK (entity IN (
         'sale-pricing','sale-order','sale-outbound','sale-delivery','sale-signoff','sale-return',
         'purchase-inquiry','purchase-order','purchase-inbound','purchase-return',
-        'order-production','self-production','receipt','payment',
+        'order-production','self-production','inventory-count','receipt','payment',
         'customer-receipt','supplier-receipt','other-receipt',
         'customer-payment','supplier-payment','other-payment',
         'expense-reimbursement','expense-payment','other-income',

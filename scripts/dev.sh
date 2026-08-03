@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "${repo_root}"
 
 test -f backend/.env.local || {
@@ -10,6 +10,7 @@ test -f backend/.env.local || {
 }
 
 set -a
+# shellcheck source=/dev/null
 . backend/.env.local
 set +a
 

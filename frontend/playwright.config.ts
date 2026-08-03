@@ -51,12 +51,14 @@ export default defineConfig({
   fullyParallel: true,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     actionTimeout: 30_000,
     baseURL: appUrl,
-    trace: process.env.CI ? 'off' : 'on-first-retry',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
   },
   projects: [
     {

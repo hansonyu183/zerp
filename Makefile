@@ -8,7 +8,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -33,10 +33,9 @@ generate-check:
 
 check:
 	$(MAKE) check-common
-	$(MAKE) check-release
 	$(MAKE) check-contracts
 	$(MAKE) check-frontend
-	$(MAKE) check-containers
+	$(MAKE) check-runtime
 	$(MAKE) check-backend BACKEND_SKIP_GENERATED=1
 
 check-common:
@@ -69,19 +68,20 @@ check-release:
 	$(MAKE) release-check
 	$(MAKE) -C backend quality-actionlint
 
+check-runtime:
+	$(MAKE) check-containers
+	$(MAKE) check-release
+
+check-shell:
+	@for script in scripts/*.sh backend/scripts/*.sh; do sh -n "$$script"; done
+	shellcheck -x scripts/*.sh backend/scripts/*.sh
+
 release-check:
-	sh -n scripts/pre-push.sh scripts/verify-pr-base.sh scripts/verify-merged-pr.sh scripts/preview.sh scripts/preview-deploy.sh
-	sh -n scripts/production-lib.sh scripts/production-deploy.sh scripts/production-watch.sh
-	sh -n scripts/production-status.sh scripts/production-retry.sh scripts/production-rollback.sh scripts/install-production-agent.sh
+	$(MAKE) check-shell
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
 	GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD^ ZERP_PR_HEAD_SHA=HEAD scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD ZERP_PR_HEAD_SHA=HEAD^ scripts/verify-pr-base.sh >/dev/null 2>&1
-	ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
-	ZERP_API_IMAGE=zerp-production-api:config \
-	ZERP_WEB_IMAGE=zerp-production-web:config \
-	docker compose --env-file backend/.env.production.example \
-		-p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
 
 test:
 	pnpm test:web

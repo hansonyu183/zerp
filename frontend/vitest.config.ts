@@ -19,10 +19,10 @@ export default defineConfig({
       include: ['src/**/*.{ts,vue}'],
       exclude: ['src/env.d.ts', 'src/main.ts'],
       thresholds: {
-        lines: 43.7,
-        statements: 41,
-        branches: 30,
-        functions: 28,
+        lines: 50,
+        statements: 48,
+        branches: 36,
+        functions: 32,
         'src/api/client.ts': {
           lines: 75,
           statements: 73,
@@ -40,6 +40,12 @@ export default defineConfig({
           statements: 95,
           branches: 78,
           functions: 100,
+        },
+        'src/components/feedback/vm.ts': {
+          lines: 80,
+          statements: 78,
+          branches: 70,
+          functions: 80,
         },
         'src/pages/led/opening/vm.ts': {
           lines: 68,
@@ -82,6 +88,12 @@ export default defineConfig({
           statements: 100,
           branches: 82,
           functions: 100,
+        },
+        'src/pages/wfl/process-definition/vm.ts': {
+          lines: 44,
+          statements: 42,
+          branches: 30,
+          functions: 45,
         },
       },
     },

@@ -2,7 +2,7 @@
 set -eu
 
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-# shellcheck source=production-lib.sh
+# shellcheck source=scripts/production-lib.sh
 . "${repo_root}/scripts/production-lib.sh"
 
 release_sha=${1:-}

@@ -146,6 +146,7 @@ up() {
   compose run --rm migrate
 
   user_count=$(
+    # shellcheck disable=SC2016
     compose exec -T db sh -eu -c \
       'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT count(*) FROM app_users"'
   )

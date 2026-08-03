@@ -24,6 +24,7 @@ jobs:
       impact: ${{ steps.change_impact.outputs.impact }}
       contracts: ${{ steps.change_impact.outputs.contracts }}
       frontend: ${{ steps.change_impact.outputs.frontend }}
+      frontend_audit: ${{ steps.change_impact.outputs.frontend_audit }}
       backend: ${{ steps.change_impact.outputs.backend }}
       containers: ${{ steps.change_impact.outputs.containers }}
       e2e: ${{ steps.change_impact.outputs.e2e }}
@@ -47,6 +48,7 @@ jobs:
             checks='impact=application
           contracts=1
           frontend=1
+          frontend_audit=1
           backend=1
           containers=1
           e2e=1
@@ -168,7 +170,7 @@ jobs:
       - name: Audit production dependencies
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.frontend == '1'
+          needs.merge_evidence.outputs.frontend_audit == '1'
         run: pnpm audit --prod
       - name: Skip frontend gate
         if: >-
@@ -213,9 +215,7 @@ jobs:
       - name: Run integration, vet, build and race gates
         run: |
           make -C backend ENV_FILE=.env.ci quality-test
-          go -C backend vet ./...
-          go -C backend build ./...
-          go -C backend test -race ./...
+          make -C backend quality-vet-build quality-race
 
   backend_static:
     name: backend-static
@@ -279,8 +279,7 @@ jobs:
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.containers == '1'
         run: |
-          make check-containers BACKEND_ENV=.env.example
-          make release-check
+          make check-runtime BACKEND_ENV=.env.example
       - name: Skip container gate
         if: >-
           github.event_name != 'push' &&
@@ -356,6 +355,19 @@ jobs:
           ZERP_API_IMAGE: zerp-e2e-api:${{ github.sha }}
           ZERP_WEB_IMAGE: zerp-e2e-web:${{ github.sha }}
         run: make e2e
+      - name: Upload Playwright failure evidence
+        if: >-
+          failure() &&
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-failure-${{ github.sha }}
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: warn
+          retention-days: 14
       - name: Skip E2E gate
         if: >-
           github.event_name != 'push' &&

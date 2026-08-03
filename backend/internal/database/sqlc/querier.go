@@ -174,6 +174,7 @@ type Querier interface {
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error)
 	GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error)
 	HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bool, error)
+	HasInvalidEmployeeWriteoffTimeline(ctx context.Context, generationID string) (bool, error)
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)

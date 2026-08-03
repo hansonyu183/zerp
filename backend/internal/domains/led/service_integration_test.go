@@ -1116,9 +1116,10 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 		BusinessDate: "2026-07-24", Currency: "CNY", Counterparty: &refs.employee,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
 	})
-	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityEmployeeLoan, voudomain.FinalizeInput{
+	loanFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityEmployeeLoan, voudomain.FinalizeInput{
 		DocumentID: loan.DocumentID, Revision: loan.Revision,
-	}, integrationActorOne, "employee-loan-finalize"); err != nil {
+	}, integrationActorOne, "employee-loan-finalize")
+	if err != nil {
 		t.Fatalf("finalize employee loan: %v", err)
 	}
 
@@ -1167,6 +1168,17 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 		DocumentID: excess.DocumentID, Revision: excess.Revision,
 	}, integrationActorOne, "employee-writeoff-excess"); err == nil {
 		t.Fatal("employee loan writeoff exceeded the as-of-date balance")
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityEmployeeLoan, voudomain.ReverseInput{
+		DocumentID: loanFinalized.DocumentID, Revision: loanFinalized.Revision, Reason: "借款撤回测试",
+	}, integrationActorOne, "employee-loan-unfinalize-with-writeoff"); err == nil {
+		t.Fatal("employee loan reversal invalidated a later writeoff")
+	}
+	party, err = ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	}, EntityEmployee)
+	if err != nil || len(party.Items) != 1 || party.Items[0].Amount != "20.00" {
+		t.Fatalf("employee balance after rejected loan reversal = %+v, err=%v", party, err)
 	}
 
 	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityEmployeeLoanWriteoff, voudomain.ReverseInput{

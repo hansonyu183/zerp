@@ -8,6 +8,7 @@ import type {
   VoucherReference,
 } from '@/components/voucher'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
+import { formFromDocument } from '@/pages/vou/shared/form'
 import { buildVoucherDraftPayload } from '@/pages/vou/shared/payload'
 import { useVoucherEntityViewModel } from '@/pages/vou/shared/vm'
 import { useSessionStore } from '@/stores/session'
@@ -963,6 +964,17 @@ describe('shared VOU entity view model', () => {
       check: false,
       finalize: false,
       unapprove: false,
+    })
+  })
+
+  it('hydrates the employee counterparty type from an existing loan', () => {
+    const config = voucherEntityConfigs['employee-loan']
+    const currentForm = useVoucherEntityViewModel(config).form.value
+    populate(config, currentForm)
+
+    expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
+      counterpartyType: 'employee',
+      counterparty: { entity: 'employee' },
     })
   })
 

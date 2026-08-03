@@ -629,6 +629,32 @@ func (q *Queries) HasIncompleteLedDraftInventoryPricing(ctx context.Context) (bo
 	return column_1, err
 }
 
+const hasInvalidEmployeeWriteoffTimeline = `-- name: HasInvalidEmployeeWriteoffTimeline :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_party_entries writeoff
+    WHERE writeoff.generation_id=$1
+      AND writeoff.counterparty_entity='employee'
+      AND writeoff.source_entity='employee-loan-writeoff'
+      AND (
+          SELECT COALESCE(sum(entry.amount_delta_cents), 0)
+          FROM led_party_entries entry
+          WHERE entry.generation_id=writeoff.generation_id
+            AND entry.counterparty_entity=writeoff.counterparty_entity
+            AND entry.counterparty_object_id=writeoff.counterparty_object_id
+            AND entry.currency=writeoff.currency
+            AND entry.effective_date<=writeoff.effective_date
+      ) < 0
+)
+`
+
+func (q *Queries) HasInvalidEmployeeWriteoffTimeline(ctx context.Context, generationID string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasInvalidEmployeeWriteoffTimeline, generationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const hasLaterLedAssetEntries = `-- name: HasLaterLedAssetEntries :one
 SELECT EXISTS(SELECT 1 FROM led_asset_entries WHERE generation_id=$1
  AND asset_id=$2 AND source_document_id<>$3

@@ -186,6 +186,15 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 	if negative {
 		return txevent.Reject("purchase reversal would make inventory negative", nil)
 	}
+	if event.Entity == voudomain.EntityEmployeeLoan {
+		invalidWriteoff, queryErr := q.HasInvalidEmployeeWriteoffTimeline(ctx, generationID)
+		if queryErr != nil {
+			return queryErr
+		}
+		if invalidWriteoff {
+			return txevent.Reject("employee loan reversal would invalidate a later writeoff", nil)
+		}
+	}
 	return nil
 }
 

@@ -10,6 +10,7 @@ test -f backend/.env.local || {
 }
 
 set -a
+# shellcheck source=/dev/null
 . backend/.env.local
 set +a
 

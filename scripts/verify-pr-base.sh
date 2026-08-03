@@ -11,10 +11,10 @@ test "${base_ref}" = "main" || {
 base_sha=${ZERP_PR_BASE_SHA:-}
 head_sha=${ZERP_PR_HEAD_SHA:-}
 if [ -n "${base_sha}" ] || [ -n "${head_sha}" ]; then
-  test -n "${base_sha}" && test -n "${head_sha}" || {
+  if [ -z "${base_sha}" ] || [ -z "${head_sha}" ]; then
     echo "Both ZERP_PR_BASE_SHA and ZERP_PR_HEAD_SHA are required for ancestry verification" >&2
     exit 1
-  }
+  fi
   git merge-base --is-ancestor "${base_sha}" "${head_sha}" || {
     echo "Pull request head does not include the current main base; update the branch from main before running full checks" >&2
     exit 1

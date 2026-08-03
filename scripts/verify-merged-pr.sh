@@ -46,10 +46,10 @@ head_sha=$(
       if length == 0 then "" else last.head.sha end'
 )
 
-test -n "${pull_number}" && test -n "${head_sha}" || {
+if [ -z "${pull_number}" ] || [ -z "${head_sha}" ]; then
   echo "Main commit ${merge_sha} is not an associated merged PR commit" >&2
   exit 1
-}
+fi
 
 merge_tree=$(gh api "repos/${repository}/git/commits/${merge_sha}" --jq '.tree.sha')
 head_tree=$(gh api "repos/${repository}/git/commits/${head_sha}" --jq '.tree.sha')

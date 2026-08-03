@@ -92,6 +92,7 @@ BEGIN
         (SELECT count(*) FROM vou_receipt_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_payment_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_expense_payment_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_other_income_details WHERE document_id = target_id)
     INTO detail_count;
     IF detail_count <> 1 THEN
@@ -165,6 +166,7 @@ BEGIN
         (SELECT count(*) FROM vou_receipt_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_payment_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id = target_id) +
+        (SELECT count(*) FROM vou_expense_payment_details WHERE document_id = target_id) +
         (SELECT count(*) FROM vou_other_income_details WHERE document_id = target_id)
     INTO detail_count;
     IF detail_count <> 1 THEN

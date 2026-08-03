@@ -11,6 +11,7 @@ ALTER TABLE vou_documents
         'customer-payment', 'supplier-payment', 'other-payment',
         'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
         'expense-reimbursement', 'expense-payment', 'other-income',
+        'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
         'customer-order', 'procurement-order', 'goods-receipt', 'delivery-note', 'signoff-note'
     ));
 
@@ -99,7 +100,11 @@ BEGIN
          + (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_payment_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_employee_loan_writeoff_details WHERE document_id=target_id)
-         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id) INTO detail_count;
+         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_acquisition_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_depreciation_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_sale_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_liquidation_details WHERE document_id=target_id) INTO detail_count;
     IF detail_count<>1 THEN RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE='23514'; END IF;
     RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END;
@@ -181,7 +186,11 @@ BEGIN
          + (SELECT count(*) FROM vou_payment_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_reimbursement_details WHERE document_id=target_id)
          + (SELECT count(*) FROM vou_expense_payment_details WHERE document_id=target_id)
-         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id) INTO detail_count;
+         + (SELECT count(*) FROM vou_other_income_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_acquisition_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_depreciation_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_sale_details WHERE document_id=target_id)
+         + (SELECT count(*) FROM vou_asset_liquidation_details WHERE document_id=target_id) INTO detail_count;
     IF detail_count<>1 THEN RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE='23514'; END IF;
     RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END;
@@ -231,5 +240,6 @@ ALTER TABLE vou_documents
         'customer-receipt', 'supplier-receipt', 'other-receipt',
         'customer-payment', 'supplier-payment', 'other-payment',
         'expense-reimbursement', 'expense-payment', 'other-income',
+        'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
         'customer-order', 'procurement-order', 'goods-receipt', 'delivery-note', 'signoff-note'
     ));

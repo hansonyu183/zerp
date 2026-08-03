@@ -20,5 +20,19 @@ BEGIN
     IF to_regclass('public.vou_employee_loan_writeoff_details') IS NULL THEN
         RAISE EXCEPTION 'migration 00044 did not create writeoff details';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname='vou_documents_entity_check'
+          AND pg_get_constraintdef(oid) LIKE '%employee-loan-writeoff%'
+          AND pg_get_constraintdef(oid) LIKE '%asset-liquidation%'
+    ) THEN
+        RAISE EXCEPTION 'migration 00044 did not preserve fixed asset voucher entities';
+    END IF;
+    IF pg_get_functiondef('vou_validate_document_detail()'::regprocedure)
+        NOT LIKE '%vou_employee_loan_writeoff_details%'
+       OR pg_get_functiondef('vou_validate_document_detail()'::regprocedure)
+        NOT LIKE '%vou_asset_acquisition_details%' THEN
+        RAISE EXCEPTION 'migration 00044 did not preserve typed-detail validation';
+    END IF;
 END
 $$;

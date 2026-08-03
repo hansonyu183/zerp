@@ -293,6 +293,12 @@ func validateAssetDisposal(asset dbsqlc.LedAsset, date time.Time) error {
 		return domainError(ErrorConflict, "asset is not active", map[string]any{"assetId": asset.ID}, nil)
 	}
 	month := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, time.UTC)
+	if asset.AcquisitionDate.Valid && date.Before(asset.AcquisitionDate.Time) {
+		return domainError(ErrorConflict, "asset cannot be disposed before acquisition", map[string]any{"assetId": asset.ID}, nil)
+	}
+	if asset.LastDepreciationMonth.Valid && month.Before(asset.LastDepreciationMonth.Time) {
+		return domainError(ErrorConflict, "asset cannot be disposed before existing depreciation history", map[string]any{"assetId": asset.ID}, nil)
+	}
 	fullyDepreciated := asset.AccumulatedDepreciationCents >= asset.OriginalValueCents-asset.ResidualValueCents
 	if !fullyDepreciated && !asset.DepreciationStartMonth.Time.After(month) && (!asset.LastDepreciationMonth.Valid || !sameMonth(asset.LastDepreciationMonth.Time, month)) {
 		return domainError(ErrorConflict, "asset must be depreciated through the disposal month", map[string]any{"assetId": asset.ID}, nil)

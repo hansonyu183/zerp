@@ -38,6 +38,24 @@ func TestValidateAssetDisposalAllowsFullyDepreciatedAsset(t *testing.T) {
 	}
 }
 
+func TestValidateAssetDisposalRejectsDatesBeforeAssetTimeline(t *testing.T) {
+	asset := dbsqlc.LedAsset{
+		ID: "01J00000000000000000000001", Status: "ACTIVE",
+		AcquisitionDate:        pgtype.Date{Time: time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), Valid: true},
+		DepreciationStartMonth: pgtype.Date{Time: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+		OriginalValueCents:     120000, ResidualValueCents: 12000, UsefulLifeMonths: 12,
+	}
+	if err := validateAssetDisposal(asset, time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC)); err == nil {
+		t.Fatal("expected disposal before acquisition to fail")
+	}
+
+	asset.AccumulatedDepreciationCents = 108000
+	asset.LastDepreciationMonth = pgtype.Date{Time: time.Date(2027, 6, 1, 0, 0, 0, 0, time.UTC), Valid: true}
+	if err := validateAssetDisposal(asset, time.Date(2027, 5, 31, 0, 0, 0, 0, time.UTC)); err == nil {
+		t.Fatal("expected fully depreciated asset disposal before its history to fail")
+	}
+}
+
 func TestAssetDepreciationMonthEnd(t *testing.T) {
 	month, err := monthStart("2028-02")
 	if err != nil {

@@ -44,9 +44,9 @@ describe('VoucherAssetLinesEditor', () => {
     })
     await flushPromises()
 
-    expect(mockedPost).toHaveBeenCalledWith(
+    expect(mockedPost).not.toHaveBeenCalledWith(
       'led/asset/query',
-      expect.objectContaining({ filters: { status: ['ACTIVE'] } }),
+      expect.anything(),
     )
 
     await wrapper.find('v-btn').trigger('click')
@@ -63,5 +63,49 @@ describe('VoucherAssetLinesEditor', () => {
         depreciationAmount: '95.00',
       }),
     ])
+  })
+
+  it('loads active disposal candidates with contract-compliant pagination', async () => {
+    mockedPost.mockImplementation(async (path, body) => {
+      if (path !== 'led/asset/query') return { data: { items: [] } } as never
+      const page = (body as { page: number }).page
+      return {
+        data: {
+          items: [
+            {
+              assetId: `asset-${page}`,
+              assetNo: `FA-${page}`,
+              assetName: `资产 ${page}`,
+              originalValue: '100.00',
+              accumulatedDepreciation: '0.00',
+              netValue: '100.00',
+            },
+          ],
+          total: 2,
+        },
+      } as never
+    })
+
+    const wrapper = shallowMount(VoucherAssetLinesEditor, {
+      props: {
+        modelValue: [],
+        editable: true,
+        kind: 'asset-sale',
+        depreciationMonth: '',
+      },
+    })
+    await flushPromises()
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'led/asset/query', {
+      page: 1,
+      pageSize: 200,
+      filters: { status: ['ACTIVE'] },
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'led/asset/query', {
+      page: 2,
+      pageSize: 200,
+      filters: { status: ['ACTIVE'] },
+    })
+    expect(wrapper.find('.responsive-table-wrap').exists()).toBe(true)
   })
 })

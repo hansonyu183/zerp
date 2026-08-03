@@ -26,7 +26,7 @@ import {
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
 import { lifecycleLabels } from './config'
-import type { VoucherEntityViewModel } from './vm'
+import type { VoucherEntityViewModel } from './view-model'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import VoucherWorkspaceActions from './VoucherWorkspaceActions.vue'

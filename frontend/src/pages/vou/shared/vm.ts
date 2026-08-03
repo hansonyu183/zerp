@@ -35,6 +35,7 @@ import { useVoucherPricing } from './pricing'
 import { createVoucherReferenceChangeHandler } from './reference-change'
 import { createReturnSourceInitializer } from './return-source'
 import { useVoucherActionAvailability } from './action-availability'
+import { useVoucherInventoryCount } from './inventory-count'
 
 export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const session = useSessionStore()
@@ -61,7 +62,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const editing = ref(false)
   const saving = ref(false)
   const actionLoading = ref<string | null>(null)
-  const inventoryBalanceLoading = ref(false)
   const workspaceError = ref<string | null>(null)
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = ref<VoucherDraftForm>(emptyForm(config))
@@ -118,11 +118,15 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   )
   const canQuery = computed(() => session.can(permission('query')))
   const canCreate = computed(() => session.can(permission('create')))
-  const canLoadInventoryBalance = computed(
-    () =>
-      config.entity === 'inventory-count' &&
-      session.can(permission('book-balance')) &&
-      Boolean(form.value.warehouse && form.value.businessDate),
+  const {
+    inventoryBalanceLoading,
+    canLoadInventoryBalance,
+    loadInventoryCountBalance,
+  } = useVoucherInventoryCount(
+    config,
+    form,
+    session.can,
+    (message) => (workspaceError.value = message),
   )
   const initializeReturnFromSources = createReturnSourceInitializer({
     entity: config.entity,
@@ -257,67 +261,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     selectedParty.value = null
     sort.value = { field: 'documentNo', order: 'desc' }
     await search()
-  }
-
-  async function loadInventoryCountBalance(): Promise<void> {
-    if (!canLoadInventoryBalance.value || !form.value.warehouse) return
-    inventoryBalanceLoading.value = true
-    workspaceError.value = null
-    try {
-      const { data } = await apiClient.post<
-        {
-          items: Array<{
-            product: VoucherReference
-            quantity: string
-          }>
-          total: number
-          page: number
-          pageSize: number
-        },
-        {
-          page: number
-          pageSize: number
-          warehouseObjectId: string
-          asOfDate: string
-        }
-      >('vou/inventory-count/book-balance', {
-        page: 1,
-        pageSize: 200,
-        warehouseObjectId: form.value.warehouse.objectId,
-        asOfDate: form.value.businessDate,
-      })
-      if (data.total > 200) {
-        workspaceError.value = `该仓库有 ${data.total} 个非零库存商品，超过单据 200 行上限，请拆分盘点。`
-        return
-      }
-      const existing = new Map(
-        form.value.inventoryCountLines
-          .filter((line) => line.product)
-          .map((line) => [line.product!.objectId, line]),
-      )
-      const loadedProductIds = new Set<string>()
-      const loadedLines = (data.items ?? []).map((item) => {
-        loadedProductIds.add(item.product.objectId)
-        const current = existing.get(item.product.objectId)
-        return current
-          ? { ...current, product: item.product, bookQuantity: item.quantity }
-          : {
-              key: crypto.randomUUID(),
-              product: item.product,
-              actualQuantity: '',
-              bookQuantity: item.quantity,
-              remark: '',
-            }
-      })
-      const manuallyAddedLines = form.value.inventoryCountLines.filter(
-        (line) => line.product && !loadedProductIds.has(line.product.objectId),
-      )
-      form.value.inventoryCountLines = [...loadedLines, ...manuallyAddedLines]
-    } catch (error) {
-      workspaceError.value = getErrorMessage(error)
-    } finally {
-      inventoryBalanceLoading.value = false
-    }
   }
 
   function openCreate(): void {
@@ -730,7 +673,3 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     selectSourceDocument,
   }
 }
-
-export type VoucherEntityViewModel = ReturnType<
-  typeof useVoucherEntityViewModel
->

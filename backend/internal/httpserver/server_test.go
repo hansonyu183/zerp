@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -250,7 +251,9 @@ func TestOpenAPIValidatorRejectsInvalidBusinessRequest(t *testing.T) {
 }
 
 func TestOpenAPIValidatorRejectsInvalidBusinessResponse(t *testing.T) {
-	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	router := newRouter(testConfig(), pingerStub{}, logger, func(router *gin.Engine) {
 		router.POST("/app/workbench/query", func(context *gin.Context) {
 			response.OK(context, gin.H{})
 		})
@@ -277,6 +280,10 @@ func TestOpenAPIValidatorRejectsInvalidBusinessResponse(t *testing.T) {
 	}
 	if envelope.RequestID != "invalid-response-request-id" {
 		t.Fatalf("requestId = %q, want %q", envelope.RequestID, "invalid-response-request-id")
+	}
+	if logOutput := logs.String(); !strings.Contains(logOutput, `"error":`) ||
+		!strings.Contains(logOutput, "response body doesn't match schema") {
+		t.Fatalf("validation error log = %q", logOutput)
 	}
 }
 

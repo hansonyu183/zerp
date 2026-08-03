@@ -121,6 +121,7 @@ func validateOpenAPIResponses(swagger *openapi3.T, logger *slog.Logger) gin.Hand
 					"method", context.Request.Method,
 					"path", context.Request.URL.Path,
 					"requestId", response.RequestID(context),
+					"error", validationErr,
 				)
 				replaceInvalidResponse(context, bufferedWriter)
 			}

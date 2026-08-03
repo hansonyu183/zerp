@@ -35,6 +35,7 @@ import { useVoucherPricing } from './pricing'
 import { createVoucherReferenceChangeHandler } from './reference-change'
 import { createReturnSourceInitializer } from './return-source'
 import { useVoucherActionAvailability } from './action-availability'
+import { useVoucherInventoryCount } from './inventory-count'
 
 export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const session = useSessionStore()
@@ -117,6 +118,16 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   )
   const canQuery = computed(() => session.can(permission('query')))
   const canCreate = computed(() => session.can(permission('create')))
+  const {
+    inventoryBalanceLoading,
+    canLoadInventoryBalance,
+    loadInventoryCountBalance,
+  } = useVoucherInventoryCount(
+    config,
+    form,
+    session.can,
+    (message) => (workspaceError.value = message),
+  )
   const initializeReturnFromSources = createReturnSourceInitializer({
     entity: config.entity,
     canCreate: () => canCreate.value,
@@ -604,6 +615,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     form,
     dirty,
     busy,
+    inventoryBalanceLoading,
+    canLoadInventoryBalance,
     canCreate,
     canQuery,
     actionAvailability,
@@ -624,6 +637,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     search,
     changePage,
     resetFilters,
+    loadInventoryCountBalance,
     openCreate,
     initializeReturnFromSources,
     openDocument,
@@ -659,7 +673,3 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     selectSourceDocument,
   }
 }
-
-export type VoucherEntityViewModel = ReturnType<
-  typeof useVoucherEntityViewModel
->

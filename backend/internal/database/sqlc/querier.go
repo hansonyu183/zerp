@@ -6,6 +6,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -20,6 +22,7 @@ type Querier interface {
 	CancelLedReopen(ctx context.Context, arg CancelLedReopenParams) (int64, error)
 	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
 	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
+	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
 	CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategoryDetailParams) error
@@ -71,6 +74,7 @@ type Querier interface {
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
+	CountVouInventoryCountBookBalances(ctx context.Context, arg CountVouInventoryCountBookBalancesParams) (int64, error)
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
 	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
 	CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error)
@@ -111,6 +115,7 @@ type Querier interface {
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
+	DeleteVouInventoryCountLines(ctx context.Context, documentID string) error
 	DeleteVouPriceLines(ctx context.Context, documentID string) error
 	DeleteVouProductLines(ctx context.Context, documentID string) error
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
@@ -139,6 +144,9 @@ type Querier interface {
 	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
+	GetVouInventoryCountBookQuantity(ctx context.Context, arg GetVouInventoryCountBookQuantityParams) (int64, error)
+	GetVouInventoryCountClosingDate(ctx context.Context, id string) (pgtype.Date, error)
+	GetVouInventoryCountDetail(ctx context.Context, documentID string) (VouInventoryCountDetail, error)
 	GetVouOtherIncomeDetail(ctx context.Context, documentID string) (VouOtherIncomeDetail, error)
 	GetVouPaymentDetail(ctx context.Context, documentID string) (VouPaymentDetail, error)
 	GetVouPurchaseInboundDetail(ctx context.Context, documentID string) (VouPurchaseInboundDetail, error)
@@ -201,6 +209,8 @@ type Querier interface {
 	InsertVouExpensePaymentDetail(ctx context.Context, arg InsertVouExpensePaymentDetailParams) error
 	InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error
 	InsertVouFile(ctx context.Context, arg InsertVouFileParams) error
+	InsertVouInventoryCountDetail(ctx context.Context, arg InsertVouInventoryCountDetailParams) error
+	InsertVouInventoryCountLine(ctx context.Context, arg InsertVouInventoryCountLineParams) error
 	InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouOtherIncomeDetailParams) error
 	InsertVouPaymentDetail(ctx context.Context, arg InsertVouPaymentDetailParams) error
 	InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLineParams) error
@@ -259,6 +269,8 @@ type Querier interface {
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
+	ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error)
+	ListVouInventoryCountLines(ctx context.Context, documentID string) ([]VouInventoryCountLine, error)
 	ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
 	ListVouPurchaseInboundLines(ctx context.Context, documentID string) ([]VouPurchaseInboundLine, error)
@@ -306,6 +318,7 @@ type Querier interface {
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)
 	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
+	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
@@ -334,6 +347,7 @@ type Querier interface {
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)
+	UpdateVouInventoryCountDetail(ctx context.Context, arg UpdateVouInventoryCountDetailParams) (int64, error)
 	UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouOtherIncomeDetailParams) (int64, error)
 	UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPaymentDetailParams) (int64, error)
 	UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg UpdateVouPurchaseInboundWarehouseParams) (int64, error)

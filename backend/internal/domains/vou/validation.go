@@ -62,6 +62,12 @@ type fixedExpenseLine struct {
 	Remark                *string
 }
 
+type fixedInventoryCountLine struct {
+	Product        ReferenceInput
+	ActualQuantity int64
+	Remark         *string
+}
+
 type validatedDraft struct {
 	BusinessDate                                            time.Time
 	DueDate                                                 *time.Time
@@ -74,6 +80,7 @@ type validatedDraft struct {
 	ProductLines                                            []fixedProductLine
 	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
+	InventoryCountLines                                     []fixedInventoryCountLine
 	TotalAmount                                             int64
 }
 
@@ -157,6 +164,9 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	if !validEntity(entity) {
 		return validatedDraft{}, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
+	if entity != EntityInventoryCount && len(input.InventoryCountLines) != 0 {
+		return validatedDraft{}, domainError(ErrorValidation, "inventoryCountLines do not match entity", nil, nil)
+	}
 	businessDate, err := time.Parse(dateLayout, strings.TrimSpace(input.BusinessDate))
 	if err != nil {
 		return validatedDraft{}, domainError(ErrorValidation, "invalid businessDate", nil, nil)
@@ -227,6 +237,22 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.ProductLines, result.TotalAmount, err = validateProductLines(input.ProductLines, false, false)
+	case EntityInventoryCount:
+		if err = requireOnlyDraftRefs(input, false, false, false, false, false, false, false, true, false, false); err != nil {
+			return validatedDraft{}, err
+		}
+		if currency != "CNY" {
+			return validatedDraft{}, domainError(ErrorValidation, "inventory count currency must be CNY", nil, nil)
+		}
+		if err = validateReference(input.Warehouse, "warehouse", true); err != nil {
+			return validatedDraft{}, err
+		}
+		if strings.TrimSpace(input.Amount) != "" || input.MaterialWarehouse != nil ||
+			input.FinishedWarehouse != nil || len(input.ProductionLines) != 0 ||
+			len(input.ReturnLines) != 0 {
+			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
+		}
+		result.InventoryCountLines, err = validateInventoryCountLines(input.InventoryCountLines)
 	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
 		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
@@ -316,10 +342,40 @@ func requireOnlyDraftRefs(
 	if len(input.ExpenseLines) > 0 && !employee {
 		return domainError(ErrorValidation, "expenseLines do not match entity", nil, nil)
 	}
+	if len(input.InventoryCountLines) > 0 && !warehouse {
+		return domainError(ErrorValidation, "inventoryCountLines do not match entity", nil, nil)
+	}
 	if strings.TrimSpace(input.Amount) != "" && (customer || supplier || employee) {
 		return domainError(ErrorValidation, "amount does not match entity", nil, nil)
 	}
 	return nil
+}
+
+func validateInventoryCountLines(lines []InventoryCountLineInput) ([]fixedInventoryCountLine, error) {
+	if len(lines) == 0 || len(lines) > 200 {
+		return nil, domainError(ErrorValidation, "inventoryCountLines must contain 1 to 200 items", nil, nil)
+	}
+	result := make([]fixedInventoryCountLine, 0, len(lines))
+	seen := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		if err := validateReference(&line.Product, "product", true); err != nil {
+			return nil, err
+		}
+		if _, exists := seen[line.Product.ObjectID]; exists {
+			return nil, domainError(ErrorValidation, "duplicate inventory count product", nil, nil)
+		}
+		seen[line.Product.ObjectID] = struct{}{}
+		quantity, err := quantityMicros(line.ActualQuantity, true)
+		if err != nil {
+			return nil, domainError(ErrorValidation, "invalid actualQuantity", nil, err)
+		}
+		remark, err := lineRemark(line.Remark)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, fixedInventoryCountLine{Product: line.Product, ActualQuantity: quantity, Remark: remark})
+	}
+	return result, nil
 }
 
 func validateProductLines(

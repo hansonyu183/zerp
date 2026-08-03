@@ -32,6 +32,7 @@ type applicationService interface {
 	Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
+	InventoryCountBookBalance(context.Context, InventoryCountBalanceInput) (Page[InventoryCountBalanceItem], error)
 	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
 	CreateDownload(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
 	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (MutationResult, error)
@@ -53,6 +54,7 @@ type actionRoute struct {
 var actionRoutes = [...]actionRoute{
 	{action: "query", handle: (*Handler).query},
 	{action: "get", handle: (*Handler).get},
+	{action: "book-balance", handle: (*Handler).inventoryCountBookBalance},
 	{action: "formula-default", handle: (*Handler).formulaDefault},
 	{action: "price-reference", handle: (*Handler).priceReference},
 	{action: "create", handle: (*Handler).create},
@@ -97,6 +99,9 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "price-reference" && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
 				continue
 			}
+			if route.action == "book-balance" && entity != EntityInventoryCount {
+				continue
+			}
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
@@ -107,6 +112,18 @@ func (h *Handler) Register(router *gin.Engine) {
 	}
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
+}
+
+func (h *Handler) inventoryCountBookBalance(c *gin.Context, entity string) {
+	if entity != EntityInventoryCount {
+		h.result(c, Page[InventoryCountBalanceItem]{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input InventoryCountBalanceInput
+	if h.bind(c, &input) {
+		result, err := h.service.InventoryCountBookBalance(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
 }
 
 func (h *Handler) priceReference(c *gin.Context, entity string) {

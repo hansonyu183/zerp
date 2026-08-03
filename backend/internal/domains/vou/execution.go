@@ -31,6 +31,10 @@ func (s *Service) Finalize(
 	}
 	var summary map[string]any
 	switch entity {
+	case EntityInventoryCount:
+		if err = validateFinancialExecution(input); err == nil {
+			summary, err = s.prepareInventoryCountFinalization(ctx, tx, q, document)
+		}
 	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
 		if err = validateFinancialExecution(input); err == nil {
 			summary, err = s.prepareSalesChainFinalization(ctx, tx, document)
@@ -198,6 +202,11 @@ func (s *Service) Unfinalize(
 		Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document unfinalized", err)
+	}
+	if entity == EntityInventoryCount {
+		if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {
+			return MutationResult{}, s.writeError("clear inventory count result", err)
+		}
 	}
 	if err = s.touchWorkflow(
 		ctx, tx, document, "UNFINALIZED", StatusApproved, actorID, requestID, summary,

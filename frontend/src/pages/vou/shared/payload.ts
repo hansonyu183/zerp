@@ -117,6 +117,13 @@ export function buildVoucherDraftPayload(
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }
+  if (config.lineKind === 'inventory-count') {
+    payload.inventoryCountLines = value.inventoryCountLines.map((line) => ({
+      product: inputReference(line.product)!,
+      actualQuantity: line.actualQuantity.trim(),
+      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
+    }))
+  }
   appendSalesChainPayload(config, value, payload)
   return payload
 }

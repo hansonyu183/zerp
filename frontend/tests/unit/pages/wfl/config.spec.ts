@@ -84,13 +84,21 @@ describe('WFL Chinese labels', () => {
 })
 
 describe('VOU completion labels', () => {
-  it('uses completion wording for all fourteen voucher types', () => {
+  it('uses completion wording with inventory count business labels', () => {
     for (const config of Object.values(voucherEntityConfigs)) {
-      expect(lifecycleLabels(config)).toMatchObject({
-        finalize: '完成',
-        unfinalize: '撤销完成',
-        finalized: '已完成',
-      })
+      expect(lifecycleLabels(config)).toMatchObject(
+        config.entity === 'inventory-count'
+          ? {
+              finalize: '完成盘点',
+              unfinalize: '撤销盘点',
+              finalized: '已盘点',
+            }
+          : {
+              finalize: '完成',
+              unfinalize: '撤销完成',
+              finalized: '已完成',
+            },
+      )
     }
   })
 })

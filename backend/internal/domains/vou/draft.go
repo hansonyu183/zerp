@@ -247,6 +247,20 @@ func (s *Service) writeDetail(
 		return s.writeExpenseDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityOtherIncome:
 		return s.writeOtherIncomeDetail(ctx, q, entity, documentID, draft, refs, update)
+	case EntityInventoryCount:
+		params := dbsqlc.InsertVouInventoryCountDetailParams{
+			DocumentID: documentID, WarehouseObjectID: refs.Warehouse.ObjectID,
+			WarehouseVersionID: refs.Warehouse.VersionID, WarehouseCode: refs.Warehouse.Code,
+			WarehouseName: refs.Warehouse.Data.Name,
+		}
+		if !update {
+			return q.InsertVouInventoryCountDetail(ctx, params)
+		}
+		return oneRow(q.UpdateVouInventoryCountDetail(ctx, dbsqlc.UpdateVouInventoryCountDetailParams{
+			WarehouseObjectID: params.WarehouseObjectID, WarehouseVersionID: params.WarehouseVersionID,
+			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
+			DocumentID: params.DocumentID,
+		}))
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -255,6 +269,23 @@ func (s *Service) writeDetail(
 func (s *Service) replaceLines(
 	ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft validatedDraft, refs resolvedDraft,
 ) error {
+	if entity == EntityInventoryCount {
+		if err := q.DeleteVouInventoryCountLines(ctx, documentID); err != nil {
+			return err
+		}
+		for index, line := range draft.InventoryCountLines {
+			ref := refs.Products[index]
+			if err := q.InsertVouInventoryCountLine(ctx, dbsqlc.InsertVouInventoryCountLineParams{
+				ID: newID(), DocumentID: documentID, LineNo: int32(index + 1),
+				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
+				ProductCode: ref.Code, ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit,
+				ActualQuantityMicros: line.ActualQuantity, Remark: line.Remark,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
 		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
 			return err
@@ -426,6 +457,16 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read expense payment attributes", err)
 		}
 		missing = detail.FundAccountObjectID == "" || detail.EmployeeObjectID == ""
+	case EntityInventoryCount:
+		detail, err := q.GetVouInventoryCountDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read inventory count attributes", err)
+		}
+		lines, lineErr := q.ListVouInventoryCountLines(ctx, documentID)
+		if lineErr != nil {
+			return s.internal("read inventory count lines", lineErr)
+		}
+		missing = detail.WarehouseObjectID == "" || len(lines) == 0
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}

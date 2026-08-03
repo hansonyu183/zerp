@@ -1286,6 +1286,33 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/book-balance':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '读取库存盘点账面数量',
+              'operationId': 'vouInventoryCountBookBalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouInventoryCountBalanceRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/vou/{entity}/formula-default':
         {
           'post':

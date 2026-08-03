@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-import { VoucherLifecycleActions, type VoucherLifecycleLabels } from '@/components/voucher'
+import {
+  VoucherLifecycleActions,
+  type VoucherLifecycleLabels,
+} from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
-import type { VoucherEntityViewModel } from './vm'
+import type { VoucherEntityViewModel } from './view-model'
 
 const props = defineProps<{
   model: VoucherEntityViewModel

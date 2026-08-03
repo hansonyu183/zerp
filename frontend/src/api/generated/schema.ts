@@ -837,6 +837,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/book-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取库存盘点账面数量 */
+        post: operations["vouInventoryCountBookBalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/formula-default": {
         parameters: {
             query?: never;
@@ -1878,7 +1895,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "expense-payment" | "other-income";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "expense-payment" | "other-income";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2273,6 +2290,13 @@ export interface components {
         VouGetRequest: {
             documentId: string;
         };
+        VouInventoryCountBalanceRequest: {
+            page: number;
+            pageSize: number;
+            warehouseObjectId: string;
+            /** Format: date */
+            asOfDate: string;
+        };
         VouFormulaDefaultRequest: {
             customer?: {
                 objectId: string;
@@ -2313,7 +2337,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "other-income";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "other-income";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2355,6 +2379,14 @@ export interface components {
                 versionId: string;
             };
             unitPrice: string;
+            remark?: string;
+        };
+        VouInventoryCountLineInput: {
+            product: {
+                objectId: string;
+                versionId: string;
+            };
+            actualQuantity: string;
             remark?: string;
         };
         VouCreateRequest: {
@@ -2443,6 +2475,7 @@ export interface components {
                     amount: string;
                     remark?: string;
                 }[];
+                inventoryCountLines?: components["schemas"]["VouInventoryCountLineInput"][];
                 sourceLines?: {
                     sourceLineId: string;
                     quantity: string;
@@ -2548,6 +2581,7 @@ export interface components {
                     amount: string;
                     remark?: string;
                 }[];
+                inventoryCountLines?: components["schemas"]["VouInventoryCountLineInput"][];
                 sourceLines?: {
                     sourceLineId: string;
                     quantity: string;
@@ -3692,6 +3726,24 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VouGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    vouInventoryCountBookBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouInventoryCountBalanceRequest"];
             };
         };
         responses: {

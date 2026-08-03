@@ -107,6 +107,21 @@ export const voucherEntityConfigs: Readonly<
     finalizationKind: 'direct',
     productionMode: 'self',
   },
+  'inventory-count': {
+    entity: 'inventory-count',
+    title: '库存盘点',
+    icon: 'mdi-clipboard-list-outline',
+    order: 57,
+    partyMode: 'none',
+    lineKind: 'inventory-count',
+    finalizationKind: 'direct',
+    usesWarehouse: true,
+    lifecycleLabels: {
+      finalize: '完成盘点',
+      unfinalize: '撤销盘点',
+      finalized: '已盘点',
+    },
+  },
   'purchase-order': {
     entity: 'purchase-order',
     title: '采购订单',

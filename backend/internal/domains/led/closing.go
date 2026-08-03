@@ -444,7 +444,13 @@ func (s *Service) calculateInventoryClosing(
 			index = end
 			continue
 		}
-		cost, costErr := costRegularInventoryEntry(entry, balances, returnLineSource, outboundCosts)
+		var cost int64
+		var costErr error
+		if entry.sourceEntity == "inventory-count" && entry.quantity > 0 {
+			cost, costErr = costInventoryCountGain(ctx, tx, generationID, entry, balances)
+		} else {
+			cost, costErr = costRegularInventoryEntry(entry, balances, returnLineSource, outboundCosts)
+		}
 		if costErr != nil {
 			return domainError(
 				ErrorConflict, costErr.Error(),
@@ -488,6 +494,35 @@ func (s *Service) calculateInventoryClosing(
 		}
 	}
 	return nil
+}
+
+func costInventoryCountGain(
+	ctx context.Context, tx pgx.Tx, generationID string, entry inventoryCostEntry,
+	balances map[string]*inventoryCostBalance,
+) (int64, error) {
+	balance := ensureInventoryCostBalance(balances, entry)
+	var cost int64
+	if balance.quantity > 0 {
+		cost = roundedRatio(balance.amount, entry.quantity, balance.quantity)
+	} else {
+		var unitPrice int64
+		err := tx.QueryRow(ctx, `SELECT unit_price_cents FROM led_inventory_entries
+			WHERE generation_id=$1 AND entry_type='POSTING'
+			AND source_entity='purchase-inbound' AND product_object_id=$2
+			AND effective_date <= $3 AND unit_price_cents IS NOT NULL
+			ORDER BY effective_date DESC,occurred_at DESC,id DESC LIMIT 1`,
+			generationID, entry.productObjectID, entry.effectiveDate).Scan(&unitPrice)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, errors.New("inventory count gain purchase price is unavailable")
+		}
+		if err != nil {
+			return 0, err
+		}
+		cost = roundedRatio(unitPrice, entry.quantity, 1_000_000)
+	}
+	balance.quantity += entry.quantity
+	balance.amount += cost
+	return cost, nil
 }
 
 func loadInventoryCostEntries(
@@ -563,6 +598,8 @@ func costRegularInventoryEntry(
 		} else {
 			cost = roundedRatio(sourceCost.amount, entry.quantity, sourceCost.quantity)
 		}
+	case "inventory-count":
+		return 0, errors.New("inventory count gain cost was not prepared")
 	default:
 		return 0, errors.New("inventory inbound cost source is unsupported")
 	}

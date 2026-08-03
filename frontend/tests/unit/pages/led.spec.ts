@@ -83,6 +83,7 @@ describe('LED shared ledger view model', () => {
       'sale-return',
       'purchase-inbound',
       'purchase-return',
+      'inventory-count',
     ])
     expect(
       ledgerEntityConfigs.inventory.entryColumns.map((column) => column.label),

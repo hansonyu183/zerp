@@ -40,6 +40,7 @@ export function documentEntityText(value: string): string {
       'purchase-order': '采购订单',
       'purchase-inbound': '采购入库',
       'purchase-return': '采购退货',
+      'inventory-count': '库存盘点',
       'order-production': '生产配货',
       'self-production': '生产自制品',
       'customer-receipt': '往来收款-客户',

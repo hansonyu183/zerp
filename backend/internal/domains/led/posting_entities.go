@@ -371,6 +371,51 @@ func (s *Service) postPurchaseReturn(
 	return nil
 }
 
+func (s *Service) postInventoryCount(
+	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, posting postingContext,
+) error {
+	doc := posting.Document
+	include, err := requireEffectiveDate(posting, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouInventoryCountDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read inventory count ledger detail", err)
+	}
+	lines, err := q.ListVouInventoryCountLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read inventory count ledger lines", err)
+	}
+	for _, line := range lines {
+		if line.DifferenceQuantityMicros == nil || line.BookQuantityMicros == nil {
+			return domainError(ErrorConflict, "inventory count result is incomplete", nil, nil)
+		}
+		if *line.DifferenceQuantityMicros == 0 {
+			continue
+		}
+		if err = lockInventoryDimension(ctx, tx, detail.WarehouseObjectID, line.ProductObjectID); err != nil {
+			return s.internal("lock inventory count posting", err)
+		}
+		if err = q.InsertLedInventoryEntry(ctx, dbsqlc.InsertLedInventoryEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+			SourceLineID: line.ID, SourceRevision: posting.SourceRevision,
+			EffectiveDate: doc.BusinessDate, OccurredAt: posting.OccurredAt,
+			ActorID: posting.ActorID, RequestID: posting.RequestID,
+			WarehouseObjectID: detail.WarehouseObjectID, WarehouseVersionID: detail.WarehouseVersionID,
+			WarehouseCode: detail.WarehouseCode, WarehouseName: detail.WarehouseName,
+			ProductObjectID: line.ProductObjectID, ProductVersionID: line.ProductVersionID,
+			ProductCode: line.ProductCode, ProductName: line.ProductName, ProductUnit: line.ProductUnit,
+			QuantityDeltaMicros: *line.DifferenceQuantityMicros, Currency: doc.Currency,
+			Remark: preferredRemark(line.Remark, doc.Remark),
+		}); err != nil {
+			return s.writeError("post inventory count", err)
+		}
+	}
+	return nil
+}
+
 func (s *Service) postReceipt(ctx context.Context, q *dbsqlc.Queries, posting postingContext) error {
 	doc := posting.Document
 	include, err := requireEffectiveDate(posting, doc.BusinessDate)

@@ -148,6 +148,37 @@ func (s *Service) loadData(
 			})
 		}
 		return data, nil
+	case EntityInventoryCount:
+		detail, err := q.GetVouInventoryCountDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Warehouse = reference(
+			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseCode, detail.WarehouseName, "", "", "",
+		)
+		rows, err := q.ListVouInventoryCountLines(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		for _, row := range rows {
+			item := InventoryCountLineView{
+				LineID: row.ID, LineNo: row.LineNo,
+				Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
+					row.ProductCode, row.ProductName, row.ProductUnit, "", ""),
+				ActualQuantity: formatQuantity(row.ActualQuantityMicros), Remark: deref(row.Remark),
+			}
+			if row.BookQuantityMicros != nil {
+				value := formatQuantity(*row.BookQuantityMicros)
+				item.BookQuantity = &value
+			}
+			if row.DifferenceQuantityMicros != nil {
+				value := formatQuantity(*row.DifferenceQuantityMicros)
+				item.DifferenceQuantity = &value
+			}
+			data.InventoryCountLines = append(data.InventoryCountLines, item)
+		}
+		return data, nil
 	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {

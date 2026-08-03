@@ -16,6 +16,7 @@ import {
   VoucherProductLinesEditor,
   VoucherPriceLinesEditor,
   VoucherProductionLinesEditor,
+  VoucherInventoryCountLinesEditor,
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
   type VoucherDraftForm,
@@ -25,7 +26,7 @@ import {
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
 import { lifecycleLabels } from './config'
-import type { VoucherEntityViewModel } from './vm'
+import type { VoucherEntityViewModel } from './view-model'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import VoucherWorkspaceActions from './VoucherWorkspaceActions.vue'
@@ -634,6 +635,18 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             v-if="vm.config.lineKind === 'expense'"
             v-model="vm.form.expenseLines"
             :editable="vm.editing"
+          />
+          <VoucherInventoryCountLinesEditor
+            v-if="vm.config.lineKind === 'inventory-count'"
+            v-model="vm.form.inventoryCountLines"
+            :can-load-balance="vm.canLoadInventoryBalance"
+            :editable="vm.editing"
+            :loading="vm.inventoryBalanceLoading"
+            :product-error="vm.referenceError('product')"
+            :product-loading="vm.referenceLoading('product')"
+            :product-options="vm.referenceOptions('product')"
+            @load-balance="vm.loadInventoryCountBalance"
+            @product-search="vm.searchReference('product', $event)"
           />
           <VoucherProductionLinesEditor
             v-if="vm.config.productionMode"

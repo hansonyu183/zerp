@@ -19,8 +19,8 @@ func main() {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
 	}
-	if cfg.Environment != config.EnvironmentDevelopment {
-		logger.Error("preview test data is enabled only in development")
+	if cfg.Environment != config.EnvironmentDevelopment && cfg.Environment != config.EnvironmentTest {
+		logger.Error("preview test data is enabled only in development or test")
 		os.Exit(2)
 	}
 	ctx := context.Background()

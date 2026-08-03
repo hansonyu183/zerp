@@ -2,12 +2,11 @@ package wfl
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
@@ -22,19 +21,28 @@ type Service struct {
 	logger    *slog.Logger
 }
 
+type documentService interface {
+	salesVoucherService
+	purchaseVoucherService
+	workflowDocumentConverter
+}
+
 func NewService(
 	pool *pgxpool.Pool,
-	_ referenceResolver,
 	events *txevent.Bus,
+	documents documentService,
 	logger *slog.Logger,
 ) (*Service, error) {
-	if pool == nil || events == nil {
-		return nil, errors.New("WFL pool and event bus are required")
+	if pool == nil || events == nil || documents == nil {
+		return nil, errors.New("WFL pool, event bus, and document service are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	service := &Service{pool: pool, queries: sqlc.New(pool), logger: logger}
+	service := &Service{
+		pool: pool, queries: sqlc.New(pool), logger: logger,
+		sales: documents, purchase: documents, converter: documents,
+	}
 	if err := service.registerDocumentSubscriptions(events); err != nil {
 		return nil, err
 	}
@@ -43,16 +51,6 @@ func NewService(
 	}
 	return service, nil
 }
-
-func (s *Service) SetSalesVoucherService(sales salesVoucherService) {
-	s.sales = sales
-}
-
-func (s *Service) SetPurchaseVoucherService(purchase purchaseVoucherService) {
-	s.purchase = purchase
-}
-
-type referenceResolver interface{}
 
 func newID() string             { return ulid.Make().String() }
 func validID(value string) bool { _, err := ulid.ParseStrict(value); return err == nil }
@@ -100,18 +98,6 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	}, nil
 }
 
-var _ = voudomain.EntitySaleOrder
-
 func workflowQuantity(value int64) string {
-	negative := value < 0
-	if negative {
-		value = -value
-	}
-	whole, fraction := value/1_000_000, value%1_000_000
-	formatted := fmt.Sprintf("%d.%06d", whole, fraction)
-	formatted = strings.TrimRight(strings.TrimRight(formatted, "0"), ".")
-	if negative {
-		return "-" + formatted
-	}
-	return formatted
+	return fixeddecimal.Format(value, 6, true)
 }

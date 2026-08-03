@@ -55,6 +55,61 @@ func (q *Queries) CountSalesWorkflowSummaries(ctx context.Context, arg CountSale
 	return count, err
 }
 
+const countWorkflowDefinitions = `-- name: CountWorkflowDefinitions :one
+SELECT count(*)
+FROM wfl_process_definitions d
+WHERE ($1::text = ''
+       OR d.code ILIKE '%' || $1::text || '%'
+       OR d.name ILIKE '%' || $1::text || '%')
+  AND (COALESCE(cardinality($2::text[]), 0) = 0
+       OR d.status = ANY($2::text[]))
+`
+
+type CountWorkflowDefinitionsParams struct {
+	Keyword  string   `db:"keyword" json:"keyword"`
+	Statuses []string `db:"statuses" json:"statuses"`
+}
+
+func (q *Queries) CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkflowDefinitions, arg.Keyword, arg.Statuses)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getWorkflowDefinition = `-- name: GetWorkflowDefinition :one
+SELECT id, code, name, status, revision, root_node_id, start_condition, updated_at
+FROM wfl_process_definitions
+WHERE id = $1
+`
+
+type GetWorkflowDefinitionRow struct {
+	ID             string             `db:"id" json:"id"`
+	Code           string             `db:"code" json:"code"`
+	Name           string             `db:"name" json:"name"`
+	Status         string             `db:"status" json:"status"`
+	Revision       int64              `db:"revision" json:"revision"`
+	RootNodeID     string             `db:"root_node_id" json:"root_node_id"`
+	StartCondition []byte             `db:"start_condition" json:"start_condition"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowDefinition, id)
+	var i GetWorkflowDefinitionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Status,
+		&i.Revision,
+		&i.RootNodeID,
+		&i.StartCondition,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listPurchaseOrderKgSummaries = `-- name: ListPurchaseOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
@@ -723,6 +778,166 @@ func (q *Queries) ListSalesWorkflowSummaries(ctx context.Context, arg ListSalesW
 			&i.PartyName,
 			&i.Currency,
 			&i.TotalAmountCents,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowDefinitionEdges = `-- name: ListWorkflowDefinitionEdges :many
+SELECT id, source_node_id, target_node_id, converter_key, condition
+FROM wfl_definition_edges
+WHERE definition_id = $1 AND NOT archived
+ORDER BY created_at, id
+`
+
+type ListWorkflowDefinitionEdgesRow struct {
+	ID           string `db:"id" json:"id"`
+	SourceNodeID string `db:"source_node_id" json:"source_node_id"`
+	TargetNodeID string `db:"target_node_id" json:"target_node_id"`
+	ConverterKey string `db:"converter_key" json:"converter_key"`
+	Condition    []byte `db:"condition" json:"condition"`
+}
+
+func (q *Queries) ListWorkflowDefinitionEdges(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowDefinitionEdges, definitionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowDefinitionEdgesRow{}
+	for rows.Next() {
+		var i ListWorkflowDefinitionEdgesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceNodeID,
+			&i.TargetNodeID,
+			&i.ConverterKey,
+			&i.Condition,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowDefinitionNodes = `-- name: ListWorkflowDefinitionNodes :many
+SELECT id, node_key, name, document_entity, position_x, position_y, defaults
+FROM wfl_definition_nodes
+WHERE definition_id = $1 AND NOT archived
+ORDER BY created_at, id
+`
+
+type ListWorkflowDefinitionNodesRow struct {
+	ID             string `db:"id" json:"id"`
+	NodeKey        string `db:"node_key" json:"node_key"`
+	Name           string `db:"name" json:"name"`
+	DocumentEntity string `db:"document_entity" json:"document_entity"`
+	PositionX      int32  `db:"position_x" json:"position_x"`
+	PositionY      int32  `db:"position_y" json:"position_y"`
+	Defaults       []byte `db:"defaults" json:"defaults"`
+}
+
+func (q *Queries) ListWorkflowDefinitionNodes(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowDefinitionNodes, definitionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowDefinitionNodesRow{}
+	for rows.Next() {
+		var i ListWorkflowDefinitionNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeKey,
+			&i.Name,
+			&i.DocumentEntity,
+			&i.PositionX,
+			&i.PositionY,
+			&i.Defaults,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowDefinitions = `-- name: ListWorkflowDefinitions :many
+SELECT d.id,
+       d.code,
+       d.name,
+       d.status,
+       d.revision,
+       n.document_entity,
+       (SELECT count(*)
+        FROM wfl_definition_nodes child
+        WHERE child.definition_id = d.id AND NOT child.archived)::bigint AS node_count,
+       d.updated_at
+FROM wfl_process_definitions d
+JOIN wfl_definition_nodes n ON n.id = d.root_node_id
+WHERE ($1::text = ''
+       OR d.code ILIKE '%' || $1::text || '%'
+       OR d.name ILIKE '%' || $1::text || '%')
+  AND (COALESCE(cardinality($2::text[]), 0) = 0
+       OR d.status = ANY($2::text[]))
+ORDER BY d.updated_at DESC, d.id DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListWorkflowDefinitionsParams struct {
+	Keyword    string   `db:"keyword" json:"keyword"`
+	Statuses   []string `db:"statuses" json:"statuses"`
+	PageOffset int32    `db:"page_offset" json:"page_offset"`
+	PageSize   int32    `db:"page_size" json:"page_size"`
+}
+
+type ListWorkflowDefinitionsRow struct {
+	ID             string             `db:"id" json:"id"`
+	Code           string             `db:"code" json:"code"`
+	Name           string             `db:"name" json:"name"`
+	Status         string             `db:"status" json:"status"`
+	Revision       int64              `db:"revision" json:"revision"`
+	DocumentEntity string             `db:"document_entity" json:"document_entity"`
+	NodeCount      int64              `db:"node_count" json:"node_count"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowDefinitions,
+		arg.Keyword,
+		arg.Statuses,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowDefinitionsRow{}
+	for rows.Next() {
+		var i ListWorkflowDefinitionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Status,
+			&i.Revision,
+			&i.DocumentEntity,
+			&i.NodeCount,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

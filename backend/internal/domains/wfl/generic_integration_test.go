@@ -10,17 +10,13 @@ import (
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
-	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
 
 func TestDefinitionPermissionLifecycleIntegration(t *testing.T) {
 	pool := workflowIntegrationPool(t)
-	workflows, err := NewService(pool, nil, txevent.NewBus(), nil)
-	if err != nil {
-		t.Fatalf("create workflow service: %v", err)
-	}
+	workflows, _, _ := newWorkflowIntegrationServices(t, pool)
 	code := "permission-flow-" + strings.ToLower(ulid.Make().String()[:8])
 	rootID := newID()
 	input := DefinitionCreateInput{

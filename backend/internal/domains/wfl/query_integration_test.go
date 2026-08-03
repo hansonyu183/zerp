@@ -162,13 +162,10 @@ func newWorkflowIntegrationServices(
 	if err != nil {
 		t.Fatalf("new voucher service: %v", err)
 	}
-	workflows, err := NewService(pool, business, events, logger)
+	workflows, err := NewService(pool, events, vouchers, logger)
 	if err != nil {
 		t.Fatalf("new workflow service: %v", err)
 	}
-	workflows.SetSalesVoucherService(vouchers)
-	workflows.SetPurchaseVoucherService(vouchers)
-	workflows.SetWorkflowDocumentConverter(vouchers)
 	return workflows, vouchers, refs
 }
 

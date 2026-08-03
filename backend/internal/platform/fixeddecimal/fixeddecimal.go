@@ -62,3 +62,29 @@ func LineAmountCents(quantityMicros, unitPriceMicros int64) (int64, error) {
 	}
 	return quotient.Int64(), nil
 }
+
+func Format(value int64, scale int, trimFraction bool) string {
+	sign := ""
+	magnitude := uint64(value)
+	if value < 0 {
+		sign = "-"
+		magnitude = uint64(-(value + 1)) + 1
+	}
+	divisor := uint64(1)
+	for range scale {
+		divisor *= 10
+	}
+	whole := strconv.FormatUint(magnitude/divisor, 10)
+	if scale == 0 {
+		return sign + whole
+	}
+	fraction := strconv.FormatUint(magnitude%divisor, 10)
+	fraction = strings.Repeat("0", scale-len(fraction)) + fraction
+	if trimFraction {
+		fraction = strings.TrimRight(fraction, "0")
+		if fraction == "" {
+			return sign + whole
+		}
+	}
+	return sign + whole + "." + fraction
+}

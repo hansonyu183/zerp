@@ -82,6 +82,61 @@ func TestEmployeeLoanWriteoffUsesExpenseLinesOnly(t *testing.T) {
 	}
 }
 
+func TestEmployeeLoanEntitiesEnforceTheirFinancialShape(t *testing.T) {
+	t.Parallel()
+
+	if !paymentEntity(EntityEmployeeLoan) {
+		t.Fatal("employee loan is not classified as a payment")
+	}
+	if !receiptEntity(EntityEmployeeRepayment) {
+		t.Fatal("employee repayment is not classified as a receipt")
+	}
+	if paymentEntity(EntityEmployeeRepayment) || receiptEntity(EntityEmployeeLoan) {
+		t.Fatal("employee loan transaction direction is reversed")
+	}
+
+	base := DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
+		FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
+	}
+	tests := []struct {
+		name   string
+		entity string
+		mutate func(*DraftInput)
+	}{
+		{
+			name: "loan rejects a non-employee counterparty type", entity: EntityEmployeeLoan,
+			mutate: func(input *DraftInput) { input.CounterpartyType = "customer" },
+		},
+		{
+			name: "repayment requires an employee counterparty", entity: EntityEmployeeRepayment,
+			mutate: func(input *DraftInput) { input.Counterparty = nil },
+		},
+		{
+			name: "loan requires a fund account", entity: EntityEmployeeLoan,
+			mutate: func(input *DraftInput) { input.FundAccount = nil },
+		},
+		{
+			name: "repayment requires a handler", entity: EntityEmployeeRepayment,
+			mutate: func(input *DraftInput) { input.Handler = nil },
+		},
+		{
+			name: "loan rejects an invalid amount", entity: EntityEmployeeLoan,
+			mutate: func(input *DraftInput) { input.Amount = "0" },
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			input := base
+			test.mutate(&input)
+			if _, err := validateDraft(test.entity, input); err == nil {
+				t.Fatal("invalid employee loan transaction was accepted")
+			}
+		})
+	}
+}
+
 func TestValidateLineRemarkBoundaries(t *testing.T) {
 	t.Parallel()
 	product := *refInput()

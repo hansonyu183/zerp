@@ -305,6 +305,32 @@ ON CONFLICT (path) DO NOTHING;
 
 -- +goose Down
 
+-- +goose StatementBegin
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM vou_documents WHERE entity = 'expense-payment'
+        UNION ALL
+        SELECT 1 FROM vou_expense_reimbursement_details WHERE settlement_mode = 'FLOW_PAYMENT'
+        UNION ALL
+        SELECT 1 FROM wfl_runtime_audit_events
+        UNION ALL
+        SELECT 1 FROM wfl_process_definitions
+        WHERE code NOT IN ('sales-fulfillment', 'purchase-fulfillment', 'expense-payment')
+           OR revision <> 1
+           OR status <> CASE code
+               WHEN 'sales-fulfillment' THEN 'ENABLED'
+               WHEN 'purchase-fulfillment' THEN 'ENABLED'
+               WHEN 'expense-payment' THEN 'DRAFT'
+           END
+    ) THEN
+        RAISE EXCEPTION
+            'cannot roll back configurable workflows while new workflow or expense-payment data exists; keep the current schema or restore a pre-migration backup';
+    END IF;
+END
+$$;
+-- +goose StatementEnd
+
 DELETE FROM app_role_permissions WHERE permission_id IN (
     SELECT id FROM app_permissions
     WHERE (domain='wfl' AND entity IN ('process-definition','process-instance'))

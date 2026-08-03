@@ -4,6 +4,7 @@ package wfl
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -312,6 +313,19 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 		BusinessDate: "2026-07-31", SourceDocumentID: outboundOne.DocumentID,
 		Platform: &refs.platform, Vehicle: &refs.vehicle,
 	}, true)
+	projectionTx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin delivery condition projection: %v", err)
+	}
+	deliveryProjection, err := loadConditionProjection(t.Context(), projectionTx, deliveryOne.DocumentID)
+	_ = projectionTx.Rollback(t.Context())
+	if err != nil {
+		t.Fatalf("load delivery condition projection: %v", err)
+	}
+	matched, err := evaluateCondition(json.RawMessage(`{"lineAny":{"field":"quantity","operator":"EQ","value":6}}`), deliveryProjection)
+	if err != nil || !matched || len(deliveryProjection.Lines) != 3 {
+		t.Fatalf("delivery line condition matched=%t lines=%d err=%v projection=%+v", matched, len(deliveryProjection.Lines), err, deliveryProjection)
+	}
 	_, signoffOneView := createWorkflowDocument(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
 		BusinessDate: "2026-07-31", SourceDocumentID: deliveryOne.DocumentID,
 		SignoffLines: []voudomain.SaleSignoffLineInput{
@@ -320,6 +334,19 @@ func TestWorkflowQuerySalesProgressByUnitIntegration(t *testing.T) {
 			{SourceLineID: deliveryOneView.Data.ProductLines[2].LineID, SignedQuantity: "4", RejectedQuantity: "0"},
 		},
 	}, true)
+	projectionTx, err = pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin signoff condition projection: %v", err)
+	}
+	signoffProjection, err := loadConditionProjection(t.Context(), projectionTx, signoffOneView.DocumentID)
+	_ = projectionTx.Rollback(t.Context())
+	if err != nil {
+		t.Fatalf("load signoff condition projection: %v", err)
+	}
+	matched, err = evaluateCondition(json.RawMessage(`{"lineAny":{"field":"quantity","operator":"EQ","value":4}}`), signoffProjection)
+	if err != nil || !matched {
+		t.Fatalf("signoff line condition matched=%t err=%v projection=%+v", matched, err, signoffProjection)
+	}
 	var refusalOneID string
 	var refusalOneRevision int64
 	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision

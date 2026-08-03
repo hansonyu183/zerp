@@ -344,22 +344,22 @@ func syncDefinitionPermissionDescriptions(ctx context.Context, tx pgx.Tx, code, 
 
 func writeDefinitionGraph(ctx context.Context, tx pgx.Tx, definitionID string, nodes []DefinitionNodeInput, edges []DefinitionEdgeInput) error {
 	for _, node := range nodes {
-		_, err := tx.Exec(ctx, `INSERT INTO wfl_definition_nodes(id,definition_id,node_key,name,document_entity,position_x,position_y,defaults,archived)
+		command, err := tx.Exec(ctx, `INSERT INTO wfl_definition_nodes(id,definition_id,node_key,name,document_entity,position_x,position_y,defaults,archived)
 		VALUES($1,$2,$3,$4,$5,$6,$7,$8,false)
 		ON CONFLICT(id) DO UPDATE SET node_key=excluded.node_key,name=excluded.name,document_entity=excluded.document_entity,
 		position_x=excluded.position_x,position_y=excluded.position_y,defaults=excluded.defaults,archived=false
 		WHERE wfl_definition_nodes.definition_id=excluded.definition_id`, node.ID, definitionID, node.Key, node.Name, node.DocumentEntity, node.PositionX, node.PositionY, normalizedJSON(node.Defaults))
-		if err != nil {
+		if err != nil || command.RowsAffected() != 1 {
 			return conflict("invalid definition node", map[string]any{"nodeId": node.ID})
 		}
 	}
 	for _, edge := range edges {
-		_, err := tx.Exec(ctx, `INSERT INTO wfl_definition_edges(id,definition_id,source_node_id,target_node_id,converter_key,condition,archived)
+		command, err := tx.Exec(ctx, `INSERT INTO wfl_definition_edges(id,definition_id,source_node_id,target_node_id,converter_key,condition,archived)
 		VALUES($1,$2,$3,$4,$5,$6,false)
 		ON CONFLICT(id) DO UPDATE SET source_node_id=excluded.source_node_id,target_node_id=excluded.target_node_id,
 		converter_key=excluded.converter_key,condition=excluded.condition,archived=false
 		WHERE wfl_definition_edges.definition_id=excluded.definition_id`, edge.ID, definitionID, edge.SourceNodeID, edge.TargetNodeID, edge.ConverterKey, normalizedJSON(edge.Condition))
-		if err != nil {
+		if err != nil || command.RowsAffected() != 1 {
 			return conflict("invalid definition edge", map[string]any{"edgeId": edge.ID})
 		}
 	}
@@ -385,6 +385,9 @@ func validateDefinitionInput(input DefinitionCreateInput) error {
 		if !validWorkflowID(node.ID) || strings.TrimSpace(node.Key) == "" || strings.TrimSpace(node.Name) == "" || !allowed[node.DocumentEntity] || keys[node.Key] {
 			return validation("invalid or duplicate process node", map[string]any{"nodeId": node.ID})
 		}
+		if _, exists := nodes[node.ID]; exists {
+			return validation("invalid or duplicate process node", map[string]any{"nodeId": node.ID})
+		}
 		nodes[node.ID] = node
 		keys[node.Key] = true
 	}
@@ -397,18 +400,20 @@ func validateDefinitionInput(input DefinitionCreateInput) error {
 	indegree := map[string]int{}
 	adj := map[string][]string{}
 	edgePairs := map[string]bool{}
+	edgeIDs := map[string]bool{}
 	for _, edge := range input.Edges {
 		source, sok := nodes[edge.SourceNodeID]
 		target, tok := nodes[edge.TargetNodeID]
 		converter, cok := converters[edge.ConverterKey]
 		pair := edge.SourceNodeID + ":" + edge.TargetNodeID
-		if !validWorkflowID(edge.ID) || !sok || !tok || !cok || edgePairs[pair] || converter.SourceEntity != source.DocumentEntity || converter.TargetEntity != target.DocumentEntity {
+		if !validWorkflowID(edge.ID) || !sok || !tok || !cok || edgeIDs[edge.ID] || edgePairs[pair] || converter.SourceEntity != source.DocumentEntity || converter.TargetEntity != target.DocumentEntity {
 			return validation("invalid process edge", map[string]any{"edgeId": edge.ID})
 		}
 		if err := validateConditionSyntax(edge.Condition); err != nil {
 			return validation("invalid branch condition", map[string]any{"edgeId": edge.ID})
 		}
 		edgePairs[pair] = true
+		edgeIDs[edge.ID] = true
 		indegree[edge.TargetNodeID]++
 		adj[edge.SourceNodeID] = append(adj[edge.SourceNodeID], edge.TargetNodeID)
 	}

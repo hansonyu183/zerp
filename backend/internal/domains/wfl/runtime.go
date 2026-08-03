@@ -150,8 +150,10 @@ func (s *Service) executeOutgoingEdges(
 		return err
 	}
 	rows, err := tx.Query(ctx, `SELECT e.id,e.target_node_id,e.converter_key,e.condition,n.node_key,n.name,n.document_entity,n.defaults
-		FROM wfl_definition_edges e JOIN wfl_definition_nodes n ON n.id=e.target_node_id
-		WHERE e.source_node_id=$1 AND NOT e.archived AND NOT n.archived ORDER BY e.created_at,e.id`, source.definitionNodeID)
+		FROM wfl_definition_edges e
+		JOIN wfl_definition_instances i ON i.id=$2 AND i.definition_id=e.definition_id
+		JOIN wfl_definition_nodes n ON n.id=e.target_node_id AND n.definition_id=e.definition_id
+		WHERE e.source_node_id=$1 AND NOT e.archived AND NOT n.archived ORDER BY e.created_at,e.id`, source.definitionNodeID, source.processID)
 	if err != nil {
 		return err
 	}
@@ -302,6 +304,10 @@ func loadConditionProjection(ctx context.Context, tx pgx.Tx, documentID string) 
 	rows, err := tx.Query(ctx, `SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM (
 		SELECT product_code,product_unit,ordered_qty_micros quantity_micros,unit_price_cents,line_amount_cents FROM vou_product_lines WHERE document_id=$1
 		UNION ALL SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM vou_sale_outbound_lines WHERE document_id=$1
+		UNION ALL SELECT line.product_code,line.product_unit,line.quantity_micros,line.unit_price_cents,line.line_amount_cents
+			FROM vou_sale_delivery_details detail JOIN vou_sale_outbound_lines line ON line.document_id=detail.source_outbound_id
+			WHERE detail.document_id=$1
+		UNION ALL SELECT product_code,product_unit,signed_qty_micros,unit_price_cents,line_amount_cents FROM vou_sale_signoff_lines WHERE document_id=$1
 		UNION ALL SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM vou_purchase_inbound_lines WHERE document_id=$1
 	) lines`, documentID)
 	if err != nil {
@@ -316,7 +322,29 @@ func loadConditionProjection(ctx context.Context, tx pgx.Tx, documentID string) 
 		}
 		result.Lines = append(result.Lines, map[string]any{"productCode": code, "unit": unit, "quantity": float64(quantity) / 1_000_000, "unitPrice": float64(price) / 100, "amount": float64(lineAmount) / 100})
 	}
-	return result, rows.Err()
+	if err = rows.Err(); err != nil {
+		return result, err
+	}
+	if entity != voudomain.EntityExpenseReimbursement {
+		return result, nil
+	}
+	expenseRows, err := tx.Query(ctx, `SELECT category,description,amount_cents
+		FROM vou_expense_lines WHERE document_id=$1 ORDER BY line_no`, documentID)
+	if err != nil {
+		return result, err
+	}
+	defer expenseRows.Close()
+	for expenseRows.Next() {
+		var category, description string
+		var lineAmount int64
+		if err = expenseRows.Scan(&category, &description, &lineAmount); err != nil {
+			return result, err
+		}
+		result.Lines = append(result.Lines, map[string]any{
+			"category": category, "description": description, "amount": float64(lineAmount) / 100,
+		})
+	}
+	return result, expenseRows.Err()
 }
 
 func evaluateCondition(raw json.RawMessage, projection conditionProjection) (bool, error) {

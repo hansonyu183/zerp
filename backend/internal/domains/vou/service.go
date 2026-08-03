@@ -117,9 +117,21 @@ func entityPrefix(entity string) string {
 		EntityPurchaseReturn:  "PRT",
 		EntityOrderProduction: "MTO",
 		EntitySelfProduction:  "MTS",
-		EntityReceipt:         "REC", EntityPayment: "PAY", EntityExpenseReimbursement: "EXR",
-		EntityExpensePayment: "EXP", EntityOtherIncome: "OIN",
+		EntityReceipt:         "REC", EntityCustomerReceipt: "REC", EntitySupplierReceipt: "REC", EntityOtherReceipt: "REC",
+		EntityPayment: "PAY", EntityCustomerPayment: "PAY", EntitySupplierPayment: "PAY", EntityOtherPayment: "PAY",
+		EntityExpenseReimbursement: "EXR",
+		EntityExpensePayment:       "EXP", EntityOtherIncome: "OIN",
 	}[entity]
+}
+
+func numberingEntity(entity string) string {
+	if receiptEntity(entity) {
+		return EntityReceipt
+	}
+	if paymentEntity(entity) {
+		return EntityPayment
+	}
+	return entity
 }
 
 func dateValue(value time.Time) pgtype.Date {

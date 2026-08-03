@@ -1602,7 +1602,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/led/party/query": {
+    "/led/customer/query": {
         parameters: {
             query?: never;
             header?: never;
@@ -1611,15 +1611,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 查询往来流水 */
-        post: operations["ledpartyquery"];
+        /** 查询客户往来流水 */
+        post: operations["ledcustomerquery"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/led/party/balance": {
+    "/led/customer/balance": {
         parameters: {
             query?: never;
             header?: never;
@@ -1628,8 +1628,76 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 查询往来余额 */
-        post: operations["ledpartybalance"];
+        /** 查询客户往来余额 */
+        post: operations["ledcustomerbalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/supplier/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询供应商往来流水 */
+        post: operations["ledsupplierquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/supplier/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询供应商往来余额 */
+        post: operations["ledsupplierbalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/other/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询其他往来流水 */
+        post: operations["ledotherquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/other/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询其他往来余额 */
+        post: operations["ledotherbalance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1786,7 +1854,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
+        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
         /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
         WorkbenchObjectItem: {
@@ -1810,7 +1878,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "expense-payment" | "other-income";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "expense-payment" | "other-income";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2245,7 +2313,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "receipt" | "payment" | "expense-reimbursement" | "other-income";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "expense-reimbursement" | "other-income";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -4410,7 +4478,7 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    ledpartyquery: {
+    ledcustomerquery: {
         parameters: {
             query?: never;
             header?: never;
@@ -4426,7 +4494,71 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
-    ledpartybalance: {
+    ledcustomerbalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedBalanceRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledsupplierquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledsupplierbalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedBalanceRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledotherquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledotherbalance: {
         parameters: {
             query?: never;
             header?: never;

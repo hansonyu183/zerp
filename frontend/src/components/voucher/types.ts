@@ -11,8 +11,12 @@ export type VoucherEntity =
   | 'purchase-inbound'
   | 'purchase-return'
   | 'purchase-inquiry'
-  | 'receipt'
-  | 'payment'
+  | 'customer-receipt'
+  | 'supplier-receipt'
+  | 'other-receipt'
+  | 'customer-payment'
+  | 'supplier-payment'
+  | 'other-payment'
   | 'expense-reimbursement'
   | 'expense-payment'
   | 'other-income'
@@ -129,7 +133,7 @@ export interface VoucherDraftForm {
   returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
   supplier: VoucherReference | null
-  counterpartyType: '' | 'customer' | 'supplier'
+  counterpartyType: '' | 'customer' | 'supplier' | 'other-party'
   counterparty: VoucherReference | null
   employee: VoucherReference | null
   salesperson: VoucherReference | null
@@ -531,6 +535,7 @@ export interface VoucherEntityConfig {
   icon: string
   order: number
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
+  fixedCounterpartyType?: 'customer' | 'supplier' | 'other-party'
   lineKind: VoucherLineKind
   finalizationKind: VoucherFinalizationKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>

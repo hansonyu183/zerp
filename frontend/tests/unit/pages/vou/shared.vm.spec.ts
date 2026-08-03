@@ -325,8 +325,12 @@ describe('shared VOU entity view model', () => {
       'purchase-inquiry',
       'purchase-inbound',
       'purchase-return',
-      'receipt',
-      'payment',
+      'customer-receipt',
+      'supplier-receipt',
+      'other-receipt',
+      'customer-payment',
+      'supplier-payment',
+      'other-payment',
       'expense-reimbursement',
       'expense-payment',
       'other-income',
@@ -659,7 +663,9 @@ describe('shared VOU entity view model', () => {
   it('only exposes matching effective BOB object and version pairs', async () => {
     vi.useFakeTimers()
     useSessionStore().permissions = ['/bob/customer/query']
-    const vm = useVoucherEntityViewModel(voucherEntityConfigs.receipt)
+    const vm = useVoucherEntityViewModel(
+      voucherEntityConfigs['customer-receipt'],
+    )
     mockedPost.mockResolvedValue({
       data: {
         items: [
@@ -770,7 +776,7 @@ describe('shared VOU entity view model', () => {
   })
 
   it('derives lifecycle actions from exact status and permission paths', async () => {
-    const config = voucherEntityConfigs.payment
+    const config = voucherEntityConfigs['supplier-payment']
     const view = documentView(config, {
       ...useVoucherEntityViewModel(config).form.value,
       counterpartyType: 'customer',
@@ -782,9 +788,9 @@ describe('shared VOU entity view model', () => {
     })
     view.status = 'CHECKED'
     useSessionStore().permissions = [
-      '/vou/payment/get',
-      '/vou/payment/approve',
-      '/vou/payment/uncheck',
+      '/vou/supplier-payment/get',
+      '/vou/supplier-payment/approve',
+      '/vou/supplier-payment/uncheck',
     ]
     mockedPost.mockResolvedValue({ data: view })
     const vm = useVoucherEntityViewModel(config)
@@ -864,11 +870,11 @@ describe('shared VOU entity view model', () => {
   })
 
   it('keeps list and workspace navigation behavior stable', async () => {
-    const config = voucherEntityConfigs.receipt
+    const config = voucherEntityConfigs['customer-receipt']
     useSessionStore().permissions = [
-      '/vou/receipt/query',
-      '/vou/receipt/get',
-      '/vou/receipt/save',
+      '/vou/customer-receipt/query',
+      '/vou/customer-receipt/get',
+      '/vou/customer-receipt/save',
     ]
     const vm = useVoucherEntityViewModel(config)
     populate(config, vm.form.value)

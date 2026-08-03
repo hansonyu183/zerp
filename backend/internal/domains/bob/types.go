@@ -11,6 +11,7 @@ import (
 const (
 	EntityCustomer         = "customer"
 	EntitySupplier         = "supplier"
+	EntityOtherParty       = "other-party"
 	EntityEmployee         = "employee"
 	EntityProduct          = "product"
 	EntityService          = "service"
@@ -46,6 +47,7 @@ const (
 var entities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
+	EntityOtherParty,
 	EntityEmployee,
 	EntityProduct,
 	EntityService,
@@ -61,6 +63,7 @@ var entities = [...]string{
 var publicEntities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
+	EntityOtherParty,
 	EntityEmployee,
 	EntityProduct,
 	EntityService,

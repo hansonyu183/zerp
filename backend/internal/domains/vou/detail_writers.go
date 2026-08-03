@@ -122,9 +122,9 @@ func (s *Service) writeCashDetail(
 	update bool,
 ) error {
 	counterparty := refs.Counterparty
-	if entity == EntityReceipt {
+	if receiptEntity(entity) {
 		params := dbsqlc.InsertVouReceiptDetailParams{
-			DocumentID: documentID, CounterpartyEntity: draft.CounterpartyType,
+			DocumentID: documentID, Entity: entity, CounterpartyEntity: draft.CounterpartyType,
 			CounterpartyObjectID: counterparty.ObjectID, CounterpartyVersionID: counterparty.VersionID,
 			CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 			FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,
@@ -147,7 +147,7 @@ func (s *Service) writeCashDetail(
 		return q.InsertVouReceiptDetail(ctx, params)
 	}
 	params := dbsqlc.InsertVouPaymentDetailParams{
-		DocumentID: documentID, CounterpartyEntity: draft.CounterpartyType,
+		DocumentID: documentID, Entity: entity, CounterpartyEntity: draft.CounterpartyType,
 		CounterpartyObjectID: counterparty.ObjectID, CounterpartyVersionID: counterparty.VersionID,
 		CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 		FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,

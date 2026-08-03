@@ -39,6 +39,7 @@ func TestDeletePermissionCatalogIntegration(t *testing.T) {
 		{EntityWarehouse, 86},
 		{EntityVehicle, 87},
 		{EntityFundAccount, 88},
+		{EntityOtherParty, 0},
 	}
 	index := 0
 	for rows.Next() {
@@ -49,7 +50,11 @@ func TestDeletePermissionCatalogIntegration(t *testing.T) {
 		if index >= len(expected) {
 			t.Fatalf("unexpected extra delete permission %q", path)
 		}
-		if id != fmt.Sprintf("01JBOB%020d", expected[index].sequence) ||
+		expectedID := fmt.Sprintf("01JBOB%020d", expected[index].sequence)
+		if expected[index].sequence == 0 {
+			expectedID = id
+		}
+		if id != expectedID ||
 			entity != expected[index].entity ||
 			path != "/bob/"+entity+"/delete" ||
 			status != "ENABLED" {
@@ -87,7 +92,7 @@ func TestDeleteFirstDraftEveryEntityIntegration(t *testing.T) {
 				"delete-create-"+entity,
 			)
 			if err != nil {
-				t.Fatalf("create %s draft: %v", entity, err)
+				t.Fatalf("create %s draft: %v (cause: %v)", entity, err, errors.Unwrap(err))
 			}
 			if entity == EntityCustomer {
 				created, err = service.Save(t.Context(), entity, SaveInput{

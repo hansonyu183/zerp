@@ -12,9 +12,9 @@ import (
 
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
-			VersionID: versionID, Name: data.Name, CustomerType: data.CustomerType,
+			VersionID: versionID, Entity: entity, Name: data.Name, CustomerType: data.CustomerType,
 			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
@@ -121,7 +121,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	var rows int64
 	var err error
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
 			Name: data.Name, CustomerType: data.CustomerType, ShortName: nilIfEmpty(data.ShortName),
 			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
@@ -237,7 +237,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 
 func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, sourceVersionID string) error {
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		return q.CopyBobCustomerDetail(ctx, dbsqlc.CopyBobCustomerDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntitySupplier:
 		return q.CopyBobSupplierDetail(ctx, dbsqlc.CopyBobSupplierDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
@@ -366,7 +366,7 @@ func loadProductFormula(
 
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		return q.DeleteBobCustomerDetail(ctx, versionID)
 	case EntitySupplier:
 		return q.DeleteBobSupplierDetail(ctx, versionID)

@@ -40,6 +40,29 @@ func TestValidateDraftByEntity(t *testing.T) {
 	}
 }
 
+func TestSplitCashEntitiesFixCounterpartyType(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct{ entity, want string }{
+		{EntityCustomerReceipt, "customer"}, {EntitySupplierReceipt, "supplier"},
+		{EntityOtherReceipt, "other-party"}, {EntityCustomerPayment, "customer"},
+		{EntitySupplierPayment, "supplier"}, {EntityOtherPayment, "other-party"},
+	} {
+		draft, err := validateDraft(test.entity, DraftInput{
+			BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
+			FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
+		})
+		if err != nil || draft.CounterpartyType != test.want {
+			t.Fatalf("%s type=%q err=%v", test.entity, draft.CounterpartyType, err)
+		}
+	}
+	if _, err := validateDraft(EntityCustomerReceipt, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: "supplier",
+		Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
+	}); err == nil {
+		t.Fatal("customer receipt accepted supplier counterparty type")
+	}
+}
+
 func TestValidateLineRemarkBoundaries(t *testing.T) {
 	t.Parallel()
 	product := *refInput()

@@ -23,8 +23,12 @@ var vouEntities = [...]string{
 	voudomain.EntityPurchaseReturn,
 	voudomain.EntityOrderProduction,
 	voudomain.EntitySelfProduction,
-	voudomain.EntityReceipt,
-	voudomain.EntityPayment,
+	voudomain.EntityCustomerReceipt,
+	voudomain.EntitySupplierReceipt,
+	voudomain.EntityOtherReceipt,
+	voudomain.EntityCustomerPayment,
+	voudomain.EntitySupplierPayment,
+	voudomain.EntityOtherPayment,
 	voudomain.EntityExpenseReimbursement,
 	voudomain.EntityExpensePayment,
 	voudomain.EntityOtherIncome,
@@ -198,9 +202,9 @@ func (s *Service) postDocument(
 		return s.postPurchaseReturn(ctx, tx, q, posting)
 	case voudomain.EntityOrderProduction, voudomain.EntitySelfProduction:
 		return s.postProduction(ctx, tx, q, posting)
-	case voudomain.EntityReceipt:
+	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt:
 		return s.postReceipt(ctx, q, posting)
-	case voudomain.EntityPayment:
+	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment:
 		return s.postPayment(ctx, q, posting)
 	case voudomain.EntityExpenseReimbursement:
 		return s.postExpense(ctx, q, posting)

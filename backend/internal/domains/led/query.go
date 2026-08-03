@@ -105,7 +105,11 @@ func (s *Service) QueryFund(ctx context.Context, input QueryInput) (Page[FundEnt
 	return Page[FundEntryView]{Items: items, Total: total, Page: query.Page, PageSize: query.PageSize}, nil
 }
 
-func (s *Service) QueryParty(ctx context.Context, input QueryInput) (Page[PartyEntryView], error) {
+func (s *Service) QueryParty(ctx context.Context, input QueryInput, counterpartyTypes ...string) (Page[PartyEntryView], error) {
+	counterpartyType := ""
+	if len(counterpartyTypes) > 0 {
+		counterpartyType = counterpartyTypes[0]
+	}
 	query, err := validateQuery(EntityParty, input)
 	if err != nil {
 		return Page[PartyEntryView]{}, err
@@ -116,7 +120,8 @@ func (s *Service) QueryParty(ctx context.Context, input QueryInput) (Page[PartyE
 	}
 	countParams := dbsqlc.CountLedPartyEntriesParams{
 		GenerationID: generationID, DateFrom: dateValue(query.DateFrom), DateTo: dateValue(query.DateTo),
-		ObjectID: query.ObjectID, SourceEntity: query.SourceEntity, DocumentNo: query.DocumentNo,
+		CounterpartyEntity: counterpartyType,
+		ObjectID:           query.ObjectID, SourceEntity: query.SourceEntity, DocumentNo: query.DocumentNo,
 		Directions: query.Directions,
 	}
 	total, err := s.queries.CountLedPartyEntries(ctx, countParams)
@@ -125,7 +130,8 @@ func (s *Service) QueryParty(ctx context.Context, input QueryInput) (Page[PartyE
 	}
 	rows, err := s.queries.ListLedPartyEntries(ctx, dbsqlc.ListLedPartyEntriesParams{
 		GenerationID: generationID, DateFrom: countParams.DateFrom, DateTo: countParams.DateTo,
-		ObjectID: query.ObjectID, SourceEntity: query.SourceEntity, DocumentNo: query.DocumentNo,
+		CounterpartyEntity: counterpartyType,
+		ObjectID:           query.ObjectID, SourceEntity: query.SourceEntity, DocumentNo: query.DocumentNo,
 		Directions: query.Directions, SortField: query.SortField, SortOrder: query.Order,
 		PageOffset: int32((query.Page - 1) * query.PageSize), PageSize: int32(query.PageSize),
 	})
@@ -222,7 +228,11 @@ func (s *Service) FundBalance(ctx context.Context, input BalanceInput) (Page[Fun
 	return Page[FundBalanceView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) PartyBalance(ctx context.Context, input BalanceInput) (Page[PartyBalanceView], error) {
+func (s *Service) PartyBalance(ctx context.Context, input BalanceInput, counterpartyTypes ...string) (Page[PartyBalanceView], error) {
+	counterpartyType := ""
+	if len(counterpartyTypes) > 0 {
+		counterpartyType = counterpartyTypes[0]
+	}
 	asOf, err := validateBalance(input)
 	if err != nil {
 		return Page[PartyBalanceView]{}, err
@@ -232,14 +242,16 @@ func (s *Service) PartyBalance(ctx context.Context, input BalanceInput) (Page[Pa
 		return Page[PartyBalanceView]{}, err
 	}
 	params := dbsqlc.CountLedPartyBalancesParams{
-		GenerationID: generationID, AsOfDate: dateValue(asOf), ObjectID: input.Filters.ObjectID,
+		GenerationID: generationID, CounterpartyEntity: counterpartyType,
+		AsOfDate: dateValue(asOf), ObjectID: input.Filters.ObjectID,
 	}
 	total, err := s.queries.CountLedPartyBalances(ctx, params)
 	if err != nil {
 		return Page[PartyBalanceView]{}, s.internal("count party balances", err)
 	}
 	rows, err := s.queries.ListLedPartyBalances(ctx, dbsqlc.ListLedPartyBalancesParams{
-		GenerationID: generationID, AsOfDate: params.AsOfDate, ObjectID: params.ObjectID,
+		GenerationID: generationID, CounterpartyEntity: counterpartyType,
+		AsOfDate: params.AsOfDate, ObjectID: params.ObjectID,
 		PageOffset: int32((input.Page - 1) * input.PageSize), PageSize: int32(input.PageSize),
 	})
 	if err != nil {

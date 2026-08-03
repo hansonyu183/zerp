@@ -16,7 +16,7 @@ func errorIsKind(err error, kind ErrorKind) bool {
 func TestObjectPrefixes(t *testing.T) {
 	t.Parallel()
 	expected := map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherParty: "OTP", EntityEmployee: "EMP",
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
@@ -41,6 +41,9 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		}},
 		{EntitySupplier, CreateDetailInput{
 			Code: "sup-01", Name: "Supplier", SalespersonEmployeeID: salespersonEmployeeID,
+		}},
+		{EntityOtherParty, CreateDetailInput{
+			Code: "otp-01", Name: "Other party", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", Unit: "件"}},
@@ -77,7 +80,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			if test.entity == EntitySupplier && data.SupplierType != SupplierTypeGeneral {
 				t.Fatalf("supplier type = %v", data.SupplierType)
 			}
-			if test.entity == EntityCustomer && data.CustomerType != CustomerTypeEndUser {
+			if (test.entity == EntityCustomer || test.entity == EntityOtherParty) && data.CustomerType != CustomerTypeEndUser {
 				t.Fatalf("customer type = %v", data.CustomerType)
 			}
 			if test.entity == EntityVehicle &&

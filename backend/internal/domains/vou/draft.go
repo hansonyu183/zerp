@@ -240,7 +240,8 @@ func (s *Service) writeDetail(
 		return s.writeSaleDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityPurchaseOrder:
 		return s.writePurchaseDetail(ctx, q, entity, documentID, draft, refs, update)
-	case EntityReceipt, EntityPayment:
+	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
+		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
 		return s.writeCashDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityExpenseReimbursement:
 		return s.writeExpenseDetail(ctx, q, entity, documentID, draft, refs, update)
@@ -399,13 +400,13 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read purchase inbound lines", lineErr)
 		}
 		missing = detail.WarehouseObjectID == "" || len(lines) == 0
-	case EntityReceipt:
+	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read receipt attributes", err)
 		}
 		missing = detail.HandlerObjectID == nil
-	case EntityPayment:
+	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
 		detail, err := q.GetVouPaymentDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read payment attributes", err)

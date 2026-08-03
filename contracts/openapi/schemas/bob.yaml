@@ -6,6 +6,7 @@
         [
           'customer',
           'supplier',
+          'other-party',
           'employee',
           'product',
           'service',

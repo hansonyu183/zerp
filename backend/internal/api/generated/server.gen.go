@@ -151,6 +151,7 @@ const (
 	Customer    BobEntity = "customer"
 	Employee    BobEntity = "employee"
 	FundAccount BobEntity = "fund-account"
+	OtherParty  BobEntity = "other-party"
 	Product     BobEntity = "product"
 	Service     BobEntity = "service"
 	Supplier    BobEntity = "supplier"
@@ -166,6 +167,8 @@ func (e BobEntity) Valid() bool {
 	case Employee:
 		return true
 	case FundAccount:
+		return true
+	case OtherParty:
 		return true
 	case Product:
 		return true
@@ -265,31 +268,41 @@ func (e PageRequestSortOrder) Valid() bool {
 
 // Defines values for VouCreatableEntity.
 const (
+	VouCreatableEntityCustomerPayment      VouCreatableEntity = "customer-payment"
+	VouCreatableEntityCustomerReceipt      VouCreatableEntity = "customer-receipt"
 	VouCreatableEntityExpenseReimbursement VouCreatableEntity = "expense-reimbursement"
 	VouCreatableEntityOrderProduction      VouCreatableEntity = "order-production"
 	VouCreatableEntityOtherIncome          VouCreatableEntity = "other-income"
-	VouCreatableEntityPayment              VouCreatableEntity = "payment"
+	VouCreatableEntityOtherPayment         VouCreatableEntity = "other-payment"
+	VouCreatableEntityOtherReceipt         VouCreatableEntity = "other-receipt"
 	VouCreatableEntityPurchaseInbound      VouCreatableEntity = "purchase-inbound"
 	VouCreatableEntityPurchaseInquiry      VouCreatableEntity = "purchase-inquiry"
 	VouCreatableEntityPurchaseOrder        VouCreatableEntity = "purchase-order"
 	VouCreatableEntityPurchaseReturn       VouCreatableEntity = "purchase-return"
-	VouCreatableEntityReceipt              VouCreatableEntity = "receipt"
 	VouCreatableEntitySaleOrder            VouCreatableEntity = "sale-order"
 	VouCreatableEntitySalePricing          VouCreatableEntity = "sale-pricing"
 	VouCreatableEntitySaleReturn           VouCreatableEntity = "sale-return"
 	VouCreatableEntitySelfProduction       VouCreatableEntity = "self-production"
+	VouCreatableEntitySupplierPayment      VouCreatableEntity = "supplier-payment"
+	VouCreatableEntitySupplierReceipt      VouCreatableEntity = "supplier-receipt"
 )
 
 // Valid indicates whether the value is a known member of the VouCreatableEntity enum.
 func (e VouCreatableEntity) Valid() bool {
 	switch e {
+	case VouCreatableEntityCustomerPayment:
+		return true
+	case VouCreatableEntityCustomerReceipt:
+		return true
 	case VouCreatableEntityExpenseReimbursement:
 		return true
 	case VouCreatableEntityOrderProduction:
 		return true
 	case VouCreatableEntityOtherIncome:
 		return true
-	case VouCreatableEntityPayment:
+	case VouCreatableEntityOtherPayment:
+		return true
+	case VouCreatableEntityOtherReceipt:
 		return true
 	case VouCreatableEntityPurchaseInbound:
 		return true
@@ -299,8 +312,6 @@ func (e VouCreatableEntity) Valid() bool {
 		return true
 	case VouCreatableEntityPurchaseReturn:
 		return true
-	case VouCreatableEntityReceipt:
-		return true
 	case VouCreatableEntitySaleOrder:
 		return true
 	case VouCreatableEntitySalePricing:
@@ -309,6 +320,10 @@ func (e VouCreatableEntity) Valid() bool {
 		return true
 	case VouCreatableEntitySelfProduction:
 		return true
+	case VouCreatableEntitySupplierPayment:
+		return true
+	case VouCreatableEntitySupplierReceipt:
+		return true
 	default:
 		return false
 	}
@@ -316,16 +331,18 @@ func (e VouCreatableEntity) Valid() bool {
 
 // Defines values for VouEntity.
 const (
+	VouEntityCustomerPayment      VouEntity = "customer-payment"
+	VouEntityCustomerReceipt      VouEntity = "customer-receipt"
 	VouEntityExpensePayment       VouEntity = "expense-payment"
 	VouEntityExpenseReimbursement VouEntity = "expense-reimbursement"
 	VouEntityOrderProduction      VouEntity = "order-production"
 	VouEntityOtherIncome          VouEntity = "other-income"
-	VouEntityPayment              VouEntity = "payment"
+	VouEntityOtherPayment         VouEntity = "other-payment"
+	VouEntityOtherReceipt         VouEntity = "other-receipt"
 	VouEntityPurchaseInbound      VouEntity = "purchase-inbound"
 	VouEntityPurchaseInquiry      VouEntity = "purchase-inquiry"
 	VouEntityPurchaseOrder        VouEntity = "purchase-order"
 	VouEntityPurchaseReturn       VouEntity = "purchase-return"
-	VouEntityReceipt              VouEntity = "receipt"
 	VouEntitySaleDelivery         VouEntity = "sale-delivery"
 	VouEntitySaleOrder            VouEntity = "sale-order"
 	VouEntitySaleOutbound         VouEntity = "sale-outbound"
@@ -333,11 +350,17 @@ const (
 	VouEntitySaleReturn           VouEntity = "sale-return"
 	VouEntitySaleSignoff          VouEntity = "sale-signoff"
 	VouEntitySelfProduction       VouEntity = "self-production"
+	VouEntitySupplierPayment      VouEntity = "supplier-payment"
+	VouEntitySupplierReceipt      VouEntity = "supplier-receipt"
 )
 
 // Valid indicates whether the value is a known member of the VouEntity enum.
 func (e VouEntity) Valid() bool {
 	switch e {
+	case VouEntityCustomerPayment:
+		return true
+	case VouEntityCustomerReceipt:
+		return true
 	case VouEntityExpensePayment:
 		return true
 	case VouEntityExpenseReimbursement:
@@ -346,7 +369,9 @@ func (e VouEntity) Valid() bool {
 		return true
 	case VouEntityOtherIncome:
 		return true
-	case VouEntityPayment:
+	case VouEntityOtherPayment:
+		return true
+	case VouEntityOtherReceipt:
 		return true
 	case VouEntityPurchaseInbound:
 		return true
@@ -355,8 +380,6 @@ func (e VouEntity) Valid() bool {
 	case VouEntityPurchaseOrder:
 		return true
 	case VouEntityPurchaseReturn:
-		return true
-	case VouEntityReceipt:
 		return true
 	case VouEntitySaleDelivery:
 		return true
@@ -371,6 +394,10 @@ func (e VouEntity) Valid() bool {
 	case VouEntitySaleSignoff:
 		return true
 	case VouEntitySelfProduction:
+		return true
+	case VouEntitySupplierPayment:
+		return true
+	case VouEntitySupplierReceipt:
 		return true
 	default:
 		return false
@@ -1958,6 +1985,12 @@ type LedcontainerbalanceJSONRequestBody = LedBalanceRequest
 // LedcontainerqueryJSONRequestBody defines body for Ledcontainerquery for application/json ContentType.
 type LedcontainerqueryJSONRequestBody = LedQueryRequest
 
+// LedcustomerbalanceJSONRequestBody defines body for Ledcustomerbalance for application/json ContentType.
+type LedcustomerbalanceJSONRequestBody = LedBalanceRequest
+
+// LedcustomerqueryJSONRequestBody defines body for Ledcustomerquery for application/json ContentType.
+type LedcustomerqueryJSONRequestBody = LedQueryRequest
+
 // LedfundbalanceJSONRequestBody defines body for Ledfundbalance for application/json ContentType.
 type LedfundbalanceJSONRequestBody = LedBalanceRequest
 
@@ -1970,11 +2003,17 @@ type LedinventorybalanceJSONRequestBody = LedBalanceRequest
 // LedinventoryqueryJSONRequestBody defines body for Ledinventoryquery for application/json ContentType.
 type LedinventoryqueryJSONRequestBody = LedQueryRequest
 
-// LedpartybalanceJSONRequestBody defines body for Ledpartybalance for application/json ContentType.
-type LedpartybalanceJSONRequestBody = LedBalanceRequest
+// LedotherbalanceJSONRequestBody defines body for Ledotherbalance for application/json ContentType.
+type LedotherbalanceJSONRequestBody = LedBalanceRequest
 
-// LedpartyqueryJSONRequestBody defines body for Ledpartyquery for application/json ContentType.
-type LedpartyqueryJSONRequestBody = LedQueryRequest
+// LedotherqueryJSONRequestBody defines body for Ledotherquery for application/json ContentType.
+type LedotherqueryJSONRequestBody = LedQueryRequest
+
+// LedsupplierbalanceJSONRequestBody defines body for Ledsupplierbalance for application/json ContentType.
+type LedsupplierbalanceJSONRequestBody = LedBalanceRequest
+
+// LedsupplierqueryJSONRequestBody defines body for Ledsupplierquery for application/json ContentType.
+type LedsupplierqueryJSONRequestBody = LedQueryRequest
 
 // VouapproveJSONRequestBody defines body for Vouapprove for application/json ContentType.
 type VouapproveJSONRequestBody = VouDocumentRevisionRequest
@@ -2394,6 +2433,12 @@ type ServerInterface interface {
 	// Ledcontainerquery 查询容器流水
 	// (POST /led/container/query)
 	Ledcontainerquery(c *gin.Context)
+	// Ledcustomerbalance 查询客户往来余额
+	// (POST /led/customer/balance)
+	Ledcustomerbalance(c *gin.Context)
+	// Ledcustomerquery 查询客户往来流水
+	// (POST /led/customer/query)
+	Ledcustomerquery(c *gin.Context)
 	// Ledfundbalance 查询资金余额
 	// (POST /led/fund/balance)
 	Ledfundbalance(c *gin.Context)
@@ -2406,12 +2451,18 @@ type ServerInterface interface {
 	// Ledinventoryquery 查询库存流水
 	// (POST /led/inventory/query)
 	Ledinventoryquery(c *gin.Context)
-	// Ledpartybalance 查询往来余额
-	// (POST /led/party/balance)
-	Ledpartybalance(c *gin.Context)
-	// Ledpartyquery 查询往来流水
-	// (POST /led/party/query)
-	Ledpartyquery(c *gin.Context)
+	// Ledotherbalance 查询其他往来余额
+	// (POST /led/other/balance)
+	Ledotherbalance(c *gin.Context)
+	// Ledotherquery 查询其他往来流水
+	// (POST /led/other/query)
+	Ledotherquery(c *gin.Context)
+	// Ledsupplierbalance 查询供应商往来余额
+	// (POST /led/supplier/balance)
+	Ledsupplierbalance(c *gin.Context)
+	// Ledsupplierquery 查询供应商往来流水
+	// (POST /led/supplier/query)
+	Ledsupplierquery(c *gin.Context)
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(c *gin.Context)
@@ -3596,6 +3647,32 @@ func (siw *ServerInterfaceWrapper) Ledcontainerquery(c *gin.Context) {
 	siw.Handler.Ledcontainerquery(c)
 }
 
+// Ledcustomerbalance operation middleware
+func (siw *ServerInterfaceWrapper) Ledcustomerbalance(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledcustomerbalance(c)
+}
+
+// Ledcustomerquery operation middleware
+func (siw *ServerInterfaceWrapper) Ledcustomerquery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledcustomerquery(c)
+}
+
 // Ledfundbalance operation middleware
 func (siw *ServerInterfaceWrapper) Ledfundbalance(c *gin.Context) {
 
@@ -3648,8 +3725,8 @@ func (siw *ServerInterfaceWrapper) Ledinventoryquery(c *gin.Context) {
 	siw.Handler.Ledinventoryquery(c)
 }
 
-// Ledpartybalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledpartybalance(c *gin.Context) {
+// Ledotherbalance operation middleware
+func (siw *ServerInterfaceWrapper) Ledotherbalance(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3658,11 +3735,11 @@ func (siw *ServerInterfaceWrapper) Ledpartybalance(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.Ledpartybalance(c)
+	siw.Handler.Ledotherbalance(c)
 }
 
-// Ledpartyquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledpartyquery(c *gin.Context) {
+// Ledotherquery operation middleware
+func (siw *ServerInterfaceWrapper) Ledotherquery(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3671,7 +3748,33 @@ func (siw *ServerInterfaceWrapper) Ledpartyquery(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.Ledpartyquery(c)
+	siw.Handler.Ledotherquery(c)
+}
+
+// Ledsupplierbalance operation middleware
+func (siw *ServerInterfaceWrapper) Ledsupplierbalance(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledsupplierbalance(c)
+}
+
+// Ledsupplierquery operation middleware
+func (siw *ServerInterfaceWrapper) Ledsupplierquery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledsupplierquery(c)
 }
 
 // Readiness operation middleware
@@ -4555,8 +4658,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/led/inventory/balance", wrapper.Ledinventorybalance)
 	router.POST(options.BaseURL+"/led/fund/query", wrapper.Ledfundquery)
 	router.POST(options.BaseURL+"/led/fund/balance", wrapper.Ledfundbalance)
-	router.POST(options.BaseURL+"/led/party/query", wrapper.Ledpartyquery)
-	router.POST(options.BaseURL+"/led/party/balance", wrapper.Ledpartybalance)
+	router.POST(options.BaseURL+"/led/customer/query", wrapper.Ledcustomerquery)
+	router.POST(options.BaseURL+"/led/customer/balance", wrapper.Ledcustomerbalance)
+	router.POST(options.BaseURL+"/led/supplier/query", wrapper.Ledsupplierquery)
+	router.POST(options.BaseURL+"/led/supplier/balance", wrapper.Ledsupplierbalance)
+	router.POST(options.BaseURL+"/led/other/query", wrapper.Ledotherquery)
+	router.POST(options.BaseURL+"/led/other/balance", wrapper.Ledotherbalance)
 	router.POST(options.BaseURL+"/led/container/query", wrapper.Ledcontainerquery)
 	router.POST(options.BaseURL+"/led/container/balance", wrapper.Ledcontainerbalance)
 	router.PUT(options.BaseURL+"/files/feedback/attachments/upload/:token", wrapper.UploadFeedbackAttachment)
@@ -5902,6 +6009,50 @@ func (response Ledcontainerquery200JSONResponse) VisitLedcontainerqueryResponse(
 	return err
 }
 
+type LedcustomerbalanceRequestObject struct {
+	Body *LedcustomerbalanceJSONRequestBody
+}
+
+type LedcustomerbalanceResponseObject interface {
+	VisitLedcustomerbalanceResponse(w http.ResponseWriter) error
+}
+
+type Ledcustomerbalance200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledcustomerbalance200JSONResponse) VisitLedcustomerbalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedcustomerqueryRequestObject struct {
+	Body *LedcustomerqueryJSONRequestBody
+}
+
+type LedcustomerqueryResponseObject interface {
+	VisitLedcustomerqueryResponse(w http.ResponseWriter) error
+}
+
+type Ledcustomerquery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledcustomerquery200JSONResponse) VisitLedcustomerqueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LedfundbalanceRequestObject struct {
 	Body *LedfundbalanceJSONRequestBody
 }
@@ -5990,17 +6141,17 @@ func (response Ledinventoryquery200JSONResponse) VisitLedinventoryqueryResponse(
 	return err
 }
 
-type LedpartybalanceRequestObject struct {
-	Body *LedpartybalanceJSONRequestBody
+type LedotherbalanceRequestObject struct {
+	Body *LedotherbalanceJSONRequestBody
 }
 
-type LedpartybalanceResponseObject interface {
-	VisitLedpartybalanceResponse(w http.ResponseWriter) error
+type LedotherbalanceResponseObject interface {
+	VisitLedotherbalanceResponse(w http.ResponseWriter) error
 }
 
-type Ledpartybalance200JSONResponse struct{ BusinessJSONResponse }
+type Ledotherbalance200JSONResponse struct{ BusinessJSONResponse }
 
-func (response Ledpartybalance200JSONResponse) VisitLedpartybalanceResponse(w http.ResponseWriter) error {
+func (response Ledotherbalance200JSONResponse) VisitLedotherbalanceResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6012,17 +6163,61 @@ func (response Ledpartybalance200JSONResponse) VisitLedpartybalanceResponse(w ht
 	return err
 }
 
-type LedpartyqueryRequestObject struct {
-	Body *LedpartyqueryJSONRequestBody
+type LedotherqueryRequestObject struct {
+	Body *LedotherqueryJSONRequestBody
 }
 
-type LedpartyqueryResponseObject interface {
-	VisitLedpartyqueryResponse(w http.ResponseWriter) error
+type LedotherqueryResponseObject interface {
+	VisitLedotherqueryResponse(w http.ResponseWriter) error
 }
 
-type Ledpartyquery200JSONResponse struct{ BusinessJSONResponse }
+type Ledotherquery200JSONResponse struct{ BusinessJSONResponse }
 
-func (response Ledpartyquery200JSONResponse) VisitLedpartyqueryResponse(w http.ResponseWriter) error {
+func (response Ledotherquery200JSONResponse) VisitLedotherqueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedsupplierbalanceRequestObject struct {
+	Body *LedsupplierbalanceJSONRequestBody
+}
+
+type LedsupplierbalanceResponseObject interface {
+	VisitLedsupplierbalanceResponse(w http.ResponseWriter) error
+}
+
+type Ledsupplierbalance200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledsupplierbalance200JSONResponse) VisitLedsupplierbalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedsupplierqueryRequestObject struct {
+	Body *LedsupplierqueryJSONRequestBody
+}
+
+type LedsupplierqueryResponseObject interface {
+	VisitLedsupplierqueryResponse(w http.ResponseWriter) error
+}
+
+type Ledsupplierquery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response Ledsupplierquery200JSONResponse) VisitLedsupplierqueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7120,6 +7315,12 @@ type StrictServerInterface interface {
 	// Ledcontainerquery 查询容器流水
 	// (POST /led/container/query)
 	Ledcontainerquery(ctx context.Context, request LedcontainerqueryRequestObject) (LedcontainerqueryResponseObject, error)
+	// Ledcustomerbalance 查询客户往来余额
+	// (POST /led/customer/balance)
+	Ledcustomerbalance(ctx context.Context, request LedcustomerbalanceRequestObject) (LedcustomerbalanceResponseObject, error)
+	// Ledcustomerquery 查询客户往来流水
+	// (POST /led/customer/query)
+	Ledcustomerquery(ctx context.Context, request LedcustomerqueryRequestObject) (LedcustomerqueryResponseObject, error)
 	// Ledfundbalance 查询资金余额
 	// (POST /led/fund/balance)
 	Ledfundbalance(ctx context.Context, request LedfundbalanceRequestObject) (LedfundbalanceResponseObject, error)
@@ -7132,12 +7333,18 @@ type StrictServerInterface interface {
 	// Ledinventoryquery 查询库存流水
 	// (POST /led/inventory/query)
 	Ledinventoryquery(ctx context.Context, request LedinventoryqueryRequestObject) (LedinventoryqueryResponseObject, error)
-	// Ledpartybalance 查询往来余额
-	// (POST /led/party/balance)
-	Ledpartybalance(ctx context.Context, request LedpartybalanceRequestObject) (LedpartybalanceResponseObject, error)
-	// Ledpartyquery 查询往来流水
-	// (POST /led/party/query)
-	Ledpartyquery(ctx context.Context, request LedpartyqueryRequestObject) (LedpartyqueryResponseObject, error)
+	// Ledotherbalance 查询其他往来余额
+	// (POST /led/other/balance)
+	Ledotherbalance(ctx context.Context, request LedotherbalanceRequestObject) (LedotherbalanceResponseObject, error)
+	// Ledotherquery 查询其他往来流水
+	// (POST /led/other/query)
+	Ledotherquery(ctx context.Context, request LedotherqueryRequestObject) (LedotherqueryResponseObject, error)
+	// Ledsupplierbalance 查询供应商往来余额
+	// (POST /led/supplier/balance)
+	Ledsupplierbalance(ctx context.Context, request LedsupplierbalanceRequestObject) (LedsupplierbalanceResponseObject, error)
+	// Ledsupplierquery 查询供应商往来流水
+	// (POST /led/supplier/query)
+	Ledsupplierquery(ctx context.Context, request LedsupplierqueryRequestObject) (LedsupplierqueryResponseObject, error)
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(ctx context.Context, request ReadinessRequestObject) (ReadinessResponseObject, error)
@@ -9114,6 +9321,68 @@ func (sh *strictHandler) Ledcontainerquery(ctx *gin.Context) {
 	}
 }
 
+// Ledcustomerbalance operation middleware
+func (sh *strictHandler) Ledcustomerbalance(ctx *gin.Context) {
+	var request LedcustomerbalanceRequestObject
+
+	var body LedcustomerbalanceJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledcustomerbalance(ctx, request.(LedcustomerbalanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledcustomerbalance")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedcustomerbalanceResponseObject); ok {
+		if err := validResponse.VisitLedcustomerbalanceResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledcustomerquery operation middleware
+func (sh *strictHandler) Ledcustomerquery(ctx *gin.Context) {
+	var request LedcustomerqueryRequestObject
+
+	var body LedcustomerqueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledcustomerquery(ctx, request.(LedcustomerqueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledcustomerquery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedcustomerqueryResponseObject); ok {
+		if err := validResponse.VisitLedcustomerqueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Ledfundbalance operation middleware
 func (sh *strictHandler) Ledfundbalance(ctx *gin.Context) {
 	var request LedfundbalanceRequestObject
@@ -9238,11 +9507,11 @@ func (sh *strictHandler) Ledinventoryquery(ctx *gin.Context) {
 	}
 }
 
-// Ledpartybalance operation middleware
-func (sh *strictHandler) Ledpartybalance(ctx *gin.Context) {
-	var request LedpartybalanceRequestObject
+// Ledotherbalance operation middleware
+func (sh *strictHandler) Ledotherbalance(ctx *gin.Context) {
+	var request LedotherbalanceRequestObject
 
-	var body LedpartybalanceJSONRequestBody
+	var body LedotherbalanceJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -9250,18 +9519,18 @@ func (sh *strictHandler) Ledpartybalance(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledpartybalance(ctx, request.(LedpartybalanceRequestObject))
+		return sh.ssi.Ledotherbalance(ctx, request.(LedotherbalanceRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledpartybalance")
+		handler = middleware(handler, "Ledotherbalance")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedpartybalanceResponseObject); ok {
-		if err := validResponse.VisitLedpartybalanceResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(LedotherbalanceResponseObject); ok {
+		if err := validResponse.VisitLedotherbalanceResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -9269,11 +9538,11 @@ func (sh *strictHandler) Ledpartybalance(ctx *gin.Context) {
 	}
 }
 
-// Ledpartyquery operation middleware
-func (sh *strictHandler) Ledpartyquery(ctx *gin.Context) {
-	var request LedpartyqueryRequestObject
+// Ledotherquery operation middleware
+func (sh *strictHandler) Ledotherquery(ctx *gin.Context) {
+	var request LedotherqueryRequestObject
 
-	var body LedpartyqueryJSONRequestBody
+	var body LedotherqueryJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -9281,18 +9550,80 @@ func (sh *strictHandler) Ledpartyquery(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledpartyquery(ctx, request.(LedpartyqueryRequestObject))
+		return sh.ssi.Ledotherquery(ctx, request.(LedotherqueryRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledpartyquery")
+		handler = middleware(handler, "Ledotherquery")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedpartyqueryResponseObject); ok {
-		if err := validResponse.VisitLedpartyqueryResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(LedotherqueryResponseObject); ok {
+		if err := validResponse.VisitLedotherqueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledsupplierbalance operation middleware
+func (sh *strictHandler) Ledsupplierbalance(ctx *gin.Context) {
+	var request LedsupplierbalanceRequestObject
+
+	var body LedsupplierbalanceJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledsupplierbalance(ctx, request.(LedsupplierbalanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledsupplierbalance")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedsupplierbalanceResponseObject); ok {
+		if err := validResponse.VisitLedsupplierbalanceResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Ledsupplierquery operation middleware
+func (sh *strictHandler) Ledsupplierquery(ctx *gin.Context) {
+	var request LedsupplierqueryRequestObject
+
+	var body LedsupplierqueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledsupplierquery(ctx, request.(LedsupplierqueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledsupplierquery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedsupplierqueryResponseObject); ok {
+		if err := validResponse.VisitLedsupplierqueryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -10578,145 +10909,147 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"NT55Wl+/FM7juwlhbWntfwMAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

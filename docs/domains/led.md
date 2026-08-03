@@ -113,8 +113,12 @@ POST /led/inventory/query
 POST /led/inventory/balance
 POST /led/fund/query
 POST /led/fund/balance
-POST /led/party/query
-POST /led/party/balance
+POST /led/customer/query
+POST /led/customer/balance
+POST /led/supplier/query
+POST /led/supplier/balance
+POST /led/other/query
+POST /led/other/balance
 POST /led/container/query
 POST /led/container/balance
 ```
@@ -238,15 +242,17 @@ LED（Ledger）把已经执行或最终确认的 VOU/WFL 业务结果展示为�
 
 ### 8.1 实体与页面
 
-| 实体        | 页面       | 主要能力                                           |
-| ----------- | ---------- | -------------------------------------------------- |
-| `closing`   | 期初与结账 | 查看只读期初、执行月末结账、反结最近一期和查看历史 |
-| `inventory` | 库存台账   | 查询仓库与商品流水、指定日期余额                   |
-| `fund`      | 资金台账   | 查询资金账户流水、指定日期余额                     |
-| `party`     | 往来台账   | 查询客户或供应商借贷流水、指定日期余额             |
-| `container` | 空桶台账   | 查询客户空桶增量和指定日期欠桶余额                 |
+| 实体        | 页面            | 主要能力                                           |
+| ----------- | --------------- | -------------------------------------------------- |
+| `closing`   | 期初与结账      | 查看只读期初、执行月末结账、反结最近一期和查看历史 |
+| `inventory` | 库存台账        | 查询仓库与商品流水、指定日期余额                   |
+| `fund`      | 资金台账        | 查询资金账户流水、指定日期余额                     |
+| `customer`  | 往来台账-客户   | 查询客户借贷流水、指定日期余额                     |
+| `supplier`  | 往来台账-供应商 | 查询供应商借贷流水、指定日期余额                   |
+| `other`     | 往来台账-其他   | 查询其他往来单位借贷流水、指定日期余额             |
+| `container` | 空桶台账        | 查询客户空桶增量和指定日期欠桶余额                 |
 
-页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/party` 和 `/led/container`。每个动作使用独立 APP 权限；没有 `query` 或 `balance` 权限时，不发起对应请求。
+页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other` 和 `/led/container`。三类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有 `query` 或 `balance` 权限时，不发起对应请求。
 
 ### 8.2 期初与结账
 

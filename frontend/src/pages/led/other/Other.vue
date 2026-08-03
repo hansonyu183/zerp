@@ -1,7 +1,4 @@
 <script setup lang="ts">
 import { ledgerEntityConfigs, LedgerWorkspace } from '@/pages/led/shared'
 </script>
-
-<template>
-  <LedgerWorkspace :config="ledgerEntityConfigs.party" />
-</template>
+<template><LedgerWorkspace :config="ledgerEntityConfigs.other" /></template>

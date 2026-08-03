@@ -26,7 +26,9 @@ export function buildVoucherDraftPayload(
     payload.supplier = inputReference(value.supplier)
   }
   if (config.partyMode === 'counterparty' && value.counterparty) {
-    payload.counterpartyType = value.counterpartyType
+    if (!config.fixedCounterpartyType) {
+      payload.counterpartyType = value.counterpartyType
+    }
     payload.counterparty = inputReference(value.counterparty)
   }
   if (config.usesEmployee) payload.employee = inputReference(value.employee)

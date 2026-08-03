@@ -10,6 +10,7 @@ export type BobStatus =
 export type BobEntity =
   | 'customer'
   | 'supplier'
+  | 'other-party'
   | 'employee'
   | 'product'
   | 'service'

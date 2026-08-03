@@ -2496,13 +2496,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/party/query':
+      '/led/customer/query':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '查询往来流水',
-              'operationId': 'ledpartyquery',
+              'summary': '查询客户往来流水',
+              'operationId': 'ledcustomerquery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -2520,13 +2520,109 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/led/party/balance':
+      '/led/customer/balance':
         {
           'post':
             {
               'tags': ['led'],
-              'summary': '查询往来余额',
-              'operationId': 'ledpartybalance',
+              'summary': '查询客户往来余额',
+              'operationId': 'ledcustomerbalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/supplier/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询供应商往来流水',
+              'operationId': 'ledsupplierquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/supplier/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询供应商往来余额',
+              'operationId': 'ledsupplierbalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/other/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询其他往来流水',
+              'operationId': 'ledotherquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/other/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询其他往来余额',
+              'operationId': 'ledotherbalance',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {

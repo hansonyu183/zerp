@@ -23,8 +23,8 @@ type applicationService interface {
 	InventoryBalance(context.Context, BalanceInput) (Page[InventoryBalanceView], error)
 	QueryFund(context.Context, QueryInput) (Page[FundEntryView], error)
 	FundBalance(context.Context, BalanceInput) (Page[FundBalanceView], error)
-	QueryParty(context.Context, QueryInput) (Page[PartyEntryView], error)
-	PartyBalance(context.Context, BalanceInput) (Page[PartyBalanceView], error)
+	QueryParty(context.Context, QueryInput, ...string) (Page[PartyEntryView], error)
+	PartyBalance(context.Context, BalanceInput, ...string) (Page[PartyBalanceView], error)
 }
 
 type containerApplicationService interface {
@@ -61,8 +61,12 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityInventory, "balance", h.inventoryBalance},
 		{EntityFund, "query", h.queryFund},
 		{EntityFund, "balance", h.fundBalance},
-		{EntityParty, "query", h.queryParty},
-		{EntityParty, "balance", h.partyBalance},
+		{EntityCustomer, "query", h.queryParty(EntityCustomer)},
+		{EntityCustomer, "balance", h.partyBalance(EntityCustomer)},
+		{EntitySupplier, "query", h.queryParty(EntitySupplier)},
+		{EntitySupplier, "balance", h.partyBalance(EntitySupplier)},
+		{EntityOther, "query", h.queryParty("other-party")},
+		{EntityOther, "balance", h.partyBalance("other-party")},
 		{EntityContainer, "query", h.queryContainer},
 		{EntityContainer, "balance", h.containerBalance},
 	}
@@ -140,19 +144,23 @@ func (h *Handler) fundBalance(c *gin.Context) {
 	}
 }
 
-func (h *Handler) queryParty(c *gin.Context) {
-	var input QueryInput
-	if h.bind(c, &input) {
-		result, err := h.service.QueryParty(c.Request.Context(), input)
-		h.result(c, result, err)
+func (h *Handler) queryParty(counterpartyType string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input QueryInput
+		if h.bind(c, &input) {
+			result, err := h.service.QueryParty(c.Request.Context(), input, counterpartyType)
+			h.result(c, result, err)
+		}
 	}
 }
 
-func (h *Handler) partyBalance(c *gin.Context) {
-	var input BalanceInput
-	if h.bind(c, &input) {
-		result, err := h.service.PartyBalance(c.Request.Context(), input)
-		h.result(c, result, err)
+func (h *Handler) partyBalance(counterpartyType string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input BalanceInput
+		if h.bind(c, &input) {
+			result, err := h.service.PartyBalance(c.Request.Context(), input, counterpartyType)
+			h.result(c, result, err)
+		}
 	}
 }
 

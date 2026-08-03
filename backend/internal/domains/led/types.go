@@ -15,6 +15,9 @@ const (
 	EntityInventory = "inventory"
 	EntityFund      = "fund"
 	EntityParty     = "party"
+	EntityCustomer  = "customer"
+	EntitySupplier  = "supplier"
+	EntityOther     = "other"
 	EntityContainer = "container"
 )
 

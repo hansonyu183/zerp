@@ -93,7 +93,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.draft},
 				integrationActorOne, "vou-create")
 			if err != nil {
-				t.Fatalf("create: %v", err)
+				t.Fatalf("create: %v (cause: %v)", err, errors.Unwrap(err))
 			}
 			reviewed, err := service.Check(t.Context(), test.entity, DocumentRevisionInput{
 				DocumentID: created.DocumentID, Revision: created.Revision,
@@ -302,7 +302,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 255
+	wantPermissions := 315
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}

@@ -57,7 +57,7 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID strin
 		Name: "Deletable " + entity,
 	}
 	switch entity {
-	case EntityCustomer, EntitySupplier:
+	case EntityCustomer, EntitySupplier, EntityOtherParty:
 		data.SalespersonEmployeeID = salespersonEmployeeID
 	case EntityProduct, EntityService:
 		data.Unit = "unit"

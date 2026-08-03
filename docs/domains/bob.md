@@ -11,6 +11,7 @@ BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达�
 ```text
 customer
 supplier
+other-party
 employee
 product
 service
@@ -48,6 +49,7 @@ BOB 不负责：
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
 | `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
+| `other-party`  | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                         |
 | `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                         |
 | `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
 | `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                   |
@@ -77,7 +79,7 @@ BOB 不负责：
 `NNNN` 是该实体永久递增且不复用的四位流水号。达到 `9999` 后拒绝继续创建。前缀固定为：
 
 ```text
-customer CUS                 supplier SUP
+customer CUS                 supplier SUP                 other-party OTP
 employee EMP                 product PRD
 service SVC                  warehouse WHS
 vehicle VEH                  fund-account FAC

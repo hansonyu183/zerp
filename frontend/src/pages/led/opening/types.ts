@@ -18,7 +18,7 @@ export interface FundOpeningView {
 
 export interface PartyOpeningView {
   id: string
-  counterpartyType: 'customer' | 'supplier'
+  counterpartyType: 'customer' | 'supplier' | 'other-party'
   counterparty: LedgerReference
   currency: string
   balanceType: 'RECEIVABLE' | 'PAYABLE'

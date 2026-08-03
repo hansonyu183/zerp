@@ -97,7 +97,7 @@ func (s *Service) createDocument(
 	}
 
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
-		Entity: entity, BusinessDate: dateValue(draft.BusinessDate),
+		Entity: numberingEntity(entity), BusinessDate: dateValue(draft.BusinessDate),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

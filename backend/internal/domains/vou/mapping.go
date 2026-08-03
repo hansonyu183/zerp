@@ -148,7 +148,7 @@ func (s *Service) loadData(
 			})
 		}
 		return data, nil
-	case EntityReceipt:
+	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -161,7 +161,7 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
-	case EntityPayment:
+	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment:
 		detail, err := q.GetVouPaymentDetail(ctx, document.ID)
 		if err != nil {
 			return data, err

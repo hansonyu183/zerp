@@ -748,21 +748,21 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activated := activateEmptyLedger(t, ledger)
 
-	receiptApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityReceipt, voudomain.DraftInput{
+	receiptApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
 	})
-	receiptExecuted, err := vouchers.Finalize(t.Context(), voudomain.EntityReceipt, voudomain.FinalizeInput{
+	receiptExecuted, err := vouchers.Finalize(t.Context(), voudomain.EntityCustomerReceipt, voudomain.FinalizeInput{
 		DocumentID: receiptApproved.DocumentID, Revision: receiptApproved.Revision,
 	}, integrationActorOne, "receipt-execute")
 	if err != nil {
 		t.Fatalf("execute receipt: %v", err)
 	}
-	paymentApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityPayment, voudomain.DraftInput{
+	paymentApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySupplierPayment, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 		Counterparty: &refs.supplier, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "30.00",
 	})
-	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityPayment, voudomain.FinalizeInput{
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntitySupplierPayment, voudomain.FinalizeInput{
 		DocumentID: paymentApproved.DocumentID, Revision: paymentApproved.Revision,
 	}, integrationActorOne, "payment-execute"); err != nil {
 		t.Fatalf("execute payment: %v", err)
@@ -807,7 +807,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	}
 	receiptApprovedAgain, err := vouchers.Unfinalize(
 		t.Context(),
-		voudomain.EntityReceipt,
+		voudomain.EntityCustomerReceipt,
 		voudomain.ReverseInput{
 			DocumentID: receiptExecuted.DocumentID,
 			Revision:   receiptExecuted.Revision,
@@ -831,7 +831,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	}
 	receiptExecuted, err = vouchers.Finalize(
 		t.Context(),
-		voudomain.EntityReceipt,
+		voudomain.EntityCustomerReceipt,
 		voudomain.FinalizeInput{
 			DocumentID: receiptApprovedAgain.DocumentID,
 			Revision:   receiptApprovedAgain.Revision,
@@ -874,7 +874,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen ledger again: %v", err)
 	}
-	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityReceipt, voudomain.ReverseInput{
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityCustomerReceipt, voudomain.ReverseInput{
 		DocumentID: receiptExecuted.DocumentID, Revision: receiptExecuted.Revision, Reason: "维护模式验证",
 	}, integrationActorOne, "receipt-unexecute-maintenance"); err == nil {
 		t.Fatal("maintenance mode allowed VOU unexecute")
@@ -919,8 +919,8 @@ func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 12 {
-		t.Fatalf("LED permission count = %d, want 12", count)
+	if count != 16 {
+		t.Fatalf("LED permission count = %d, want 16", count)
 	}
 }
 

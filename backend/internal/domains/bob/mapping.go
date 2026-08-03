@@ -30,7 +30,7 @@ func conflictData(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionR
 
 func detailFields(entity string) []string {
 	switch entity {
-	case EntityCustomer:
+	case EntityCustomer, EntityOtherParty:
 		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntitySupplier:
 		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}

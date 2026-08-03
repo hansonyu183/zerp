@@ -90,7 +90,10 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     returnKind: '',
     customer: null,
     supplier: null,
-    counterpartyType: config.partyMode === 'counterparty' ? 'customer' : '',
+    counterpartyType:
+      config.partyMode === 'counterparty'
+        ? (config.fixedCounterpartyType ?? 'customer')
+        : '',
     counterparty: null,
     employee: null,
     salesperson: null,

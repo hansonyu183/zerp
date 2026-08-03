@@ -42,9 +42,9 @@ func (s *Service) CreateWorkflowChild(
 	case "purchase-order-to-inbound":
 		targetEntity = EntityPurchaseInbound
 	case "sale-signoff-to-receipt":
-		targetEntity = EntityReceipt
+		targetEntity = EntityCustomerReceipt
 	case "purchase-inbound-to-payment":
-		targetEntity = EntityPayment
+		targetEntity = EntitySupplierPayment
 	case "expense-reimbursement-to-payment":
 		targetEntity = EntityExpensePayment
 	default:
@@ -236,12 +236,12 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 }
 
 func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, converterKey, sourceID string, defaults workflowDefaults, requestID string) (MutationResult, error) {
-	entity := EntityReceipt
+	entity := EntityCustomerReceipt
 	partyEntity := "customer"
 	var partyObjectID, partyVersionID, partyCode, partyName string
 	var source dbsqlc.VouDocument
 	if converterKey == "purchase-inbound-to-payment" {
-		entity = EntityPayment
+		entity = EntitySupplierPayment
 		partyEntity = "supplier"
 		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name FROM vou_documents d JOIN vou_purchase_inbound_details x ON x.document_id=d.id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName)
 		if err != nil {
@@ -265,7 +265,7 @@ func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, con
 		return MutationResult{}, domainError(ErrorConflict, "fund account currency does not match source document", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
-	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{Entity: entity, BusinessDate: source.BusinessDate})
+	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{Entity: numberingEntity(entity), BusinessDate: source.BusinessDate})
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -276,7 +276,7 @@ func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, con
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if entity == EntityReceipt {
+	if receiptEntity(entity) {
 		err = q.InsertVouReceiptDetail(ctx, dbsqlc.InsertVouReceiptDetailParams{DocumentID: id, CounterpartyEntity: partyEntity, CounterpartyObjectID: partyObjectID, CounterpartyVersionID: partyVersionID, CounterpartyCode: partyCode, CounterpartyName: partyName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, HandlerObjectID: stringPtr(handler.ObjectID), HandlerVersionID: stringPtr(handler.VersionID), HandlerCode: stringPtr(handler.Code), HandlerName: stringPtr(handler.Data.Name)})
 	} else {
 		err = q.InsertVouPaymentDetail(ctx, dbsqlc.InsertVouPaymentDetailParams{DocumentID: id, CounterpartyEntity: partyEntity, CounterpartyObjectID: partyObjectID, CounterpartyVersionID: partyVersionID, CounterpartyCode: partyCode, CounterpartyName: partyName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, HandlerObjectID: stringPtr(handler.ObjectID), HandlerVersionID: stringPtr(handler.VersionID), HandlerCode: stringPtr(handler.Code), HandlerName: stringPtr(handler.Data.Name)})

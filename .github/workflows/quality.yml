@@ -2,6 +2,7 @@ name: Full-stack quality
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
   workflow_dispatch:
@@ -30,6 +31,7 @@ jobs:
       e2e: ${{ steps.change_impact.outputs.e2e }}
       local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
       preview: ${{ steps.change_impact.outputs.preview }}
+      full_validation: ${{ steps.change_impact.outputs.full_validation }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,6 +41,7 @@ jobs:
         id: change_impact
         env:
           EVENT_NAME: ${{ github.event_name }}
+          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -55,6 +58,13 @@ jobs:
           local_e2e=1
           preview=1'
           fi
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ]; then
+            full_validation=0
+          else
+            full_validation=1
+          fi
+          checks="${checks}
+          full_validation=${full_validation}"
           printf '%s\n' "$checks"
           printf '%s\n' "$checks" >> "$GITHUB_OUTPUT"
           {
@@ -185,7 +195,8 @@ jobs:
     name: backend-test
     if: >-
       github.event_name != 'push' &&
-      needs.merge_evidence.outputs.backend == '1'
+      needs.merge_evidence.outputs.backend == '1' &&
+      needs.merge_evidence.outputs.full_validation == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -250,14 +261,19 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BACKEND_REQUIRED: ${{ needs.merge_evidence.outputs.backend }}
+          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
           TEST_RESULT: ${{ needs.backend_test.result }}
           STATIC_RESULT: ${{ needs.backend_static.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
           if [ "$EVENT_NAME" != "push" ] && [ "$BACKEND_REQUIRED" = "1" ]; then
-            test "$TEST_RESULT" = "success"
             test "$STATIC_RESULT" = "success"
+            if [ "$FULL_VALIDATION" = "1" ]; then
+              test "$TEST_RESULT" = "success"
+            else
+              test "$TEST_RESULT" = "skipped"
+            fi
           fi
       - name: Reuse successful PR backend check
         if: github.event_name == 'push'
@@ -298,38 +314,46 @@ jobs:
       - uses: actions/checkout@v6
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
       - uses: pnpm/action-setup@v6
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
       - uses: actions/setup-node@v6
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         run: pnpm install --frozen-lockfile
       - name: Install Chromium once
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
       - uses: docker/setup-buildx-action@v4
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
       - name: Build and cache E2E backend image once
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         uses: docker/build-push-action@v7
         with:
           context: backend
+          file: backend/Dockerfile.ci
           load: true
           tags: zerp-e2e-api:${{ github.sha }}
           cache-from: type=gha,scope=zerp-e2e-backend
@@ -337,7 +361,8 @@ jobs:
       - name: Build and cache E2E web image once
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -349,7 +374,8 @@ jobs:
       - name: Run desktop and mobile against one full stack
         if: >-
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         env:
           E2E_SKIP_IMAGE_BUILD: '1'
           ZERP_API_IMAGE: zerp-e2e-api:${{ github.sha }}
@@ -359,7 +385,8 @@ jobs:
         if: >-
           failure() &&
           github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1'
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
         uses: actions/upload-artifact@v7
         with:
           name: playwright-failure-${{ github.sha }}
@@ -373,6 +400,47 @@ jobs:
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e != '1'
         run: echo "No E2E impact"
+      - name: Defer full E2E for draft pull request
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation != '1'
+        run: |
+          echo "Draft pull request; full E2E runs when the PR is ready for review"
       - name: Reuse successful PR E2E check
         if: github.event_name == 'push'
         run: echo "Reused merged PR E2E result"
+
+  full_validation:
+    name: full-validation
+    if: always()
+    needs:
+      - merge_evidence
+      - contracts
+      - frontend
+      - backend
+      - containers
+      - e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require ready full validation
+        env:
+          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          CONTAINERS_RESULT: ${{ needs.containers.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          test "$EVIDENCE_RESULT" = "success"
+          if [ "$FULL_VALIDATION" != "1" ]; then
+            echo "Draft pull request: mark it ready to run and satisfy full validation" >&2
+            exit 1
+          fi
+          test "$CONTRACTS_RESULT" = "success"
+          test "$FRONTEND_RESULT" = "success"
+          test "$BACKEND_RESULT" = "success"
+          test "$CONTAINERS_RESULT" = "success"
+          test "$E2E_RESULT" = "success"

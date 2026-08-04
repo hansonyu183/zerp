@@ -8,6 +8,19 @@ test "$(printf 'README.md\n' | scripts/change-impact.sh --paths)" = docs
 test "$(printf 'README.md\nscripts/pre-push.sh\n' | scripts/change-impact.sh --paths)" = validation
 test "$(printf 'README.md\nfrontend/src/main.ts\n' | scripts/change-impact.sh --paths)" = application
 
+standard_runtime=$(sed -n '/^FROM alpine:3\.23$/,$p' backend/Dockerfile)
+ci_runtime=$(sed -n '/^FROM alpine:3\.23$/,$p' backend/Dockerfile.ci)
+test "${standard_runtime}" = "${ci_runtime}" || {
+  echo "backend/Dockerfile.ci runtime stage drifted from backend/Dockerfile" >&2
+  exit 1
+}
+standard_binaries=$(sed -n 's#.*-o \(/out/[^ ]*\).*#\1#p' backend/Dockerfile | sort)
+ci_binaries=$(sed -n 's#.*-o \(/out/[^ ]*\).*#\1#p' backend/Dockerfile.ci | sort)
+test "${standard_binaries}" = "${ci_binaries}" || {
+  echo "backend/Dockerfile.ci binaries drifted from backend/Dockerfile" >&2
+  exit 1
+}
+
 assert_checks() {
   expected=$1
   shift
@@ -114,6 +127,18 @@ e2e=1
 local_e2e=1
 preview=0" \
   scripts/e2e.sh
+
+assert_checks \
+  "impact=application
+contracts=0
+frontend=0
+frontend_audit=0
+backend=0
+containers=1
+e2e=1
+local_e2e=1
+preview=1" \
+  backend/Dockerfile.ci
 
 assert_checks \
   "impact=application

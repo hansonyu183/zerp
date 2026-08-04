@@ -145,7 +145,8 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
-      compose.yaml | compose.dev.yaml | .dockerignore | frontend/Dockerfile | backend/Dockerfile)
+      compose.yaml | compose.dev.yaml | .dockerignore | frontend/Dockerfile | \
+        backend/Dockerfile | backend/Dockerfile.ci)
         mark_application
         containers=1
         e2e=1

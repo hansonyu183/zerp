@@ -3,7 +3,7 @@ set -eu
 
 repository=${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}
 merge_sha=${GITHUB_SHA:?set GITHUB_SHA}
-required_checks=${ZERP_REQUIRED_PR_CHECKS:-"contracts frontend backend containers e2e"}
+required_checks=${ZERP_REQUIRED_PR_CHECKS:-"contracts frontend backend containers e2e full-validation"}
 
 command -v gh >/dev/null 2>&1 || {
   echo "gh is required to verify merged PR evidence" >&2

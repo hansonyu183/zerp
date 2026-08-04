@@ -310,6 +310,18 @@ type BobMigration00046PartyRef struct {
 	OldSettlementMethodID string `db:"old_settlement_method_id" json:"old_settlement_method_id"`
 }
 
+type BobMigration00046RetiredObject struct {
+	SourceDomain string `db:"source_domain" json:"source_domain"`
+	ObjectID     string `db:"object_id" json:"object_id"`
+	Enabled      bool   `db:"enabled" json:"enabled"`
+}
+
+type BobMigration00046RolePermission struct {
+	RoleID    string  `db:"role_id" json:"role_id"`
+	OldAction string  `db:"old_action" json:"old_action"`
+	CreatedBy *string `db:"created_by" json:"created_by"`
+}
+
 type BobObject struct {
 	ID                 string             `db:"id" json:"id"`
 	Entity             string             `db:"entity" json:"entity"`

@@ -193,6 +193,25 @@ func TestPrepaidApprovalExcludesFutureDatedFundsIntegration(t *testing.T) {
 	}
 }
 
+func TestSettlementApprovalRequiresActiveLedgerIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	customer := createSettlementCustomer(
+		t, pool, refs.employee, bobdomain.SettlementTermCashOnDelivery, "无有效账簿客户",
+	)
+	order := createCheckedSettlementSale(t, service, refs, customer, "inactive-ledger")
+
+	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Revision,
+	}, integrationActorTwo, "inactive-ledger-approve"); err == nil ||
+		!strings.Contains(err.Error(), "settlement ledger is not active") {
+		t.Fatalf("inactive settlement ledger error = %v", err)
+	}
+}
+
 func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)

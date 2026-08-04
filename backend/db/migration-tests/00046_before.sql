@@ -60,4 +60,16 @@ INSERT INTO bob_supplier_versions(
     '01J0000000000000000000469','01J0000000000000000000465'
 );
 
+INSERT INTO app_roles(id,code,name,status,created_by,updated_by)
+VALUES (
+    '01J0000000000000000000473','migration-00046-custom','迁移测试自定义角色','ENABLED',
+    '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'
+);
+
+INSERT INTO app_role_permissions(role_id,permission_id,created_by)
+SELECT '01J0000000000000000000473',permission.id,'01JAPPSYST3MACTR0000000000'
+FROM app_permissions permission
+WHERE permission.domain='aux' AND permission.entity='settlement-method'
+  AND permission.action IN ('query','save','disable');
+
 COMMIT;

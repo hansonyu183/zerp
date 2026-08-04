@@ -48,14 +48,22 @@ func (s *Service) reserveOrderSettlementAmount(
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
 		return s.internal("lock settlement balance", err)
 	}
+	var activeGenerationID string
+	if err = tx.QueryRow(ctx, `SELECT active_generation_id
+		FROM led_control
+		WHERE singleton=true AND status='ACTIVE' AND active_generation_id IS NOT NULL
+		FOR SHARE`).Scan(&activeGenerationID); err == pgx.ErrNoRows {
+		return domainError(ErrorConflict, "settlement ledger is not active", nil, nil)
+	} else if err != nil {
+		return s.internal("read settlement ledger state", err)
+	}
 	var balance int64
 	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(entry.amount_delta_cents),0)::bigint
-		FROM led_control control
-		JOIN led_party_entries entry ON entry.generation_id=control.active_generation_id
-		WHERE control.singleton=true AND control.status='ACTIVE'
-		  AND entry.counterparty_entity=$1 AND entry.counterparty_object_id=$2
-		  AND entry.currency=$3 AND entry.effective_date<=CURRENT_DATE`,
-		gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency).Scan(&balance); err != nil {
+		FROM led_party_entries entry
+		WHERE entry.generation_id=$1
+		  AND entry.counterparty_entity=$2 AND entry.counterparty_object_id=$3
+		  AND entry.currency=$4 AND entry.effective_date<=CURRENT_DATE`,
+		activeGenerationID, gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency).Scan(&balance); err != nil {
 		return s.internal("read settlement balance", err)
 	}
 	if gate.TermCode == bobSettlementPrepaid {

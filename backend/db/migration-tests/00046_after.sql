@@ -44,9 +44,30 @@ BEGIN
         WHERE supplier.version_id='01J0000000000000000000472') <> 'MONTHLY_60' THEN
         RAISE EXCEPTION 'migration 00046 legacy BOB settlement mapping is incorrect';
     END IF;
+    IF (SELECT enabled FROM aux_objects WHERE id='01J0000000000000000000461')
+       OR (SELECT enabled FROM bob_objects WHERE id='01J0000000000000000000469') THEN
+        RAISE EXCEPTION 'migration 00046 did not retire mapped legacy settlement methods';
+    END IF;
+    IF (SELECT count(*)
+        FROM bob_objects object
+        JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+        WHERE object.entity='settlement-method' AND object.enabled
+          AND method.term_code <> 'LEGACY') <> 11 THEN
+        RAISE EXCEPTION 'migration 00046 enabled settlement method set is not fixed at eleven';
+    END IF;
     IF EXISTS (SELECT 1 FROM app_permissions WHERE domain='aux' AND entity='settlement-method')
        OR (SELECT count(*) FROM app_permissions WHERE domain='bob' AND entity='settlement-method') <> 12 THEN
         RAISE EXCEPTION 'migration 00046 settlement permissions are incorrect';
+    END IF;
+    IF (SELECT count(*)
+        FROM app_role_permissions role_permission
+        JOIN app_permissions permission ON permission.id=role_permission.permission_id
+        WHERE role_permission.role_id='01J0000000000000000000473'
+          AND permission.domain='bob' AND permission.entity='settlement-method'
+          AND permission.action IN (
+              'query','save','submit','unsubmit','approve','unapprove','reject','disable'
+          )) <> 8 THEN
+        RAISE EXCEPTION 'migration 00046 did not preserve custom settlement role grants';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
         WHERE table_name='vou_settlement_reservations' AND column_name='active' AND is_nullable='NO') THEN

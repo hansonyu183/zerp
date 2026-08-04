@@ -163,6 +163,37 @@ SELECT classified.legacy_object_id, methods.object_id
 FROM classified
 JOIN bob_migration_00046_fixed_methods methods USING (term_code);
 
+CREATE TABLE bob_migration_00046_retired_objects (
+    source_domain varchar(3) NOT NULL CHECK (source_domain IN ('aux','bob')),
+    object_id varchar(26) NOT NULL,
+    enabled boolean NOT NULL,
+    PRIMARY KEY(source_domain, object_id)
+);
+
+INSERT INTO bob_migration_00046_retired_objects(source_domain, object_id, enabled)
+SELECT 'aux', object.id, object.enabled
+FROM aux_objects object
+JOIN bob_migration_00046_aux_map mapping ON mapping.aux_object_id = object.id
+WHERE object.entity = 'settlement-method';
+
+INSERT INTO bob_migration_00046_retired_objects(source_domain, object_id, enabled)
+SELECT 'bob', object.id, object.enabled
+FROM bob_objects object
+JOIN bob_migration_00046_aux_map mapping ON mapping.aux_object_id = object.id
+WHERE object.entity = 'settlement-method';
+
+UPDATE aux_objects object
+SET enabled = false
+FROM bob_migration_00046_aux_map mapping
+WHERE object.id = mapping.aux_object_id
+  AND object.entity = 'settlement-method';
+
+UPDATE bob_objects object
+SET enabled = false
+FROM bob_migration_00046_aux_map mapping
+WHERE object.id = mapping.aux_object_id
+  AND object.entity = 'settlement-method';
+
 CREATE TABLE bob_migration_00046_party_refs (
     detail_table varchar(32) NOT NULL,
     version_id varchar(26) NOT NULL,
@@ -232,6 +263,19 @@ CREATE UNIQUE INDEX vou_settlement_reservations_cod_uq
     ON vou_settlement_reservations(counterparty_entity, counterparty_object_id, currency)
     WHERE active AND term_code = 'CASH_ON_DELIVERY';
 
+CREATE TABLE bob_migration_00046_role_permissions (
+    role_id varchar(26) NOT NULL,
+    old_action varchar(64) NOT NULL,
+    created_by varchar(26),
+    PRIMARY KEY(role_id, old_action)
+);
+
+INSERT INTO bob_migration_00046_role_permissions(role_id, old_action, created_by)
+SELECT role_permission.role_id, permission.action, role_permission.created_by
+FROM app_role_permissions role_permission
+JOIN app_permissions permission ON permission.id = role_permission.permission_id
+WHERE permission.domain = 'aux' AND permission.entity = 'settlement-method';
+
 DELETE FROM app_role_permissions
 WHERE permission_id IN (
     SELECT id FROM app_permissions WHERE domain = 'aux' AND entity = 'settlement-method'
@@ -251,6 +295,27 @@ SELECT '01JSMTP' || lpad(ordinal::text, 19, '0'),
        '/bob/settlement-method/' || action, 'bob', 'settlement-method', action,
        description || '结算方式', 'ENABLED'
 FROM actions;
+
+WITH action_mapping(old_action, new_action) AS (
+    VALUES
+      ('query','query'), ('get','get'),
+      ('create','save'), ('create','submit'), ('create','unsubmit'),
+      ('create','approve'), ('create','unapprove'), ('create','reject'),
+      ('save','save'), ('save','submit'), ('save','unsubmit'),
+      ('save','approve'), ('save','unapprove'), ('save','reject'),
+      ('delete','disable'), ('enable','enable'), ('disable','disable'),
+      ('versions','versions'), ('audit-history','audit-history')
+)
+INSERT INTO app_role_permissions(role_id, permission_id, created_by)
+SELECT DISTINCT saved.role_id, permission.id, saved.created_by
+FROM bob_migration_00046_role_permissions saved
+JOIN action_mapping mapping ON mapping.old_action = saved.old_action
+JOIN app_roles role ON role.id = saved.role_id
+JOIN app_permissions permission
+  ON permission.domain = 'bob'
+ AND permission.entity = 'settlement-method'
+ AND permission.action = mapping.new_action
+ON CONFLICT DO NOTHING;
 
 INSERT INTO app_role_permissions(role_id, permission_id, created_by)
 SELECT role.id, permission.id, role.updated_by
@@ -299,6 +364,16 @@ WHERE role.code = 'superadmin'
   AND permission.domain = 'aux' AND permission.entity = 'settlement-method'
 ON CONFLICT DO NOTHING;
 
+INSERT INTO app_role_permissions(role_id, permission_id, created_by)
+SELECT saved.role_id, permission.id, saved.created_by
+FROM bob_migration_00046_role_permissions saved
+JOIN app_roles role ON role.id = saved.role_id
+JOIN app_permissions permission
+  ON permission.domain = 'aux'
+ AND permission.entity = 'settlement-method'
+ AND permission.action = saved.old_action
+ON CONFLICT DO NOTHING;
+
 DROP TABLE vou_settlement_reservations;
 
 UPDATE bob_customer_versions detail
@@ -312,6 +387,18 @@ SET settlement_method_id = backup.old_settlement_method_id
 FROM bob_migration_00046_party_refs backup
 WHERE backup.detail_table = 'bob_supplier_versions'
   AND backup.version_id = detail.version_id;
+
+UPDATE aux_objects object
+SET enabled = retired.enabled
+FROM bob_migration_00046_retired_objects retired
+WHERE retired.source_domain = 'aux'
+  AND retired.object_id = object.id;
+
+UPDATE bob_objects object
+SET enabled = retired.enabled
+FROM bob_migration_00046_retired_objects retired
+WHERE retired.source_domain = 'bob'
+  AND retired.object_id = object.id;
 
 DELETE FROM bob_audit_events
 WHERE object_id IN (SELECT object_id FROM bob_migration_00046_fixed_methods);
@@ -335,7 +422,9 @@ WHERE domain = 'bob' AND entity = 'settlement-method'
 
 SET CONSTRAINTS ALL IMMEDIATE;
 
+DROP TABLE bob_migration_00046_role_permissions;
 DROP TABLE bob_migration_00046_party_refs;
+DROP TABLE bob_migration_00046_retired_objects;
 DROP TABLE bob_migration_00046_aux_map;
 DROP TABLE bob_migration_00046_fixed_methods;
 DROP TABLE bob_migration_00046_counter;

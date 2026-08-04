@@ -81,6 +81,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
   'order currency is required for settlement approval':
     '订单缺少币种，无法校验结算资金。',
+  'settlement ledger is not active': '业务账簿尚未启用，无法校验结算资金。',
   'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
   'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
   'counterparty already has an unfinished cash-on-delivery order':

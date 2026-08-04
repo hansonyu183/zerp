@@ -20,6 +20,10 @@ test "${standard_binaries}" = "${ci_binaries}" || {
   echo "backend/Dockerfile.ci binaries drifted from backend/Dockerfile" >&2
   exit 1
 }
+grep -q 'uses: actions/cache@v5' .github/workflows/quality.yml
+grep -q 'uses: reproducible-containers/buildkit-cache-dance@v3\.3\.0' .github/workflows/quality.yml
+grep -q '"\.buildkit-cache/go-mod": "/go/pkg/mod"' .github/workflows/quality.yml
+grep -q '"\.buildkit-cache/go-build": "/root/\.cache/go-build"' .github/workflows/quality.yml
 
 assert_checks() {
   expected=$1

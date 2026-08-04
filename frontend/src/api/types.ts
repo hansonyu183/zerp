@@ -99,6 +99,19 @@ export function getErrorMessage(error: unknown): string {
   return '操作失败，请稍后重试。'
 }
 
+export function getDiagnosticErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error)
+  if (!(error instanceof ApiError)) return message
+
+  const diagnostics = [
+    error.code === undefined ? '' : `错误码：${String(error.code)}`,
+    error.requestId ? `请求标识：${error.requestId}` : '',
+  ].filter(Boolean)
+  return diagnostics.length
+    ? `${message}（${diagnostics.join('；')}）`
+    : message
+}
+
 export function containsChineseText(value: string): boolean {
   return /[\u3400-\u9fff]/u.test(value)
 }

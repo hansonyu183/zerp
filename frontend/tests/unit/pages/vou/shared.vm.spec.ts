@@ -1028,6 +1028,7 @@ describe('shared VOU entity view model', () => {
       }),
       expect.any(Object),
     )
+    expect(vm.successMessage.value).toBe('SO-1 已核对。')
     expect(vm.actionLoading.value).toBeNull()
   })
 

@@ -32,6 +32,7 @@ export interface BobVersionSummary {
   version: number
   status: BobStatus
   revision: number
+  submittedBy: string | null
   summary: BobDetail
 }
 

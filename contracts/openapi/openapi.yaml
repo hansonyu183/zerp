@@ -885,7 +885,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/get':

@@ -14,6 +14,7 @@ const (
 )
 
 type CreateFeedbackInput struct {
+	SubmissionKey    string   `json:"submissionKey"`
 	Category         string   `json:"category"`
 	Title            string   `json:"title"`
 	Content          string   `json:"content"`

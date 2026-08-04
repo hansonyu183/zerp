@@ -25,9 +25,13 @@ export function useVoucherArtifacts(
   const auditTotal = ref(0)
   const auditLoading = ref(false)
   const auditError = ref<string | null>(null)
+  let auditSequence = 0
 
   async function sha256(file: File): Promise<string> {
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      await file.arrayBuffer(),
+    )
     return [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')
@@ -36,6 +40,7 @@ export function useVoucherArtifacts(
   async function loadAudit(nextPage = auditPage.value): Promise<void> {
     const current = documentView.value
     if (!current || !actionAvailability.value.audit) return
+    const sequence = ++auditSequence
     auditLoading.value = true
     auditError.value = null
     try {
@@ -47,14 +52,20 @@ export function useVoucherArtifacts(
         page: nextPage,
         pageSize: auditPageSize.value,
       })
+      if (
+        sequence !== auditSequence ||
+        documentView.value?.documentId !== current.documentId
+      )
+        return
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total ?? 0
       auditPage.value = data.page ?? nextPage
       auditPageSize.value = data.pageSize ?? auditPageSize.value
     } catch (error) {
+      if (sequence !== auditSequence) return
       auditError.value = getErrorMessage(error)
     } finally {
-      auditLoading.value = false
+      if (sequence === auditSequence) auditLoading.value = false
     }
   }
 
@@ -67,7 +78,12 @@ export function useVoucherArtifacts(
       for (const file of files) {
         const hash = await sha256(file)
         const initiated = await apiClient.post<
-          { fileId: string; uploadUrl: string; expiresAt: string; revision: number },
+          {
+            fileId: string
+            uploadUrl: string
+            expiresAt: string
+            revision: number
+          },
           Record<string, unknown>
         >(`vou/${config.entity}/attachment-initiate`, {
           documentId: current.documentId,

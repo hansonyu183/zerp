@@ -15,6 +15,7 @@ const props = withDefaults(
     dirty?: boolean
     busy?: boolean
     errorMessage?: string | null
+    successMessage?: string | null
     canReload?: boolean
   }>(),
   {
@@ -22,6 +23,7 @@ const props = withDefaults(
     dirty: false,
     busy: false,
     errorMessage: null,
+    successMessage: null,
     canReload: false,
   },
 )
@@ -108,10 +110,12 @@ function statusText(): string {
       <v-divider />
 
       <AppSnackbar
+        diagnostics
         :action-label="canReload ? '重新加载' : undefined"
         :message="errorMessage"
         @action="emit('reload')"
       />
+      <AppSnackbar :message="successMessage" type="success" />
 
       <v-window v-model="tab" class="voucher-workspace__window">
         <v-window-item value="document">

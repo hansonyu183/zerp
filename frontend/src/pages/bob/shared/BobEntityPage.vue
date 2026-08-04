@@ -146,6 +146,18 @@ function primaryRowActions(row: BobListItem): ListRowAction[] {
           },
         ]
       : []),
+    ...(!availability.approve && vm.actionBlockedReason(row, 'approve')
+      ? [
+          {
+            key: 'approve-blocked',
+            label: '审核通过',
+            icon: 'mdi-check-decagram-outline',
+            color: 'success',
+            disabled: true,
+            disabledReason: vm.actionBlockedReason(row, 'approve') ?? undefined,
+          },
+        ]
+      : []),
     ...(availability.unapprove
       ? [
           {
@@ -201,6 +213,18 @@ function moreRowActions(row: BobListItem): ListRowAction[] {
             key: 'audit',
             label: '审核历史',
             icon: 'mdi-clipboard-text-clock-outline',
+          },
+        ]
+      : []),
+    ...(!availability.reject && vm.actionBlockedReason(row, 'reject')
+      ? [
+          {
+            key: 'reject-blocked',
+            label: '审核驳回',
+            icon: 'mdi-close-octagon-outline',
+            color: 'error',
+            disabled: true,
+            disabledReason: vm.actionBlockedReason(row, 'reject') ?? undefined,
           },
         ]
       : []),
@@ -310,6 +334,11 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
 <template>
   <v-container fluid class="bob-entity-page pa-5 pa-md-8">
     <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
+    <AppSnackbar
+      :message="vm.successMessage"
+      type="success"
+      @dismiss="vm.successMessage = null"
+    />
 
     <BusinessObjectList
       :columns="vm.config.columns"

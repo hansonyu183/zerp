@@ -309,6 +309,11 @@ function summaryNote(row: T): string | undefined {
 
     <v-card rounded="lg" variant="flat">
       <v-progress-linear v-if="loading" indeterminate />
+      <v-skeleton-loader
+        v-if="loading && rows.length === 0"
+        aria-label="正在加载数据"
+        type="table-heading, table-row@5"
+      />
       <div class="voucher-list__table-wrap responsive-table-wrap">
         <v-table class="voucher-list__table responsive-table">
           <thead>
@@ -439,9 +444,9 @@ function summaryNote(row: T): string | undefined {
         </v-table>
       </div>
       <v-card-actions class="justify-end">
-        <span class="text-caption mr-2"
-          >共 {{ total }} 条，第 {{ page }} 页</span
-        >
+        <span class="text-caption mr-2">
+          {{ loading ? '正在加载数据…' : `共 ${total} 条，第 ${page} 页` }}
+        </span>
         <v-btn
           aria-label="上一页"
           :disabled="page <= 1 || loading"

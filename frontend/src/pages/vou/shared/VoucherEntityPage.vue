@@ -255,7 +255,16 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
+    <AppSnackbar
+      diagnostics
+      :message="vm.errorMessage"
+      @dismiss="vm.errorMessage = null"
+    />
+    <AppSnackbar
+      :message="vm.successMessage"
+      type="success"
+      @dismiss="vm.successMessage = null"
+    />
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
@@ -334,6 +343,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     :document="vm.documentView"
     :editing="vm.editing"
     :error-message="vm.workspaceError"
+    :success-message="vm.successMessage"
     :title="workspaceTitle"
     @close="vm.closeWorkspace"
     @reload="vm.reloadDocument"
@@ -464,7 +474,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                           ? '其他往来单位'
                           : vm.form.counterpartyType === 'employee'
                             ? '借款员工'
-                          : '客户'
+                            : '客户'
                     "
                     :model-value="vm.form.counterparty"
                     :required="vm.config.entity !== 'other-income'"

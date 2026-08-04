@@ -268,4 +268,41 @@ describe('VOU attachment and audit artifacts', () => {
     await artifacts.removeAttachment(attachment)
     expect(mockedPost).not.toHaveBeenCalled()
   })
+
+  it('keeps the newest audit result when requests finish out of order', async () => {
+    const current = ref<VoucherDocumentView | null>(documentView())
+    const availability = computed(() => allowed)
+    const artifacts = useVoucherArtifacts(
+      voucherEntityConfigs['customer-receipt'],
+      current,
+      availability,
+      vi.fn(),
+    )
+    let resolveFirst!: (value: unknown) => void
+    let rejectSecond!: (reason: unknown) => void
+    let resolveThird!: (value: unknown) => void
+    mockedPost
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise((_, reject) => (rejectSecond = reject)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveThird = resolve)))
+
+    const first = artifacts.loadAudit(1)
+    const second = artifacts.loadAudit(2)
+    const third = artifacts.loadAudit(3)
+    resolveThird({
+      data: { items: [{ id: 'NEWEST' }], total: 1, page: 3, pageSize: 20 },
+    })
+    await third
+    rejectSecond(new Error('stale failure'))
+    await second
+    resolveFirst({
+      data: { items: [{ id: 'STALE' }], total: 1, page: 1, pageSize: 20 },
+    })
+    await first
+
+    expect(artifacts.auditEvents.value[0]?.id).toBe('NEWEST')
+    expect(artifacts.auditPage.value).toBe(3)
+    expect(artifacts.auditError.value).toBeNull()
+    expect(artifacts.auditLoading.value).toBe(false)
+  })
 })

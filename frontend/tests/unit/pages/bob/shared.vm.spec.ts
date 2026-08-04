@@ -33,6 +33,7 @@ function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
       version: status === 'EFFECTIVE' ? 2 : 1,
       status,
       revision: 5,
+      submittedBy: null,
       summary: {
         name: '标准产品',
         unit: '件',
@@ -111,6 +112,7 @@ function supplierRow(): BobListItem {
       version: 1,
       status: 'DRAFT',
       revision: 5,
+      submittedBy: null,
       summary: {
         name: '示例供应商',
         supplierType: 'GENERAL',
@@ -220,6 +222,28 @@ describe('shared BOB entity configuration and view model', () => {
     for (const entity of ['category', 'department', 'position']) {
       expect(() => getBobEntityConfig(entity)).toThrow()
     }
+  })
+
+  it('阻止提交人审核自己的待审核版本并说明原因', () => {
+    grant('product', 'approve', 'reject')
+    const session = useSessionStore()
+    session.user = {
+      id: 'USER-1',
+      username: 'reviewer',
+      displayName: '审核人',
+    }
+    const pending = row('PENDING')
+    pending.currentVersion.submittedBy = 'USER-1'
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    expect(vm.actionAvailability(pending).approve).toBe(false)
+    expect(vm.actionAvailability(pending).reject).toBe(false)
+    expect(vm.actionBlockedReason(pending, 'approve')).toBe(
+      '提交人不能审核自己提交的版本，请由其他审核人处理。',
+    )
+
+    pending.currentVersion.submittedBy = 'USER-2'
+    expect(vm.actionAvailability(pending).approve).toBe(true)
   })
 
   it('供应商要求不可清空的业务员引用，并在引用不可用时阻止提交', async () => {

@@ -6,7 +6,7 @@ import {
   rejectBusinessObject,
   submitBusinessObject,
 } from '@/api/bob'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, checkVoucher, finalizeVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
@@ -53,6 +53,7 @@ export function useDashboardViewModel() {
     VOU: emptyState(),
   })
   const actionLoading = ref<string | null>(null)
+  const successMessage = ref<string | null>(null)
   const activeState = computed(() => states[activeCategory.value])
 
   async function query(
@@ -152,9 +153,18 @@ export function useDashboardViewModel() {
       }
       if (state.rows.length === 1 && state.page > 1) state.page -= 1
       await query(category)
+      const identity = item.category === 'BOB' ? item.code : item.documentNo
+      const label = {
+        submit: '已提交审核',
+        approve: item.category === 'BOB' ? '已审核通过' : '已批准',
+        reject: '已审核驳回',
+        check: '已核对',
+        finalize: '已完成',
+      }[action]
+      successMessage.value = `${identity} ${label}。`
       return true
     } catch (error) {
-      const message = getErrorMessage(error)
+      const message = getDiagnosticErrorMessage(error)
       await query(category)
       state.errorMessage = message
       return false
@@ -168,6 +178,7 @@ export function useDashboardViewModel() {
     states,
     activeState,
     actionLoading,
+    successMessage,
     query,
     selectCategory,
     changePage,

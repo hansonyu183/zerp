@@ -48,6 +48,91 @@
             },
         },
     },
+  'BobVersionSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'submittedBy',
+          'summary',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'summary': { 'type': 'object', 'additionalProperties': true },
+        },
+    },
+  'BobListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'currentVersion',
+          'effectiveVersionId',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { '$ref': '#/BobEntity' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'currentVersion': { '$ref': '#/BobVersionSummary' },
+          'effectiveVersionId': { 'type': 'string', 'nullable': true },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobListPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/BobListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'BobQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/BobListPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BobGetRequest':
     {
       'type': 'object',

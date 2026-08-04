@@ -144,8 +144,12 @@ func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 	}
 	id := newID()
 	date := order.BusinessDate.Time
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, orderID, date)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), date.Format("20060102"), counter)
-	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,total_amount_cents,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)`, id, EntityPurchaseInbound, number, date, order.Currency, total, EntityPurchaseOrder, orderID, systemidentity.UserID)
+	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,due_date,total_amount_cents,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`, id, EntityPurchaseInbound, number, date, order.Currency, dueDate, total, EntityPurchaseOrder, orderID, systemidentity.UserID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -239,19 +243,27 @@ func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, con
 	entity := EntityCustomerReceipt
 	partyEntity := "customer"
 	var partyObjectID, partyVersionID, partyCode, partyName string
+	var termCode, settlementName, ruleType string
+	var monthOffset, dayOffset int32
 	var source dbsqlc.VouDocument
 	if converterKey == "purchase-inbound-to-payment" {
 		entity = EntitySupplierPayment
 		partyEntity = "supplier"
-		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name FROM vou_documents d JOIN vou_purchase_inbound_details x ON x.document_id=d.id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName)
+		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.due_date,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name,o.settlement_term_code,COALESCE(o.settlement_method_name,''),COALESCE(o.settlement_rule_type,''),COALESCE(o.settlement_month_offset,0),COALESCE(o.settlement_day_offset,0) FROM vou_documents d JOIN vou_purchase_inbound_details x ON x.document_id=d.id JOIN vou_purchase_order_details o ON o.document_id=x.source_order_id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.DueDate, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName, &termCode, &settlementName, &ruleType, &monthOffset, &dayOffset)
 		if err != nil {
 			return MutationResult{}, err
 		}
 	} else {
-		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name FROM vou_documents d JOIN vou_sale_signoff_details x ON x.document_id=d.id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName)
+		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.due_date,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,o.settlement_term_code,COALESCE(o.settlement_method_name,''),COALESCE(o.settlement_rule_type,''),COALESCE(o.settlement_month_offset,0),COALESCE(o.settlement_day_offset,0) FROM vou_documents d JOIN vou_sale_signoff_details x ON x.document_id=d.id JOIN vou_sale_order_details o ON o.document_id=x.source_order_id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.DueDate, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName, &termCode, &settlementName, &ruleType, &monthOffset, &dayOffset)
 		if err != nil {
 			return MutationResult{}, err
 		}
+	}
+	termCode = settlementTermFromSnapshot(
+		termCode, settlementName, ruleType, monthOffset, dayOffset,
+	)
+	if termCode == bobSettlementPrepaid {
+		return MutationResult{Status: "SKIPPED"}, nil
 	}
 	fund, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityFundAccount, defaults.FundAccountObjectID, "fundAccount")
 	if err != nil {
@@ -272,7 +284,7 @@ func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, con
 	id := newID()
 	date := source.BusinessDate.Time
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), date.Format("20060102"), counter)
-	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,total_amount_cents,remark,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`, id, entity, number, date, source.Currency, source.TotalAmountCents, source.Remark, source.Entity, sourceID, systemidentity.UserID)
+	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,due_date,total_amount_cents,remark,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`, id, entity, number, date, source.Currency, source.DueDate, source.TotalAmountCents, source.Remark, source.Entity, sourceID, systemidentity.UserID)
 	if err != nil {
 		return MutationResult{}, err
 	}

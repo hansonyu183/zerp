@@ -69,7 +69,7 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('显示两个待处理 Tab 并按需查询对应类别', async () => {
+  it('先显示待办单据并按需查询对应类别', async () => {
     const router = createTestRouter()
     const pinia = createPinia()
     useSessionStore(pinia).permissions = [
@@ -125,14 +125,35 @@ describe('Dashboard workbench', () => {
     })
 
     await flushPromises()
-    expect(wrapper.text()).toContain('待处理资料')
-    expect(wrapper.text()).toContain('待处理单据')
+    expect(wrapper.text()).toContain('待办单据')
+    expect(wrapper.text()).toContain('待办资料')
     expect(wrapper.text()).not.toContain('集中处理')
     expect(wrapper.text()).toContain('类型')
     expect(wrapper.text()).toContain('待办状态')
+    expect(wrapper.findAll('nav button').map((tab) => tab.text())).toEqual([
+      '待办单据',
+      '待办资料',
+    ])
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '客户', value: 'customer' }])
+    ).toEqual([{ title: '销售订单', value: 'sale-order' }])
+    expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
+    expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
+      category: 'VOU',
+      page: 1,
+      pageSize: 20,
+    })
+
+    mockedPost.mockResolvedValueOnce(page([objectItem]))
+    wrapper
+      .findComponent({ name: 'VTabs' })
+      .vm.$emit('update:modelValue', 'BOB')
+    await flushPromises()
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'BOB',
+      page: 1,
+      pageSize: 20,
+    })
     expect(wrapper.findComponent({ name: 'BusinessObjectList' }).exists()).toBe(
       true,
     )
@@ -142,37 +163,14 @@ describe('Dashboard workbench', () => {
         .props('columns')
         .map((column: { label: string }) => column.label),
     ).toEqual(['类型', '编码', '名称', '状态'])
-    expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
-      category: 'BOB',
-      page: 1,
-      pageSize: 20,
-    })
-
-    mockedPost.mockResolvedValueOnce(page([documentItem]))
-    wrapper
-      .findComponent({ name: 'VTabs' })
-      .vm.$emit('update:modelValue', 'VOU')
-    await flushPromises()
-    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
-      category: 'VOU',
-      page: 1,
-      pageSize: 20,
-    })
-    expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
-    expect(
-      wrapper.findComponent({ name: 'VoucherList' }).props(),
-    ).toMatchObject({
-      filterable: true,
-      showEntity: true,
-      sortable: false,
-    })
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '销售订单', value: 'sale-order' }])
+    ).toEqual([{ title: '客户', value: 'customer' }])
   })
 
   it('按类型和待办状态进行服务端筛选并可重置', async () => {
     const vm = useDashboardViewModel()
+    vm.activeCategory.value = 'BOB'
     vm.states.BOB.keyword = ' 客户 '
     vm.states.BOB.entities = ['customer']
     vm.states.BOB.pendingStages = ['APPROVE']

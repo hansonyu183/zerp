@@ -377,6 +377,9 @@ func (s *Service) refreshSaleOrderFulfillment(
 				WHERE id=$2`, actorID, orderID)
 		}
 	}
+	if err == nil {
+		err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntitySaleOrder, orderID)
+	}
 	return err
 }
 
@@ -646,6 +649,15 @@ func (s *Service) shortCloseMutation(
 	}
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if next == "SHORT_CLOSED" {
+		if err = s.releaseOrderSettlement(ctx, tx, document.ID); err != nil {
+			return MutationResult{}, err
+		}
+	} else if event == "SHORT_CLOSE_REOPENED" {
+		if err = s.reopenOrderSettlement(ctx, tx, EntitySaleOrder, document.ID); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: document.ID, Entity: EntitySaleOrder, Event: event,

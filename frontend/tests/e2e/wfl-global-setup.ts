@@ -45,6 +45,14 @@ interface BobMutation {
   code: string
 }
 
+interface BobQueryItem {
+  objectId: string
+  currentVersion: {
+    versionId: string
+    summary: { termCode?: string }
+  }
+}
+
 interface VouMutation {
   documentId: string
   revision: number
@@ -167,18 +175,28 @@ async function createEffectiveBob(
   return { ...approved, code: view.code }
 }
 
-async function createAuxiliary(
-  operator: RealApi,
-  entity: string,
-  data: Record<string, unknown>,
-): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>(`aux/${entity}/create`, {
-    data,
-  })
-  const view = await operator.post<{ code: string }>(`aux/${entity}/get`, {
-    objectId: created.objectId,
-  })
-  return { ...created, code: view.code }
+async function fixedSettlementMethod(operator: RealApi): Promise<BobMutation> {
+  const page = await operator.post<Page<BobQueryItem>>(
+    'bob/settlement-method/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { status: ['EFFECTIVE'], enabled: true },
+      sort: [{ field: 'code', order: 'asc' }],
+    },
+  )
+  const item = page.items.find(
+    (candidate) =>
+      candidate.currentVersion.summary.termCode === 'MONTHLY_CURRENT',
+  )
+  if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
+  return {
+    objectId: item.objectId,
+    objectRevision: 1,
+    versionId: item.currentVersion.versionId,
+    revision: 1,
+    code: 'MONTHLY_CURRENT',
+  }
 }
 
 async function seedInventoryThroughLifecycle(
@@ -302,16 +320,7 @@ export default async function globalSetup(): Promise<void> {
       'employee',
       { name: `WFL 员工 ${suffix}` },
     )
-    const settlement = await createAuxiliary(
-      operatorSession.api,
-      'settlement-method',
-      {
-        name: `WFL 结算方式 ${suffix}`,
-        ruleType: 'DUE_DAYS',
-        dueDays: 30,
-        defaultSalesSurcharge: '0.00',
-      },
-    )
+    const settlement = await fixedSettlementMethod(operatorSession.api)
     const customer = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,

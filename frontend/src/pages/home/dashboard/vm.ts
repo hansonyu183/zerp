@@ -47,7 +47,7 @@ function emptyState(): WorkbenchListState {
 }
 
 export function useDashboardViewModel() {
-  const activeCategory = ref<WorkbenchCategory>('BOB')
+  const activeCategory = ref<WorkbenchCategory>('VOU')
   const states = reactive<Record<WorkbenchCategory, WorkbenchListState>>({
     BOB: emptyState(),
     VOU: emptyState(),

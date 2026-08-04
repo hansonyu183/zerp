@@ -15,7 +15,9 @@ func (s *Service) writeSaleDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.CustomerSettlement)
+	settlement := settlementSnapshot(
+		refs.CustomerSettlement, refs.Customer.Data.MonthlyClosingDay,
+	)
 	params := dbsqlc.InsertVouSaleOrderDetailParams{
 		DocumentID: documentID, CustomerObjectID: refs.Customer.ObjectID,
 		CustomerVersionID: refs.Customer.VersionID, CustomerCode: refs.Customer.Code, CustomerName: refs.Customer.Data.Name,
@@ -31,6 +33,7 @@ func (s *Service) writeSaleDetail(
 		SettlementMethodObjectID: settlement.ObjectID, SettlementMethodVersionID: settlement.VersionID,
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
+		SettlementTermCode:   deref(settlement.TermCode),
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
 		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
 		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
@@ -50,6 +53,7 @@ func (s *Service) writeSaleDetail(
 			SettlementMethodVersionID: params.SettlementMethodVersionID,
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
+			SettlementTermCode:   params.SettlementTermCode,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
 			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
 			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
@@ -69,7 +73,8 @@ func (s *Service) writePurchaseDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.SupplierSettlement)
+	settlement := settlementSnapshot(refs.SupplierSettlement, 31)
+	settlement.DefaultSalesSurchargeCents = 0
 	params := dbsqlc.InsertVouPurchaseOrderDetailParams{
 		DocumentID: documentID, SupplierObjectID: refs.Supplier.ObjectID,
 		SupplierVersionID: refs.Supplier.VersionID, SupplierCode: refs.Supplier.Code, SupplierName: refs.Supplier.Data.Name,
@@ -84,6 +89,7 @@ func (s *Service) writePurchaseDetail(
 		SettlementMethodObjectID: settlement.ObjectID, SettlementMethodVersionID: settlement.VersionID,
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
+		SettlementTermCode:   deref(settlement.TermCode),
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
 		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
 		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
@@ -102,6 +108,7 @@ func (s *Service) writePurchaseDetail(
 			SettlementMethodVersionID: params.SettlementMethodVersionID,
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
+			SettlementTermCode:   params.SettlementTermCode,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
 			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
 			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,

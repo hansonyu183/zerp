@@ -30,7 +30,9 @@ func conflictData(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionR
 
 func detailFields(entity string) []string {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
+		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId"}
+	case EntityOtherParty:
 		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntitySupplier:
 		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
@@ -55,7 +57,7 @@ func detailFields(entity string) []string {
 	case EntityPosition:
 		return []string{"name", "categoryId", "description"}
 	case EntitySettlementMethod:
-		return []string{"name", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description"}
+		return []string{"name", "termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "defaultSalesSurcharge", "description"}
 	default:
 		return []string{"name"}
 	}
@@ -123,6 +125,13 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		PricingUnitID:                   row.PricingUnitID,
 		PricingQuantityPerInventoryUnit: formatMicros(row.PricingQuantityPerInventoryUnitMicros),
 		Returnable:                      row.Returnable,
+	}
+	if row.Entity == EntityCustomer {
+		result.MonthlyClosingDay = row.MonthlyClosingDay
+	}
+	if row.Entity == EntitySettlementMethod {
+		result.TermCode = row.SettlementTermCode
+		result.DefaultSalesSurcharge = formatMoneyCents(row.SettlementDefaultSalesSurchargeCents)
 	}
 	result.PackagingSpecs = packagingSpecs(row.PackagingSpecs)
 	if row.ContainerType == ContainerTypeSolvent || row.ContainerType == ContainerTypeResin {

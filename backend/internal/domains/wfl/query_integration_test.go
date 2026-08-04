@@ -54,7 +54,7 @@ func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
-			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
+			wfl_definition_instances, vou_settlement_reservations, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
@@ -75,6 +75,22 @@ func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("truncate workflow integration data: %v", err)
 	}
+}
+
+func fixedWorkflowSettlementReference(
+	t *testing.T, pool *pgxpool.Pool, termCode string,
+) voudomain.ReferenceInput {
+	t.Helper()
+	var result voudomain.ReferenceInput
+	if err := pool.QueryRow(t.Context(), `
+		SELECT object.id,object.effective_version_id
+		FROM bob_objects object
+		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+		WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1
+	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
+		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
+	}
+	return result
 }
 
 func createWorkflowReference(
@@ -104,15 +120,13 @@ func createWorkflowReference(
 	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
 }
 
-func prepareWorkflowReferences(t *testing.T, service *bobdomain.Service) workflowReferences {
+func prepareWorkflowReferences(
+	t *testing.T, pool *pgxpool.Pool, service *bobdomain.Service,
+) workflowReferences {
 	t.Helper()
 	suffix := ulid.Make().String()
-	day := int32(15)
 	general, logistics := bobdomain.SupplierTypeGeneral, bobdomain.SupplierTypeLogisticsPlatform
-	settlement := createWorkflowReference(t, service, bobdomain.EntitySettlementMethod, bobdomain.CreateDetailInput{
-		Code: "WST" + suffix, Name: "流程结算", RuleType: bobdomain.SettlementRuleFixedDay,
-		MonthOffset: 1, DayOfMonth: &day, Description: "流程集成测试",
-	})
+	settlement := fixedWorkflowSettlementReference(t, pool, bobdomain.SettlementTermArrival3)
 	employee := createWorkflowReference(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "WEM" + suffix, Name: "流程员工",
 	})
@@ -162,7 +176,7 @@ func newWorkflowIntegrationServices(
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	business := bobdomain.NewService(pool)
-	refs := prepareWorkflowReferences(t, business)
+	refs := prepareWorkflowReferences(t, pool, business)
 	events := txevent.NewBus()
 	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxdomain.NewService(pool)), events,
 		voudomain.AttachmentOptions{Root: t.TempDir()}, logger)

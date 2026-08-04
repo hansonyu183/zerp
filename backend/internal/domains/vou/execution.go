@@ -54,6 +54,9 @@ func (s *Service) Finalize(
 		return MutationResult{}, s.writeError("finalize document", err)
 	}
 	if entity == EntitySaleSignoff {
+		if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, false); err != nil {
+			return MutationResult{}, s.writeError("release prepaid settlement reservation", err)
+		}
 		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
@@ -62,6 +65,9 @@ func (s *Service) Finalize(
 		}
 	}
 	if entity == EntityPurchaseInbound {
+		if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, false); err != nil {
+			return MutationResult{}, s.writeError("release prepaid settlement reservation", err)
+		}
 		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
@@ -202,6 +208,11 @@ func (s *Service) Unfinalize(
 		Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document unfinalized", err)
+	}
+	if entity == EntitySaleSignoff || entity == EntityPurchaseInbound {
+		if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, true); err != nil {
+			return MutationResult{}, s.writeError("restore settlement reservation", err)
+		}
 	}
 	if entity == EntityInventoryCount {
 		if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {

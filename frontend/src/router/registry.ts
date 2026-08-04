@@ -156,6 +156,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
+  registerPage('bob', {
+    entity: 'settlement-method',
+    entityTitle: '结算方式',
+    icon: 'mdi-calendar-clock-outline',
+    order: 90,
+    component: () =>
+      import('@/pages/bob/settlement-method/SettlementMethod.vue'),
+  }),
   registerPage('aux', {
     entity: 'asset-category',
     entityTitle: '资产类别',
@@ -183,14 +191,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-briefcase-account-outline',
     order: 30,
     component: () => import('@/pages/aux/position/Position.vue'),
-  }),
-  registerPage('aux', {
-    entity: 'settlement-method',
-    entityTitle: '结算方式',
-    icon: 'mdi-calendar-clock-outline',
-    order: 40,
-    component: () =>
-      import('@/pages/aux/settlement-method/SettlementMethod.vue'),
   }),
   registerPage('aux', {
     entity: 'measurement-unit',

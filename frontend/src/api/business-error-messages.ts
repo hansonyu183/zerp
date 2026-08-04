@@ -74,6 +74,18 @@ const exactMessages: Readonly<Record<string, string>> = {
   'purchaser is required': '请选择采购人员。',
   'settlement method is required': '请选择结算方式。',
   'settlement method is not configured': '尚未配置结算方式，请先完成配置。',
+  'settlement methods are system-defined':
+    '结算方式由系统固定维护，不能新增或删除。',
+  'settlement rule does not match fixed term':
+    '结算规则与系统固定期限不一致，请刷新后重试。',
+  'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
+  'order currency is required for settlement approval':
+    '订单缺少币种，无法校验结算资金。',
+  'settlement ledger is not active': '业务账簿尚未启用，无法校验结算资金。',
+  'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
+  'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
+  'counterparty already has an unfinished cash-on-delivery order':
+    '往来单位已有一张未完成的现结订单。',
   'fund account currency does not match document currency':
     '资金账户币种与单据币种不一致。',
   'fund account currency does not match reimbursement':
@@ -278,8 +290,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'condition item must be an object': '每条条件必须是完整的条件对象。',
   'condition must contain one group or one predicate':
     '条件必须包含一个条件组或一个判断项。',
-  'cutoffDay 1-31 and monthOffset 0-120 are required':
-    '截止日必须为 1 至 31，月份偏移必须为 0 至 120。',
+  'monthly closing day must be 1-31': '月结日必须为 1 至 31。',
   'defaultSalesSurcharge must be a non-negative amount':
     '默认销售附加费不能为负数。',
   'defaultUsefulLifeMonths 1-1200 and defaultResidualRate 0-99.99 are required':

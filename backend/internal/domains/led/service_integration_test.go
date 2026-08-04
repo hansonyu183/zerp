@@ -60,7 +60,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			led_opening_party, led_opening_fund, led_opening_inventory,
 			led_draft_party, led_draft_fund, led_draft_inventory, led_control, led_generations,
 			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
-			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
+			wfl_definition_instances, vou_settlement_reservations, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
@@ -85,6 +85,22 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	if _, err = pool.Exec(context.Background(), `INSERT INTO led_control (singleton) VALUES (true)`); err != nil {
 		t.Fatalf("reset LED control: %v", err)
 	}
+}
+
+func fixedSettlementReference(
+	t *testing.T, pool *pgxpool.Pool, termCode string,
+) voudomain.ReferenceInput {
+	t.Helper()
+	var result voudomain.ReferenceInput
+	if err := pool.QueryRow(t.Context(), `
+		SELECT object.id,object.effective_version_id
+		FROM bob_objects object
+		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+		WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1
+	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
+		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
+	}
+	return result
 }
 
 func createApprovedReference(
@@ -115,11 +131,7 @@ func prepareLEDReferences(t *testing.T, pool *pgxpool.Pool) integrationRefs {
 	t.Helper()
 	service := bobdomain.NewService(pool)
 	suffix := newID()
-	day := int32(15)
-	settlement := createApprovedReference(t, service, bobdomain.EntitySettlementMethod, bobdomain.CreateDetailInput{
-		Code: "LSM" + suffix, Name: "LED 结算", RuleType: bobdomain.SettlementRuleFixedDay,
-		MonthOffset: 1, DayOfMonth: &day,
-	})
+	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermArrival3)
 	employee := createApprovedReference(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "LE" + suffix, Name: "LED 员工",
 	})

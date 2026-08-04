@@ -233,6 +233,10 @@ func (s *Service) CreatePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, order.ID, businessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	var generatedID, generatedNo string
 	var generatedRevision int64
 	err = tx.QueryRow(ctx, `SELECT id,document_no,revision FROM vou_documents
@@ -250,6 +254,7 @@ func (s *Service) CreatePurchaseInbound(
 		q := s.queries.WithTx(tx)
 		revision, updateErr := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 			BusinessDate: dateValue(businessDate), Currency: order.Currency,
+			DueDate:          dateValue(dueDate),
 			TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
 			ID: generatedID, Entity: EntityPurchaseInbound, Revision: generatedRevision,
 		})
@@ -294,10 +299,10 @@ func (s *Service) CreatePurchaseInbound(
 	id := newID()
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), businessDate.Format("20060102"), counter)
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,business_date,currency,total_amount_cents,remark,
+		id,entity,document_no,business_date,currency,due_date,total_amount_cents,remark,
 		parent_entity,parent_document_id,created_by,updated_by
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
-		id, EntityPurchaseInbound, number, businessDate, order.Currency, total,
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`,
+		id, EntityPurchaseInbound, number, businessDate, order.Currency, dueDate, total,
 		optionalText(input.Data.Remark), EntityPurchaseOrder, order.ID, actorID); err != nil {
 		return MutationResult{}, s.writeError("insert purchase inbound", err)
 	}
@@ -396,6 +401,10 @@ func (s *Service) SavePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, order.ID, businessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	lines, total, err := s.validateAndReserveInboundLines(
 		ctx, tx, order.ID, input.DocumentID, input.Data.SourceLines,
 	)
@@ -404,6 +413,7 @@ func (s *Service) SavePurchaseInbound(
 	}
 	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(businessDate), Currency: order.Currency,
+		DueDate:          dateValue(dueDate),
 		TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
 		ID: input.DocumentID, Entity: EntityPurchaseInbound, Revision: input.Revision,
 	})
@@ -683,6 +693,15 @@ func (s *Service) purchaseShortClose(
 		WHERE document_id=$4`, next, requestedBy, shortReason, documentID); err != nil {
 		return MutationResult{}, err
 	}
+	if next == "SHORT_CLOSED" {
+		if err = s.releaseOrderSettlement(ctx, tx, documentID); err != nil {
+			return MutationResult{}, err
+		}
+	} else if operation == "unconfirm" {
+		if err = s.reopenOrderSettlement(ctx, tx, EntityPurchaseOrder, documentID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	processStatus := map[string]string{
 		"OPEN": StatusApproved, "SHORT_CLOSE_REQUESTED": StatusShortCloseRequested,
 		"SHORT_CLOSED": StatusShortClosed,
@@ -958,6 +977,9 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 			completed_at=CASE WHEN $1 THEN now() ELSE NULL END
 			WHERE root_document_id=$3 AND process_type=$4`,
 			complete, actorID, orderID, purchaseWorkflowType)
+	}
+	if err == nil {
+		err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntityPurchaseOrder, orderID)
 	}
 	return err
 }

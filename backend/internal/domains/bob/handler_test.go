@@ -115,7 +115,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 	routes := router.Routes()
 	expectedEntities := []string{
 		"customer", "supplier", "other-party", "employee", "product", "service", "warehouse",
-		"vehicle", "fund-account",
+		"vehicle", "fund-account", "settlement-method",
 	}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",

@@ -242,7 +242,7 @@ function closeReject(value: boolean): void {
   }
 }
 
-void vm.query('BOB')
+void vm.query('VOU')
 </script>
 
 <template>
@@ -253,13 +253,13 @@ void vm.query('BOB')
         color="primary"
         @update:model-value="changeCategory"
       >
-        <v-tab value="BOB">
-          <v-icon class="mr-2" icon="mdi-database-clock-outline" />
-          待处理资料
-        </v-tab>
         <v-tab value="VOU">
           <v-icon class="mr-2" icon="mdi-file-clock-outline" />
-          待处理单据
+          待办单据
+        </v-tab>
+        <v-tab value="BOB">
+          <v-icon class="mr-2" icon="mdi-database-clock-outline" />
+          待办资料
         </v-tab>
       </v-tabs>
 
@@ -275,7 +275,7 @@ void vm.query('BOB')
           v-if="vm.activeCategory === 'BOB'"
           :columns="objectColumns"
           :editable="true"
-          empty-text="暂无待处理资料"
+          empty-text="暂无待办资料"
           :keyword="vm.activeState.keyword"
           :loading="vm.activeState.loading"
           :page="vm.activeState.page"
@@ -346,7 +346,7 @@ void vm.query('BOB')
           v-else
           :date-from="''"
           :date-to="''"
-          empty-text="暂无待处理单据"
+          empty-text="暂无待办单据"
           :filterable="true"
           :keyword="vm.activeState.keyword"
           :lifecycle-labels="documentLifecycleLabels"

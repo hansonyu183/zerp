@@ -47,6 +47,10 @@ if grep -Eq 'agent_runtime_root|processed-sha|failed-sha|automatic deployment' s
   echo "native preview still depends on the removed automatic deploy agent" >&2
   exit 1
 fi
+test "$(grep -c 'VITE_API_BASE_URL=/api/' scripts/preview.sh)" = 2 || {
+  echo "native preview frontend builds must use the same-origin /api/ proxy" >&2
+  exit 1
+}
 grep -Fq 'git fetch origin dev --prune' scripts/preview-deploy.sh
 grep -Fq "test \"\${release_sha}\" = \"\${dev_sha}\"" scripts/preview-deploy.sh
 grep -Fq "test \"\${parent_count}\" = 2" scripts/preview-deploy.sh

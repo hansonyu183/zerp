@@ -173,7 +173,10 @@ type settlementSnapshotFields struct {
 	DefaultSalesSurchargeCents                             int64
 }
 
-func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnapshotFields {
+func settlementSnapshot(
+	reference *bobdomain.EffectiveReference,
+	monthlyClosingDay int32,
+) settlementSnapshotFields {
 	if reference == nil {
 		return settlementSnapshotFields{}
 	}
@@ -192,7 +195,10 @@ func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnaps
 		result.DueDays = int32Ptr(reference.Data.DueDays)
 	}
 	if reference.Data.RuleType == "MONTH_END" {
-		result.CutoffDay = int32Ptr(reference.Data.CutoffDay)
+		if monthlyClosingDay < 1 || monthlyClosingDay > 31 {
+			monthlyClosingDay = 31
+		}
+		result.CutoffDay = int32Ptr(monthlyClosingDay)
 	}
 	return result
 }

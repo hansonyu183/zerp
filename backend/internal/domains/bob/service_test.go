@@ -83,6 +83,9 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			if (test.entity == EntityCustomer || test.entity == EntityOtherParty) && data.CustomerType != CustomerTypeEndUser {
 				t.Fatalf("customer type = %v", data.CustomerType)
 			}
+			if test.entity == EntityCustomer && data.MonthlyClosingDay != 31 {
+				t.Fatalf("monthly closing day = %d", data.MonthlyClosingDay)
+			}
 			if test.entity == EntityVehicle &&
 				(data.PlateNumber != "沪A12345" || data.VehicleType != "厢式货车") {
 				t.Fatalf("vehicle data = %+v", data)
@@ -380,6 +383,10 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 	}{
 		{"invalid customer type", EntityCustomer, CreateDetailInput{
 			Code: "CUSTOMER-2", Name: "客户", CustomerType: stringTestPointer("OTHER"),
+		}},
+		{"invalid monthly closing day", EntityCustomer, CreateDetailInput{
+			Code: "CUSTOMER-6", Name: "客户", MonthlyClosingDay: 32,
+			SalespersonEmployeeID: "01J00000000000000000000021",
 		}},
 		{"invalid date", EntityEmployee, CreateDetailInput{
 			Code: "EMPLOYEE-2", Name: "员工", HireDate: "2025-02-30",

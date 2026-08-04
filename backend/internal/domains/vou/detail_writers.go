@@ -15,7 +15,9 @@ func (s *Service) writeSaleDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.CustomerSettlement)
+	settlement := settlementSnapshot(
+		refs.CustomerSettlement, refs.Customer.Data.MonthlyClosingDay,
+	)
 	params := dbsqlc.InsertVouSaleOrderDetailParams{
 		DocumentID: documentID, CustomerObjectID: refs.Customer.ObjectID,
 		CustomerVersionID: refs.Customer.VersionID, CustomerCode: refs.Customer.Code, CustomerName: refs.Customer.Data.Name,
@@ -69,7 +71,7 @@ func (s *Service) writePurchaseDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.SupplierSettlement)
+	settlement := settlementSnapshot(refs.SupplierSettlement, 31)
 	params := dbsqlc.InsertVouPurchaseOrderDetailParams{
 		DocumentID: documentID, SupplierObjectID: refs.Supplier.ObjectID,
 		SupplierVersionID: refs.Supplier.VersionID, SupplierCode: refs.Supplier.Code, SupplierName: refs.Supplier.Data.Name,

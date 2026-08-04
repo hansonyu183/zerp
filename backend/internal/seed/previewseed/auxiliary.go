@@ -49,8 +49,7 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 			"defaultSalesSurcharge": "0.50", "description": "预览测试自然日账期",
 		}), true},
 		{"settlement-month-end", auxdomain.EntitySettlementMethod, fixedAux(map[string]any{
-			"name": "月结 15 日", "ruleType": "MONTH_END", "cutoffDay": 15,
-			"monthOffset": 1, "defaultSalesSurcharge": "1.00",
+			"name": "月结", "ruleType": "MONTH_END", "defaultSalesSurcharge": "1.00",
 			"description": "预览测试月结账期",
 		}), true},
 		{"settlement-disabled", auxdomain.EntitySettlementMethod, fixedAux(map[string]any{

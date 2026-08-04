@@ -166,6 +166,12 @@ type AuxMigration00024CategoryRef struct {
 	CategoryID  string `db:"category_id" json:"category_id"`
 }
 
+type AuxMigration00045SettlementTerm struct {
+	VersionID   string `db:"version_id" json:"version_id"`
+	CutoffDay   *int32 `db:"cutoff_day" json:"cutoff_day"`
+	MonthOffset *int32 `db:"month_offset" json:"month_offset"`
+}
+
 type AuxObject struct {
 	ID               string             `db:"id" json:"id"`
 	Entity           string             `db:"entity" json:"entity"`
@@ -233,6 +239,7 @@ type BobCustomerVersion struct {
 	SettlementMethodEntity    string  `db:"settlement_method_entity" json:"settlement_method_entity"`
 	SalespersonEmployeeID     string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
 	SalespersonEmployeeEntity string  `db:"salesperson_employee_entity" json:"salesperson_employee_entity"`
+	MonthlyClosingDay         int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
 }
 
 type BobDepartmentVersion struct {
@@ -488,6 +495,7 @@ type BobVersionView struct {
 	PricingQuantityPerInventoryUnitMicros int64              `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
 	Returnable                            bool               `db:"returnable" json:"returnable"`
 	PackagingSpecs                        interface{}        `db:"packaging_specs" json:"packaging_specs"`
+	MonthlyClosingDay                     int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
 }
 
 type BobWarehouseVersion struct {

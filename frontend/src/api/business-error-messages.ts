@@ -278,8 +278,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'condition item must be an object': '每条条件必须是完整的条件对象。',
   'condition must contain one group or one predicate':
     '条件必须包含一个条件组或一个判断项。',
-  'cutoffDay 1-31 and monthOffset 0-120 are required':
-    '截止日必须为 1 至 31，月份偏移必须为 0 至 120。',
+  'monthly closing day must be 1-31': '月结日必须为 1 至 31。',
   'defaultSalesSurcharge must be a non-negative amount':
     '默认销售附加费不能为负数。',
   'defaultUsefulLifeMonths 1-1200 and defaultResidualRate 0-99.99 are required':

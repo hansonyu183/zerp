@@ -102,6 +102,13 @@
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'monthlyClosingDay':
+                    {
+                      'type': 'integer',
+                      'minimum': 1,
+                      'maximum': 31,
+                      'nullable': true,
+                    },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':
@@ -197,6 +204,13 @@
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'monthlyClosingDay':
+                    {
+                      'type': 'integer',
+                      'minimum': 1,
+                      'maximum': 31,
+                      'nullable': true,
+                    },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':

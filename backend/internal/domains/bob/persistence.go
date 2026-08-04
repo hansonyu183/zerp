@@ -13,6 +13,10 @@ import (
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
+		monthlyClosingDay := data.MonthlyClosingDay
+		if monthlyClosingDay == 0 {
+			monthlyClosingDay = 31
+		}
 		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
 			VersionID: versionID, Entity: entity, Name: data.Name, CustomerType: data.CustomerType,
 			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
@@ -20,6 +24,7 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
 			SettlementMethodID:    nilIfEmpty(data.SettlementMethodID),
+			MonthlyClosingDay:     monthlyClosingDay,
 			SalespersonEmployeeID: data.SalespersonEmployeeID,
 		})
 	case EntitySupplier:
@@ -122,12 +127,17 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	var err error
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
+		monthlyClosingDay := data.MonthlyClosingDay
+		if monthlyClosingDay == 0 {
+			monthlyClosingDay = 31
+		}
 		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
 			Name: data.Name, CustomerType: data.CustomerType, ShortName: nilIfEmpty(data.ShortName),
 			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
+			MonthlyClosingDay:     monthlyClosingDay,
 			SalespersonEmployeeID: data.SalespersonEmployeeID,
 			VersionID:             versionID,
 		})

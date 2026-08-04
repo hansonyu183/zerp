@@ -20,6 +20,7 @@ const customerForm = {
   customerType: 'DIT-0002',
   shortName: '华东',
   settlementMethodId: 'SM-1',
+  monthlyClosingDay: 25,
   salespersonEmployeeId: 'EMP-1',
   taxNumber: 'TAX-001',
   contactName: '张三',
@@ -93,6 +94,7 @@ describe('customer shared BOB configuration and view model', () => {
       customerType: 'DIT-0001',
       shortName: '',
       settlementMethodId: '',
+      monthlyClosingDay: 31,
       salespersonEmployeeId: '',
       taxNumber: '',
       contactName: '',
@@ -104,6 +106,7 @@ describe('customer shared BOB configuration and view model', () => {
     expect(customerConfig.requiredKeys).toEqual([
       'name',
       'customerType',
+      'monthlyClosingDay',
       'salespersonEmployeeId',
     ])
     expect(customerConfig.references?.settlementMethodId).toMatchObject({
@@ -216,6 +219,7 @@ describe('customer shared BOB configuration and view model', () => {
         data: {
           name: '新客户',
           customerType: 'DIT-0002',
+          monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
         },
       },
@@ -274,6 +278,7 @@ describe('customer shared BOB configuration and view model', () => {
           customerType: 'DIT-0002',
           shortName: '',
           settlementMethodId: '',
+          monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
           taxNumber: 'TAX-001',
           contactName: '',

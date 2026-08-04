@@ -38,6 +38,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				ContactName: "王经理", ContactPhone: "13800000103",
 				Email: "preview.customer@example.com", Address: "上海市浦东新区预览路 101 号",
 				SettlementMethodID:    s.auxRefs["settlement-month-end"].ObjectID,
+				MonthlyClosingDay:     15,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试有效客户",
 			}

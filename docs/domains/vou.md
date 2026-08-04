@@ -65,7 +65,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/
 
 新建贸易单据时，客户的 `salespersonEmployeeId` 默认作为销售订单的 `salesperson`，供应商的 `salespersonEmployeeId` 默认作为采购订单的 `purchaser`。客户端显式传入人员引用时覆盖默认值。已有草稿保存时省略人员字段，保留单据原对象、版本、编码和名称快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
 
-后端按 AUX 结算规则计算、保存并返回 `dueDate`。`DUE_DAYS` 为业务日期加到期天数；`MONTH_END` 在超过截止日时先额外顺延一个月，再叠加结算月偏移并取目标月月末。
+后端按结算方式和客户月结日计算、保存并返回 `dueDate`。`DUE_DAYS` 为业务日期加到期天数；销售 `MONTH_END` 在业务日期超过客户 `monthlyClosingDay` 时归入下月账单，否则归入当月账单，到期日取账单归属月月末。采购 `MONTH_END` 按自然月归属并取当月月末。
 
 销售订单明细的客户端 `unitPrice` 表示基础单价。非包装物默认带入结算方式的元/kg 加价，允许制单时覆盖；包装物加价固定为零。后端保存基础单价、结算加价和两者相加后的实际单价，并按实际单价计算金额。客户变化时客户端清空旧加价，由新结算方式重新计算。
 

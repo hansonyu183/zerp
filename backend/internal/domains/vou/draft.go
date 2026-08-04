@@ -88,9 +88,13 @@ func (s *Service) resolveDraft(
 
 func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDraft) error {
 	var settlement *bobdomain.EffectiveReference
+	monthlyClosingDay := int32(31)
 	switch entity {
 	case EntitySaleOrder:
 		settlement = refs.CustomerSettlement
+		if refs.Customer != nil {
+			monthlyClosingDay = refs.Customer.Data.MonthlyClosingDay
+		}
 	case EntityPurchaseOrder:
 		settlement = refs.SupplierSettlement
 	default:
@@ -99,7 +103,9 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	if settlement == nil {
 		return domainError(ErrorConflict, "settlement method is required", nil, nil)
 	}
-	dueDate, err := calculateDueDate(draft.BusinessDate, settlement.Data)
+	dueDate, err := calculateDueDate(
+		draft.BusinessDate, settlement.Data, monthlyClosingDay,
+	)
 	if err != nil {
 		return err
 	}
@@ -159,7 +165,11 @@ func pricingQuantityMicros(inventoryQuantity int64, product bobdomain.DetailView
 	return value.Int64(), nil
 }
 
-func calculateDueDate(businessDate time.Time, settlement bobdomain.DetailView) (time.Time, error) {
+func calculateDueDate(
+	businessDate time.Time,
+	settlement bobdomain.DetailView,
+	monthlyClosingDay int32,
+) (time.Time, error) {
 	switch settlement.RuleType {
 	case "DUE_DAYS":
 		return businessDate.AddDate(0, 0, int(settlement.DueDays)), nil
@@ -167,17 +177,16 @@ func calculateDueDate(businessDate time.Time, settlement bobdomain.DetailView) (
 		return businessDate.AddDate(0, 0, int(settlement.DayOffset)), nil
 	case "MONTH_END":
 		extraMonth := 0
-		cutoffDay := settlement.CutoffDay
-		if cutoffDay == 0 {
-			cutoffDay = 31
+		if monthlyClosingDay < 1 || monthlyClosingDay > 31 {
+			monthlyClosingDay = 31
 		}
-		if businessDate.Day() > int(cutoffDay) {
+		if businessDate.Day() > int(monthlyClosingDay) {
 			extraMonth = 1
 		}
 		firstOfTargetMonth := time.Date(
 			businessDate.Year(), businessDate.Month(), 1,
 			0, 0, 0, 0, businessDate.Location(),
-		).AddDate(0, int(settlement.MonthOffset)+extraMonth, 0)
+		).AddDate(0, extraMonth, 0)
 		return firstOfTargetMonth.AddDate(0, 1, -1).AddDate(0, 0, int(settlement.DayOffset)), nil
 	case bobdomain.SettlementRuleFixedDay:
 		firstOfTargetMonth := time.Date(

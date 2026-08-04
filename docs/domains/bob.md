@@ -47,7 +47,7 @@ BOB 不负责：
 
 | 实体           | 版本字段                                                                                                                                                                                             |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
+| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`monthlyClosingDay`、`salespersonEmployeeId`                    |
 | `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
 | `other-party`  | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                         |
 | `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                         |
@@ -70,6 +70,8 @@ BOB 不负责：
 配方快照。原材料、定制成品和包装物不维护产品固定配方。
 
 客户和供应商的 `settlementMethodId` 引用当前启用的 AUX 结算方式，可选维护。交易单据的到期日和销售加价规则见 AUX 与 VOU 文档。
+
+客户的 `monthlyClosingDay` 为月结日，取 `1–31` 且必填。业务日期在该日及之前时归入当月账单；在该日之后且尚未进入下一个自然月时归入下月账单。新建客户默认月结日为 `31`，存量版本按其原结算方式截止日回填，无法取得原截止日时回填 `31`。
 
 客户和供应商的 `salespersonEmployeeId` 必填，引用任意当前有效的员工，不附加岗位限制。创建时必须传入；保存时省略表示保持当前员工，显式 `null` 或空字符串无效。存量版本统一回填 `DEMO-EMP-001`，有存量数据但该员工不存在或当前无有效版本时迁移安全失败。
 
@@ -617,9 +619,9 @@ AUX 产品分类、部门、岗位、结算方式，以及 BOB 负责人和业�
 
 列表、详情、写入结果和字段类型直接使用 OpenAPI 生成类型。前端不得维护 `CustomerData`、变更结果或请求体的手写副本。
 
-结算方式和业务员分别引用当前可用的 AUX `settlement-method` 和当前有效的 BOB `employee` 对象。它们保存客户主数据默认值，由 VOU 在制单时解析并保存快照。所有写操作由后端校验权限、生命周期和 revision；删除还必须满足 4.3 节的首版草稿条件。
+结算方式和业务员分别引用当前可用的 AUX `settlement-method` 和当前有效的 BOB `employee` 对象。它们与月结日一起保存为客户主数据默认值，由 VOU 在制单时解析并保存快照。所有写操作由后端校验权限、生命周期和 revision；删除还必须满足 4.3 节的首版草稿条件。
 
-除名称、客户类型和业务员外的客户字段可以清空；省略字段与显式清空的语义按 2.1 节执行。客户类型新建时默认为 `DIT-0001`，业务员必须引用有效员工且不可清空。
+除名称、客户类型、月结日和业务员外的客户字段可以清空；省略字段与显式清空的语义按 2.1 节执行。客户类型新建时默认为 `DIT-0001`，月结日默认为 `31`，业务员必须引用有效员工且不可清空。
 
 ### 14.2 统一实体交互
 

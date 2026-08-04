@@ -130,6 +130,7 @@ type DetailInput struct {
 	AccountNumber                   OptionalString        `json:"accountNumber,omitempty"`
 	ParentID                        OptionalString        `json:"parentId,omitempty"`
 	SettlementMethodID              OptionalString        `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               *int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           OptionalString        `json:"salespersonEmployeeId,omitempty"`
 	RuleType                        string                `json:"ruleType,omitempty"`
 	MonthOffset                     int32                 `json:"monthOffset,omitempty"`
@@ -185,6 +186,7 @@ type CreateDetailInput struct {
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
@@ -399,6 +401,7 @@ type DetailView struct {
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`
 	RuleType                        string               `json:"ruleType,omitempty"`

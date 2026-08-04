@@ -21,6 +21,7 @@ export const customerConfig = defineBobEntityConfig({
     customerType: 'DIT-0001',
     shortName: '',
     settlementMethodId: '',
+    monthlyClosingDay: 31,
     salespersonEmployeeId: '',
     taxNumber: '',
     contactName: '',
@@ -29,7 +30,12 @@ export const customerConfig = defineBobEntityConfig({
     address: '',
     remark: '',
   },
-  requiredKeys: ['name', 'customerType', 'salespersonEmployeeId'],
+  requiredKeys: [
+    'name',
+    'customerType',
+    'monthlyClosingDay',
+    'salespersonEmployeeId',
+  ],
   uppercaseKeys: ['taxNumber'],
   references: {
     customerType: {
@@ -53,6 +59,15 @@ export const customerConfig = defineBobEntityConfig({
     ...commonFields(context, '客户编码', '客户名称'),
     reference('customerType', '客户类型', context, true),
     reference('settlementMethodId', '结算方式', context),
+    {
+      key: 'monthlyClosingDay',
+      label: '月结日',
+      type: 'number',
+      required: true,
+      min: 1,
+      max: 31,
+      hint: '该日之后至当月月底的业务归入下月账单。',
+    },
     reference('salespersonEmployeeId', '业务员', context, true),
     text('taxNumber', '税号', 50, {
       rules: [

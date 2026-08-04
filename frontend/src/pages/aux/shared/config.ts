@@ -93,8 +93,6 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
       name: '',
       ruleType: 'DUE_DAYS',
       dueDays: 0,
-      cutoffDay: 25,
-      monthOffset: 0,
       defaultSalesSurcharge: '0.00',
       description: '',
     }),
@@ -107,7 +105,7 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
         required: true,
         options: [
           { title: '到期天数', value: 'DUE_DAYS' },
-          { title: '截止日月结', value: 'MONTH_END' },
+          { title: '月结', value: 'MONTH_END' },
         ],
       },
       {
@@ -116,20 +114,6 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
         type: 'number',
         required: true,
         visible: (form) => form.ruleType === 'DUE_DAYS',
-      },
-      {
-        key: 'cutoffDay',
-        label: '截止日',
-        type: 'number',
-        required: true,
-        visible: (form) => form.ruleType === 'MONTH_END',
-      },
-      {
-        key: 'monthOffset',
-        label: '结算月偏移',
-        type: 'number',
-        required: true,
-        visible: (form) => form.ruleType === 'MONTH_END',
       },
       text('defaultSalesSurcharge', '销售加价（元/kg）', {
         required: true,

@@ -64,12 +64,10 @@ account-subject ACS             asset-category ACT
 
 - `ruleType`：`DUE_DAYS` 或 `MONTH_END`；
 - `dueDays`：`DUE_DAYS` 的自然日天数；
-- `cutoffDay`：`MONTH_END` 的月内截止日，取 `1–31`；
-- `monthOffset`：目标结算月偏移，取 `0–120`；
 - `defaultSalesSurcharge`：销售商品默认加价，单位为元/kg，非负两位小数；
 - `description`。
 
-`DUE_DAYS` 到期日为业务日期加 `dueDays`。`MONTH_END` 先判断业务日期是否超过 `cutoffDay`，超过则额外顺延一个月，再叠加 `monthOffset`，最后取目标月月末。销售订单对非包装物商品自动带入默认加价；包装物不加价。单据保存结算方式和加价快照。
+`DUE_DAYS` 到期日为业务日期加 `dueDays`。`MONTH_END` 到期日为账单归属月的月末；销售账单归属边界由客户的 `monthlyClosingDay` 决定，采购业务没有客户月结日时按自然月归属。销售订单对非包装物商品自动带入默认加价；包装物不加价。单据保存结算方式、客户月结日和加价快照。
 
 ### 3.4 计量单位
 

@@ -34,6 +34,10 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		value := CustomerTypeEndUser
 		customerType = &value
 	}
+	monthlyClosingDay := input.MonthlyClosingDay
+	if entity == EntityCustomer && monthlyClosingDay == 0 {
+		monthlyClosingDay = 31
+	}
 	data := DetailView{
 		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
 		SupplierType: deref(supplierType), CustomerType: deref(customerType),
@@ -48,9 +52,10 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		VIN: input.VIN, EngineNumber: input.EngineNumber, LoadCapacityKG: input.LoadCapacityKG,
 		AccountName: input.AccountName, BankName: input.BankName, BankBranch: input.BankBranch,
 		AccountNumber: input.AccountNumber, ParentID: input.ParentID,
-		SettlementMethodID: input.SettlementMethodID, SalespersonEmployeeID: input.SalespersonEmployeeID,
-		RuleType:    input.RuleType,
-		MonthOffset: input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
+		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
+		SalespersonEmployeeID: input.SalespersonEmployeeID,
+		RuleType:              input.RuleType,
+		MonthOffset:           input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
 		ProductKind: input.ProductKind, InventoryUnitID: input.InventoryUnitID,
 		PricingUnitID:                   input.PricingUnitID,
@@ -156,6 +161,9 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	mergeOptional(input.AccountNumber, &result.AccountNumber)
 	mergeOptional(input.ParentID, &result.ParentID)
 	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
+	if input.MonthlyClosingDay != nil {
+		result.MonthlyClosingDay = *input.MonthlyClosingDay
+	}
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
 	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
 	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
@@ -176,6 +184,7 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	}
 	if entity == EntityCustomer || entity == EntityOtherParty {
 		current.CustomerType = CustomerTypeEndUser
+		current.MonthlyClosingDay = 31
 	}
 	if entity == EntityProduct {
 		current.ContainerType = ContainerTypeNone
@@ -194,7 +203,9 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
+	case EntityOtherParty:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntitySupplier:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
@@ -237,6 +248,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"accountName": input.AccountName.Set, "bankName": input.BankName.Set,
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
+		"monthlyClosingDay":               input.MonthlyClosingDay != nil,
 		"salespersonEmployeeId":           input.SalespersonEmployeeID.Set,
 		"quantityPerContainer":            input.QuantityPerContainer.Set,
 		"inventoryUnitId":                 input.InventoryUnitID.Set,
@@ -381,7 +393,18 @@ func validateEntityFields(entity string, input DetailView) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
+		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
+		if !objectCodePattern.MatchString(input.CustomerType) {
+			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
+		}
+		if input.MonthlyClosingDay < 1 || input.MonthlyClosingDay > 31 {
+			return domainError(ErrorValidation, "monthly closing day must be 1-31", nil, nil)
+		}
+		if input.SalespersonEmployeeID == "" {
+			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
+		}
+	case EntityOtherParty:
 		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
@@ -484,6 +507,7 @@ func detailFieldValues(input DetailView) map[string]string {
 		"accountName": input.AccountName, "bankName": input.BankName, "bankBranch": input.BankBranch,
 		"accountNumber": input.AccountNumber, "parentId": input.ParentID,
 		"settlementMethodId":    input.SettlementMethodID,
+		"monthlyClosingDay":     numericField(input.MonthlyClosingDay),
 		"salespersonEmployeeId": input.SalespersonEmployeeID,
 		"ruleType":              input.RuleType,
 		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),

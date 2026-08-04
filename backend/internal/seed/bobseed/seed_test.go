@@ -215,6 +215,10 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	if entity == bob.EntityCustomer && customerType == "" {
 		customerType = bob.CustomerTypeEndUser
 	}
+	monthlyClosingDay := input.Data.MonthlyClosingDay
+	if entity == bob.EntityCustomer && monthlyClosingDay == 0 {
+		monthlyClosingDay = 31
+	}
 	productKind := input.Data.ProductKind
 	if entity == bob.EntityProduct && productKind == "" {
 		productKind = bob.ProductKindRawMaterial
@@ -268,6 +272,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			AccountNumber:         input.Data.AccountNumber,
 			ParentID:              input.Data.ParentID,
 			SettlementMethodID:    input.Data.SettlementMethodID,
+			MonthlyClosingDay:     monthlyClosingDay,
 			SalespersonEmployeeID: input.Data.SalespersonEmployeeID,
 			RuleType:              input.Data.RuleType,
 			MonthOffset:           input.Data.MonthOffset,
@@ -345,6 +350,9 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	applyOptional(input.Data.AccountNumber, &view.Data.AccountNumber)
 	applyOptional(input.Data.ParentID, &view.Data.ParentID)
 	applyOptional(input.Data.SettlementMethodID, &view.Data.SettlementMethodID)
+	if input.Data.MonthlyClosingDay != nil {
+		view.Data.MonthlyClosingDay = *input.Data.MonthlyClosingDay
+	}
 	applyOptional(input.Data.SalespersonEmployeeID, &view.Data.SalespersonEmployeeID)
 	view.Data.RuleType = input.Data.RuleType
 	view.Data.MonthOffset = input.Data.MonthOffset

@@ -2212,6 +2212,7 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
+                monthlyClosingDay?: number | null;
                 salespersonEmployeeId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
@@ -2262,6 +2263,7 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
+                monthlyClosingDay?: number | null;
                 salespersonEmployeeId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;

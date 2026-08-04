@@ -418,6 +418,7 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.ParentID == item.data.ParentID &&
 		view.Data.SalespersonEmployeeID == item.data.SalespersonEmployeeID &&
 		view.Data.SettlementMethodID == item.data.SettlementMethodID &&
+		view.Data.MonthlyClosingDay == expectedMonthlyClosingDay(item) &&
 		view.Data.RuleType == item.data.RuleType &&
 		view.Data.MonthOffset == item.data.MonthOffset &&
 		equalInt32Pointer(view.Data.DayOfMonth, item.data.DayOfMonth) &&
@@ -431,6 +432,13 @@ func expectedProductKind(item sample) string {
 		return bob.ProductKindRawMaterial
 	}
 	return item.data.ProductKind
+}
+
+func expectedMonthlyClosingDay(item sample) int32 {
+	if item.entity == bob.EntityCustomer && item.data.MonthlyClosingDay == 0 {
+		return 31
+	}
+	return item.data.MonthlyClosingDay
 }
 
 func formulaMatches(actual, expected *bob.ProductFormula) bool {
@@ -544,6 +552,10 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.Address = bob.Optional(input.Address)
 		result.Remark = bob.Optional(input.Remark)
 		result.SettlementMethodID = bob.Optional(input.SettlementMethodID)
+		if entity == bob.EntityCustomer {
+			closingDay := expectedMonthlyClosingDay(sample{entity: entity, data: input})
+			result.MonthlyClosingDay = &closingDay
+		}
 		result.SalespersonEmployeeID = bob.Optional(input.SalespersonEmployeeID)
 	case bob.EntityEmployee:
 		result.CategoryID = bob.Optional(input.CategoryID)

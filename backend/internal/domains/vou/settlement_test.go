@@ -11,20 +11,20 @@ func TestCalculateDueDateRules(t *testing.T) {
 	businessDate := time.Date(2026, time.January, 25, 0, 0, 0, 0, time.UTC)
 	due, err := calculateDueDate(businessDate, bobdomain.DetailView{
 		RuleType: "DUE_DAYS", DueDays: 30,
-	})
+	}, 31)
 	if err != nil || due.Format(dateLayout) != "2026-02-24" {
 		t.Fatalf("due-days result=%s err=%v", due.Format(dateLayout), err)
 	}
 	due, err = calculateDueDate(businessDate, bobdomain.DetailView{
-		RuleType: "MONTH_END", CutoffDay: 25, MonthOffset: 1,
-	})
-	if err != nil || due.Format(dateLayout) != "2026-02-28" {
+		RuleType: "MONTH_END",
+	}, 25)
+	if err != nil || due.Format(dateLayout) != "2026-01-31" {
 		t.Fatalf("before-cutoff result=%s err=%v", due.Format(dateLayout), err)
 	}
 	due, err = calculateDueDate(businessDate.AddDate(0, 0, 1), bobdomain.DetailView{
-		RuleType: "MONTH_END", CutoffDay: 25, MonthOffset: 1,
-	})
-	if err != nil || due.Format(dateLayout) != "2026-03-31" {
+		RuleType: "MONTH_END",
+	}, 25)
+	if err != nil || due.Format(dateLayout) != "2026-02-28" {
 		t.Fatalf("after-cutoff result=%s err=%v", due.Format(dateLayout), err)
 	}
 }

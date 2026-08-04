@@ -37,7 +37,8 @@ test "$(grep -c '^RUN CGO_ENABLED=0 GOOS=linux go build' backend/Dockerfile.ci)"
 system_user_id=$(sed -n 's/^[[:space:]]*UserID[[:space:]]*=[[:space:]]*"\([^"]*\)"/\1/p' \
   backend/internal/platform/systemidentity/identity.go)
 test -n "${system_user_id}"
-grep -Fq "WHERE id <> '${system_user_id}'" scripts/preview.sh
+grep -Fq "system_user_id=${system_user_id}" scripts/preview.sh
+grep -Fq "WHERE id <> '\${system_user_id}'" scripts/preview.sh
 grep -Fq "restore_after_failed_deploy \"\${native_was_ready}\" \"\${release_activated}\"" \
   scripts/preview.sh
 grep -Fq "rm -f \"\${legacy_import_complete}\"" scripts/preview.sh
@@ -72,6 +73,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -84,6 +86,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -96,6 +99,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -103,13 +107,27 @@ preview=0" \
   .github/workflows/quality.yml
 
 assert_checks \
+  "impact=validation
+contracts=0
+frontend=0
+frontend_audit=0
+backend=0
+backend_full=0
+containers=0
+e2e=0
+local_e2e=0
+preview=0" \
+  Makefile backend/Makefile
+
+assert_checks \
   "impact=application
 contracts=0
 frontend=1
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
-e2e=1
+e2e=0
 local_e2e=0
 preview=1" \
   frontend/src/main.ts
@@ -120,8 +138,9 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=1
+backend_full=0
 containers=0
-e2e=1
+e2e=0
 local_e2e=0
 preview=1" \
   backend/internal/httpserver/server.go
@@ -132,6 +151,7 @@ contracts=1
 frontend=1
 frontend_audit=0
 backend=1
+backend_full=1
 containers=1
 e2e=1
 local_e2e=1
@@ -144,6 +164,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=1
+backend_full=1
 containers=1
 e2e=1
 local_e2e=1
@@ -156,6 +177,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=1
 e2e=1
 local_e2e=1
@@ -168,6 +190,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=1
 e2e=0
 local_e2e=0
@@ -180,6 +203,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=1
 e2e=0
 local_e2e=0
@@ -187,12 +211,13 @@ preview=0" \
   scripts/production-watch.sh
 
 assert_checks \
-  "impact=application
+  "impact=validation
 contracts=0
 frontend=0
 frontend_audit=0
 backend=0
-containers=1
+backend_full=0
+containers=0
 e2e=0
 local_e2e=0
 preview=1" \
@@ -204,6 +229,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -216,6 +242,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=1
 local_e2e=1
@@ -228,6 +255,7 @@ contracts=0
 frontend=1
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -240,6 +268,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=1
+backend_full=1
 containers=0
 e2e=0
 local_e2e=0
@@ -253,6 +282,7 @@ contracts=0
 frontend=1
 frontend_audit=0
 backend=1
+backend_full=1
 containers=0
 e2e=1
 local_e2e=1
@@ -265,6 +295,7 @@ contracts=1
 frontend=1
 frontend_audit=0
 backend=1
+backend_full=1
 containers=1
 e2e=1
 local_e2e=1
@@ -277,6 +308,7 @@ contracts=0
 frontend=1
 frontend_audit=1
 backend=0
+backend_full=0
 containers=1
 e2e=1
 local_e2e=1

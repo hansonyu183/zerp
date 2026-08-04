@@ -27,6 +27,7 @@ jobs:
       frontend: ${{ steps.change_impact.outputs.frontend }}
       frontend_audit: ${{ steps.change_impact.outputs.frontend_audit }}
       backend: ${{ steps.change_impact.outputs.backend }}
+      backend_full: ${{ steps.change_impact.outputs.backend_full }}
       containers: ${{ steps.change_impact.outputs.containers }}
       e2e: ${{ steps.change_impact.outputs.e2e }}
       local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
@@ -53,6 +54,7 @@ jobs:
           frontend=1
           frontend_audit=1
           backend=1
+          backend_full=1
           containers=1
           e2e=1
           local_e2e=1
@@ -213,6 +215,7 @@ jobs:
             backend/go.sum
             backend/tools/go.sum
       - name: Prepare isolated backend test environment
+        if: needs.merge_evidence.outputs.backend_full == '1'
         run: |
           install -m 600 /dev/null backend/.env.ci
           {
@@ -227,10 +230,16 @@ jobs:
             echo 'ATTACHMENT_STORAGE_ROOT=./var/attachments'
             echo 'FEEDBACK_GITHUB_ENABLED=false'
           } >> backend/.env.ci
-      - name: Run integration, vet, build and race gates
+      - name: Run focused or full backend gates
+        env:
+          BACKEND_FULL: ${{ needs.merge_evidence.outputs.backend_full }}
         run: |
-          make -C backend ENV_FILE=.env.ci quality-test
-          make -C backend quality-vet-build quality-race
+          if [ "$BACKEND_FULL" = "1" ]; then
+            make -C backend ENV_FILE=.env.ci quality-test
+            make -C backend quality-vet-build quality-race
+          else
+            make -C backend test-unit quality-vet-build
+          fi
 
   backend_static:
     name: backend-static

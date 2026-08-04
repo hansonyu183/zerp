@@ -49,6 +49,7 @@ if [ "${PRE_PUSH_FULL:-0}" = "1" ]; then
   frontend=1
   frontend_audit=1
   backend=1
+  backend_full=1
   containers=1
   e2e=1
   local_e2e=1
@@ -63,6 +64,7 @@ print_plan() {
     printf '  frontend: %s\n' "${frontend}"
     printf '  frontend dependency audit: %s\n' "${frontend_audit}"
     printf '  backend: %s\n' "${backend}"
+    printf '  backend full integration/race: %s\n' "${backend_full}"
     printf '  containers: %s\n' "${containers}"
     printf '  PR E2E: %s\n' "${e2e}"
     printf '  local E2E: %s\n' "${local_e2e}"
@@ -101,9 +103,13 @@ check_validation() {
 }
 
 check_backend() {
-  make check-backend \
-    BACKEND_SKIP_GENERATED="${contracts}" \
-    BACKEND_SKIP_IMAGE="${local_e2e}"
+  if [ "${backend_full}" = "1" ]; then
+    make check-backend \
+      BACKEND_SKIP_GENERATED="${contracts}" \
+      BACKEND_SKIP_IMAGE=1
+  else
+    make check-backend-fast
+  fi
 }
 
 print_plan

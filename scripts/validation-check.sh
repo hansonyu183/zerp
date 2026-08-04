@@ -34,6 +34,16 @@ fi
 grep -q '^RUN go mod download' backend/Dockerfile.ci
 test "$(grep -c '^RUN CGO_ENABLED=0 GOOS=linux go build' backend/Dockerfile.ci)" = 1
 
+system_user_id=$(sed -n 's/^[[:space:]]*UserID[[:space:]]*=[[:space:]]*"\([^"]*\)"/\1/p' \
+  backend/internal/platform/systemidentity/identity.go)
+test -n "${system_user_id}"
+grep -Fq "WHERE id <> '${system_user_id}'" scripts/preview.sh
+grep -Fq "restore_after_failed_deploy \"\${native_was_ready}\" \"\${release_activated}\"" \
+  scripts/preview.sh
+grep -Fq "rm -f \"\${legacy_import_complete}\"" scripts/preview.sh
+grep -Fq "mv \"\${attachment_root}\" \"\${backup_dir}/replaced-native-attachments\"" \
+  scripts/preview.sh
+
 assert_checks() {
   expected=$1
   shift

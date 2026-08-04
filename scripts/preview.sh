@@ -20,6 +20,7 @@ skip_legacy_import="${runtime_root}/skip-legacy-import"
 legacy_import_complete="${runtime_root}/legacy-import-complete"
 preview_url=https://zerp-preview.bytesucceed.com
 legacy_project=zerp-fullstack-preview
+system_user_id=01JAPPSYST3MACTR0000000000
 db_label=com.hansonyu.zerp-preview-db
 api_label=com.hansonyu.zerp-preview-api
 web_label=com.hansonyu.zerp-preview-web
@@ -496,6 +497,11 @@ import_legacy_preview() {
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
     -d "${POSTGRES_DB}" --no-owner --no-privileges \
     "${backup_dir}/database.dump" || return 1
+  if [ -e "${attachment_root}" ]; then
+    mv "${attachment_root}" "${backup_dir}/replaced-native-attachments"
+  fi
+  mkdir -p "${attachment_root}"
+  chmod 700 "${attachment_root}"
   cp -R "${backup_dir}/attachments/." "${attachment_root}/" || return 1
   : >"${legacy_import_complete}"
   chmod 600 "${legacy_import_complete}"
@@ -529,7 +535,8 @@ run_release_setup() {
     -dir "${release}/migrations" postgres "${database_url}" up || return 1
   user_count=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
-    -d "${POSTGRES_DB}" -Atqc 'SELECT count(*) FROM app_users') || return 1
+    -d "${POSTGRES_DB}" -Atqc \
+    "SELECT count(*) FROM app_users WHERE id <> '${system_user_id}'") || return 1
   if [ "${user_count}" = 0 ]; then
     APP_BOOTSTRAP_PASSWORD="${APP_BOOTSTRAP_PASSWORD}" \
       DATABASE_URL="${database_url}" \
@@ -576,17 +583,20 @@ rollback_release_links() {
 
 restore_after_failed_deploy() {
   native_was_ready=$1
+  release_was_activated=$2
   echo "Native preview deployment failed; restoring the previous runtime" >&2
   stop_job "${web_label}" || true
   stop_job "${api_label}" || true
   if [ "${native_was_ready}" = 1 ]; then
-    if rollback_release_links; then
-      restart_job "${api_label}" || true
-      restart_job "${web_label}" || true
+    if [ "${release_was_activated}" = 1 ]; then
+      rollback_release_links || true
     fi
+    restart_job "${api_label}" || true
+    restart_job "${web_label}" || true
   else
     stop_job "${db_label}" || true
     if legacy_container_exists; then
+      rm -f "${legacy_import_complete}"
       legacy_compose up -d --wait --no-build db api web || true
     fi
   fi
@@ -598,6 +608,7 @@ deploy_release() {
     stop_job "${api_label}" &&
     run_release_setup "${release_dir}" &&
     activate_release "${release_dir}" &&
+    release_activated=1 &&
     restart_job "${api_label}" &&
     restart_job "${web_label}" &&
     wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz" &&
@@ -614,10 +625,11 @@ up() {
   build_release
   write_runtime_files
   native_was_ready=0
+  release_activated=0
   [ -f "${native_ready}" ] && native_was_ready=1
 
   if ! deploy_release; then
-    restore_after_failed_deploy "${native_was_ready}"
+    restore_after_failed_deploy "${native_was_ready}" "${release_activated}"
     return 1
   fi
 

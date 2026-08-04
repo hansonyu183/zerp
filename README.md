@@ -44,31 +44,30 @@ make dev-down
 
 ## 常用命令
 
-| 命令                         | 作用                                   |
-| ---------------------------- | -------------------------------------- |
-| `make bootstrap`             | 安装 pnpm 与 Go 依赖                   |
-| `make dev`                   | 启动数据库、迁移、API 与前端热更新     |
-| `make generate`              | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
-| `make generate-check`        | 验证生成物已提交且无漂移               |
-| `make check`                 | 运行前端与后端质量门禁                 |
-| `make pre-push-plan`         | 显示当前提交将运行的分层门禁           |
-| `make pre-push`              | 按变更影响运行分层推送前门禁           |
-| `make test`                  | 运行前后端测试                         |
-| `make e2e`                   | 启动隔离全栈并运行真实 API Playwright  |
-| `make build`                 | 构建前端、后端及容器镜像               |
-| `make compose-up`            | 启动生产形态 Compose                   |
-| `make compose-down`          | 停止生产形态 Compose                   |
-| `make preview-up`            | 以本机进程构建并启动固定开发预览       |
-| `make preview-deploy`        | 从指定 commit 构建本机固定预览         |
-| `make preview-down`          | 停止预览并保留人工测试数据             |
-| `make preview-reset`         | 仅重置预览环境的数据与附件             |
-| `make preview-rollback`      | 回退到上一版固定预览                   |
-| `make preview-status`        | 检查预览进程、本机和公网版本           |
-| `make preview-password`      | 仅把预览管理员密码复制到剪贴板         |
-| `make preview-install-agent` | 安装 `dev` 合并后的预览更新代理        |
-| `make preview-retry`         | 重试被熔断的 `dev` 预览发布            |
-| `make production-status`     | 检查正式环境版本及本地/公网健康状态    |
-| `make production-retry`      | 修复发布阻塞后重试被熔断的正式发布     |
+| 命令                           | 作用                                   |
+| ------------------------------ | -------------------------------------- |
+| `make bootstrap`               | 安装 pnpm 与 Go 依赖                   |
+| `make dev`                     | 启动数据库、迁移、API 与前端热更新     |
+| `make generate`                | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
+| `make generate-check`          | 验证生成物已提交且无漂移               |
+| `make check`                   | 运行前端与后端质量门禁                 |
+| `make pre-push-plan`           | 显示当前提交将运行的分层门禁           |
+| `make pre-push`                | 按变更影响运行分层推送前门禁           |
+| `make test`                    | 运行前后端测试                         |
+| `make e2e`                     | 启动隔离全栈并运行真实 API Playwright  |
+| `make build`                   | 构建前端、后端及容器镜像               |
+| `make compose-up`              | 启动生产形态 Compose                   |
+| `make compose-down`            | 停止生产形态 Compose                   |
+| `make preview-up`              | 以本机进程构建并启动固定开发预览       |
+| `make preview-deploy`          | 从指定 commit 构建本机固定预览         |
+| `make preview-down`            | 停止预览并保留人工测试数据             |
+| `make preview-reset`           | 仅重置预览环境的数据与附件             |
+| `make preview-rollback`        | 回退到上一版固定预览                   |
+| `make preview-status`          | 检查预览进程、本机和公网版本           |
+| `make preview-password`        | 仅把预览管理员密码复制到剪贴板         |
+| `make preview-uninstall-agent` | 卸载旧版 `dev` 预览轮询代理            |
+| `make production-status`       | 检查正式环境版本及本地/公网健康状态    |
+| `make production-retry`        | 修复发布阻塞后重试被熔断的正式发布     |
 
 ## 契约工作流
 
@@ -116,7 +115,7 @@ https://zerp-preview.bytesucceed.com
 
 首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并按 AUX、BOB、VOU/WFL、LED 顺序补齐全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
 
-临时检查可用 `make preview-up` 构建当前工作区。安装一次 `make preview-install-agent` 后，开发 PR 合入 `dev` 且六项检查全绿时，代理会从准确的 `dev` merge SHA 自动更新固定预览；正式发布仍只由 `dev` → `main` 汇总 PR 触发。完整生命周期、回退和验收方法见固定预览运维说明。
+临时检查可用 `make preview-up` 构建当前工作区。开发 PR 合入 `dev` 后，需要固定预览的变更使用准确的 merge SHA 执行 `make preview-deploy PREVIEW_REF=<dev-merge-full-sha>`，随后运行 `make preview-status` 验收；正式发布仍只由 `dev` → `main` 汇总 PR 触发。完整生命周期、回退和验收方法见固定预览运维说明。
 
 ## 文档
 

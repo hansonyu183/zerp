@@ -22,7 +22,7 @@ https://zerp-preview.bytesucceed.com
 | CORS Origin       | `https://zerp-preview.bytesucceed.com` |
 | GitHub 反馈发布   | 关闭                                   |
 
-数据库文件、附件、构建版本、备份和代理状态全部位于被 Git 忽略的仓库 `backend/var/` 下。E2E 仍使用自己的 Compose 项目，不读取或清理固定预览。
+数据库文件、附件、构建版本和备份全部位于被 Git 忽略的仓库 `backend/var/` 下。E2E 仍使用自己的 Compose 项目，不读取或清理固定预览。
 
 ## 2. 日常命令
 
@@ -32,7 +32,6 @@ make preview-deploy PREVIEW_REF=<commit>
 make preview-status
 make preview-password
 make preview-rollback
-make preview-retry
 make preview-down
 make preview-reset
 ```
@@ -40,8 +39,7 @@ make preview-reset
 - `preview-up`：构建当前工作区，启动本机数据库/API/Web，迁移、初始化管理员并补齐测试数据；
 - `preview-deploy`：从隔离工作树构建完整 commit SHA，不读取未提交修改；
 - `preview-status`：核对三个 launchd job、数据库、本机端点、公网端点和发布标记；
-- `preview-rollback`：原子切回上一版二进制和 Web，并熔断当前 `dev` SHA，避免代理立即重新部署；
-- `preview-retry`：外部问题修复后清除熔断并立即重试当前 `dev`；
+- `preview-rollback`：原子切回上一版二进制和 Web；
 - `preview-down`：停止三个 launchd job，保留数据库、附件和所有版本；
 - `preview-reset`：把当前数据库和附件移动到时间戳备份目录，再建立干净环境；
 - `preview-password`：只把管理员密码写入 macOS 剪贴板，不在终端打印。
@@ -50,7 +48,7 @@ make preview-reset
 
 ## 3. 首次迁移与常驻
 
-本机需要 Homebrew PostgreSQL、Go、pnpm、`gh` 和 `jq`。`preview-up` 使用 `pg_config` 找到当前 PostgreSQL 二进制，并在 `backend/var/preview-native/postgres-data` 初始化独立 cluster，不改动 Homebrew 默认的 `127.0.0.1:5432` 数据库。
+本机需要 Homebrew PostgreSQL、Go 和 pnpm。`preview-up` 使用 `pg_config` 找到当前 PostgreSQL 二进制，并在 `backend/var/preview-native/postgres-data` 初始化独立 cluster，不改动 Homebrew 默认的 `127.0.0.1:5432` 数据库。
 
 若首次启动时检测到旧 `zerp-fullstack-preview` Compose 数据库，脚本会：
 
@@ -62,23 +60,26 @@ make preview-reset
 
 迁移或首次切换失败时，脚本停止本机服务并恢复旧 Compose 服务。成功后数据库/API/Web 的 launchd job 在用户登录时自动恢复，不依赖 Colima。
 
-## 4. `dev` 合并后自动更新
+## 4. `dev` 合并后更新
 
-首次安装代理：
+若本机曾执行过旧版 `make preview-install-agent`，先进行一次迁移清理：
 
 ```bash
-make preview-install-agent
+make preview-uninstall-agent
 ```
 
-代理每 60 秒读取 `origin/dev`。只有准确的 `dev` merge SHA 上 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 全部成功时才继续：
+该命令停止并移除 `com.hansonyu.zerp-preview-deploy` LaunchAgent，同时删除其被 Git 忽略的控制器、仓库副本、日志和状态；不会停止 PostgreSQL、API 或 Web，也不会删除预览数据库、附件和构建版本。
 
-- 文档和普通验证工具变更记录为 no-op，不重建应用；
-- 应用变更从隔离工作树构建该 SHA，迁移、seed、切换并核对本机与公网 `_zerp-release`；
-- 同一 SHA 失败后熔断，不每分钟重复破坏性尝试；
-- 新 SHA 或人工执行 `make preview-retry` 后才继续；
-- 每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
+开发 PR 合入 `dev` 且需要应用预览时，先取得准确的 merge commit 完整 SHA，再执行：
 
-因此开发 PR 在合入 `dev` 前只承担代码门禁；固定预览更新发生在合并后，预览人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。
+```bash
+make preview-deploy PREVIEW_REF=<dev-merge-full-sha>
+make preview-status
+```
+
+部署命令先获取 `origin/dev`，只接受当前 `origin/dev` 的 40 位 merge commit SHA，然后从隔离工作树构建该 SHA，迁移、seed、切换，并核对本机与公网 `_zerp-release`。每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
+
+文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更不重新部署应用预览。运行代码、契约、迁移、依赖、构建和预览工具变更在合入 `dev` 后部署，人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。后续适用的 PR 合入 `dev` 后，旧预览验收失效，需要重新部署新的 merge SHA。
 
 ## 5. Cloudflare Tunnel
 
@@ -96,17 +97,17 @@ make preview-install-agent
 
 失败时按以下层次定位：
 
-1. 检查 `backend/var/preview-agent/agent.log` 的 GitHub 检查读取、构建、migration 和 seed；
+1. 检查 `preview-deploy` 输出以及 `backend/var/preview-native/` 下的本机进程日志，区分构建、migration 和 seed；
 2. 检查本机 PostgreSQL、`http://127.0.0.1:18082/readyz` 和 `http://127.0.0.1:15176/healthz`；
 3. 对比本机与公网 `/_zerp-release` 是否为同一完整 `dev` merge SHA；
 4. 本机健康但公网返回 `530`、TLS 失败或标记未更新时，核对 Tunnel ingress、edge 连接和准确服务实例，不得用 `preview-reset` 或清空数据修复入口；
-5. 入口恢复后执行 `make preview-retry` 或 `make preview-status`。
+5. 入口恢复后重新执行 `make preview-status`；只有部署本身未完成时才用同一准确 SHA 重新执行 `preview-deploy`。
 
 变更验收至少运行：
 
 ```bash
-sh -n scripts/preview.sh scripts/preview-deploy.sh scripts/preview-watch.sh
-shellcheck -x scripts/preview*.sh scripts/install-preview-agent.sh
+sh -n scripts/preview.sh scripts/preview-deploy.sh
+shellcheck -x scripts/preview.sh scripts/preview-deploy.sh
 go -C backend test ./cmd/preview-web
 make preview-status
 ```

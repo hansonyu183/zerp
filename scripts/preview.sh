@@ -7,7 +7,6 @@ primary_root=$(dirname "${common_git_dir}")
 source_root=${ZERP_PREVIEW_SOURCE_ROOT:-${repo_root}}
 env_file=${ZERP_PREVIEW_ENV_FILE:-${primary_root}/backend/.env.preview.local}
 runtime_root=${ZERP_PREVIEW_RUNTIME_ROOT:-${primary_root}/backend/var/preview-native}
-agent_runtime_root=${ZERP_PREVIEW_AGENT_RUNTIME_ROOT:-${primary_root}/backend/var/preview-agent}
 releases_root="${runtime_root}/releases"
 current_link="${runtime_root}/current"
 previous_link="${runtime_root}/previous"
@@ -688,12 +687,6 @@ rollback() {
   release_marker=$(cat "${current_link}/release-sha")
   warm_public_assets "${release_marker}"
   printf '%s\n' "${release_marker}" >"${native_ready}"
-  processed_sha=$(cat "${agent_runtime_root}/processed-sha" 2>/dev/null || true)
-  if [ -n "${processed_sha}" ]; then
-    mkdir -p "${agent_runtime_root}"
-    printf '%s\n' "${processed_sha}" >"${agent_runtime_root}/failed-sha.new"
-    mv "${agent_runtime_root}/failed-sha.new" "${agent_runtime_root}/failed-sha"
-  fi
   echo "Native preview rolled back to ${release_marker}"
 }
 
@@ -713,11 +706,6 @@ status() {
   wait_for_release_marker \
     "Preview local" "http://127.0.0.1:${WEB_PORT}" "${release_marker}" 1
   wait_for_release_marker "Preview public" "${preview_url}" "${release_marker}" 15
-  failed_sha=$(cat "${agent_runtime_root}/failed-sha" 2>/dev/null || true)
-  if [ -n "${failed_sha}" ]; then
-    echo "Preview automatic deployment is blocked for dev ${failed_sha}" >&2
-    return 1
-  fi
   echo "Native preview local and public health checks passed: ${preview_url} (${release_marker})"
 }
 

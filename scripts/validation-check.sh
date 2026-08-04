@@ -43,6 +43,13 @@ grep -Fq "restore_after_failed_deploy \"\${native_was_ready}\" \"\${release_acti
 grep -Fq "rm -f \"\${legacy_import_complete}\"" scripts/preview.sh
 grep -Fq "mv \"\${attachment_root}\" \"\${backup_dir}/replaced-native-attachments\"" \
   scripts/preview.sh
+if grep -Eq 'agent_runtime_root|processed-sha|failed-sha|automatic deployment' scripts/preview.sh; then
+  echo "native preview still depends on the removed automatic deploy agent" >&2
+  exit 1
+fi
+grep -Fq 'git fetch origin dev --prune' scripts/preview-deploy.sh
+grep -Fq "test \"\${release_sha}\" = \"\${dev_sha}\"" scripts/preview-deploy.sh
+grep -Fq "test \"\${parent_count}\" = 2" scripts/preview-deploy.sh
 
 assert_checks() {
   expected=$1
@@ -176,6 +183,18 @@ preview=0" \
   scripts/production-watch.sh
 
 assert_checks \
+  "impact=application
+contracts=0
+frontend=0
+frontend_audit=0
+backend=0
+containers=1
+e2e=0
+local_e2e=0
+preview=1" \
+  scripts/preview-deploy.sh
+
+assert_checks \
   "impact=validation
 contracts=0
 frontend=0
@@ -185,7 +204,7 @@ containers=0
 e2e=0
 local_e2e=0
 preview=1" \
-  scripts/preview-watch.sh scripts/install-preview-agent.sh scripts/preview-retry.sh
+  scripts/uninstall-preview-agent.sh
 
 assert_checks \
   "impact=application

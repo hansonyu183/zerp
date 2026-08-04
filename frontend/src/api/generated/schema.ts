@@ -2144,6 +2144,18 @@ export interface components {
             page: number;
             pageSize: number;
         };
+        BobQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters?: {
+                [key: string]: unknown;
+            };
+            sort?: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
         BobGetRequest: {
             objectId: string;
             versionId?: string;
@@ -3594,7 +3606,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["BobQueryRequest"];
             };
         };
         responses: {

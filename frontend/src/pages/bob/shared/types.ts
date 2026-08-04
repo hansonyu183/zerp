@@ -17,6 +17,7 @@ export type BobEntity =
   | 'warehouse'
   | 'vehicle'
   | 'fund-account'
+  | 'settlement-method'
 
 export type BobForm = {
   code: string

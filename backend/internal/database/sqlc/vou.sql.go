@@ -1010,7 +1010,7 @@ func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID st
 }
 
 const getVouPurchaseOrderDetail = `-- name: GetVouPurchaseOrderDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents FROM vou_purchase_order_details WHERE document_id = $1
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, settlement_term_code FROM vou_purchase_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error) {
@@ -1048,6 +1048,7 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 		&i.SettlementDueDays,
 		&i.SettlementCutoffDay,
 		&i.SettlementDefaultSalesSurchargeCents,
+		&i.SettlementTermCode,
 	)
 	return i, err
 }
@@ -1080,7 +1081,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -1119,6 +1120,7 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.WarehouseVersionID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
+		&i.SettlementTermCode,
 	)
 	return i, err
 }
@@ -2120,7 +2122,7 @@ INSERT INTO vou_purchase_order_details (
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
-    settlement_default_sales_surcharge_cents,
+    settlement_default_sales_surcharge_cents, settlement_term_code,
     settlement_description
 ) VALUES (
     $1, $2, $3,
@@ -2135,8 +2137,8 @@ INSERT INTO vou_purchase_order_details (
     $20, $21,
     $22, $23,
     $24, $25,
-    $26,
-    $27
+    $26, $27,
+    $28
 )
 `
 
@@ -2167,6 +2169,7 @@ type InsertVouPurchaseOrderDetailParams struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 }
 
@@ -2198,6 +2201,7 @@ func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVo
 		arg.SettlementDueDays,
 		arg.SettlementCutoffDay,
 		arg.SettlementDefaultSalesSurchargeCents,
+		arg.SettlementTermCode,
 		arg.SettlementDescription,
 	)
 	return err
@@ -2269,7 +2273,7 @@ INSERT INTO vou_sale_order_details (
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
-    settlement_default_sales_surcharge_cents,
+    settlement_default_sales_surcharge_cents, settlement_term_code,
     settlement_description
 ) VALUES (
     $1, $2, $3,
@@ -2284,8 +2288,8 @@ INSERT INTO vou_sale_order_details (
     $21, $22,
     $23, $24,
     $25, $26,
-    $27,
-    $28
+    $27, $28,
+    $29
 )
 `
 
@@ -2317,6 +2321,7 @@ type InsertVouSaleOrderDetailParams struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 }
 
@@ -2349,6 +2354,7 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 		arg.SettlementDueDays,
 		arg.SettlementCutoffDay,
 		arg.SettlementDefaultSalesSurchargeCents,
+		arg.SettlementTermCode,
 		arg.SettlementDescription,
 	)
 	return err
@@ -4126,8 +4132,9 @@ SET supplier_object_id = $1, supplier_version_id = $2,
     settlement_due_days = $23,
     settlement_cutoff_day = $24,
     settlement_default_sales_surcharge_cents = $25,
-    settlement_description = $26
-WHERE document_id = $27
+    settlement_term_code = $26,
+    settlement_description = $27
+WHERE document_id = $28
 `
 
 type UpdateVouPurchaseOrderDetailParams struct {
@@ -4156,6 +4163,7 @@ type UpdateVouPurchaseOrderDetailParams struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 	DocumentID                           string  `db:"document_id" json:"document_id"`
 }
@@ -4187,6 +4195,7 @@ func (q *Queries) UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVo
 		arg.SettlementDueDays,
 		arg.SettlementCutoffDay,
 		arg.SettlementDefaultSalesSurchargeCents,
+		arg.SettlementTermCode,
 		arg.SettlementDescription,
 		arg.DocumentID,
 	)
@@ -4271,8 +4280,9 @@ SET customer_object_id = $1, customer_version_id = $2,
     settlement_due_days = $24,
     settlement_cutoff_day = $25,
     settlement_default_sales_surcharge_cents = $26,
-    settlement_description = $27
-WHERE document_id = $28
+    settlement_term_code = $27,
+    settlement_description = $28
+WHERE document_id = $29
 `
 
 type UpdateVouSaleOrderDetailParams struct {
@@ -4302,6 +4312,7 @@ type UpdateVouSaleOrderDetailParams struct {
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 	DocumentID                           string  `db:"document_id" json:"document_id"`
 }
@@ -4334,6 +4345,7 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		arg.SettlementDueDays,
 		arg.SettlementCutoffDay,
 		arg.SettlementDefaultSalesSurchargeCents,
+		arg.SettlementTermCode,
 		arg.SettlementDescription,
 		arg.DocumentID,
 	)

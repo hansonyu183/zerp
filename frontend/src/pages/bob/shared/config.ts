@@ -8,6 +8,7 @@ import { serviceConfig } from '../service/config'
 import { warehouseConfig } from '../warehouse/config'
 import { vehicleConfig } from '../vehicle/config'
 import { fundAccountConfig } from '../fund-account/config'
+import { settlementMethodConfig } from '../settlement-method/config'
 
 export { getStatusText, statusOptions } from './config-helpers'
 
@@ -21,6 +22,7 @@ export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
   warehouse: warehouseConfig,
   vehicle: vehicleConfig,
   'fund-account': fundAccountConfig,
+  'settlement-method': settlementMethodConfig,
 }
 
 export function getBobEntityConfig(entity: string): BobEntityConfig {

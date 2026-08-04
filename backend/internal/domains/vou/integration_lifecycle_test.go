@@ -136,9 +136,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					view.Data.ContactPhone != "13800000000" ||
 					view.Data.DeliveryAddress != "深圳市测试路 1 号" ||
 					view.Data.SettlementMethod == nil ||
-					view.Data.SettlementMethod.RuleType != bobdomain.SettlementRuleFixedDay ||
-					view.Data.SettlementMethod.DayOfMonth == nil ||
-					*view.Data.SettlementMethod.DayOfMonth != 15 ||
+					view.Data.SettlementMethod.RuleType != bobdomain.SettlementRuleMonthEnd ||
+					view.Data.SettlementMethod.MonthOffset != 1 ||
 					view.Data.ProductLines[0].Remark != "商品明细备注" {
 					t.Fatalf("sale attribute snapshots = %+v", view.Data)
 				}

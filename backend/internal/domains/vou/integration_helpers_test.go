@@ -57,6 +57,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
+			vou_settlement_reservations,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
@@ -129,7 +130,19 @@ func reverseApprovedBOBToDraft(
 	return draft
 }
 
-func int32IntegrationPointer(value int32) *int32 { return &value }
+func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string) ReferenceInput {
+	t.Helper()
+	var result ReferenceInput
+	if err := pool.QueryRow(t.Context(), `
+		SELECT object.id,object.effective_version_id
+		FROM bob_objects object
+		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+		WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1
+	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
+		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
+	}
+	return result
+}
 
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	t.Helper()
@@ -137,11 +150,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	suffix := newID()
 	general := bobdomain.SupplierTypeGeneral
 	logistics := bobdomain.SupplierTypeLogisticsPlatform
-	settlement := createApprovedBOB(t, service, bobdomain.EntitySettlementMethod, bobdomain.CreateDetailInput{
-		Code: "VSM" + suffix, Name: "次月十五日", RuleType: bobdomain.SettlementRuleFixedDay,
-		MonthOffset: 1, DayOfMonth: int32IntegrationPointer(15), DayOffset: 0,
-		Description: "按自然日计算",
-	})
+	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermMonthly30)
 	employee := createApprovedBOB(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "VE" + suffix, Name: "VOU 员工",
 	})

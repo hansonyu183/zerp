@@ -24,7 +24,6 @@ var entities = [...]string{
 	EntityProductCategory,
 	EntityDepartment,
 	EntityPosition,
-	EntitySettlementMethod,
 	EntityDictionaryType,
 	EntityDictionaryItem,
 	EntityMeasurementUnit,

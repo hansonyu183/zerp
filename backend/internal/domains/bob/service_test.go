@@ -58,8 +58,8 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		{EntityDepartment, CreateDetailInput{Code: "dept01", Name: "运营部"}},
 		{EntityPosition, CreateDetailInput{Code: "pos01", Name: "主管"}},
 		{EntitySettlementMethod, CreateDetailInput{
-			Code: "sm01", Name: "月结 30 天", RuleType: SettlementRuleRelativeDays,
-			DayOffset: 30,
+			Code: "sm01", Name: "月结 30 天", TermCode: SettlementTermMonthly30,
+			RuleType: SettlementRuleMonthEnd, MonthOffset: 1, DefaultSalesSurcharge: "0.10",
 		}},
 	}
 	for _, test := range tests {
@@ -115,11 +115,12 @@ func TestValidateSupplierTypeCompatibility(t *testing.T) {
 }
 
 func TestValidateSettlementMethodRules(t *testing.T) {
-	day15 := int32(15)
 	valid := []CreateDetailInput{
-		{Code: "SM-REL", Name: "相对天数", RuleType: SettlementRuleRelativeDays, DayOffset: -30},
-		{Code: "SM-EOM", Name: "月末", RuleType: SettlementRuleMonthEnd, MonthOffset: 120, DayOffset: 3650},
-		{Code: "SM-FIX", Name: "固定日", RuleType: SettlementRuleFixedDay, MonthOffset: 1, DayOfMonth: &day15},
+		{Code: "SM-1", Name: "预付", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
+		{Code: "SM-2", Name: "现结", TermCode: SettlementTermCashOnDelivery, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0"},
+		{Code: "SM-3", Name: "货到30天", TermCode: SettlementTermArrival30, RuleType: SettlementRuleRelativeDays, DayOffset: 30, DefaultSalesSurcharge: "0.10"},
+		{Code: "SM-4", Name: "当月结", TermCode: SettlementTermMonthlyCurrent, RuleType: SettlementRuleMonthEnd, DefaultSalesSurcharge: "0.05"},
+		{Code: "SM-5", Name: "月结90天", TermCode: SettlementTermMonthly90, RuleType: SettlementRuleMonthEnd, MonthOffset: 3, DefaultSalesSurcharge: "0.30"},
 	}
 	for _, input := range valid {
 		if _, _, err := validateCreate(EntitySettlementMethod, input); err != nil {
@@ -127,16 +128,12 @@ func TestValidateSettlementMethodRules(t *testing.T) {
 		}
 	}
 
-	day0, day32 := int32(0), int32(32)
 	invalid := []CreateDetailInput{
-		{Code: "SM-BAD-1", Name: "缺少类型"},
-		{Code: "SM-BAD-2", Name: "相对天数带月份", RuleType: SettlementRuleRelativeDays, MonthOffset: 1},
-		{Code: "SM-BAD-3", Name: "月末带日期", RuleType: SettlementRuleMonthEnd, DayOfMonth: &day15},
-		{Code: "SM-BAD-4", Name: "固定日缺日期", RuleType: SettlementRuleFixedDay},
-		{Code: "SM-BAD-5", Name: "固定日为零", RuleType: SettlementRuleFixedDay, DayOfMonth: &day0},
-		{Code: "SM-BAD-6", Name: "固定日越界", RuleType: SettlementRuleFixedDay, DayOfMonth: &day32},
-		{Code: "SM-BAD-7", Name: "月份越界", RuleType: SettlementRuleMonthEnd, MonthOffset: 121},
-		{Code: "SM-BAD-8", Name: "天数越界", RuleType: SettlementRuleRelativeDays, DayOffset: -3651},
+		{Code: "SM-BAD-1", Name: "缺少术语代码", RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
+		{Code: "SM-BAD-2", Name: "未知术语", TermCode: "CUSTOM", RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
+		{Code: "SM-BAD-3", Name: "负加价", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "-0.01"},
+		{Code: "SM-BAD-4", Name: "超小数位", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.001"},
+		{Code: "SM-BAD-5", Name: "期限不匹配", TermCode: SettlementTermArrival30, RuleType: SettlementRuleRelativeDays, DayOffset: 15, DefaultSalesSurcharge: "0.00"},
 	}
 	for _, input := range invalid {
 		if _, _, err := validateCreate(EntitySettlementMethod, input); !errorIsKind(err, ErrorValidation) {

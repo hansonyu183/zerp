@@ -57,7 +57,7 @@ func detailFields(entity string) []string {
 	case EntityPosition:
 		return []string{"name", "categoryId", "description"}
 	case EntitySettlementMethod:
-		return []string{"name", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description"}
+		return []string{"name", "termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "defaultSalesSurcharge", "description"}
 	default:
 		return []string{"name"}
 	}
@@ -128,6 +128,10 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 	}
 	if row.Entity == EntityCustomer {
 		result.MonthlyClosingDay = row.MonthlyClosingDay
+	}
+	if row.Entity == EntitySettlementMethod {
+		result.TermCode = row.SettlementTermCode
+		result.DefaultSalesSurcharge = formatMoneyCents(row.SettlementDefaultSalesSurchargeCents)
 	}
 	result.PackagingSpecs = packagingSpecs(row.PackagingSpecs)
 	if row.ContainerType == ContainerTypeSolvent || row.ContainerType == ContainerTypeResin {

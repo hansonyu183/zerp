@@ -82,12 +82,11 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		integrationActorOne, "snapshot-settlement-gap"); err == nil {
 		t.Fatal("sale was created while settlement method had no effective version")
 	}
-	day20 := int32(20)
+	updatedSurcharge := "0.25"
 	settlementSaved, err := bobService.Save(t.Context(), bobdomain.EntitySettlementMethod, bobdomain.SaveInput{
 		ObjectID: refs.settlement.ObjectID, VersionID: settlementEdit.VersionID, Revision: settlementEdit.Revision,
 		Data: bobdomain.DetailInput{
-			Name: "次月二十日", RuleType: bobdomain.SettlementRuleFixedDay,
-			MonthOffset: 1, DayOfMonth: &day20, DayOffset: 0,
+			DefaultSalesSurcharge: &updatedSurcharge,
 		},
 	}, integrationActorOne, "snapshot-settlement-save")
 	if err != nil {
@@ -117,9 +116,8 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		snapshot.Data.ContactPhone != "13800000000" ||
 		snapshot.Data.DeliveryAddress != "深圳市测试路 1 号" ||
 		snapshot.Data.SettlementMethod == nil ||
-		snapshot.Data.SettlementMethod.Name != "次月十五日" ||
-		snapshot.Data.SettlementMethod.DayOfMonth == nil ||
-		*snapshot.Data.SettlementMethod.DayOfMonth != 15 {
+		snapshot.Data.SettlementMethod.Name != "月结30天" ||
+		snapshot.Data.SettlementMethod.DefaultSalesSurcharge != "0.10" {
 		t.Fatalf("historical sale snapshot changed with BOB: %+v", snapshot.Data)
 	}
 

@@ -505,7 +505,7 @@ INSERT INTO vou_sale_order_details (
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
-    settlement_default_sales_surcharge_cents,
+    settlement_default_sales_surcharge_cents, settlement_term_code,
     settlement_description
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_version_id),
@@ -520,7 +520,7 @@ INSERT INTO vou_sale_order_details (
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
     sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
-    sqlc.arg(settlement_default_sales_surcharge_cents),
+    sqlc.arg(settlement_default_sales_surcharge_cents), sqlc.arg(settlement_term_code),
     sqlc.narg(settlement_description)
 );
 
@@ -547,6 +547,7 @@ SET customer_object_id = sqlc.arg(customer_object_id), customer_version_id = sql
     settlement_due_days = sqlc.narg(settlement_due_days),
     settlement_cutoff_day = sqlc.narg(settlement_cutoff_day),
     settlement_default_sales_surcharge_cents = sqlc.arg(settlement_default_sales_surcharge_cents),
+    settlement_term_code = sqlc.arg(settlement_term_code),
     settlement_description = sqlc.narg(settlement_description)
 WHERE document_id = sqlc.arg(document_id);
 
@@ -563,7 +564,7 @@ INSERT INTO vou_purchase_order_details (
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
-    settlement_default_sales_surcharge_cents,
+    settlement_default_sales_surcharge_cents, settlement_term_code,
     settlement_description
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(supplier_object_id), sqlc.arg(supplier_version_id),
@@ -578,7 +579,7 @@ INSERT INTO vou_purchase_order_details (
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
     sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
-    sqlc.arg(settlement_default_sales_surcharge_cents),
+    sqlc.arg(settlement_default_sales_surcharge_cents), sqlc.arg(settlement_term_code),
     sqlc.narg(settlement_description)
 );
 
@@ -604,6 +605,7 @@ SET supplier_object_id = sqlc.arg(supplier_object_id), supplier_version_id = sql
     settlement_due_days = sqlc.narg(settlement_due_days),
     settlement_cutoff_day = sqlc.narg(settlement_cutoff_day),
     settlement_default_sales_surcharge_cents = sqlc.arg(settlement_default_sales_surcharge_cents),
+    settlement_term_code = sqlc.arg(settlement_term_code),
     settlement_description = sqlc.narg(settlement_description)
 WHERE document_id = sqlc.arg(document_id);
 

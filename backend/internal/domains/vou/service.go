@@ -168,9 +168,9 @@ func formatDate(value pgtype.Date) string {
 func stringPtr(value string) *string { return &value }
 
 type settlementSnapshotFields struct {
-	ObjectID, VersionID, Code, Name, RuleType, Description *string
-	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay *int32
-	DefaultSalesSurchargeCents                             int64
+	ObjectID, VersionID, Code, Name, TermCode, RuleType, Description *string
+	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay           *int32
+	DefaultSalesSurchargeCents                                       int64
 }
 
 func settlementSnapshot(
@@ -184,6 +184,7 @@ func settlementSnapshot(
 	result := settlementSnapshotFields{
 		ObjectID: stringPtr(reference.ObjectID), VersionID: stringPtr(reference.VersionID),
 		Code: stringPtr(reference.Code), Name: stringPtr(reference.Data.Name),
+		TermCode:                   stringPtr(reference.Data.TermCode),
 		RuleType:                   stringPtr(reference.Data.RuleType),
 		MonthOffset:                int32Ptr(reference.Data.MonthOffset),
 		DayOfMonth:                 reference.Data.DayOfMonth,
@@ -191,10 +192,10 @@ func settlementSnapshot(
 		DefaultSalesSurchargeCents: surcharge,
 		Description:                optionalText(reference.Data.Description),
 	}
-	if reference.Data.RuleType == "DUE_DAYS" {
-		result.DueDays = int32Ptr(reference.Data.DueDays)
+	if reference.Data.RuleType == bobdomain.SettlementRuleRelativeDays {
+		result.DueDays = int32Ptr(reference.Data.DayOffset)
 	}
-	if reference.Data.RuleType == "MONTH_END" {
+	if reference.Data.RuleType == bobdomain.SettlementRuleMonthEnd {
 		if monthlyClosingDay < 1 || monthlyClosingDay > 31 {
 			monthlyClosingDay = 31
 		}

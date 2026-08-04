@@ -625,6 +625,10 @@ func (s *Service) writeSaleSignoff(
 		outboundID).Scan(&sourceLineCount); err != nil || int64(len(resolved)) != sourceLineCount {
 		return MutationResult{}, domainError(ErrorValidation, "signoff must include every outbound line", nil, err)
 	}
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntitySaleOrder, orderID, date)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	id, number, revision := replacingID, "", int64(1)
 	if replacingID == "" {
 		id, number, err = s.insertChainDocument(
@@ -651,6 +655,9 @@ func (s *Service) writeSaleSignoff(
 	}
 	if err != nil {
 		return MutationResult{}, s.writeError("write sale signoff", err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE vou_documents SET due_date=$1 WHERE id=$2`, dueDate, id); err != nil {
+		return MutationResult{}, s.writeError("set sale signoff due date", err)
 	}
 	for _, line := range resolved {
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_lines(

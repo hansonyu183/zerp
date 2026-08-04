@@ -112,10 +112,15 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Description: nilIfEmpty(data.Description),
 		})
 	case EntitySettlementMethod:
+		surcharge, err := moneyCents(data.DefaultSalesSurcharge)
+		if err != nil {
+			return err
+		}
 		return q.InsertBobSettlementMethodDetail(ctx, dbsqlc.InsertBobSettlementMethodDetailParams{
-			VersionID: versionID, Name: data.Name, RuleType: data.RuleType,
+			VersionID: versionID, Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType,
 			MonthOffset: data.MonthOffset, DayOfMonth: data.DayOfMonth,
-			DayOffset: data.DayOffset, Description: nilIfEmpty(data.Description),
+			DayOffset: data.DayOffset, DefaultSalesSurchargeCents: surcharge,
+			Description: nilIfEmpty(data.Description),
 		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -231,10 +236,15 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Description: nilIfEmpty(data.Description), VersionID: versionID,
 		})
 	case EntitySettlementMethod:
+		surcharge, parseErr := moneyCents(data.DefaultSalesSurcharge)
+		if parseErr != nil {
+			return parseErr
+		}
 		rows, err = q.UpdateBobSettlementMethodDetail(ctx, dbsqlc.UpdateBobSettlementMethodDetailParams{
-			Name: data.Name, RuleType: data.RuleType, MonthOffset: data.MonthOffset,
+			Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType, MonthOffset: data.MonthOffset,
 			DayOfMonth: data.DayOfMonth, DayOffset: data.DayOffset,
-			Description: nilIfEmpty(data.Description), VersionID: versionID,
+			DefaultSalesSurchargeCents: surcharge,
+			Description:                nilIfEmpty(data.Description), VersionID: versionID,
 		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)

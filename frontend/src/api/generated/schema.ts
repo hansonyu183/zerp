@@ -1957,7 +1957,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
+        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "settlement-method";
         /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
         WorkbenchObjectItem: {
@@ -2095,7 +2095,7 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
+        AuxEntity: "product-category" | "department" | "position" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
         AuxQueryRequest: {
             page: number;
             pageSize: number;
@@ -2212,7 +2212,10 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
-                monthlyClosingDay?: number | null;
+                /** @description 仅客户适用；创建客户时省略则按 31 处理 */
+                monthlyClosingDay?: number;
+                termCode?: string | null;
+                defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
@@ -2263,7 +2266,9 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
-                monthlyClosingDay?: number | null;
+                monthlyClosingDay?: number;
+                termCode?: string | null;
+                defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;

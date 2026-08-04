@@ -204,7 +204,7 @@ test('员工借还核销及收款单完成真实后端生命周期', async ({ pa
   await page.getByRole('tab', { name: '单据' }).click()
   await page.getByRole('button', { name: '取消编辑' }).click()
   await page.goto('/home/dashboard')
-  await page.getByRole('tab', { name: '待处理单据' }).click()
+  await page.getByRole('tab', { name: '待办单据' }).click()
   await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
@@ -424,7 +424,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   ).toHaveCount(0)
 
   await page.goto('/home/dashboard')
-  await page.getByRole('tab', { name: '待处理单据' }).click()
+  await page.getByRole('tab', { name: '待办单据' }).click()
   const keyword = page.getByRole('textbox', { name: '单号或往来方' })
   await keyword.fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()

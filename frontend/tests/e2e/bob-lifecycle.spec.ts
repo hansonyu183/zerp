@@ -46,14 +46,14 @@ function customerRow(page: Page, code: string) {
 
 async function searchWorkbench(
   page: Page,
-  category: '待处理资料' | '待处理单据',
+  category: '待办资料' | '待办单据',
   keyword: string,
 ) {
   await page.goto('/home/dashboard')
   await page.getByRole('tab', { name: category }).click()
   await page
     .getByRole('textbox', {
-      name: category === '待处理资料' ? '编码或名称' : '单号或往来方',
+      name: category === '待办资料' ? '编码或名称' : '单号或往来方',
     })
     .fill(keyword)
   await page.getByRole('button', { name: '查询', exact: true }).click()
@@ -87,7 +87,7 @@ test('使用双账号完成客户反向流转、启禁用和历史核验', async
   await expect(
     customerRow(page, code!).getByText('提交审核', { exact: true }),
   ).toBeHidden()
-  const draftWorkbenchRow = await searchWorkbench(page, '待处理资料', code!)
+  const draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
   await expect(draftWorkbenchRow).toContainText('待核对')
   await draftWorkbenchRow.getByLabel(`提交审核 ${code}`).click()
   await expect(draftWorkbenchRow).toHaveCount(0)
@@ -109,7 +109,7 @@ test('使用双账号完成客户反向流转、启禁用和历史核验', async
   await signOut(page)
 
   await signIn(page, reviewer)
-  const pendingWorkbenchRow = await searchWorkbench(page, '待处理资料', code!)
+  const pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
   await expect(pendingWorkbenchRow).toContainText('待批准')
   await pendingWorkbenchRow.getByLabel(`更多操作 ${code}`).click()
   await page.getByText(`驳回 ${code}`, { exact: true }).click()
@@ -134,7 +134,7 @@ test('使用双账号完成客户反向流转、启禁用和历史核验', async
   await signOut(page)
 
   await signIn(page, reviewer)
-  const approvalWorkbenchRow = await searchWorkbench(page, '待处理资料', code!)
+  const approvalWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
   await expect(approvalWorkbenchRow).toContainText('待批准')
   await approvalWorkbenchRow.getByLabel(`批准 ${code}`).click()
   await expect(approvalWorkbenchRow).toHaveCount(0)

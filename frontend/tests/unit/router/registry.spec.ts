@@ -208,7 +208,7 @@ describe('permission menu registry', () => {
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })
 
-  it('为 BOB 八类实体加载真实页面组件', () => {
+  it('为 BOB 九类实体加载真实页面组件', () => {
     const entities = [
       'customer',
       'supplier',
@@ -218,6 +218,7 @@ describe('permission menu registry', () => {
       'warehouse',
       'vehicle',
       'fund-account',
+      'settlement-method',
     ]
     const titles = [
       '客户',
@@ -228,6 +229,7 @@ describe('permission menu registry', () => {
       '仓库',
       '车辆',
       '资金账户',
+      '结算方式',
     ]
     const router = createTestRouter()
     const menus = buildMenus(entities.map((entity) => `/bob/${entity}/query`))
@@ -274,12 +276,11 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 AUX 九类实体生成中文菜单并加载真实页面组件', () => {
+  it('为 AUX 八类实体生成中文菜单并加载真实页面组件', () => {
     const entities = [
       'product-category',
       'department',
       'position',
-      'settlement-method',
       'measurement-unit',
       'dictionary-type',
       'dictionary-item',
@@ -290,7 +291,6 @@ describe('permission menu registry', () => {
       '产品分类',
       '部门',
       '岗位',
-      '结算方式',
       '计量单位',
       '字典类型',
       '字典项',

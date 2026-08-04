@@ -360,6 +360,11 @@ func (s *Service) forwardTransition(
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
+	if to == StatusApproved {
+		if err = s.reserveOrderSettlement(ctx, tx, entity, input.DocumentID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	var revision int64
 	switch to {
 	case StatusApproved:
@@ -424,6 +429,9 @@ func (s *Service) reverseTransition(
 	if from == StatusApproved && to == StatusChecked {
 		if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
 			return MutationResult{}, err
+		}
+		if err = s.releaseOrderSettlement(ctx, tx, document.ID); err != nil {
+			return MutationResult{}, s.writeError("release settlement reservation", err)
 		}
 	} else if managedSalesDocument(document) {
 		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, to); err != nil {

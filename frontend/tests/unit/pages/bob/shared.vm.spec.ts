@@ -184,7 +184,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.currentView.value?.version.revision).toBe(1)
   })
 
-  it('定义全部八类业务对象和完整状态筛选', () => {
+  it('定义全部九类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '状态'],
       supplier: ['编码', '名称', '类型', '状态'],
@@ -194,6 +194,13 @@ describe('shared BOB entity configuration and view model', () => {
       warehouse: ['编码', '名称', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
+      'settlement-method': [
+        '编码',
+        '名称',
+        '术语代码',
+        '销售加价（元/kg）',
+        '状态',
+      ],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {
@@ -210,12 +217,7 @@ describe('shared BOB entity configuration and view model', () => {
   })
 
   it('迁出的辅助对象不再注册为 BOB 页面', () => {
-    for (const entity of [
-      'category',
-      'department',
-      'position',
-      'settlement-method',
-    ]) {
+    for (const entity of ['category', 'department', 'position']) {
       expect(() => getBobEntityConfig(entity)).toThrow()
     }
   })
@@ -292,6 +294,7 @@ describe('shared BOB entity configuration and view model', () => {
       filters: {
         keyword: 'DEMO-EMP-001',
         status: ['EFFECTIVE'],
+        enabled: true,
       },
       sort: [{ field: 'name', order: 'asc' }],
     })
@@ -517,11 +520,12 @@ describe('shared BOB entity configuration and view model', () => {
     grant('product', 'create', 'query', 'get', 'save')
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce(emptyPage())
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     vm.openCreate()
-    await vm.save({
+    const savedCreated = await vm.save({
       code: ' prd-2 ',
       name: ' 新产品 ',
       unit: ' 件 ',
@@ -537,6 +541,11 @@ describe('shared BOB entity configuration and view model', () => {
       barcode: '',
       remark: '',
     })
+
+    expect(
+      savedCreated,
+      `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.post.mock.calls)}`,
+    ).toBe(true)
 
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       1,
@@ -559,9 +568,10 @@ describe('shared BOB entity configuration and view model', () => {
     mockedApiClient.post
       .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce(emptyPage())
     await vm.openEdit(row())
-    await vm.save({
+    const savedUpdate = await vm.save({
       code: 'PRD-1',
       name: '标准产品',
       unit: '件',
@@ -577,6 +587,8 @@ describe('shared BOB entity configuration and view model', () => {
       barcode: '',
       remark: '',
     })
+
+    expect(savedUpdate, vm.editorErrorMessage.value ?? '').toBe(true)
 
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       2,

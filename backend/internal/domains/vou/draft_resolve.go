@@ -134,16 +134,29 @@ func (s *Service) resolveDraftSettlements(
 	ctx context.Context,
 	tx pgx.Tx,
 	entity string,
+	preserved resolvedDraft,
 	result *resolvedDraft,
 ) error {
 	var err error
 	switch entity {
 	case EntitySaleOrder:
-		result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
+		if sameReference(result.Customer, preserved.Customer) && preserved.CustomerSettlement != nil {
+			result.CustomerSettlement = preserved.CustomerSettlement
+		} else {
+			result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
+		}
 	case EntityPurchaseOrder:
-		result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
+		if sameReference(result.Supplier, preserved.Supplier) && preserved.SupplierSettlement != nil {
+			result.SupplierSettlement = preserved.SupplierSettlement
+		} else {
+			result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
+		}
 	}
 	return err
+}
+
+func sameReference(left, right *bobdomain.EffectiveReference) bool {
+	return left != nil && right != nil && left.ObjectID == right.ObjectID && left.VersionID == right.VersionID
 }
 
 func (s *Service) resolveSettlement(

@@ -74,6 +74,17 @@ const exactMessages: Readonly<Record<string, string>> = {
   'purchaser is required': '请选择采购人员。',
   'settlement method is required': '请选择结算方式。',
   'settlement method is not configured': '尚未配置结算方式，请先完成配置。',
+  'settlement methods are system-defined':
+    '结算方式由系统固定维护，不能新增或删除。',
+  'settlement rule does not match fixed term':
+    '结算规则与系统固定期限不一致，请刷新后重试。',
+  'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
+  'order currency is required for settlement approval':
+    '订单缺少币种，无法校验结算资金。',
+  'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
+  'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
+  'counterparty already has an unfinished cash-on-delivery order':
+    '往来单位已有一张未完成的现结订单。',
   'fund account currency does not match document currency':
     '资金账户币种与单据币种不一致。',
   'fund account currency does not match reimbursement':

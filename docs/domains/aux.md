@@ -8,7 +8,6 @@ AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不�
 product-category
 department
 position
-settlement-method
 dictionary-type
 dictionary-item
 measurement-unit
@@ -44,7 +43,7 @@ query get create save enable disable delete versions audit-history
 
 ```text
 product-category PCT         department DEP
-position POS                 settlement-method STM
+position POS
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
 account-subject ACS             asset-category ACT
@@ -58,16 +57,9 @@ account-subject ACS             asset-category ACT
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 
-### 3.3 结算方式
+### 3.3 结算方式迁出
 
-结算方式会影响单据到期日和销售价格，不是字典。字段为：
-
-- `ruleType`：`DUE_DAYS` 或 `MONTH_END`；
-- `dueDays`：`DUE_DAYS` 的自然日天数；
-- `defaultSalesSurcharge`：销售商品默认加价，单位为元/kg，非负两位小数；
-- `description`。
-
-`DUE_DAYS` 到期日为业务日期加 `dueDays`。`MONTH_END` 到期日为账单归属月的月末；销售账单归属边界由客户的 `monthlyClosingDay` 决定，采购业务没有客户月结日时按自然月归属。销售订单对非包装物商品自动带入默认加价；包装物不加价。单据保存结算方式、客户月结日和加价快照。
+结算方式会影响订单审批、履约到期日和销售价格，属于有版本的业务对象，由 BOB 领域管理。AUX 不对外提供 `settlement-method` 查询或写入入口；迁移前的 AUX 对象和版本仅作历史追溯。
 
 ### 3.4 计量单位
 

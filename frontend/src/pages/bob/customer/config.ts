@@ -46,7 +46,7 @@ export const customerConfig = defineBobEntityConfig({
       filters: { dictionaryTypeCode: 'DCT-0001' },
     },
     settlementMethodId: {
-      domain: 'aux',
+      domain: 'bob',
       entity: 'settlement-method',
       label: '结算方式',
     },

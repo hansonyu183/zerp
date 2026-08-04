@@ -108,16 +108,12 @@ var samples = [...]sample{
 	{entity: bob.EntityEmployee, data: bob.CreateDetailInput{
 		Code: "DEMO-EMP-002", Name: "李娜（草稿）", Phone: "13800000005",
 	}, status: bob.StatusDraft, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001"},
-	{entity: bob.EntitySettlementMethod, data: bob.CreateDetailInput{
-		Code: "DEMO-SM-001", Name: "当月 15 日结算", RuleType: bob.SettlementRuleFixedDay,
-		MonthOffset: 0, DayOfMonth: int32Pointer(15), DayOffset: 0, Description: "VOU 演示结算方式",
-	}, status: bob.StatusEffective},
 	{entity: bob.EntityCustomer, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-001", Name: "星河零售有限公司", CustomerType: stringPointer(bob.CustomerTypeDealer),
 		ShortName: "星河零售", TaxNumber: "91310000DEMO000001", ContactName: "王经理",
 		ContactPhone: "+86 13800000001", Email: "sales@example.com",
 		Address: "上海市浦东新区示例路1号", Remark: "演示经销商客户",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: "DEMO-SM-001"},
+	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent},
 	{entity: bob.EntityCustomer, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-002", Name: "新客户（草稿）", CustomerType: stringPointer(bob.CustomerTypeEndUser),
 		ContactName: "陈先生", ContactPhone: "13800000002",
@@ -131,7 +127,7 @@ var samples = [...]sample{
 		Code: "DEMO-SUP-003", Name: "通用零部件供应商", SupplierType: stringPointer(bob.SupplierTypeGeneral),
 		ShortName: "通用供应商", ContactName: "采购对接人", ContactPhone: "13800000006",
 		Address: "江苏省苏州市工业园区示例路3号", Remark: "VOU 演示普通供应商",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: "DEMO-SM-001"},
+	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-002", Name: "待审核供应商", TaxNumber: "91310000DEMO000002",
 		ContactName: "赵经理", ContactPhone: "13800000003",
@@ -616,10 +612,6 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 }
 
 func stringPointer(value string) *string {
-	return &value
-}
-
-func int32Pointer(value int32) *int32 {
 	return &value
 }
 

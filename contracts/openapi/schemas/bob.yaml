@@ -13,6 +13,7 @@
           'warehouse',
           'vehicle',
           'fund-account',
+          'settlement-method',
         ],
     },
   'BobQueryRequest':
@@ -107,8 +108,11 @@
                       'type': 'integer',
                       'minimum': 1,
                       'maximum': 31,
-                      'nullable': true,
+                      'description': '仅客户适用；创建客户时省略则按 31 处理',
                     },
+                  'termCode': { 'type': 'string', 'nullable': true },
+                  'defaultSalesSurcharge':
+                    { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':
@@ -205,12 +209,10 @@
                   'accountNumber': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
                   'monthlyClosingDay':
-                    {
-                      'type': 'integer',
-                      'minimum': 1,
-                      'maximum': 31,
-                      'nullable': true,
-                    },
+                    { 'type': 'integer', 'minimum': 1, 'maximum': 31 },
+                  'termCode': { 'type': 'string', 'nullable': true },
+                  'defaultSalesSurcharge':
+                    { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':

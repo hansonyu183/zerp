@@ -14,10 +14,10 @@ make pre-push
 `pre-push` 要求工作树干净，并按 `scripts/change-impact.sh` 分层：
 
 - 文档变更运行差异、格式和文档完整性检查；
-- 本地门禁和文档检查器等验证工具变更，额外运行逐文件 Shell 语法、ShellCheck、Actionlint 和门禁行为检查；CI 工作流自身发生变化时不要求固定预览，但 PR 转为 Ready 后必须实际跑完五项完整 CI 作业；
-- 应用影响变更继续细分契约、前端、后端、容器、E2E、本地 E2E 和预览标记，只运行能够验证当前变更的门禁；
-- 纯前端或纯后端运行代码在本地运行所属端完整质量门禁，完整 E2E 由 PR CI 执行；
-- 契约、迁移、依赖、运行配置、跨端、E2E 工具及未知变更在本地继续运行隔离全栈 E2E；
+- 本地门禁、CI 工作流和文档检查器等验证工具变更，运行逐文件 Shell 语法、ShellCheck、Actionlint 和门禁行为检查，不要求固定预览或应用测试；只有需要验证完整编排时才通过 `workflow_dispatch` 显式跑一次全套作业；
+- 应用影响变更继续细分契约、前端、后端、后端全量、容器、E2E、本地 E2E 和预览标记，只运行能够验证当前变更的门禁；
+- 普通纯前端源码在本地运行前端门禁；普通纯后端源码在本地运行格式、普通测试、vet 和构建，PR CI 再补充静态与安全检查，不默认构建后端容器、启动测试 PostgreSQL 或运行 Playwright；
+- 契约、SQL/迁移、依赖、运行配置、跨端、E2E 工具及未知变更继续运行后端全量集成/race 与适用的隔离全栈 E2E；
 - 单元测试-only 只运行所属端门禁，E2E-only 运行隔离 E2E，二者都不部署应用预览。
 
 前端生产依赖审计只在 workspace、锁文件或前端依赖清单变化时运行；普通前端源码变化继续运行 lint、覆盖率和构建，但不重复执行只依赖锁文件的审计。后端数据库门禁会从上一迁移版本加载 `backend/db/migration-tests/<version>_{before,after}.sql` 夹具后升级到最新版本；每个新迁移必须同时提供对应升级夹具，不能只证明空库可迁移。
@@ -28,7 +28,7 @@ make pre-push
 
 本地门禁默认比较 `origin/dev`。通过后推送分支并创建目标为 `dev` 的草稿 PR；有依赖的后续分支等前置 PR 合并后基于最新 `dev` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `dev` ancestry、其他未合并 PR head 和检查矩阵，再决定是否启动重任务。只有 head 恰好为 `dev` 的汇总发布 PR 才能以 `main` 为目标；发布前需要比较生产差异时显式运行 `PRE_PUSH_BASE_REF=origin/main make pre-push-plan` 和 `PRE_PUSH_BASE_REF=origin/main make pre-push`。
 
-应用变更的草稿 PR 只运行契约、前端、后端静态检查、容器配置和聚合检查，延后耗时的后端集成/race 与隔离全栈 E2E；此时独立的 `full-validation` 检查按设计保持失败，明确表示尚不可合并。自动评审和修正稳定后将 PR 转为 Ready，`ready_for_review` 事件会对当前 head 启动完整 backend 与 E2E，并在五项门禁成功后将 `full-validation` 转绿；完整检查未成功前不得合并或部署固定预览。Ready 后的新提交仍会重新运行完整门禁；需要多轮大改时应先转回草稿，批量完成修正后再转为 Ready，避免每次小提交重复运行全套门禁。
+应用变更的草稿 PR 只运行契约、前端、后端静态检查、容器配置和聚合检查，延后后端测试与隔离全栈 E2E；此时独立的 `full-validation` 检查按设计保持失败，明确表示尚不可合并。自动评审和修正稳定后将 PR 转为 Ready：普通单端源码只启动所属端普通测试与静态检查，高风险或跨端矩阵才启动后端全量集成/race 和隔离全栈 E2E。对应检查未成功前不得合并或部署固定预览。Ready 后的新提交仍会按同一影响矩阵重跑；需要多轮大改时应先转回草稿，批量完成修正后再转为 Ready。
 
 文档和普通验证/发布工具变更不属于应用影响：无论 Draft 或 Ready，都只运行文档格式、actionlint、ShellCheck、流程自检以及变更直接要求的容器配置检查，`full-validation` 聚合这些轻量结果后通过，不启动后端集成/race、应用构建或隔离全栈 E2E。需要验证完整工作流编排时使用 `workflow_dispatch` 明确触发一次全套检查，不把该验证扩散为流程类 PR 的固定合并成本。
 
@@ -39,7 +39,7 @@ make preview-deploy PREVIEW_REF=<dev-merge-full-sha>
 make preview-status
 ```
 
-预览部署会先获取 `origin/dev`，并拒绝非 40 位 SHA、非当前 `origin/dev` head 或非 merge commit；后续适用的 PR 合入 `dev` 后，旧预览验收立即失效，需要重新部署新的 merge commit。运行代码、契约、迁移、依赖、构建和预览工具变更要求固定预览；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 不要求应用预览。适用的预览人工验收完成后，才能把已验收的多个 `dev` 变更汇总到一个 `dev` → `main` 发布 PR；禁止直接推送、强推或自动合并 `dev` 和 `main`。
+预览部署会先获取 `origin/dev`，并拒绝非 40 位 SHA、非当前 `origin/dev` head 或非 merge commit；后续适用的 PR 合入 `dev` 后，旧预览验收立即失效，需要重新部署新的 merge commit。固定预览是本机原生 PostgreSQL、Go API 和 Web 进程，部署阶段只做本机构建、迁移/种子、健康检查和准确 SHA 校验，不运行容器镜像门禁或测试套件。运行代码、契约、迁移和依赖变更要求固定预览；文档、普通验证工具、native preview 工具、单元测试-only、E2E-only 和生产工具-only 不要求应用预览。适用的预览人工验收完成后，才能把已验收的多个 `dev` 变更汇总到一个 `dev` → `main` 发布 PR；禁止直接推送、强推或自动合并 `dev` 和 `main`。
 
 `dev` 合并后不重复运行整套质量与 E2E，而是通过 GitHub API 验证 merge commit 与开发 PR head 的 Git tree 完全一致，并复用该 PR 的六项成功检查。`dev` → `main` 汇总发布 PR 按相对 `main` 的整体差异运行一次对应检查矩阵，可把多个已在预览验收的开发 PR 合为一个正式发布；`main` 合并后同样只复用这条发布 PR 的检查。树不一致、不是关联 PR 合并提交、任一必需检查缺失、`main` PR 不是来自 `dev`，或只存在草稿快速门禁时立即失败。
 

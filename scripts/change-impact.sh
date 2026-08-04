@@ -45,6 +45,7 @@ contracts=0
 frontend=0
 frontend_audit=0
 backend=0
+backend_full=0
 containers=0
 e2e=0
 local_e2e=0
@@ -59,6 +60,7 @@ mark_full() {
   contracts=1
   frontend=1
   backend=1
+  backend_full=1
   containers=1
   e2e=1
   local_e2e=1
@@ -81,6 +83,7 @@ if [ -n "${changed_files}" ]; then
         ;;
 
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
+        Makefile | backend/Makefile | \
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
         scripts/validation-check.sh | scripts/verify-pr-base.sh | \
         scripts/verify-merged-pr.sh | scripts/dev.sh)
@@ -99,6 +102,7 @@ if [ -n "${changed_files}" ]; then
         mark_application
         contracts=1
         backend=1
+        backend_full=1
         e2e=1
         preview=1
         ;;
@@ -106,6 +110,7 @@ if [ -n "${changed_files}" ]; then
       backend/db/migrations/*)
         mark_application
         backend=1
+        backend_full=1
         containers=1
         e2e=1
         local_e2e=1
@@ -134,6 +139,7 @@ if [ -n "${changed_files}" ]; then
       backend/go.mod | backend/go.sum | backend/tools/go.mod | backend/tools/go.sum)
         mark_application
         backend=1
+        backend_full=1
         containers=1
         e2e=1
         local_e2e=1
@@ -172,8 +178,9 @@ if [ -n "${changed_files}" ]; then
 
       compose.preview.yaml | backend/.env.preview.example | \
         backend/scripts/init-preview-env.sh | scripts/preview.sh | scripts/preview-deploy.sh)
-        mark_application
-        containers=1
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
         preview=1
         ;;
 
@@ -204,6 +211,7 @@ if [ -n "${changed_files}" ]; then
       backend/db/migration-tests/*)
         mark_application
         backend=1
+        backend_full=1
         ;;
 
       frontend/src/*.test.ts | frontend/src/*.spec.ts | frontend/tests/unit/*)
@@ -219,7 +227,6 @@ if [ -n "${changed_files}" ]; then
       frontend/src/*)
         mark_application
         frontend=1
-        e2e=1
         preview=1
         ;;
 
@@ -237,9 +244,16 @@ if [ -n "${changed_files}" ]; then
         frontend=1
         ;;
 
-      backend/internal/* | backend/cmd/* | backend/db/* | backend/scripts/*)
+      backend/internal/*)
         mark_application
         backend=1
+        preview=1
+        ;;
+
+      backend/cmd/* | backend/db/* | backend/scripts/*)
+        mark_application
+        backend=1
+        backend_full=1
         e2e=1
         preview=1
         ;;
@@ -257,7 +271,9 @@ if [ -n "${changed_files}" ]; then
 fi
 
 if [ "${impact}" = "application" ] && [ "${frontend}" = "1" ] && \
-  [ "${backend}" = "1" ] && [ "${e2e}" = "1" ]; then
+  [ "${backend}" = "1" ]; then
+  backend_full=1
+  e2e=1
   local_e2e=1
 fi
 
@@ -268,6 +284,7 @@ if [ "${output}" = "checks" ]; then
     "frontend=${frontend}" \
     "frontend_audit=${frontend_audit}" \
     "backend=${backend}" \
+    "backend_full=${backend_full}" \
     "containers=${containers}" \
     "e2e=${e2e}" \
     "local_e2e=${local_e2e}" \

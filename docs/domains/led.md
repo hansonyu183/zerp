@@ -130,6 +130,8 @@ POST /led/supplier/query
 POST /led/supplier/balance
 POST /led/other/query
 POST /led/other/balance
+POST /led/employee/query
+POST /led/employee/balance
 POST /led/asset/query
 POST /led/asset/get
 POST /led/container/query
@@ -181,7 +183,7 @@ POST /led/container/balance
 ```
 
 - `objectId` 按实体匹配仓库/商品、资金账户、往来方或客户任一相关对象；
-- `sourceEntity` 可为 `opening` 或七类当前记账 VOU 实体。后端继续接受
+- `sourceEntity` 可为 `opening` 或第 6 节所列当前会记账的 VOU 实体。后端继续接受
   `intermediary-receipt`、`intermediary-signoff` 两个历史值以兼容旧客户端，但迁移已删除
   对应流水，当前页面不再提供这两个筛选项；
 - inventory/fund 的 `direction` 只允许 `IN`、`OUT`，party 只允许 `DEBIT`、`CREDIT`，

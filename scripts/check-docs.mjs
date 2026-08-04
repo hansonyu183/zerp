@@ -108,6 +108,36 @@ function extractTextListAfter(source, marker, label) {
     .filter(Boolean)
 }
 
+function extractSchemaSection(source, schemaName, label) {
+  const schemaMarker = `  '${schemaName}':`
+  const schemaStart = source.indexOf(schemaMarker)
+  if (schemaStart < 0) {
+    failures.push(`${label} 缺少 ${schemaName}`)
+    return ''
+  }
+
+  const nextSchemaStart = source.indexOf(
+    "\n  '",
+    schemaStart + schemaMarker.length,
+  )
+  return source.slice(
+    schemaStart,
+    nextSchemaStart < 0 ? source.length : nextSchemaStart,
+  )
+}
+
+function requirePageSizeMaximum(source, schemaName, expected, label) {
+  const section = extractSchemaSection(source, schemaName, label)
+  const match = section.match(/'pageSize':\s*\{[^}]*'maximum':\s*(\d+)[^}]*\}/)
+  if (!match) {
+    failures.push(`${label} 的 ${schemaName} 缺少可解析的 pageSize maximum`)
+  } else if (Number(match[1]) !== expected) {
+    failures.push(
+      `${label} 的 ${schemaName} pageSize maximum 应为 ${expected}，实际为 ${match[1]}`,
+    )
+  }
+}
+
 const documentationFiles = trackedMarkdownFiles()
 
 for (const file of documentationFiles) {
@@ -199,6 +229,20 @@ const openapiSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'openapi.yaml'),
   'utf8',
 )
+
+const backendDevelopmentEnv = fs.readFileSync(
+  path.join(root, 'backend', '.env.example'),
+  'utf8',
+)
+if (!/^APP_SESSION_COOKIE_SECURE=false$/m.test(backendDevelopmentEnv)) {
+  failures.push('backend/.env.example 的本地 HTTP Cookie 必须关闭 Secure')
+}
+if (
+  !/^ATTACHMENT_STORAGE_ROOT=\.\/var\/attachments$/m.test(backendDevelopmentEnv)
+) {
+  failures.push('backend/.env.example 必须使用可直接启动的本地附件目录')
+}
+
 const contractDomains = new Set()
 for (const match of openapiSource.matchAll(/^\s+'\/([a-z][a-z0-9-]*)\//gm)) {
   if (match[1] !== 'files') contractDomains.add(match[1])
@@ -223,6 +267,49 @@ const vouSchemaSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'schemas', 'vou.yaml'),
   'utf8',
 )
+
+const bobSchemaSource = fs.readFileSync(
+  path.join(root, 'contracts', 'openapi', 'schemas', 'bob.yaml'),
+  'utf8',
+)
+for (const schemaName of ['BobQueryRequest', 'BobHistoryRequest']) {
+  requirePageSizeMaximum(
+    bobSchemaSource,
+    schemaName,
+    100,
+    'contracts/openapi/schemas/bob.yaml',
+  )
+}
+
+const ledSchemaSource = fs.readFileSync(
+  path.join(root, 'contracts', 'openapi', 'schemas', 'led.yaml'),
+  'utf8',
+)
+for (const schemaName of [
+  'LedHistoryRequest',
+  'LedQueryRequest',
+  'LedBalanceRequest',
+]) {
+  requirePageSizeMaximum(
+    ledSchemaSource,
+    schemaName,
+    100,
+    'contracts/openapi/schemas/led.yaml',
+  )
+}
+
+const ledDocumentSource = fs.readFileSync(
+  path.join(root, 'docs', 'domains', 'led.md'),
+  'utf8',
+)
+const ledContractPaths = [
+  ...openapiSource.matchAll(/^\s+'(\/led\/[^']+)':/gm),
+].map((match) => match[1])
+const ledDocumentPaths = [
+  ...ledDocumentSource.matchAll(/^POST (\/led\/\S+)$/gm),
+].map((match) => match[1])
+compareSets('docs/domains/led.md 动作清单', ledDocumentPaths, ledContractPaths)
+
 const vouEntities = extractSchemaEnum(vouSchemaSource, 'VouEntity')
 const vouCreatableEntities = extractSchemaEnum(
   vouSchemaSource,

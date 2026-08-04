@@ -2082,6 +2082,8 @@ export interface components {
             fileId: string;
         };
         FeedbackCreateRequest: {
+            /** @description 客户端为一次反馈草稿生成并在重试时复用的幂等键。 */
+            submissionKey: string;
             /** @enum {string} */
             category: "BUG" | "SUGGESTION" | "OTHER";
             title: string;
@@ -2155,6 +2157,45 @@ export interface components {
                 /** @enum {string} */
                 order: "asc" | "desc";
             }[];
+        };
+        BobVersionSummary: {
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "REJECTED" | "EFFECTIVE" | "INVALID";
+            /** Format: int64 */
+            revision: number;
+            submittedBy: string | null;
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        BobListItem: {
+            objectId: string;
+            entity: components["schemas"]["BobEntity"];
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            currentVersion: components["schemas"]["BobVersionSummary"];
+            effectiveVersionId: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        BobListPage: {
+            items: components["schemas"]["BobListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BobQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["BobListPage"] | null;
+            requestId: string;
         };
         BobGetRequest: {
             objectId: string;
@@ -3617,7 +3658,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 业务对象分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BobQueryResponse"];
+                };
+            };
         };
     };
     bobget: {

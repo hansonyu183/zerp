@@ -254,7 +254,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 每个用户最多保留 3 个未提交文件，滚动 24 小时最多初始化 60 次。
 `POST /app/feedback/attachment-remove` 请求 `{"fileId":"01J..."}`，只能删除当前用户尚未提交的文件。
 
-`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须来自上述反馈专用流程、归属当前用户且状态为 `READY`；VOU 附件 ID 不再接受。提交后保存文件和文件名、MIME、大小、SHA-256 快照，但不生成公开地址，也不把截图内容或地址写入 GitHub Issue。已上传但 24 小时内未提交的文件由清理任务删除；已提交截图私有长期保留，当前不提供 HTTP 查看或下载接口。
+`submissionKey` 是客户端为一次反馈草稿生成的 16–64 位幂等键，同一用户重试时必须复用；相同键和相同内容返回首次提交结果，不重复创建反馈或占用限额，复用相同键提交不同内容则拒绝。`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须来自上述反馈专用流程、归属当前用户且状态为 `READY`；VOU 附件 ID 不再接受。提交后保存文件和文件名、MIME、大小、SHA-256 快照，但不生成公开地址，也不把截图内容或地址写入 GitHub Issue。已上传但 24 小时内未提交的文件由清理任务删除；已提交截图私有长期保留，当前不提供 HTTP 查看或下载接口。
 
 后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。
 

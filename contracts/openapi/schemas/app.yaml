@@ -110,6 +110,7 @@
       'type': 'object',
       'required':
         [
+          'submissionKey',
           'category',
           'title',
           'content',
@@ -121,6 +122,14 @@
       'additionalProperties': false,
       'properties':
         {
+          'submissionKey':
+            {
+              'type': 'string',
+              'minLength': 16,
+              'maxLength': 64,
+              'pattern': '^[A-Za-z0-9_-]+$',
+              'description': '客户端为一次反馈草稿生成并在重试时复用的幂等键。',
+            },
           'category':
             { 'type': 'string', 'enum': ['BUG', 'SUGGESTION', 'OTHER'] },
           'title': { 'type': 'string' },

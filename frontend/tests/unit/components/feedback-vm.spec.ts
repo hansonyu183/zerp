@@ -29,7 +29,9 @@ function screenshot(name = 'screen.png', type = 'image/png', size = 7): File {
   if (typeof file.arrayBuffer !== 'function') {
     Object.defineProperty(file, 'arrayBuffer', {
       configurable: true,
-      value: vi.fn().mockResolvedValue(new TextEncoder().encode('content').buffer),
+      value: vi
+        .fn()
+        .mockResolvedValue(new TextEncoder().encode('content').buffer),
     })
   }
   return file
@@ -46,9 +48,11 @@ async function mountHarness(path = '/vou/sale-order') {
   return {
     wrapper,
     router,
-    vm: (wrapper.vm as unknown as {
-      vm: ReturnType<typeof useFeedbackViewModel>
-    }).vm,
+    vm: (
+      wrapper.vm as unknown as {
+        vm: ReturnType<typeof useFeedbackViewModel>
+      }
+    ).vm,
   }
 }
 
@@ -58,6 +62,9 @@ describe('feedback view model', () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:feedback-preview')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new ArrayBuffer(32))
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(
+      '12345678-1234-4123-8123-123456789abc',
+    )
   })
 
   afterEach(() => {
@@ -140,6 +147,7 @@ describe('feedback view model', () => {
       2,
       'app/feedback/create',
       {
+        submissionKey: '12345678-1234-4123-8123-123456789abc',
         category: 'BUG',
         title: '保存失败',
         content: '点击保存后页面提示失败',
@@ -198,6 +206,15 @@ describe('feedback view model', () => {
     await vm.submit()
     expect(mockedApiClient.uploadFeedbackAttachment).toHaveBeenCalledTimes(1)
     expect(createAttempts).toBe(2)
+    const createCalls = mockedApiClient.post.mock.calls.filter(
+      ([path]) => path === 'app/feedback/create',
+    )
+    expect(createCalls[0]?.[1]).toMatchObject({
+      submissionKey: '12345678-1234-4123-8123-123456789abc',
+    })
+    expect(createCalls[1]?.[1]).toMatchObject({
+      submissionKey: '12345678-1234-4123-8123-123456789abc',
+    })
 
     wrapper.unmount()
   })

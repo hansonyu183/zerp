@@ -224,6 +224,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'feedback content must be between 1 and 4000 characters':
     '反馈内容必须为 1 至 4000 个字符。',
   'feedback daily limit reached': '今日反馈提交次数已达到上限。',
+  'feedback submission key was already used':
+    '当前反馈草稿已发生变化，请刷新页面后重新填写。',
   'feedback title must be between 1 and 120 characters':
     '反馈标题必须为 1 至 120 个字符。',
   'fields do not match sale-delivery': '提交内容与销售配送单不匹配。',
@@ -234,6 +236,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'formula must contain 1 to 200 components':
     '配方必须包含 1 至 200 条材料明细。',
   invalid: '输入内容不正确，请检查后重试。',
+  'invalid feedback submission key': '反馈提交标识无效，请重新打开反馈窗口。',
   'ledger is not available': '业务台账不可用，请先完成台账配置。',
   'load parent document': '上级单据加载失败，请刷新后重试。',
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',

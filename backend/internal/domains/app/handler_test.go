@@ -168,7 +168,7 @@ func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
 func TestFeedbackUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
 	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
 	request := httptest.NewRequest(http.MethodPost, "/app/feedback/create", strings.NewReader(
-		`{"category":"BUG","title":"页面异常","content":"保存失败"}`,
+		`{"submissionKey":"feedback-submission-0001","category":"BUG","title":"页面异常","content":"保存失败"}`,
 	))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-CSRF-Token", "csrf")

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -62,17 +63,32 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	); err != nil {
 		t.Fatalf("upload feedback attachment: %v", err)
 	}
-	created, err := service.CreateFeedback(t.Context(), CreateFeedbackInput{
-		Category: FeedbackCategoryBug, Title: "保存失败",
+	createInput := CreateFeedbackInput{
+		SubmissionKey: "feedback-submission-main",
+		Category:      FeedbackCategoryBug, Title: "保存失败",
 		Content:  "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
 		PagePath: "/vou/sale-order", ClientVersion: "1.0.0",
 		AttachmentIDs: []string{initiated.FileID},
-	}, principal.User.ID)
+	}
+	created, err := service.CreateFeedback(t.Context(), createInput, principal.User.ID)
 	if err != nil {
 		t.Fatalf("create feedback: %v", err)
 	}
 	if created.Status != FeedbackStatusPending || !validID(created.FeedbackID) {
 		t.Fatalf("created feedback = %#v", created)
+	}
+	repeated, err := service.CreateFeedback(t.Context(), createInput, principal.User.ID)
+	if err != nil || repeated.FeedbackID != created.FeedbackID || !repeated.SubmittedAt.Equal(created.SubmittedAt) {
+		t.Fatalf("repeated feedback = %#v, first = %#v, error = %v", repeated, created, err)
+	}
+	var matchingCount int
+	if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM app_feedback WHERE id = $1", created.FeedbackID).Scan(&matchingCount); err != nil || matchingCount != 1 {
+		t.Fatalf("idempotent feedback count = %d, error = %v", matchingCount, err)
+	}
+	conflictingInput := createInput
+	conflictingInput.Title = "复用幂等键的不同反馈"
+	if _, err = service.CreateFeedback(t.Context(), conflictingInput, principal.User.ID); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("reused submission key error = %v, want conflict", err)
 	}
 	if err = service.RemoveFeedbackAttachment(t.Context(), initiated.FileID, principal.User.ID); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("remove submitted feedback attachment error = %v, want conflict", err)
@@ -111,10 +127,11 @@ func TestFeedbackSubmissionPersistsWhenPublisherIsDisabledIntegration(t *testing
 	service.cfg.FeedbackGitHubEnabled = false
 
 	created, err := service.CreateFeedback(t.Context(), CreateFeedbackInput{
-		Category: FeedbackCategoryOther,
-		Title:    "预览环境反馈",
-		Content:  "发布器停用时仍应保存反馈",
-		PagePath: "/home",
+		SubmissionKey: "feedback-submission-disabled",
+		Category:      FeedbackCategoryOther,
+		Title:         "预览环境反馈",
+		Content:       "发布器停用时仍应保存反馈",
+		PagePath:      "/home",
 	}, admin.ID)
 	if err != nil {
 		t.Fatalf("create feedback with disabled publisher: %v", err)
@@ -212,12 +229,13 @@ func TestFeedbackRollingDayLimitIntegration(t *testing.T) {
 	const attempts = 25
 	var group sync.WaitGroup
 	errorsChannel := make(chan error, attempts)
-	for range attempts {
+	for index := range attempts {
 		group.Add(1)
 		go func() {
 			defer group.Done()
 			_, err := service.CreateFeedback(context.Background(), CreateFeedbackInput{
-				Category: FeedbackCategoryOther, Title: "反馈", Content: "并发提交",
+				SubmissionKey: fmt.Sprintf("feedback-rolling-%02d", index),
+				Category:      FeedbackCategoryOther, Title: "反馈", Content: "并发提交",
 			}, admin.ID)
 			errorsChannel <- err
 		}()
@@ -252,7 +270,8 @@ func TestFeedbackPublishingRecoveryAndFailureIntegration(t *testing.T) {
 	create := func(title string) FeedbackCreatedView {
 		t.Helper()
 		result, err := service.CreateFeedback(t.Context(), CreateFeedbackInput{
-			Category: FeedbackCategoryOther, Title: title, Content: "发布状态测试",
+			SubmissionKey: newID(),
+			Category:      FeedbackCategoryOther, Title: title, Content: "发布状态测试",
 		}, admin.ID)
 		if err != nil {
 			t.Fatalf("create %s feedback: %v", title, err)

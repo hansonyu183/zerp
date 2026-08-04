@@ -64,6 +64,7 @@ export function useFeedbackViewModel() {
   const errorMessage = ref('')
   const attachmentError = ref('')
   const created = ref<FeedbackCreated | null>(null)
+  const submissionKey = ref(crypto.randomUUID())
 
   const titleLength = computed(() => characterCount(title.value.trim()))
   const contentLength = computed(() => characterCount(content.value.trim()))
@@ -232,6 +233,7 @@ export function useFeedbackViewModel() {
     pagePath.value = ''
     attachments.value = []
     attachmentError.value = ''
+    submissionKey.value = crypto.randomUUID()
   }
 
   async function submit(): Promise<void> {
@@ -247,6 +249,7 @@ export function useFeedbackViewModel() {
       const { data } = await apiClient.post<
         FeedbackCreated,
         {
+          submissionKey: string
           category: FeedbackCategory
           title: string
           content: string
@@ -256,6 +259,7 @@ export function useFeedbackViewModel() {
           attachmentIds: string[]
         }
       >('app/feedback/create', {
+        submissionKey: submissionKey.value,
         category: category.value,
         title: title.value.trim(),
         content: content.value.trim(),

@@ -24,7 +24,7 @@ make pre-push
 
 `make pre-push-plan` 只显示将执行的阶段和预览要求；需要忽略细分结果并保守执行全部门禁时运行 `PRE_PUSH_FULL=1 make pre-push`。任何失败都必须修复并形成新提交，不得推送红色分支。
 
-本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 `backend/Dockerfile.ci` 的 BuildKit Go module/build cache mount、`actions/cache` 与 cache dance 显式导入/导出跨 runner 的 Go 缓存，并同时保留 GitHub Actions 层缓存；一次安装 Chromium、构建与生产镜像内容对齐的 API/Web 镜像并启动隔离全栈，然后以单 worker 依次运行桌面和手机 Playwright 项目，避免重复构建和共享数据库并发污染。验证工具会拒绝 CI 镜像的二进制集合、运行时阶段或缓存导入路径与标准约定漂移。CI 重试后通过的 flaky 用例按失败处理；失败时保留 Playwright HTML、trace、截图和测试结果 14 天。
+本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 `backend/Dockerfile.ci` 把 Go module 下载固化为只由依赖文件失效的可导出镜像层，并在单个构建层内连续产出全部后端二进制，再由 GitHub Actions 层缓存跨 runner 复用；这种结构不依赖无法直接导出的 BuildKit cache mount，也没有额外缓存回写尾巴。CI 一次安装 Chromium、构建与生产镜像内容对齐的 API/Web 镜像并启动隔离全栈，然后以单 worker 依次运行桌面和手机 Playwright 项目，避免重复构建和共享数据库并发污染。验证工具会拒绝 CI 镜像的二进制集合、运行时阶段或依赖层约定与标准约定漂移。CI 重试后通过的 flaky 用例按失败处理；失败时保留 Playwright HTML、trace、截图和测试结果 14 天。
 
 本地门禁通过后推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `main` ancestry、其他未合并 PR head 和检查矩阵，再决定是否启动重任务。
 

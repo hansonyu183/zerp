@@ -11,14 +11,11 @@ WORKDIR /src
 
 COPY go.mod go.sum ./
 COPY tools/go.mod tools/go.sum ./tools/
-RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
-    go mod download \
+RUN go mod download \
     && go -C tools mod download
 
 COPY . .
-RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
-    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-server ./cmd/server \
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-server ./cmd/server \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-cleanup-vou-attachments ./cmd/cleanup-vou-attachments \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-bootstrap-admin ./cmd/bootstrap-admin \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-bob ./cmd/seed-bob \

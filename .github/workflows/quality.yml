@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
 
 permissions:
@@ -82,11 +82,13 @@ jobs:
           ZERP_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: scripts/verify-pr-base.sh
       - name: Reuse merged PR checks
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
+          ZERP_MERGED_BASE_REF: ${{ github.ref_name }}
         run: scripts/verify-merged-pr.sh
 
   contracts:

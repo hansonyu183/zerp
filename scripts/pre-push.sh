@@ -30,7 +30,7 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-base_ref=${PRE_PUSH_BASE_REF:-origin/main}
+base_ref=${PRE_PUSH_BASE_REF:-origin/dev}
 git rev-parse --verify "${base_ref}^{commit}" >/dev/null
 diff_range="${base_ref}...HEAD"
 

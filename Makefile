@@ -8,7 +8,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-install-agent preview-retry production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -119,11 +119,20 @@ preview-down:
 preview-reset:
 	@./scripts/preview.sh reset
 
+preview-rollback:
+	@./scripts/preview.sh rollback
+
 preview-status:
 	@./scripts/preview.sh status
 
 preview-password:
 	@./scripts/preview.sh password
+
+preview-install-agent:
+	@./scripts/install-preview-agent.sh
+
+preview-retry:
+	@./scripts/preview-retry.sh
 
 production-status:
 	@./scripts/production-status.sh

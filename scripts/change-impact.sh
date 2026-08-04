@@ -177,6 +177,13 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
+      scripts/install-preview-agent.sh | scripts/preview-watch.sh | scripts/preview-retry.sh)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
+        preview=1
+        ;;
+
       compose.production.yaml | backend/.env.production.example | \
         scripts/install-production-agent.sh | scripts/production-lib.sh | \
         scripts/production-deploy.sh | \

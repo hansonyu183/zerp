@@ -259,7 +259,7 @@ describe('Dashboard workbench', () => {
 
     expect(success).toBe(false)
     expect(vm.states.BOB.errorMessage).toBe(
-      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
+      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001）',
     )
   })
 
@@ -285,7 +285,7 @@ describe('Dashboard workbench', () => {
     expect(success).toBe(false)
     expect(delivery.availableActions).toContain('check')
     expect(vm.states.VOU.errorMessage).toBe(
-      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。',
+      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。（错误码：2001）',
     )
   })
 })

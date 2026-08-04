@@ -70,7 +70,7 @@ func queryItem(row dbsqlc.BobVersionView, enabled bool) QueryItem {
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: enabled,
 		CurrentVersion: VersionSummary{
 			VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status,
-			Revision: row.VersionRevision, Summary: summary,
+			Revision: row.VersionRevision, SubmittedBy: row.SubmittedBy, Summary: summary,
 		},
 		EffectiveVersionID: row.EffectiveVersionID, UpdatedAt: row.ObjectUpdatedAt.Time,
 	}

@@ -267,8 +267,14 @@ void vm.query('VOU')
 
       <div class="workbench__list">
         <AppSnackbar
+          diagnostics
           :message="vm.activeState.errorMessage"
           @dismiss="vm.activeState.errorMessage = null"
+        />
+        <AppSnackbar
+          :message="vm.successMessage"
+          type="success"
+          @dismiss="vm.successMessage = null"
         />
 
         <BusinessObjectList

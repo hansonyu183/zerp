@@ -260,7 +260,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 `POST /app/feedback/get` 请求 `{"feedbackId":"01J..."}`，只允许提交者查询，返回分类、标题、`PENDING | PUBLISHED | FAILED`、公开 Issue URL 和时间。内部 `PROCESSING` 对外仍显示 `PENDING`，他人查询与记录不存在使用相同错误。
 
-反馈由数据库租约队列异步发布到配置的 GitHub 仓库。Issue 必须原子附带 `automation:blocked`，正文不包含用户身份、IP、UA 或凭证；只有人工审核并移除阻塞标签后，自动 Issue 处理任务才能领取。暂时性错误指数退避，最多 10 次；永久 GitHub 4xx 或重试耗尽进入 `FAILED`。
+反馈提交与 GitHub 发布解耦：只要数据库可用就必须先持久化并返回 `PENDING`，不能因当前环境未启用发布器而拒绝提交。启用发布器的环境再由数据库租约队列异步发布到配置的 GitHub 仓库。Issue 必须原子附带 `automation:blocked`，正文不包含用户身份、IP、UA 或凭证；只有人工审核并移除阻塞标签后，自动 Issue 处理任务才能领取。暂时性错误指数退避，最多 10 次；永久 GitHub 4xx 或重试耗尽进入 `FAILED`。
 
 ### 5.6 用户管理
 

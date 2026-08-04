@@ -37,9 +37,6 @@ func (s *Service) CreateFeedback(
 	input CreateFeedbackInput,
 	actorID string,
 ) (FeedbackCreatedView, error) {
-	if !s.cfg.FeedbackGitHubEnabled {
-		return FeedbackCreatedView{}, domainError(ErrorInternal, "feedback service unavailable", nil)
-	}
 	validated, err := validateFeedback(input)
 	if err != nil {
 		return FeedbackCreatedView{}, err

@@ -28,6 +28,7 @@ void vm.load()
 
     <template v-else>
       <AppSnackbar
+        diagnostics
         :message="vm.errorMessage.value"
         @dismiss="vm.errorMessage.value = null"
       />

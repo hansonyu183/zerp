@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, getErrorMessage, sanitizeUserMessage } from '@/api/types'
+import {
+  ApiError,
+  getDiagnosticErrorMessage,
+  getErrorMessage,
+  sanitizeUserMessage,
+} from '@/api/types'
 
 describe('API user messages', () => {
   it('隐藏请求编号并保留中文业务信息', () => {
@@ -120,5 +125,18 @@ describe('API user messages', () => {
         new ApiError('business', 'opaque internal condition', { code: 5000 }),
       ),
     ).toBe('系统暂时无法完成操作，请稍后重试。')
+  })
+
+  it('在动作失败反馈中保留错误码和请求标识', () => {
+    expect(
+      getDiagnosticErrorMessage(
+        new ApiError('business', 'opaque internal condition', {
+          code: 5000,
+          requestId: 'REQ-5000',
+        }),
+      ),
+    ).toBe(
+      '系统暂时无法完成操作，请稍后重试。（错误码：5000；请求标识：REQ-5000）',
+    )
   })
 })

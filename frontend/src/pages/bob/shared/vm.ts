@@ -9,7 +9,12 @@ import {
   productPayload,
 } from './product-data'
 import { useBobHistory } from './history'
-import { useBobLifecycleActions } from './lifecycle'
+import {
+  bobActionAvailability,
+  bobActionBlockedReason,
+  bobLifecycleSuccessLabel,
+  useBobLifecycleActions,
+} from './lifecycle'
 import { useBobReferences } from './references'
 import type {
   BobActionAvailability,
@@ -44,6 +49,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const saving = ref(false)
   const actionLoading = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const successMessage = ref<string | null>(null)
   const editorErrorMessage = ref<string | null>(null)
   const rows = ref<BobListItem[]>([])
   const total = ref(0)
@@ -93,34 +99,20 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   function actionAvailability(
     row: Readonly<BobListItem>,
   ): BobActionAvailability {
-    const status = row.currentVersion.status
-    return {
-      view: session.can(permission('get')),
-      edit:
-        status === 'DRAFT' &&
-        session.can(permission('get')) &&
-        session.can(permission('save')),
-      delete:
-        session.can(permission('delete')) &&
-        status === 'DRAFT' &&
-        row.currentVersion.version === 1 &&
-        row.effectiveVersionId === null,
-      submit: session.can(permission('submit')) && status === 'DRAFT',
-      unsubmit: session.can(permission('unsubmit')) && status === 'PENDING',
-      approve: session.can(permission('approve')) && status === 'PENDING',
-      unapprove: session.can(permission('unapprove')) && status === 'EFFECTIVE',
-      reject: session.can(permission('reject')) && status === 'PENDING',
-      enable:
-        session.can(permission('enable')) &&
-        status === 'EFFECTIVE' &&
-        !row.enabled,
-      disable:
-        session.can(permission('disable')) &&
-        status === 'EFFECTIVE' &&
-        row.enabled,
-      versions: session.can(permission('versions')),
-      audit: session.can(permission('audit-history')),
-    }
+    return bobActionAvailability(row, session.user?.id, (action) =>
+      session.can(permission(action)),
+    )
+  }
+
+  function actionBlockedReason(
+    row: Readonly<BobListItem>,
+    action: 'approve' | 'reject',
+  ): string | null {
+    return bobActionBlockedReason(
+      row,
+      session.user?.id,
+      session.can(permission(action)),
+    )
   }
 
   function hasAnyAction(row: Readonly<BobListItem>): boolean {
@@ -466,6 +458,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       editContext.value = null
       currentView.value = null
       await query()
+      successMessage.value = `${config.title}已保存。`
       return true
     } catch (error) {
       editorErrorMessage.value = getErrorMessage(error)
@@ -510,6 +503,11 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         )
       }
       await query()
+      if (currentView.value?.objectId === row.objectId) closeEditor()
+      successMessage.value =
+        action === 'delete'
+          ? `${row.code} 已删除。`
+          : `${row.code} 已提交审核。`
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -533,6 +531,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     errorMessage,
     actionAvailability,
     query,
+    (row, action) => {
+      if (currentView.value?.objectId === row.objectId) closeEditor()
+      successMessage.value = `${row.code} ${bobLifecycleSuccessLabel(action)}。`
+    },
   )
 
   return {
@@ -542,6 +544,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     saving,
     actionLoading,
     errorMessage,
+    successMessage,
     editorErrorMessage,
     rows,
     total,
@@ -572,6 +575,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     auditPageSize,
     auditTotal,
     actionAvailability,
+    actionBlockedReason,
     hasAnyAction,
     query,
     search,

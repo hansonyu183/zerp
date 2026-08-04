@@ -123,7 +123,10 @@ const exactMessages: Readonly<Record<string, string>> = {
   'purchase order has no remaining inbound quantity':
     '采购订单没有剩余可入库数量。',
   'purchase order has no remaining quantity': '采购订单没有剩余数量。',
-  'purchase order is not open': '采购订单当前未开放执行。',
+  'purchase order is not open':
+    '采购订单当前未开放执行，请先在采购订单中撤销完成后重试。',
+  'unfinished documents exist on or before the closing date':
+    '结账日及以前仍有未完成单据，请先处理这些单据，或选择更早的结账月末。',
   'purchase order is not returnable': '采购订单当前不能退货。',
   'purchase order is not short closed': '采购订单尚未短关闭。',
   'purchase document has no source order': '采购单据缺少来源订单。',

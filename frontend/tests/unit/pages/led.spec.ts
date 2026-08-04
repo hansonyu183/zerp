@@ -82,11 +82,7 @@ describe('LED shared ledger view model', () => {
     ])
     expect(
       ledgerEntityConfigs.employee.sourceEntities.map((item) => item.value),
-    ).toEqual([
-      'employee-loan',
-      'employee-repayment',
-      'employee-loan-writeoff',
-    ])
+    ).toEqual(['employee-loan', 'employee-repayment', 'employee-loan-writeoff'])
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
       'opening',
@@ -352,6 +348,7 @@ describe('LED closing view model', () => {
       reason: '发现月末单据遗漏',
     })
     expect(vm.successMessage.value).toBe('已反结最近一期。')
+    expect(vm.closingDate.value).toBe('2026-06-30')
     expect(vm.uncloseDialog.value).toBe(false)
     expect(vm.uncloseReason.value).toBe('')
     scope.stop()

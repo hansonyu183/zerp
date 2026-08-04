@@ -329,6 +329,7 @@ unapprove: EFFECTIVE → INVALID（冻结旧版本），并创建新的 PENDING
         "version": 2,
         "status": "PENDING",
         "revision": 4,
+        "submittedBy": "01J...",
         "summary": {}
       },
       "effectiveVersionId": null,
@@ -341,7 +342,7 @@ unapprove: EFFECTIVE → INVALID（冻结旧版本），并创建新的 PENDING
 }
 ```
 
-各实体必须定义允许过滤、排序和关键字匹配的字段白名单。客户端字段名和排序方向不得拼接进 SQL；`pageSize` 必须设上限。
+`submittedBy` 在未提交版本中为 `null`，客户端用它阻止提交人审核自己的当前版本。各实体必须定义允许过滤、排序和关键字匹配的字段白名单。客户端字段名和排序方向不得拼接进 SQL；`pageSize` 必须设上限。
 
 通用过滤字段为 `keyword`、`status`；类型化过滤字段包括 `customerType`、`supplierType`、`categoryId`、`departmentId`、`positionId`、`salespersonEmployeeId` 和 `currency`。后端按实体维护白名单并拒绝有值的无关筛选字段：客户和供应商支持业务员，员工支持部门和岗位，产品支持产品分类，资金账户支持币种。
 

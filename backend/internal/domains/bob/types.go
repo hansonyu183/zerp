@@ -478,11 +478,12 @@ type ObjectView struct {
 }
 
 type VersionSummary struct {
-	VersionID string     `json:"versionId"`
-	Version   int32      `json:"version"`
-	Status    string     `json:"status"`
-	Revision  int64      `json:"revision"`
-	Summary   DetailView `json:"summary"`
+	VersionID   string     `json:"versionId"`
+	Version     int32      `json:"version"`
+	Status      string     `json:"status"`
+	Revision    int64      `json:"revision"`
+	SubmittedBy *string    `json:"submittedBy"`
+	Summary     DetailView `json:"summary"`
 }
 
 type VersionHistoryItem struct {

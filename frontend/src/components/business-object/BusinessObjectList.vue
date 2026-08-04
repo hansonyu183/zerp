@@ -148,7 +148,16 @@ function applyMobileSort(value: {
       @change="applyMobileSort"
     />
 
-    <v-table class="business-object-list__table responsive-table">
+    <v-progress-linear v-if="loading" color="primary" indeterminate />
+    <v-skeleton-loader
+      v-if="loading && rows.length === 0"
+      aria-label="正在加载数据"
+      type="table-heading, table-row@5"
+    />
+    <v-table
+      v-show="!loading || rows.length > 0"
+      class="business-object-list__table responsive-table"
+    >
       <thead>
         <tr>
           <template v-for="column in columns" :key="column.key">
@@ -253,7 +262,7 @@ function applyMobileSort(value: {
     </v-table>
 
     <div class="business-object-list__footer">
-      <span>共 {{ total }} 条</span>
+      <span>{{ loading ? '正在加载数据…' : `共 ${total} 条` }}</span>
       <v-btn
         aria-label="上一页"
         icon="mdi-chevron-left"

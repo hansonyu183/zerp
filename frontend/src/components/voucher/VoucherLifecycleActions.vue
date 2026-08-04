@@ -8,21 +8,26 @@ import type {
 
 defineOptions({ name: 'VoucherLifecycleActions' })
 
-const props = withDefaults(defineProps<{
-  status: VoucherStatus
-  availability: VoucherActionAvailability
-  loadingAction?: string | null
-  disabled?: boolean
-  labels: VoucherLifecycleLabels
-}>(), {
-  loadingAction: null,
-  disabled: false,
-})
+const props = withDefaults(
+  defineProps<{
+    status: VoucherStatus
+    availability: VoucherActionAvailability
+    loadingAction?: string | null
+    disabled?: boolean
+    disabledReason?: string
+    labels: VoucherLifecycleLabels
+  }>(),
+  {
+    loadingAction: null,
+    disabled: false,
+    disabledReason: '当前操作暂不可用。',
+  },
+)
 
 const emit = defineEmits<{
   action: [
-    action: 'check' | 'approve' | 'finalize' |
-      'uncheck' | 'unapprove' | 'unfinalize',
+    action:
+      'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize',
     reason?: string,
   ]
 }>()
@@ -57,6 +62,7 @@ function confirmReverse(): void {
       color="primary"
       :disabled="disabled"
       :loading="loadingAction === 'check'"
+      :title="disabled ? disabledReason : undefined"
       prepend-icon="mdi-account-check-outline"
       @click="emit('action', 'check')"
     >
@@ -67,6 +73,7 @@ function confirmReverse(): void {
         v-if="availability.uncheck"
         :disabled="disabled"
         :loading="loadingAction === 'uncheck'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
         @click="openReverse('uncheck', labels.uncheck)"
@@ -78,6 +85,7 @@ function confirmReverse(): void {
         color="primary"
         :disabled="disabled"
         :loading="loadingAction === 'approve'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-check-decagram-outline"
         @click="emit('action', 'approve')"
       >
@@ -89,6 +97,7 @@ function confirmReverse(): void {
         v-if="availability.unapprove"
         :disabled="disabled"
         :loading="loadingAction === 'unapprove'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
         @click="openReverse('unapprove', labels.unapprove)"
@@ -100,6 +109,7 @@ function confirmReverse(): void {
         color="primary"
         :disabled="disabled"
         :loading="loadingAction === 'finalize'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-play-circle-outline"
         @click="emit('action', 'finalize')"
       >
@@ -111,6 +121,7 @@ function confirmReverse(): void {
       color="warning"
       :disabled="disabled"
       :loading="loadingAction === 'unfinalize'"
+      :title="disabled ? disabledReason : undefined"
       prepend-icon="mdi-backup-restore"
       variant="tonal"
       @click="openReverse('unfinalize', labels.unfinalize)"
@@ -129,7 +140,9 @@ function confirmReverse(): void {
           label="原因"
           :rules="[
             (value: string) => Boolean(value?.trim()) || '请输入原因。',
-            (value: string) => Array.from(value ?? '').length <= 1000 || '原因不能超过 1000 字。',
+            (value: string) =>
+              Array.from(value ?? '').length <= 1000 ||
+              '原因不能超过 1000 字。',
           ]"
           variant="outlined"
         />

@@ -106,6 +106,28 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	}
 }
 
+func TestFeedbackSubmissionPersistsWhenPublisherIsDisabledIntegration(t *testing.T) {
+	service, _, admin := appIntegrationService(t)
+	service.cfg.FeedbackGitHubEnabled = false
+
+	created, err := service.CreateFeedback(t.Context(), CreateFeedbackInput{
+		Category: FeedbackCategoryOther,
+		Title:    "预览环境反馈",
+		Content:  "发布器停用时仍应保存反馈",
+		PagePath: "/home",
+	}, admin.ID)
+	if err != nil {
+		t.Fatalf("create feedback with disabled publisher: %v", err)
+	}
+	if created.Status != FeedbackStatusPending {
+		t.Fatalf("created status = %q, want %q", created.Status, FeedbackStatusPending)
+	}
+	view, err := service.GetFeedback(t.Context(), created.FeedbackID, admin.ID)
+	if err != nil || view.Status != FeedbackStatusPending || view.IssueURL != nil {
+		t.Fatalf("stored feedback = %#v, error = %v", view, err)
+	}
+}
+
 func TestFeedbackAttachmentLimitsRemovalAndCleanupIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	content := append([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, []byte("cleanup")...)

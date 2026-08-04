@@ -275,9 +275,12 @@ build_release() {
 
   (cd "${source_root}" && pnpm install --frozen-lockfile)
   if [ "${release_marker}" = workspace ]; then
-    (cd "${source_root}" && pnpm --filter @zerp/frontend build)
+    (cd "${source_root}" && \
+      VITE_API_BASE_URL=/api/ pnpm --filter @zerp/frontend build)
   else
-    (cd "${source_root}" && GITHUB_SHA="${release_marker}" pnpm --filter @zerp/frontend build)
+    (cd "${source_root}" && \
+      VITE_API_BASE_URL=/api/ GITHUB_SHA="${release_marker}" \
+        pnpm --filter @zerp/frontend build)
   fi
   cp -R "${source_root}/frontend/dist/." "${build_temp}/web/"
   cp -R "${source_root}/backend/db/migrations/." "${build_temp}/migrations/"

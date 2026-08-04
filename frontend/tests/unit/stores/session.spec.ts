@@ -62,7 +62,9 @@ describe('useSessionStore permissions', () => {
           {
             domain: 'bob',
             title: '基础业务对象',
-            children: [{ entity: 'customer', title: '客户', actions: ['query'] }],
+            children: [
+              { entity: 'customer', title: '客户', actions: ['query'] },
+            ],
           },
         ],
       },
@@ -187,7 +189,23 @@ describe('useSessionStore.restore errors', () => {
 
     expect(session.initialized).toBe(true)
     expect(session.authenticated).toBe(false)
-    expect(session.errorMessage).toBe('无法连接真实后端 API。')
+    expect(session.errorMessage).toBe('网络连接失败，请检查网络后重试。')
+  })
+
+  it('登录密码错误时显示后端返回的剩余重试次数', async () => {
+    mockedApiClient.post.mockRejectedValue(
+      new ApiError('business', '密码错误，剩余重试次数 4。', {
+        code: 1001,
+      }),
+    )
+    const session = useSessionStore()
+
+    await expect(
+      session.signIn({ username: 'preview-admin', password: 'wrong' }),
+    ).rejects.toThrow('密码错误，剩余重试次数 4。')
+
+    expect(session.errorMessage).toBe('密码错误，剩余重试次数 4。')
+    expect(session.user).toBeNull()
   })
 })
 

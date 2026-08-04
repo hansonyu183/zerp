@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -16,41 +17,54 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	username = normalizeUsername(username)
 	if !runeLengthBetween(username, 3, 64) || password == "" || len(password) > 1024 {
 		_ = verifyPassword(s.dummyPassword, password)
-		return SessionResult{}, domainError(ErrorUnauthenticated, "authentication failed", nil)
+		return SessionResult{}, domainError(ErrorUnauthenticated, "用户名或密码错误。", nil)
 	}
 
 	user, err := s.queries.GetAppUserByUsername(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = verifyPassword(s.dummyPassword, password)
 		_ = s.audit(ctx, s.queries, "USER_SIGNIN", nil, "user", nil, "FAILURE", requestID, map[string]any{"reason": "unknown_or_invalid"})
-		return SessionResult{}, domainError(ErrorUnauthenticated, "authentication failed", nil)
+		return SessionResult{}, domainError(ErrorUnauthenticated, "用户名或密码错误。", nil)
 	}
 	if err != nil {
 		return SessionResult{}, s.internal("read signin user", err)
 	}
 	if systemidentity.IsUser(user.ID) {
 		_ = verifyPassword(s.dummyPassword, password)
-		return SessionResult{}, domainError(ErrorUnauthenticated, "authentication failed", nil)
+		return SessionResult{}, domainError(ErrorUnauthenticated, "用户名或密码错误。", nil)
 	}
 
 	passwordOK := verifyPassword(user.PasswordHash, password)
 	now := time.Now().UTC()
 	locked := user.LockedUntil.Valid && user.LockedUntil.Time.After(now)
 	if !passwordOK || user.Status != StatusEnabled || locked {
+		message := "用户名或密码错误。"
+		if user.Status != StatusEnabled {
+			message = "账号已停用，请联系管理员。"
+		} else if locked {
+			message = "账号已临时锁定，请稍后重试。"
+		}
 		tx, beginErr := s.pool.Begin(ctx)
 		if beginErr == nil {
 			qtx := s.queries.WithTx(tx)
 			if !passwordOK && user.Status == StatusEnabled && !locked {
-				_, _ = qtx.RecordSigninFailure(ctx, dbsqlc.RecordSigninFailureParams{
+				failedUser, recordErr := qtx.RecordSigninFailure(ctx, dbsqlc.RecordSigninFailureParams{
 					ID: user.ID, LockThreshold: int32(s.cfg.SigninLockThreshold),
 					LockDuration: pgtype.Interval{Microseconds: s.cfg.SigninLockDuration.Microseconds(), Valid: true},
 				})
+				if recordErr == nil {
+					remaining := max(s.cfg.SigninLockThreshold-int(failedUser.FailedSigninCount), 0)
+					message = fmt.Sprintf("密码错误，剩余重试次数 %d。", remaining)
+					if remaining == 0 {
+						message += "账号已临时锁定，请稍后重试。"
+					}
+				}
 			}
 			if auditErr := s.audit(ctx, qtx, "USER_SIGNIN", &user.ID, "user", &user.ID, "FAILURE", requestID, map[string]any{"reason": "unknown_or_invalid"}); auditErr == nil {
 				_ = tx.Commit(ctx)
 			}
 		}
-		return SessionResult{}, domainError(ErrorUnauthenticated, "authentication failed", nil)
+		return SessionResult{}, domainError(ErrorUnauthenticated, message, nil)
 	}
 
 	sessionToken, err := newRawToken()
@@ -75,7 +89,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 		return SessionResult{}, s.internal("load signin permissions", err)
 	}
 	if !slices.Contains(permissions, signoutPath) {
-		return SessionResult{}, domainError(ErrorForbidden, "account has no safe signout permission", nil)
+		return SessionResult{}, domainError(ErrorForbidden, "账号权限配置异常，请联系管理员。", nil)
 	}
 	avatarURL, err := qtx.GetAppUserAvatarURL(ctx, user.ID)
 	if err != nil {

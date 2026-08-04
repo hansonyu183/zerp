@@ -9,8 +9,8 @@ test "$(printf 'README.md\nscripts/pre-push.sh\n' | scripts/change-impact.sh --p
 test "$(printf 'README.md\nfrontend/src/main.ts\n' | scripts/change-impact.sh --paths)" = application
 
 GITHUB_BASE_REF=dev scripts/verify-pr-base.sh >/dev/null
-GITHUB_BASE_REF=main GITHUB_HEAD_REF=dev scripts/verify-pr-base.sh >/dev/null
-if GITHUB_BASE_REF=main GITHUB_HEAD_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1; then
+GITHUB_BASE_REF=main ZERP_PR_HEAD_REF=dev scripts/verify-pr-base.sh >/dev/null
+if GITHUB_BASE_REF=main ZERP_PR_HEAD_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1; then
   echo "feature branches must not target main" >&2
   exit 1
 fi

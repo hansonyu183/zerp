@@ -2,7 +2,7 @@
 set -eu
 
 base_ref=${GITHUB_BASE_REF:?set GITHUB_BASE_REF}
-head_ref=${GITHUB_HEAD_REF:-}
+head_ref=${ZERP_PR_HEAD_REF:-}
 
 case "${base_ref}" in
   dev)

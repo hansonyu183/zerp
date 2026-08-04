@@ -82,7 +82,7 @@ jobs:
           ZERP_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          ZERP_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: scripts/verify-pr-base.sh
       - name: Reuse merged PR checks
         if: github.event_name == 'push'

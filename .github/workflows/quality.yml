@@ -58,7 +58,9 @@ jobs:
           local_e2e=1
           preview=1'
           fi
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ]; then
+          impact=$(printf '%s\n' "$checks" | sed -n 's/^impact=//p')
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ] && \
+            [ "$impact" = "application" ]; then
             full_validation=0
           else
             full_validation=1
@@ -436,7 +438,7 @@ jobs:
         run: |
           test "$EVIDENCE_RESULT" = "success"
           if [ "$FULL_VALIDATION" != "1" ]; then
-            echo "Draft pull request: mark it ready to run and satisfy full validation" >&2
+            echo "Draft application pull request: mark it ready to run and satisfy full validation" >&2
             exit 1
           fi
           test "$CONTRACTS_RESULT" = "success"

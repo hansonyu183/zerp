@@ -28,7 +28,9 @@ make pre-push
 
 本地门禁通过后推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `main` ancestry、其他未合并 PR head 和检查矩阵，再决定是否启动重任务。
 
-草稿 PR 只运行契约、前端、后端静态检查、容器配置和聚合检查，延后耗时的后端集成/race 与隔离全栈 E2E；此时独立的 `full-validation` 检查按设计保持失败，明确表示尚不可合并。自动评审和修正稳定后将 PR 转为 Ready，`ready_for_review` 事件会对当前 head 启动完整 backend 与 E2E，并在五项门禁成功后将 `full-validation` 转绿；完整检查未成功前不得合并或部署固定预览。Ready 后的新提交仍会重新运行完整门禁；需要多轮大改时应先转回草稿，批量完成修正后再转为 Ready，避免每次小提交重复运行全套门禁。
+应用变更的草稿 PR 只运行契约、前端、后端静态检查、容器配置和聚合检查，延后耗时的后端集成/race 与隔离全栈 E2E；此时独立的 `full-validation` 检查按设计保持失败，明确表示尚不可合并。自动评审和修正稳定后将 PR 转为 Ready，`ready_for_review` 事件会对当前 head 启动完整 backend 与 E2E，并在五项门禁成功后将 `full-validation` 转绿；完整检查未成功前不得合并或部署固定预览。Ready 后的新提交仍会重新运行完整门禁；需要多轮大改时应先转回草稿，批量完成修正后再转为 Ready，避免每次小提交重复运行全套门禁。
+
+文档和普通验证/发布工具变更不属于应用影响：无论 Draft 或 Ready，都只运行文档格式、actionlint、ShellCheck、流程自检以及变更直接要求的容器配置检查，`full-validation` 聚合这些轻量结果后通过，不启动后端集成/race、应用构建或隔离全栈 E2E。需要验证完整工作流编排时使用 `workflow_dispatch` 明确触发一次全套检查，不把该验证扩散为流程类 PR 的固定合并成本。
 
 PR 当前 head 在 Ready 状态下运行的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功。需要固定预览时，在这轮五项完整检查全绿后执行：
 

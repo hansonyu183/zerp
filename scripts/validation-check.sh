@@ -58,12 +58,12 @@ preview=0" \
 
 assert_checks \
   "impact=validation
-contracts=1
-frontend=1
+contracts=0
+frontend=0
 frontend_audit=0
-backend=1
-containers=1
-e2e=1
+backend=0
+containers=0
+e2e=0
 local_e2e=0
 preview=0" \
   .github/workflows/quality.yml
@@ -129,16 +129,28 @@ preview=0" \
   scripts/e2e.sh
 
 assert_checks \
-  "impact=application
+  "impact=validation
 contracts=0
 frontend=0
 frontend_audit=0
 backend=0
 containers=1
-e2e=1
-local_e2e=1
-preview=1" \
+e2e=0
+local_e2e=0
+preview=0" \
   backend/Dockerfile.ci
+
+assert_checks \
+  "impact=validation
+contracts=0
+frontend=0
+frontend_audit=0
+backend=0
+containers=1
+e2e=0
+local_e2e=0
+preview=0" \
+  scripts/production-watch.sh
 
 assert_checks \
   "impact=application

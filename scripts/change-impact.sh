@@ -78,11 +78,6 @@ if [ -n "${changed_files}" ]; then
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi
-        contracts=1
-        frontend=1
-        backend=1
-        containers=1
-        e2e=1
         ;;
 
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
@@ -145,8 +140,15 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
+      backend/Dockerfile.ci)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
+        containers=1
+        ;;
+
       compose.yaml | compose.dev.yaml | .dockerignore | frontend/Dockerfile | \
-        backend/Dockerfile | backend/Dockerfile.ci)
+        backend/Dockerfile)
         mark_application
         containers=1
         e2e=1
@@ -177,10 +179,17 @@ if [ -n "${changed_files}" ]; then
 
       compose.production.yaml | backend/.env.production.example | \
         scripts/install-production-agent.sh | scripts/production-lib.sh | \
-        scripts/production-deploy.sh | scripts/production-watch.sh | \
+        scripts/production-deploy.sh | \
         scripts/production-status.sh | scripts/production-retry.sh | \
         scripts/production-rollback.sh)
         mark_application
+        containers=1
+        ;;
+
+      scripts/production-watch.sh)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
         containers=1
         ;;
 

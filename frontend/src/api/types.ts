@@ -1,3 +1,5 @@
+import { translateBusinessMessage } from '@/api/business-error-messages'
+
 export type BusinessCode = number | string
 
 export interface ApiResponse<T> {
@@ -56,38 +58,38 @@ export class ApiError extends Error {
   }
 }
 
-const businessMessageTranslations: Readonly<Record<string, string>> = {
-  'generated sales draft is missing required business data':
-    '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。',
-  'document attributes are incomplete; return to draft and save before continuing':
-    '单据资料不完整，请先编辑并补全必填信息，保存后再重试。',
-  'inventory timeline would become negative':
-    '库存不足，无法完成销售出库。请先补充库存后重试。',
-  'settlement-method reference is unavailable':
-    '结算方式已失效，请先编辑并重新选择后再提交审核。',
-  'submitter cannot review the same version':
-    '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
-  'system identity is managed internally':
-    '系统用户和系统角色由系统维护，不能人工修改。',
-  'role code is reserved': '该角色编码为系统保留编码，请使用其他编码。',
+function normalizedCode(code: BusinessCode | undefined): number | undefined {
+  if (typeof code === 'number') return code
+  if (typeof code !== 'string' || !/^\d+$/u.test(code)) return undefined
+  return Number(code)
 }
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const message = sanitizeUserMessage(error.message)
-    if (error.kind === 'business' && businessMessageTranslations[message]) {
-      return businessMessageTranslations[message]
+    if (error.kind !== 'business') {
+      return {
+        configuration: '系统配置异常，请联系管理员。',
+        network: '网络连接失败，请检查网络后重试。',
+        timeout: '请求超时，请稍后重试。',
+        aborted: '请求已取消。',
+        protocol: '服务响应异常，请稍后重试。',
+      }[error.kind]
     }
+
+    const code = normalizedCode(error.code)
+    if (code === 5000) return '系统暂时无法完成操作，请稍后重试。'
     if (containsChineseText(message)) return message
 
-    return {
-      configuration: '系统配置异常，请联系管理员。',
-      network: '网络连接失败，请检查网络后重试。',
-      timeout: '请求超时，请稍后重试。',
-      aborted: '请求已取消。',
-      protocol: '服务响应异常，请稍后重试。',
-      business: '操作未完成，请检查输入后重试。',
-    }[error.kind]
+    const translated = translateBusinessMessage(message)
+    if (translated) return translated
+    if (code === 1001) return '登录失败，请检查账号和密码后重试。'
+    if (code === 1002) return '没有权限执行此操作，请联系管理员。'
+    if (code === 2001)
+      return '输入内容不符合要求，请检查必填项、格式和取值范围。'
+    if (code === 3001)
+      return '当前数据状态不允许此操作，请刷新并检查相关业务资料。'
+    return '业务条件不满足，请检查相关资料后重试。'
   }
 
   if (error instanceof Error) {

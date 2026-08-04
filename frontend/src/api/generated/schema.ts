@@ -1936,6 +1936,7 @@ export interface components {
         BusinessEnvelope: {
             /** Format: int32 */
             code: number;
+            /** @description 面向用户的结果说明。业务失败应说明可行动原因；内部失败只返回通用文案，不得包含 SQL、调用栈、内部组件名或原始异常。 */
             message: string;
             data: {
                 [key: string]: unknown;

@@ -201,12 +201,13 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 
 func TestSigninLockAndPasswordRevocationIntegration(t *testing.T) {
 	service, _, _ := appIntegrationService(t)
-	for attempt := 0; attempt < 2; attempt++ {
-		if _, err := service.Signin(t.Context(), "admin", "Wrong-password-1!", "wrong"); !errorIsKind(err, ErrorUnauthenticated) {
-			t.Fatalf("wrong password attempt %d: %v", attempt+1, err)
-		}
+	if _, err := service.Signin(t.Context(), "admin", "Wrong-password-1!", "wrong-1"); !errorIsKind(err, ErrorUnauthenticated) || err.Error() != "密码错误，剩余重试次数 1。" {
+		t.Fatalf("first wrong password error = %v", err)
 	}
-	if _, err := service.Signin(t.Context(), "admin", integrationAdminPassword, "locked"); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err := service.Signin(t.Context(), "admin", "Wrong-password-1!", "wrong-2"); !errorIsKind(err, ErrorUnauthenticated) || err.Error() != "密码错误，剩余重试次数 0。账号已临时锁定，请稍后重试。" {
+		t.Fatalf("second wrong password error = %v", err)
+	}
+	if _, err := service.Signin(t.Context(), "admin", integrationAdminPassword, "locked"); !errorIsKind(err, ErrorUnauthenticated) || err.Error() != "账号已临时锁定，请稍后重试。" {
 		t.Fatalf("locked account signin error = %v", err)
 	}
 

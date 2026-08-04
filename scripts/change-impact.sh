@@ -177,7 +177,8 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
-      scripts/install-preview-agent.sh | scripts/preview-watch.sh | scripts/preview-retry.sh)
+      scripts/install-preview-agent.sh | scripts/preview-watch.sh | scripts/preview-retry.sh | \
+        scripts/uninstall-preview-agent.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi

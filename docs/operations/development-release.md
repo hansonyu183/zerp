@@ -1,6 +1,6 @@
 # 开发、PR 与自动上线规范
 
-本规范覆盖从可验收提交到正式上线的完整路径。开发变更先合入受保护的 `dev` 并自动更新固定预览，正式环境只从 `dev` 汇总进入受保护 `main` 的 merge commit 上线；固定预览和生产发布不得构建包含未提交修改的开发工作区。
+本规范覆盖从可验收提交到正式上线的完整路径。开发变更先合入受保护的 `dev`，需要应用预览时再部署准确的 `dev` merge commit；正式环境只从 `dev` 汇总进入受保护 `main` 的 merge commit 上线，固定预览和生产发布不得构建包含未提交修改的开发工作区。
 
 ## 1. 开发与推送
 
@@ -32,18 +32,18 @@ make pre-push
 
 文档和普通验证/发布工具变更不属于应用影响：无论 Draft 或 Ready，都只运行文档格式、actionlint、ShellCheck、流程自检以及变更直接要求的容器配置检查，`full-validation` 聚合这些轻量结果后通过，不启动后端集成/race、应用构建或隔离全栈 E2E。需要验证完整工作流编排时使用 `workflow_dispatch` 明确触发一次全套检查，不把该验证扩散为流程类 PR 的固定合并成本。
 
-开发 PR 当前 head 在 Ready 状态下运行的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必须全部成功，随后才能人工合入 `dev`。合并后 `dev` 门禁验证 merge commit 与 PR head 的 Git tree 一致并复用这些成功检查；需要固定预览时，预览发布代理再从准确的 `dev` merge commit 自动执行等价于以下命令的部署：
+开发 PR 当前 head 在 Ready 状态下运行的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必须全部成功，随后才能人工合入 `dev`。合并后 `dev` 门禁验证 merge commit 与 PR head 的 Git tree 一致并复用这些成功检查；需要固定预览时，从准确的 `dev` merge commit 手动执行：
 
 ```bash
 make preview-deploy PREVIEW_REF=<dev-merge-full-sha>
 make preview-status
 ```
 
-预览必须使用当前 `dev` merge commit 的完整 SHA；后续 PR 合入 `dev` 后，旧预览验收立即失效，代理会在新 merge commit 的分支检查成功后更新预览。运行代码、契约、迁移、依赖、构建和预览工具变更要求固定预览；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 不要求应用预览。适用的预览人工验收完成后，才能把已验收的多个 `dev` 变更汇总到一个 `dev` → `main` 发布 PR；禁止直接推送、强推或自动合并 `dev` 和 `main`。
+预览部署会先获取 `origin/dev`，并拒绝非 40 位 SHA、非当前 `origin/dev` head 或非 merge commit；后续适用的 PR 合入 `dev` 后，旧预览验收立即失效，需要重新部署新的 merge commit。运行代码、契约、迁移、依赖、构建和预览工具变更要求固定预览；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 不要求应用预览。适用的预览人工验收完成后，才能把已验收的多个 `dev` 变更汇总到一个 `dev` → `main` 发布 PR；禁止直接推送、强推或自动合并 `dev` 和 `main`。
 
 `dev` 合并后不重复运行整套质量与 E2E，而是通过 GitHub API 验证 merge commit 与开发 PR head 的 Git tree 完全一致，并复用该 PR 的六项成功检查。`dev` → `main` 汇总发布 PR 按相对 `main` 的整体差异运行一次对应检查矩阵，可把多个已在预览验收的开发 PR 合为一个正式发布；`main` 合并后同样只复用这条发布 PR 的检查。树不一致、不是关联 PR 合并提交、任一必需检查缺失、`main` PR 不是来自 `dev`，或只存在草稿快速门禁时立即失败。
 
-已经合并的 PR 不执行“取消合并”或改写历史。需要撤销时创建新的 revert PR：开发阶段的 revert 目标为 `dev`，合并后预览代理自动部署该前向恢复提交；已经进入生产的变更先在 `dev` 撤销并验收，再通过新的 `dev` → `main` 发布 PR 上线。只有需要撤销整个汇总版本时，才在 `main` revert 对应发布 PR，并同步把 `dev` 修正到一致状态。
+已经合并的 PR 不执行“取消合并”或改写历史。需要撤销时创建新的 revert PR：开发阶段的 revert 目标为 `dev`，合并后按适用性部署该前向恢复提交；已经进入生产的变更先在 `dev` 撤销并验收，再通过新的 `dev` → `main` 发布 PR 上线。只有需要撤销整个汇总版本时，才在 `main` revert 对应发布 PR，并同步把 `dev` 修正到一致状态。
 
 ## 2. 自动上线
 

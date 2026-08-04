@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -88,6 +89,42 @@ func TestFormatWorkbenchMoney(t *testing.T) {
 	for cents, expected := range map[int64]string{0: "0.00", 105: "1.05", -230: "-2.30"} {
 		if actual := formatWorkbenchMoney(cents); actual != expected {
 			t.Fatalf("formatWorkbenchMoney(%d) = %q, want %q", cents, actual, expected)
+		}
+	}
+}
+
+func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
+	item := WorkbenchItem{
+		Category:  WorkbenchCategoryVou,
+		PartyName: requiredWorkbenchString(""),
+		Currency:  requiredWorkbenchString(""),
+	}
+	payload, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"partyName", "currency"} {
+		value, exists := fields[field]
+		if !exists || value != "" {
+			t.Fatalf("%s = %#v, exists = %t", field, value, exists)
+		}
+	}
+
+	objectPayload, err := json.Marshal(WorkbenchItem{Category: WorkbenchCategoryBob})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields = nil
+	if err := json.Unmarshal(objectPayload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"partyName", "currency"} {
+		if _, exists := fields[field]; exists {
+			t.Fatalf("BOB item unexpectedly contains %s", field)
 		}
 	}
 }

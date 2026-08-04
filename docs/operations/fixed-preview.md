@@ -1,18 +1,18 @@
 # 固定外网开发预览
 
-固定预览独立于开发、生产形态和 E2E：`preview-up` 用于临时检查当前工作区，`preview-deploy` 用于人工验收准确提交。桌面、手机和本机统一访问：
+固定预览完全运行在 macOS 本机，不依赖 Docker 或 Colima：独立 PostgreSQL cluster、Go API 和轻量静态 Web/反向代理均由 launchd 常驻。桌面、手机和本机统一访问：
 
 ```text
 https://zerp-preview.bytesucceed.com
 ```
 
-该入口复用本机现有 Cloudflare Tunnel，只使用 ZERP 自身登录，不配置 Cloudflare Access。
+该入口复用现有 Cloudflare Tunnel，只使用 ZERP 自身登录，不配置 Cloudflare Access。
 
 ## 1. 隔离边界
 
 | 资源              | 值                                     |
 | ----------------- | -------------------------------------- |
-| Compose 项目      | `zerp-fullstack-preview`               |
+| 运行目录          | `backend/var/preview-native`           |
 | PostgreSQL 数据库 | `zerp_preview`                         |
 | PostgreSQL 端口   | `127.0.0.1:55436`                      |
 | API 端口          | `127.0.0.1:18082`                      |
@@ -22,7 +22,7 @@ https://zerp-preview.bytesucceed.com
 | CORS Origin       | `https://zerp-preview.bytesucceed.com` |
 | GitHub 反馈发布   | 关闭                                   |
 
-预览使用自己的 PostgreSQL、附件卷和 Cookie。`make e2e` 只操作 `zerp-fullstack-e2e`，不会读取或清理预览卷。
+数据库文件、附件、构建版本、备份和代理状态全部位于被 Git 忽略的仓库 `backend/var/` 下。E2E 仍使用自己的 Compose 项目，不读取或清理固定预览。
 
 ## 2. 日常命令
 
@@ -31,35 +31,56 @@ make preview-up
 make preview-deploy PREVIEW_REF=<commit>
 make preview-status
 make preview-password
+make preview-rollback
+make preview-retry
 make preview-down
 make preview-reset
 ```
 
-- `preview-up`：首次生成本地环境文件，构建当前工作区，自动迁移、初始化管理员，并按 AUX、BOB、VOU/WFL、LED 顺序补齐全业务测试数据，等待健康后输出固定网址；
-- `preview-deploy`：从隔离工作树构建指定 commit，不读取当前工作区的未提交修改，并保留现有人工测试数据；
-- `preview-down`：停止并删除预览容器，保留 PostgreSQL 与附件卷；容器不存在时不会随 Colima 自动恢复，重新运行 `preview-up` 后恢复常驻；
-- `preview-reset`：只删除 `zerp-fullstack-preview` 的容器和卷，并重建干净预览；
-- `preview-status`：检查 Compose 状态、本机 Web/API 健康端点和公网 HTTPS；
+- `preview-up`：构建当前工作区，启动本机数据库/API/Web，迁移、初始化管理员并补齐测试数据；
+- `preview-deploy`：从隔离工作树构建完整 commit SHA，不读取未提交修改；
+- `preview-status`：核对三个 launchd job、数据库、本机端点、公网端点和发布标记；
+- `preview-rollback`：原子切回上一版二进制和 Web，并熔断当前 `dev` SHA，避免代理立即重新部署；
+- `preview-retry`：外部问题修复后清除熔断并立即重试当前 `dev`；
+- `preview-down`：停止三个 launchd job，保留数据库、附件和所有版本；
+- `preview-reset`：把当前数据库和附件移动到时间戳备份目录，再建立干净环境；
 - `preview-password`：只把管理员密码写入 macOS 剪贴板，不在终端打印。
 
-本地凭证仅保存在被 Git 忽略的 `backend/.env.preview.local`，初始化脚本会将其权限设为 `600`。不得把该文件内容写入日志、聊天、截图或提交。
+本地凭证仅保存在权限为 `600` 的 `backend/.env.preview.local`。不得把其内容写入日志、聊天、截图或提交。
 
-## 3. 登录后常驻与代码更新
+## 3. 首次迁移与常驻
 
-本机容器运行时使用 Colima。通过 Homebrew 用户服务注册登录自启：
+本机需要 Homebrew PostgreSQL、Go、pnpm、`gh` 和 `jq`。`preview-up` 使用 `pg_config` 找到当前 PostgreSQL 二进制，并在 `backend/var/preview-native/postgres-data` 初始化独立 cluster，不改动 Homebrew 默认的 `127.0.0.1:5432` 数据库。
+
+若首次启动时检测到旧 `zerp-fullstack-preview` Compose 数据库，脚本会：
+
+1. 启动旧数据库并生成 PostgreSQL custom-format dump；
+2. 复制旧 API 附件目录；
+3. 停止旧 DB/API/Web 容器，但保留容器、镜像和 volume 作为一次性恢复后路；
+4. 启动本机 cluster，导入数据库和附件；
+5. 迁移到当前版本并切换本机 API/Web。
+
+迁移或首次切换失败时，脚本停止本机服务并恢复旧 Compose 服务。成功后数据库/API/Web 的 launchd job 在用户登录时自动恢复，不依赖 Colima。
+
+## 4. `dev` 合并后自动更新
+
+首次安装代理：
 
 ```bash
-brew services start colima
-brew services info colima
+make preview-install-agent
 ```
 
-用户登录 macOS 后，Colima 会自动启动；预览的 DB、API 和 Web 容器使用 `restart: unless-stopped`，会在 Docker 就绪后恢复。Cloudflare Tunnel 由独立的系统 launchd 服务保持常驻。
+代理每 60 秒读取 `origin/dev`。只有准确的 `dev` merge SHA 上 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 全部成功时才继续：
 
-固定预览保持为稳定构建，不自动监听工作区文件。日常临时检查可运行 `make preview-up` 构建当前工作区；需要固定预览的变更先通过本地门禁、推送草稿 PR 并等待五项必需检查全绿，再运行 `make preview-deploy PREVIEW_REF=<PR-head-full-sha>`。新提交会使旧预览验收失效。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。两种预览方式都不会删除 PostgreSQL 或附件卷中的人工测试数据，只有 `make preview-reset` 会清空预览数据。
+- 文档和普通验证工具变更记录为 no-op，不重建应用；
+- 应用变更从隔离工作树构建该 SHA，迁移、seed、切换并核对本机与公网 `_zerp-release`；
+- 同一 SHA 失败后熔断，不每分钟重复破坏性尝试；
+- 新 SHA 或人工执行 `make preview-retry` 后才继续；
+- 每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
 
-`make preview-down` 用于有意停止预览。它会删除容器，因此即使 Colima 常驻也不会自动恢复预览；需要再次运行 `make preview-up`。
+因此开发 PR 在合入 `dev` 前只承担代码门禁；固定预览更新发生在合并后，预览人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。
 
-## 4. Cloudflare Tunnel
+## 5. Cloudflare Tunnel
 
 本机 `~/.cloudflared/config.yml` 的最终 `http_status:404` 规则前必须存在：
 
@@ -69,35 +90,25 @@ brew services info colima
 - service: http_status:404
 ```
 
-修改前备份配置；通过现有 Tunnel 创建代理 DNS CNAME；运行 `cloudflared tunnel ingress validate` 后重载现有 launchd 服务。不得复制或输出 Tunnel 凭据。
+修改前备份配置；运行 `cloudflared tunnel ingress validate` 后重载准确的现有 launchd 服务。不得复制或输出 Tunnel 凭据。
 
-## 5. 故障分层与凭证安全
+## 6. 故障分层与验收
 
-`preview-deploy` 同时覆盖构建、迁移、seed、本机健康和公网资源预热。失败时按层定位，避免把入口故障误判为应用故障：
+失败时按以下层次定位：
 
-1. 先从命令输出确认镜像构建、migration 和 preview seed 是否成功；
-2. 检查本机端点：`http://127.0.0.1:15176/healthz` 与 `http://127.0.0.1:18082/readyz`；
-3. 检查预览容器的 `io.zerp.release` 是否为本次 PR head 完整 SHA；
-4. 本机健康但公网返回 `530`、TLS 失败或资源预热失败时，运行 `cloudflared tunnel ingress validate` 和 `cloudflared tunnel ingress rule https://zerp-preview.bytesucceed.com`，再核对实际承载该配置的 launchd 服务及日志是否仍有已注册 edge 连接；
-5. 只有确认准确的 Tunnel 实例丢失全部 edge 连接且未自行恢复时才重启该实例。不得停止其他 Tunnel，不得用 `preview-reset`、清空卷或重建测试数据修复公网入口；
-6. 入口恢复后重新运行 `make preview-status`，同时确认本机、公网和发布 SHA。
+1. 检查 `backend/var/preview-agent/agent.log` 的 GitHub 检查读取、构建、migration 和 seed；
+2. 检查本机 PostgreSQL、`http://127.0.0.1:18082/readyz` 和 `http://127.0.0.1:15176/healthz`；
+3. 对比本机与公网 `/_zerp-release` 是否为同一完整 `dev` merge SHA；
+4. 本机健康但公网返回 `530`、TLS 失败或标记未更新时，核对 Tunnel ingress、edge 连接和准确服务实例，不得用 `preview-reset` 或清空数据修复入口；
+5. 入口恢复后执行 `make preview-retry` 或 `make preview-status`。
 
-预览登录凭证只从 `backend/.env.preview.local` 读取，并通过 `make preview-password` 放入剪贴板。浏览器自动化或人工调试应在填写密码前采集页面结构，登录后再采集业务页面；禁止在敏感输入框已填充时输出 DOM 快照、截图、表单值或网络请求。若凭证意外进入输出，立即通过 `/app/user/change-password` 轮换、撤销旧会话、同步本地预览环境并用新密码重新登录验证。
-
-## 6. 验收
-
-需要固定预览的变更在草稿 PR 五项必需检查全绿后执行：
+变更验收至少运行：
 
 ```bash
-docker compose --env-file backend/.env.preview.example \
-  -p zerp-fullstack-preview \
-  -f compose.yaml -f compose.preview.yaml config --quiet
-sh -n backend/scripts/init-preview-env.sh scripts/preview.sh
-make preview-deploy PREVIEW_REF=<PR-head-full-sha>
+sh -n scripts/preview.sh scripts/preview-deploy.sh scripts/preview-watch.sh
+shellcheck -x scripts/preview*.sh scripts/install-preview-agent.sh
+go -C backend test ./cmd/preview-web
 make preview-status
-brew services info colima
 ```
 
-人工验收必须通过固定 HTTPS 入口登录，确认业务单据菜单与当前会话的有效权限及前端注册页面一致。桌面和手机视口均覆盖销售订单、销售签收、销售退货、生产配货、生产自制品、采购订单、采购入库、采购退货、费用报销、费用付款和其他收入；销售定价、采购询价以及客户、供应商、其他三类往来收付款至少验证菜单与页面可加载。销售出库和销售送货随销售链验证，采购履约和销售履约流程均可进入。全部旧居间单据及 `/wfl/intermediary-trade` URL 必须进入未找到页面。验证原子单据按钮逐项受 VOU 权限控制，销售出库、销售送货、销售签收和费用付款没有人工创建入口，其余 OpenAPI 声明可创建的单据可以人工创建。公网探测应从本机网络以外执行，不能用本机 Tunnel 进程的成功状态代替。
-
-日志和验收记录不得包含密码、Cookie、CSRF Token、附件或敏感业务数据。
+人工验收必须通过固定 HTTPS 入口登录，并覆盖变更影响的桌面和手机流程。禁止在密码、Cookie 或 CSRF Token 已填充后输出 DOM、截图、请求体或日志；若凭证意外进入输出，立即轮换密码并撤销旧会话。

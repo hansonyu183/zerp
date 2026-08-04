@@ -166,6 +166,18 @@ preview=0" \
   scripts/production-watch.sh
 
 assert_checks \
+  "impact=validation
+contracts=0
+frontend=0
+frontend_audit=0
+backend=0
+containers=0
+e2e=0
+local_e2e=0
+preview=1" \
+  scripts/preview-watch.sh scripts/install-preview-agent.sh scripts/preview-retry.sh
+
+assert_checks \
   "impact=application
 contracts=0
 frontend=0

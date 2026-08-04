@@ -69,7 +69,7 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('先显示待办单据并按需查询对应类别', async () => {
+  it('优先显示待办单据 Tab 并按需查询对应类别', async () => {
     const router = createTestRouter()
     const pinia = createPinia()
     useSessionStore(pinia).permissions = [
@@ -127,6 +127,9 @@ describe('Dashboard workbench', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('待办单据')
     expect(wrapper.text()).toContain('待办资料')
+    expect(wrapper.text().indexOf('待办单据')).toBeLessThan(
+      wrapper.text().indexOf('待办资料'),
+    )
     expect(wrapper.text()).not.toContain('集中处理')
     expect(wrapper.text()).toContain('类型')
     expect(wrapper.text()).toContain('待办状态')

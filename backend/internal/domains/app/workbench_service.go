@@ -271,11 +271,15 @@ func (s *Service) queryWorkbenchVou(
 			Category: WorkbenchCategoryVou, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.UpdatedAt.Time,
 			DocumentID: row.DocumentID, Revision: row.Revision, DocumentNo: row.DocumentNo,
-			BusinessDate: row.BusinessDate, PartyName: row.PartyName,
-			Currency: row.Currency, Amount: formatWorkbenchMoney(row.TotalAmountCents),
+			BusinessDate: row.BusinessDate, PartyName: requiredWorkbenchString(row.PartyName),
+			Currency: requiredWorkbenchString(row.Currency), Amount: formatWorkbenchMoney(row.TotalAmountCents),
 		})
 	}
 	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
+}
+
+func requiredWorkbenchString(value string) *string {
+	return &value
 }
 
 func formatWorkbenchMoney(cents int64) string {

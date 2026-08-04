@@ -164,12 +164,12 @@ type WorkbenchItem struct {
 	Code           string `json:"code,omitempty"`
 	Name           string `json:"name,omitempty"`
 
-	DocumentID   string `json:"documentId,omitempty"`
-	DocumentNo   string `json:"documentNo,omitempty"`
-	BusinessDate string `json:"businessDate,omitempty"`
-	PartyName    string `json:"partyName,omitempty"`
-	Currency     string `json:"currency,omitempty"`
-	Amount       string `json:"amount,omitempty"`
+	DocumentID   string  `json:"documentId,omitempty"`
+	DocumentNo   string  `json:"documentNo,omitempty"`
+	BusinessDate string  `json:"businessDate,omitempty"`
+	PartyName    *string `json:"partyName,omitempty"`
+	Currency     *string `json:"currency,omitempty"`
+	Amount       string  `json:"amount,omitempty"`
 
 	Revision int64 `json:"revision"`
 }

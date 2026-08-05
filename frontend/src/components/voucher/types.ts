@@ -2,6 +2,7 @@ export type VoucherEntity =
   | 'bill-receipt'
   | 'bill-payment'
   | 'bill-issue'
+  | 'bill-discount'
   | 'sale-pricing'
   | 'sale-order'
   | 'sale-outbound'

@@ -378,4 +378,14 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
   },
+  'bill-discount': {
+    entity: 'bill-discount',
+    title: '票据贴现',
+    icon: 'mdi-cash-fast',
+    order: 133,
+    partyMode: 'counterparty',
+    fixedCounterpartyType: 'other-party',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+  },
 }

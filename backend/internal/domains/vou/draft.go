@@ -375,7 +375,7 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
-	case EntityBillReceipt, EntityBillPayment, EntityBillIssue:
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
 		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -402,7 +402,7 @@ func (s *Service) replaceLines(
 		}
 		return nil
 	}
-	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue {
+	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue || entity == EntityBillDiscount {
 		return s.replaceBillLines(ctx, q, entity, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
@@ -510,7 +510,7 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
-	case EntityBillReceipt, EntityBillPayment, EntityBillIssue:
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
 		detail, err := q.GetVouBillDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read bill detail", err)

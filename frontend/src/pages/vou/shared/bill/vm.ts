@@ -6,6 +6,7 @@ import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
 import {
   buildBillIssuePayload,
+  buildBillDiscountPayload,
   buildBillPaymentPayload,
   buildBillReceiptPayload,
 } from './payload'
@@ -69,10 +70,12 @@ export interface BillVoucherForm {
   remark: string
   customer: BillReference | null
   supplier: BillReference | null
+  counterparty: BillReference | null
   interestMode: '' | 'BANK_DEDUCTED' | 'THIRD_PARTY_PAYABLE'
   interestParty: BillReference | null
   handler: BillReference | null
   internalCostRateBps: number
+  withRecourse: boolean
   billLines: BillLineDraft[]
   billCashLines: BillCashLineDraft[]
 }
@@ -114,6 +117,7 @@ type BobQueryRequest = components['schemas']['BobQueryRequest']
 type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
 type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
 type BillIssueData = ReturnType<typeof buildBillIssuePayload>
+type BillDiscountData = ReturnType<typeof buildBillDiscountPayload>
 type BillPaymentCreateRequest = { data: BillPaymentData }
 type BillPaymentSaveRequest = {
   documentId: string
@@ -122,6 +126,8 @@ type BillPaymentSaveRequest = {
 }
 type BillIssueCreateRequest = { data: BillIssueData }
 type BillIssueSaveRequest = { documentId: string; revision: number; data: BillIssueData }
+type BillDiscountCreateRequest = { data: BillDiscountData }
+type BillDiscountSaveRequest = { documentId: string; revision: number; data: BillDiscountData }
 
 function key() {
   return crypto.randomUUID()
@@ -163,10 +169,12 @@ function emptyForm(): BillVoucherForm {
     remark: '',
     customer: null,
     supplier: null,
+    counterparty: null,
     interestMode: '',
     interestParty: null,
     handler: null,
     internalCostRateBps: 0,
+    withRecourse: false,
     billLines: [emptyLine()],
     billCashLines: [],
   }
@@ -283,6 +291,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (!canCreate.value) return
     Object.assign(form, emptyForm())
     if (config.mode === 'payment') form.billLines = []
+    if (config.mode === 'discount') {
+      form.billLines = []
+      form.interestMode = 'BANK_DEDUCTED'
+    }
     if (config.mode === 'issue') {
       form.interestMode = 'BANK_DEDUCTED'
       form.billLines = form.billLines.map((line) => ({
@@ -325,10 +337,12 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         remark: billData.remark ?? '',
         customer: billData.counterparty ?? billData.customer ?? null,
         supplier: billData.supplier ?? null,
+        counterparty: billData.counterparty ?? null,
         interestMode: billData.interestMode ?? '',
         interestParty: billData.interestParty ?? null,
         handler: billData.handler ?? null,
         internalCostRateBps: billData.internalCostRateBps ?? 0,
+        withRecourse: billData.withRecourse ?? false,
         billLines: (billData.billLines ?? []).map((line) => ({
           ...line,
           key: line.lineId || line.billId || key(),
@@ -367,14 +381,18 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         ? buildBillPaymentPayload(form)
         : config.mode === 'issue'
           ? buildBillIssuePayload(form)
+          : config.mode === 'discount'
+            ? buildBillDiscountPayload(form)
           : buildBillReceiptPayload(form)
       if (documentId.value) {
         const request = config.mode === 'payment'
           ? { documentId: documentId.value, revision: revision.value, data } as BillPaymentSaveRequest
           : config.mode === 'issue'
             ? { documentId: documentId.value, revision: revision.value, data } as BillIssueSaveRequest
-            : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
-        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest>(
+            : config.mode === 'discount'
+              ? { documentId: documentId.value, revision: revision.value, data } as BillDiscountSaveRequest
+              : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
+        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest | BillDiscountSaveRequest>(
           `vou/${config.entity}/save` as ApiPostPath,
           request,
         )
@@ -384,8 +402,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           ? { data } as BillPaymentCreateRequest
           : config.mode === 'issue'
             ? { data } as BillIssueCreateRequest
-            : { data } as VouCreateRequest
-        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest>(
+            : config.mode === 'discount'
+              ? { data } as BillDiscountCreateRequest
+              : { data } as VouCreateRequest
+        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest | BillDiscountCreateRequest>(
           `vou/${config.entity}/create` as ApiPostPath,
           request,
         )
@@ -638,6 +658,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         purpose: 'PRIMARY' as const,
         direction: 'OUT' as const,
       }))
+    if (config.mode === 'payment') {
+      form.billLines = form.billLines.map((line) => ({ ...line, direction: 'IN' as const }))
+    }
     heldDialogOpen.value = false
   }
   function addBillLine() {

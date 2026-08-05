@@ -120,7 +120,7 @@ func (s *Service) createDocument(
 	if err = s.applyPriceReferences(ctx, q, entity, &draft, resolved); err != nil {
 		return MutationResult{}, err
 	}
-	if entity == EntityBillPayment {
+	if entity == EntityBillPayment || entity == EntityBillDiscount {
 		draft.TotalAmount, err = s.billPaymentTotal(ctx, q, draft.BillLines)
 		if err != nil {
 			return MutationResult{}, err

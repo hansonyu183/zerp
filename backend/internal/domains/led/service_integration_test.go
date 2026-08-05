@@ -1609,6 +1609,48 @@ func TestBillIssuePostsLiabilitySupplierInterestAndActualCashIntegration(t *test
 	}
 }
 
+func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	other := createApprovedReference(t, bobdomain.NewService(pool), bobdomain.EntityOtherParty, bobdomain.CreateDetailInput{
+		Code: "LD" + newID(), Name: "贴现方", SalespersonEmployeeID: refs.employee.ObjectID,
+	})
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	source, sourceView := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer, Handler: &refs.employee,
+		BillLines: []voudomain.BillLineInput{{PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "BILL-DISCOUNT-SOURCE", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00", IssueDate: "2026-08-01", MaturityDate: "2027-08-01", Drawer: "出票人", Acceptor: "承兑行", Payee: "本公司"}},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{DocumentID: source.DocumentID, Revision: source.Revision}, integrationActorOne, "bill-discount-source-finalize"); err != nil {
+		t.Fatalf("finalize discount source: %v", err)
+	}
+	discount, _ := advanceToApproved(t, vouchers, voudomain.EntityBillDiscount, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", CounterpartyType: "other-party", Counterparty: &other,
+		InterestMode: "THIRD_PARTY_PAYABLE", InterestParty: &other,
+		BillLines:     []voudomain.BillLineInput{{BillID: sourceView.Data.BillLines[0].BillID, Purpose: "PRIMARY", AnnualRateBps: 365}},
+		BillCashLines: []voudomain.BillCashLineInput{{FundAccount: refs.fundAccount, Direction: "IN", AmountType: "PRINCIPAL", Amount: "96.35"}},
+	})
+	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillDiscount, voudomain.FinalizeInput{DocumentID: discount.DocumentID, Revision: discount.Revision}, integrationActorOne, "bill-discount-finalize")
+	if err != nil {
+		t.Fatalf("finalize bill discount: %v", err)
+	}
+	fund, err := ledger.FundBalance(t.Context(), BalanceInput{Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: refs.fundAccount.ObjectID}})
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].Amount != "96.35" {
+		t.Fatalf("discount fund balance = %+v, err=%v", fund, err)
+	}
+	interest, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: other.ObjectID},
+	}, bobdomain.EntityOtherParty)
+	if err != nil || len(interest.Items) != 1 || interest.Items[0].BalanceType != "PAYABLE" || interest.Items[0].Amount != "3.64" {
+		t.Fatalf("discount interest balance = %+v, err=%v", interest, err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillDiscount, voudomain.ReverseInput{DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "撤回贴现"}, integrationActorOne, "bill-discount-unfinalize"); err != nil {
+		t.Fatalf("unfinalize bill discount: %v", err)
+	}
+}
+
 func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBillPaymentPayload,
   buildBillIssuePayload,
+  buildBillDiscountPayload,
   buildBillReceiptPayload,
 } from '@/pages/vou/shared/bill/payload'
 import { appendHeldBillLines } from '@/pages/vou/shared/bill/selection'
@@ -19,10 +20,12 @@ function form(): BillVoucherForm {
     remark: '',
     customer: { objectId: 'c', versionId: 'cv', code: 'C', name: '客户' },
     supplier: null,
+    counterparty: { objectId: 'o', versionId: 'ov', code: 'O', name: '贴现方' },
     interestMode: '',
     interestParty: null,
     handler: { objectId: 'e', versionId: 'ev', code: 'E', name: '经办人' },
     internalCostRateBps: 0,
+    withRecourse: false,
     billLines: [
       {
         key: '1',
@@ -153,5 +156,25 @@ describe('bill issue payload', () => {
     expect(payload.interestParty).toEqual({ objectId: 'o', versionId: 'ov' })
     expect(payload.billCashLines).toHaveLength(1)
     expect(validateBillVoucherForm(value, 20, 20, 'issue')).toBeNull()
+  })
+})
+
+describe('bill discount payload', () => {
+  it('submits selected bill ids, rate, recourse and real cash fees only', () => {
+    const value = form()
+    value.customer = null
+    value.supplier = null
+    value.counterparty = { objectId: 'o', versionId: 'ov', code: 'O', name: '贴现方' }
+    value.interestMode = 'THIRD_PARTY_PAYABLE'
+    value.interestParty = { objectId: 'p', versionId: 'pv', code: 'P', name: '利息方', entity: 'other-party' }
+    value.withRecourse = true
+    value.billLines = [{ ...value.billLines[0]!, billId: 'held-1' }]
+    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'OUT', amountType: 'FEE', amount: '1.00', remark: '' }]
+    const payload = buildBillDiscountPayload(value)
+    expect(payload).toMatchObject({ counterparty: { objectId: 'o', versionId: 'ov' }, withRecourse: true })
+    expect(payload.billLines[0]).toEqual({ billId: 'held-1', purpose: 'PRIMARY', annualRateBps: 100 })
+    expect(payload.billLines[0]).not.toHaveProperty('faceAmount')
+    expect(payload.billCashLines[0]).toMatchObject({ direction: 'OUT', amountType: 'FEE' })
+    expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBeNull()
   })
 })

@@ -250,6 +250,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/bill-issue/BillIssue.vue'),
   }),
   registerPage('vou', {
+    entity: 'bill-discount',
+    entityTitle: '票据贴现',
+    icon: 'mdi-cash-fast',
+    order: 133,
+    component: () => import('@/pages/vou/bill-discount/BillDiscount.vue'),
+  }),
+  registerPage('vou', {
     entity: 'sale-pricing',
     entityTitle: '销售定价',
     icon: 'mdi-tag-multiple-outline',

@@ -36,6 +36,7 @@
           'bill-receipt',
           'bill-payment',
           'bill-issue',
+          'bill-discount',
         ],
     },
   'VouCreatableEntity':
@@ -71,6 +72,7 @@
           'bill-receipt',
           'bill-payment',
           'bill-issue',
+          'bill-discount',
         ],
     },
   'VouStatus':
@@ -305,6 +307,94 @@
             },
         },
     },
+  'VouBillDiscountLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose', 'annualRateBps'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'annualRateBps': { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillDiscountCashLineInput':
+    {
+      'type': 'object',
+      'required': ['fundAccount', 'direction', 'amountType', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fundAccount':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'amountType':
+            { 'type': 'string', 'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'] },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillDiscountDataInput':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency', 'counterparty', 'counterpartyType', 'billLines', 'interestMode', 'withRecourse'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'counterparty':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'counterpartyType': { 'type': 'string', 'enum': ['other-party'] },
+          'interestMode': { 'type': 'string', 'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'] },
+          'interestParty':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'withRecourse': { 'type': 'boolean' },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillDiscountLineInput' },
+            },
+          'billCashLines':
+            {
+              'type': 'array',
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillDiscountCashLineInput' },
+            },
+        },
+    },
   'VouBillLineInput':
     {
       'oneOf':
@@ -313,6 +403,7 @@
           { '$ref': '#/VouBillChangeLineInput' },
           { '$ref': '#/VouBillPaymentLineInput' },
           { '$ref': '#/VouBillIssueLineInput' },
+          { '$ref': '#/VouBillDiscountLineInput' },
         ],
     },
   'VouBillCashLineInput':
@@ -863,6 +954,7 @@
                           'versionId': { 'type': 'string' },
                         },
                     },
+                  'withRecourse': { 'type': 'boolean' },
                   'billLines':
                     {
                       'type': 'array',
@@ -1223,6 +1315,7 @@
                           'versionId': { 'type': 'string' },
                         },
                     },
+                  'withRecourse': { 'type': 'boolean' },
                   'billLines':
                     {
                       'type': 'array',

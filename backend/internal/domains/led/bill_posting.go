@@ -235,6 +235,73 @@ func (s *Service) postBillIssue(ctx context.Context, tx pgx.Tx, q *dbsqlc.Querie
 	return nil
 }
 
+func (s *Service) postBillDiscount(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, p postingContext) error {
+	doc := p.Document
+	include, err := requireEffectiveDate(p, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouBillDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill discount detail", err)
+	}
+	lines, err := q.ListVouBillLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill discount lines", err)
+	}
+	var faceTotal, interestTotal int64
+	for _, line := range lines {
+		if line.Purpose != "PRIMARY" || line.PositionType != "ASSET" || line.Direction != "OUT" {
+			return domainError(ErrorConflict, "bill discount line is invalid", nil, nil)
+		}
+		bill, lockErr := q.LockLedBill(ctx, line.BillID)
+		if lockErr != nil {
+			return s.writeError("lock bill for discount", lockErr)
+		}
+		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: bill.ID, PositionType: "ASSET"})
+		if balanceErr != nil || balance != 1 {
+			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
+		}
+		if !bill.MaturityDate.Time.After(doc.BusinessDate.Time) {
+			return domainError(ErrorConflict, "source bill is matured", nil, nil)
+		}
+		if err = q.InsertLedBillEntry(ctx, dbsqlc.InsertLedBillEntryParams{ID: newID(), GenerationID: p.GenerationID, BillID: bill.ID, SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceLineID: line.ID, PositionType: "ASSET", Direction: "OUT", Purpose: "PRIMARY", EffectiveDate: doc.BusinessDate, OccurredAt: p.OccurredAt}); err != nil {
+			return s.writeError("post bill discount ledger entry", err)
+		}
+		faceTotal, err = checkedBillAdd(faceTotal, line.FaceAmountCents)
+		if err == nil {
+			interestTotal, err = checkedBillAdd(interestTotal, line.InterestAmountCents)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if faceTotal <= 0 {
+		return domainError(ErrorConflict, "bill discount total is invalid", nil, nil)
+	}
+	cash, err := q.ListVouBillCashLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill discount cash lines", err)
+	}
+	for _, line := range cash {
+		delta := line.AmountCents
+		if line.Direction == "OUT" {
+			delta = -delta
+		}
+		fund := fundParams(p, doc, line.FundAccountObjectID, line.FundAccountVersionID, line.FundAccountCode, line.FundAccountName, delta)
+		fund.SourceLineID = line.ID
+		if err = q.InsertLedFundEntry(ctx, fund); err != nil {
+			return s.writeError("post bill discount fund", err)
+		}
+	}
+	if detail.InterestMode == "THIRD_PARTY_PAYABLE" && interestTotal > 0 {
+		if err = q.InsertLedPartyEntry(ctx, partyParams(p, doc, "interest", doc.BusinessDate, deref(detail.InterestPartyObjectID), deref(detail.InterestPartyVersionID), deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal)); err != nil {
+			return s.writeError("post bill discount interest payable", err)
+		}
+	}
+	return nil
+}
+
 func checkedBillAdd(left, right int64) (int64, error) {
 	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
 		return 0, domainError(ErrorConflict, "bill amount is out of range", nil, nil)

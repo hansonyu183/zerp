@@ -152,3 +152,25 @@ func TestBillIssueValidation(t *testing.T) {
 		t.Fatal("accepted non-liability bill issue line")
 	}
 }
+
+func TestBillDiscountValidation(t *testing.T) {
+	t.Parallel()
+	input := DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", CounterpartyType: "other-party", Counterparty: refInput(),
+		InterestMode: "THIRD_PARTY_PAYABLE", InterestParty: refInput(), WithRecourse: true,
+		BillLines:     []BillLineInput{{BillID: "01J00000000000000000000003", Purpose: "PRIMARY", AnnualRateBps: 365}},
+		BillCashLines: []BillCashLineInput{{FundAccount: *refInput(), Direction: "IN", AmountType: "PRINCIPAL", Amount: "90.00"}},
+	}
+	draft, err := validateDraft(EntityBillDiscount, input)
+	if err != nil || len(draft.BillLines) != 1 || draft.BillLines[0].Direction != "OUT" || !draft.WithRecourse {
+		t.Fatalf("validate bill discount = %+v, %v", draft, err)
+	}
+	input.CounterpartyType = "supplier"
+	if _, err = validateDraft(EntityBillDiscount, input); err == nil {
+		t.Fatal("accepted non-other discount counterparty")
+	}
+	input.CounterpartyType, input.InterestParty = "other-party", nil
+	if _, err = validateDraft(EntityBillDiscount, input); err == nil {
+		t.Fatal("accepted third-party discount without interest party")
+	}
+}

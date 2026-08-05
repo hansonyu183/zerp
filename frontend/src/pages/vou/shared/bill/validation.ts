@@ -69,12 +69,19 @@ export function validateBillVoucherForm(
   form: BillVoucherForm,
   maxBillLines = 20,
   maxCashLines = 20,
-  mode: 'receipt' | 'payment' | 'issue' = 'receipt',
+  mode: 'receipt' | 'payment' | 'issue' | 'discount' = 'receipt',
 ): string | null {
   if (mode === 'payment') {
     if (!form.supplier) return '请选择供应商。'
   } else if (mode === 'issue') {
     if (!form.supplier) return '请选择供应商。'
+    if (!form.interestMode) return '请选择利息承担方式。'
+    if (form.interestMode === 'THIRD_PARTY_PAYABLE' && !form.interestParty)
+      return '第三方承担利息时必须选择其他往来单位。'
+    if (form.interestMode === 'BANK_DEDUCTED' && form.interestParty)
+      return '银行扣息时不能填写第三方利息承担方。'
+  } else if (mode === 'discount') {
+    if (!form.counterparty) return '请选择贴现方。'
     if (!form.interestMode) return '请选择利息承担方式。'
     if (form.interestMode === 'THIRD_PARTY_PAYABLE' && !form.interestParty)
       return '第三方承担利息时必须选择其他往来单位。'
@@ -104,12 +111,18 @@ export function validateBillVoucherForm(
   const billIds = new Set<string>()
   const businessKeys = new Set<string>()
   for (const [index, line] of form.billLines.entries()) {
-    if (mode === 'payment') {
+    if (mode === 'payment' || mode === 'discount') {
       if (line.purpose !== 'PRIMARY' || !line.billId)
         return `第 ${index + 1} 行必须选择可用持有票据。`
       if (billIds.has(line.billId))
         return `第 ${index + 1} 行重复选择了同一张票据。`
       billIds.add(line.billId)
+      if (!Number.isInteger(line.annualRateBps) || line.annualRateBps < 0 || line.annualRateBps > 100_000)
+        return `第 ${index + 1} 行年利率必须为 0-100000 bps。`
+      if (mode === 'discount') {
+        const cents = parseFixed(line.faceAmount, 2)
+        if (cents !== null) primary += cents
+      }
       continue
     }
     if (mode === 'issue' && (line.purpose !== 'PRIMARY' || line.billId))
@@ -166,5 +179,7 @@ export function validateBillVoucherForm(
   }
   if (mode === 'receipt' && primary + cashIn - change - cashOut <= 0n)
     return '客户净结算额必须大于零。'
+  if (mode === 'discount' && primary + cashIn - cashOut <= 0n)
+    return '贴现净到账必须大于零。'
   return null
 }

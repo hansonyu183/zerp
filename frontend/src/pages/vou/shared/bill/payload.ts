@@ -101,3 +101,31 @@ export function buildBillIssuePayload(form: BillVoucherForm) {
     })),
   }
 }
+
+export function buildBillDiscountPayload(form: BillVoucherForm) {
+  return {
+    businessDate: form.businessDate,
+    currency: form.currency,
+    remark: form.remark || undefined,
+    counterparty: reference(form.counterparty),
+    counterpartyType: 'other-party' as const,
+    interestMode: form.interestMode,
+    ...(form.interestMode === 'THIRD_PARTY_PAYABLE'
+      ? { interestParty: reference(form.interestParty) }
+      : {}),
+    withRecourse: form.withRecourse,
+    billLines: form.billLines.map((line: BillLineDraft) => ({
+      billId: line.billId!,
+      purpose: 'PRIMARY' as const,
+      annualRateBps: line.annualRateBps,
+      remark: line.remark || undefined,
+    })),
+    billCashLines: form.billCashLines.map((line: BillCashLineDraft) => ({
+      fundAccount: reference(line.fundAccount)!,
+      direction: line.direction,
+      amountType: line.amountType,
+      amount: line.amount,
+      remark: line.remark || undefined,
+    })),
+  }
+}

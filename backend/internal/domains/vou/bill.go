@@ -333,6 +333,77 @@ func validateBillIssueDraft(input DraftInput, result validatedDraft) (validatedD
 	return result, nil
 }
 
+func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
+	if input.Counterparty == nil || strings.ToLower(strings.TrimSpace(input.CounterpartyType)) != "other-party" {
+		return result, domainError(ErrorValidation, "bill discount requires other-party counterparty", nil, nil)
+	}
+	if err := validateReference(input.Counterparty, "counterparty", true); err != nil {
+		return result, err
+	}
+	if input.Customer != nil || input.Supplier != nil || input.Employee != nil || input.Handler != nil || input.FundAccount != nil ||
+		len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 || input.InternalCostRateBps != 0 || input.MaturityType != "" {
+		return result, domainError(ErrorValidation, "fields do not match bill discount", nil, nil)
+	}
+	mode := strings.ToUpper(strings.TrimSpace(input.InterestMode))
+	if mode != "BANK_DEDUCTED" && mode != "THIRD_PARTY_PAYABLE" {
+		return result, domainError(ErrorValidation, "invalid bill discount interestMode", nil, nil)
+	}
+	if mode == "THIRD_PARTY_PAYABLE" {
+		if err := validateReference(input.InterestParty, "interestParty", true); err != nil {
+			return result, err
+		}
+	} else if input.InterestParty != nil {
+		return result, domainError(ErrorValidation, "interestParty does not match interestMode", nil, nil)
+	}
+	if len(input.BillLines) < 1 || len(input.BillLines) > 20 || len(input.BillCashLines) > 20 {
+		return result, domainError(ErrorValidation, "bill discount lines must contain 1 to 20 items", nil, nil)
+	}
+	result.Counterparty, result.CounterpartyType = input.Counterparty, "other-party"
+	result.MaturityType, result.InterestMode, result.WithRecourse = "NONE", mode, input.WithRecourse
+	if mode == "THIRD_PARTY_PAYABLE" {
+		result.InterestParty = input.InterestParty
+	}
+	seen := make(map[string]struct{}, len(input.BillLines))
+	for _, raw := range input.BillLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		line := fixedBillLine{BillID: strings.TrimSpace(raw.BillID), Purpose: strings.ToUpper(strings.TrimSpace(raw.Purpose)), AnnualRateBps: raw.AnnualRateBps, Remark: remark}
+		if line.Purpose != "PRIMARY" || !validID(line.BillID) || line.AnnualRateBps < 0 || line.AnnualRateBps > 100000 {
+			return result, domainError(ErrorValidation, "bill discount requires available billId and rate", nil, nil)
+		}
+		if _, duplicate := seen[line.BillID]; duplicate {
+			return result, domainError(ErrorValidation, "duplicate billId", nil, nil)
+		}
+		seen[line.BillID] = struct{}{}
+		line.PositionType, line.Direction = "ASSET", "OUT"
+		result.BillLines = append(result.BillLines, line)
+	}
+	for _, raw := range input.BillCashLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(raw.BillLineID) != "" {
+			return result, domainError(ErrorValidation, "billLineId is not supported in bill discount cash lines", nil, nil)
+		}
+		if err = validateReference(&raw.FundAccount, "fundAccount", true); err != nil {
+			return result, err
+		}
+		amount, err := moneyCents(raw.Amount)
+		if err != nil {
+			return result, err
+		}
+		direction, amountType := strings.ToUpper(strings.TrimSpace(raw.Direction)), strings.ToUpper(strings.TrimSpace(raw.AmountType))
+		if (direction != "IN" && direction != "OUT") || !map[string]bool{"PRINCIPAL": true, "INTEREST": true, "FEE": true, "MARGIN": true, "OTHER": true}[amountType] {
+			return result, domainError(ErrorValidation, "invalid bill discount cash line", nil, nil)
+		}
+		result.BillCashLines = append(result.BillCashLines, fixedBillCashLine{FundAccount: raw.FundAccount, Direction: direction, AmountType: amountType, Amount: amount, Remark: remark})
+	}
+	return result, nil
+}
+
 func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine) (int64, error) {
 	var total int64
 	for _, line := range lines {
@@ -413,7 +484,8 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 	resolvedLines := make([]fixedBillLine, 0, len(d.BillLines))
 	var change int64
 	for _, l := range d.BillLines {
-		if l.Purpose == "CHANGE" || entity == EntityBillPayment {
+		if l.Purpose == "CHANGE" || entity == EntityBillPayment || entity == EntityBillDiscount {
+			discountRate := l.AnnualRateBps
 			b, err := q.LockLedBill(ctx, l.BillID)
 			if err != nil {
 				return domainError(ErrorConflict, "source bill is not available", nil, err)
@@ -422,9 +494,20 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 			if balanceErr != nil || balance != 1 {
 				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 			}
+			if entity == EntityBillDiscount && !b.MaturityDate.Time.After(d.BusinessDate) {
+				return domainError(ErrorConflict, "source bill is matured", nil, nil)
+			}
 			l.PositionType, l.BillType, l.BillNo, l.Medium, l.Currency = b.PositionType, b.BillType, b.BillNo, b.Medium, b.Currency
 			l.FaceAmount, l.IssueDate, l.MaturityDate, l.Drawer, l.Acceptor, l.Payee = b.FaceAmountCents, b.IssueDate.Time, b.MaturityDate.Time, b.Drawer, b.Acceptor, b.Payee
 			l.AnnualRateBps, l.InterestDays, l.InterestAmount, l.CustomerCostAmount = b.AnnualRateBps, b.InterestDays, b.InterestAmountCents, b.CustomerCostAmountCents
+			if entity == EntityBillDiscount {
+				l.AnnualRateBps = discountRate
+				l.InterestDays = int32(l.MaturityDate.Sub(d.BusinessDate).Hours() / 24)
+				l.InterestAmount, err = roundedBillAmount(l.FaceAmount, l.AnnualRateBps, l.InterestDays)
+				if err != nil {
+					return err
+				}
+			}
 			change, err = checkedBillMoneyAdd(change, l.FaceAmount)
 			if err != nil {
 				return err
@@ -432,7 +515,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 		}
 		resolvedLines = append(resolvedLines, l)
 	}
-	if entity == EntityBillPayment {
+	if entity == EntityBillPayment || entity == EntityBillDiscount {
 		if err := s.insertResolvedBillLines(ctx, q, id, resolvedLines, d.BillCashLines, r); err != nil {
 			return err
 		}

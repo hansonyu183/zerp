@@ -124,3 +124,31 @@ func TestBillPaymentValidation(t *testing.T) {
 		t.Fatal("accepted duplicate payment bill")
 	}
 }
+
+func TestBillIssueValidation(t *testing.T) {
+	t.Parallel()
+	line := billPrimary()
+	line.PositionType, line.Direction = "LIABILITY", "IN"
+	input := DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Supplier: refInput(), InterestMode: "THIRD_PARTY_PAYABLE",
+		InterestParty: refInput(), BillLines: []BillLineInput{line},
+		BillCashLines: []BillCashLineInput{{FundAccount: *refInput(), Direction: "IN", AmountType: "MARGIN", Amount: "1.00"}},
+	}
+	draft, err := validateDraft(EntityBillIssue, input)
+	if err != nil || draft.TotalAmount != 10000 || draft.BillLines[0].BillID == "" || draft.BillLines[0].InterestAmount == 0 {
+		t.Fatalf("validate bill issue = %+v, %v", draft, err)
+	}
+	input.InterestMode, input.InterestParty = "BANK_DEDUCTED", refInput()
+	if _, err = validateDraft(EntityBillIssue, input); err == nil {
+		t.Fatal("accepted interest party for bank deducted issue")
+	}
+	input.InterestMode, input.InterestParty = "THIRD_PARTY_PAYABLE", nil
+	if _, err = validateDraft(EntityBillIssue, input); err == nil {
+		t.Fatal("accepted third-party issue without interest party")
+	}
+	input.InterestParty = refInput()
+	input.BillLines[0].PositionType = "ASSET"
+	if _, err = validateDraft(EntityBillIssue, input); err == nil {
+		t.Fatal("accepted non-liability bill issue line")
+	}
+}

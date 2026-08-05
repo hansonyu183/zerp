@@ -150,6 +150,91 @@ func (s *Service) postBillPayment(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 	return nil
 }
 
+func (s *Service) postBillIssue(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, p postingContext) error {
+	doc := p.Document
+	include, err := requireEffectiveDate(p, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouBillDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill issue detail", err)
+	}
+	lines, err := q.ListVouBillLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill issue lines", err)
+	}
+	var faceTotal, interestTotal int64
+	for _, line := range lines {
+		if line.Purpose != "PRIMARY" || line.PositionType != "LIABILITY" || line.Direction != "IN" {
+			return domainError(ErrorConflict, "bill issue line is invalid", nil, nil)
+		}
+		rows, ensureErr := q.EnsureLedBill(ctx, dbsqlc.EnsureLedBillParams{
+			ID: line.BillID, PositionType: line.PositionType, BillType: line.BillType, BillNo: line.BillNo,
+			Medium: line.Medium, Currency: line.Currency, FaceAmountCents: line.FaceAmountCents,
+			IssueDate: line.IssueDate, MaturityDate: line.MaturityDate, Drawer: line.Drawer, Acceptor: line.Acceptor,
+			Payee: line.Payee, AnnualRateBps: line.AnnualRateBps, InterestDays: line.InterestDays,
+			InterestAmountCents: line.InterestAmountCents, CustomerCostAmountCents: line.CustomerCostAmountCents,
+			OriginPartyEntity: detail.CounterpartyEntity, OriginPartyObjectID: detail.CounterpartyObjectID,
+			OriginPartyVersionID: detail.CounterpartyVersionID, OriginPartyCode: detail.CounterpartyCode,
+			OriginPartyName: detail.CounterpartyName, SourceDocumentID: doc.ID, SourceLineID: line.ID,
+		})
+		if ensureErr != nil {
+			return s.writeError("create issued bill ledger record", ensureErr)
+		}
+		if rows != 1 {
+			return domainError(ErrorConflict, "bill ledger identity conflicts with different fixed facts", nil, nil)
+		}
+		if err = q.InsertLedBillEntry(ctx, dbsqlc.InsertLedBillEntryParams{
+			ID: newID(), GenerationID: p.GenerationID, BillID: line.BillID, SourceEntity: doc.Entity,
+			SourceDocumentID: doc.ID, SourceLineID: line.ID, PositionType: "LIABILITY", Direction: "IN", Purpose: "PRIMARY",
+			EffectiveDate: doc.BusinessDate, OccurredAt: p.OccurredAt,
+		}); err != nil {
+			return s.writeError("post bill issue ledger entry", err)
+		}
+		faceTotal, err = checkedBillAdd(faceTotal, line.FaceAmountCents)
+		if err == nil {
+			interestTotal, err = checkedBillAdd(interestTotal, line.InterestAmountCents)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if faceTotal <= 0 {
+		return domainError(ErrorConflict, "bill issue total is invalid", nil, nil)
+	}
+	cash, err := q.ListVouBillCashLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill issue cash lines", err)
+	}
+	for _, line := range cash {
+		delta := line.AmountCents
+		if line.Direction == "OUT" {
+			delta = -delta
+		}
+		fund := fundParams(p, doc, line.FundAccountObjectID, line.FundAccountVersionID, line.FundAccountCode, line.FundAccountName, delta)
+		fund.SourceLineID = line.ID
+		if err = q.InsertLedFundEntry(ctx, fund); err != nil {
+			return s.writeError("post bill issue fund", err)
+		}
+	}
+	if err = q.InsertLedPartyEntry(ctx, partyParams(
+		p, doc, "", doc.BusinessDate, deref(detail.CounterpartyObjectID), deref(detail.CounterpartyVersionID),
+		deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "supplier", faceTotal,
+	)); err != nil {
+		return s.writeError("post bill issue supplier", err)
+	}
+	if detail.InterestMode == "THIRD_PARTY_PAYABLE" && interestTotal > 0 {
+		if err = q.InsertLedPartyEntry(ctx, partyParams(
+			p, doc, "interest", doc.BusinessDate, deref(detail.InterestPartyObjectID), deref(detail.InterestPartyVersionID),
+			deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal,
+		)); err != nil {
+			return s.writeError("post bill issue interest payable", err)
+		}
+	}
+	return nil
+}
+
 func checkedBillAdd(left, right int64) (int64, error) {
 	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
 		return 0, domainError(ErrorConflict, "bill amount is out of range", nil, nil)

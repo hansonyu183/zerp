@@ -369,4 +369,13 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
   },
+  'bill-issue': {
+    entity: 'bill-issue',
+    title: '票据开出',
+    icon: 'mdi-receipt-text-plus-outline',
+    order: 132,
+    partyMode: 'supplier',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+  },
 }

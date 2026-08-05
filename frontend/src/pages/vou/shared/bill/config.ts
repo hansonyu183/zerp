@@ -1,7 +1,7 @@
 export interface BillVoucherConfig {
-  entity: 'bill-receipt' | 'bill-payment'
+  entity: 'bill-receipt' | 'bill-payment' | 'bill-issue'
   title: string
-  mode: 'receipt' | 'payment'
+  mode: 'receipt' | 'payment' | 'issue'
   maxBillLines: number
   maxCashLines: number
 }
@@ -22,5 +22,12 @@ export const billVoucherConfigs: Readonly<
     mode: 'payment',
     maxBillLines: 20,
     maxCashLines: 0,
+  },
+  'bill-issue': {
+    entity: 'bill-issue',
+    title: '票据开出',
+    mode: 'issue',
+    maxBillLines: 20,
+    maxCashLines: 20,
   },
 }

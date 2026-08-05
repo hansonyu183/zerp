@@ -84,6 +84,7 @@ var entities = [...]string{
 	EntityAssetLiquidation,
 	EntityBillReceipt,
 	EntityBillPayment,
+	EntityBillIssue,
 }
 
 func publicCreateEntity(entity string) bool {
@@ -96,7 +97,7 @@ func publicCreateEntity(entity string) bool {
 		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
 		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation,
-		EntityBillReceipt, EntityBillPayment:
+		EntityBillReceipt, EntityBillPayment, EntityBillIssue:
 		return true
 	default:
 		return false
@@ -795,7 +796,7 @@ type DocumentDataView struct {
 	InternalCostRateBps       int32                         `json:"internalCostRateBps,omitempty"`
 	MaturityType              string                        `json:"maturityType,omitempty"`
 	InterestMode              string                        `json:"interestMode,omitempty"`
-	InterestParty             string                        `json:"interestParty,omitempty"`
+	InterestParty             *ReferenceView                `json:"interestParty,omitempty"`
 	WithRecourse              bool                          `json:"withRecourse,omitempty"`
 }
 

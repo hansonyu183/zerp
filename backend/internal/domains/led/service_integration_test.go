@@ -1556,6 +1556,59 @@ func TestBillPaymentUsesAvailableBillAndReversalRestoresAvailabilityIntegration(
 	}
 }
 
+func TestBillIssuePostsLiabilitySupplierInterestAndActualCashIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	other := createApprovedReference(t, bobdomain.NewService(pool), bobdomain.EntityOtherParty, bobdomain.CreateDetailInput{
+		Code: "LO" + newID(), Name: "LED 计息方", SalespersonEmployeeID: refs.employee.ObjectID,
+	})
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	issue, _ := advanceToApproved(t, vouchers, voudomain.EntityBillIssue, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Supplier: &refs.supplier,
+		InterestMode: "THIRD_PARTY_PAYABLE", InterestParty: &other,
+		BillLines: []voudomain.BillLineInput{{
+			PositionType: "LIABILITY", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE",
+			BillNo: "BILL-ISSUE-001", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00",
+			IssueDate: "2026-08-01", MaturityDate: "2027-08-01", Drawer: "本公司", Acceptor: "承兑行", Payee: "供应商", AnnualRateBps: 365,
+		}},
+		BillCashLines: []voudomain.BillCashLineInput{{
+			FundAccount: refs.fundAccount, Direction: "IN", AmountType: "MARGIN", Amount: "5.00",
+		}},
+	})
+	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillIssue, voudomain.FinalizeInput{
+		DocumentID: issue.DocumentID, Revision: issue.Revision,
+	}, integrationActorOne, "bill-issue-finalize")
+	if err != nil {
+		t.Fatalf("finalize bill issue: %v", err)
+	}
+	supplier, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: refs.supplier.ObjectID},
+	}, EntitySupplier)
+	if err != nil || len(supplier.Items) != 1 || supplier.Items[0].BalanceType != "RECEIVABLE" || supplier.Items[0].Amount != "100.00" {
+		t.Fatalf("supplier balance after bill issue = %+v, err=%v", supplier, err)
+	}
+	interest, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: other.ObjectID},
+	}, bobdomain.EntityOtherParty)
+	if err != nil || len(interest.Items) != 1 || interest.Items[0].BalanceType != "PAYABLE" || interest.Items[0].Amount != "3.65" {
+		t.Fatalf("interest party balance after bill issue = %+v, err=%v", interest, err)
+	}
+	fund, err := ledger.FundBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: refs.fundAccount.ObjectID},
+	})
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].BalanceType != "POSITIVE" || fund.Items[0].Amount != "5.00" {
+		t.Fatalf("fund balance after bill issue = %+v, err=%v", fund, err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillIssue, voudomain.ReverseInput{
+		DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "撤回开票",
+	}, integrationActorOne, "bill-issue-unfinalize"); err != nil {
+		t.Fatalf("unfinalize bill issue: %v", err)
+	}
+}
+
 func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)

@@ -219,6 +219,120 @@ func validateBillPaymentDraft(input DraftInput, result validatedDraft) (validate
 	return result, nil
 }
 
+func validateBillIssueDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
+	if input.Supplier == nil {
+		return result, domainError(ErrorValidation, "bill issue requires supplier", nil, nil)
+	}
+	if err := validateReference(input.Supplier, "supplier", true); err != nil {
+		return result, err
+	}
+	if input.Customer != nil || input.Counterparty != nil || input.Employee != nil || input.Handler != nil ||
+		input.FundAccount != nil || len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 ||
+		input.InternalCostRateBps != 0 || input.MaturityType != "" || input.WithRecourse {
+		return result, domainError(ErrorValidation, "fields do not match bill issue", nil, nil)
+	}
+	mode := strings.ToUpper(strings.TrimSpace(input.InterestMode))
+	if mode != "BANK_DEDUCTED" && mode != "THIRD_PARTY_PAYABLE" {
+		return result, domainError(ErrorValidation, "invalid bill issue interestMode", nil, nil)
+	}
+	if mode == "THIRD_PARTY_PAYABLE" {
+		if err := validateReference(input.InterestParty, "interestParty", true); err != nil {
+			return result, err
+		}
+	} else if input.InterestParty != nil {
+		return result, domainError(ErrorValidation, "interestParty does not match interestMode", nil, nil)
+	}
+	if len(input.BillLines) < 1 || len(input.BillLines) > 20 || len(input.BillCashLines) > 20 {
+		return result, domainError(ErrorValidation, "bill issue lines must contain 1 to 20 items", nil, nil)
+	}
+	result.Supplier, result.CounterpartyType = input.Supplier, "supplier"
+	result.MaturityType, result.InterestMode = "NONE", mode
+	if mode == "THIRD_PARTY_PAYABLE" {
+		result.InterestParty = input.InterestParty
+	}
+	seenKeys := make(map[string]struct{}, len(input.BillLines))
+	seenIDs := make(map[string]struct{}, len(input.BillLines))
+	for _, raw := range input.BillLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		line := fixedBillLine{
+			BillID: strings.TrimSpace(raw.BillID), PositionType: strings.ToUpper(strings.TrimSpace(raw.PositionType)),
+			Direction: strings.ToUpper(strings.TrimSpace(raw.Direction)), Purpose: strings.ToUpper(strings.TrimSpace(raw.Purpose)),
+			BillType: strings.ToUpper(strings.TrimSpace(raw.BillType)), BillNo: strings.TrimSpace(raw.BillNo),
+			Medium: strings.ToUpper(strings.TrimSpace(raw.Medium)), Currency: strings.ToUpper(strings.TrimSpace(raw.Currency)),
+			Drawer: strings.TrimSpace(raw.Drawer), Acceptor: strings.TrimSpace(raw.Acceptor), Payee: strings.TrimSpace(raw.Payee),
+			AnnualRateBps: raw.AnnualRateBps, Remark: remark,
+		}
+		validType := line.BillType == "BANK_ACCEPTANCE" || line.BillType == "COMMERCIAL_ACCEPTANCE" || line.BillType == "CHECK" || line.BillType == "OTHER"
+		tooLong := utf8.RuneCountInString(line.BillNo) > 200 || utf8.RuneCountInString(line.Drawer) > 200 || utf8.RuneCountInString(line.Acceptor) > 200 || utf8.RuneCountInString(line.Payee) > 200
+		if line.Purpose != "PRIMARY" || line.PositionType != "LIABILITY" || line.Direction != "IN" || !validType ||
+			(line.Medium != "PAPER" && line.Medium != "ELECTRONIC") || !currencyPattern.MatchString(line.Currency) ||
+			line.Currency != result.Currency || line.BillNo == "" || line.Drawer == "" || line.Acceptor == "" || line.Payee == "" || tooLong {
+			return result, domainError(ErrorValidation, "invalid bill issue line", nil, nil)
+		}
+		line.FaceAmount, err = moneyCents(raw.FaceAmount)
+		if err != nil {
+			return result, err
+		}
+		line.IssueDate, err = time.Parse(dateLayout, strings.TrimSpace(raw.IssueDate))
+		if err != nil {
+			return result, domainError(ErrorValidation, "invalid bill issue issueDate", nil, err)
+		}
+		line.MaturityDate, err = time.Parse(dateLayout, strings.TrimSpace(raw.MaturityDate))
+		if err != nil || line.MaturityDate.Before(line.IssueDate) || line.MaturityDate.Before(result.BusinessDate) {
+			return result, domainError(ErrorValidation, "invalid bill issue maturityDate", nil, err)
+		}
+		if line.AnnualRateBps < 0 || line.AnnualRateBps > 100000 {
+			return result, domainError(ErrorValidation, "invalid annualRateBps", nil, nil)
+		}
+		line.InterestDays = int32(line.MaturityDate.Sub(line.IssueDate).Hours() / 24)
+		line.InterestAmount, err = roundedBillAmount(line.FaceAmount, line.AnnualRateBps, line.InterestDays)
+		if err != nil {
+			return result, err
+		}
+		if line.BillID == "" {
+			line.BillID = newID()
+		}
+		key := strings.Join([]string{line.BillType, line.BillNo, line.Acceptor, strconv.FormatInt(line.FaceAmount, 10), line.MaturityDate.Format(dateLayout)}, "\x00")
+		if _, duplicate := seenKeys[key]; duplicate {
+			return result, domainError(ErrorValidation, "duplicate bill", nil, nil)
+		}
+		if _, duplicate := seenIDs[line.BillID]; duplicate {
+			return result, domainError(ErrorValidation, "duplicate billId", nil, nil)
+		}
+		seenKeys[key], seenIDs[line.BillID] = struct{}{}, struct{}{}
+		result.TotalAmount, err = checkedBillMoneyAdd(result.TotalAmount, line.FaceAmount)
+		if err != nil {
+			return result, err
+		}
+		result.BillLines = append(result.BillLines, line)
+	}
+	for _, raw := range input.BillCashLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(raw.BillLineID) != "" {
+			return result, domainError(ErrorValidation, "billLineId is not supported in bill issue cash lines", nil, nil)
+		}
+		if err = validateReference(&raw.FundAccount, "fundAccount", true); err != nil {
+			return result, err
+		}
+		amount, err := moneyCents(raw.Amount)
+		if err != nil {
+			return result, err
+		}
+		direction, amountType := strings.ToUpper(strings.TrimSpace(raw.Direction)), strings.ToUpper(strings.TrimSpace(raw.AmountType))
+		if (direction != "IN" && direction != "OUT") || !map[string]bool{"PRINCIPAL": true, "INTEREST": true, "FEE": true, "MARGIN": true, "OTHER": true}[amountType] {
+			return result, domainError(ErrorValidation, "invalid bill issue cash line", nil, nil)
+		}
+		result.BillCashLines = append(result.BillCashLines, fixedBillCashLine{FundAccount: raw.FundAccount, Direction: direction, AmountType: amountType, Amount: amount, Remark: remark})
+	}
+	return result, nil
+}
+
 func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine) (int64, error) {
 	var total int64
 	for _, line := range lines {
@@ -271,7 +385,7 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 	}
 	party := r.Counterparty
 	partyEntity := "customer"
-	if entity == EntityBillPayment {
+	if entity == EntityBillPayment || entity == EntityBillIssue {
 		party, partyEntity = r.Supplier, "supplier"
 	}
 	params := dbsqlc.InsertVouBillDetailParams{
@@ -373,7 +487,7 @@ func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document 
 		return data, err
 	}
 	party := optionalReference(d.CounterpartyObjectID, d.CounterpartyVersionID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
-	if document.Entity == EntityBillPayment {
+	if document.Entity == EntityBillPayment || document.Entity == EntityBillIssue {
 		data.Supplier = party
 	} else {
 		data.Counterparty = party
@@ -382,7 +496,13 @@ func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document 
 	data.InternalCostRateBps = d.InternalCostRateBps
 	data.MaturityType = d.MaturityType
 	data.InterestMode = d.InterestMode
-	data.InterestParty = deref(d.InterestPartyName)
+	data.InterestParty = optionalReference(
+		d.InterestPartyObjectID,
+		d.InterestPartyVersionID,
+		deref(d.InterestPartyEntity),
+		d.InterestPartyCode,
+		d.InterestPartyName,
+	)
 	data.WithRecourse = d.WithRecourse
 	lines, err := q.ListVouBillLines(ctx, document.ID)
 	if err != nil {

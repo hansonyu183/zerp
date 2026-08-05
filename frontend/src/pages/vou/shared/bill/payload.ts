@@ -64,3 +64,40 @@ export function buildBillPaymentPayload(form: BillVoucherForm) {
     })),
   }
 }
+
+export function buildBillIssuePayload(form: BillVoucherForm) {
+  return {
+    businessDate: form.businessDate,
+    currency: form.currency,
+    remark: form.remark || undefined,
+    supplier: reference(form.supplier),
+    interestMode: form.interestMode,
+    ...(form.interestMode === 'THIRD_PARTY_PAYABLE'
+      ? { interestParty: reference(form.interestParty) }
+      : {}),
+    billLines: form.billLines.map((line: BillLineDraft) => ({
+      positionType: 'LIABILITY' as const,
+      direction: 'IN' as const,
+      purpose: 'PRIMARY' as const,
+      billType: line.billType,
+      billNo: line.billNo,
+      medium: line.medium,
+      currency: line.currency,
+      faceAmount: line.faceAmount,
+      issueDate: line.issueDate,
+      maturityDate: line.maturityDate,
+      drawer: line.drawer,
+      acceptor: line.acceptor,
+      payee: line.payee,
+      annualRateBps: line.annualRateBps,
+      remark: line.remark || undefined,
+    })),
+    billCashLines: form.billCashLines.map((line: BillCashLineDraft) => ({
+      fundAccount: reference(line.fundAccount)!,
+      direction: line.direction,
+      amountType: line.amountType,
+      amount: line.amount,
+      remark: line.remark || undefined,
+    })),
+  }
+}

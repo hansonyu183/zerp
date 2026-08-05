@@ -4,7 +4,11 @@ import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
-import { buildBillPaymentPayload, buildBillReceiptPayload } from './payload'
+import {
+  buildBillIssuePayload,
+  buildBillPaymentPayload,
+  buildBillReceiptPayload,
+} from './payload'
 import { validateBillVoucherForm } from './validation'
 import type { BillVoucherConfig } from './config'
 import { useVoucherArtifacts } from '../artifacts'
@@ -65,6 +69,8 @@ export interface BillVoucherForm {
   remark: string
   customer: BillReference | null
   supplier: BillReference | null
+  interestMode: '' | 'BANK_DEDUCTED' | 'THIRD_PARTY_PAYABLE'
+  interestParty: BillReference | null
   handler: BillReference | null
   internalCostRateBps: number
   billLines: BillLineDraft[]
@@ -107,12 +113,15 @@ type VouFinalizeRequest = components['schemas']['VouFinalizeRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
 type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
 type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
+type BillIssueData = ReturnType<typeof buildBillIssuePayload>
 type BillPaymentCreateRequest = { data: BillPaymentData }
 type BillPaymentSaveRequest = {
   documentId: string
   revision: number
   data: BillPaymentData
 }
+type BillIssueCreateRequest = { data: BillIssueData }
+type BillIssueSaveRequest = { documentId: string; revision: number; data: BillIssueData }
 
 function key() {
   return crypto.randomUUID()
@@ -154,6 +163,8 @@ function emptyForm(): BillVoucherForm {
     remark: '',
     customer: null,
     supplier: null,
+    interestMode: '',
+    interestParty: null,
     handler: null,
     internalCostRateBps: 0,
     billLines: [emptyLine()],
@@ -186,6 +197,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const form = reactive<BillVoucherForm>(emptyForm())
   const customerOptions = ref<BillReference[]>([])
   const supplierOptions = ref<BillReference[]>([])
+  const otherPartyOptions = ref<BillReference[]>([])
   const handlerOptions = ref<BillReference[]>([])
   const fundAccountOptions = ref<BillReference[]>([])
   const heldBillOptions = ref<BillLineDraft[]>([])
@@ -271,6 +283,15 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (!canCreate.value) return
     Object.assign(form, emptyForm())
     if (config.mode === 'payment') form.billLines = []
+    if (config.mode === 'issue') {
+      form.interestMode = 'BANK_DEDUCTED'
+      form.billLines = form.billLines.map((line) => ({
+        ...line,
+        positionType: 'LIABILITY',
+        direction: 'IN',
+        purpose: 'PRIMARY',
+      }))
+    }
     documentView.value = null
     documentId.value = null
     documentNo.value = ''
@@ -304,6 +325,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         remark: billData.remark ?? '',
         customer: billData.counterparty ?? billData.customer ?? null,
         supplier: billData.supplier ?? null,
+        interestMode: billData.interestMode ?? '',
+        interestParty: billData.interestParty ?? null,
         handler: billData.handler ?? null,
         internalCostRateBps: billData.internalCostRateBps ?? 0,
         billLines: (billData.billLines ?? []).map((line) => ({
@@ -342,12 +365,16 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     try {
       const data = config.mode === 'payment'
         ? buildBillPaymentPayload(form)
-        : buildBillReceiptPayload(form)
+        : config.mode === 'issue'
+          ? buildBillIssuePayload(form)
+          : buildBillReceiptPayload(form)
       if (documentId.value) {
         const request = config.mode === 'payment'
           ? { documentId: documentId.value, revision: revision.value, data } as BillPaymentSaveRequest
-          : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
-        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest>(
+          : config.mode === 'issue'
+            ? { documentId: documentId.value, revision: revision.value, data } as BillIssueSaveRequest
+            : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
+        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest>(
           `vou/${config.entity}/save` as ApiPostPath,
           request,
         )
@@ -355,8 +382,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       } else {
         const request = config.mode === 'payment'
           ? { data } as BillPaymentCreateRequest
-          : { data } as VouCreateRequest
-        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest>(
+          : config.mode === 'issue'
+            ? { data } as BillIssueCreateRequest
+            : { data } as VouCreateRequest
+        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest>(
           `vou/${config.entity}/create` as ApiPostPath,
           request,
         )
@@ -457,11 +486,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   }
   let customerSequence = 0
   let supplierSequence = 0
+  let otherPartySequence = 0
   let handlerSequence = 0
   let fundSequence = 0
   let heldSequence = 0
   let customerController: AbortController | undefined
   let supplierController: AbortController | undefined
+  let otherPartyController: AbortController | undefined
   let handlerController: AbortController | undefined
   let fundController: AbortController | undefined
   let heldController: AbortController | undefined
@@ -469,6 +500,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     const current = ++customerSequence
     customerController?.abort()
     supplierController?.abort()
+    otherPartyController?.abort()
     customerController = new AbortController()
     const result = await searchReferencesWithSignal(
       'customer',
@@ -487,6 +519,17 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       supplierController.signal,
     )
     if (current === supplierSequence) supplierOptions.value = result
+  }
+  async function searchOtherParty(value: string) {
+    const current = ++otherPartySequence
+    otherPartyController?.abort()
+    otherPartyController = new AbortController()
+    const result = await searchReferencesWithSignal(
+      'other-party',
+      value,
+      otherPartyController.signal,
+    )
+    if (current === otherPartySequence) otherPartyOptions.value = result
   }
   async function searchHandler(value: string) {
     const current = ++handlerSequence
@@ -511,7 +554,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (current === fundSequence) fundAccountOptions.value = result
   }
   async function searchReferencesWithSignal(
-    entity: 'customer' | 'supplier' | 'employee' | 'fund-account',
+    entity: 'customer' | 'supplier' | 'other-party' | 'employee' | 'fund-account',
     value: string,
     signal: AbortSignal,
   ) {
@@ -611,6 +654,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     handlerController?.abort()
     fundController?.abort()
     heldController?.abort()
+    otherPartyController?.abort()
   })
   return {
     config,
@@ -637,6 +681,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     form,
     customerOptions,
     supplierOptions,
+    otherPartyOptions,
     handlerOptions,
     fundAccountOptions,
     heldBillOptions,
@@ -653,6 +698,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     addCashLine,
     searchCustomer,
     searchSupplier,
+    searchOtherParty,
     searchHandler,
     searchFundAccount,
     searchHeldBills,

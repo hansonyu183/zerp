@@ -171,7 +171,7 @@ onMounted(() => void vm.query())
 
       <template #document>
         <v-row>
-          <v-col v-if="vm.config.mode !== 'payment'" cols="12" md="3"
+          <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><v-text-field
               v-model="vm.form.businessDate"
               :disabled="!vm.editing.value"
@@ -205,7 +205,7 @@ onMounted(() => void vm.query())
               :options="vm.supplierOptions.value"
               @search="vm.searchSupplier"
           /></v-col>
-          <v-col cols="12" md="3"
+          <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><VoucherReferenceAutocomplete
               v-model="vm.form.handler"
               :disabled="!vm.editing.value"
@@ -214,7 +214,7 @@ onMounted(() => void vm.query())
               :options="vm.handlerOptions.value"
               @search="vm.searchHandler"
           /></v-col>
-          <v-col v-if="vm.config.mode !== 'payment'" cols="12" md="3"
+          <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><v-text-field
               v-model.number="vm.form.internalCostRateBps"
               :disabled="!vm.editing.value"
@@ -225,6 +225,12 @@ onMounted(() => void vm.query())
               type="number"
               variant="outlined"
           /></v-col>
+          <v-col v-if="vm.config.mode === 'issue'" cols="12" md="3">
+            <v-select v-model="vm.form.interestMode" :disabled="!vm.editing.value" label="利息承担方式" :items="[{ title: '银行扣息', value: 'BANK_DEDUCTED' }, { title: '第三方承担应付利息', value: 'THIRD_PARTY_PAYABLE' }]" variant="outlined" />
+          </v-col>
+          <v-col v-if="vm.config.mode === 'issue' && vm.form.interestMode === 'THIRD_PARTY_PAYABLE'" cols="12" md="3">
+            <VoucherReferenceAutocomplete v-model="vm.form.interestParty" :disabled="!vm.editing.value" label="利息承担方" required :options="vm.otherPartyOptions.value" @search="vm.searchOtherParty" />
+          </v-col>
           <v-col cols="12" md="9"
             ><v-textarea
               v-model="vm.form.remark"
@@ -235,9 +241,11 @@ onMounted(() => void vm.query())
               variant="outlined"
           /></v-col>
         </v-row>
+        <v-alert v-if="vm.config.mode === 'issue'" class="mb-3" type="info" variant="tonal">新开票据固定为负债、流入、主要票据；利息仅按选择的承担方式预览，不自动生成虚假资金行。</v-alert>
         <VoucherBillLinesEditor
           v-if="vm.config.mode !== 'payment'"
           v-model="vm.form.billLines"
+          :mode="vm.config.mode === 'issue' ? 'issue' : 'receipt'"
           :business-date="vm.form.businessDate"
           :currency="vm.form.currency"
           :editable="vm.editing.value"
@@ -287,7 +295,7 @@ onMounted(() => void vm.query())
             <strong>{{ vm.form.currency }} {{ summary.cashOut }}</strong>
           </div>
           <div :class="{ 'text-error': !summary.valid }">
-            <span>客户净结算额</span>
+            <span>{{ vm.config.mode === 'issue' ? '票据净现金流' : '客户净结算额' }}</span>
             <strong>{{ vm.form.currency }} {{ summary.net }}</strong>
           </div>
         </v-sheet>
@@ -323,7 +331,7 @@ onMounted(() => void vm.query())
       </template>
     </VoucherWorkspace>
 
-    <v-dialog v-model="vm.heldDialogOpen.value" max-width="1100">
+    <v-dialog v-if="vm.config.mode === 'payment'" v-model="vm.heldDialogOpen.value" max-width="1100">
       <v-card><v-card-title>选择可用持有票据</v-card-title><v-card-text>
         <v-text-field label="票据号码" variant="outlined" @update:model-value="vm.searchHeldBills" />
         <v-table class="responsive-table"><thead><tr><th>选择</th><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>客户</th></tr></thead><tbody>

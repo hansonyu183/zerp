@@ -1998,7 +1998,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2500,7 +2500,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2589,7 +2589,31 @@ export interface components {
             purpose: "PRIMARY";
             remark?: string;
         };
-        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"];
+        VouBillIssueLineInput: {
+            /** @enum {string} */
+            positionType: "LIABILITY";
+            /** @enum {string} */
+            direction: "IN";
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"] | components["schemas"]["VouBillIssueLineInput"];
         VouBillCashLineInput: {
             billLineId?: string;
             fundAccount: {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildBillPaymentPayload,
+  buildBillIssuePayload,
   buildBillReceiptPayload,
 } from '@/pages/vou/shared/bill/payload'
 import { appendHeldBillLines } from '@/pages/vou/shared/bill/selection'
@@ -18,6 +19,8 @@ function form(): BillVoucherForm {
     remark: '',
     customer: { objectId: 'c', versionId: 'cv', code: 'C', name: '客户' },
     supplier: null,
+    interestMode: '',
+    interestParty: null,
     handler: { objectId: 'e', versionId: 'ev', code: 'E', name: '经办人' },
     internalCostRateBps: 0,
     billLines: [
@@ -132,5 +135,23 @@ describe('bill payment payload', () => {
     expect(payload.supplier).toEqual({ objectId: 's', versionId: 'sv' })
     expect(payload.billLines).toEqual([{ billId: 'held-1', purpose: 'PRIMARY' }])
     expect(validateBillVoucherForm(value, 20, 0, 'payment')).toBeNull()
+  })
+})
+
+describe('bill issue payload', () => {
+  it('submits complete LIABILITY/IN/PRIMARY lines and real cash lines', () => {
+    const value = form()
+    value.customer = null
+    value.supplier = { objectId: 's', versionId: 'sv', code: 'S', name: '供应商' }
+    value.interestMode = 'THIRD_PARTY_PAYABLE'
+    value.interestParty = { objectId: 'o', versionId: 'ov', code: 'O', name: '其他单位', entity: 'other-party' }
+    value.billLines = [{ ...value.billLines[0]!, billId: undefined }]
+    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'OUT', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    const payload = buildBillIssuePayload(value)
+    expect(payload.billLines[0]).toMatchObject({ positionType: 'LIABILITY', direction: 'IN', purpose: 'PRIMARY' })
+    expect(payload.billLines[0]).not.toHaveProperty('billId')
+    expect(payload.interestParty).toEqual({ objectId: 'o', versionId: 'ov' })
+    expect(payload.billCashLines).toHaveLength(1)
+    expect(validateBillVoucherForm(value, 20, 20, 'issue')).toBeNull()
   })
 })

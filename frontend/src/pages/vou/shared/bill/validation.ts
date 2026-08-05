@@ -69,12 +69,19 @@ export function validateBillVoucherForm(
   form: BillVoucherForm,
   maxBillLines = 20,
   maxCashLines = 20,
-  mode: 'receipt' | 'payment' = 'receipt',
+  mode: 'receipt' | 'payment' | 'issue' = 'receipt',
 ): string | null {
   if (mode === 'payment') {
     if (!form.supplier) return '请选择供应商。'
+  } else if (mode === 'issue') {
+    if (!form.supplier) return '请选择供应商。'
+    if (!form.interestMode) return '请选择利息承担方式。'
+    if (form.interestMode === 'THIRD_PARTY_PAYABLE' && !form.interestParty)
+      return '第三方承担利息时必须选择其他往来单位。'
+    if (form.interestMode === 'BANK_DEDUCTED' && form.interestParty)
+      return '银行扣息时不能填写第三方利息承担方。'
   } else if (!form.customer) return '请选择客户。'
-  if (!form.handler) return '请选择经办人。'
+  if (mode === 'receipt' && !form.handler) return '请选择经办人。'
   if (!form.businessDate) return '请选择业务日期。'
   if (!/^[A-Z]{3}$/.test(form.currency)) return '币种必须是三位大写字母。'
   if (
@@ -105,6 +112,8 @@ export function validateBillVoucherForm(
       billIds.add(line.billId)
       continue
     }
+    if (mode === 'issue' && (line.purpose !== 'PRIMARY' || line.billId))
+      return `第 ${index + 1} 行必须是新的自开票据。`
     if (line.purpose === 'CHANGE') {
       if (!line.billId) return `第 ${index + 1} 行找零票据必须引用持有票据。`
       if (billIds.has(line.billId))
@@ -147,6 +156,8 @@ export function validateBillVoucherForm(
   let cashIn = 0n
   let cashOut = 0n
   for (const [index, line] of form.billCashLines.entries()) {
+    if (line.billLineId)
+      return `现金第 ${index + 1} 行不能关联票据行。`
     if (!line.fundAccount) return `第 ${index + 1} 行请选择资金账户。`
     const cents = parseFixed(line.amount, 2)
     if (cents === null) return `现金第 ${index + 1} 行请输入大于零的金额。`

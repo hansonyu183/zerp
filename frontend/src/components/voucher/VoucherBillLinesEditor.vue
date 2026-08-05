@@ -9,6 +9,7 @@ const props = withDefaults(
   defineProps<{
     modelValue: BillLineDraft[]
     editable: boolean
+    mode?: 'receipt' | 'issue'
     maxLines?: number
     heldOptions?: BillLineDraft[]
     businessDate?: string
@@ -17,6 +18,7 @@ const props = withDefaults(
   }>(),
   {
     maxLines: 20,
+    mode: 'receipt',
     heldOptions: () => [],
     businessDate: '',
     internalCostRateBps: 0,
@@ -46,7 +48,7 @@ const selectableHeld = computed(() =>
 function primaryLine(): BillLineDraft {
   return {
     key: crypto.randomUUID(),
-    positionType: 'ASSET',
+    positionType: props.mode === 'issue' ? 'LIABILITY' : 'ASSET',
     direction: 'IN',
     purpose: 'PRIMARY',
     billType: 'BANK_ACCEPTANCE',
@@ -159,6 +161,7 @@ const media = [
       </div>
       <div v-if="editable" class="d-flex flex-wrap ga-2">
         <v-btn
+          v-if="mode !== 'issue'"
           :disabled="modelValue.length >= maxLines"
           prepend-icon="mdi-bank-transfer-in"
           variant="tonal"
@@ -172,7 +175,7 @@ const media = [
           variant="tonal"
           @click="addPrimary"
         >
-          新增收入票据
+          {{ mode === 'issue' ? '新增自开票据' : '新增收入票据' }}
         </v-btn>
       </div>
     </div>
@@ -201,7 +204,7 @@ const media = [
         </thead>
         <tbody>
           <tr v-for="(line, index) in modelValue" :key="line.key">
-            <td>{{ line.purpose === 'PRIMARY' ? '收入' : '票据找零' }}</td>
+            <td>{{ mode === 'issue' ? '自开票据（负债）' : (line.purpose === 'PRIMARY' ? '收入' : '票据找零') }}</td>
             <td>
               <CompactTableField
                 v-if="line.purpose === 'PRIMARY'"
@@ -353,7 +356,7 @@ const media = [
         >
           <span
             >{{ index + 1 }}.
-            {{ line.purpose === 'PRIMARY' ? '收入票据' : '找零票据' }}</span
+            {{ mode === 'issue' ? '自开票据（负债）' : (line.purpose === 'PRIMARY' ? '收入票据' : '找零票据') }}</span
           >
           <v-btn
             v-if="editable"

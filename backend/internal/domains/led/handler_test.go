@@ -27,6 +27,7 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		"/led/other/query", "/led/other/balance",
 		"/led/employee/query", "/led/employee/balance",
 		"/led/container/query", "/led/container/balance",
+		"/led/bill/query",
 	}
 	for _, path := range expected {
 		if !got["POST "+path] {

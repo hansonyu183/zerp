@@ -11,6 +11,8 @@ export { default as VoucherProductLinesEditor } from './VoucherProductLinesEdito
 export { default as VoucherPriceLinesEditor } from './VoucherPriceLinesEditor.vue'
 export { default as VoucherProductionLinesEditor } from './VoucherProductionLinesEditor.vue'
 export { default as VoucherInventoryCountLinesEditor } from './VoucherInventoryCountLinesEditor.vue'
+export { default as VoucherBillLinesEditor } from './VoucherBillLinesEditor.vue'
+export { default as VoucherBillCashLinesEditor } from './VoucherBillCashLinesEditor.vue'
 export { default as VoucherReferenceAutocomplete } from '@/components/common/ReferenceAutocomplete.vue'
 export { default as VoucherWorkspace } from './VoucherWorkspace.vue'
 export * from './atomic'

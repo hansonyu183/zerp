@@ -81,6 +81,12 @@ type validatedDraft struct {
 	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
 	InventoryCountLines                                     []fixedInventoryCountLine
+	BillLines                                               []fixedBillLine
+	BillCashLines                                           []fixedBillCashLine
+	InternalCostRateBps                                     int32
+	MaturityType, InterestMode                              string
+	InterestParty                                           *ReferenceInput
+	WithRecourse                                            bool
 	TotalAmount                                             int64
 }
 
@@ -189,6 +195,21 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		Handler: input.Handler, Warehouse: input.Warehouse,
 		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
 		SourceName:       strings.TrimSpace(input.SourceName),
+	}
+	if entity == EntityBillReceipt {
+		return validateBillReceiptDraft(input, result)
+	}
+	if entity == EntityBillPayment {
+		return validateBillPaymentDraft(input, result)
+	}
+	if entity == EntityBillIssue {
+		return validateBillIssueDraft(input, result)
+	}
+	if entity == EntityBillDiscount {
+		return validateBillDiscountDraft(input, result)
+	}
+	if entity == EntityBillMaturity {
+		return validateBillMaturityDraft(input, result)
 	}
 
 	switch entity {

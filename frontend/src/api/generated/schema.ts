@@ -1585,6 +1585,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/led/bill/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询票据台账 */
+        post: operations["ledbillquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/led/inventory/balance": {
         parameters: {
             query?: never;
@@ -1981,7 +1998,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2483,7 +2500,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2534,6 +2551,93 @@ export interface components {
             reason: string;
             salvageIncome: string;
             disposalExpense: string;
+            remark?: string;
+        };
+        VouBillPrimaryLineInput: {
+            /** @enum {string} */
+            positionType: "ASSET";
+            /** @enum {string} */
+            direction: "IN";
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillChangeLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "CHANGE";
+            remark?: string;
+        };
+        VouBillPaymentLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillIssueLineInput: {
+            /** @enum {string} */
+            positionType: "LIABILITY";
+            /** @enum {string} */
+            direction: "IN";
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillDiscountLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillMaturityLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"] | components["schemas"]["VouBillIssueLineInput"] | components["schemas"]["VouBillDiscountLineInput"] | components["schemas"]["VouBillMaturityLineInput"];
+        VouBillCashLineInput: {
+            billLineId?: string;
+            fundAccount: {
+                objectId: string;
+                versionId: string;
+            };
+            /** @enum {string} */
+            direction: "IN" | "OUT";
+            /** @enum {string} */
+            amountType: "PRINCIPAL" | "INTEREST" | "FEE" | "MARGIN" | "OTHER";
+            amount: string;
             remark?: string;
         };
         VouFormulaComponentInput: {
@@ -2637,6 +2741,18 @@ export interface components {
                 };
                 sourceName?: string;
                 amount?: string;
+                internalCostRateBps?: number;
+                /** @enum {string} */
+                interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
+                interestParty?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                withRecourse?: boolean;
+                billLines?: components["schemas"]["VouBillLineInput"][];
+                billCashLines?: components["schemas"]["VouBillCashLineInput"][];
                 productLines?: {
                     product: {
                         objectId: string;
@@ -2753,6 +2869,18 @@ export interface components {
                 };
                 sourceName?: string;
                 amount?: string;
+                internalCostRateBps?: number;
+                /** @enum {string} */
+                interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
+                interestParty?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                withRecourse?: boolean;
+                billLines?: components["schemas"]["VouBillLineInput"][];
+                billCashLines?: components["schemas"]["VouBillCashLineInput"][];
                 productLines?: {
                     product: {
                         objectId: string;
@@ -3015,6 +3143,79 @@ export interface components {
                 /** @enum {string} */
                 order: "asc" | "desc";
             }[];
+        };
+        LedBillQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** @enum {string} */
+                positionType?: "ASSET" | "LIABILITY";
+                /** @enum {string} */
+                availability?: "AVAILABLE" | "USED" | "MATURED" | "HELD";
+                /** @enum {string} */
+                billType?: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+                billNo?: string;
+                /** Format: date */
+                maturityDateFrom?: string;
+                /** Format: date */
+                maturityDateTo?: string;
+                customerObjectId?: string;
+                /** @enum {string} */
+                sourceEntity?: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+            };
+            sort: {
+                /** @enum {string} */
+                field: "maturityDate" | "billNo" | "faceAmount" | "sourceDocumentNo";
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        LedBillListItem: {
+            billId: string;
+            /** @enum {string} */
+            positionType: "ASSET" | "LIABILITY";
+            /** @enum {string} */
+            availability: "AVAILABLE" | "USED" | "MATURED";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            maturityDate: string;
+            /** Format: date */
+            issueDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            interestDays: number;
+            interestAmount: string;
+            customer: {
+                objectId: string;
+                versionId: string;
+                code: string;
+                name: string;
+            };
+            customerCostAmount: string;
+            /** @enum {string} */
+            sourceEntity: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+            sourceDocumentNo: string;
+        };
+        LedBillQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["LedBillListItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
         };
         LedBalanceRequest: {
             page: number;
@@ -4713,6 +4914,30 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    ledbillquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedBillQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 票据台账分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedBillQueryResponse"];
+                };
+            };
         };
     };
     ledinventorybalance: {

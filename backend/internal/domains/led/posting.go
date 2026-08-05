@@ -40,6 +40,11 @@ var vouEntities = [...]string{
 	voudomain.EntityAssetDepreciation,
 	voudomain.EntityAssetSale,
 	voudomain.EntityAssetLiquidation,
+	voudomain.EntityBillReceipt,
+	voudomain.EntityBillPayment,
+	voudomain.EntityBillIssue,
+	voudomain.EntityBillDiscount,
+	voudomain.EntityBillMaturity,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -170,10 +175,29 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
+		count, countErr := q.CountLedBillDownstreamEntries(ctx, event.DocumentID)
+		if countErr != nil {
+			return countErr
+		}
+		if count != 0 {
+			return txevent.Reject("downstream bill operation blocks reversal", nil)
+		}
+	}
 	if event.Entity == voudomain.EntityAssetAcquisition || event.Entity == voudomain.EntityAssetDepreciation ||
 		event.Entity == voudomain.EntityAssetSale || event.Entity == voudomain.EntityAssetLiquidation {
 		if err = s.reverseAssetDocument(ctx, q, generationID, event.Entity, event.DocumentID); err != nil {
 			return eventFailure(err)
+		}
+	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
+		if err = q.DeleteLedBillEntriesBySource(ctx, dbsqlc.DeleteLedBillEntriesBySourceParams{GenerationID: generationID, SourceDocumentID: event.DocumentID}); err != nil {
+			return err
+		}
+	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillIssue {
+		if err = q.DeleteLedBillsBySource(ctx, event.DocumentID); err != nil {
+			return err
 		}
 	}
 	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
@@ -242,6 +266,16 @@ func (s *Service) postDocument(
 		return s.postExpensePayment(ctx, q, posting)
 	case voudomain.EntityOtherIncome:
 		return s.postOtherIncome(ctx, q, posting)
+	case voudomain.EntityBillReceipt:
+		return s.postBillReceipt(ctx, tx, q, posting)
+	case voudomain.EntityBillPayment:
+		return s.postBillPayment(ctx, tx, q, posting)
+	case voudomain.EntityBillIssue:
+		return s.postBillIssue(ctx, tx, q, posting)
+	case voudomain.EntityBillDiscount:
+		return s.postBillDiscount(ctx, tx, q, posting)
+	case voudomain.EntityBillMaturity:
+		return s.postBillMaturity(ctx, tx, q, posting)
 	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
 		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return s.postAssetDocument(ctx, tx, q, posting)

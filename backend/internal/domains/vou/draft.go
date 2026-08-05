@@ -12,11 +12,12 @@ import (
 )
 
 type resolvedDraft struct {
-	Customer, Supplier, Counterparty, Employee, FundAccount *bobdomain.EffectiveReference
-	Salesperson, Purchaser, Handler, Warehouse              *bobdomain.EffectiveReference
-	CustomerSettlement, SupplierSettlement                  *bobdomain.EffectiveReference
-	Products                                                []bobdomain.EffectiveReference
-	FormulaMaterials                                        [][]bobdomain.EffectiveReference
+	Customer, Supplier, Counterparty, Employee, FundAccount, InterestParty *bobdomain.EffectiveReference
+	Salesperson, Purchaser, Handler, Warehouse                             *bobdomain.EffectiveReference
+	CustomerSettlement, SupplierSettlement                                 *bobdomain.EffectiveReference
+	Products                                                               []bobdomain.EffectiveReference
+	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
+	BillFunds                                                              []bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedPersonnel(
@@ -374,6 +375,8 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -398,6 +401,9 @@ func (s *Service) replaceLines(
 			}
 		}
 		return nil
+	}
+	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue || entity == EntityBillDiscount || entity == EntityBillMaturity {
+		return s.replaceBillLines(ctx, q, entity, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
 		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
@@ -504,6 +510,22 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		detail, err := q.GetVouBillDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill detail", err)
+		}
+		lines, err := q.ListVouBillLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill lines", err)
+		}
+		missing = len(lines) == 0
+		if entity != EntityBillMaturity {
+			missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || missing
+		}
+		if entity == EntityBillReceipt {
+			missing = missing || detail.HandlerObjectID == nil || detail.HandlerVersionID == nil
+		}
 	case EntityAssetAcquisition:
 		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)
 		if err != nil {

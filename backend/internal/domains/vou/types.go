@@ -37,6 +37,11 @@ const (
 	EntityAssetDepreciation    = "asset-depreciation"
 	EntityAssetSale            = "asset-sale"
 	EntityAssetLiquidation     = "asset-liquidation"
+	EntityBillReceipt          = "bill-receipt"
+	EntityBillPayment          = "bill-payment"
+	EntityBillIssue            = "bill-issue"
+	EntityBillDiscount         = "bill-discount"
+	EntityBillMaturity         = "bill-maturity"
 	StatusDraft                = "DRAFT"
 	StatusChecked              = "CHECKED"
 	StatusApproved             = "APPROVED"
@@ -77,6 +82,11 @@ var entities = [...]string{
 	EntityAssetDepreciation,
 	EntityAssetSale,
 	EntityAssetLiquidation,
+	EntityBillReceipt,
+	EntityBillPayment,
+	EntityBillIssue,
+	EntityBillDiscount,
+	EntityBillMaturity,
 }
 
 func publicCreateEntity(entity string) bool {
@@ -88,7 +98,8 @@ func publicCreateEntity(entity string) bool {
 		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
 		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
-		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
+		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation,
+		EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return true
 	default:
 		return false
@@ -190,6 +201,36 @@ type ExpenseLineInput struct {
 	Remark      string `json:"remark,omitempty"`
 }
 
+// BillLineInput is shared by all bill operations. Only bill-receipt is public
+// in the first slice; CHANGE lines reserve a source bill for later operations.
+type BillLineInput struct {
+	BillID        string `json:"billId,omitempty"`
+	PositionType  string `json:"positionType"`
+	Direction     string `json:"direction"`
+	Purpose       string `json:"purpose"`
+	BillType      string `json:"billType"`
+	BillNo        string `json:"billNo"`
+	Medium        string `json:"medium"`
+	Currency      string `json:"currency"`
+	FaceAmount    string `json:"faceAmount"`
+	IssueDate     string `json:"issueDate"`
+	MaturityDate  string `json:"maturityDate"`
+	Drawer        string `json:"drawer"`
+	Acceptor      string `json:"acceptor"`
+	Payee         string `json:"payee"`
+	AnnualRateBps int32  `json:"annualRateBps"`
+	Remark        string `json:"remark,omitempty"`
+}
+
+type BillCashLineInput struct {
+	BillLineID  string         `json:"billLineId,omitempty"`
+	FundAccount ReferenceInput `json:"fundAccount"`
+	Direction   string         `json:"direction"`
+	AmountType  string         `json:"amountType"`
+	Amount      string         `json:"amount"`
+	Remark      string         `json:"remark,omitempty"`
+}
+
 type ProductionMaterialInput struct {
 	FormulaLineNo    int32          `json:"formulaLineNo"`
 	ActualMaterial   ReferenceInput `json:"actualMaterial"`
@@ -273,6 +314,13 @@ type DraftInput struct {
 	AssetDepreciationLines []AssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
 	AssetSaleLines         []AssetSaleLineInput         `json:"assetSaleLines,omitempty"`
 	AssetLiquidationLines  []AssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
+	BillLines              []BillLineInput              `json:"billLines,omitempty"`
+	BillCashLines          []BillCashLineInput          `json:"billCashLines,omitempty"`
+	InternalCostRateBps    int32                        `json:"internalCostRateBps,omitempty"`
+	MaturityType           string                       `json:"maturityType,omitempty"`
+	InterestMode           string                       `json:"interestMode,omitempty"`
+	InterestParty          *ReferenceInput              `json:"interestParty,omitempty"`
+	WithRecourse           bool                         `json:"withRecourse,omitempty"`
 }
 
 type AssetDepreciationPreviewInput struct {
@@ -629,6 +677,40 @@ type AssetLiquidationLineView struct {
 	Remark          string `json:"remark,omitempty"`
 }
 
+type BillLineView struct {
+	LineID             string `json:"lineId"`
+	LineNo             int32  `json:"lineNo"`
+	BillID             string `json:"billId"`
+	PositionType       string `json:"positionType"`
+	Direction          string `json:"direction"`
+	Purpose            string `json:"purpose"`
+	BillType           string `json:"billType"`
+	BillNo             string `json:"billNo"`
+	Medium             string `json:"medium"`
+	Currency           string `json:"currency"`
+	FaceAmount         string `json:"faceAmount"`
+	IssueDate          string `json:"issueDate"`
+	MaturityDate       string `json:"maturityDate"`
+	Drawer             string `json:"drawer"`
+	Acceptor           string `json:"acceptor"`
+	Payee              string `json:"payee"`
+	AnnualRateBps      int32  `json:"annualRateBps"`
+	InterestDays       int32  `json:"interestDays"`
+	InterestAmount     string `json:"interestAmount"`
+	CustomerCostAmount string `json:"customerCostAmount"`
+	Remark             string `json:"remark,omitempty"`
+}
+type BillCashLineView struct {
+	LineID      string        `json:"lineId"`
+	LineNo      int32         `json:"lineNo"`
+	BillLineID  string        `json:"billLineId,omitempty"`
+	FundAccount ReferenceView `json:"fundAccount"`
+	Direction   string        `json:"direction"`
+	AmountType  string        `json:"amountType"`
+	Amount      string        `json:"amount"`
+	Remark      string        `json:"remark,omitempty"`
+}
+
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
 	VersionID             string `json:"versionId"`
@@ -711,6 +793,13 @@ type DocumentDataView struct {
 	AssetDepreciationLines    []AssetDepreciationLineView   `json:"assetDepreciationLines,omitempty"`
 	AssetSaleLines            []AssetSaleLineView           `json:"assetSaleLines,omitempty"`
 	AssetLiquidationLines     []AssetLiquidationLineView    `json:"assetLiquidationLines,omitempty"`
+	BillLines                 []BillLineView                `json:"billLines,omitempty"`
+	BillCashLines             []BillCashLineView            `json:"billCashLines,omitempty"`
+	InternalCostRateBps       int32                         `json:"internalCostRateBps,omitempty"`
+	MaturityType              string                        `json:"maturityType,omitempty"`
+	InterestMode              string                        `json:"interestMode,omitempty"`
+	InterestParty             *ReferenceView                `json:"interestParty,omitempty"`
+	WithRecourse              bool                          `json:"withRecourse,omitempty"`
 }
 
 type DocumentView struct {

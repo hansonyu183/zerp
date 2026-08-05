@@ -516,6 +516,27 @@ func (s *Service) Delete(
 	case EntityAssetLiquidation:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_liquidation_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_liquidation_details WHERE document_id=$1`, input.DocumentID)
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		var hasLedgerHistory bool
+		if entity == EntityBillReceipt || entity == EntityBillIssue {
+			err = tx.QueryRow(ctx, `SELECT EXISTS(
+				SELECT 1 FROM led_bills WHERE source_document_id=$1
+			)`, input.DocumentID).Scan(&hasLedgerHistory)
+		}
+		if err == nil && hasLedgerHistory {
+			return MutationResult{}, domainError(
+				ErrorConflict, "bill document with ledger history cannot be deleted", nil, nil,
+			)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_bill_cash_lines WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_bill_lines WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_bill_details WHERE document_id=$1`, input.DocumentID)
+		}
 	}
 	if err != nil {
 		return MutationResult{}, err

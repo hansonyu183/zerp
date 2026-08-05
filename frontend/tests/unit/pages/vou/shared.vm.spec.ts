@@ -424,6 +424,11 @@ describe('shared VOU entity view model', () => {
       'asset-depreciation',
       'asset-sale',
       'asset-liquidation',
+      'bill-receipt',
+      'bill-payment',
+      'bill-issue',
+      'bill-discount',
+      'bill-maturity',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
     expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(

@@ -2493,6 +2493,47 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/led/bill/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询票据台账',
+              'operationId': 'ledbillquery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/led.yaml#/LedBillQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '票据台账分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/led.yaml#/LedBillQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/led/inventory/balance':
         {
           'post':

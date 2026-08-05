@@ -727,6 +727,47 @@ type LedAuditEvent struct {
 	Summary      []byte             `db:"summary" json:"summary"`
 }
 
+type LedBill struct {
+	ID                      string             `db:"id" json:"id"`
+	PositionType            string             `db:"position_type" json:"position_type"`
+	BillType                string             `db:"bill_type" json:"bill_type"`
+	BillNo                  string             `db:"bill_no" json:"bill_no"`
+	Medium                  string             `db:"medium" json:"medium"`
+	Currency                string             `db:"currency" json:"currency"`
+	FaceAmountCents         int64              `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date        `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date        `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string             `db:"drawer" json:"drawer"`
+	Acceptor                string             `db:"acceptor" json:"acceptor"`
+	Payee                   string             `db:"payee" json:"payee"`
+	AnnualRateBps           int32              `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32              `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64              `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64              `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	OriginPartyEntity       *string            `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string            `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string            `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string            `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string            `db:"origin_party_name" json:"origin_party_name"`
+	SourceDocumentID        string             `db:"source_document_id" json:"source_document_id"`
+	SourceLineID            string             `db:"source_line_id" json:"source_line_id"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type LedBillEntry struct {
+	ID               string             `db:"id" json:"id"`
+	GenerationID     string             `db:"generation_id" json:"generation_id"`
+	BillID           string             `db:"bill_id" json:"bill_id"`
+	SourceEntity     string             `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
+	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
+	PositionType     string             `db:"position_type" json:"position_type"`
+	Direction        string             `db:"direction" json:"direction"`
+	Purpose          string             `db:"purpose" json:"purpose"`
+	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
+	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+}
+
 type LedClosing struct {
 	ID               string             `db:"id" json:"id"`
 	ClosingDate      pgtype.Date        `db:"closing_date" json:"closing_date"`
@@ -1146,6 +1187,69 @@ type VouAuditEvent struct {
 	ChildID         *string            `db:"child_id" json:"child_id"`
 	ChildNo         *string            `db:"child_no" json:"child_no"`
 	ChildStatus     *string            `db:"child_status" json:"child_status"`
+}
+
+type VouBillCashLine struct {
+	ID                   string  `db:"id" json:"id"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	LineNo               int32   `db:"line_no" json:"line_no"`
+	BillLineID           *string `db:"bill_line_id" json:"bill_line_id"`
+	FundAccountObjectID  string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID string  `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      string  `db:"fund_account_name" json:"fund_account_name"`
+	Direction            string  `db:"direction" json:"direction"`
+	AmountType           string  `db:"amount_type" json:"amount_type"`
+	AmountCents          int64   `db:"amount_cents" json:"amount_cents"`
+	Remark               *string `db:"remark" json:"remark"`
+}
+
+type VouBillDetail struct {
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	Entity                 string  `db:"entity" json:"entity"`
+	CounterpartyEntity     *string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID   *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID  *string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode       *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName       *string `db:"counterparty_name" json:"counterparty_name"`
+	HandlerObjectID        *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerVersionID       *string `db:"handler_version_id" json:"handler_version_id"`
+	HandlerCode            *string `db:"handler_code" json:"handler_code"`
+	HandlerName            *string `db:"handler_name" json:"handler_name"`
+	InternalCostRateBps    int32   `db:"internal_cost_rate_bps" json:"internal_cost_rate_bps"`
+	MaturityType           string  `db:"maturity_type" json:"maturity_type"`
+	InterestMode           string  `db:"interest_mode" json:"interest_mode"`
+	InterestPartyEntity    *string `db:"interest_party_entity" json:"interest_party_entity"`
+	InterestPartyObjectID  *string `db:"interest_party_object_id" json:"interest_party_object_id"`
+	InterestPartyVersionID *string `db:"interest_party_version_id" json:"interest_party_version_id"`
+	InterestPartyCode      *string `db:"interest_party_code" json:"interest_party_code"`
+	InterestPartyName      *string `db:"interest_party_name" json:"interest_party_name"`
+	WithRecourse           bool    `db:"with_recourse" json:"with_recourse"`
+}
+
+type VouBillLine struct {
+	ID                      string      `db:"id" json:"id"`
+	DocumentID              string      `db:"document_id" json:"document_id"`
+	LineNo                  int32       `db:"line_no" json:"line_no"`
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Direction               string      `db:"direction" json:"direction"`
+	Purpose                 string      `db:"purpose" json:"purpose"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	Medium                  string      `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountCents         int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64       `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64       `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	Remark                  *string     `db:"remark" json:"remark"`
 }
 
 type VouDocument struct {

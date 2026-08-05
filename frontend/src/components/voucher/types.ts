@@ -1,4 +1,9 @@
 export type VoucherEntity =
+  | 'bill-receipt'
+  | 'bill-payment'
+  | 'bill-issue'
+  | 'bill-discount'
+  | 'bill-maturity'
   | 'sale-pricing'
   | 'sale-order'
   | 'sale-outbound'
@@ -608,6 +613,7 @@ export type VoucherLineKind =
   | 'asset-depreciation'
   | 'asset-sale'
   | 'asset-liquidation'
+  | 'bill'
   | 'none'
 export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
 

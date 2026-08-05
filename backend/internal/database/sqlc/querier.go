@@ -61,6 +61,7 @@ type Querier interface {
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
 	CountLedAssets(ctx context.Context, arg CountLedAssetsParams) (int64, error)
 	CountLedAuditEvents(ctx context.Context) (int64, error)
+	CountLedBillDownstreamEntries(ctx context.Context, sourceDocumentID string) (int64, error)
 	CountLedFundBalances(ctx context.Context, arg CountLedFundBalancesParams) (int64, error)
 	CountLedFundEntries(ctx context.Context, arg CountLedFundEntriesParams) (int64, error)
 	CountLedInventoryBalances(ctx context.Context, arg CountLedInventoryBalancesParams) (int64, error)
@@ -107,6 +108,8 @@ type Querier interface {
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
 	DeleteLedAssetEntriesBySource(ctx context.Context, arg DeleteLedAssetEntriesBySourceParams) error
 	DeleteLedAssetsBySource(ctx context.Context, arg DeleteLedAssetsBySourceParams) error
+	DeleteLedBillEntriesBySource(ctx context.Context, arg DeleteLedBillEntriesBySourceParams) error
+	DeleteLedBillsBySource(ctx context.Context, sourceDocumentID string) error
 	DeleteLedContainerEntriesBySource(ctx context.Context, arg DeleteLedContainerEntriesBySourceParams) error
 	DeleteLedDraftContainer(ctx context.Context) error
 	DeleteLedDraftFund(ctx context.Context) error
@@ -120,6 +123,9 @@ type Querier interface {
 	DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error
 	DeleteVouAssetSaleLines(ctx context.Context, documentID string) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
+	DeleteVouBillCashLines(ctx context.Context, documentID string) error
+	DeleteVouBillDetails(ctx context.Context, documentID string) error
+	DeleteVouBillLines(ctx context.Context, documentID string) error
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
@@ -127,6 +133,7 @@ type Querier interface {
 	DeleteVouPriceLines(ctx context.Context, documentID string) error
 	DeleteVouProductLines(ctx context.Context, documentID string) error
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
+	EnsureLedBill(ctx context.Context, arg EnsureLedBillParams) (int64, error)
 	FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
@@ -150,6 +157,7 @@ type Querier interface {
 	GetBobObjectEnabled(ctx context.Context, arg GetBobObjectEnabledParams) (bool, error)
 	GetBobProductFormula(ctx context.Context, productVersionID string) (int64, error)
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
+	GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error)
 	GetLedControl(ctx context.Context) (LedControl, error)
 	GetLedPartyBalanceAtDate(ctx context.Context, arg GetLedPartyBalanceAtDateParams) (int64, error)
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
@@ -157,6 +165,7 @@ type Querier interface {
 	GetVouAssetDepreciationDetail(ctx context.Context, documentID string) (VouAssetDepreciationDetail, error)
 	GetVouAssetLiquidationDetail(ctx context.Context, documentID string) (VouAssetLiquidationDetail, error)
 	GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error)
+	GetVouBillDetail(ctx context.Context, documentID string) (VouBillDetail, error)
 	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error)
 	GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
@@ -207,6 +216,7 @@ type Querier interface {
 	InsertLedAssetEntry(ctx context.Context, arg InsertLedAssetEntryParams) error
 	InsertLedAssetNumberAssignment(ctx context.Context, arg InsertLedAssetNumberAssignmentParams) error
 	InsertLedAuditEvent(ctx context.Context, arg InsertLedAuditEventParams) error
+	InsertLedBillEntry(ctx context.Context, arg InsertLedBillEntryParams) error
 	InsertLedDraftContainer(ctx context.Context, arg InsertLedDraftContainerParams) error
 	InsertLedDraftFund(ctx context.Context, arg InsertLedDraftFundParams) error
 	InsertLedDraftInventory(ctx context.Context, arg InsertLedDraftInventoryParams) error
@@ -232,6 +242,9 @@ type Querier interface {
 	InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAssetSaleDetailParams) error
 	InsertVouAssetSaleLine(ctx context.Context, arg InsertVouAssetSaleLineParams) error
 	InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEventParams) error
+	InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCashLineParams) error
+	InsertVouBillDetail(ctx context.Context, arg InsertVouBillDetailParams) error
+	InsertVouBillLine(ctx context.Context, arg InsertVouBillLineParams) error
 	InsertVouDocument(ctx context.Context, arg InsertVouDocumentParams) error
 	InsertVouDocumentAttachment(ctx context.Context, arg InsertVouDocumentAttachmentParams) error
 	InsertVouDownloadToken(ctx context.Context, arg InsertVouDownloadTokenParams) error
@@ -274,6 +287,7 @@ type Querier interface {
 	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
 	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
+	ListLedBills(ctx context.Context, arg ListLedBillsParams) ([]ListLedBillsRow, error)
 	ListLedDraftContainer(ctx context.Context) ([]LedDraftContainer, error)
 	ListLedDraftFund(ctx context.Context) ([]LedDraftFund, error)
 	ListLedDraftInventory(ctx context.Context) ([]LedDraftInventory, error)
@@ -305,6 +319,8 @@ type Querier interface {
 	ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error)
 	ListVouAttachments(ctx context.Context, documentID string) ([]ListVouAttachmentsRow, error)
 	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
+	ListVouBillCashLines(ctx context.Context, documentID string) ([]VouBillCashLine, error)
+	ListVouBillLines(ctx context.Context, documentID string) ([]VouBillLine, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
 	ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error)
@@ -327,6 +343,7 @@ type Querier interface {
 	LockEffectiveLogisticsPlatform(ctx context.Context, platformObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLedAsset(ctx context.Context, arg LockLedAssetParams) (LedAsset, error)
+	LockLedBill(ctx context.Context, id string) (LedBill, error)
 	LockLedControl(ctx context.Context) (LedControl, error)
 	LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
@@ -364,6 +381,7 @@ type Querier interface {
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
+	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error
 	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
@@ -390,6 +408,7 @@ type Querier interface {
 	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)
 	UpdateVouAssetDepreciationDetail(ctx context.Context, arg UpdateVouAssetDepreciationDetailParams) (int64, error)
 	UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error)
+	UpdateVouBillDocumentTotal(ctx context.Context, arg UpdateVouBillDocumentTotalParams) error
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)

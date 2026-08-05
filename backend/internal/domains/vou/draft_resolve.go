@@ -47,6 +47,9 @@ func (s *Service) resolveDraftParties(
 	if result.Employee, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee); err != nil {
 		return err
 	}
+	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherParty, draft.InterestParty); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -126,6 +129,16 @@ func (s *Service) resolveDraftAccounts(
 	}
 	if result.FundAccount != nil && result.FundAccount.Data.Currency != draft.Currency {
 		return domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
+	}
+	for _, line := range draft.BillCashLines {
+		fund, resolveErr := s.resolveReference(ctx, tx, bobdomain.EntityFundAccount, &line.FundAccount)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if fund.Data.Currency != draft.Currency {
+			return domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
+		}
+		result.BillFunds = append(result.BillFunds, *fund)
 	}
 	return nil
 }

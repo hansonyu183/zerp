@@ -101,7 +101,11 @@ async function expectDraftCreated(
 ): Promise<void> {
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
   await expect(
-    workspace.locator('.voucher-document-header__number'),
+    workspace
+      .locator(
+        '.voucher-document-header__number, .voucher-workspace__title > span',
+      )
+      .first(),
   ).toHaveText(documentNo)
 }
 
@@ -126,6 +130,74 @@ async function finalizeCurrentDraft(workspace: Locator): Promise<void> {
   await workspace.getByRole('button', { name: '完成', exact: true }).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 }
+
+function isoDateOffset(days: number): string {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+test('票据收入批次完成后进入真实票据台账', async ({ page }) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '桌面批量表格流程已覆盖，移动端由响应式单元测试与完整门禁覆盖。',
+  )
+  test.setTimeout(180_000)
+  const fixture = vouFixture()
+  const billNo = `E2E-${Date.now()}`
+  await signIn(page)
+  await page.goto('/vou/bill-receipt')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '客户', fixture.customer, workspace)
+  await selectReference(page, '经办人', fixture.employee, workspace)
+
+  const row = workspace.locator('.voucher-bill-lines__desktop tbody tr').first()
+  await row.locator('td').nth(1).locator('input').fill(billNo)
+  await row.locator('td').nth(4).locator('input').fill(fixture.currency)
+  await row.locator('td').nth(5).locator('input').fill('100.00')
+  await row.locator('td').nth(6).locator('input').fill(isoDateOffset(0))
+  await row.locator('td').nth(7).locator('input').fill(isoDateOffset(30))
+  await row.locator('td').nth(8).locator('input').fill('E2E 出票人')
+  await row.locator('td').nth(9).locator('input').fill('E2E 承兑人')
+  await row.locator('td').nth(10).locator('input').fill('E2E 收款人')
+  await row.locator('td').nth(11).locator('input').fill('365')
+  await expect(workspace.getByText('客户净结算额').locator('..')).toContainText(
+    '100.00',
+  )
+
+  const billCreateResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/bill-receipt/create'),
+  )
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  const billCreate = await billCreateResponse
+  const billCreatePayload = (await billCreate.json()) as {
+    code: number | string
+    message: string
+  }
+  expect(String(billCreatePayload.code), billCreatePayload.message).toBe('0')
+  await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
+  await workspace.getByRole('button', { name: '检查', exact: true }).click()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await workspace.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+
+  const ledgerResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/led/bill/query') &&
+      response.request().method() === 'POST',
+  )
+  await page.goto('/led/bill')
+  const ledgerPayload = (await (await ledgerResponse).json()) as {
+    code: number | string
+  }
+  expect(String(ledgerPayload.code)).toBe('0')
+  await page.getByRole('textbox', { name: '票据号码' }).fill(billNo)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: billNo }),
+  ).toContainText('100.00')
+})
 
 async function verifyEmployeeLoanLifecycle(
   page: Page,

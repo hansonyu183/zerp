@@ -28,3 +28,14 @@ func TestValidateBillQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateBillQueryAcceptsEveryBillSource(t *testing.T) {
+	for _, source := range []string{"bill-receipt", "bill-payment", "bill-issue", "bill-discount", "bill-maturity"} {
+		query, err := validateBillQuery(BillQueryInput{
+			Page: 1, PageSize: 20, Filters: BillQueryFilters{SourceEntity: source},
+		})
+		if err != nil || query.SourceEntity != source {
+			t.Fatalf("source %q: query=%+v err=%v", source, query, err)
+		}
+	}
+}

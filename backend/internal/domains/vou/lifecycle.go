@@ -126,6 +126,12 @@ func (s *Service) createDocument(
 			return MutationResult{}, err
 		}
 	}
+	if entity == EntityBillMaturity {
+		draft.TotalAmount, err = s.billMaturityTotal(ctx, q, draft.BillLines, draft.BusinessDate)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
 		ID: documentID, Entity: entity, DocumentNo: documentNo,
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
@@ -221,7 +227,7 @@ func (s *Service) Save(
 	if err = s.updateDetail(ctx, q, entity, input.DocumentID, draft, resolved); err != nil {
 		return MutationResult{}, s.writeError("update document detail", err)
 	}
-	if entity == EntityBillPayment {
+	if entity == EntityBillPayment || entity == EntityBillDiscount || entity == EntityBillMaturity {
 		draft.TotalAmount, err = q.SumVouBillLineFaceAmounts(ctx, input.DocumentID)
 		if err != nil {
 			return MutationResult{}, s.writeError("sum bill payment amount", err)

@@ -40,7 +40,6 @@ export function buildBillReceiptPayload(form: BillVoucherForm) {
           },
     ),
     billCashLines: form.billCashLines.map((line: BillCashLineDraft) => ({
-      ...(line.billLineId ? { billLineId: line.billLineId } : {}),
       fundAccount: reference(line.fundAccount)!,
       direction: line.direction,
       amountType: line.amountType,
@@ -121,6 +120,28 @@ export function buildBillDiscountPayload(form: BillVoucherForm) {
       remark: line.remark || undefined,
     })),
     billCashLines: form.billCashLines.map((line: BillCashLineDraft) => ({
+      fundAccount: reference(line.fundAccount)!,
+      direction: line.direction,
+      amountType: line.amountType,
+      amount: line.amount,
+      remark: line.remark || undefined,
+    })),
+  }
+}
+
+export function buildBillMaturityPayload(form: BillVoucherForm) {
+  return {
+    businessDate: form.businessDate,
+    currency: form.currency,
+    remark: form.remark || undefined,
+    maturityType: form.maturityType,
+    billLines: form.billLines.map((line: BillLineDraft) => ({
+      billId: line.billId!,
+      purpose: 'PRIMARY' as const,
+      remark: line.remark || undefined,
+    })),
+    billCashLines: form.billCashLines.map((line: BillCashLineDraft) => ({
+      ...(line.billLineId ? { billLineId: line.billLineId } : {}),
       fundAccount: reference(line.fundAccount)!,
       direction: line.direction,
       amountType: line.amountType,

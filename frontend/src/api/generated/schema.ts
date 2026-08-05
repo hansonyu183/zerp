@@ -1998,7 +1998,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2500,7 +2500,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2620,7 +2620,13 @@ export interface components {
             annualRateBps: number;
             remark?: string;
         };
-        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"] | components["schemas"]["VouBillIssueLineInput"] | components["schemas"]["VouBillDiscountLineInput"];
+        VouBillMaturityLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"] | components["schemas"]["VouBillIssueLineInput"] | components["schemas"]["VouBillDiscountLineInput"] | components["schemas"]["VouBillMaturityLineInput"];
         VouBillCashLineInput: {
             billLineId?: string;
             fundAccount: {
@@ -2738,6 +2744,8 @@ export interface components {
                 internalCostRateBps?: number;
                 /** @enum {string} */
                 interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
                 interestParty?: {
                     objectId: string;
                     versionId: string;
@@ -2864,6 +2872,8 @@ export interface components {
                 internalCostRateBps?: number;
                 /** @enum {string} */
                 interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
                 interestParty?: {
                     objectId: string;
                     versionId: string;
@@ -3151,7 +3161,7 @@ export interface components {
                 maturityDateTo?: string;
                 customerObjectId?: string;
                 /** @enum {string} */
-                sourceEntity?: "bill-receipt";
+                sourceEntity?: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
             };
             sort: {
                 /** @enum {string} */
@@ -3191,7 +3201,7 @@ export interface components {
             };
             customerCostAmount: string;
             /** @enum {string} */
-            sourceEntity: "bill-receipt";
+            sourceEntity: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
             sourceDocumentNo: string;
         };
         LedBillQueryResponse: {

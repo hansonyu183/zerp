@@ -44,6 +44,7 @@ var vouEntities = [...]string{
 	voudomain.EntityBillPayment,
 	voudomain.EntityBillIssue,
 	voudomain.EntityBillDiscount,
+	voudomain.EntityBillMaturity,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -174,7 +175,7 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
-	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount {
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
 		count, countErr := q.CountLedBillDownstreamEntries(ctx, event.DocumentID)
 		if countErr != nil {
 			return countErr
@@ -189,7 +190,7 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 			return eventFailure(err)
 		}
 	}
-	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount {
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
 		if err = q.DeleteLedBillEntriesBySource(ctx, dbsqlc.DeleteLedBillEntriesBySourceParams{GenerationID: generationID, SourceDocumentID: event.DocumentID}); err != nil {
 			return err
 		}
@@ -268,6 +269,8 @@ func (s *Service) postDocument(
 		return s.postBillIssue(ctx, tx, q, posting)
 	case voudomain.EntityBillDiscount:
 		return s.postBillDiscount(ctx, tx, q, posting)
+	case voudomain.EntityBillMaturity:
+		return s.postBillMaturity(ctx, tx, q, posting)
 	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
 		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return s.postAssetDocument(ctx, tx, q, posting)

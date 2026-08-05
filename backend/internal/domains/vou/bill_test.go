@@ -174,3 +174,37 @@ func TestBillDiscountValidation(t *testing.T) {
 		t.Fatal("accepted third-party discount without interest party")
 	}
 }
+
+func TestBillMaturityValidation(t *testing.T) {
+	t.Parallel()
+	availableBillID := "01J00000000000000000000003"
+	input := DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", MaturityType: "RECEIPT",
+		BillLines:     []BillLineInput{{BillID: availableBillID, Purpose: "PRIMARY"}},
+		BillCashLines: []BillCashLineInput{{FundAccount: *refInput(), Direction: "IN", AmountType: "PRINCIPAL", Amount: "100.00"}},
+	}
+	draft, err := validateDraft(EntityBillMaturity, input)
+	if err != nil {
+		t.Fatalf("validate bill maturity receipt: %v", err)
+	}
+	if draft.MaturityType != "RECEIPT" || draft.BillLines[0].PositionType != "ASSET" || draft.BillLines[0].Direction != "OUT" {
+		t.Fatalf("bill maturity receipt line = %+v", draft.BillLines)
+	}
+	input.BillCashLines[0].Direction = "OUT"
+	if _, err = validateDraft(EntityBillMaturity, input); err == nil {
+		t.Fatal("accepted receipt maturity cash OUT")
+	}
+	input.MaturityType = "PAYMENT"
+	input.BillCashLines[0].Direction = "IN"
+	if _, err = validateDraft(EntityBillMaturity, input); err == nil {
+		t.Fatal("accepted payment maturity cash IN")
+	}
+	input.BillCashLines[0].Direction = "OUT"
+	draft, err = validateDraft(EntityBillMaturity, input)
+	if err != nil {
+		t.Fatalf("validate bill maturity payment: %v", err)
+	}
+	if draft.BillLines[0].PositionType != "LIABILITY" || draft.BillLines[0].Direction != "OUT" {
+		t.Fatalf("bill maturity payment line = %+v", draft.BillLines)
+	}
+}

@@ -101,7 +101,11 @@ async function expectDraftCreated(
 ): Promise<void> {
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
   await expect(
-    workspace.locator('.voucher-document-header__number'),
+    workspace
+      .locator(
+        '.voucher-document-header__number, .voucher-workspace__title > span',
+      )
+      .first(),
   ).toHaveText(documentNo)
 }
 
@@ -162,9 +166,18 @@ test('票据收入批次完成后进入真实票据台账', async ({ page }) => 
     '100.00',
   )
 
+  const billCreateResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/bill-receipt/create'),
+  )
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  const billCreate = await billCreateResponse
+  const billCreatePayload = (await billCreate.json()) as {
+    code: number | string
+    message: string
+  }
+  expect(String(billCreatePayload.code), billCreatePayload.message).toBe('0')
   await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
+  await workspace.getByRole('button', { name: '检查', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await workspace.getByRole('button', { name: '完成', exact: true }).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
@@ -179,7 +192,7 @@ test('票据收入批次完成后进入真实票据台账', async ({ page }) => 
     code: number | string
   }
   expect(String(ledgerPayload.code)).toBe('0')
-  await page.getByLabel('票据号码').fill(billNo)
+  await page.getByRole('textbox', { name: '票据号码' }).fill(billNo)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(
     page.locator('tbody tr').filter({ hasText: billNo }),

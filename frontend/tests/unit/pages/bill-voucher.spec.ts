@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { effectScope } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { shallowMount } from '@vue/test-utils'
+import { apiClient } from '@/api/client'
 import {
   buildBillPaymentPayload,
   buildBillIssuePayload,
   buildBillDiscountPayload,
+  buildBillMaturityPayload,
   buildBillReceiptPayload,
 } from '@/pages/vou/shared/bill/payload'
 import { appendHeldBillLines } from '@/pages/vou/shared/bill/selection'
@@ -12,6 +17,44 @@ import {
   validateBillVoucherForm,
 } from '@/pages/vou/shared/bill/validation'
 import type { BillVoucherForm } from '@/pages/vou/shared/bill/vm'
+import { billVoucherConfigs } from '@/pages/vou/shared/bill/config'
+import { useBillVoucherViewModel } from '@/pages/vou/shared/bill/vm'
+import { useSessionStore } from '@/stores/session'
+import { useBillLedgerViewModel } from '@/pages/led/bill/vm'
+import BillReceipt from '@/pages/vou/bill-receipt/BillReceipt.vue'
+import BillPayment from '@/pages/vou/bill-payment/BillPayment.vue'
+import BillIssue from '@/pages/vou/bill-issue/BillIssue.vue'
+import BillDiscount from '@/pages/vou/bill-discount/BillDiscount.vue'
+import BillMaturity from '@/pages/vou/bill-maturity/BillMaturity.vue'
+import BillLedgerPage from '@/pages/led/bill/Bill.vue'
+
+vi.mock('@/api/client', () => ({
+  apiClient: {
+    post: vi.fn(),
+    postContract: vi.fn(),
+    setCsrfToken: vi.fn(),
+    uploadAttachment: vi.fn(),
+    fetchAttachment: vi.fn(),
+  },
+}))
+
+const mockedPost = vi.mocked(apiClient.post)
+const mockedPostContract = vi.mocked(apiClient.postContract)
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  mockedPost.mockReset()
+  mockedPostContract.mockReset()
+  mockedPost.mockImplementation(async (path: string) => {
+    if (path.startsWith('bob/')) return { data: { items: [{ objectId: 'r', entity: 'customer', code: 'R', currentVersion: { versionId: 'rv', summary: { name: '引用' } } }], total: 1, page: 1, pageSize: 20 } } as never
+    if (path.includes('/query')) return { data: { data: { items: [], total: 0 } } } as never
+    if (path.includes('/create')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 1, status: 'DRAFT' } } as never
+    if (path.includes('/save')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 2, status: 'DRAFT' } } as never
+    if (path.includes('/get')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 1, status: 'DRAFT', entity: 'bill-maturity', amount: '10.00', data: { businessDate: '2026-08-05', currency: 'CNY', billLines: [{ lineId: 'L1', billId: 'B1', purpose: 'PRIMARY', positionType: 'ASSET', direction: 'IN', billType: 'BANK_ACCEPTANCE', billNo: 'B1', medium: 'ELECTRONIC', currency: 'CNY', faceAmount: '10.00', issueDate: '2026-01-01', maturityDate: '2026-09-01', drawer: 'D', acceptor: 'A', payee: 'P', annualRateBps: 100 }], billCashLines: [{ lineId: 'C1', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00' }] } } } as never
+    return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 2, status: 'CHECKED' } } as never
+  })
+  mockedPostContract.mockResolvedValue({ data: { items: [{ billId: 'bill-1', positionType: 'ASSET', billType: 'BANK_ACCEPTANCE', billNo: 'B-1', medium: 'ELECTRONIC', currency: 'CNY', faceAmount: '10.00', issueDate: '2026-01-01', maturityDate: '2026-09-01', drawer: 'D', acceptor: 'A', payee: 'P', annualRateBps: 100 }], total: 1, page: 1, pageSize: 20 } } as never)
+})
 
 function form(): BillVoucherForm {
   return {
@@ -22,6 +65,7 @@ function form(): BillVoucherForm {
     supplier: null,
     counterparty: { objectId: 'o', versionId: 'ov', code: 'O', name: '贴现方' },
     interestMode: '',
+    maturityType: '',
     interestParty: null,
     handler: { objectId: 'e', versionId: 'ev', code: 'E', name: '经办人' },
     internalCostRateBps: 0,
@@ -176,5 +220,138 @@ describe('bill discount payload', () => {
     expect(payload.billLines[0]).not.toHaveProperty('faceAmount')
     expect(payload.billCashLines[0]).toMatchObject({ direction: 'OUT', amountType: 'FEE' })
     expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBeNull()
+  })
+})
+
+describe('bill maturity payload', () => {
+  it('submits receipt maturity with selected bills and IN cash rows', () => {
+    const value = form()
+    value.customer = null
+    value.billLines = [{ ...value.billLines[0]!, billId: 'held-1', positionType: 'ASSET', direction: 'OUT' }]
+    value.maturityType = 'RECEIPT'
+    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    const payload = buildBillMaturityPayload(value)
+    expect(payload).toMatchObject({ maturityType: 'RECEIPT' })
+    expect(payload.billLines[0]).toEqual({ billId: 'held-1', purpose: 'PRIMARY' })
+    expect(validateBillVoucherForm(value, 20, 20, 'maturity')).toBeNull()
+  })
+})
+
+describe('bill voucher view model behavior', () => {
+  it('covers create, references, LED selection, save, lifecycle and delete flows', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-maturity/query', '/vou/bill-maturity/create', '/vou/bill-maturity/get', '/vou/bill-maturity/save', '/vou/bill-maturity/check', '/vou/bill-maturity/delete'] })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-maturity']))!
+    await vm.query()
+    expect(vm.rows.value).toEqual([])
+    vm.openCreate()
+    expect(vm.editing.value).toBe(true)
+    vm.form.maturityType = 'RECEIPT'
+    vm.changeMaturityType('RECEIPT')
+    vm.addBillLine()
+    vm.addCashLine()
+    await vm.searchCustomer('客户')
+    await vm.searchSupplier('供应商')
+    await vm.searchOtherParty('其他')
+    await vm.searchHandler('经办人')
+    await vm.searchFundAccount('账户')
+    expect(vm.customerOptions.value[0]).toMatchObject({
+      objectId: 'r',
+      versionId: 'rv',
+      code: 'R',
+      name: '引用',
+    })
+    await vm.openHeldDialog()
+    vm.heldSelection.value = ['bill-1']
+    vm.applyHeldSelection()
+    vm.form.billLines = [{ ...vm.form.billLines[0]!, key: 'bill-1', billId: 'bill-1', positionType: 'ASSET', direction: 'OUT', purpose: 'PRIMARY' }]
+    vm.form.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    expect(await vm.save()).toBe(true)
+    await vm.lifecycle('check')
+    expect(vm.documentStatus.value).toBe('CHECKED')
+    await vm.lifecycle('uncheck', '测试')
+    await vm.lifecycle('approve')
+    await vm.lifecycle('unapprove', '测试')
+    await vm.lifecycle('finalize')
+    await vm.lifecycle('unfinalize', '测试')
+    await vm.changePage(0)
+    await vm.openDocument({ documentId: 'DOC-1' }, true)
+    await vm.loadAudit()
+    await vm.uploadAttachments([])
+    await vm.downloadAttachment('missing')
+    await vm.removeAttachment('missing')
+    expect(await vm.deleteDraft('测试删除')).toBe(true)
+    scope.stop()
+    const issueScope = effectScope()
+    const issueVm = issueScope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-issue']))!
+    issueVm.openCreate()
+    await issueVm.openDocument({ documentId: 'DOC-1' })
+    issueScope.stop()
+    const paymentScope = effectScope()
+    const paymentVm = paymentScope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-payment']))!
+    paymentVm.openCreate()
+    paymentVm.heldBillOptions.value = [{ ...form().billLines[0]!, billId: 'bill-1' }]
+    paymentVm.heldSelection.value = ['bill-1']
+    paymentVm.applyHeldSelection()
+    expect(paymentVm.form.billLines[0]?.direction).toBe('OUT')
+    paymentScope.stop()
+  })
+
+  it('rejects invalid maturity form before API mutation', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-maturity/create'] })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-maturity']))!
+    vm.openCreate()
+    expect(await vm.save()).toBe(false)
+    expect(vm.errorMessage.value).toContain('到期处理')
+    scope.stop()
+  })
+})
+
+describe('bill ledger view model behavior', () => {
+  it('loads ledger, searches customer and applies maturity shortcuts', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/led/bill/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillLedgerViewModel())!
+    await vm.load()
+    vm.search()
+    await vm.searchCustomer('客户')
+    vm.maturityShortcut('30d')
+    vm.maturityShortcut('7d')
+    vm.maturityShortcut('today')
+    vm.maturityShortcut('overdue')
+    vm.changePage(1)
+    expect(vm.filters.availability).toBe('AVAILABLE')
+    expect(vm.filters.maturityDateTo).toBeTruthy()
+    scope.stop()
+  })
+})
+
+describe('bill voucher route wrappers', () => {
+  it('binds every entity wrapper to the shared bill page', () => {
+    for (const component of [
+      BillReceipt,
+      BillPayment,
+      BillIssue,
+      BillDiscount,
+      BillMaturity,
+    ]) {
+      const wrapper = shallowMount(component, {
+        global: { stubs: { BillVoucherPage: true } },
+      })
+      expect(wrapper.findComponent({ name: 'BillVoucherPage' }).exists()).toBe(
+        true,
+      )
+      wrapper.unmount()
+    }
+  })
+
+  it('mounts the bill ledger page', () => {
+    const wrapper = shallowMount(BillLedgerPage)
+    expect(wrapper.exists()).toBe(true)
+    wrapper.unmount()
   })
 })

@@ -37,7 +37,17 @@
                   'maturityDateTo': { 'type': 'string', 'format': 'date' },
                   'customerObjectId': { 'type': 'string' },
                   'sourceEntity':
-                    { 'type': 'string', 'enum': ['bill-receipt'] },
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'bill-receipt',
+                          'bill-payment',
+                          'bill-issue',
+                          'bill-discount',
+                          'bill-maturity',
+                        ],
+                    },
                 },
             },
           'sort':
@@ -133,7 +143,18 @@
                 },
             },
           'customerCostAmount': { 'type': 'string' },
-          'sourceEntity': { 'type': 'string', 'enum': ['bill-receipt'] },
+          'sourceEntity':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'bill-receipt',
+                  'bill-payment',
+                  'bill-issue',
+                  'bill-discount',
+                  'bill-maturity',
+                ],
+            },
           'sourceDocumentNo': { 'type': 'string' },
         },
     },

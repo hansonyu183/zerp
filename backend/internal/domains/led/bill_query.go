@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 type validatedBillQuery struct {
@@ -49,9 +48,9 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 			Drawer: row.Drawer, Acceptor: row.Acceptor, Payee: row.Payee,
 			AnnualRateBps: row.AnnualRateBps, InterestDays: row.InterestDays,
 			InterestAmount: formatMoney(row.InterestAmountCents),
-			Customer: ReferenceView{
+			Customer: BillPartyView{
 				ObjectID: deref(row.OriginPartyObjectID), VersionID: deref(row.OriginPartyVersionID),
-				Entity: bob.EntityCustomer, Code: deref(row.OriginPartyCode), Name: deref(row.OriginPartyName),
+				Code: deref(row.OriginPartyCode), Name: deref(row.OriginPartyName),
 			},
 			CustomerCostAmount: formatMoney(row.CustomerCostAmountCents),
 			SourceEntity:       row.SourceEntity, SourceDocumentNo: row.SourceDocumentNo,
@@ -87,7 +86,9 @@ func validateBillQuery(input BillQueryInput) (validatedBillQuery, error) {
 	if result.CustomerObjectID != "" && !validID(result.CustomerObjectID) {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid customerObjectId", nil, nil)
 	}
-	if result.SourceEntity != "" && result.SourceEntity != "bill-receipt" {
+	if result.SourceEntity != "" && result.SourceEntity != "bill-receipt" &&
+		result.SourceEntity != "bill-payment" && result.SourceEntity != "bill-issue" &&
+		result.SourceEntity != "bill-discount" && result.SourceEntity != "bill-maturity" {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid sourceEntity", nil, nil)
 	}
 	var from, to time.Time

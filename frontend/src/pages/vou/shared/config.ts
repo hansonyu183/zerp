@@ -388,4 +388,13 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'none',
     finalizationKind: 'direct',
   },
+  'bill-maturity': {
+    entity: 'bill-maturity',
+    title: '票据到期处理',
+    icon: 'mdi-calendar-clock-outline',
+    order: 134,
+    partyMode: 'none',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+  },
 }

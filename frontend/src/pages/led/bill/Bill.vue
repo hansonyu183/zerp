@@ -78,6 +78,10 @@ onMounted(() => void vm.load())
             "
           />
           <v-btn color="primary" @click="vm.search">查询</v-btn>
+          <v-btn variant="tonal" @click="vm.maturityShortcut('30d')">未来30天到期</v-btn>
+          <v-btn variant="tonal" @click="vm.maturityShortcut('7d')">未来7天到期</v-btn>
+          <v-btn variant="tonal" @click="vm.maturityShortcut('today')">今日到期</v-btn>
+          <v-btn variant="tonal" @click="vm.maturityShortcut('overdue')">已到期未处理</v-btn>
         </v-card-text></v-card
       >
       <v-alert

@@ -85,7 +85,7 @@ onMounted(() => void vm.query())
           <tr>
             <th>单号</th>
             <th>日期</th>
-            <th>{{ vm.config.mode === 'payment' ? '供应商' : vm.config.mode === 'discount' ? '贴现方' : '客户' }}</th>
+            <th>{{ vm.config.mode === 'payment' ? '供应商' : vm.config.mode === 'discount' ? '贴现方' : vm.config.mode === 'maturity' ? '—' : '客户' }}</th>
             <th>状态</th>
             <th>票面合计</th>
             <th>操作</th>
@@ -215,7 +215,7 @@ onMounted(() => void vm.query())
               :options="vm.supplierOptions.value"
               @search="vm.searchSupplier"
           /></v-col>
-          <v-col v-else cols="12" md="3"
+          <v-col v-else-if="vm.config.mode === 'discount'" cols="12" md="3"
             ><VoucherReferenceAutocomplete
               v-model="vm.form.counterparty"
               :disabled="!vm.editing.value"
@@ -224,6 +224,9 @@ onMounted(() => void vm.query())
               :options="vm.otherPartyOptions.value"
               @search="vm.searchOtherParty"
           /></v-col>
+          <v-col v-if="vm.config.mode === 'maturity'" cols="12" md="3">
+            <v-select v-model="vm.form.maturityType" :disabled="!vm.editing.value" label="到期处理方式" :items="[{ title: '到期收款', value: 'RECEIPT' }, { title: '到期付款', value: 'PAYMENT' }]" variant="outlined" @update:model-value="vm.changeMaturityType" />
+          </v-col>
           <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><VoucherReferenceAutocomplete
               v-model="vm.form.handler"
@@ -286,7 +289,7 @@ onMounted(() => void vm.query())
         </section>
         <section v-else class="bill-payment-lines">
           <div class="d-flex align-center justify-space-between mb-3">
-            <h3>付出票据</h3>
+            <h3>{{ vm.config.mode === 'maturity' ? '到期票据' : '付出票据' }}</h3>
             <v-btn
               color="primary"
               :disabled="!vm.editing.value || vm.form.billLines.length >= vm.config.maxBillLines"
@@ -300,8 +303,8 @@ onMounted(() => void vm.query())
         </section>
         <VoucherBillCashLinesEditor
           v-if="vm.config.mode !== 'payment'"
-          class="mt-6"
           v-model="vm.form.billCashLines"
+          class="mt-6"
           :editable="vm.editing.value"
           :fund-options="vm.fundAccountOptions.value"
           :max-lines="vm.config.maxCashLines"
@@ -361,7 +364,7 @@ onMounted(() => void vm.query())
       </template>
     </VoucherWorkspace>
 
-    <v-dialog v-if="vm.config.mode === 'payment' || vm.config.mode === 'discount'" v-model="vm.heldDialogOpen.value" max-width="1100">
+    <v-dialog v-if="vm.config.mode === 'payment' || vm.config.mode === 'discount' || vm.config.mode === 'maturity'" v-model="vm.heldDialogOpen.value" max-width="1100">
       <v-card><v-card-title>选择可用持有票据</v-card-title><v-card-text>
         <v-text-field label="票据号码" variant="outlined" @update:model-value="vm.searchHeldBills" />
         <v-table class="responsive-table"><thead><tr><th>选择</th><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>客户</th></tr></thead><tbody>

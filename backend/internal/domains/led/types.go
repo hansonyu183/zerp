@@ -233,10 +233,17 @@ type BillView struct {
 	AnnualRateBps      int32         `json:"annualRateBps"`
 	InterestDays       int32         `json:"interestDays"`
 	InterestAmount     string        `json:"interestAmount"`
-	Customer           ReferenceView `json:"customer"`
+	Customer           BillPartyView `json:"customer"`
 	CustomerCostAmount string        `json:"customerCostAmount"`
 	SourceEntity       string        `json:"sourceEntity"`
 	SourceDocumentNo   string        `json:"sourceDocumentNo"`
+}
+
+type BillPartyView struct {
+	ObjectID  string `json:"objectId"`
+	VersionID string `json:"versionId"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
 }
 
 type BalanceFilters struct {

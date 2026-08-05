@@ -208,6 +208,9 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	if entity == EntityBillDiscount {
 		return validateBillDiscountDraft(input, result)
 	}
+	if entity == EntityBillMaturity {
+		return validateBillMaturityDraft(input, result)
+	}
 
 	switch entity {
 	case EntitySalePricing:

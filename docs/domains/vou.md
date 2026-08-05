@@ -34,11 +34,16 @@ asset-acquisition
 asset-depreciation
 asset-sale
 asset-liquidation
+bill-receipt
+bill-payment
+bill-issue
+bill-discount
+bill-maturity
 ```
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 29 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+当前共 34 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -52,7 +57,7 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ/BRE/BLP/BLI/BLD/BLM-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
@@ -313,7 +318,7 @@ WFL 流程或 LED 流水。
 
 ### 3.13 票据管理
 
-票据共用 `bill-receipt`、`bill-payment`、`bill-issue`、`bill-discount`、`bill-maturity` 五类原子单据的固定资料模型；当前开放 `bill-receipt`、`bill-payment`、`bill-issue` 与 `bill-discount`。收票单固定客户往来方与经办人快照，单头保存内部客户票据成本率、到期/计息/追索配置及可选计息方快照。每单最多 20 张票据和 20 条资金行。
+票据共用 `bill-receipt`、`bill-payment`、`bill-issue`、`bill-discount`、`bill-maturity` 五类原子单据的固定资料模型；当前开放全部五类单据。收票单固定客户往来方与经办人快照，单头保存内部客户票据成本率、到期/计息/追索配置及可选计息方快照。每单最多 20 张票据和 20 条资金行。
 
 收票 `PRIMARY` 行必须是 `ASSET/IN`，新票据由服务端生成 `billId`；`CHANGE` 必须是 `ASSET/OUT`，只接收已有 `billId`，服务端锁定当前活动账簿的可用票据并复制其固定资料。票据固定资料包括位置、方向、用途、票据种类、号码、纸票/电票、币种、票面金额、出票/到期日、出票人、承兑人、收款人及年利率；利息天数、利息金额和客户成本由后端使用整数分、基点及自然日差四舍五入计算。重复票据键为种类、号码、承兑人、票面金额和到期日。
 
@@ -324,6 +329,8 @@ WFL 流程或 LED 流水。
 开票单必须选择供应商，每单可新建 1–20 张公司自开票据；服务端生成 `billId`，并强制每行 `PRIMARY/LIABILITY/IN`。可录入至多 20 条实际保证金、手续费等资金行，按提交的 `IN/OUT` 原样形成多资金账户流水。计息方式仅为 `BANK_DEDUCTED` 或 `THIRD_PARTY_PAYABLE`；后者必须选择有效其他往来单位，完成时按后端整数公式计算的票据利息合计贷记该其他往来，不伪造资金支出；银行扣息不形成其他往来。完成按票面金额合计借记供应商往来；反完成与所有票据单据一样删除来源流水，若有后续票据流水或结账冻结则拒绝。
 
 贴现单必须选择其他往来单位作为贴现方；每单引用 1–20 张当前 `AVAILABLE`、未支付、未贴现且未到期的资产票据，行固定为 `PRIMARY/ASSET/OUT`，服务端锁定并复制票据资料。行年利率是本次贴现率，利息天数为到期日减业务日，利息由后端整数公式重算，不沿用票据主档利息。可录入至多 20 条真实现金行：净到账为资金流入，实际另付手续费为资金流出；不得伪造银行直接扣息资金流水。计息方式为 `BANK_DEDUCTED` 或 `THIRD_PARTY_PAYABLE`，后者选择其他往来计息方并贷记利息应付；`withRecourse` 仅作快照保存与查询。完成/反完成与票据台账、下游阻断和结账冻结保持同一事务语义。
+
+到期单不要求往来单位，单头 `maturityType` 只能为 `RECEIPT` 或 `PAYMENT`，同一单据不得混合。收款到期单选择 1–20 张当前 `AVAILABLE` 的资产票据并固定为 `PRIMARY/ASSET/OUT`；付款到期单选择 1–20 张当前 `AVAILABLE` 的负债票据并固定为 `PRIMARY/LIABILITY/OUT`。两者均仅允许到期日不晚于业务日的票据，服务端在保存和完成时锁定 LED 主档并复制固定资料。每单必须有 1–20 条真实现金行：收款仅 `IN`，付款仅 `OUT`，可使用多资金账户并标注本金、利息、手续费、保证金或其他类型；完成在同一事务写对应票据 `OUT` 与资金流水，不生成往来流水，反完成受下游票据流水与结账冻结阻断。
 
 ### 3.14 草稿与执行载荷
 
@@ -594,6 +601,11 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 | `asset-depreciation`     | 资产折旧        | 公开     |
 | `asset-sale`             | 资产出让        | 公开     |
 | `asset-liquidation`      | 资产清算        | 公开     |
+| `bill-receipt`           | 票据收入        | 公开     |
+| `bill-payment`           | 票据支付        | 公开     |
+| `bill-issue`             | 票据开具        | 公开     |
+| `bill-discount`          | 票据贴现        | 公开     |
+| `bill-maturity`          | 票据到期        | 公开     |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 

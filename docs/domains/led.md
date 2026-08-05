@@ -82,7 +82,7 @@ VOU 审计保留最终处理、反最终处理的操作者、时间和原因。L
 
 ### 2.3 票据台账
 
-LED 使用 `led_bills` 保存票据稳定身份与固定资料，使用 `led_bill_entries` 保存当前 generation 的位置、方向和用途流水；可用状态不作为可变列保存，而是按同票据、同位置的有效 `IN - OUT` 流水计算。收票完成以 `ASSET/IN` 写入，付票完成以 `PRIMARY/ASSET/OUT` 写入并借记供应商往来；开票完成创建票据主档并以 `PRIMARY/LIABILITY/IN` 写入，同样借记供应商；贴现完成锁定未到期资产票据并以 `PRIMARY/ASSET/OUT` 写入。付票/贴现入账时逐张锁定可用票据，因此同票据并发操作只有一个事务可成功；开票或贴现的第三方应付利息仅写其他往来贷方流水，不伪造资金流水。反完成仅删除该 generation 的来源流水，若存在下游有效流水则拒绝。票据资料的业务重复键由 `led_bills` 唯一约束保护。
+LED 使用 `led_bills` 保存票据稳定身份与固定资料，使用 `led_bill_entries` 保存当前 generation 的位置、方向和用途流水；可用状态不作为可变列保存，而是按同票据、同位置的有效 `IN - OUT` 流水计算。收票完成以 `ASSET/IN` 写入，付票完成以 `PRIMARY/ASSET/OUT` 写入并借记供应商往来；开票完成创建票据主档并以 `PRIMARY/LIABILITY/IN` 写入，同样借记供应商；贴现完成锁定未到期资产票据并以 `PRIMARY/ASSET/OUT` 写入。到期收款完成锁定已到期资产票据并以 `PRIMARY/ASSET/OUT` 写入，到期付款完成锁定已到期负债票据并以 `PRIMARY/LIABILITY/OUT` 写入；两者按真实现金方向形成资金流水且不形成往来流水。付票/贴现入账时逐张锁定可用票据，因此同票据并发操作只有一个事务可成功；开票或贴现的第三方应付利息仅写其他往来贷方流水，不伪造资金流水。反完成仅删除该 generation 的来源流水，若存在下游有效流水则拒绝。票据资料的业务重复键由 `led_bills` 唯一约束保护。
 
 ## 3. 月末结账与期初
 
@@ -140,6 +140,7 @@ POST /led/asset/query
 POST /led/asset/get
 POST /led/container/query
 POST /led/container/balance
+POST /led/bill/query
 ```
 
 `closing/close` 请求结构：
@@ -278,7 +279,7 @@ LED（Ledger）把已经执行或最终确认的 VOU/WFL 业务结果展示为�
 | `container` | 空桶台账        | 查询客户空桶增量和指定日期欠桶余额                 |
 | `asset`     | 固定资产台账    | 查询资产卡片、折旧余额、状态和完整变动历史         |
 
-页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other`、`/led/employee`、`/led/container` 和 `/led/asset`。四类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有相应权限时不发起请求，其中员工台账没有 `query` 或 `balance` 权限时不发起对应请求。
+页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other`、`/led/employee`、`/led/container`、`/led/asset` 和 `/led/bill`。四类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有相应权限时不发起请求，其中员工台账没有 `query` 或 `balance` 权限时不发起对应请求。
 
 ### 8.2 期初与结账
 

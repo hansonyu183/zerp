@@ -7,6 +7,7 @@ import { useSessionStore } from '@/stores/session'
 import {
   buildBillIssuePayload,
   buildBillDiscountPayload,
+  buildBillMaturityPayload,
   buildBillPaymentPayload,
   buildBillReceiptPayload,
 } from './payload'
@@ -73,6 +74,7 @@ export interface BillVoucherForm {
   counterparty: BillReference | null
   interestMode: '' | 'BANK_DEDUCTED' | 'THIRD_PARTY_PAYABLE'
   interestParty: BillReference | null
+  maturityType: '' | 'RECEIPT' | 'PAYMENT'
   handler: BillReference | null
   internalCostRateBps: number
   withRecourse: boolean
@@ -99,13 +101,6 @@ interface MutationResponse {
   status: string
   revision: number
 }
-interface ReferencePage {
-  items: BillReference[]
-  total: number
-  page: number
-  pageSize: number
-}
-
 type VouQueryRequest = components['schemas']['VouQueryRequest']
 type VouGetRequest = components['schemas']['VouGetRequest']
 type VouCreateRequest = components['schemas']['VouCreateRequest']
@@ -114,10 +109,12 @@ type VouRevisionRequest = components['schemas']['VouDocumentRevisionRequest']
 type VouReverseRequest = components['schemas']['VouReverseRequest']
 type VouFinalizeRequest = components['schemas']['VouFinalizeRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
+type BobListPage = components['schemas']['BobListPage']
 type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
 type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
 type BillIssueData = ReturnType<typeof buildBillIssuePayload>
 type BillDiscountData = ReturnType<typeof buildBillDiscountPayload>
+type BillMaturityData = ReturnType<typeof buildBillMaturityPayload>
 type BillPaymentCreateRequest = { data: BillPaymentData }
 type BillPaymentSaveRequest = {
   documentId: string
@@ -128,6 +125,8 @@ type BillIssueCreateRequest = { data: BillIssueData }
 type BillIssueSaveRequest = { documentId: string; revision: number; data: BillIssueData }
 type BillDiscountCreateRequest = { data: BillDiscountData }
 type BillDiscountSaveRequest = { documentId: string; revision: number; data: BillDiscountData }
+type BillMaturityCreateRequest = { data: BillMaturityData }
+type BillMaturitySaveRequest = { documentId: string; revision: number; data: BillMaturityData }
 
 function key() {
   return crypto.randomUUID()
@@ -171,6 +170,7 @@ function emptyForm(): BillVoucherForm {
     supplier: null,
     counterparty: null,
     interestMode: '',
+    maturityType: '',
     interestParty: null,
     handler: null,
     internalCostRateBps: 0,
@@ -339,6 +339,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         supplier: billData.supplier ?? null,
         counterparty: billData.counterparty ?? null,
         interestMode: billData.interestMode ?? '',
+        maturityType: billData.maturityType ?? '',
         interestParty: billData.interestParty ?? null,
         handler: billData.handler ?? null,
         internalCostRateBps: billData.internalCostRateBps ?? 0,
@@ -383,7 +384,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           ? buildBillIssuePayload(form)
           : config.mode === 'discount'
             ? buildBillDiscountPayload(form)
-          : buildBillReceiptPayload(form)
+            : config.mode === 'maturity'
+              ? buildBillMaturityPayload(form)
+              : buildBillReceiptPayload(form)
       if (documentId.value) {
         const request = config.mode === 'payment'
           ? { documentId: documentId.value, revision: revision.value, data } as BillPaymentSaveRequest
@@ -391,8 +394,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
             ? { documentId: documentId.value, revision: revision.value, data } as BillIssueSaveRequest
             : config.mode === 'discount'
               ? { documentId: documentId.value, revision: revision.value, data } as BillDiscountSaveRequest
-              : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
-        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest | BillDiscountSaveRequest>(
+              : config.mode === 'maturity'
+                ? { documentId: documentId.value, revision: revision.value, data } as BillMaturitySaveRequest
+                : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
+        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest | BillDiscountSaveRequest | BillMaturitySaveRequest>(
           `vou/${config.entity}/save` as ApiPostPath,
           request,
         )
@@ -404,8 +409,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
             ? { data } as BillIssueCreateRequest
             : config.mode === 'discount'
               ? { data } as BillDiscountCreateRequest
-              : { data } as VouCreateRequest
-        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest | BillDiscountCreateRequest>(
+              : config.mode === 'maturity'
+                ? { data } as BillMaturityCreateRequest
+                : { data } as VouCreateRequest
+        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest | BillDiscountCreateRequest | BillMaturityCreateRequest>(
           `vou/${config.entity}/create` as ApiPostPath,
           request,
         )
@@ -585,12 +592,18 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       sort: [{ field: 'code', order: 'asc' }],
     }
     try {
-      const result = await apiClient.post<ReferencePage, BobQueryRequest>(
+      const result = await apiClient.post<BobListPage, BobQueryRequest>(
         `bob/${entity}/query`,
         request,
         { signal },
       )
-      return result.data.items
+      return result.data.items.map((item) => ({
+        objectId: item.objectId,
+        versionId: item.currentVersion.versionId,
+        entity: item.entity,
+        code: item.code,
+        name: String(item.currentVersion.summary.name ?? item.code),
+      }))
     } catch {
       return []
     }
@@ -604,7 +617,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       pageSize: 20,
       filters: {
         availability: 'AVAILABLE',
-        positionType: 'ASSET',
+        positionType: config.mode === 'maturity' && form.maturityType === 'PAYMENT' ? 'LIABILITY' : 'ASSET',
         ...(value ? { billNo: value } : {}),
       },
       sort: [{ field: 'maturityDate', order: 'asc' }],
@@ -648,6 +661,16 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     heldDialogOpen.value = true
     await searchHeldBills('')
   }
+  function changeMaturityType(value: '' | 'RECEIPT' | 'PAYMENT') {
+    form.maturityType = value
+    if (!value) return
+    form.billLines = form.billLines.map((line) => ({
+      ...line,
+      positionType: value === 'PAYMENT' ? 'LIABILITY' : 'ASSET',
+      direction: 'OUT',
+    }))
+    void searchHeldBills('')
+  }
   function applyHeldSelection() {
     const selected = new Set(heldSelection.value)
     form.billLines = heldBillOptions.value
@@ -658,8 +681,11 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         purpose: 'PRIMARY' as const,
         direction: 'OUT' as const,
       }))
-    if (config.mode === 'payment') {
-      form.billLines = form.billLines.map((line) => ({ ...line, direction: 'IN' as const }))
+    if (config.mode === 'maturity' && form.maturityType === 'RECEIPT') {
+      form.billLines = form.billLines.map((line) => ({ ...line, positionType: 'ASSET' as const, direction: 'OUT' as const }))
+    }
+    if (config.mode === 'maturity' && form.maturityType === 'PAYMENT') {
+      form.billLines = form.billLines.map((line) => ({ ...line, positionType: 'LIABILITY' as const, direction: 'OUT' as const }))
     }
     heldDialogOpen.value = false
   }
@@ -726,6 +752,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     searchFundAccount,
     searchHeldBills,
     openHeldDialog,
+    changeMaturityType,
     applyHeldSelection,
     ...artifacts,
   }

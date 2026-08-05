@@ -17,6 +17,10 @@ type auxSample struct {
 
 func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 	samples := []auxSample{
+		{"asset-category-preview", auxdomain.EntityAssetCategory, fixedAux(map[string]any{
+			"name": "通用固定资产", "defaultUsefulLifeMonths": 60,
+			"defaultResidualRate": "5.00", "description": "预览测试资产类别",
+		}), true},
 		{"product-category-root", auxdomain.EntityProductCategory, fixedAux(map[string]any{
 			"name": "工业产品", "description": "预览测试产品分类",
 		}), true},

@@ -1,7 +1,7 @@
 export interface BillVoucherConfig {
-  entity: 'bill-receipt' | 'bill-payment' | 'bill-issue' | 'bill-discount'
+  entity: 'bill-receipt' | 'bill-payment' | 'bill-issue' | 'bill-discount' | 'bill-maturity'
   title: string
-  mode: 'receipt' | 'payment' | 'issue' | 'discount'
+  mode: 'receipt' | 'payment' | 'issue' | 'discount' | 'maturity'
   maxBillLines: number
   maxCashLines: number
 }
@@ -34,6 +34,13 @@ export const billVoucherConfigs: Readonly<
     entity: 'bill-discount',
     title: '票据贴现',
     mode: 'discount',
+    maxBillLines: 20,
+    maxCashLines: 20,
+  },
+  'bill-maturity': {
+    entity: 'bill-maturity',
+    title: '票据到期处理',
+    mode: 'maturity',
     maxBillLines: 20,
     maxCashLines: 20,
   },

@@ -404,6 +404,63 @@ func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validat
 	return result, nil
 }
 
+func validateBillMaturityDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
+	if input.Customer != nil || input.Supplier != nil || input.Counterparty != nil || strings.TrimSpace(input.CounterpartyType) != "" || input.Employee != nil || input.Handler != nil || input.FundAccount != nil || len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 || input.InternalCostRateBps != 0 || input.InterestMode != "" || input.InterestParty != nil || input.WithRecourse {
+		return result, domainError(ErrorValidation, "fields do not match bill maturity", nil, nil)
+	}
+	maturityType := strings.ToUpper(strings.TrimSpace(input.MaturityType))
+	if maturityType != "RECEIPT" && maturityType != "PAYMENT" {
+		return result, domainError(ErrorValidation, "bill maturity requires receipt or payment", nil, nil)
+	}
+	if len(input.BillLines) < 1 || len(input.BillLines) > 20 || len(input.BillCashLines) < 1 || len(input.BillCashLines) > 20 {
+		return result, domainError(ErrorValidation, "bill maturity lines must contain 1 to 20 items", nil, nil)
+	}
+	result.MaturityType, result.InterestMode = maturityType, "NONE"
+	position, cashDirection := "ASSET", "IN"
+	if maturityType == "PAYMENT" {
+		position, cashDirection = "LIABILITY", "OUT"
+	}
+	seen := make(map[string]struct{}, len(input.BillLines))
+	for _, raw := range input.BillLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		line := fixedBillLine{BillID: strings.TrimSpace(raw.BillID), Purpose: strings.ToUpper(strings.TrimSpace(raw.Purpose)), Remark: remark}
+		if line.Purpose != "PRIMARY" || !validID(line.BillID) {
+			return result, domainError(ErrorValidation, "bill maturity requires available billId", nil, nil)
+		}
+		if _, duplicate := seen[line.BillID]; duplicate {
+			return result, domainError(ErrorValidation, "duplicate billId", nil, nil)
+		}
+		seen[line.BillID] = struct{}{}
+		line.PositionType, line.Direction = position, "OUT"
+		result.BillLines = append(result.BillLines, line)
+	}
+	for _, raw := range input.BillCashLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(raw.BillLineID) != "" {
+			return result, domainError(ErrorValidation, "billLineId is not supported in bill maturity cash lines", nil, nil)
+		}
+		if err = validateReference(&raw.FundAccount, "fundAccount", true); err != nil {
+			return result, err
+		}
+		amount, err := moneyCents(raw.Amount)
+		if err != nil {
+			return result, err
+		}
+		direction, amountType := strings.ToUpper(strings.TrimSpace(raw.Direction)), strings.ToUpper(strings.TrimSpace(raw.AmountType))
+		if direction != cashDirection || !map[string]bool{"PRINCIPAL": true, "INTEREST": true, "FEE": true, "MARGIN": true, "OTHER": true}[amountType] {
+			return result, domainError(ErrorValidation, "invalid bill maturity cash line", nil, nil)
+		}
+		result.BillCashLines = append(result.BillCashLines, fixedBillCashLine{FundAccount: raw.FundAccount, Direction: direction, AmountType: amountType, Amount: amount, Remark: remark})
+	}
+	return result, nil
+}
+
 func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine) (int64, error) {
 	var total int64
 	for _, line := range lines {
@@ -460,13 +517,16 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 		party, partyEntity = r.Supplier, "supplier"
 	}
 	params := dbsqlc.InsertVouBillDetailParams{
-		DocumentID: id, Entity: entity, CounterpartyEntity: stringPtr(partyEntity),
-		CounterpartyObjectID: stringPtr(party.ObjectID), CounterpartyVersionID: stringPtr(party.VersionID),
-		CounterpartyCode: stringPtr(party.Code), CounterpartyName: stringPtr(party.Data.Name),
+		DocumentID: id, Entity: entity,
 		InternalCostRateBps: d.InternalCostRateBps, MaturityType: d.MaturityType, InterestMode: d.InterestMode,
 		InterestPartyEntity: optionalBillPartyEntity(r.InterestParty), InterestPartyObjectID: optionalBillPartyID(r.InterestParty, 0),
 		InterestPartyVersionID: optionalBillPartyID(r.InterestParty, 1), InterestPartyCode: optionalBillPartyCode(r.InterestParty),
 		InterestPartyName: optionalBillPartyName(r.InterestParty), WithRecourse: d.WithRecourse,
+	}
+	if party != nil {
+		params.CounterpartyEntity = stringPtr(partyEntity)
+		params.CounterpartyObjectID, params.CounterpartyVersionID = stringPtr(party.ObjectID), stringPtr(party.VersionID)
+		params.CounterpartyCode, params.CounterpartyName = stringPtr(party.Code), stringPtr(party.Data.Name)
 	}
 	if r.Handler != nil {
 		params.HandlerObjectID, params.HandlerVersionID = stringPtr(r.Handler.ObjectID), stringPtr(r.Handler.VersionID)
@@ -484,7 +544,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 	resolvedLines := make([]fixedBillLine, 0, len(d.BillLines))
 	var change int64
 	for _, l := range d.BillLines {
-		if l.Purpose == "CHANGE" || entity == EntityBillPayment || entity == EntityBillDiscount {
+		if l.Purpose == "CHANGE" || entity == EntityBillPayment || entity == EntityBillDiscount || entity == EntityBillMaturity {
 			discountRate := l.AnnualRateBps
 			b, err := q.LockLedBill(ctx, l.BillID)
 			if err != nil {
@@ -496,6 +556,9 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 			}
 			if entity == EntityBillDiscount && !b.MaturityDate.Time.After(d.BusinessDate) {
 				return domainError(ErrorConflict, "source bill is matured", nil, nil)
+			}
+			if entity == EntityBillMaturity && b.MaturityDate.Time.After(d.BusinessDate) {
+				return domainError(ErrorConflict, "source bill is not matured", nil, nil)
 			}
 			l.PositionType, l.BillType, l.BillNo, l.Medium, l.Currency = b.PositionType, b.BillType, b.BillNo, b.Medium, b.Currency
 			l.FaceAmount, l.IssueDate, l.MaturityDate, l.Drawer, l.Acceptor, l.Payee = b.FaceAmountCents, b.IssueDate.Time, b.MaturityDate.Time, b.Drawer, b.Acceptor, b.Payee
@@ -515,7 +578,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 		}
 		resolvedLines = append(resolvedLines, l)
 	}
-	if entity == EntityBillPayment || entity == EntityBillDiscount {
+	if entity == EntityBillPayment || entity == EntityBillDiscount || entity == EntityBillMaturity {
 		if err := s.insertResolvedBillLines(ctx, q, id, resolvedLines, d.BillCashLines, r); err != nil {
 			return err
 		}
@@ -572,7 +635,7 @@ func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document 
 	party := optionalReference(d.CounterpartyObjectID, d.CounterpartyVersionID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
 	if document.Entity == EntityBillPayment || document.Entity == EntityBillIssue {
 		data.Supplier = party
-	} else {
+	} else if document.Entity != EntityBillMaturity {
 		data.Counterparty = party
 		data.Handler = optionalReference(d.HandlerObjectID, d.HandlerVersionID, "employee", d.HandlerCode, d.HandlerName)
 	}
@@ -630,4 +693,28 @@ func optionalBillPartyName(ref *bobdomain.EffectiveReference) *string {
 		return nil
 	}
 	return stringPtr(ref.Data.Name)
+}
+
+func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine, businessDate time.Time) (int64, error) {
+	var total int64
+	for _, line := range lines {
+		bill, err := q.LockLedBill(ctx, line.BillID)
+		if err != nil {
+			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
+		}
+		balance, err := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
+			BillID: bill.ID, PositionType: line.PositionType,
+		})
+		if err != nil || balance != 1 || bill.PositionType != line.PositionType {
+			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
+		}
+		if bill.MaturityDate.Time.After(businessDate) {
+			return 0, domainError(ErrorConflict, "source bill is not matured", nil, nil)
+		}
+		total, err = checkedBillMoneyAdd(total, bill.FaceAmountCents)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
 }

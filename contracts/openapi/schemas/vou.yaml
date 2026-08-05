@@ -37,6 +37,7 @@
           'bill-payment',
           'bill-issue',
           'bill-discount',
+          'bill-maturity',
         ],
     },
   'VouCreatableEntity':
@@ -73,6 +74,7 @@
           'bill-payment',
           'bill-issue',
           'bill-discount',
+          'bill-maturity',
         ],
     },
   'VouStatus':
@@ -188,14 +190,16 @@
           'drawer': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'acceptor': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'payee': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
-          'annualRateBps': { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'annualRateBps':
+            { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
   'VouBillIssueDataInput':
     {
       'type': 'object',
-      'required': ['businessDate', 'currency', 'supplier', 'billLines', 'interestMode'],
+      'required':
+        ['businessDate', 'currency', 'supplier', 'billLines', 'interestMode'],
       'additionalProperties': false,
       'properties':
         {
@@ -213,7 +217,11 @@
                   'versionId': { 'type': 'string' },
                 },
             },
-          'interestMode': { 'type': 'string', 'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'] },
+          'interestMode':
+            {
+              'type': 'string',
+              'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+            },
           'interestParty':
             {
               'type': 'object',
@@ -260,7 +268,10 @@
             },
           'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
           'amountType':
-            { 'type': 'string', 'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'] },
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
           'amount': { 'type': 'string' },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
@@ -316,7 +327,8 @@
         {
           'billId': { 'type': 'string', 'minLength': 1 },
           'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
-          'annualRateBps': { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'annualRateBps':
+            { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
@@ -340,7 +352,10 @@
             },
           'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
           'amountType':
-            { 'type': 'string', 'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'] },
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
           'amount': { 'type': 'string' },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
@@ -348,7 +363,16 @@
   'VouBillDiscountDataInput':
     {
       'type': 'object',
-      'required': ['businessDate', 'currency', 'counterparty', 'counterpartyType', 'billLines', 'interestMode', 'withRecourse'],
+      'required':
+        [
+          'businessDate',
+          'currency',
+          'counterparty',
+          'counterpartyType',
+          'billLines',
+          'interestMode',
+          'withRecourse',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -367,7 +391,11 @@
                 },
             },
           'counterpartyType': { 'type': 'string', 'enum': ['other-party'] },
-          'interestMode': { 'type': 'string', 'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'] },
+          'interestMode':
+            {
+              'type': 'string',
+              'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+            },
           'interestParty':
             {
               'type': 'object',
@@ -395,6 +423,45 @@
             },
         },
     },
+  'VouBillMaturityLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillMaturityDataInput':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency', 'maturityType', 'billLines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'maturityType': { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillMaturityLineInput' },
+            },
+          'billCashLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillCashLineInput' },
+            },
+        },
+    },
   'VouBillLineInput':
     {
       'oneOf':
@@ -404,6 +471,7 @@
           { '$ref': '#/VouBillPaymentLineInput' },
           { '$ref': '#/VouBillIssueLineInput' },
           { '$ref': '#/VouBillDiscountLineInput' },
+          { '$ref': '#/VouBillMaturityLineInput' },
         ],
     },
   'VouBillCashLineInput':
@@ -942,7 +1010,12 @@
                   'internalCostRateBps':
                     { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
                   'interestMode':
-                    { 'type': 'string', 'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'] },
+                    {
+                      'type': 'string',
+                      'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+                    },
+                  'maturityType':
+                    { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
                   'interestParty':
                     {
                       'type': 'object',
@@ -1303,7 +1376,12 @@
                   'internalCostRateBps':
                     { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
                   'interestMode':
-                    { 'type': 'string', 'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'] },
+                    {
+                      'type': 'string',
+                      'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+                    },
+                  'maturityType':
+                    { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
                   'interestParty':
                     {
                       'type': 'object',

@@ -375,7 +375,7 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
-	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -402,7 +402,7 @@ func (s *Service) replaceLines(
 		}
 		return nil
 	}
-	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue || entity == EntityBillDiscount {
+	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue || entity == EntityBillDiscount || entity == EntityBillMaturity {
 		return s.replaceBillLines(ctx, q, entity, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
@@ -510,7 +510,7 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
-	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		detail, err := q.GetVouBillDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read bill detail", err)
@@ -519,7 +519,10 @@ func (s *Service) validateStoredAttributes(
 		if err != nil {
 			return s.internal("read bill lines", err)
 		}
-		missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || len(lines) == 0
+		missing = len(lines) == 0
+		if entity != EntityBillMaturity {
+			missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || missing
+		}
 		if entity == EntityBillReceipt {
 			missing = missing || detail.HandlerObjectID == nil || detail.HandlerVersionID == nil
 		}

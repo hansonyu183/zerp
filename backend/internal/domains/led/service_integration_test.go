@@ -1651,6 +1651,68 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 	}
 }
 
+func TestBillMaturityReceiptAndPaymentIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	receiptSource, receiptView := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer, Handler: &refs.employee,
+		BillLines: []voudomain.BillLineInput{{PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "BILL-MATURITY-RECEIPT", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00", IssueDate: "2026-08-01", MaturityDate: "2026-08-01", Drawer: "出票人", Acceptor: "承兑行", Payee: "本公司"}},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{DocumentID: receiptSource.DocumentID, Revision: receiptSource.Revision}, integrationActorOne, "bill-maturity-receipt-source-finalize"); err != nil {
+		t.Fatalf("finalize maturity receipt source: %v", err)
+	}
+	paymentSource, paymentView := advanceToApproved(t, vouchers, voudomain.EntityBillIssue, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Supplier: &refs.supplier, InterestMode: "BANK_DEDUCTED",
+		BillLines: []voudomain.BillLineInput{{PositionType: "LIABILITY", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "BILL-MATURITY-PAYMENT", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "90.00", IssueDate: "2026-08-01", MaturityDate: "2026-08-01", Drawer: "本公司", Acceptor: "承兑行", Payee: "供应商"}},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillIssue, voudomain.FinalizeInput{DocumentID: paymentSource.DocumentID, Revision: paymentSource.Revision}, integrationActorOne, "bill-maturity-payment-source-finalize"); err != nil {
+		t.Fatalf("finalize maturity payment source: %v", err)
+	}
+
+	invalid := voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", MaturityType: "PAYMENT",
+		BillLines:     []voudomain.BillLineInput{{BillID: paymentView.Data.BillLines[0].BillID, Purpose: "PRIMARY"}},
+		BillCashLines: []voudomain.BillCashLineInput{{FundAccount: refs.fundAccount, Direction: "IN", AmountType: "PRINCIPAL", Amount: "90.00"}},
+	}
+	if _, err := vouchers.Create(t.Context(), voudomain.EntityBillMaturity, voudomain.CreateInput{Data: invalid}, integrationActorOne, "bill-maturity-invalid-payment-direction"); err == nil {
+		t.Fatal("accepted payment maturity cash IN")
+	}
+
+	receiptMaturity, _ := advanceToApproved(t, vouchers, voudomain.EntityBillMaturity, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", MaturityType: "RECEIPT",
+		BillLines:     []voudomain.BillLineInput{{BillID: receiptView.Data.BillLines[0].BillID, Purpose: "PRIMARY"}},
+		BillCashLines: []voudomain.BillCashLineInput{{FundAccount: refs.fundAccount, Direction: "IN", AmountType: "PRINCIPAL", Amount: "100.00"}},
+	})
+	receiptFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillMaturity, voudomain.FinalizeInput{DocumentID: receiptMaturity.DocumentID, Revision: receiptMaturity.Revision}, integrationActorOne, "bill-maturity-receipt-finalize")
+	if err != nil {
+		t.Fatalf("finalize receipt maturity: %v", err)
+	}
+	paymentMaturity, _ := advanceToApproved(t, vouchers, voudomain.EntityBillMaturity, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", MaturityType: "PAYMENT",
+		BillLines:     []voudomain.BillLineInput{{BillID: paymentView.Data.BillLines[0].BillID, Purpose: "PRIMARY"}},
+		BillCashLines: []voudomain.BillCashLineInput{{FundAccount: refs.fundAccount, Direction: "OUT", AmountType: "PRINCIPAL", Amount: "90.00"}},
+	})
+	paymentFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillMaturity, voudomain.FinalizeInput{DocumentID: paymentMaturity.DocumentID, Revision: paymentMaturity.Revision}, integrationActorOne, "bill-maturity-payment-finalize")
+	if err != nil {
+		t.Fatalf("finalize payment maturity: %v", err)
+	}
+	fund, err := ledger.FundBalance(t.Context(), BalanceInput{Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: refs.fundAccount.ObjectID}})
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].Amount != "10.00" {
+		t.Fatalf("fund balance after maturity operations = %+v, err=%v", fund, err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillMaturity, voudomain.ReverseInput{DocumentID: paymentFinalized.DocumentID, Revision: paymentFinalized.Revision, Reason: "撤回付款到期"}, integrationActorOne, "bill-maturity-payment-unfinalize"); err != nil {
+		t.Fatalf("unfinalize payment maturity: %v", err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillMaturity, voudomain.ReverseInput{DocumentID: receiptFinalized.DocumentID, Revision: receiptFinalized.Revision, Reason: "撤回收款到期"}, integrationActorOne, "bill-maturity-receipt-unfinalize"); err != nil {
+		t.Fatalf("unfinalize receipt maturity: %v", err)
+	}
+}
+
 func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)

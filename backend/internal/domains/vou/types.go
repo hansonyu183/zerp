@@ -86,6 +86,7 @@ var entities = [...]string{
 	EntityBillPayment,
 	EntityBillIssue,
 	EntityBillDiscount,
+	EntityBillMaturity,
 }
 
 func publicCreateEntity(entity string) bool {
@@ -98,7 +99,7 @@ func publicCreateEntity(entity string) bool {
 		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
 		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation,
-		EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
+		EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return true
 	default:
 		return false

@@ -257,6 +257,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/bill-discount/BillDiscount.vue'),
   }),
   registerPage('vou', {
+    entity: 'bill-maturity',
+    entityTitle: '票据到期处理',
+    icon: 'mdi-calendar-clock-outline',
+    order: 134,
+    component: () => import('@/pages/vou/bill-maturity/BillMaturity.vue'),
+  }),
+  registerPage('vou', {
     entity: 'sale-pricing',
     entityTitle: '销售定价',
     icon: 'mdi-tag-multiple-outline',

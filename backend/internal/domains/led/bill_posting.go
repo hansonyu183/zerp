@@ -302,6 +302,79 @@ func (s *Service) postBillDiscount(ctx context.Context, tx pgx.Tx, q *dbsqlc.Que
 	return nil
 }
 
+func (s *Service) postBillMaturity(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, p postingContext) error {
+	doc := p.Document
+	include, err := requireEffectiveDate(p, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouBillDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill maturity detail", err)
+	}
+	position, cashDirection := "ASSET", "IN"
+	switch detail.MaturityType {
+	case "RECEIPT":
+	case "PAYMENT":
+		position, cashDirection = "LIABILITY", "OUT"
+	default:
+		return domainError(ErrorConflict, "bill maturity type is invalid", nil, nil)
+	}
+	lines, err := q.ListVouBillLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill maturity lines", err)
+	}
+	if len(lines) == 0 {
+		return domainError(ErrorConflict, "bill maturity requires bills", nil, nil)
+	}
+	for _, line := range lines {
+		if line.Purpose != "PRIMARY" || line.PositionType != position || line.Direction != "OUT" {
+			return domainError(ErrorConflict, "bill maturity line is invalid", nil, nil)
+		}
+		bill, lockErr := q.LockLedBill(ctx, line.BillID)
+		if lockErr != nil {
+			return s.writeError("lock bill for maturity", lockErr)
+		}
+		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: bill.ID, PositionType: position})
+		if balanceErr != nil || balance != 1 || bill.PositionType != position {
+			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
+		}
+		if bill.MaturityDate.Time.After(doc.BusinessDate.Time) {
+			return domainError(ErrorConflict, "source bill is not matured", nil, nil)
+		}
+		if err = q.InsertLedBillEntry(ctx, dbsqlc.InsertLedBillEntryParams{
+			ID: newID(), GenerationID: p.GenerationID, BillID: bill.ID,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceLineID: line.ID,
+			PositionType: position, Direction: "OUT", Purpose: "PRIMARY",
+			EffectiveDate: doc.BusinessDate, OccurredAt: p.OccurredAt,
+		}); err != nil {
+			return s.writeError("post bill maturity ledger entry", err)
+		}
+	}
+	cash, err := q.ListVouBillCashLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill maturity cash lines", err)
+	}
+	if len(cash) == 0 {
+		return domainError(ErrorConflict, "bill maturity requires cash", nil, nil)
+	}
+	for _, line := range cash {
+		if line.Direction != cashDirection {
+			return domainError(ErrorConflict, "bill maturity cash direction is invalid", nil, nil)
+		}
+		delta := line.AmountCents
+		if cashDirection == "OUT" {
+			delta = -delta
+		}
+		fund := fundParams(p, doc, line.FundAccountObjectID, line.FundAccountVersionID, line.FundAccountCode, line.FundAccountName, delta)
+		fund.SourceLineID = line.ID
+		if err = q.InsertLedFundEntry(ctx, fund); err != nil {
+			return s.writeError("post bill maturity fund", err)
+		}
+	}
+	return nil
+}
+
 func checkedBillAdd(left, right int64) (int64, error) {
 	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
 		return 0, domainError(ErrorConflict, "bill amount is out of range", nil, nil)

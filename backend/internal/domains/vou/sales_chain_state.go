@@ -516,7 +516,7 @@ func (s *Service) Delete(
 	case EntityAssetLiquidation:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_liquidation_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_liquidation_details WHERE document_id=$1`, input.DocumentID)
-	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount:
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		var hasLedgerHistory bool
 		if entity == EntityBillReceipt || entity == EntityBillIssue {
 			err = tx.QueryRow(ctx, `SELECT EXISTS(

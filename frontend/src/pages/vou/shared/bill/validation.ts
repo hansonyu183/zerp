@@ -69,7 +69,7 @@ export function validateBillVoucherForm(
   form: BillVoucherForm,
   maxBillLines = 20,
   maxCashLines = 20,
-  mode: 'receipt' | 'payment' | 'issue' | 'discount' = 'receipt',
+  mode: 'receipt' | 'payment' | 'issue' | 'discount' | 'maturity' = 'receipt',
 ): string | null {
   if (mode === 'payment') {
     if (!form.supplier) return '请选择供应商。'
@@ -87,6 +87,8 @@ export function validateBillVoucherForm(
       return '第三方承担利息时必须选择其他往来单位。'
     if (form.interestMode === 'BANK_DEDUCTED' && form.interestParty)
       return '银行扣息时不能填写第三方利息承担方。'
+  } else if (mode === 'maturity') {
+    if (!form.maturityType) return '请选择到期处理方式。'
   } else if (!form.customer) return '请选择客户。'
   if (mode === 'receipt' && !form.handler) return '请选择经办人。'
   if (!form.businessDate) return '请选择业务日期。'
@@ -106,17 +108,21 @@ export function validateBillVoucherForm(
   }
   if (mode === 'payment' && form.billCashLines.length > 0)
     return '票据付出不支持现金行。'
+  if (mode === 'maturity' && form.billCashLines.length < 1)
+    return '到期处理至少需要一条现金行。'
   let primary = 0n
   let change = 0n
   const billIds = new Set<string>()
   const businessKeys = new Set<string>()
   for (const [index, line] of form.billLines.entries()) {
-    if (mode === 'payment' || mode === 'discount') {
+    if (mode === 'payment' || mode === 'discount' || mode === 'maturity') {
       if (line.purpose !== 'PRIMARY' || !line.billId)
         return `第 ${index + 1} 行必须选择可用持有票据。`
       if (billIds.has(line.billId))
         return `第 ${index + 1} 行重复选择了同一张票据。`
       billIds.add(line.billId)
+      if (mode === 'maturity' && ((form.maturityType === 'RECEIPT' && line.positionType !== 'ASSET') || (form.maturityType === 'PAYMENT' && line.positionType !== 'LIABILITY')))
+        return `第 ${index + 1} 行票据方向与到期处理方式不匹配。`
       if (!Number.isInteger(line.annualRateBps) || line.annualRateBps < 0 || line.annualRateBps > 100_000)
         return `第 ${index + 1} 行年利率必须为 0-100000 bps。`
       if (mode === 'discount') {
@@ -172,6 +178,8 @@ export function validateBillVoucherForm(
     if (line.billLineId)
       return `现金第 ${index + 1} 行不能关联票据行。`
     if (!line.fundAccount) return `第 ${index + 1} 行请选择资金账户。`
+    if (mode === 'maturity' && ((form.maturityType === 'RECEIPT' && line.direction !== 'IN') || (form.maturityType === 'PAYMENT' && line.direction !== 'OUT')))
+      return `现金第 ${index + 1} 行方向与到期处理方式不匹配。`
     const cents = parseFixed(line.amount, 2)
     if (cents === null) return `现金第 ${index + 1} 行请输入大于零的金额。`
     if (line.direction === 'IN') cashIn += cents

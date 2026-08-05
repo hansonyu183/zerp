@@ -76,6 +76,20 @@ export const router = createRouter({
           },
         },
         {
+          path: 'admin/menu',
+          name: 'page:admin/menu',
+          component: () => import('@/pages/admin/menu/Menu.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredAnyPermissions: [
+              '/app/menu/save-business-template',
+              '/app/menu/activate',
+              '/app/menu/reset-business-template',
+            ],
+            title: '菜单管理',
+          },
+        },
+        {
           path: 'forbidden',
           name: 'forbidden',
           component: Forbidden,

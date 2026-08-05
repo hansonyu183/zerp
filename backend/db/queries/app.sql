@@ -360,6 +360,59 @@ WHERE parameter_key = sqlc.arg(parameter_key)
   AND editable = true
 RETURNING *;
 
+-- name: AcquireAppMenuLock :exec
+SELECT pg_advisory_xact_lock(74155002);
+
+-- name: ListAppBusinessMenuItems :many
+SELECT *
+FROM app_business_menu_items
+ORDER BY item_level, sort_order, id;
+
+-- name: GetAppBusinessMenuRevision :one
+SELECT COALESCE(max(revision), 1)::bigint
+FROM app_business_menu_items;
+
+-- name: DeleteAppBusinessMenuItems :exec
+DELETE FROM app_business_menu_items;
+
+-- name: InsertAppBusinessMenuItem :exec
+INSERT INTO app_business_menu_items (
+  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  enabled, route_key, permission_code, revision, created_by, updated_by
+) VALUES (
+  sqlc.arg(id), sqlc.narg(parent_id), sqlc.arg(item_type), sqlc.arg(item_level),
+  sqlc.arg(sort_order), sqlc.arg(display_name), sqlc.narg(icon), sqlc.arg(enabled),
+  sqlc.narg(route_key), sqlc.narg(permission_code), sqlc.arg(revision),
+  sqlc.narg(actor_id), sqlc.narg(actor_id)
+);
+
+-- name: ListAppMenuPermissionRoutes :many
+SELECT
+  domain,
+  entity,
+  (array_agg(path ORDER BY CASE action WHEN 'query' THEN 0 WHEN 'get' THEN 1 ELSE 2 END, path))[1]::text AS permission_code,
+  COALESCE(min(menu_order) FILTER (WHERE action = 'query'), 2147483647)::integer AS menu_order,
+  COALESCE(
+    max(description) FILTER (WHERE action = 'query'),
+    max(description) FILTER (WHERE action = 'get'),
+    min(description),
+    ''
+  )::text AS description
+FROM app_permissions
+WHERE status = 'ENABLED' AND domain <> 'app'
+GROUP BY domain, entity
+ORDER BY domain, min(menu_order) FILTER (WHERE action = 'query') NULLS LAST, entity;
+
+-- name: UpdateAppMenuMode :one
+UPDATE app_system_parameters
+SET current_value = sqlc.arg(mode),
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE parameter_key = 'app.menu.mode'
+  AND revision = sqlc.arg(revision)
+RETURNING *;
+
 -- name: InsertAppRole :exec
 INSERT INTO app_roles (id, code, name, description, status, created_by, updated_by)
 VALUES (sqlc.arg(id), sqlc.arg(code), sqlc.arg(name), sqlc.narg(description), 'ENABLED', sqlc.narg(actor_id), sqlc.narg(actor_id));

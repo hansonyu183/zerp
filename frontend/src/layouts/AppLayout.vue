@@ -28,34 +28,6 @@ const passwords = reactive({
 })
 
 const visibleMenus = computed(() => session.menus)
-const systemManagementItems = computed(() =>
-  [
-    {
-      permission: '/app/user/query',
-      title: '用户管理',
-      icon: 'mdi-account-multiple-outline',
-      to: '/admin/user',
-    },
-    {
-      permission: '/app/role/query',
-      title: '角色管理',
-      icon: 'mdi-account-key-outline',
-      to: '/admin/role',
-    },
-    {
-      permission: '/app/permission/query',
-      title: '权限管理',
-      icon: 'mdi-shield-key-outline',
-      to: '/admin/permission',
-    },
-    {
-      permission: '/app/system-parameter/query',
-      title: '系统参数',
-      icon: 'mdi-tune-variant',
-      to: '/admin/system-parameter',
-    },
-  ].filter((item) => session.can(item.permission)),
-)
 
 const displayName = computed(
   () => session.user?.displayName || session.user?.username || '用户',
@@ -289,13 +261,6 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-navigation-drawer v-model="drawer" class="sidebar" width="288">
     <div class="sidebar__label">导航</div>
     <v-list nav density="comfortable" class="px-3">
-      <v-list-item
-        prepend-icon="mdi-view-dashboard-outline"
-        title="工作台"
-        to="/home/dashboard"
-        rounded="lg"
-      />
-
       <v-list-group
         v-for="domain in visibleMenus"
         :key="domain.domain"
@@ -311,31 +276,10 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
         </template>
         <v-list-item
           v-for="entity in domain.children"
-          :key="entity.entity"
+          :key="entity.id || entity.entity"
           :prepend-icon="entity.icon || 'mdi-file-document-outline'"
           :title="entity.title"
-          :to="`/${domain.domain}/${entity.entity}`"
-          rounded="lg"
-        />
-      </v-list-group>
-      <v-list-group
-        v-if="systemManagementItems.length"
-        value="system-management"
-      >
-        <template #activator="{ props }">
-          <v-list-item
-            v-bind="props"
-            prepend-icon="mdi-cog-outline"
-            title="系统管理"
-            rounded="lg"
-          />
-        </template>
-        <v-list-item
-          v-for="item in systemManagementItems"
-          :key="item.to"
-          :prepend-icon="item.icon"
-          :title="item.title"
-          :to="item.to"
+          :to="entity.routePath || `/${domain.domain}/${entity.entity}`"
           rounded="lg"
         />
       </v-list-group>

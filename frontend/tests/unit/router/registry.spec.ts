@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import {
   buildMenus,
+  buildServerMenus,
   hasRegisteredPage,
   normalizePermissions,
   registerMenuRoutes,
@@ -30,6 +31,54 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('系统默认菜单保留本地注册名称，业务模板保留管理员名称', () => {
+    const route = {
+      id: 'route-other-party',
+      parentId: 'default-bob',
+      type: 'ROUTE' as const,
+      order: 10,
+      displayName: '客户',
+      icon: null,
+      routeKey: 'bob/other-party',
+      routePath: '/bob/other-party',
+    }
+    const defaultMenu = buildServerMenus(
+      [
+        {
+          id: 'default-bob',
+          parentId: null,
+          type: 'GROUP',
+          order: 10,
+          displayName: '业务对象',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+        route,
+      ],
+      ['/bob/other-party/query'],
+    )
+    const businessMenu = buildServerMenus(
+      [
+        {
+          id: 'menu-group-sales',
+          parentId: null,
+          type: 'GROUP',
+          order: 10,
+          displayName: '销售',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+        { ...route, parentId: 'menu-group-sales' },
+      ],
+      ['/bob/other-party/query'],
+    )
+
+    expect(defaultMenu[0]?.children[0]?.title).toBe('其他往来单位')
+    expect(businessMenu[0]?.children[0]?.title).toBe('客户')
+  })
+
   it('只保留格式正确的完整权限路径并去重', () => {
     expect(
       normalizePermissions([

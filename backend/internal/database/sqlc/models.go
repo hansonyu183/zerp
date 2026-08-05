@@ -21,6 +21,24 @@ type AppAuditEvent struct {
 	CreatedBy   *string            `db:"created_by" json:"created_by"`
 }
 
+type AppBusinessMenuItem struct {
+	ID             string             `db:"id" json:"id"`
+	ParentID       *string            `db:"parent_id" json:"parent_id"`
+	ItemType       string             `db:"item_type" json:"item_type"`
+	ItemLevel      int16              `db:"item_level" json:"item_level"`
+	SortOrder      int32              `db:"sort_order" json:"sort_order"`
+	DisplayName    string             `db:"display_name" json:"display_name"`
+	Icon           *string            `db:"icon" json:"icon"`
+	Enabled        bool               `db:"enabled" json:"enabled"`
+	RouteKey       *string            `db:"route_key" json:"route_key"`
+	PermissionCode *string            `db:"permission_code" json:"permission_code"`
+	Revision       int64              `db:"revision" json:"revision"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy      *string            `db:"created_by" json:"created_by"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy      *string            `db:"updated_by" json:"updated_by"`
+}
+
 type AppFeedback struct {
 	ID                string             `db:"id" json:"id"`
 	UserID            string             `db:"user_id" json:"user_id"`
@@ -82,6 +100,7 @@ type AppPermission struct {
 	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy   *string            `db:"updated_by" json:"updated_by"`
 	Revision    int64              `db:"revision" json:"revision"`
+	MenuOrder   *int32             `db:"menu_order" json:"menu_order"`
 }
 
 type AppRole struct {

@@ -39,6 +39,10 @@ type applicationService interface {
 	GetSystemParameter(context.Context, string) (SystemParameterView, error)
 	SaveSystemParameter(context.Context, SaveSystemParameterInput, string, string) (SystemParameterView, error)
 	ResetSystemParameter(context.Context, ResetSystemParameterInput, string, string) (SystemParameterView, error)
+	GetMenu(context.Context, Principal) (MenuGetData, error)
+	SaveBusinessMenu(context.Context, SaveBusinessMenuInput, Principal, string) (MenuGetData, error)
+	ActivateMenu(context.Context, ActivateMenuInput, Principal, string) (MenuGetData, error)
+	ResetBusinessMenu(context.Context, ResetBusinessMenuInput, Principal, string) (MenuGetData, error)
 	QueryWorkbench(context.Context, Principal, WorkbenchQueryInput) (Page[WorkbenchItem], error)
 	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
 	GetFeedback(context.Context, string, string) (FeedbackView, error)
@@ -96,6 +100,16 @@ func (h *Handler) Register(router *gin.Engine) {
 	systemParameter.POST("/get", h.getSystemParameter)
 	systemParameter.POST("/save", h.saveSystemParameter)
 	systemParameter.POST("/reset", h.resetSystemParameter)
+
+	menuRead := appGroup.Group("/menu")
+	menuRead.Use(h.authorizeSession())
+	menuRead.POST("/get", h.getMenu)
+
+	menuWrite := appGroup.Group("/menu")
+	menuWrite.Use(h.authorize())
+	menuWrite.POST("/save-business-template", h.saveBusinessMenu)
+	menuWrite.POST("/activate", h.activateMenu)
+	menuWrite.POST("/reset-business-template", h.resetBusinessMenu)
 
 	workbench := appGroup.Group("/workbench")
 	workbench.Use(h.authorizeSession())

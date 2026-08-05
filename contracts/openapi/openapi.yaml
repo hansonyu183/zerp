@@ -690,6 +690,168 @@
                 },
             },
         },
+      '/app/menu/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取菜单模式、模板和当前导航',
+              'operationId': 'appMenuGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前菜单配置及权限过滤后的导航。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/menu/save-business-template':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '保存整棵业务菜单模板',
+              'operationId': 'appMenuSaveBusinessTemplate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/SaveBusinessMenuRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的菜单配置。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/menu/activate':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '切换当前菜单模式',
+              'operationId': 'appMenuActivate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/ActivateMenuRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '切换后的菜单配置。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/menu/reset-business-template':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '恢复初始业务菜单模板',
+              'operationId': 'appMenuResetBusinessTemplate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/ResetBusinessMenuRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '恢复后的菜单配置。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/feedback/attachment-initiate':
         {
           'post':

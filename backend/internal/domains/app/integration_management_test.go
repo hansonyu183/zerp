@@ -188,6 +188,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 		t.Fatalf("permissions are not descending: %+v", page.Items)
 	}
 	expectedProtected := []string{
+		"/app/menu/activate", "/app/menu/reset-business-template", "/app/menu/save-business-template",
 		"/app/permission/get", "/app/permission/query",
 		"/app/role/create", "/app/role/disable", "/app/role/enable", "/app/role/get", "/app/role/query", "/app/role/save",
 		"/app/system-parameter/get", "/app/system-parameter/query", "/app/system-parameter/reset", "/app/system-parameter/save",

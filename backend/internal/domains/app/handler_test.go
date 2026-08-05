@@ -59,6 +59,16 @@ func (stub *handlerServiceStub) QueryWorkbench(
 	return Page[WorkbenchItem]{Items: []WorkbenchItem{}, Page: 1, PageSize: 20}, nil
 }
 
+func (stub *handlerServiceStub) GetMenu(context.Context, Principal) (MenuGetData, error) {
+	return MenuGetData{
+		Mode: MenuModeDefault, ModeRevision: 1,
+		DefaultMenu:      MenuTree{Revision: 1, Items: []MenuItemView{}},
+		BusinessTemplate: MenuTree{Revision: 1, Items: []MenuItemView{}},
+		Navigation:       MenuTree{Revision: 1, Items: []MenuItemView{}},
+		AvailableRoutes:  []MenuRouteOption{},
+	}, nil
+}
+
 func (stub *handlerServiceStub) GetProfile(context.Context, string) (ProfileView, error) {
 	return stub.profileResult, nil
 }
@@ -102,6 +112,8 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/permission/query", "/app/permission/get",
 		"/app/system-parameter/query", "/app/system-parameter/get",
 		"/app/system-parameter/save", "/app/system-parameter/reset",
+		"/app/menu/get", "/app/menu/save-business-template",
+		"/app/menu/activate", "/app/menu/reset-business-template",
 		"/app/workbench/query",
 		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",
 		"/app/feedback/create", "/app/feedback/get",
@@ -164,6 +176,26 @@ func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
 	if len(stub.workbenchInput.Entities) != 1 || stub.workbenchInput.Entities[0] != "customer" ||
 		len(stub.workbenchInput.PendingStages) != 1 || stub.workbenchInput.PendingStages[0] != "APPROVE" {
 		t.Fatalf("workbench filters = entities %v, stages %v", stub.workbenchInput.Entities, stub.workbenchInput.PendingStages)
+	}
+}
+
+func TestMenuReadUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
+	request := httptest.NewRequest(http.MethodPost, "/app/menu/get", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if stub.sessionAuthorizedPath != "/app/menu/get" || stub.authorizedPath != "" {
+		t.Fatalf("authorization paths: session=%q permission=%q", stub.sessionAuthorizedPath, stub.authorizedPath)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Code != response.CodeOK {
+		t.Fatalf("code = %d, want 0", envelope.Code)
 	}
 }
 

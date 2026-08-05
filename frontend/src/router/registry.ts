@@ -4,7 +4,10 @@ import type { Router } from 'vue-router'
 type PageLoader = () => Promise<{ default: Component }>
 
 export interface MenuEntity {
+  id?: string
   entity: string
+  routeKey?: string
+  routePath?: string
   title: string
   icon?: string
   order: number
@@ -17,6 +20,17 @@ export interface MenuDomain {
   icon?: string
   order: number
   children: MenuEntity[]
+}
+
+interface ServerMenuItem {
+  id: string
+  parentId: string | null
+  type: 'GROUP' | 'ROUTE'
+  order: number
+  displayName: string
+  icon: string | null
+  routeKey: string | null
+  routePath: string | null
 }
 
 export interface PageRegistration {
@@ -685,6 +699,70 @@ export function buildMenus(
     )
 }
 
+export function buildServerMenus(
+  items: readonly ServerMenuItem[],
+  permissions: readonly string[],
+): MenuDomain[] {
+  const groups = items
+    .filter((item) => item.type === 'GROUP')
+    .sort(
+      (left, right) =>
+        left.order - right.order || left.id.localeCompare(right.id),
+    )
+  const actionsByRoute = new Map<string, string[]>()
+  for (const permission of permissions) {
+    const match = permission.match(PERMISSION_PATTERN)
+    if (!match) continue
+    const [, domain, entity, action] = match
+    const key = `${domain}/${entity}`
+    const actions = actionsByRoute.get(key) ?? []
+    if (!actions.includes(action)) actions.push(action)
+    actionsByRoute.set(key, actions)
+  }
+
+  return groups.map((group) => ({
+    domain: group.id,
+    title: group.displayName,
+    ...(group.icon ? { icon: group.icon } : {}),
+    order: group.order,
+    children: items
+      .filter(
+        (item) =>
+          item.type === 'ROUTE' &&
+          item.parentId === group.id &&
+          item.routeKey &&
+          item.routePath,
+      )
+      .sort(
+        (left, right) =>
+          left.order - right.order || left.id.localeCompare(right.id),
+      )
+      .map((item) => {
+        const routeKey = item.routeKey as string
+        const registration = pageRegistry[routeKey]
+        const isDefaultMenu = group.id.startsWith('default-')
+        return {
+          id: item.id,
+          entity: item.id,
+          routeKey,
+          routePath: item.routePath as string,
+          title: isDefaultMenu
+            ? (registration?.entityTitle ??
+              WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
+              item.displayName)
+            : item.displayName,
+          ...(isDefaultMenu && registration?.icon
+            ? { icon: registration.icon }
+            : item.icon
+              ? { icon: item.icon }
+              : {}),
+          order: item.order,
+          actions: actionsByRoute.get(routeKey) ?? [],
+        }
+      }),
+  }))
+}
+
 function formatIdentifierTitle(identifier: string): string {
   return identifier
     .split('-')
@@ -706,14 +784,17 @@ export function registerMenuRoutes(
 
   for (const domain of menus) {
     for (const entity of domain.children) {
-      const key = `${domain.domain}/${entity.entity}`
+      const key = entity.routeKey ?? `${domain.domain}/${entity.entity}`
+      if (key.startsWith('admin/') || key === 'home/dashboard') continue
+      const routeName = `page:${key}`
+      if (expectedRouteNames.has(routeName)) continue
       const registration = pageRegistry[key]
+      const [routeDomain, routeEntity] = key.split('/') as [string, string]
       const dynamicWorkflow =
-        domain.domain === 'wfl' &&
-        entity.entity !== 'process-definition' &&
+        routeDomain === 'wfl' &&
+        routeEntity !== 'process-definition' &&
         !registration
 
-      const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
       const currentRoute = router
         .getRoutes()
@@ -723,7 +804,7 @@ export function registerMenuRoutes(
         currentRoute?.meta.title === entity.title &&
         currentRoute.meta.developing === developing &&
         currentRoute.meta.processName ===
-          (dynamicWorkflow ? entity.entity : undefined) &&
+          (dynamicWorkflow ? routeEntity : undefined) &&
         hasSameActions(currentRoute.meta.actions, entity.actions)
 
       registeredRouteNames.add(routeName)
@@ -731,7 +812,7 @@ export function registerMenuRoutes(
       if (currentRoute) router.removeRoute(routeName)
 
       router.addRoute('app', {
-        path: key,
+        path: entity.routePath?.replace(/^\//, '') ?? key,
         name: routeName,
         component:
           registration?.component ??
@@ -741,7 +822,7 @@ export function registerMenuRoutes(
           title: entity.title,
           actions: entity.actions,
           developing,
-          ...(dynamicWorkflow ? { processName: entity.entity } : {}),
+          ...(dynamicWorkflow ? { processName: routeEntity } : {}),
         },
       })
       added += 1
@@ -762,6 +843,6 @@ export function resolveFirstMenuPath(menus: readonly MenuDomain[]): string {
   const firstEntity = firstDomain?.children[0]
 
   return firstDomain && firstEntity
-    ? `/${firstDomain.domain}/${firstEntity.entity}`
+    ? (firstEntity.routePath ?? `/${firstDomain.domain}/${firstEntity.entity}`)
     : '/home/dashboard'
 }

@@ -1,9 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { apiClient } from '@/api/client'
+import { getMenu, type MenuData } from '@/api/menu'
 import { ApiError, getErrorMessage } from '@/api/types'
 import {
   buildMenus,
+  buildServerMenus,
   normalizePermissions,
   type MenuDomain,
   type MenuEntity,
@@ -57,9 +59,36 @@ export const useSessionStore = defineStore('session', () => {
   const permissions = ref<string[]>([])
   const csrfToken = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const menuData = ref<MenuData | null>(null)
 
   const authenticated = computed(() => user.value !== null)
-  const menus = computed<MenuDomain[]>(() => buildMenus(permissions.value))
+  const menus = computed<MenuDomain[]>(() =>
+    buildServerMenus(
+      menuData.value?.navigation?.items ?? [],
+      permissions.value,
+    ),
+  )
+  const routeMenus = computed<MenuDomain[]>(() => {
+    const authorizedMenus = buildMenus(permissions.value)
+    const registeredRouteKeys = new Set(
+      authorizedMenus.flatMap((domain) =>
+        domain.children.map(
+          (entity) => entity.routeKey ?? `${domain.domain}/${entity.entity}`,
+        ),
+      ),
+    )
+    const navigationWorkflowMenus = menus.value.flatMap((domain) =>
+      domain.children
+        .filter(
+          (entity) =>
+            entity.routeKey?.startsWith('wfl/') &&
+            entity.actions.length > 0 &&
+            !registeredRouteKeys.has(entity.routeKey),
+        )
+        .map((entity) => ({ ...domain, children: [entity] })),
+    )
+    return [...authorizedMenus, ...navigationWorkflowMenus]
+  })
   const permissionSet = computed(() => new Set(permissions.value))
 
   function can(permissionPath: string): boolean {
@@ -75,10 +104,21 @@ export const useSessionStore = defineStore('session', () => {
     initialized.value = true
   }
 
+  function applyMenuData(data: MenuData): void {
+    menuData.value = data
+  }
+
+  async function refreshMenu(): Promise<MenuData> {
+    const { data } = await getMenu()
+    applyMenuData(data)
+    return data
+  }
+
   function clearSession(): void {
     user.value = null
     permissions.value = []
     csrfToken.value = null
+    menuData.value = null
     apiClient.setCsrfToken(null)
   }
 
@@ -90,6 +130,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
+      await refreshMenu()
       return true
     } catch (error) {
       clearSession()
@@ -112,6 +153,7 @@ export const useSessionStore = defineStore('session', () => {
         credentials,
       )
       applySession(data)
+      await refreshMenu()
     } catch (error) {
       clearSession()
       errorMessage.value = getErrorMessage(error)
@@ -143,7 +185,9 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function updateProfile(profile: SaveProfileRequest): Promise<ProfileView> {
+  async function updateProfile(
+    profile: SaveProfileRequest,
+  ): Promise<ProfileView> {
     errorMessage.value = null
     try {
       const { data } = await apiClient.post<ProfileView, SaveProfileRequest>(
@@ -187,10 +231,14 @@ export const useSessionStore = defineStore('session', () => {
     user,
     permissions,
     menus,
+    routeMenus,
+    menuData,
     csrfToken,
     errorMessage,
     authenticated,
     can,
+    applyMenuData,
+    refreshMenu,
     restore,
     signIn,
     signOut,

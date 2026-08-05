@@ -30,10 +30,13 @@ export function useBillLedgerViewModel() {
     order: 'asc',
   })
   let controller: AbortController | undefined
+  let loadSequence = 0
   async function load() {
     if (!canQuery.value) return
+    const current = ++loadSequence
     controller?.abort()
-    controller = new AbortController()
+    const requestController = new AbortController()
+    controller = requestController
     loading.value = true
     errorMessage.value = null
     const request: Request = {
@@ -44,15 +47,16 @@ export function useBillLedgerViewModel() {
     }
     try {
       const result = await apiClient.postContract('led/bill/query', request, {
-        signal: controller.signal,
+        signal: requestController.signal,
       })
+      if (current !== loadSequence || requestController.signal.aborted) return
       rows.value = result.data.items
       total.value = result.data.total
     } catch (error) {
-      if (!controller.signal.aborted)
+      if (current === loadSequence && !requestController.signal.aborted)
         errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (current === loadSequence) loading.value = false
     }
   }
   let customerController: AbortController | undefined
@@ -60,7 +64,8 @@ export function useBillLedgerViewModel() {
   async function searchCustomer(keyword: string) {
     const current = ++customerSequence
     customerController?.abort()
-    customerController = new AbortController()
+    const requestController = new AbortController()
+    customerController = requestController
     try {
       const request: components['schemas']['BobQueryRequest'] = {
         page: 1,
@@ -69,24 +74,20 @@ export function useBillLedgerViewModel() {
         sort: [{ field: 'code', order: 'asc' }],
       }
       const result = await apiClient.post<
-        {
-          items: Array<{
-            objectId: string
-            versionId: string
-            code: string
-            name: string
-            entity?: string
-          }>
-          total: number
-          page: number
-          pageSize: number
-        },
+        components['schemas']['BobListPage'],
         components['schemas']['BobQueryRequest']
-      >('bob/customer/query', request, { signal: customerController.signal })
-      if (current === customerSequence)
-        customerOptions.value = result.data.items
+      >('bob/customer/query', request, { signal: requestController.signal })
+      if (current === customerSequence && !requestController.signal.aborted) {
+        customerOptions.value = result.data.items.map((item) => ({
+          objectId: item.objectId,
+          versionId: item.effectiveVersionId ?? item.currentVersion.versionId,
+          code: item.code,
+          name: String(item.currentVersion.summary.name ?? item.code),
+          entity: item.entity,
+        }))
+      }
     } catch (error) {
-      if (!customerController.signal.aborted)
+      if (current === customerSequence && !requestController.signal.aborted)
         errorMessage.value = getErrorMessage(error)
     }
   }
@@ -115,7 +116,10 @@ export function useBillLedgerViewModel() {
       void load()
     }
   }
-  onScopeDispose(() => controller?.abort())
+  onScopeDispose(() => {
+    controller?.abort()
+    customerController?.abort()
+  })
   return {
     canQuery,
     rows,

@@ -643,6 +643,13 @@ describe('bill ledger view model behavior', () => {
     await vm.load()
     vm.search()
     await vm.searchCustomer('客户')
+    expect(vm.customerOptions.value[0]).toMatchObject({
+      objectId: 'r',
+      versionId: 'rv',
+      code: 'R',
+      name: '引用',
+      entity: 'customer',
+    })
     vm.maturityShortcut('30d')
     vm.maturityShortcut('7d')
     vm.maturityShortcut('today')
@@ -650,6 +657,33 @@ describe('bill ledger view model behavior', () => {
     vm.changePage(1)
     expect(vm.filters.availability).toBe('MATURED')
     expect(vm.filters.maturityDateTo).toBeTruthy()
+    scope.stop()
+  })
+
+  it('keeps the latest bill ledger load while an older request settles late', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/led/bill/query'] })
+    let resolveFirst!: (value: unknown) => void
+    let resolveSecond!: (value: unknown) => void
+    mockedPostContract
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve }) as never,
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveSecond = resolve }) as never,
+      )
+    const scope = effectScope()
+    const vm = scope.run(() => useBillLedgerViewModel())!
+
+    const first = vm.load()
+    const second = vm.load()
+    resolveSecond({ data: { items: [{ billId: 'new' }], total: 1 } })
+    await second
+    resolveFirst({ data: { items: [{ billId: 'old' }], total: 1 } })
+    await first
+
+    expect(vm.rows.value).toEqual([{ billId: 'new' }])
+    expect(vm.loading.value).toBe(false)
     scope.stop()
   })
 })

@@ -528,6 +528,168 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/app/system-parameter/query':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '查询系统参数',
+              'operationId': 'appSystemParameterQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '系统参数分页结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SystemParameterQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/system-parameter/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取系统参数',
+              'operationId': 'appSystemParameterGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/SystemParameterKeyRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '系统参数详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SystemParameterResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/system-parameter/save':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '保存系统参数',
+              'operationId': 'appSystemParameterSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/SaveSystemParameterRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的系统参数。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SystemParameterResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/system-parameter/reset':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '恢复系统参数默认值',
+              'operationId': 'appSystemParameterReset',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/ResetSystemParameterRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '恢复后的系统参数。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SystemParameterResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/feedback/attachment-initiate':
         {
           'post':

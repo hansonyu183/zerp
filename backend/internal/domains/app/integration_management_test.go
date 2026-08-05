@@ -190,6 +190,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	expectedProtected := []string{
 		"/app/permission/get", "/app/permission/query",
 		"/app/role/create", "/app/role/disable", "/app/role/enable", "/app/role/get", "/app/role/query", "/app/role/save",
+		"/app/system-parameter/get", "/app/system-parameter/query", "/app/system-parameter/reset", "/app/system-parameter/save",
 		"/app/user/change-password", "/app/user/create", "/app/user/disable", "/app/user/enable", "/app/user/get",
 		"/app/user/profile", "/app/user/query", "/app/user/save", "/app/user/signout",
 	}

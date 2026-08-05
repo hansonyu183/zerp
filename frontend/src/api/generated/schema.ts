@@ -344,6 +344,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/system-parameter/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询系统参数 */
+        post: operations["appSystemParameterQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取系统参数 */
+        post: operations["appSystemParameterGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存系统参数 */
+        post: operations["appSystemParameterSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复系统参数默认值 */
+        post: operations["appSystemParameterReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/feedback/attachment-initiate": {
         parameters: {
             query?: never;
@@ -2088,6 +2156,57 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        /** @enum {string} */
+        SystemParameterValueType: "STRING" | "INTEGER" | "DECIMAL" | "BOOLEAN";
+        SystemParameterView: {
+            key: string;
+            name: string;
+            description: string | null;
+            valueType: components["schemas"]["SystemParameterValueType"];
+            value: string;
+            defaultValue: string;
+            editable: boolean;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string | null;
+        };
+        SystemParameterPage: {
+            items: components["schemas"]["SystemParameterView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SystemParameterQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterPage"] | null;
+            requestId: string;
+        };
+        SystemParameterKeyRequest: {
+            key: string;
+        };
+        SystemParameterResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterView"] | null;
+            requestId: string;
+        };
+        SaveSystemParameterRequest: {
+            key: string;
+            value: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetSystemParameterRequest: {
+            key: string;
+            /** Format: int64 */
+            revision: number;
+        };
         FeedbackAttachmentInitiateRequest: {
             fileName: string;
             contentType: string;
@@ -3616,6 +3735,102 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    appSystemParameterQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数分页结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterQueryResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemParameterKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
         };
     };
     appFeedbackattachmentinitiate: {

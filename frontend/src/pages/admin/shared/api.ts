@@ -41,6 +41,22 @@ export interface AdminPermission {
   roleCount?: number
 }
 
+export type SystemParameterValueType =
+  'STRING' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN'
+
+export interface SystemParameter {
+  key: string
+  name: string
+  description?: string | null
+  valueType: SystemParameterValueType
+  value: string
+  defaultValue: string
+  editable: boolean
+  revision: number
+  updatedAt: string
+  updatedBy?: string | null
+}
+
 export function queryAdminUsers(request: PageRequest) {
   return apiClient.post<PageResult<AdminUser>, PageRequest>(
     'app/user/query',
@@ -125,4 +141,36 @@ export function getAdminPermission(id: string) {
   return apiClient.post<AdminPermission, { id: string }>('app/permission/get', {
     id,
   })
+}
+
+export function querySystemParameters(request: PageRequest) {
+  return apiClient.post<PageResult<SystemParameter>, PageRequest>(
+    'app/system-parameter/query',
+    request,
+  )
+}
+
+export function getSystemParameter(key: string) {
+  return apiClient.post<SystemParameter, { key: string }>(
+    'app/system-parameter/get',
+    { key },
+  )
+}
+
+export function saveSystemParameter(input: {
+  key: string
+  value: string
+  revision: number
+}) {
+  return apiClient.post<SystemParameter, typeof input>(
+    'app/system-parameter/save',
+    input,
+  )
+}
+
+export function resetSystemParameter(input: { key: string; revision: number }) {
+  return apiClient.post<SystemParameter, typeof input>(
+    'app/system-parameter/reset',
+    input,
+  )
 }

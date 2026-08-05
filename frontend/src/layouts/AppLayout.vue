@@ -48,6 +48,12 @@ const systemManagementItems = computed(() =>
       icon: 'mdi-shield-key-outline',
       to: '/admin/permission',
     },
+    {
+      permission: '/app/system-parameter/query',
+      title: '系统参数',
+      icon: 'mdi-tune-variant',
+      to: '/admin/system-parameter',
+    },
   ].filter((item) => session.can(item.permission)),
 )
 

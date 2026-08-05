@@ -69,6 +69,31 @@ func (q *Queries) CountAppRolesUsingPermission(ctx context.Context, permissionID
 	return count, err
 }
 
+const countAppSystemParameters = `-- name: CountAppSystemParameters :one
+SELECT count(*)
+FROM app_system_parameters
+WHERE ($1::text IS NULL OR value_type = $1)
+  AND ($2::boolean IS NULL OR editable = $2)
+  AND (
+    $3::text IS NULL
+    OR parameter_key ILIKE '%' || $3 || '%'
+    OR name ILIKE '%' || $3 || '%'
+  )
+`
+
+type CountAppSystemParametersParams struct {
+	ValueType *string `db:"value_type" json:"value_type"`
+	Editable  *bool   `db:"editable" json:"editable"`
+	Search    *string `db:"search" json:"search"`
+}
+
+func (q *Queries) CountAppSystemParameters(ctx context.Context, arg CountAppSystemParametersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppSystemParameters, arg.ValueType, arg.Editable, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAppUsers = `-- name: CountAppUsers :one
 SELECT count(*) FROM app_users
 WHERE ($1::text IS NULL OR status = $1)
@@ -468,6 +493,56 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 		&i.DisplayName,
 		&i.UserStatus,
 		&i.AvatarUrl,
+	)
+	return i, err
+}
+
+const getAppSystemParameter = `-- name: GetAppSystemParameter :one
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters WHERE parameter_key = $1 LIMIT 1
+`
+
+func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameter, parameterKey)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
+const getAppSystemParameterForUpdate = `-- name: GetAppSystemParameterForUpdate :one
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters
+WHERE parameter_key = $1
+LIMIT 1 FOR UPDATE
+`
+
+func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameterForUpdate, parameterKey)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -873,6 +948,78 @@ func (q *Queries) ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]A
 	return items, nil
 }
 
+const listAppSystemParameters = `-- name: ListAppSystemParameters :many
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+FROM app_system_parameters
+WHERE ($1::text IS NULL OR value_type = $1)
+  AND ($2::boolean IS NULL OR editable = $2)
+  AND (
+    $3::text IS NULL
+    OR parameter_key ILIKE '%' || $3 || '%'
+    OR name ILIKE '%' || $3 || '%'
+  )
+ORDER BY
+  CASE WHEN $4::text = 'key' AND $5::text = 'asc' THEN parameter_key END ASC,
+  CASE WHEN $4::text = 'key' AND $5::text = 'desc' THEN parameter_key END DESC,
+  CASE WHEN $4::text = 'name' AND $5::text = 'asc' THEN name END ASC,
+  CASE WHEN $4::text = 'name' AND $5::text = 'desc' THEN name END DESC,
+  CASE WHEN $4::text = 'updatedAt' AND $5::text = 'asc' THEN updated_at END ASC,
+  CASE WHEN $4::text = 'updatedAt' AND $5::text = 'desc' THEN updated_at END DESC,
+  parameter_key ASC
+LIMIT $7 OFFSET $6
+`
+
+type ListAppSystemParametersParams struct {
+	ValueType  *string `db:"value_type" json:"value_type"`
+	Editable   *bool   `db:"editable" json:"editable"`
+	Search     *string `db:"search" json:"search"`
+	SortField  string  `db:"sort_field" json:"sort_field"`
+	SortOrder  string  `db:"sort_order" json:"sort_order"`
+	PageOffset int32   `db:"page_offset" json:"page_offset"`
+	PageSize   int32   `db:"page_size" json:"page_size"`
+}
+
+func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error) {
+	rows, err := q.db.Query(ctx, listAppSystemParameters,
+		arg.ValueType,
+		arg.Editable,
+		arg.Search,
+		arg.SortField,
+		arg.SortOrder,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppSystemParameter{}
+	for rows.Next() {
+		var i AppSystemParameter
+		if err := rows.Scan(
+			&i.ParameterKey,
+			&i.Name,
+			&i.Description,
+			&i.ValueType,
+			&i.CurrentValue,
+			&i.DefaultValue,
+			&i.Editable,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAppUsers = `-- name: ListAppUsers :many
 SELECT id, username, display_name, status, failed_signin_count, locked_until, password_changed_at,
        created_at, created_by, updated_at, updated_by, revision
@@ -985,6 +1132,44 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+	)
+	return i, err
+}
+
+const resetAppSystemParameterValue = `-- name: ResetAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = default_value,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = $1
+WHERE parameter_key = $2
+  AND revision = $3
+  AND editable = true
+RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+`
+
+type ResetAppSystemParameterValueParams struct {
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, resetAppSystemParameterValue, arg.ActorID, arg.ParameterKey, arg.Revision)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -1139,6 +1324,50 @@ func (q *Queries) UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const updateAppSystemParameterValue = `-- name: UpdateAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = $1,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = $2
+WHERE parameter_key = $3
+  AND revision = $4
+  AND editable = true
+RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+`
+
+type UpdateAppSystemParameterValueParams struct {
+	CurrentValue string  `db:"current_value" json:"current_value"`
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, updateAppSystemParameterValue,
+		arg.CurrentValue,
+		arg.ActorID,
+		arg.ParameterKey,
+		arg.Revision,
+	)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const updateAppUser = `-- name: UpdateAppUser :execrows

@@ -219,3 +219,35 @@ type PermissionView struct {
 	Revision    int64   `json:"revision"`
 	RoleCount   *int64  `json:"roleCount,omitempty"`
 }
+
+const (
+	SystemParameterString  = "STRING"
+	SystemParameterInteger = "INTEGER"
+	SystemParameterDecimal = "DECIMAL"
+	SystemParameterBoolean = "BOOLEAN"
+	MenuModeParameterKey   = "app.menu.mode"
+)
+
+type SystemParameterView struct {
+	Key          string    `json:"key"`
+	Name         string    `json:"name"`
+	Description  *string   `json:"description"`
+	ValueType    string    `json:"valueType"`
+	Value        string    `json:"value"`
+	DefaultValue string    `json:"defaultValue"`
+	Editable     bool      `json:"editable"`
+	Revision     int64     `json:"revision"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	UpdatedBy    *string   `json:"updatedBy"`
+}
+
+type SaveSystemParameterInput struct {
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+	Revision int64  `json:"revision"`
+}
+
+type ResetSystemParameterInput struct {
+	Key      string `json:"key"`
+	Revision int64  `json:"revision"`
+}

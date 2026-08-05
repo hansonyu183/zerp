@@ -65,6 +65,17 @@ export const router = createRouter({
           },
         },
         {
+          path: 'admin/system-parameter',
+          name: 'page:admin/system-parameter',
+          component: () =>
+            import('@/pages/admin/system-parameter/SystemParameter.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredPermission: '/app/system-parameter/query',
+            title: '系统参数',
+          },
+        },
+        {
           path: 'forbidden',
           name: 'forbidden',
           component: Forbidden,

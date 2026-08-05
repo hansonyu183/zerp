@@ -87,6 +87,119 @@
           'revision': { 'type': 'integer', 'format': 'int64' },
         },
     },
+  'SystemParameterValueType':
+    { 'type': 'string', 'enum': ['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN'] },
+  'SystemParameterView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'key',
+          'name',
+          'description',
+          'valueType',
+          'value',
+          'defaultValue',
+          'editable',
+          'revision',
+          'updatedAt',
+          'updatedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'name': { 'type': 'string', 'maxLength': 128 },
+          'description': { 'type': 'string', 'nullable': true },
+          'valueType': { '$ref': '#/SystemParameterValueType' },
+          'value': { 'type': 'string' },
+          'defaultValue': { 'type': 'string' },
+          'editable': { 'type': 'boolean' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SystemParameterPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/SystemParameterView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'SystemParameterKeyRequest':
+    {
+      'type': 'object',
+      'required': ['key'],
+      'additionalProperties': false,
+      'properties': { 'key': { 'type': 'string', 'maxLength': 128 } },
+    },
+  'SaveSystemParameterRequest':
+    {
+      'type': 'object',
+      'required': ['key', 'value', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'value': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'ResetSystemParameterRequest':
+    {
+      'type': 'object',
+      'required': ['key', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'SystemParameterResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SystemParameterView' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SystemParameterQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SystemParameterPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'FeedbackAttachmentInitiateRequest':
     {
       'type': 'object',

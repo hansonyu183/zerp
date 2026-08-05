@@ -299,6 +299,67 @@ SELECT path FROM app_permissions WHERE status = 'ENABLED' AND id = ANY(sqlc.arg(
 -- name: ListAllEnabledAppPermissionIDs :many
 SELECT id FROM app_permissions WHERE status = 'ENABLED' ORDER BY path;
 
+-- name: CountAppSystemParameters :one
+SELECT count(*)
+FROM app_system_parameters
+WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+  AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
+  AND (
+    sqlc.narg(search)::text IS NULL
+    OR parameter_key ILIKE '%' || sqlc.narg(search) || '%'
+    OR name ILIKE '%' || sqlc.narg(search) || '%'
+  );
+
+-- name: ListAppSystemParameters :many
+SELECT *
+FROM app_system_parameters
+WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+  AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
+  AND (
+    sqlc.narg(search)::text IS NULL
+    OR parameter_key ILIKE '%' || sqlc.narg(search) || '%'
+    OR name ILIKE '%' || sqlc.narg(search) || '%'
+  )
+ORDER BY
+  CASE WHEN sqlc.arg(sort_field)::text = 'key' AND sqlc.arg(sort_order)::text = 'asc' THEN parameter_key END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'key' AND sqlc.arg(sort_order)::text = 'desc' THEN parameter_key END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN name END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN name END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN updated_at END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN updated_at END DESC,
+  parameter_key ASC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetAppSystemParameter :one
+SELECT * FROM app_system_parameters WHERE parameter_key = sqlc.arg(parameter_key) LIMIT 1;
+
+-- name: GetAppSystemParameterForUpdate :one
+SELECT * FROM app_system_parameters
+WHERE parameter_key = sqlc.arg(parameter_key)
+LIMIT 1 FOR UPDATE;
+
+-- name: UpdateAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = sqlc.arg(current_value),
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND editable = true
+RETURNING *;
+
+-- name: ResetAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = default_value,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND editable = true
+RETURNING *;
+
 -- name: InsertAppRole :exec
 INSERT INTO app_roles (id, code, name, description, status, created_by, updated_by)
 VALUES (sqlc.arg(id), sqlc.arg(code), sqlc.arg(name), sqlc.narg(description), 'ENABLED', sqlc.narg(actor_id), sqlc.narg(actor_id));

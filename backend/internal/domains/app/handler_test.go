@@ -100,6 +100,8 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
+		"/app/system-parameter/query", "/app/system-parameter/get",
+		"/app/system-parameter/save", "/app/system-parameter/reset",
 		"/app/workbench/query",
 		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",
 		"/app/feedback/create", "/app/feedback/get",

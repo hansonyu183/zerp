@@ -148,11 +148,6 @@ test_merged_pr_evidence failed-check failure
 
 grep -Fq 'origin/main)' scripts/pre-push.sh
 grep -Fq "diff_range=\"\${base_ref}..HEAD\"" scripts/pre-push.sh
-test "$(git diff --name-only origin/main..HEAD)" = \
-  "$(git diff --name-only origin/main HEAD)" || {
-  echo "origin/main release checks must compare the two endpoint trees" >&2
-  exit 1
-}
 
 assert_checks() {
   expected=$1

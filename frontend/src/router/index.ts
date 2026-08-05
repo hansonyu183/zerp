@@ -3,6 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import SignIn from '@/pages/auth/user/SignIn.vue'
 import Dashboard from '@/pages/home/dashboard/Dashboard.vue'
 import NotFound from '@/pages/system/notfound/NotFound.vue'
+import Forbidden from '@/pages/system/forbidden/Forbidden.vue'
 import { pinia } from '@/stores'
 import { useSessionStore } from '@/stores/session'
 import { createSessionNavigationGuard, watchSessionMenuRoutes } from './guards'
@@ -32,6 +33,22 @@ export const router = createRouter({
           name: 'page:home/dashboard',
           component: Dashboard,
           meta: { requiresAuth: true, title: '工作台' },
+        },
+        {
+          path: 'admin/user',
+          name: 'page:admin/user',
+          component: () => import('@/pages/admin/user/User.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredPermission: '/app/user/query',
+            title: '用户管理',
+          },
+        },
+        {
+          path: 'forbidden',
+          name: 'forbidden',
+          component: Forbidden,
+          meta: { requiresAuth: true, title: '无权访问' },
         },
       ],
     },

@@ -45,6 +45,14 @@ export function createSessionNavigationGuard(
       }
     }
 
+    const requiredPermission = to.meta.requiredPermission
+    if (
+      typeof requiredPermission === 'string' &&
+      !session.can(requiredPermission)
+    ) {
+      return { name: 'forbidden' }
+    }
+
     return true
   }
 }

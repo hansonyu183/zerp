@@ -30,6 +30,21 @@ function createTestRouter(): Router {
             component: { template: '<div />' },
             meta: { requiresAuth: true },
           },
+          {
+            path: 'admin/user',
+            name: 'page:admin/user',
+            component: { template: '<div />' },
+            meta: {
+              requiresAuth: true,
+              requiredPermission: '/app/user/query',
+            },
+          },
+          {
+            path: 'forbidden',
+            name: 'forbidden',
+            component: { template: '<div />' },
+            meta: { requiresAuth: true },
+          },
         ],
       },
       {
@@ -55,6 +70,23 @@ function createAuthenticatedSession() {
 }
 
 describe('session menu route synchronization', () => {
+  it('系统管理静态路由要求精确 APP 查询权限', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/app/user/query-extra']
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/app/user/query']
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('page:admin/user')
+  })
+
   it('会话已初始化但路由缺失时，在首次导航中注册并重新匹配真实页面', async () => {
     const router = createTestRouter()
     const session = createAuthenticatedSession()

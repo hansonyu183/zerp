@@ -28,6 +28,16 @@ const passwords = reactive({
 })
 
 const visibleMenus = computed(() => session.menus)
+const systemManagementItems = computed(() =>
+  [
+    {
+      permission: '/app/user/query',
+      title: '用户管理',
+      icon: 'mdi-account-multiple-outline',
+      to: '/admin/user',
+    },
+  ].filter((item) => session.can(item.permission)),
+)
 
 const displayName = computed(
   () => session.user?.displayName || session.user?.username || '用户',
@@ -287,6 +297,27 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
           :prepend-icon="entity.icon || 'mdi-file-document-outline'"
           :title="entity.title"
           :to="`/${domain.domain}/${entity.entity}`"
+          rounded="lg"
+        />
+      </v-list-group>
+      <v-list-group
+        v-if="systemManagementItems.length"
+        value="system-management"
+      >
+        <template #activator="{ props }">
+          <v-list-item
+            v-bind="props"
+            prepend-icon="mdi-cog-outline"
+            title="系统管理"
+            rounded="lg"
+          />
+        </template>
+        <v-list-item
+          v-for="item in systemManagementItems"
+          :key="item.to"
+          :prepend-icon="item.icon"
+          :title="item.title"
+          :to="item.to"
           rounded="lg"
         />
       </v-list-group>

@@ -66,16 +66,10 @@ onMounted(() => void vm.load())
           />
           <ReferenceAutocomplete
             label="客户"
-            :model-value="
-              vm.customerOptions.value.find(
-                (item) => item.objectId === vm.filters.customerObjectId,
-              ) ?? null
-            "
+            :model-value="vm.selectedCustomer.value"
             :options="vm.customerOptions.value"
             @search="vm.searchCustomer"
-            @update:model-value="
-              vm.filters.customerObjectId = $event?.objectId ?? undefined
-            "
+            @update:model-value="vm.selectCustomer"
           />
           <v-btn color="primary" @click="vm.search">查询</v-btn>
           <v-btn variant="tonal" @click="vm.maturityShortcut('30d')">未来30天到期</v-btn>

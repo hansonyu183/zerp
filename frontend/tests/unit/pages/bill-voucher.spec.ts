@@ -281,6 +281,28 @@ describe('bill receipt payload', () => {
     scope.stop()
   })
 
+  it('clears selected bills when the maturity direction changes', () => {
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
+    )!
+    vm.openCreate()
+    vm.changeMaturityType('RECEIPT')
+    vm.form.billLines = [{
+      ...form().billLines[0]!,
+      key: 'asset-bill',
+      billId: 'asset-bill',
+      positionType: 'ASSET',
+    }]
+    vm.heldSelection.value = ['asset-bill']
+
+    vm.changeMaturityType('PAYMENT')
+
+    expect(vm.form.billLines).toEqual([])
+    expect(vm.heldSelection.value).toEqual([])
+    scope.stop()
+  })
+
   it('summarizes票据、找零和现金净额 without floating point math', () => {
     const value = form()
     value.billLines.push({
@@ -650,13 +672,31 @@ describe('bill ledger view model behavior', () => {
       name: '引用',
       entity: 'customer',
     })
+    vm.selectCustomer(vm.customerOptions.value[0]!)
+    vm.customerOptions.value = []
+    expect(vm.selectedCustomer.value).toMatchObject({ objectId: 'r', name: '引用' })
+    expect(vm.filters.customerObjectId).toBe('r')
     vm.maturityShortcut('30d')
+    expect(vm.filters.availability).toBeUndefined()
     vm.maturityShortcut('7d')
     vm.maturityShortcut('today')
     vm.maturityShortcut('overdue')
     vm.changePage(1)
     expect(vm.filters.availability).toBe('MATURED')
     expect(vm.filters.maturityDateTo).toBeTruthy()
+    scope.stop()
+  })
+
+  it('clears the maturity status filter when leaving the overdue shortcut', () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/led/bill/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillLedgerViewModel())!
+
+    vm.maturityShortcut('overdue')
+    expect(vm.filters.availability).toBe('MATURED')
+    vm.maturityShortcut('today')
+    expect(vm.filters.availability).toBeUndefined()
     scope.stop()
   })
 

@@ -718,13 +718,12 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     await searchHeldBills('')
   }
   function changeMaturityType(value: '' | 'RECEIPT' | 'PAYMENT') {
+    if (form.maturityType !== value) {
+      form.billLines = []
+      heldSelection.value = []
+    }
     form.maturityType = value
     if (!value) return
-    form.billLines = form.billLines.map((line) => ({
-      ...line,
-      positionType: value === 'PAYMENT' ? 'LIABILITY' : 'ASSET',
-      direction: 'OUT',
-    }))
     void searchHeldBills('')
   }
   function applyHeldSelection() {

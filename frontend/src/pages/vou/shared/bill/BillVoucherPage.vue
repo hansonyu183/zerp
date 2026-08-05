@@ -225,7 +225,7 @@ onMounted(() => void vm.query())
               @search="vm.searchOtherParty"
           /></v-col>
           <v-col v-if="vm.config.mode === 'maturity'" cols="12" md="3">
-            <v-select v-model="vm.form.maturityType" :disabled="!vm.editing.value" label="到期处理方式" :items="[{ title: '到期收款', value: 'RECEIPT' }, { title: '到期付款', value: 'PAYMENT' }]" variant="outlined" @update:model-value="vm.changeMaturityType" />
+            <v-select :model-value="vm.form.maturityType" :disabled="!vm.editing.value" label="到期处理方式" :items="[{ title: '到期收款', value: 'RECEIPT' }, { title: '到期付款', value: 'PAYMENT' }]" variant="outlined" @update:model-value="vm.changeMaturityType" />
           </v-col>
           <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><VoucherReferenceAutocomplete

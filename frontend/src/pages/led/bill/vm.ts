@@ -15,15 +15,15 @@ export function useBillLedgerViewModel() {
   const pageSize = ref(20)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
-  const customerOptions = ref<
-    Array<{
-      objectId: string
-      versionId: string
-      code: string
-      name: string
-      entity?: string
-    }>
-  >([])
+  type CustomerReference = {
+    objectId: string
+    versionId: string
+    code: string
+    name: string
+    entity?: string
+  }
+  const customerOptions = ref<CustomerReference[]>([])
+  const selectedCustomer = ref<CustomerReference | null>(null)
   const filters = reactive<Request['filters']>({})
   const sort = reactive<Request['sort'][number]>({
     field: 'maturityDate',
@@ -91,6 +91,10 @@ export function useBillLedgerViewModel() {
         errorMessage.value = getErrorMessage(error)
     }
   }
+  function selectCustomer(value: CustomerReference | null) {
+    selectedCustomer.value = value
+    filters.customerObjectId = value?.objectId
+  }
   function search() {
     page.value = 1
     void load()
@@ -107,7 +111,7 @@ export function useBillLedgerViewModel() {
       kind === 'overdue'
         ? iso(new Date(today.getTime() - 86_400_000))
         : iso(end)
-    if (kind === 'overdue') filters.availability = 'MATURED'
+    filters.availability = kind === 'overdue' ? 'MATURED' : undefined
     search()
   }
   function changePage(value: number) {
@@ -131,10 +135,12 @@ export function useBillLedgerViewModel() {
     filters,
     sort,
     customerOptions,
+    selectedCustomer,
     load,
     search,
     maturityShortcut,
     changePage,
     searchCustomer,
+    selectCustomer,
   }
 }

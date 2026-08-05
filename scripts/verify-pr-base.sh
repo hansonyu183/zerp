@@ -28,14 +28,15 @@ if [ -n "${base_sha}" ] || [ -n "${head_sha}" ]; then
     echo "Both ZERP_PR_BASE_SHA and ZERP_PR_HEAD_SHA are required for ancestry verification" >&2
     exit 1
   fi
-  git merge-base --is-ancestor "${base_sha}" "${head_sha}" || {
-    echo "Pull request head does not include the current ${base_ref} base; update it from ${base_ref} before running full checks" >&2
-    exit 1
-  }
-  if [ "${base_ref}" = dev ] &&
-    git rev-list --merges "${base_sha}..${head_sha}" | grep -q .; then
-    echo "Development pull requests must be rebased onto dev, not merged with it" >&2
-    exit 1
+  if [ "${base_ref}" = dev ]; then
+    git merge-base --is-ancestor "${base_sha}" "${head_sha}" || {
+      echo "Pull request head does not include the current dev base; update it from dev before running full checks" >&2
+      exit 1
+    }
+    if git rev-list --merges "${base_sha}..${head_sha}" | grep -q .; then
+      echo "Development pull requests must be rebased onto dev, not merged with it" >&2
+      exit 1
+    fi
   fi
 fi
 

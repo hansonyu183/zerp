@@ -43,11 +43,17 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            checks=$(scripts/change-impact.sh --checks "$BASE_SHA...$HEAD_SHA")
+            if [ "$PR_BASE_REF" = "main" ]; then
+              diff_range="$BASE_SHA..$HEAD_SHA"
+            else
+              diff_range="$BASE_SHA...$HEAD_SHA"
+            fi
+            checks=$(scripts/change-impact.sh --checks "$diff_range")
           else
             checks='impact=application
           contracts=1

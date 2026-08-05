@@ -41,16 +41,25 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 git rev-parse --verify "${base_ref}^{commit}" >/dev/null
-git merge-base --is-ancestor "${base_ref}" HEAD || {
-  echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
-  exit 1
-}
-if [ "${base_ref}" = origin/dev ] &&
-  git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
-  echo "Development branches must be rebased onto origin/dev, not merged with it" >&2
-  exit 1
-fi
-diff_range="${base_ref}...HEAD"
+case "${base_ref}" in
+  origin/dev)
+    git merge-base --is-ancestor "${base_ref}" HEAD || {
+      echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
+      exit 1
+    }
+    if git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
+      echo "Development branches must be rebased onto origin/dev, not merged with it" >&2
+      exit 1
+    fi
+    diff_range="${base_ref}...HEAD"
+    ;;
+  origin/main)
+    diff_range="${base_ref}..HEAD"
+    ;;
+  *)
+    diff_range="${base_ref}...HEAD"
+    ;;
+esac
 
 changed_files=$(git diff --name-only "${diff_range}")
 if [ -z "${changed_files}" ]; then

@@ -19,6 +19,8 @@ func (s *Service) loadData(
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntityBillReceipt:
+		return s.loadBillReceiptData(ctx, q, document, data)
 	case EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
 		return s.loadAssetData(ctx, q, document, data)
 	case EntitySalePricing:

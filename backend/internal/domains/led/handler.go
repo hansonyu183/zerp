@@ -37,6 +37,10 @@ type assetApplicationService interface {
 	GetAsset(context.Context, AssetGetInput) (AssetDetailView, error)
 }
 
+type billApplicationService interface {
+	QueryBills(context.Context, BillQueryInput) (Page[BillView], error)
+}
+
 type Handler struct {
 	service    applicationService
 	authorizer authorization.Authorizer
@@ -78,10 +82,24 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityContainer, "balance", h.containerBalance},
 		{EntityAsset, "query", h.queryAssets},
 		{EntityAsset, "get", h.getAsset},
+		{EntityBill, "query", h.queryBills},
 	}
 	for _, route := range routes {
 		path := "/led/" + route.entity + "/" + route.action
 		router.POST(path, h.authorize(path), route.handle)
+	}
+}
+
+func (h *Handler) queryBills(c *gin.Context) {
+	var input BillQueryInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(billApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "bill ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.QueryBills(c.Request.Context(), input)
+		h.result(c, result, err)
 	}
 }
 

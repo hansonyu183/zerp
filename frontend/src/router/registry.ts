@@ -229,6 +229,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/aux/account-subject/AccountSubject.vue'),
   }),
   registerPage('vou', {
+    entity: 'bill-receipt',
+    entityTitle: '票据收入',
+    icon: 'mdi-cash-plus',
+    order: 130,
+    component: () => import('@/pages/vou/bill-receipt/BillReceipt.vue'),
+  }),
+  registerPage('vou', {
     entity: 'sale-pricing',
     entityTitle: '销售定价',
     icon: 'mdi-tag-multiple-outline',
@@ -507,6 +514,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-account-cash-outline',
     order: 43,
     component: () => import('@/pages/led/employee/Employee.vue'),
+  }),
+  registerPage('led', {
+    entity: 'bill',
+    entityTitle: '票据台账',
+    icon: 'mdi-receipt-text-outline',
+    order: 70,
+    component: () => import('@/pages/led/bill/Bill.vue'),
   }),
   registerPage('led', {
     entity: 'asset',

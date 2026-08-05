@@ -178,6 +178,21 @@ const exactMessages: Readonly<Record<string, string>> = {
   'useful life or residual rate is invalid': '使用年限或残值率不正确。',
   'unsupported transition': '当前状态不支持该操作。',
   'unsupported reverse transition': '当前状态不支持撤销该操作。',
+  'bill receipt net settlement is invalid': '票据净结算金额必须为正。',
+  'bill receipt requires customer counterparty': '请选择客户往来方。',
+  'bill ledger identity conflicts with different fixed facts':
+    '票据标识与已保存的固定资料冲突。',
+  'bill document with ledger history cannot be deleted':
+    '该票据单已形成台账历史，不能删除。',
+  'billCashLines supports at most 20 items': '现金行数不能超过 20 行。',
+  'billLineId is not supported in bill receipt cash lines':
+    '现金行不能关联票据行。',
+  'change bill requires billId': '找零票据必须引用当前持有票据。',
+  'customer net settlement must be positive': '客户净结算金额必须为正。',
+  'duplicate bill':
+    '该票据已存在，请核对票据类型、号码、承兑人、票面金额和到期日。',
+  'fields do not match bill receipt': '提交字段与票据收入业务不匹配。',
+  'source bill is not available': '所选找零票据当前不可用。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',

@@ -1,4 +1,171 @@
 {
+  'LedBillQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'filters', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'positionType':
+                    { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+                  'availability':
+                    {
+                      'type': 'string',
+                      'enum': ['AVAILABLE', 'USED', 'MATURED'],
+                    },
+                  'billType':
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'BANK_ACCEPTANCE',
+                          'COMMERCIAL_ACCEPTANCE',
+                          'CHECK',
+                          'OTHER',
+                        ],
+                    },
+                  'billNo': { 'type': 'string', 'maxLength': 200 },
+                  'maturityDateFrom': { 'type': 'string', 'format': 'date' },
+                  'maturityDateTo': { 'type': 'string', 'format': 'date' },
+                  'customerObjectId': { 'type': 'string' },
+                  'sourceEntity':
+                    { 'type': 'string', 'enum': ['bill-receipt'] },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field':
+                        {
+                          'type': 'string',
+                          'enum':
+                            [
+                              'maturityDate',
+                              'billNo',
+                              'faceAmount',
+                              'sourceDocumentNo',
+                            ],
+                        },
+                      'order': { 'type': 'string', 'enum': ['asc', 'desc'] },
+                    },
+                },
+            },
+        },
+    },
+  'LedBillListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'billId',
+          'positionType',
+          'availability',
+          'billType',
+          'billNo',
+          'medium',
+          'currency',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'drawer',
+          'acceptor',
+          'payee',
+          'annualRateBps',
+          'interestDays',
+          'interestAmount',
+          'customer',
+          'customerCostAmount',
+          'sourceEntity',
+          'sourceDocumentNo',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string' },
+          'positionType': { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+          'availability':
+            { 'type': 'string', 'enum': ['AVAILABLE', 'USED', 'MATURED'] },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'billNo': { 'type': 'string' },
+          'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
+          'currency': { 'type': 'string' },
+          'faceAmount': { 'type': 'string' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string' },
+          'acceptor': { 'type': 'string' },
+          'payee': { 'type': 'string' },
+          'annualRateBps': { 'type': 'integer', 'minimum': 0 },
+          'interestDays': { 'type': 'integer', 'minimum': 0 },
+          'interestAmount': { 'type': 'string' },
+          'customer':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId', 'code', 'name'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                  'code': { 'type': 'string' },
+                  'name': { 'type': 'string' },
+                },
+            },
+          'customerCostAmount': { 'type': 'string' },
+          'sourceEntity': { 'type': 'string', 'enum': ['bill-receipt'] },
+          'sourceDocumentNo': { 'type': 'string' },
+        },
+    },
+  'LedBillQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/LedBillListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'LedAssetQueryRequest':
     {
       'type': 'object',

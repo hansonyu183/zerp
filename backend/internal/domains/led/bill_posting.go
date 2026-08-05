@@ -1,0 +1,103 @@
+package led
+
+import (
+	"context"
+	"math"
+
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/jackc/pgx/v5"
+)
+
+func (s *Service) postBillReceipt(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, p postingContext) error {
+	doc := p.Document
+	include, err := requireEffectiveDate(p, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouBillDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill receipt detail", err)
+	}
+	lines, err := q.ListVouBillLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill receipt lines", err)
+	}
+	var primary, change, cashIn, cashOut int64
+	for _, l := range lines {
+		if l.Purpose == "CHANGE" {
+			b, lockErr := q.LockLedBill(ctx, l.BillID)
+			if lockErr != nil {
+				return s.writeError("lock bill for receipt", lockErr)
+			}
+			balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: b.ID, PositionType: l.PositionType})
+			if balanceErr != nil || balance != 1 {
+				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
+			}
+		}
+		if l.Purpose == "PRIMARY" {
+			rows, ensureErr := q.EnsureLedBill(ctx, dbsqlc.EnsureLedBillParams{ID: l.BillID, PositionType: l.PositionType, BillType: l.BillType, BillNo: l.BillNo, Medium: l.Medium, Currency: l.Currency, FaceAmountCents: l.FaceAmountCents, IssueDate: l.IssueDate, MaturityDate: l.MaturityDate, Drawer: l.Drawer, Acceptor: l.Acceptor, Payee: l.Payee, AnnualRateBps: l.AnnualRateBps, InterestDays: l.InterestDays, InterestAmountCents: l.InterestAmountCents, CustomerCostAmountCents: l.CustomerCostAmountCents, OriginPartyEntity: detail.CounterpartyEntity, OriginPartyObjectID: detail.CounterpartyObjectID, OriginPartyVersionID: detail.CounterpartyVersionID, OriginPartyCode: detail.CounterpartyCode, OriginPartyName: detail.CounterpartyName, SourceDocumentID: doc.ID, SourceLineID: l.ID})
+			if ensureErr != nil {
+				return s.writeError("create bill ledger record", ensureErr)
+			}
+			if rows != 1 {
+				return domainError(ErrorConflict, "bill ledger identity conflicts with different fixed facts", nil, nil)
+			}
+		}
+		if err = q.InsertLedBillEntry(ctx, dbsqlc.InsertLedBillEntryParams{ID: newID(), GenerationID: p.GenerationID, BillID: l.BillID, SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceLineID: l.ID, PositionType: l.PositionType, Direction: l.Direction, Purpose: l.Purpose, EffectiveDate: doc.BusinessDate, OccurredAt: p.OccurredAt}); err != nil {
+			return s.writeError("post bill ledger entry", err)
+		}
+		if l.Purpose == "PRIMARY" {
+			primary, err = checkedBillAdd(primary, l.FaceAmountCents)
+		} else {
+			change, err = checkedBillAdd(change, l.FaceAmountCents)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	cash, err := q.ListVouBillCashLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill receipt cash lines", err)
+	}
+	for _, l := range cash {
+		delta := l.AmountCents
+		if l.Direction == "OUT" {
+			delta = -delta
+			cashOut, err = checkedBillAdd(cashOut, l.AmountCents)
+		} else {
+			cashIn, err = checkedBillAdd(cashIn, l.AmountCents)
+		}
+		if err != nil {
+			return err
+		}
+		fund := fundParams(p, doc, l.FundAccountObjectID, l.FundAccountVersionID, l.FundAccountCode, l.FundAccountName, delta)
+		fund.SourceLineID = l.ID
+		if err = q.InsertLedFundEntry(ctx, fund); err != nil {
+			return s.writeError("post bill receipt fund", err)
+		}
+	}
+	net, err := checkedBillAdd(primary, cashIn)
+	if err == nil {
+		net, err = checkedBillAdd(net, -change)
+	}
+	if err == nil {
+		net, err = checkedBillAdd(net, -cashOut)
+	}
+	if err != nil {
+		return err
+	}
+	if net <= 0 {
+		return domainError(ErrorConflict, "bill receipt net settlement is invalid", nil, nil)
+	}
+	if err = q.InsertLedPartyEntry(ctx, partyParams(p, doc, "", doc.BusinessDate, deref(detail.CounterpartyObjectID), deref(detail.CounterpartyVersionID), deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "customer", -net)); err != nil {
+		return s.writeError("post bill receipt party", err)
+	}
+	return nil
+}
+
+func checkedBillAdd(left, right int64) (int64, error) {
+	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
+		return 0, domainError(ErrorConflict, "bill amount is out of range", nil, nil)
+	}
+	return left + right, nil
+}

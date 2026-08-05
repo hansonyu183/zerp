@@ -52,7 +52,8 @@ func ledIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE led_asset_entries,led_assets,led_asset_number_assignments,led_asset_number_counters,
+		TRUNCATE led_bill_entries,led_bills,
+			led_asset_entries,led_assets,led_asset_number_assignments,led_asset_number_counters,
 			led_inventory_cost_allocations,led_closing_container,led_closing_party,
 			led_closing_fund,led_closing_inventory,led_closings,
 			led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
@@ -66,6 +67,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_asset_sale_lines,vou_asset_sale_details,
 			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
+			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -1206,14 +1208,317 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 	}
 }
 
+func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	primary := voudomain.BillLineInput{
+		PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+		BillType: "BANK_ACCEPTANCE", BillNo: "BRE-001", Medium: "ELECTRONIC",
+		Currency: "CNY", FaceAmount: "1000000.00", IssueDate: "2026-08-01",
+		MaturityDate: "2026-09-01", Drawer: "出票人", Acceptor: "承兑行",
+		Payee: "本公司", AnnualRateBps: 600,
+	}
+	receiptDraft := voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &refs.employee, InternalCostRateBps: 365, BillLines: []voudomain.BillLineInput{primary},
+		BillCashLines: []voudomain.BillCashLineInput{{
+			FundAccount: refs.fundAccount, Direction: "OUT", AmountType: "OTHER", Amount: "100.00",
+		}},
+	}
+	created, err := vouchers.Create(t.Context(), voudomain.EntityBillReceipt, voudomain.CreateInput{
+		Data: receiptDraft,
+	}, integrationActorOne, "bill-receipt-create")
+	if err != nil {
+		t.Fatalf("create bill receipt: %v", err)
+	}
+	saved, err := vouchers.Save(t.Context(), voudomain.EntityBillReceipt, voudomain.SaveInput{
+		DocumentID: created.DocumentID, Revision: created.Revision, Data: receiptDraft,
+	}, integrationActorOne, "bill-receipt-save")
+	if err != nil {
+		t.Fatalf("save bill receipt: %v", err)
+	}
+	if _, err = vouchers.Save(t.Context(), voudomain.EntityBillReceipt, voudomain.SaveInput{
+		DocumentID: created.DocumentID, Revision: created.Revision, Data: receiptDraft,
+	}, integrationActorOne, "bill-receipt-stale-save"); err == nil {
+		t.Fatal("stale bill receipt save succeeded")
+	}
+	checked, err := vouchers.Check(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: saved.DocumentID, Revision: saved.Revision,
+	}, integrationActorOne, "bill-receipt-check")
+	if err != nil {
+		t.Fatalf("check bill receipt: %v", err)
+	}
+	receipt, err := vouchers.Approve(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: checked.DocumentID, Revision: checked.Revision,
+	}, integrationActorOne, "bill-receipt-approve")
+	if err != nil {
+		t.Fatalf("approve bill receipt: %v", err)
+	}
+	receiptView, err := vouchers.Get(t.Context(), voudomain.EntityBillReceipt, voudomain.GetInput{
+		DocumentID: receipt.DocumentID,
+	})
+	if err != nil {
+		t.Fatalf("get bill receipt: %v", err)
+	}
+	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: receipt.DocumentID, Revision: receipt.Revision,
+	}, integrationActorOne, "bill-receipt-finalize")
+	if err != nil {
+		t.Fatalf("finalize bill receipt: %v", err)
+	}
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: receipt.DocumentID, Revision: receipt.Revision,
+	}, integrationActorOne, "bill-receipt-finalize-retry"); err == nil {
+		t.Fatal("duplicate bill receipt finalize succeeded")
+	}
+	bills, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE", CustomerObjectID: refs.customer.ObjectID},
+		Sort: []SortInput{{Field: "maturityDate", Order: "asc"}},
+	})
+	if err != nil || bills.Total != 1 || len(bills.Items) != 1 || bills.Items[0].CustomerCostAmount != "3100.00" {
+		t.Fatalf("bill ledger after finalize = %+v, err=%v", bills, err)
+	}
+	duplicate, _ := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &refs.employee, BillLines: []voudomain.BillLineInput{primary},
+	})
+	if _, err = vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: duplicate.DocumentID, Revision: duplicate.Revision,
+	}, integrationActorOne, "bill-receipt-duplicate-finalize"); err == nil || err.Error() != "duplicate bill" {
+		t.Fatalf("duplicate bill finalize error = %v, want duplicate bill", err)
+	}
+	party, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: refs.customer.ObjectID},
+	}, EntityCustomer)
+	if err != nil || len(party.Items) != 1 || party.Items[0].BalanceType != "PAYABLE" || party.Items[0].Amount != "999900.00" {
+		t.Fatalf("customer balance after bill receipt = %+v, err=%v", party, err)
+	}
+	fund, err := ledger.FundBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: refs.fundAccount.ObjectID},
+	})
+	if err != nil || len(fund.Items) != 1 || fund.Items[0].BalanceType != "OVERDRAFT" || fund.Items[0].Amount != "100.00" {
+		t.Fatalf("fund balance after bill receipt = %+v, err=%v", fund, err)
+	}
+
+	changeBillID := receiptView.Data.BillLines[0].BillID
+	secondPrimary := primary
+	secondPrimary.BillNo = "BRE-002"
+	secondPrimary.FaceAmount = "1100000.00"
+	second, _ := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &refs.employee, InternalCostRateBps: 365,
+		BillLines: []voudomain.BillLineInput{
+			secondPrimary,
+			{BillID: changeBillID, Purpose: "CHANGE"},
+		},
+	})
+	secondFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: second.DocumentID, Revision: second.Revision,
+	}, integrationActorOne, "bill-receipt-change-finalize")
+	if err != nil {
+		t.Fatalf("finalize bill receipt with bill change: %v", err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "应被下游占用阻止",
+	}, integrationActorOne, "bill-receipt-source-reverse-blocked"); err == nil {
+		t.Fatal("source bill receipt reversal succeeded with downstream bill entry")
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: secondFinalized.DocumentID, Revision: secondFinalized.Revision, Reason: "撤回找零单",
+	}, integrationActorOne, "bill-receipt-change-reverse"); err != nil {
+		t.Fatalf("unfinalize downstream bill receipt: %v", err)
+	}
+	reversedSource, err := vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "撤回来源收票单",
+	}, integrationActorOne, "bill-receipt-source-reverse")
+	if err != nil {
+		t.Fatalf("unfinalize source bill receipt: %v", err)
+	}
+	party, err = ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: refs.customer.ObjectID},
+	}, EntityCustomer)
+	if err != nil || len(party.Items) != 0 {
+		t.Fatalf("customer balance after bill reversals = %+v, err=%v", party, err)
+	}
+	fund, err = ledger.FundBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: refs.fundAccount.ObjectID},
+	})
+	if err != nil || len(fund.Items) != 0 {
+		t.Fatalf("fund balance after bill reversals = %+v, err=%v", fund, err)
+	}
+	checkedAgain, err := vouchers.Unapprove(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: reversedSource.DocumentID, Revision: reversedSource.Revision, Reason: "退回核对态",
+	}, integrationActorOne, "bill-receipt-unapprove-after-history")
+	if err != nil {
+		t.Fatalf("unapprove historical bill receipt: %v", err)
+	}
+	draftAgain, err := vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: checkedAgain.DocumentID, Revision: checkedAgain.Revision, Reason: "退回草稿态",
+	}, integrationActorOne, "bill-receipt-uncheck-after-history")
+	if err != nil {
+		t.Fatalf("uncheck historical bill receipt: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityBillReceipt, voudomain.DeleteInput{
+		DocumentID: draftAgain.DocumentID, Revision: draftAgain.Revision, Reason: "不允许删除台账历史",
+	}, integrationActorOne, "bill-receipt-delete-after-history"); err == nil ||
+		err.Error() != "bill document with ledger history cannot be deleted" {
+		t.Fatalf("delete historical bill receipt error = %v", err)
+	}
+	freshDraft, err := vouchers.Create(t.Context(), voudomain.EntityBillReceipt, voudomain.CreateInput{
+		Data: voudomain.DraftInput{
+			BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: &refs.customer,
+			Handler: &refs.employee, BillLines: []voudomain.BillLineInput{{
+				PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+				BillType: "CHECK", BillNo: "BRE-DRAFT-DELETE", Medium: "PAPER",
+				Currency: "CNY", FaceAmount: "1.00", IssueDate: "2026-08-03",
+				MaturityDate: "2026-08-03", Drawer: "出票人", Acceptor: "承兑人",
+				Payee: "本公司",
+			}},
+		},
+	}, integrationActorOne, "bill-receipt-fresh-draft-create")
+	if err != nil {
+		t.Fatalf("create fresh bill draft: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityBillReceipt, voudomain.DeleteInput{
+		DocumentID: freshDraft.DocumentID, Revision: freshDraft.Revision, Reason: "删除未入账草稿",
+	}, integrationActorOne, "bill-receipt-fresh-draft-delete"); err != nil {
+		t.Fatalf("delete fresh bill draft: %v", err)
+	}
+}
+
+func TestBillReceiptConcurrentChangeAllowsOneWinnerIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	base := voudomain.BillLineInput{
+		PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+		BillType: "BANK_ACCEPTANCE", BillNo: "BRE-CONC-SOURCE", Medium: "ELECTRONIC",
+		Currency: "CNY", FaceAmount: "100.00", IssueDate: "2026-08-01",
+		MaturityDate: "2026-09-01", Drawer: "出票人", Acceptor: "承兑行",
+		Payee: "本公司", AnnualRateBps: 0,
+	}
+	source, sourceView := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &refs.employee, BillLines: []voudomain.BillLineInput{base},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: source.DocumentID, Revision: source.Revision,
+	}, integrationActorOne, "bill-concurrent-source-finalize"); err != nil {
+		t.Fatalf("finalize source bill: %v", err)
+	}
+	sourceBillID := sourceView.Data.BillLines[0].BillID
+
+	contenders := make([]voudomain.MutationResult, 0, 2)
+	for _, billNo := range []string{"BRE-CONC-A", "BRE-CONC-B"} {
+		primary := base
+		primary.BillNo = billNo
+		primary.FaceAmount = "101.00"
+		approved, _ := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+			BusinessDate: "2026-08-02", Currency: "CNY", Counterparty: &refs.customer,
+			Handler: &refs.employee, BillLines: []voudomain.BillLineInput{
+				primary, {BillID: sourceBillID, Purpose: "CHANGE"},
+			},
+		})
+		contenders = append(contenders, approved)
+	}
+	type finalizeResult struct {
+		mutation voudomain.MutationResult
+		err      error
+	}
+	results := make(chan finalizeResult, len(contenders))
+	for _, contender := range contenders {
+		go func(item voudomain.MutationResult) {
+			mutation, finalizeErr := vouchers.Finalize(context.Background(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+				DocumentID: item.DocumentID, Revision: item.Revision,
+			}, integrationActorOne, "bill-concurrent-change-finalize-"+item.DocumentID)
+			results <- finalizeResult{mutation: mutation, err: finalizeErr}
+		}(contender)
+	}
+	var winner voudomain.MutationResult
+	successes := 0
+	for range contenders {
+		result := <-results
+		if result.err == nil {
+			successes++
+			winner = result.mutation
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("concurrent bill change successes = %d, want 1", successes)
+	}
+	if _, err := vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: winner.DocumentID, Revision: winner.Revision, Reason: "释放并发占用票据",
+	}, integrationActorOne, "bill-concurrent-winner-unfinalize"); err != nil {
+		t.Fatalf("unfinalize concurrent winner: %v", err)
+	}
+	bills, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE"},
+	})
+	if err != nil {
+		t.Fatalf("query bills after concurrent reversal: %v", err)
+	}
+	foundSource := false
+	for _, bill := range bills.Items {
+		foundSource = foundSource || bill.BillID == sourceBillID
+	}
+	if !foundSource {
+		t.Fatal("source bill did not become available after winner reversal")
+	}
+}
+
+func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare ledger closing: %v", err)
+	}
+	closing, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get closing before bill receipt period close: %v", err)
+	}
+	if _, err := ledger.Close(t.Context(), ClosingInput{
+		Revision: closing.Revision, ClosingDate: "2026-07-31",
+	}, integrationActorOne, "bill-receipt-close-period"); err != nil {
+		t.Fatalf("close bill receipt period: %v", err)
+	}
+	_, err = vouchers.Create(t.Context(), voudomain.EntityBillReceipt, voudomain.CreateInput{
+		Data: voudomain.DraftInput{
+			BusinessDate: "2026-07-31", Currency: "CNY", Counterparty: &refs.customer,
+			Handler: &refs.employee, BillLines: []voudomain.BillLineInput{{
+				PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+				BillType: "CHECK", BillNo: "BRE-CLOSED", Medium: "PAPER",
+				Currency: "CNY", FaceAmount: "1.00", IssueDate: "2026-07-31",
+				MaturityDate: "2026-07-31", Drawer: "出票人", Acceptor: "承兑人",
+				Payee: "本公司",
+			}},
+		},
+	}, integrationActorOne, "bill-receipt-create-closed-period")
+	if err == nil || !strings.Contains(err.Error(), "closed through 2026-07-31") {
+		t.Fatalf("closed-period bill receipt error = %v", err)
+	}
+}
+
 func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	var count int
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 20 {
-		t.Fatalf("LED permission count = %d, want 20", count)
+	if count != 21 {
+		t.Fatalf("LED permission count = %d, want 21", count)
 	}
 }
 

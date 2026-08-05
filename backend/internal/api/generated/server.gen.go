@@ -259,19 +259,19 @@ func (e BobVersionSummaryStatus) Valid() bool {
 
 // Defines values for FeedbackCreateRequestCategory.
 const (
-	BUG        FeedbackCreateRequestCategory = "BUG"
-	OTHER      FeedbackCreateRequestCategory = "OTHER"
-	SUGGESTION FeedbackCreateRequestCategory = "SUGGESTION"
+	FeedbackCreateRequestCategoryBUG        FeedbackCreateRequestCategory = "BUG"
+	FeedbackCreateRequestCategoryOTHER      FeedbackCreateRequestCategory = "OTHER"
+	FeedbackCreateRequestCategorySUGGESTION FeedbackCreateRequestCategory = "SUGGESTION"
 )
 
 // Valid indicates whether the value is a known member of the FeedbackCreateRequestCategory enum.
 func (e FeedbackCreateRequestCategory) Valid() bool {
 	switch e {
-	case BUG:
+	case FeedbackCreateRequestCategoryBUG:
 		return true
-	case OTHER:
+	case FeedbackCreateRequestCategoryOTHER:
 		return true
-	case SUGGESTION:
+	case FeedbackCreateRequestCategorySUGGESTION:
 		return true
 	default:
 		return false
@@ -293,6 +293,222 @@ func (e LedAssetQueryRequestFiltersStatus) Valid() bool {
 	case LedAssetQueryRequestFiltersStatusRETIRED:
 		return true
 	case LedAssetQueryRequestFiltersStatusSOLD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillListItemAvailability.
+const (
+	LedBillListItemAvailabilityAVAILABLE LedBillListItemAvailability = "AVAILABLE"
+	LedBillListItemAvailabilityMATURED   LedBillListItemAvailability = "MATURED"
+	LedBillListItemAvailabilityUSED      LedBillListItemAvailability = "USED"
+)
+
+// Valid indicates whether the value is a known member of the LedBillListItemAvailability enum.
+func (e LedBillListItemAvailability) Valid() bool {
+	switch e {
+	case LedBillListItemAvailabilityAVAILABLE:
+		return true
+	case LedBillListItemAvailabilityMATURED:
+		return true
+	case LedBillListItemAvailabilityUSED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillListItemBillType.
+const (
+	LedBillListItemBillTypeBANKACCEPTANCE       LedBillListItemBillType = "BANK_ACCEPTANCE"
+	LedBillListItemBillTypeCHECK                LedBillListItemBillType = "CHECK"
+	LedBillListItemBillTypeCOMMERCIALACCEPTANCE LedBillListItemBillType = "COMMERCIAL_ACCEPTANCE"
+	LedBillListItemBillTypeOTHER                LedBillListItemBillType = "OTHER"
+)
+
+// Valid indicates whether the value is a known member of the LedBillListItemBillType enum.
+func (e LedBillListItemBillType) Valid() bool {
+	switch e {
+	case LedBillListItemBillTypeBANKACCEPTANCE:
+		return true
+	case LedBillListItemBillTypeCHECK:
+		return true
+	case LedBillListItemBillTypeCOMMERCIALACCEPTANCE:
+		return true
+	case LedBillListItemBillTypeOTHER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillListItemMedium.
+const (
+	LedBillListItemMediumELECTRONIC LedBillListItemMedium = "ELECTRONIC"
+	LedBillListItemMediumPAPER      LedBillListItemMedium = "PAPER"
+)
+
+// Valid indicates whether the value is a known member of the LedBillListItemMedium enum.
+func (e LedBillListItemMedium) Valid() bool {
+	switch e {
+	case LedBillListItemMediumELECTRONIC:
+		return true
+	case LedBillListItemMediumPAPER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillListItemPositionType.
+const (
+	LedBillListItemPositionTypeASSET     LedBillListItemPositionType = "ASSET"
+	LedBillListItemPositionTypeLIABILITY LedBillListItemPositionType = "LIABILITY"
+)
+
+// Valid indicates whether the value is a known member of the LedBillListItemPositionType enum.
+func (e LedBillListItemPositionType) Valid() bool {
+	switch e {
+	case LedBillListItemPositionTypeASSET:
+		return true
+	case LedBillListItemPositionTypeLIABILITY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillListItemSourceEntity.
+const (
+	LedBillListItemSourceEntityBillReceipt LedBillListItemSourceEntity = "bill-receipt"
+)
+
+// Valid indicates whether the value is a known member of the LedBillListItemSourceEntity enum.
+func (e LedBillListItemSourceEntity) Valid() bool {
+	switch e {
+	case LedBillListItemSourceEntityBillReceipt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestFiltersAvailability.
+const (
+	LedBillQueryRequestFiltersAvailabilityAVAILABLE LedBillQueryRequestFiltersAvailability = "AVAILABLE"
+	LedBillQueryRequestFiltersAvailabilityMATURED   LedBillQueryRequestFiltersAvailability = "MATURED"
+	LedBillQueryRequestFiltersAvailabilityUSED      LedBillQueryRequestFiltersAvailability = "USED"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersAvailability enum.
+func (e LedBillQueryRequestFiltersAvailability) Valid() bool {
+	switch e {
+	case LedBillQueryRequestFiltersAvailabilityAVAILABLE:
+		return true
+	case LedBillQueryRequestFiltersAvailabilityMATURED:
+		return true
+	case LedBillQueryRequestFiltersAvailabilityUSED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestFiltersBillType.
+const (
+	LedBillQueryRequestFiltersBillTypeBANKACCEPTANCE       LedBillQueryRequestFiltersBillType = "BANK_ACCEPTANCE"
+	LedBillQueryRequestFiltersBillTypeCHECK                LedBillQueryRequestFiltersBillType = "CHECK"
+	LedBillQueryRequestFiltersBillTypeCOMMERCIALACCEPTANCE LedBillQueryRequestFiltersBillType = "COMMERCIAL_ACCEPTANCE"
+	LedBillQueryRequestFiltersBillTypeOTHER                LedBillQueryRequestFiltersBillType = "OTHER"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersBillType enum.
+func (e LedBillQueryRequestFiltersBillType) Valid() bool {
+	switch e {
+	case LedBillQueryRequestFiltersBillTypeBANKACCEPTANCE:
+		return true
+	case LedBillQueryRequestFiltersBillTypeCHECK:
+		return true
+	case LedBillQueryRequestFiltersBillTypeCOMMERCIALACCEPTANCE:
+		return true
+	case LedBillQueryRequestFiltersBillTypeOTHER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestFiltersPositionType.
+const (
+	LedBillQueryRequestFiltersPositionTypeASSET     LedBillQueryRequestFiltersPositionType = "ASSET"
+	LedBillQueryRequestFiltersPositionTypeLIABILITY LedBillQueryRequestFiltersPositionType = "LIABILITY"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersPositionType enum.
+func (e LedBillQueryRequestFiltersPositionType) Valid() bool {
+	switch e {
+	case LedBillQueryRequestFiltersPositionTypeASSET:
+		return true
+	case LedBillQueryRequestFiltersPositionTypeLIABILITY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestFiltersSourceEntity.
+const (
+	LedBillQueryRequestFiltersSourceEntityBillReceipt LedBillQueryRequestFiltersSourceEntity = "bill-receipt"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersSourceEntity enum.
+func (e LedBillQueryRequestFiltersSourceEntity) Valid() bool {
+	switch e {
+	case LedBillQueryRequestFiltersSourceEntityBillReceipt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestSortField.
+const (
+	BillNo           LedBillQueryRequestSortField = "billNo"
+	FaceAmount       LedBillQueryRequestSortField = "faceAmount"
+	MaturityDate     LedBillQueryRequestSortField = "maturityDate"
+	SourceDocumentNo LedBillQueryRequestSortField = "sourceDocumentNo"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestSortField enum.
+func (e LedBillQueryRequestSortField) Valid() bool {
+	switch e {
+	case BillNo:
+		return true
+	case FaceAmount:
+		return true
+	case MaturityDate:
+		return true
+	case SourceDocumentNo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedBillQueryRequestSortOrder.
+const (
+	LedBillQueryRequestSortOrderAsc  LedBillQueryRequestSortOrder = "asc"
+	LedBillQueryRequestSortOrderDesc LedBillQueryRequestSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the LedBillQueryRequestSortOrder enum.
+func (e LedBillQueryRequestSortOrder) Valid() bool {
+	switch e {
+	case LedBillQueryRequestSortOrderAsc:
+		return true
+	case LedBillQueryRequestSortOrderDesc:
 		return true
 	default:
 		return false
@@ -335,12 +551,160 @@ func (e PageRequestSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for VouBillCashLineInputAmountType.
+const (
+	VouBillCashLineInputAmountTypeFEE       VouBillCashLineInputAmountType = "FEE"
+	VouBillCashLineInputAmountTypeINTEREST  VouBillCashLineInputAmountType = "INTEREST"
+	VouBillCashLineInputAmountTypeMARGIN    VouBillCashLineInputAmountType = "MARGIN"
+	VouBillCashLineInputAmountTypeOTHER     VouBillCashLineInputAmountType = "OTHER"
+	VouBillCashLineInputAmountTypePRINCIPAL VouBillCashLineInputAmountType = "PRINCIPAL"
+)
+
+// Valid indicates whether the value is a known member of the VouBillCashLineInputAmountType enum.
+func (e VouBillCashLineInputAmountType) Valid() bool {
+	switch e {
+	case VouBillCashLineInputAmountTypeFEE:
+		return true
+	case VouBillCashLineInputAmountTypeINTEREST:
+		return true
+	case VouBillCashLineInputAmountTypeMARGIN:
+		return true
+	case VouBillCashLineInputAmountTypeOTHER:
+		return true
+	case VouBillCashLineInputAmountTypePRINCIPAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillCashLineInputDirection.
+const (
+	VouBillCashLineInputDirectionIN  VouBillCashLineInputDirection = "IN"
+	VouBillCashLineInputDirectionOUT VouBillCashLineInputDirection = "OUT"
+)
+
+// Valid indicates whether the value is a known member of the VouBillCashLineInputDirection enum.
+func (e VouBillCashLineInputDirection) Valid() bool {
+	switch e {
+	case VouBillCashLineInputDirectionIN:
+		return true
+	case VouBillCashLineInputDirectionOUT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillChangeLineInputPurpose.
+const (
+	CHANGE VouBillChangeLineInputPurpose = "CHANGE"
+)
+
+// Valid indicates whether the value is a known member of the VouBillChangeLineInputPurpose enum.
+func (e VouBillChangeLineInputPurpose) Valid() bool {
+	switch e {
+	case CHANGE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillPrimaryLineInputBillType.
+const (
+	VouBillPrimaryLineInputBillTypeBANKACCEPTANCE       VouBillPrimaryLineInputBillType = "BANK_ACCEPTANCE"
+	VouBillPrimaryLineInputBillTypeCHECK                VouBillPrimaryLineInputBillType = "CHECK"
+	VouBillPrimaryLineInputBillTypeCOMMERCIALACCEPTANCE VouBillPrimaryLineInputBillType = "COMMERCIAL_ACCEPTANCE"
+	VouBillPrimaryLineInputBillTypeOTHER                VouBillPrimaryLineInputBillType = "OTHER"
+)
+
+// Valid indicates whether the value is a known member of the VouBillPrimaryLineInputBillType enum.
+func (e VouBillPrimaryLineInputBillType) Valid() bool {
+	switch e {
+	case VouBillPrimaryLineInputBillTypeBANKACCEPTANCE:
+		return true
+	case VouBillPrimaryLineInputBillTypeCHECK:
+		return true
+	case VouBillPrimaryLineInputBillTypeCOMMERCIALACCEPTANCE:
+		return true
+	case VouBillPrimaryLineInputBillTypeOTHER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillPrimaryLineInputDirection.
+const (
+	VouBillPrimaryLineInputDirectionIN VouBillPrimaryLineInputDirection = "IN"
+)
+
+// Valid indicates whether the value is a known member of the VouBillPrimaryLineInputDirection enum.
+func (e VouBillPrimaryLineInputDirection) Valid() bool {
+	switch e {
+	case VouBillPrimaryLineInputDirectionIN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillPrimaryLineInputMedium.
+const (
+	VouBillPrimaryLineInputMediumELECTRONIC VouBillPrimaryLineInputMedium = "ELECTRONIC"
+	VouBillPrimaryLineInputMediumPAPER      VouBillPrimaryLineInputMedium = "PAPER"
+)
+
+// Valid indicates whether the value is a known member of the VouBillPrimaryLineInputMedium enum.
+func (e VouBillPrimaryLineInputMedium) Valid() bool {
+	switch e {
+	case VouBillPrimaryLineInputMediumELECTRONIC:
+		return true
+	case VouBillPrimaryLineInputMediumPAPER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillPrimaryLineInputPositionType.
+const (
+	VouBillPrimaryLineInputPositionTypeASSET VouBillPrimaryLineInputPositionType = "ASSET"
+)
+
+// Valid indicates whether the value is a known member of the VouBillPrimaryLineInputPositionType enum.
+func (e VouBillPrimaryLineInputPositionType) Valid() bool {
+	switch e {
+	case VouBillPrimaryLineInputPositionTypeASSET:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouBillPrimaryLineInputPurpose.
+const (
+	PRIMARY VouBillPrimaryLineInputPurpose = "PRIMARY"
+)
+
+// Valid indicates whether the value is a known member of the VouBillPrimaryLineInputPurpose enum.
+func (e VouBillPrimaryLineInputPurpose) Valid() bool {
+	switch e {
+	case PRIMARY:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VouCreatableEntity.
 const (
 	VouCreatableEntityAssetAcquisition     VouCreatableEntity = "asset-acquisition"
 	VouCreatableEntityAssetDepreciation    VouCreatableEntity = "asset-depreciation"
 	VouCreatableEntityAssetLiquidation     VouCreatableEntity = "asset-liquidation"
 	VouCreatableEntityAssetSale            VouCreatableEntity = "asset-sale"
+	VouCreatableEntityBillReceipt          VouCreatableEntity = "bill-receipt"
 	VouCreatableEntityCustomerPayment      VouCreatableEntity = "customer-payment"
 	VouCreatableEntityCustomerReceipt      VouCreatableEntity = "customer-receipt"
 	VouCreatableEntityEmployeeLoan         VouCreatableEntity = "employee-loan"
@@ -374,6 +738,8 @@ func (e VouCreatableEntity) Valid() bool {
 	case VouCreatableEntityAssetLiquidation:
 		return true
 	case VouCreatableEntityAssetSale:
+		return true
+	case VouCreatableEntityBillReceipt:
 		return true
 	case VouCreatableEntityCustomerPayment:
 		return true
@@ -428,6 +794,7 @@ const (
 	VouEntityAssetDepreciation    VouEntity = "asset-depreciation"
 	VouEntityAssetLiquidation     VouEntity = "asset-liquidation"
 	VouEntityAssetSale            VouEntity = "asset-sale"
+	VouEntityBillReceipt          VouEntity = "bill-receipt"
 	VouEntityCustomerPayment      VouEntity = "customer-payment"
 	VouEntityCustomerReceipt      VouEntity = "customer-receipt"
 	VouEntityEmployeeLoan         VouEntity = "employee-loan"
@@ -465,6 +832,8 @@ func (e VouEntity) Valid() bool {
 	case VouEntityAssetLiquidation:
 		return true
 	case VouEntityAssetSale:
+		return true
+	case VouEntityBillReceipt:
 		return true
 	case VouEntityCustomerPayment:
 		return true
@@ -1227,6 +1596,101 @@ type LedBalanceRequest struct {
 	PageSize int `json:"pageSize"`
 }
 
+// LedBillListItem defines model for LedBillListItem.
+type LedBillListItem struct {
+	Acceptor      string                      `json:"acceptor"`
+	AnnualRateBps int                         `json:"annualRateBps"`
+	Availability  LedBillListItemAvailability `json:"availability"`
+	BillId        string                      `json:"billId"`
+	BillNo        string                      `json:"billNo"`
+	BillType      LedBillListItemBillType     `json:"billType"`
+	Currency      string                      `json:"currency"`
+	Customer      struct {
+		Code      string `json:"code"`
+		Name      string `json:"name"`
+		ObjectId  string `json:"objectId"`
+		VersionId string `json:"versionId"`
+	} `json:"customer"`
+	CustomerCostAmount string                      `json:"customerCostAmount"`
+	Drawer             string                      `json:"drawer"`
+	FaceAmount         string                      `json:"faceAmount"`
+	InterestAmount     string                      `json:"interestAmount"`
+	InterestDays       int                         `json:"interestDays"`
+	IssueDate          openapi_types.Date          `json:"issueDate"`
+	MaturityDate       openapi_types.Date          `json:"maturityDate"`
+	Medium             LedBillListItemMedium       `json:"medium"`
+	Payee              string                      `json:"payee"`
+	PositionType       LedBillListItemPositionType `json:"positionType"`
+	SourceDocumentNo   string                      `json:"sourceDocumentNo"`
+	SourceEntity       LedBillListItemSourceEntity `json:"sourceEntity"`
+}
+
+// LedBillListItemAvailability defines model for LedBillListItem.Availability.
+type LedBillListItemAvailability string
+
+// LedBillListItemBillType defines model for LedBillListItem.BillType.
+type LedBillListItemBillType string
+
+// LedBillListItemMedium defines model for LedBillListItem.Medium.
+type LedBillListItemMedium string
+
+// LedBillListItemPositionType defines model for LedBillListItem.PositionType.
+type LedBillListItemPositionType string
+
+// LedBillListItemSourceEntity defines model for LedBillListItem.SourceEntity.
+type LedBillListItemSourceEntity string
+
+// LedBillQueryRequest defines model for LedBillQueryRequest.
+type LedBillQueryRequest struct {
+	Filters struct {
+		Availability     *LedBillQueryRequestFiltersAvailability `json:"availability,omitempty"`
+		BillNo           *string                                 `json:"billNo,omitempty"`
+		BillType         *LedBillQueryRequestFiltersBillType     `json:"billType,omitempty"`
+		CustomerObjectId *string                                 `json:"customerObjectId,omitempty"`
+		MaturityDateFrom *openapi_types.Date                     `json:"maturityDateFrom,omitempty"`
+		MaturityDateTo   *openapi_types.Date                     `json:"maturityDateTo,omitempty"`
+		PositionType     *LedBillQueryRequestFiltersPositionType `json:"positionType,omitempty"`
+		SourceEntity     *LedBillQueryRequestFiltersSourceEntity `json:"sourceEntity,omitempty"`
+	} `json:"filters"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+	Sort     []struct {
+		Field LedBillQueryRequestSortField `json:"field"`
+		Order LedBillQueryRequestSortOrder `json:"order"`
+	} `json:"sort"`
+}
+
+// LedBillQueryRequestFiltersAvailability defines model for LedBillQueryRequest.Filters.Availability.
+type LedBillQueryRequestFiltersAvailability string
+
+// LedBillQueryRequestFiltersBillType defines model for LedBillQueryRequest.Filters.BillType.
+type LedBillQueryRequestFiltersBillType string
+
+// LedBillQueryRequestFiltersPositionType defines model for LedBillQueryRequest.Filters.PositionType.
+type LedBillQueryRequestFiltersPositionType string
+
+// LedBillQueryRequestFiltersSourceEntity defines model for LedBillQueryRequest.Filters.SourceEntity.
+type LedBillQueryRequestFiltersSourceEntity string
+
+// LedBillQueryRequestSortField defines model for LedBillQueryRequest.Sort.Field.
+type LedBillQueryRequestSortField string
+
+// LedBillQueryRequestSortOrder defines model for LedBillQueryRequest.Sort.Order.
+type LedBillQueryRequestSortOrder string
+
+// LedBillQueryResponse defines model for LedBillQueryResponse.
+type LedBillQueryResponse struct {
+	Code int32 `json:"code"`
+	Data struct {
+		Items    []LedBillListItem `json:"items"`
+		Page     int               `json:"page"`
+		PageSize int               `json:"pageSize"`
+		Total    int64             `json:"total"`
+	} `json:"data"`
+	Message   string `json:"message"`
+	RequestId string `json:"requestId"`
+}
+
 // LedClosingRequest defines model for LedClosingRequest.
 type LedClosingRequest struct {
 	ClosingDate openapi_types.Date `json:"closingDate"`
@@ -1393,6 +1857,74 @@ type VouAttachmentRemoveRequest struct {
 	Revision   int64  `json:"revision"`
 }
 
+// VouBillCashLineInput defines model for VouBillCashLineInput.
+type VouBillCashLineInput struct {
+	Amount      string                         `json:"amount"`
+	AmountType  VouBillCashLineInputAmountType `json:"amountType"`
+	BillLineId  *string                        `json:"billLineId,omitempty"`
+	Direction   VouBillCashLineInputDirection  `json:"direction"`
+	FundAccount struct {
+		ObjectId  string `json:"objectId"`
+		VersionId string `json:"versionId"`
+	} `json:"fundAccount"`
+	Remark *string `json:"remark,omitempty"`
+}
+
+// VouBillCashLineInputAmountType defines model for VouBillCashLineInput.AmountType.
+type VouBillCashLineInputAmountType string
+
+// VouBillCashLineInputDirection defines model for VouBillCashLineInput.Direction.
+type VouBillCashLineInputDirection string
+
+// VouBillChangeLineInput defines model for VouBillChangeLineInput.
+type VouBillChangeLineInput struct {
+	BillId  string                        `json:"billId"`
+	Purpose VouBillChangeLineInputPurpose `json:"purpose"`
+	Remark  *string                       `json:"remark,omitempty"`
+}
+
+// VouBillChangeLineInputPurpose defines model for VouBillChangeLineInput.Purpose.
+type VouBillChangeLineInputPurpose string
+
+// VouBillLineInput defines model for VouBillLineInput.
+type VouBillLineInput struct {
+	union json.RawMessage
+}
+
+// VouBillPrimaryLineInput defines model for VouBillPrimaryLineInput.
+type VouBillPrimaryLineInput struct {
+	Acceptor      string                              `json:"acceptor"`
+	AnnualRateBps int                                 `json:"annualRateBps"`
+	BillNo        string                              `json:"billNo"`
+	BillType      VouBillPrimaryLineInputBillType     `json:"billType"`
+	Currency      string                              `json:"currency"`
+	Direction     VouBillPrimaryLineInputDirection    `json:"direction"`
+	Drawer        string                              `json:"drawer"`
+	FaceAmount    string                              `json:"faceAmount"`
+	IssueDate     openapi_types.Date                  `json:"issueDate"`
+	MaturityDate  openapi_types.Date                  `json:"maturityDate"`
+	Medium        VouBillPrimaryLineInputMedium       `json:"medium"`
+	Payee         string                              `json:"payee"`
+	PositionType  VouBillPrimaryLineInputPositionType `json:"positionType"`
+	Purpose       VouBillPrimaryLineInputPurpose      `json:"purpose"`
+	Remark        *string                             `json:"remark,omitempty"`
+}
+
+// VouBillPrimaryLineInputBillType defines model for VouBillPrimaryLineInput.BillType.
+type VouBillPrimaryLineInputBillType string
+
+// VouBillPrimaryLineInputDirection defines model for VouBillPrimaryLineInput.Direction.
+type VouBillPrimaryLineInputDirection string
+
+// VouBillPrimaryLineInputMedium defines model for VouBillPrimaryLineInput.Medium.
+type VouBillPrimaryLineInputMedium string
+
+// VouBillPrimaryLineInputPositionType defines model for VouBillPrimaryLineInput.PositionType.
+type VouBillPrimaryLineInputPositionType string
+
+// VouBillPrimaryLineInputPurpose defines model for VouBillPrimaryLineInput.Purpose.
+type VouBillPrimaryLineInputPurpose string
+
 // VouCreatableEntity defines model for VouCreatableEntity.
 type VouCreatableEntity string
 
@@ -1404,6 +1936,8 @@ type VouCreateRequest struct {
 		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
 		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
 		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
+		BillCashLines          *[]VouBillCashLineInput          `json:"billCashLines,omitempty"`
+		BillLines              *[]VouBillLineInput              `json:"billLines,omitempty"`
 		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
 		Counterparty           *struct {
 			ObjectId  string `json:"objectId"`
@@ -1438,6 +1972,7 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"handler,omitempty"`
+		InternalCostRateBps *int                          `json:"internalCostRateBps,omitempty"`
 		InventoryCountLines *[]VouInventoryCountLineInput `json:"inventoryCountLines,omitempty"`
 		MaterialWarehouse   *struct {
 			ObjectId  string `json:"objectId"`
@@ -1759,6 +2294,8 @@ type VouSaveRequest struct {
 		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
 		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
 		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
+		BillCashLines          *[]VouBillCashLineInput          `json:"billCashLines,omitempty"`
+		BillLines              *[]VouBillLineInput              `json:"billLines,omitempty"`
 		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
 		Counterparty           *struct {
 			ObjectId  string `json:"objectId"`
@@ -1793,6 +2330,7 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"handler,omitempty"`
+		InternalCostRateBps *int                          `json:"internalCostRateBps,omitempty"`
 		InventoryCountLines *[]VouInventoryCountLineInput `json:"inventoryCountLines,omitempty"`
 		MaterialWarehouse   *struct {
 			ObjectId  string `json:"objectId"`
@@ -2258,6 +2796,9 @@ type LedassetgetJSONRequestBody = LedAssetGetRequest
 // LedassetqueryJSONRequestBody defines body for Ledassetquery for application/json ContentType.
 type LedassetqueryJSONRequestBody = LedAssetQueryRequest
 
+// LedbillqueryJSONRequestBody defines body for Ledbillquery for application/json ContentType.
+type LedbillqueryJSONRequestBody = LedBillQueryRequest
+
 // LedclosingcloseJSONRequestBody defines body for Ledclosingclose for application/json ContentType.
 type LedclosingcloseJSONRequestBody = LedClosingRequest
 
@@ -2501,6 +3042,68 @@ func (a AuxCreateData) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
+// AsVouBillPrimaryLineInput returns the union data inside the VouBillLineInput as a VouBillPrimaryLineInput
+func (t VouBillLineInput) AsVouBillPrimaryLineInput() (VouBillPrimaryLineInput, error) {
+	var body VouBillPrimaryLineInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVouBillPrimaryLineInput overwrites any union data inside the VouBillLineInput as the provided VouBillPrimaryLineInput
+func (t *VouBillLineInput) FromVouBillPrimaryLineInput(v VouBillPrimaryLineInput) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVouBillPrimaryLineInput performs a merge with any union data inside the VouBillLineInput, using the provided VouBillPrimaryLineInput
+func (t *VouBillLineInput) MergeVouBillPrimaryLineInput(v VouBillPrimaryLineInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVouBillChangeLineInput returns the union data inside the VouBillLineInput as a VouBillChangeLineInput
+func (t VouBillLineInput) AsVouBillChangeLineInput() (VouBillChangeLineInput, error) {
+	var body VouBillChangeLineInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVouBillChangeLineInput overwrites any union data inside the VouBillLineInput as the provided VouBillChangeLineInput
+func (t *VouBillLineInput) FromVouBillChangeLineInput(v VouBillChangeLineInput) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVouBillChangeLineInput performs a merge with any union data inside the VouBillLineInput, using the provided VouBillChangeLineInput
+func (t *VouBillLineInput) MergeVouBillChangeLineInput(v VouBillChangeLineInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t VouBillLineInput) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *VouBillLineInput) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsWorkbenchObjectItem returns the union data inside the WorkbenchPage_Items_Item as a WorkbenchObjectItem
 func (t WorkbenchPage_Items_Item) AsWorkbenchObjectItem() (WorkbenchObjectItem, error) {
 	var body WorkbenchObjectItem
@@ -2724,6 +3327,9 @@ type ServerInterface interface {
 	// Ledassetquery 查询固定资产台账
 	// (POST /led/asset/query)
 	Ledassetquery(c *gin.Context)
+	// Ledbillquery 查询票据台账
+	// (POST /led/bill/query)
+	Ledbillquery(c *gin.Context)
 	// Ledclosingclose 执行月末结账
 	// (POST /led/closing/close)
 	Ledclosingclose(c *gin.Context)
@@ -3916,6 +4522,19 @@ func (siw *ServerInterfaceWrapper) Ledassetquery(c *gin.Context) {
 	siw.Handler.Ledassetquery(c)
 }
 
+// Ledbillquery operation middleware
+func (siw *ServerInterfaceWrapper) Ledbillquery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Ledbillquery(c)
+}
+
 // Ledclosingclose operation middleware
 func (siw *ServerInterfaceWrapper) Ledclosingclose(c *gin.Context) {
 
@@ -5080,6 +5699,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/led/closing/unclose", wrapper.Ledclosingunclose)
 	router.POST(options.BaseURL+"/led/closing/history", wrapper.Ledclosinghistory)
 	router.POST(options.BaseURL+"/led/inventory/query", wrapper.Ledinventoryquery)
+	router.POST(options.BaseURL+"/led/bill/query", wrapper.Ledbillquery)
 	router.POST(options.BaseURL+"/led/inventory/balance", wrapper.Ledinventorybalance)
 	router.POST(options.BaseURL+"/led/fund/query", wrapper.Ledfundquery)
 	router.POST(options.BaseURL+"/led/fund/balance", wrapper.Ledfundbalance)
@@ -6339,6 +6959,28 @@ type LedassetqueryResponseObject interface {
 type Ledassetquery200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Ledassetquery200JSONResponse) VisitLedassetqueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LedbillqueryRequestObject struct {
+	Body *LedbillqueryJSONRequestBody
+}
+
+type LedbillqueryResponseObject interface {
+	VisitLedbillqueryResponse(w http.ResponseWriter) error
+}
+
+type Ledbillquery200JSONResponse LedBillQueryResponse
+
+func (response Ledbillquery200JSONResponse) VisitLedbillqueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7866,6 +8508,9 @@ type StrictServerInterface interface {
 	// Ledassetquery 查询固定资产台账
 	// (POST /led/asset/query)
 	Ledassetquery(ctx context.Context, request LedassetqueryRequestObject) (LedassetqueryResponseObject, error)
+	// Ledbillquery 查询票据台账
+	// (POST /led/bill/query)
+	Ledbillquery(ctx context.Context, request LedbillqueryRequestObject) (LedbillqueryResponseObject, error)
 	// Ledclosingclose 执行月末结账
 	// (POST /led/closing/close)
 	Ledclosingclose(ctx context.Context, request LedclosingcloseRequestObject) (LedclosingcloseResponseObject, error)
@@ -9778,6 +10423,37 @@ func (sh *strictHandler) Ledassetquery(ctx *gin.Context) {
 	}
 }
 
+// Ledbillquery operation middleware
+func (sh *strictHandler) Ledbillquery(ctx *gin.Context) {
+	var request LedbillqueryRequestObject
+
+	var body LedbillqueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Ledbillquery(ctx, request.(LedbillqueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Ledbillquery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LedbillqueryResponseObject); ok {
+		if err := validResponse.VisitLedbillqueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Ledclosingclose operation middleware
 func (sh *strictHandler) Ledclosingclose(ctx *gin.Context) {
 	var request LedclosingcloseRequestObject
@@ -11680,168 +12356,180 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"ay6d8/YhipAsnlj8fwEAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

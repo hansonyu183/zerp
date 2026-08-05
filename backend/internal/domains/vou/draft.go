@@ -12,11 +12,12 @@ import (
 )
 
 type resolvedDraft struct {
-	Customer, Supplier, Counterparty, Employee, FundAccount *bobdomain.EffectiveReference
-	Salesperson, Purchaser, Handler, Warehouse              *bobdomain.EffectiveReference
-	CustomerSettlement, SupplierSettlement                  *bobdomain.EffectiveReference
-	Products                                                []bobdomain.EffectiveReference
-	FormulaMaterials                                        [][]bobdomain.EffectiveReference
+	Customer, Supplier, Counterparty, Employee, FundAccount, InterestParty *bobdomain.EffectiveReference
+	Salesperson, Purchaser, Handler, Warehouse                             *bobdomain.EffectiveReference
+	CustomerSettlement, SupplierSettlement                                 *bobdomain.EffectiveReference
+	Products                                                               []bobdomain.EffectiveReference
+	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
+	BillFunds                                                              []bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedPersonnel(
@@ -374,6 +375,8 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
+	case EntityBillReceipt:
+		return s.writeBillDetail(ctx, q, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -398,6 +401,9 @@ func (s *Service) replaceLines(
 			}
 		}
 		return nil
+	}
+	if entity == EntityBillReceipt {
+		return s.replaceBillLines(ctx, q, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
 		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
@@ -504,6 +510,17 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntityBillReceipt:
+		detail, err := q.GetVouBillDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill detail", err)
+		}
+		lines, err := q.ListVouBillLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill lines", err)
+		}
+		missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil ||
+			detail.HandlerObjectID == nil || detail.HandlerVersionID == nil || len(lines) == 0
 	case EntityAssetAcquisition:
 		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)
 		if err != nil {

@@ -357,6 +357,33 @@ func (q *Queries) DeleteVouAttachmentByFileID(ctx context.Context, fileID string
 	return result.RowsAffected(), nil
 }
 
+const deleteVouBillCashLines = `-- name: DeleteVouBillCashLines :exec
+DELETE FROM vou_bill_cash_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouBillCashLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouBillCashLines, documentID)
+	return err
+}
+
+const deleteVouBillDetails = `-- name: DeleteVouBillDetails :exec
+DELETE FROM vou_bill_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouBillDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouBillDetails, documentID)
+	return err
+}
+
+const deleteVouBillLines = `-- name: DeleteVouBillLines :exec
+DELETE FROM vou_bill_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouBillLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouBillLines, documentID)
+	return err
+}
+
 const deleteVouDocumentAttachment = `-- name: DeleteVouDocumentAttachment :execrows
 DELETE FROM vou_document_attachments
 WHERE document_id = $1 AND file_id = $2
@@ -742,6 +769,38 @@ func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) 
 		&i.CounterpartyVersionID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
+	)
+	return i, err
+}
+
+const getVouBillDetail = `-- name: GetVouBillDetail :one
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, handler_object_id, handler_version_id, handler_code, handler_name, internal_cost_rate_bps, maturity_type, interest_mode, interest_party_entity, interest_party_object_id, interest_party_version_id, interest_party_code, interest_party_name, with_recourse FROM vou_bill_details WHERE document_id=$1
+`
+
+func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouBillDetail, error) {
+	row := q.db.QueryRow(ctx, getVouBillDetail, documentID)
+	var i VouBillDetail
+	err := row.Scan(
+		&i.DocumentID,
+		&i.Entity,
+		&i.CounterpartyEntity,
+		&i.CounterpartyObjectID,
+		&i.CounterpartyVersionID,
+		&i.CounterpartyCode,
+		&i.CounterpartyName,
+		&i.HandlerObjectID,
+		&i.HandlerVersionID,
+		&i.HandlerCode,
+		&i.HandlerName,
+		&i.InternalCostRateBps,
+		&i.MaturityType,
+		&i.InterestMode,
+		&i.InterestPartyEntity,
+		&i.InterestPartyObjectID,
+		&i.InterestPartyVersionID,
+		&i.InterestPartyCode,
+		&i.InterestPartyName,
+		&i.WithRecourse,
 	)
 	return i, err
 }
@@ -1418,6 +1477,152 @@ func (q *Queries) InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEve
 		arg.Reason,
 		arg.RequestID,
 		arg.Summary,
+	)
+	return err
+}
+
+const insertVouBillCashLine = `-- name: InsertVouBillCashLine :exec
+INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+`
+
+type InsertVouBillCashLineParams struct {
+	ID                   string  `db:"id" json:"id"`
+	DocumentID           string  `db:"document_id" json:"document_id"`
+	LineNo               int32   `db:"line_no" json:"line_no"`
+	BillLineID           *string `db:"bill_line_id" json:"bill_line_id"`
+	FundAccountObjectID  string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountVersionID string  `db:"fund_account_version_id" json:"fund_account_version_id"`
+	FundAccountCode      string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName      string  `db:"fund_account_name" json:"fund_account_name"`
+	Direction            string  `db:"direction" json:"direction"`
+	AmountType           string  `db:"amount_type" json:"amount_type"`
+	AmountCents          int64   `db:"amount_cents" json:"amount_cents"`
+	Remark               *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCashLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouBillCashLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.BillLineID,
+		arg.FundAccountObjectID,
+		arg.FundAccountVersionID,
+		arg.FundAccountCode,
+		arg.FundAccountName,
+		arg.Direction,
+		arg.AmountType,
+		arg.AmountCents,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertVouBillDetail = `-- name: InsertVouBillDetail :exec
+INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,handler_object_id,handler_version_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_version_id,interest_party_code,interest_party_name,with_recourse)
+VALUES($1,'bill-receipt','customer',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+`
+
+type InsertVouBillDetailParams struct {
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	CounterpartyObjectID   *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID  *string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode       *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName       *string `db:"counterparty_name" json:"counterparty_name"`
+	HandlerObjectID        *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerVersionID       *string `db:"handler_version_id" json:"handler_version_id"`
+	HandlerCode            *string `db:"handler_code" json:"handler_code"`
+	HandlerName            *string `db:"handler_name" json:"handler_name"`
+	InternalCostRateBps    int32   `db:"internal_cost_rate_bps" json:"internal_cost_rate_bps"`
+	MaturityType           string  `db:"maturity_type" json:"maturity_type"`
+	InterestMode           string  `db:"interest_mode" json:"interest_mode"`
+	InterestPartyEntity    *string `db:"interest_party_entity" json:"interest_party_entity"`
+	InterestPartyObjectID  *string `db:"interest_party_object_id" json:"interest_party_object_id"`
+	InterestPartyVersionID *string `db:"interest_party_version_id" json:"interest_party_version_id"`
+	InterestPartyCode      *string `db:"interest_party_code" json:"interest_party_code"`
+	InterestPartyName      *string `db:"interest_party_name" json:"interest_party_name"`
+	WithRecourse           bool    `db:"with_recourse" json:"with_recourse"`
+}
+
+func (q *Queries) InsertVouBillDetail(ctx context.Context, arg InsertVouBillDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouBillDetail,
+		arg.DocumentID,
+		arg.CounterpartyObjectID,
+		arg.CounterpartyVersionID,
+		arg.CounterpartyCode,
+		arg.CounterpartyName,
+		arg.HandlerObjectID,
+		arg.HandlerVersionID,
+		arg.HandlerCode,
+		arg.HandlerName,
+		arg.InternalCostRateBps,
+		arg.MaturityType,
+		arg.InterestMode,
+		arg.InterestPartyEntity,
+		arg.InterestPartyObjectID,
+		arg.InterestPartyVersionID,
+		arg.InterestPartyCode,
+		arg.InterestPartyName,
+		arg.WithRecourse,
+	)
+	return err
+}
+
+const insertVouBillLine = `-- name: InsertVouBillLine :exec
+INSERT INTO vou_bill_lines(id,document_id,line_no,bill_id,position_type,direction,purpose,bill_type,bill_no,medium,currency,face_amount_cents,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,interest_amount_cents,customer_cost_amount_cents,remark)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+`
+
+type InsertVouBillLineParams struct {
+	ID                      string      `db:"id" json:"id"`
+	DocumentID              string      `db:"document_id" json:"document_id"`
+	LineNo                  int32       `db:"line_no" json:"line_no"`
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Direction               string      `db:"direction" json:"direction"`
+	Purpose                 string      `db:"purpose" json:"purpose"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	Medium                  string      `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountCents         int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64       `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64       `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	Remark                  *string     `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouBillLine(ctx context.Context, arg InsertVouBillLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouBillLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.BillID,
+		arg.PositionType,
+		arg.Direction,
+		arg.Purpose,
+		arg.BillType,
+		arg.BillNo,
+		arg.Medium,
+		arg.Currency,
+		arg.FaceAmountCents,
+		arg.IssueDate,
+		arg.MaturityDate,
+		arg.Drawer,
+		arg.Acceptor,
+		arg.Payee,
+		arg.AnnualRateBps,
+		arg.InterestDays,
+		arg.InterestAmountCents,
+		arg.CustomerCostAmountCents,
+		arg.Remark,
 	)
 	return err
 }
@@ -2809,6 +3014,90 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 			&i.ChildID,
 			&i.ChildNo,
 			&i.ChildStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouBillCashLines = `-- name: ListVouBillCashLines :many
+SELECT id, document_id, line_no, bill_line_id, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, direction, amount_type, amount_cents, remark FROM vou_bill_cash_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouBillCashLines(ctx context.Context, documentID string) ([]VouBillCashLine, error) {
+	rows, err := q.db.Query(ctx, listVouBillCashLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouBillCashLine{}
+	for rows.Next() {
+		var i VouBillCashLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.BillLineID,
+			&i.FundAccountObjectID,
+			&i.FundAccountVersionID,
+			&i.FundAccountCode,
+			&i.FundAccountName,
+			&i.Direction,
+			&i.AmountType,
+			&i.AmountCents,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouBillLines = `-- name: ListVouBillLines :many
+SELECT id, document_id, line_no, bill_id, position_type, direction, purpose, bill_type, bill_no, medium, currency, face_amount_cents, issue_date, maturity_date, drawer, acceptor, payee, annual_rate_bps, interest_days, interest_amount_cents, customer_cost_amount_cents, remark FROM vou_bill_lines WHERE document_id=$1 ORDER BY line_no
+`
+
+func (q *Queries) ListVouBillLines(ctx context.Context, documentID string) ([]VouBillLine, error) {
+	rows, err := q.db.Query(ctx, listVouBillLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouBillLine{}
+	for rows.Next() {
+		var i VouBillLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.LineNo,
+			&i.BillID,
+			&i.PositionType,
+			&i.Direction,
+			&i.Purpose,
+			&i.BillType,
+			&i.BillNo,
+			&i.Medium,
+			&i.Currency,
+			&i.FaceAmountCents,
+			&i.IssueDate,
+			&i.MaturityDate,
+			&i.Drawer,
+			&i.Acceptor,
+			&i.Payee,
+			&i.AnnualRateBps,
+			&i.InterestDays,
+			&i.InterestAmountCents,
+			&i.CustomerCostAmountCents,
+			&i.Remark,
 		); err != nil {
 			return nil, err
 		}

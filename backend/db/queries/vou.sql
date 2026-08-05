@@ -1051,3 +1051,25 @@ FOR UPDATE;
 
 -- name: ListAllVouStorageKeys :many
 SELECT storage_key FROM vou_files;
+
+-- name: InsertVouBillDetail :exec
+INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,handler_object_id,handler_version_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_version_id,interest_party_code,interest_party_name,with_recourse)
+VALUES(sqlc.arg(document_id),'bill-receipt','customer',sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_version_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),sqlc.narg(handler_object_id),sqlc.narg(handler_version_id),sqlc.narg(handler_code),sqlc.narg(handler_name),sqlc.arg(internal_cost_rate_bps),sqlc.arg(maturity_type),sqlc.arg(interest_mode),sqlc.narg(interest_party_entity),sqlc.narg(interest_party_object_id),sqlc.narg(interest_party_version_id),sqlc.narg(interest_party_code),sqlc.narg(interest_party_name),sqlc.arg(with_recourse));
+-- name: GetVouBillDetail :one
+SELECT * FROM vou_bill_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouBillDetails :exec
+DELETE FROM vou_bill_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouBillLines :exec
+DELETE FROM vou_bill_lines WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouBillCashLines :exec
+DELETE FROM vou_bill_cash_lines WHERE document_id=sqlc.arg(document_id);
+-- name: InsertVouBillLine :exec
+INSERT INTO vou_bill_lines(id,document_id,line_no,bill_id,position_type,direction,purpose,bill_type,bill_no,medium,currency,face_amount_cents,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,interest_amount_cents,customer_cost_amount_cents,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(bill_id),sqlc.arg(position_type),sqlc.arg(direction),sqlc.arg(purpose),sqlc.arg(bill_type),sqlc.arg(bill_no),sqlc.arg(medium),sqlc.arg(currency),sqlc.arg(face_amount_cents),sqlc.arg(issue_date),sqlc.arg(maturity_date),sqlc.arg(drawer),sqlc.arg(acceptor),sqlc.arg(payee),sqlc.arg(annual_rate_bps),sqlc.arg(interest_days),sqlc.arg(interest_amount_cents),sqlc.arg(customer_cost_amount_cents),sqlc.narg(remark));
+-- name: ListVouBillLines :many
+SELECT * FROM vou_bill_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+-- name: InsertVouBillCashLine :exec
+INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
+VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.narg(bill_line_id),sqlc.arg(fund_account_object_id),sqlc.arg(fund_account_version_id),sqlc.arg(fund_account_code),sqlc.arg(fund_account_name),sqlc.arg(direction),sqlc.arg(amount_type),sqlc.arg(amount_cents),sqlc.narg(remark));
+-- name: ListVouBillCashLines :many
+SELECT * FROM vou_bill_cash_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;

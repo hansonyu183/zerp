@@ -351,4 +351,13 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'asset-liquidation',
     finalizationKind: 'direct',
   },
+  'bill-receipt': {
+    entity: 'bill-receipt',
+    title: '票据收入',
+    icon: 'mdi-receipt-text-outline',
+    order: 130,
+    partyMode: 'none',
+    lineKind: 'bill',
+    finalizationKind: 'direct',
+  },
 }

@@ -3,9 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
-	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -70,32 +68,6 @@ func validatePermissions(ctx context.Context, q *dbsqlc.Queries, ids []string) e
 	}
 	if count != int64(len(ids)) {
 		return domainError(ErrorValidation, "one or more permissions do not exist or are disabled", nil)
-	}
-	paths, err := q.ListAppPermissionPathsByIDs(ctx, ids)
-	if err != nil {
-		return domainError(ErrorInternal, "internal server error", err)
-	}
-	pathSet := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		pathSet[path] = true
-	}
-	for _, path := range paths {
-		parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-		if len(parts) != 3 || path == signoutPath ||
-			path == "/app/user/profile" || path == "/app/user/change-password" {
-			continue
-		}
-		readAction := "query"
-		if parts[0] == "led" && parts[1] == "closing" {
-			readAction = "get"
-		}
-		if parts[2] == readAction {
-			continue
-		}
-		readPath := "/" + parts[0] + "/" + parts[1] + "/" + readAction
-		if !pathSet[readPath] {
-			return domainError(ErrorValidation, fmt.Sprintf("permission %s requires %s", path, readPath), nil)
-		}
 	}
 	return nil
 }

@@ -115,6 +115,7 @@ function mountList(
     pageSize: number
     total: number
     loading: boolean
+    searchable: boolean
     creatable: boolean
     editable: boolean | ((row: Readonly<ExampleRow>) => boolean)
     deletable: boolean | ((row: Readonly<ExampleRow>) => boolean)
@@ -196,6 +197,13 @@ describe('BusinessObjectList', () => {
     expect(wrapper.emitted('edit')?.[0]).toEqual([rows[0]])
     expect(wrapper.emitted('delete')?.[0]).toEqual([rows[0]])
     expect(wrapper.find('button[aria-label="编辑 C-2"]').exists()).toBe(false)
+  })
+
+  it('可隐藏不被接口支持的关键词控件', () => {
+    const wrapper = mountList({ searchable: false })
+
+    expect(wrapper.find('input[aria-label="关键字"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('查询')
   })
 
   it('分页使用总数判断下一页并在加载时锁定', async () => {

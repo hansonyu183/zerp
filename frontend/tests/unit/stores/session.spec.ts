@@ -13,6 +13,58 @@ vi.mock('@/api/client', () => ({
 
 const mockedApiClient = vi.mocked(apiClient)
 
+function menuResponse(
+  routes: Array<{
+    id: string
+    group?: string
+    routeKey: string
+    routePath: string
+    title: string
+  }> = [],
+) {
+  const groupIDs = [...new Set(routes.map((route) => route.group ?? 'group-1'))]
+  const items = [
+    ...groupIDs.map((id, index) => ({
+      id,
+      parentId: null,
+      type: 'GROUP',
+      level: 1,
+      order: (index + 1) * 10,
+      displayName: id === 'wfl-group' ? '业务流程' : '业务对象',
+      icon: null,
+      enabled: true,
+      routeKey: null,
+      routePath: null,
+      permissionCode: null,
+    })),
+    ...routes.map((route, index) => ({
+      id: route.id,
+      parentId: route.group ?? 'group-1',
+      type: 'ROUTE',
+      level: 2,
+      order: (index + 1) * 10,
+      displayName: route.title,
+      icon: null,
+      enabled: true,
+      routeKey: route.routeKey,
+      routePath: route.routePath,
+      permissionCode: `/${route.routeKey}/query`,
+    })),
+  ]
+  const tree = { revision: 1, items }
+  return {
+    data: {
+      mode: 'DEFAULT',
+      modeRevision: 1,
+      catalogRevision: 'catalog-revision',
+      defaultMenu: tree,
+      businessTemplate: tree,
+      navigation: tree,
+      availableRoutes: [],
+    },
+  }
+}
+
 describe('useSessionStore permissions', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -20,19 +72,30 @@ describe('useSessionStore permissions', () => {
   })
 
   it('恢复权限并根据本地注册表生成 Home 菜单', async () => {
-    mockedApiClient.post.mockResolvedValue({
-      data: {
-        user: { id: '1', username: 'admin', displayName: '管理员' },
-        csrfToken: 'csrf-1',
-        permissions: [
-          '/app/user/signout',
-          '/bob/customer/query',
-          '/bob/customer/create',
-          '/bob/customer/query',
-          'bob/customer/update',
-        ],
-      },
-    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: [
+            '/app/user/signout',
+            '/bob/customer/query',
+            '/bob/customer/create',
+            '/bob/customer/query',
+            'bob/customer/update',
+          ],
+        },
+      })
+      .mockResolvedValueOnce(
+        menuResponse([
+          {
+            id: 'customer',
+            routeKey: 'bob/customer',
+            routePath: '/bob/customer',
+            title: '客户',
+          },
+        ]),
+      )
     const session = useSessionStore()
 
     await expect(session.restore()).resolves.toBe(true)
@@ -43,7 +106,7 @@ describe('useSessionStore permissions', () => {
       '/bob/customer/create',
     ])
     expect(session.menus).toHaveLength(1)
-    expect(session.menus[0]?.domain).toBe('bob')
+    expect(session.menus[0]?.domain).toBe('group-1')
     expect(session.menus[0]?.children[0]).toMatchObject({
       entity: 'customer',
       actions: ['query', 'create'],
@@ -54,21 +117,23 @@ describe('useSessionStore permissions', () => {
   })
 
   it('不兼容旧 menus 字段且缺少 permissions 时生成空菜单', async () => {
-    mockedApiClient.post.mockResolvedValue({
-      data: {
-        user: { id: '1', username: 'admin', displayName: '管理员' },
-        csrfToken: 'csrf-1',
-        menus: [
-          {
-            domain: 'bob',
-            title: '基础业务对象',
-            children: [
-              { entity: 'customer', title: '客户', actions: ['query'] },
-            ],
-          },
-        ],
-      },
-    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          menus: [
+            {
+              domain: 'bob',
+              title: '基础业务对象',
+              children: [
+                { entity: 'customer', title: '客户', actions: ['query'] },
+              ],
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce(menuResponse())
     const session = useSessionStore()
 
     await expect(session.restore()).resolves.toBe(true)
@@ -76,26 +141,59 @@ describe('useSessionStore permissions', () => {
     expect(session.menus).toEqual([])
   })
 
-  it('只用一次 session 返回的 API 权限生成动态流程菜单', async () => {
-    mockedApiClient.post.mockResolvedValue({
-      data: {
-        user: { id: '1', username: 'admin', displayName: '管理员' },
-        csrfToken: 'csrf-1',
-        permissions: [
-          '/wfl/process-instance/query',
-          '/wfl/sales-fulfillment/query',
-          '/wfl/sales-fulfillment/get',
-          '/wfl/purchase-fulfillment/short-close-request',
-        ],
+  it('服务端导航只控制菜单显示，授权页面路由仍由权限生成', () => {
+    const session = useSessionStore()
+    session.permissions = ['/bob/customer/query']
+    session.applyMenuData(menuResponse().data)
+
+    expect(session.menus).toEqual([])
+    expect(session.routeMenus).toMatchObject([
+      {
+        domain: 'bob',
+        children: [{ entity: 'customer', actions: ['query'] }],
       },
-    })
+    ])
+  })
+
+  it('只用一次 session 返回的 API 权限生成动态流程菜单', async () => {
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: [
+            '/wfl/process-instance/query',
+            '/wfl/sales-fulfillment/query',
+            '/wfl/sales-fulfillment/get',
+            '/wfl/purchase-fulfillment/short-close-request',
+          ],
+        },
+      })
+      .mockResolvedValueOnce(
+        menuResponse([
+          {
+            id: 'process-instance',
+            group: 'wfl-group',
+            routeKey: 'wfl/process-instance',
+            routePath: '/wfl/process-instance',
+            title: '流程实例',
+          },
+          {
+            id: 'sales-fulfillment',
+            group: 'wfl-group',
+            routeKey: 'wfl/sales-fulfillment',
+            routePath: '/wfl/sales-fulfillment',
+            title: '销售履约',
+          },
+        ]),
+      )
     const session = useSessionStore()
 
     await expect(session.restore()).resolves.toBe(true)
 
     expect(session.menus).toMatchObject([
       {
-        domain: 'wfl',
+        domain: 'wfl-group',
         children: [
           {
             entity: 'process-instance',
@@ -110,25 +208,30 @@ describe('useSessionStore permissions', () => {
         ],
       },
     ])
-    expect(mockedApiClient.post).toHaveBeenCalledTimes(1)
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
     expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/session', {})
+    expect(mockedApiClient.post).toHaveBeenCalledWith('app/menu/get', {})
   })
 
   it('支持强制恢复会话以处理 BFCache 恢复', async () => {
-    mockedApiClient.post.mockResolvedValue({
-      data: {
-        user: { id: '1', username: 'admin', displayName: '管理员' },
-        csrfToken: 'csrf-1',
-        permissions: [],
-      },
-    })
+    mockedApiClient.post.mockImplementation(async (path) =>
+      path === 'app/menu/get'
+        ? menuResponse()
+        : {
+            data: {
+              user: { id: '1', username: 'admin', displayName: '管理员' },
+              csrfToken: 'csrf-1',
+              permissions: [],
+            },
+          },
+    )
     const session = useSessionStore()
 
     await expect(session.restore()).resolves.toBe(true)
     await expect(session.restore()).resolves.toBe(true)
     await expect(session.restore({ force: true })).resolves.toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(4)
   })
 
   it('退出时清空用户、权限、菜单和 CSRF', async () => {
@@ -140,6 +243,16 @@ describe('useSessionStore permissions', () => {
           permissions: ['/bob/customer/query'],
         },
       })
+      .mockResolvedValueOnce(
+        menuResponse([
+          {
+            id: 'customer',
+            routeKey: 'bob/customer',
+            routePath: '/bob/customer',
+            title: '客户',
+          },
+        ]),
+      )
       .mockResolvedValueOnce({ data: null })
     const session = useSessionStore()
 

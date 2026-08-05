@@ -261,13 +261,6 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-navigation-drawer v-model="drawer" class="sidebar" width="288">
     <div class="sidebar__label">导航</div>
     <v-list nav density="comfortable" class="px-3">
-      <v-list-item
-        prepend-icon="mdi-view-dashboard-outline"
-        title="工作台"
-        to="/home/dashboard"
-        rounded="lg"
-      />
-
       <v-list-group
         v-for="domain in visibleMenus"
         :key="domain.domain"
@@ -283,10 +276,10 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
         </template>
         <v-list-item
           v-for="entity in domain.children"
-          :key="entity.entity"
+          :key="entity.id || entity.entity"
           :prepend-icon="entity.icon || 'mdi-file-document-outline'"
           :title="entity.title"
-          :to="`/${domain.domain}/${entity.entity}`"
+          :to="entity.routePath || `/${domain.domain}/${entity.entity}`"
           rounded="lg"
         />
       </v-list-group>

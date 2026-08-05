@@ -344,6 +344,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/system-parameter/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询系统参数 */
+        post: operations["appSystemParameterQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取系统参数 */
+        post: operations["appSystemParameterGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存系统参数 */
+        post: operations["appSystemParameterSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复系统参数默认值 */
+        post: operations["appSystemParameterReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取菜单模式、模板和当前导航 */
+        post: operations["appMenuGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/save-business-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存整棵业务菜单模板 */
+        post: operations["appMenuSaveBusinessTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 切换当前菜单模式 */
+        post: operations["appMenuActivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/reset-business-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复初始业务菜单模板 */
+        post: operations["appMenuResetBusinessTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/feedback/attachment-initiate": {
         parameters: {
             query?: never;
@@ -2088,6 +2224,127 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        /** @enum {string} */
+        SystemParameterValueType: "STRING" | "INTEGER" | "DECIMAL" | "BOOLEAN";
+        SystemParameterView: {
+            key: string;
+            name: string;
+            description: string | null;
+            valueType: components["schemas"]["SystemParameterValueType"];
+            value: string;
+            defaultValue: string;
+            editable: boolean;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string | null;
+        };
+        SystemParameterPage: {
+            items: components["schemas"]["SystemParameterView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SystemParameterQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterPage"] | null;
+            requestId: string;
+        };
+        SystemParameterKeyRequest: {
+            key: string;
+        };
+        SystemParameterResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterView"] | null;
+            requestId: string;
+        };
+        SaveSystemParameterRequest: {
+            key: string;
+            value: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetSystemParameterRequest: {
+            key: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        /** @enum {string} */
+        MenuMode: "DEFAULT" | "BUSINESS_TEMPLATE";
+        /** @enum {string} */
+        MenuItemType: "GROUP" | "ROUTE";
+        MenuItemView: {
+            id: string;
+            parentId: string | null;
+            type: components["schemas"]["MenuItemType"];
+            level: number;
+            order: number;
+            displayName: string;
+            icon: string | null;
+            enabled: boolean;
+            routeKey: string | null;
+            routePath: string | null;
+            permissionCode: string | null;
+        };
+        MenuTree: {
+            /** Format: int64 */
+            revision: number;
+            items: components["schemas"]["MenuItemView"][];
+        };
+        MenuRouteOption: {
+            routeKey: string;
+            routePath: string;
+            displayName: string;
+            permissionCode: string | null;
+        };
+        MenuGetData: {
+            mode: components["schemas"]["MenuMode"];
+            /** Format: int64 */
+            modeRevision: number;
+            catalogRevision: string;
+            defaultMenu: components["schemas"]["MenuTree"];
+            businessTemplate: components["schemas"]["MenuTree"];
+            navigation: components["schemas"]["MenuTree"];
+            availableRoutes: components["schemas"]["MenuRouteOption"][];
+        };
+        MenuGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MenuGetData"] | null;
+            requestId: string;
+        };
+        SaveMenuItem: {
+            id: string;
+            parentId: string | null;
+            type: components["schemas"]["MenuItemType"];
+            order: number;
+            displayName: string;
+            icon: string | null;
+            enabled: boolean;
+            routeKey: string | null;
+        };
+        SaveBusinessMenuRequest: {
+            /** Format: int64 */
+            revision: number;
+            catalogRevision: string;
+            items: components["schemas"]["SaveMenuItem"][];
+        };
+        ActivateMenuRequest: {
+            mode: components["schemas"]["MenuMode"];
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetBusinessMenuRequest: {
+            /** Format: int64 */
+            revision: number;
+        };
         FeedbackAttachmentInitiateRequest: {
             fileName: string;
             contentType: string;
@@ -3616,6 +3873,198 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    appSystemParameterQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数分页结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterQueryResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemParameterKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appMenuGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description 当前菜单配置及权限过滤后的导航。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuSaveBusinessTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveBusinessMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuActivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 切换后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuResetBusinessTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBusinessMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
         };
     };
     appFeedbackattachmentinitiate: {

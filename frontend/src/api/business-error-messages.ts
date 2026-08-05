@@ -193,30 +193,40 @@ const exactMessages: Readonly<Record<string, string>> = {
     '该票据已存在，请核对票据类型、号码、承兑人、票面金额和到期日。',
   'fields do not match bill receipt': '提交字段与票据收入业务不匹配。',
   'source bill is not available': '所选找零票据当前不可用。',
-  'source bill currency must match document currency': '所选票据币种必须与单据币种一致。',
+  'source bill currency must match document currency':
+    '所选票据币种必须与单据币种一致。',
   'bill payment line is invalid': '付出票据明细无效，请重新选择可用持有票据。',
-  'bill payment requires available billId': '付出票据必须引用当前可用持有票据。',
+  'bill payment requires available billId':
+    '付出票据必须引用当前可用持有票据。',
   'bill payment requires supplier': '请选择供应商。',
   'bill payment total is invalid': '付出票面合计必须大于零。',
   'fields do not match bill payment': '提交内容与票据付出业务不匹配。',
   'bill issue requires supplier': '请选择供应商。',
   'bill issue requires interestMode': '请选择利息承担方式。',
-  'bill issue requires other-party interestParty': '第三方承担利息时必须选择其他往来单位。',
-  'bill issue interestParty is not allowed': '银行扣息时不能填写第三方利息承担方。',
+  'bill issue requires other-party interestParty':
+    '第三方承担利息时必须选择其他往来单位。',
+  'bill issue interestParty is not allowed':
+    '银行扣息时不能填写第三方利息承担方。',
   'fields do not match bill issue': '提交内容与票据开出业务不匹配。',
   'invalid bill issue line': '自开票据明细无效，请检查负债、金额和日期。',
   'bill issue line is invalid': '自开票据明细无效，请检查负债、金额和日期。',
   'bill issue total is invalid': '自开票据票面合计无效。',
-  'billLineId is not supported in bill issue cash lines': '自开票据现金行不能关联票据行。',
+  'billLineId is not supported in bill issue cash lines':
+    '自开票据现金行不能关联票据行。',
   'bill discount requires other-party counterparty': '请选择贴现方。',
   'bill discount requires interestMode': '请选择利息承担方式。',
   'invalid bill discount interestMode': '请选择有效的利息承担方式。',
-  'bill discount requires other-party interestParty': '第三方承担利息时必须选择其他往来单位。',
-  'bill discount interestParty is not allowed': '银行扣息时不能填写第三方利息承担方。',
-  'bill discount requires available billId': '贴现票据必须引用当前可用持有票据。',
-  'bill discount requires available billId and rate': '贴现票据必须引用当前可用持有票据并填写年利率。',
+  'bill discount requires other-party interestParty':
+    '第三方承担利息时必须选择其他往来单位。',
+  'bill discount interestParty is not allowed':
+    '银行扣息时不能填写第三方利息承担方。',
+  'bill discount requires available billId':
+    '贴现票据必须引用当前可用持有票据。',
+  'bill discount requires available billId and rate':
+    '贴现票据必须引用当前可用持有票据并填写年利率。',
   'bill discount line is invalid': '贴现票据明细无效，请检查票据和年利率。',
-  'bill discount lines must contain 1 to 20 items': '贴现票据和现金行数必须在允许范围内。',
+  'bill discount lines must contain 1 to 20 items':
+    '贴现票据和现金行数必须在允许范围内。',
   'invalid bill discount cash line': '贴现现金行无效，请检查方向和金额类型。',
   'duplicate billId': '贴现票据不能重复选择。',
   'bill discount total is invalid': '贴现净到账必须大于零。',
@@ -229,14 +239,19 @@ const exactMessages: Readonly<Record<string, string>> = {
   'bill maturity line is invalid': '到期票据明细与处理方式不匹配。',
   'bill maturity requires cash': '票据到期单必须包含实际资金明细。',
   'bill maturity cash direction is invalid': '资金方向与到期收款或付款不匹配。',
-  'bill maturity requires available billId': '到期处理必须引用当前可用持有票据。',
+  'bill maturity requires available billId':
+    '到期处理必须引用当前可用持有票据。',
   'source bill is not matured': '来源票据尚未到期。',
-  'bill maturity lines must contain 1 to 20 items': '到期票据和现金行数必须在允许范围内。',
-  'invalid bill maturity cash line': '到期处理现金行无效，请检查方向和金额类型。',
+  'bill maturity lines must contain 1 to 20 items':
+    '到期票据和现金行数必须在允许范围内。',
+  'invalid bill maturity cash line':
+    '到期处理现金行无效，请检查方向和金额类型。',
   'invalid bill maturityDate': '到期日无效。',
   'fields do not match bill maturity': '提交内容与票据到期处理业务不匹配。',
-  'billLineId is not supported in bill maturity cash lines': '到期处理现金行不能关联票据行。',
-  'billLineId is not supported in bill discount cash lines': '票据贴现现金行不能关联票据行。',
+  'billLineId is not supported in bill maturity cash lines':
+    '到期处理现金行不能关联票据行。',
+  'billLineId is not supported in bill discount cash lines':
+    '票据贴现现金行不能关联票据行。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',
@@ -320,6 +335,27 @@ const exactMessages: Readonly<Record<string, string>> = {
   'request body must be an empty object': '该操作不接受额外输入内容。',
   'role revision conflict': '角色已被其他操作修改，请刷新后重试。',
   'role status unchanged': '角色已经是目标状态，无需重复操作。',
+  'business menu revision conflict':
+    '业务菜单已被其他管理员修改，请刷新后重试。',
+  'menu catalog revision conflict': '菜单目录已更新，请刷新后重试。',
+  'menu depth exceeds two levels or parent is invalid':
+    '菜单最多支持两级，请检查分组与路由的父子关系。',
+  'menu groups must be top level': '菜单分组必须位于第一层。',
+  'menu management entry must remain enabled': '必须保留已启用的菜单管理入口。',
+  'menu mode is not registered': '菜单方式尚未完成系统注册，请联系管理员。',
+  'menu mode revision conflict': '菜单方式已被其他管理员修改，请刷新后重试。',
+  'menu route is not registered': '所选菜单路由未在系统中注册。',
+  'menu routes require a parent and route key':
+    '菜单路由必须属于一个分组并选择已注册路由。',
+  'reserved menu item id': '该菜单项标识由系统保留，请重新添加菜单项。',
+  'system parameter is managed by its owning service':
+    '该系统参数只能由对应功能修改。',
+  'system parameter must be a decimal': '系统参数必须填写为小数。',
+  'system parameter must be an integer': '系统参数必须填写为整数。',
+  'system parameter must be true or false': '系统参数必须选择是或否。',
+  'system parameter revision conflict':
+    '系统参数已被其他管理员修改，请刷新后重试。',
+  'unsupported system parameter value type': '系统参数类型不受支持。',
   'saleAmount is invalid': '销售金额不正确，请检查后重试。',
   'salvageIncome is invalid': '残值收入不正确，请检查后重试。',
   'settlement surcharge is invalid': '结算附加费不正确，请检查后重试。',

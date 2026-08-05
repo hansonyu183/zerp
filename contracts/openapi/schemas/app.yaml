@@ -42,7 +42,8 @@
           'username': { 'type': 'string' },
           'displayName': { 'type': 'string' },
           'password': { 'type': 'string' },
-          'roleIds': { 'type': 'array', 'items': { 'type': 'string' } },
+          'roleIds':
+            { 'type': 'array', 'minItems': 1, 'items': { 'type': 'string' } },
         },
     },
   'SaveUserRequest':
@@ -54,7 +55,8 @@
         {
           'id': { 'type': 'string' },
           'displayName': { 'type': 'string' },
-          'roleIds': { 'type': 'array', 'items': { 'type': 'string' } },
+          'roleIds':
+            { 'type': 'array', 'minItems': 1, 'items': { 'type': 'string' } },
           'revision': { 'type': 'integer', 'format': 'int64' },
         },
     },
@@ -84,6 +86,290 @@
           'permissionIds': { 'type': 'array', 'items': { 'type': 'string' } },
           'revision': { 'type': 'integer', 'format': 'int64' },
         },
+    },
+  'SystemParameterValueType':
+    { 'type': 'string', 'enum': ['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN'] },
+  'SystemParameterView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'key',
+          'name',
+          'description',
+          'valueType',
+          'value',
+          'defaultValue',
+          'editable',
+          'revision',
+          'updatedAt',
+          'updatedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'name': { 'type': 'string', 'maxLength': 128 },
+          'description': { 'type': 'string', 'nullable': true },
+          'valueType': { '$ref': '#/SystemParameterValueType' },
+          'value': { 'type': 'string' },
+          'defaultValue': { 'type': 'string' },
+          'editable': { 'type': 'boolean' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SystemParameterPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/SystemParameterView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'SystemParameterKeyRequest':
+    {
+      'type': 'object',
+      'required': ['key'],
+      'additionalProperties': false,
+      'properties': { 'key': { 'type': 'string', 'maxLength': 128 } },
+    },
+  'SaveSystemParameterRequest':
+    {
+      'type': 'object',
+      'required': ['key', 'value', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'value': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'ResetSystemParameterRequest':
+    {
+      'type': 'object',
+      'required': ['key', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'key': { 'type': 'string', 'maxLength': 128 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'SystemParameterResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SystemParameterView' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SystemParameterQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SystemParameterPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'MenuMode': { 'type': 'string', 'enum': ['DEFAULT', 'BUSINESS_TEMPLATE'] },
+  'MenuItemType': { 'type': 'string', 'enum': ['GROUP', 'ROUTE'] },
+  'MenuItemView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'parentId',
+          'type',
+          'level',
+          'order',
+          'displayName',
+          'icon',
+          'enabled',
+          'routeKey',
+          'routePath',
+          'permissionCode',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string', 'maxLength': 64 },
+          'parentId': { 'type': 'string', 'nullable': true, 'maxLength': 64 },
+          'type': { '$ref': '#/MenuItemType' },
+          'level': { 'type': 'integer', 'minimum': 1, 'maximum': 2 },
+          'order': { 'type': 'integer', 'minimum': 0 },
+          'displayName': { 'type': 'string', 'minLength': 1, 'maxLength': 128 },
+          'icon': { 'type': 'string', 'nullable': true, 'maxLength': 128 },
+          'enabled': { 'type': 'boolean' },
+          'routeKey': { 'type': 'string', 'nullable': true, 'maxLength': 128 },
+          'routePath': { 'type': 'string', 'nullable': true, 'maxLength': 256 },
+          'permissionCode':
+            { 'type': 'string', 'nullable': true, 'maxLength': 256 },
+        },
+    },
+  'MenuTree':
+    {
+      'type': 'object',
+      'required': ['revision', 'items'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'items': { 'type': 'array', 'items': { '$ref': '#/MenuItemView' } },
+        },
+    },
+  'MenuRouteOption':
+    {
+      'type': 'object',
+      'required': ['routeKey', 'routePath', 'displayName', 'permissionCode'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'routeKey': { 'type': 'string' },
+          'routePath': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'permissionCode': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'MenuGetData':
+    {
+      'type': 'object',
+      'required':
+        [
+          'mode',
+          'modeRevision',
+          'catalogRevision',
+          'defaultMenu',
+          'businessTemplate',
+          'navigation',
+          'availableRoutes',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'mode': { '$ref': '#/MenuMode' },
+          'modeRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'catalogRevision':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
+          'defaultMenu': { '$ref': '#/MenuTree' },
+          'businessTemplate': { '$ref': '#/MenuTree' },
+          'navigation': { '$ref': '#/MenuTree' },
+          'availableRoutes':
+            { 'type': 'array', 'items': { '$ref': '#/MenuRouteOption' } },
+        },
+    },
+  'MenuGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/MenuGetData' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SaveMenuItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'parentId',
+          'type',
+          'order',
+          'displayName',
+          'icon',
+          'enabled',
+          'routeKey',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string', 'maxLength': 64 },
+          'parentId': { 'type': 'string', 'nullable': true, 'maxLength': 64 },
+          'type': { '$ref': '#/MenuItemType' },
+          'order': { 'type': 'integer', 'minimum': 0 },
+          'displayName': { 'type': 'string', 'minLength': 1, 'maxLength': 128 },
+          'icon': { 'type': 'string', 'nullable': true, 'maxLength': 128 },
+          'enabled': { 'type': 'boolean' },
+          'routeKey': { 'type': 'string', 'nullable': true, 'maxLength': 128 },
+        },
+    },
+  'SaveBusinessMenuRequest':
+    {
+      'type': 'object',
+      'required': ['revision', 'catalogRevision', 'items'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'catalogRevision':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
+          'items':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 1000,
+              'items': { '$ref': '#/SaveMenuItem' },
+            },
+        },
+    },
+  'ActivateMenuRequest':
+    {
+      'type': 'object',
+      'required': ['mode', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'mode': { '$ref': '#/MenuMode' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'ResetBusinessMenuRequest':
+    {
+      'type': 'object',
+      'required': ['revision'],
+      'additionalProperties': false,
+      'properties':
+        { 'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 } },
     },
   'FeedbackAttachmentInitiateRequest':
     {

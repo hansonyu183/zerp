@@ -69,15 +69,74 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('优先显示待办单据 Tab 并按需查询对应类别', async () => {
+  it('业务菜单隐藏时仍按权限和页面注册表提供待办实体筛选', async () => {
+    mockedPost.mockResolvedValue(
+      page([{ ...documentItem, entity: 'runtime-voucher' }]),
+    )
     const router = createTestRouter()
     const pinia = createPinia()
-    useSessionStore(pinia).permissions = [
+    const session = useSessionStore(pinia)
+    session.permissions = [
       '/bob/customer/query',
       '/bob/customer/submit',
       '/vou/sale-order/query',
       '/vou/sale-order/check',
+      '/vou/developing-invoice/query',
+      '/vou/developing-invoice/check',
     ]
+    const navigation = {
+      revision: 1,
+      items: [
+        {
+          id: 'business',
+          parentId: null,
+          type: 'GROUP' as const,
+          level: 1,
+          order: 10,
+          displayName: '业务',
+          icon: null,
+          enabled: true,
+          routeKey: null,
+          routePath: null,
+          permissionCode: null,
+        },
+        {
+          id: 'customer',
+          parentId: 'business',
+          type: 'ROUTE' as const,
+          level: 2,
+          order: 10,
+          displayName: '客户',
+          icon: null,
+          enabled: true,
+          routeKey: 'bob/customer',
+          routePath: '/bob/customer',
+          permissionCode: '/bob/customer/query',
+        },
+        {
+          id: 'sale-order',
+          parentId: 'business',
+          type: 'ROUTE' as const,
+          level: 2,
+          order: 20,
+          displayName: '销售订单',
+          icon: null,
+          enabled: true,
+          routeKey: 'vou/sale-order',
+          routePath: '/vou/sale-order',
+          permissionCode: '/vou/sale-order/query',
+        },
+      ],
+    }
+    session.applyMenuData({
+      mode: 'DEFAULT',
+      modeRevision: 1,
+      catalogRevision: 'catalog-revision',
+      defaultMenu: navigation,
+      businessTemplate: navigation,
+      navigation,
+      availableRoutes: [],
+    })
     await router.push('/home/dashboard')
 
     const wrapper = mount(Dashboard, {
@@ -139,7 +198,28 @@ describe('Dashboard workbench', () => {
     ])
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '销售订单', value: 'sale-order' }])
+    ).toEqual([
+      { title: '销售订单', value: 'sale-order' },
+      { title: '开发中：Developing Invoice', value: 'developing-invoice' },
+      { title: '开发中：runtime voucher', value: 'runtime-voucher' },
+    ])
+    session.applyMenuData({
+      mode: 'DEFAULT',
+      modeRevision: 2,
+      catalogRevision: 'catalog-revision',
+      defaultMenu: { ...navigation, items: [] },
+      businessTemplate: { ...navigation, items: [] },
+      navigation: { ...navigation, items: [] },
+      availableRoutes: [],
+    })
+    await flushPromises()
+    expect(
+      wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
+    ).toEqual([
+      { title: '销售订单', value: 'sale-order' },
+      { title: '开发中：Developing Invoice', value: 'developing-invoice' },
+      { title: '开发中：runtime voucher', value: 'runtime-voucher' },
+    ])
     expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
     expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
       category: 'VOU',

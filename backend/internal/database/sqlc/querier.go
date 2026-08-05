@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AcquireAppAuthorizationLock(ctx context.Context) error
+	AcquireAppMenuLock(ctx context.Context) error
 	ActivateLedControl(ctx context.Context, arg ActivateLedControlParams) (int64, error)
 	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
 	ApplyLedAssetDepreciation(ctx context.Context, arg ApplyLedAssetDepreciationParams) (int64, error)
@@ -49,6 +50,7 @@ type Querier interface {
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
 	CountAppRoles(ctx context.Context, arg CountAppRolesParams) (int64, error)
 	CountAppRolesUsingPermission(ctx context.Context, permissionID string) (int64, error)
+	CountAppSystemParameters(ctx context.Context, arg CountAppSystemParametersParams) (int64, error)
 	CountAppUsers(ctx context.Context, arg CountAppUsersParams) (int64, error)
 	CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error)
 	CountBobAuditEvents(ctx context.Context, arg CountBobAuditEventsParams) (int64, error)
@@ -84,6 +86,7 @@ type Querier interface {
 	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
+	DeleteAppBusinessMenuItems(ctx context.Context) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
@@ -143,11 +146,14 @@ type Querier interface {
 	FindVouSalePriceReference(ctx context.Context, arg FindVouSalePriceReferenceParams) (FindVouSalePriceReferenceRow, error)
 	GetActiveLedAsset(ctx context.Context, assetID string) (LedAsset, error)
 	GetActiveLedAssetForVou(ctx context.Context, assetID string) (LedAsset, error)
+	GetAppBusinessMenuRevision(ctx context.Context) (int64, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
 	GetAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
 	GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error)
+	GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error)
+	GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error)
 	GetAppUserAvatarURL(ctx context.Context, userID string) (*string, error)
 	GetAppUserByID(ctx context.Context, id string) (AppUser, error)
 	GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUser, error)
@@ -187,6 +193,7 @@ type Querier interface {
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
+	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
 	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
 	InsertAppFeedbackFile(ctx context.Context, arg InsertAppFeedbackFileParams) error
@@ -271,10 +278,13 @@ type Querier interface {
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
+	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
 	ListAppFeedbackAttachments(ctx context.Context, feedbackID string) ([]AppFeedbackAttachment, error)
+	ListAppMenuPermissionRoutes(ctx context.Context) ([]ListAppMenuPermissionRoutesRow, error)
 	ListAppPermissionPathsByIDs(ctx context.Context, ids []string) ([]string, error)
 	ListAppPermissions(ctx context.Context, arg ListAppPermissionsParams) ([]AppPermission, error)
 	ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]AppRole, error)
+	ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error)
@@ -364,6 +374,7 @@ type Querier interface {
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	ReopenLedControl(ctx context.Context, arg ReopenLedControlParams) (int64, error)
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
+	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
 	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)
@@ -389,7 +400,9 @@ type Querier interface {
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDocumentParams) (int64, error)
 	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)
+	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppSystemParameter, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
+	UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error)
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)
 	UpdateBobCategoryDetail(ctx context.Context, arg UpdateBobCategoryDetailParams) (int64, error)

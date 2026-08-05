@@ -21,6 +21,7 @@ interface Props<TValue extends object> {
   pageSize: number
   total: number
   loading?: boolean
+  searchable?: boolean
   searchLabel?: string
   emptyText?: string
   creatable?: boolean
@@ -31,6 +32,7 @@ interface Props<TValue extends object> {
 
 const props = withDefaults(defineProps<Props<T>>(), {
   loading: false,
+  searchable: true,
   searchLabel: '关键字',
   emptyText: '暂无数据',
   creatable: false,
@@ -122,6 +124,7 @@ function applyMobileSort(value: {
       :filterable="Boolean($slots.filters)"
       :keyword="keyword"
       :loading="loading"
+      :searchable="searchable"
       :search-label="searchLabel"
       @apply-filters="emit('applyFilters')"
       @create="emit('create')"

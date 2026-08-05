@@ -14,7 +14,7 @@ import {
   type VoucherLifecycleLabels,
   type VoucherSort,
 } from '@/components/voucher'
-import { pageRegistry } from '@/router/registry'
+import { pageRegistrations, pageRegistry } from '@/router/registry'
 import {
   type WorkbenchAction,
   type WorkbenchDocumentItem,
@@ -30,25 +30,55 @@ const session = useSessionStore()
 const rejectTarget = ref<WorkbenchObjectItem | null>(null)
 const rejectComment = ref('')
 
-const entityFilterOptions = computed(() =>
-  (
-    session.menus.find(
-      (menu) => menu.domain === (vm.activeCategory === 'BOB' ? 'bob' : 'vou'),
-    )?.children ?? []
+function fallbackEntityTitle(entity: string): string {
+  return `开发中：${entity.replaceAll('-', ' ')}`
+}
+
+function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
+  const actions =
+    domain === 'bob'
+      ? ['submit', 'approve', 'reject']
+      : ['check', 'approve', 'finalize']
+  return (
+    session.can(`/${domain}/${entity}/query`) &&
+    actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
   )
-    .filter(
-      (entity) =>
-        entity.actions.includes('query') &&
-        (vm.activeCategory === 'BOB'
-          ? ['submit', 'approve', 'reject'].some((action) =>
-              entity.actions.includes(action),
-            )
-          : ['check', 'approve', 'finalize'].some((action) =>
-              entity.actions.includes(action),
-            )),
-    )
-    .map((entity) => ({ title: entity.title, value: entity.entity })),
-)
+}
+
+const entityFilterOptions = computed(() => {
+  const domain = vm.activeCategory === 'BOB' ? 'bob' : 'vou'
+  const options = new Map<string, string>()
+  const add = (entity: string, title?: string): void => {
+    if (!options.has(entity)) {
+      options.set(
+        entity,
+        pageRegistry[`${domain}/${entity}`]?.entityTitle ??
+          (title ? `开发中：${title}` : fallbackEntityTitle(entity)),
+      )
+    }
+  }
+
+  for (const registration of pageRegistrations) {
+    if (
+      registration.domain === domain &&
+      canProcessEntity(domain, registration.entity)
+    ) {
+      add(registration.entity, registration.entityTitle)
+    }
+  }
+  for (const menuDomain of session.routeMenus) {
+    if (menuDomain.domain !== domain) continue
+    for (const menu of menuDomain.children) {
+      const entity = menu.routeKey?.split('/')[1] ?? menu.entity
+      if (canProcessEntity(domain, entity)) add(entity, menu.title)
+    }
+  }
+  for (const row of vm.states[vm.activeCategory].rows) {
+    if (row.category === vm.activeCategory) add(row.entity)
+  }
+
+  return [...options].map(([value, title]) => ({ title, value }))
+})
 const pendingStageFilterOptions = computed(() => [
   { title: '待核对', value: 'CHECK' as const },
   { title: '待批准', value: 'APPROVE' as const },

@@ -20,6 +20,15 @@ func (q *Queries) AcquireAppAuthorizationLock(ctx context.Context) error {
 	return err
 }
 
+const acquireAppMenuLock = `-- name: AcquireAppMenuLock :exec
+SELECT pg_advisory_xact_lock(74155002)
+`
+
+func (q *Queries) AcquireAppMenuLock(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, acquireAppMenuLock)
+	return err
+}
+
 const countAppPermissions = `-- name: CountAppPermissions :one
 SELECT count(*) FROM app_permissions
 WHERE ($1::text IS NULL OR domain = $1)
@@ -64,6 +73,31 @@ SELECT count(*) FROM app_role_permissions WHERE permission_id = $1
 
 func (q *Queries) CountAppRolesUsingPermission(ctx context.Context, permissionID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countAppRolesUsingPermission, permissionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAppSystemParameters = `-- name: CountAppSystemParameters :one
+SELECT count(*)
+FROM app_system_parameters
+WHERE ($1::text IS NULL OR value_type = $1)
+  AND ($2::boolean IS NULL OR editable = $2)
+  AND (
+    $3::text IS NULL
+    OR parameter_key ILIKE '%' || $3 || '%'
+    OR name ILIKE '%' || $3 || '%'
+  )
+`
+
+type CountAppSystemParametersParams struct {
+	ValueType *string `db:"value_type" json:"value_type"`
+	Editable  *bool   `db:"editable" json:"editable"`
+	Search    *string `db:"search" json:"search"`
+}
+
+func (q *Queries) CountAppSystemParameters(ctx context.Context, arg CountAppSystemParametersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppSystemParameters, arg.ValueType, arg.Editable, arg.Search)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -324,6 +358,15 @@ func (q *Queries) CreateAppSession(ctx context.Context, arg CreateAppSessionPara
 	return err
 }
 
+const deleteAppBusinessMenuItems = `-- name: DeleteAppBusinessMenuItems :exec
+DELETE FROM app_business_menu_items
+`
+
+func (q *Queries) DeleteAppBusinessMenuItems(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAppBusinessMenuItems)
+	return err
+}
+
 const deleteAppRolePermissions = `-- name: DeleteAppRolePermissions :exec
 DELETE FROM app_role_permissions WHERE role_id = $1
 `
@@ -351,8 +394,20 @@ func (q *Queries) DeleteAppUserRoles(ctx context.Context, userID string) error {
 	return err
 }
 
+const getAppBusinessMenuRevision = `-- name: GetAppBusinessMenuRevision :one
+SELECT COALESCE(max(revision), 1)::bigint
+FROM app_business_menu_items
+`
+
+func (q *Queries) GetAppBusinessMenuRevision(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getAppBusinessMenuRevision)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getAppPermissionByID = `-- name: GetAppPermissionByID :one
-SELECT id, path, domain, entity, action, description, status, created_at, created_by, updated_at, updated_by, revision FROM app_permissions WHERE id = $1 LIMIT 1
+SELECT id, path, domain, entity, action, description, status, created_at, created_by, updated_at, updated_by, revision, menu_order FROM app_permissions WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error) {
@@ -371,6 +426,7 @@ func (q *Queries) GetAppPermissionByID(ctx context.Context, id string) (AppPermi
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.MenuOrder,
 	)
 	return i, err
 }
@@ -468,6 +524,56 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 		&i.DisplayName,
 		&i.UserStatus,
 		&i.AvatarUrl,
+	)
+	return i, err
+}
+
+const getAppSystemParameter = `-- name: GetAppSystemParameter :one
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters WHERE parameter_key = $1 LIMIT 1
+`
+
+func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameter, parameterKey)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
+const getAppSystemParameterForUpdate = `-- name: GetAppSystemParameterForUpdate :one
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters
+WHERE parameter_key = $1
+LIMIT 1 FOR UPDATE
+`
+
+func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameterForUpdate, parameterKey)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -626,6 +732,51 @@ func (q *Queries) GetAppUserRoleIDs(ctx context.Context, userID string) ([]strin
 	return items, nil
 }
 
+const insertAppBusinessMenuItem = `-- name: InsertAppBusinessMenuItem :exec
+INSERT INTO app_business_menu_items (
+  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  enabled, route_key, permission_code, revision, created_by, updated_by
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7, $8,
+  $9, $10, $11,
+  $12, $12
+)
+`
+
+type InsertAppBusinessMenuItemParams struct {
+	ID             string  `db:"id" json:"id"`
+	ParentID       *string `db:"parent_id" json:"parent_id"`
+	ItemType       string  `db:"item_type" json:"item_type"`
+	ItemLevel      int16   `db:"item_level" json:"item_level"`
+	SortOrder      int32   `db:"sort_order" json:"sort_order"`
+	DisplayName    string  `db:"display_name" json:"display_name"`
+	Icon           *string `db:"icon" json:"icon"`
+	Enabled        bool    `db:"enabled" json:"enabled"`
+	RouteKey       *string `db:"route_key" json:"route_key"`
+	PermissionCode *string `db:"permission_code" json:"permission_code"`
+	Revision       int64   `db:"revision" json:"revision"`
+	ActorID        *string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error {
+	_, err := q.db.Exec(ctx, insertAppBusinessMenuItem,
+		arg.ID,
+		arg.ParentID,
+		arg.ItemType,
+		arg.ItemLevel,
+		arg.SortOrder,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Enabled,
+		arg.RouteKey,
+		arg.PermissionCode,
+		arg.Revision,
+		arg.ActorID,
+	)
+	return err
+}
+
 const insertAppRole = `-- name: InsertAppRole :exec
 INSERT INTO app_roles (id, code, name, description, status, created_by, updated_by)
 VALUES ($1, $2, $3, $4, 'ENABLED', $5, $5)
@@ -728,6 +879,100 @@ func (q *Queries) ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string,
 	return items, nil
 }
 
+const listAppBusinessMenuItems = `-- name: ListAppBusinessMenuItems :many
+SELECT id, parent_id, item_type, item_level, sort_order, display_name, icon, enabled, route_key, permission_code, revision, created_at, created_by, updated_at, updated_by
+FROM app_business_menu_items
+ORDER BY item_level, sort_order, id
+`
+
+func (q *Queries) ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error) {
+	rows, err := q.db.Query(ctx, listAppBusinessMenuItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppBusinessMenuItem{}
+	for rows.Next() {
+		var i AppBusinessMenuItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.ItemType,
+			&i.ItemLevel,
+			&i.SortOrder,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Enabled,
+			&i.RouteKey,
+			&i.PermissionCode,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppMenuPermissionRoutes = `-- name: ListAppMenuPermissionRoutes :many
+SELECT
+  domain,
+  entity,
+  (array_agg(path ORDER BY CASE action WHEN 'query' THEN 0 WHEN 'get' THEN 1 ELSE 2 END, path))[1]::text AS permission_code,
+  COALESCE(min(menu_order) FILTER (WHERE action = 'query'), 2147483647)::integer AS menu_order,
+  COALESCE(
+    max(description) FILTER (WHERE action = 'query'),
+    max(description) FILTER (WHERE action = 'get'),
+    min(description),
+    ''
+  )::text AS description
+FROM app_permissions
+WHERE status = 'ENABLED' AND domain <> 'app'
+GROUP BY domain, entity
+ORDER BY domain, min(menu_order) FILTER (WHERE action = 'query') NULLS LAST, entity
+`
+
+type ListAppMenuPermissionRoutesRow struct {
+	Domain         string `db:"domain" json:"domain"`
+	Entity         string `db:"entity" json:"entity"`
+	PermissionCode string `db:"permission_code" json:"permission_code"`
+	MenuOrder      int32  `db:"menu_order" json:"menu_order"`
+	Description    string `db:"description" json:"description"`
+}
+
+func (q *Queries) ListAppMenuPermissionRoutes(ctx context.Context) ([]ListAppMenuPermissionRoutesRow, error) {
+	rows, err := q.db.Query(ctx, listAppMenuPermissionRoutes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAppMenuPermissionRoutesRow{}
+	for rows.Next() {
+		var i ListAppMenuPermissionRoutesRow
+		if err := rows.Scan(
+			&i.Domain,
+			&i.Entity,
+			&i.PermissionCode,
+			&i.MenuOrder,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAppPermissionPathsByIDs = `-- name: ListAppPermissionPathsByIDs :many
 SELECT path FROM app_permissions WHERE status = 'ENABLED' AND id = ANY($1::text[]) ORDER BY path
 `
@@ -753,7 +998,7 @@ func (q *Queries) ListAppPermissionPathsByIDs(ctx context.Context, ids []string)
 }
 
 const listAppPermissions = `-- name: ListAppPermissions :many
-SELECT id, path, domain, entity, action, description, status, created_at, created_by, updated_at, updated_by, revision FROM app_permissions
+SELECT id, path, domain, entity, action, description, status, created_at, created_by, updated_at, updated_by, revision, menu_order FROM app_permissions
 WHERE ($1::text IS NULL OR domain = $1)
   AND ($2::text IS NULL OR entity = $2)
   AND ($3::text IS NULL OR status = $3)
@@ -801,6 +1046,7 @@ func (q *Queries) ListAppPermissions(ctx context.Context, arg ListAppPermissions
 			&i.UpdatedAt,
 			&i.UpdatedBy,
 			&i.Revision,
+			&i.MenuOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -862,6 +1108,78 @@ func (q *Queries) ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]A
 			&i.UpdatedAt,
 			&i.UpdatedBy,
 			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppSystemParameters = `-- name: ListAppSystemParameters :many
+SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+FROM app_system_parameters
+WHERE ($1::text IS NULL OR value_type = $1)
+  AND ($2::boolean IS NULL OR editable = $2)
+  AND (
+    $3::text IS NULL
+    OR parameter_key ILIKE '%' || $3 || '%'
+    OR name ILIKE '%' || $3 || '%'
+  )
+ORDER BY
+  CASE WHEN $4::text = 'key' AND $5::text = 'asc' THEN parameter_key END ASC,
+  CASE WHEN $4::text = 'key' AND $5::text = 'desc' THEN parameter_key END DESC,
+  CASE WHEN $4::text = 'name' AND $5::text = 'asc' THEN name END ASC,
+  CASE WHEN $4::text = 'name' AND $5::text = 'desc' THEN name END DESC,
+  CASE WHEN $4::text = 'updatedAt' AND $5::text = 'asc' THEN updated_at END ASC,
+  CASE WHEN $4::text = 'updatedAt' AND $5::text = 'desc' THEN updated_at END DESC,
+  parameter_key ASC
+LIMIT $7 OFFSET $6
+`
+
+type ListAppSystemParametersParams struct {
+	ValueType  *string `db:"value_type" json:"value_type"`
+	Editable   *bool   `db:"editable" json:"editable"`
+	Search     *string `db:"search" json:"search"`
+	SortField  string  `db:"sort_field" json:"sort_field"`
+	SortOrder  string  `db:"sort_order" json:"sort_order"`
+	PageOffset int32   `db:"page_offset" json:"page_offset"`
+	PageSize   int32   `db:"page_size" json:"page_size"`
+}
+
+func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error) {
+	rows, err := q.db.Query(ctx, listAppSystemParameters,
+		arg.ValueType,
+		arg.Editable,
+		arg.Search,
+		arg.SortField,
+		arg.SortOrder,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppSystemParameter{}
+	for rows.Next() {
+		var i AppSystemParameter
+		if err := rows.Scan(
+			&i.ParameterKey,
+			&i.Name,
+			&i.Description,
+			&i.ValueType,
+			&i.CurrentValue,
+			&i.DefaultValue,
+			&i.Editable,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -985,6 +1303,44 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+	)
+	return i, err
+}
+
+const resetAppSystemParameterValue = `-- name: ResetAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = default_value,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = $1
+WHERE parameter_key = $2
+  AND revision = $3
+  AND editable = true
+RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+`
+
+type ResetAppSystemParameterValueParams struct {
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, resetAppSystemParameterValue, arg.ActorID, arg.ParameterKey, arg.Revision)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -1114,6 +1470,43 @@ func (q *Queries) TouchAppSession(ctx context.Context, arg TouchAppSessionParams
 	return err
 }
 
+const updateAppMenuMode = `-- name: UpdateAppMenuMode :one
+UPDATE app_system_parameters
+SET current_value = $1,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = $2
+WHERE parameter_key = 'app.menu.mode'
+  AND revision = $3
+RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+`
+
+type UpdateAppMenuModeParams struct {
+	Mode     string  `db:"mode" json:"mode"`
+	ActorID  *string `db:"actor_id" json:"actor_id"`
+	Revision int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, updateAppMenuMode, arg.Mode, arg.ActorID, arg.Revision)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
 const updateAppRole = `-- name: UpdateAppRole :execrows
 UPDATE app_roles SET name = $1, description = $2, updated_at = now(), updated_by = $3, revision = revision + 1
 WHERE id = $4 AND revision = $5
@@ -1139,6 +1532,50 @@ func (q *Queries) UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const updateAppSystemParameterValue = `-- name: UpdateAppSystemParameterValue :one
+UPDATE app_system_parameters
+SET current_value = $1,
+    revision = revision + 1,
+    updated_at = now(),
+    updated_by = $2
+WHERE parameter_key = $3
+  AND revision = $4
+  AND editable = true
+RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+`
+
+type UpdateAppSystemParameterValueParams struct {
+	CurrentValue string  `db:"current_value" json:"current_value"`
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, updateAppSystemParameterValue,
+		arg.CurrentValue,
+		arg.ActorID,
+		arg.ParameterKey,
+		arg.Revision,
+	)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.CurrentValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const updateAppUser = `-- name: UpdateAppUser :execrows

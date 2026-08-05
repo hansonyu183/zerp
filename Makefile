@@ -83,8 +83,9 @@ release-check:
 	$(MAKE) check-shell
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
-	GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD^ ZERP_PR_HEAD_SHA=HEAD scripts/verify-pr-base.sh
-	! GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD ZERP_PR_HEAD_SHA=HEAD^ scripts/verify-pr-base.sh >/dev/null 2>&1
+	GITHUB_BASE_REF=main ZERP_PR_HEAD_REF=dev ZERP_PR_BASE_SHA=HEAD ZERP_PR_HEAD_SHA=HEAD^ scripts/verify-pr-base.sh
+	GITHUB_BASE_REF=dev ZERP_PR_BASE_SHA=HEAD^ ZERP_PR_HEAD_SHA=HEAD scripts/verify-pr-base.sh
+	! GITHUB_BASE_REF=dev ZERP_PR_BASE_SHA=HEAD ZERP_PR_HEAD_SHA=HEAD^ scripts/verify-pr-base.sh >/dev/null 2>&1
 
 test:
 	pnpm test:web

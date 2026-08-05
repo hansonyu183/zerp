@@ -24,6 +24,11 @@ test "${release_sha}" = "${dev_sha}" || {
   echo "Preview ref ${release_sha} is not the current origin/dev commit ${dev_sha}" >&2
   exit 1
 }
+
+GITHUB_REPOSITORY=${ZERP_GITHUB_REPOSITORY:-hansonyu183/zerp} \
+GITHUB_SHA=${release_sha} \
+ZERP_MERGED_BASE_REF=dev \
+  scripts/verify-merged-pr.sh
 short_sha=$(printf '%s' "${release_sha}" | cut -c1-12)
 
 common_git_dir=$(git rev-parse --path-format=absolute --git-common-dir)

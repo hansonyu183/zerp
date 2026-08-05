@@ -25,13 +25,31 @@ case "${PRE_PUSH_FULL:-0}" in
     ;;
 esac
 
+base_ref=${PRE_PUSH_BASE_REF:-origin/dev}
+case "${base_ref}" in
+  origin/dev)
+    git fetch origin dev --prune
+    ;;
+  origin/main)
+    git fetch origin main --prune
+    ;;
+esac
+
 if [ -n "$(git status --porcelain)" ]; then
   echo "pre-push requires a clean worktree; commit or isolate all changes first" >&2
   exit 1
 fi
 
-base_ref=${PRE_PUSH_BASE_REF:-origin/dev}
 git rev-parse --verify "${base_ref}^{commit}" >/dev/null
+git merge-base --is-ancestor "${base_ref}" HEAD || {
+  echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
+  exit 1
+}
+if [ "${base_ref}" = origin/dev ] &&
+  git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
+  echo "Development branches must be rebased onto origin/dev, not merged with it" >&2
+  exit 1
+fi
 diff_range="${base_ref}...HEAD"
 
 changed_files=$(git diff --name-only "${diff_range}")

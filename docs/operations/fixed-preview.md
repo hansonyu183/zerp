@@ -77,7 +77,7 @@ make preview-deploy PREVIEW_REF=<dev-full-sha>
 make preview-status
 ```
 
-部署命令先获取 `origin/dev`，只接受当前 `origin/dev` 的 40 位提交 SHA，然后从隔离工作树构建该 SHA，迁移、seed、切换，并核对本机与公网 `_zerp-release`。每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
+部署命令先获取 `origin/dev`，只接受当前 `origin/dev` 的 40 位小写提交 SHA，并复用合并 PR 证据验证，要求 PR Git tree 与该提交一致且六项 required checks 全部成功；通过后才从隔离工作树构建该 SHA，迁移、seed、切换，并核对本机与公网 `_zerp-release`。每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
 
 文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更不重新部署应用预览。运行代码、契约、迁移、依赖、构建和预览工具变更在合入 `dev` 后部署，人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。后续适用的 PR 合入 `dev` 后，旧预览验收失效，需要重新部署新的 dev SHA。
 

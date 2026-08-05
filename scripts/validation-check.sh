@@ -54,10 +54,97 @@ test "$(grep -c 'VITE_API_BASE_URL=/api/' scripts/preview.sh)" = 2 || {
 }
 grep -Fq 'git fetch origin dev --prune' scripts/preview-deploy.sh
 grep -Fq "test \"\${release_sha}\" = \"\${dev_sha}\"" scripts/preview-deploy.sh
+grep -Fq 'scripts/verify-merged-pr.sh' scripts/preview-deploy.sh
 if grep -Fq 'parent_count' scripts/preview-deploy.sh; then
   echo "preview deploy must accept squash dev commits" >&2
   exit 1
 fi
+
+test_merged_pr_evidence() {
+  scenario=$1
+  expected=$2
+  test_root=$(mktemp -d "${TMPDIR:-/tmp}/zerp-merged-pr-test.XXXXXX")
+  trap 'rm -rf "${test_root}"' EXIT HUP INT TERM
+  mkdir -p "${test_root}/bin"
+  cp scripts/verify-merged-pr.sh "${test_root}/verify-merged-pr.sh"
+  cat >"${test_root}/bin/gh" <<'EOF'
+#!/bin/sh
+case "$*" in
+  *'/pulls?per_page=20'*)
+    if [ "${MOCK_SCENARIO}" = no-pr ]; then
+      printf '[]\n'
+    else
+      printf '[{"number":94,"base":{"ref":"dev"},"merged_at":"2026-08-05T00:00:00Z","merge_commit_sha":"%s","head":{"sha":"%s","ref":"feature"}}]\n' "${MOCK_MERGE_SHA}" "${MOCK_HEAD_SHA}"
+    fi
+    ;;
+  *"/git/commits/${MOCK_MERGE_SHA}"*)
+    printf '%s\n' "${MOCK_TREE_SHA}"
+    ;;
+  *"/git/commits/${MOCK_HEAD_SHA}"*)
+    printf '%s\n' "${MOCK_TREE_SHA}"
+    ;;
+  *'/check-runs?per_page=100'*)
+    case "${MOCK_SCENARIO}" in
+      missing-check)
+        checks='contracts frontend backend containers e2e'
+        ;;
+      failed-check)
+        checks='contracts frontend backend containers e2e full-validation-failed'
+        ;;
+      *)
+        checks='contracts frontend backend containers e2e full-validation'
+        ;;
+    esac
+    printf '{"check_runs":['
+    separator=
+    for check in ${checks}; do
+      conclusion=success
+      name=${check}
+      if [ "${check}" = full-validation-failed ]; then
+        name=full-validation
+        conclusion=failure
+      fi
+      printf '%s{"name":"%s","status":"completed","conclusion":"%s","started_at":"2026-08-05T00:00:00Z"}' "${separator}" "${name}" "${conclusion}"
+      separator=,
+    done
+    printf ']}\n'
+    ;;
+  *)
+    echo "unexpected gh call: $*" >&2
+    exit 2
+    ;;
+esac
+EOF
+  chmod +x "${test_root}/bin/gh"
+
+  merge_sha=1111111111111111111111111111111111111111
+  head_sha=2222222222222222222222222222222222222222
+  tree_sha=3333333333333333333333333333333333333333
+  if PATH="${test_root}/bin:${PATH}" \
+    MOCK_SCENARIO="${scenario}" \
+    MOCK_MERGE_SHA="${merge_sha}" \
+    MOCK_HEAD_SHA="${head_sha}" \
+    MOCK_TREE_SHA="${tree_sha}" \
+    GITHUB_REPOSITORY=hansonyu183/zerp \
+    GITHUB_SHA="${merge_sha}" \
+    ZERP_MERGED_BASE_REF=dev \
+    "${test_root}/verify-merged-pr.sh" >/dev/null 2>&1; then
+    actual=success
+  else
+    actual=failure
+  fi
+  test "${actual}" = "${expected}" || {
+    echo "merged PR evidence scenario ${scenario}: expected ${expected}, got ${actual}" >&2
+    exit 1
+  }
+  rm -rf "${test_root}"
+  trap - EXIT HUP INT TERM
+}
+
+test_merged_pr_evidence squash success
+test_merged_pr_evidence no-pr failure
+test_merged_pr_evidence missing-check failure
+test_merged_pr_evidence failed-check failure
 
 assert_checks() {
   expected=$1
@@ -130,7 +217,7 @@ frontend_audit=0
 backend=0
 backend_full=0
 containers=0
-e2e=0
+e2e=1
 local_e2e=0
 preview=1" \
   frontend/src/main.ts

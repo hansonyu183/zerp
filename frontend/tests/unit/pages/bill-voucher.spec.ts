@@ -246,6 +246,41 @@ describe('bill receipt payload', () => {
     })
   })
 
+  it('keeps selected held bills that are outside the latest search page', () => {
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+    vm.openCreate()
+    vm.form.billLines = [{
+      ...form().billLines[0]!,
+      key: 'off-page',
+      billId: 'off-page',
+      billNo: 'OFF-PAGE',
+      faceAmount: '10.00',
+      purpose: 'CHANGE',
+      direction: 'IN',
+    }]
+    vm.heldBillOptions.value = [{
+      ...form().billLines[0]!,
+      key: 'on-page',
+      billId: 'on-page',
+      billNo: 'ON-PAGE',
+      faceAmount: '20.00',
+      purpose: 'CHANGE',
+      direction: 'IN',
+    }]
+    vm.heldSelection.value = ['off-page', 'on-page']
+
+    vm.applyHeldSelection()
+
+    expect(vm.form.billLines).toMatchObject([
+      { billId: 'off-page', billNo: 'OFF-PAGE', purpose: 'PRIMARY', direction: 'OUT' },
+      { billId: 'on-page', billNo: 'ON-PAGE', purpose: 'PRIMARY', direction: 'OUT' },
+    ])
+    scope.stop()
+  })
+
   it('summarizes票据、找零和现金净额 without floating point math', () => {
     const value = form()
     value.billLines.push({

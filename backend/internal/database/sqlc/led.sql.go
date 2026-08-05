@@ -453,8 +453,13 @@ func (q *Queries) DeleteLedBillEntriesBySource(ctx context.Context, arg DeleteLe
 }
 
 const deleteLedBillsBySource = `-- name: DeleteLedBillsBySource :exec
-DELETE FROM led_bills
-WHERE source_document_id = $1
+DELETE FROM led_bills AS bill
+WHERE bill.source_document_id = $1
+  AND NOT EXISTS (
+    SELECT 1
+    FROM led_bill_entries AS entry
+    WHERE entry.bill_id = bill.id
+  )
 `
 
 func (q *Queries) DeleteLedBillsBySource(ctx context.Context, sourceDocumentID string) error {

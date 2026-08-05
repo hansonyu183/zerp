@@ -772,8 +772,13 @@ WHERE generation_id = sqlc.arg(generation_id)
   AND source_document_id = sqlc.arg(source_document_id);
 
 -- name: DeleteLedBillsBySource :exec
-DELETE FROM led_bills
-WHERE source_document_id = sqlc.arg(source_document_id);
+DELETE FROM led_bills AS bill
+WHERE bill.source_document_id = sqlc.arg(source_document_id)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM led_bill_entries AS entry
+    WHERE entry.bill_id = bill.id
+  );
 
 -- name: ListLedBills :many
 WITH bill_positions AS (

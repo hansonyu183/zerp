@@ -1664,7 +1664,8 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer, Handler: &refs.employee,
 		BillLines: []voudomain.BillLineInput{{PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "BILL-DISCOUNT-SOURCE", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00", IssueDate: "2026-08-01", MaturityDate: "2027-08-01", Drawer: "出票人", Acceptor: "承兑行", Payee: "本公司"}},
 	})
-	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{DocumentID: source.DocumentID, Revision: source.Revision}, integrationActorOne, "bill-discount-source-finalize"); err != nil {
+	sourceFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{DocumentID: source.DocumentID, Revision: source.Revision}, integrationActorOne, "bill-discount-source-finalize")
+	if err != nil {
 		t.Fatalf("finalize discount source: %v", err)
 	}
 	listed, err := vouchers.Query(t.Context(), voudomain.EntityBillReceipt, voudomain.QueryInput{
@@ -1728,6 +1729,16 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 	}
 	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillDiscount, voudomain.ReverseInput{DocumentID: billOnlyFinalized.DocumentID, Revision: billOnlyFinalized.Revision, Reason: "撤回纯票据贴现"}, integrationActorOne, "bill-only-discount-unfinalize"); err != nil {
 		t.Fatalf("unfinalize bill-only discount: %v", err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{DocumentID: sourceFinalized.DocumentID, Revision: sourceFinalized.Revision, Reason: "撤回跨账期来源票据"}, integrationActorOne, "bill-source-unfinalize-after-reactivation"); err != nil {
+		t.Fatalf("unfinalize archived bill source: %v", err)
+	}
+	var archivedBillMasters int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM led_bills WHERE source_document_id = $1`, source.DocumentID).Scan(&archivedBillMasters); err != nil {
+		t.Fatalf("count archived bill masters: %v", err)
+	}
+	if archivedBillMasters != 1 {
+		t.Fatalf("archived bill masters = %d, want 1", archivedBillMasters)
 	}
 }
 

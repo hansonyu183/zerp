@@ -729,8 +729,19 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   }
   function applyHeldSelection() {
     const selected = new Set(heldSelection.value)
-    form.billLines = heldBillOptions.value
-      .filter((line) => line.billId && selected.has(line.billId))
+    const currentByBillID = new Map(
+      form.billLines
+        .filter((line) => line.billId)
+        .map((line) => [line.billId!, line]),
+    )
+    const optionByBillID = new Map(
+      heldBillOptions.value
+        .filter((line) => line.billId)
+        .map((line) => [line.billId!, line]),
+    )
+    form.billLines = [...selected]
+      .map((billID) => optionByBillID.get(billID) ?? currentByBillID.get(billID))
+      .filter((line): line is BillLineDraft => Boolean(line))
       .slice(0, config.maxBillLines)
       .map((line) => ({
         ...line,

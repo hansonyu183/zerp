@@ -1,6 +1,6 @@
 # 开发、PR 与自动上线规范
 
-本规范覆盖从可验收提交到正式上线的完整路径。开发变更先合入受保护的 `dev`，需要应用预览时再部署准确的 `dev` 提交；正式环境只从 `dev` 汇总进入受保护 `main` 的 merge commit 上线，固定预览和生产发布不得构建包含未提交修改的开发工作区。
+本规范覆盖从可验收提交到正式上线的完整路径。开发变更先以 squash merge 合入受保护的 `dev`，需要应用预览时再部署准确的 `dev` 提交；正式环境只从 `dev` 汇总进入受保护 `main` 的 squash 发布提交上线，固定预览和生产发布不得构建包含未提交修改的开发工作区。
 
 ## 1. 开发与推送
 
@@ -47,7 +47,7 @@ make preview-status
 
 ## 2. 自动上线
 
-正式环境由同一 merge commit 统一发布：
+正式环境由同一 `main` 发布提交统一发布：
 
 1. Cloudflare Pages Git 集成构建并发布同一 `main` commit；
 2. 本机发布代理确认 `main` 已复用的五项 PR 检查和 `Cloudflare Pages` 全部成功；
@@ -59,7 +59,7 @@ make preview-status
 
 发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。代理复用 `scripts/change-impact.sh`：文档和验证工具提交不等待已跳过的 Pages 检查，直接记录为成功 no-op；应用发布成功后自动更新已安装的控制器脚本。代理为每个目标 SHA 复用同一条 GitHub Deployment，Pages 未完成时标记 `queued`，明确失败时标记 `failure` 并继续观察同一检查的恢复，不再每分钟创建空记录；GitHub fetch、检查读取和 Deployment 写回使用有界指数退避。代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本，日志行使用 UTC 时间戳。
 
-合并后的交付确认必须等待发布代理完整结束，不能在 API 容器刚切换时提前完成。最终运行 `make production-status`，确认 `current-sha`、API 和 Web 容器标签、Cloudflare Pages 精确 commit 标记及两个公网入口均指向同一 merge commit。若构建和容器已健康，但公网出现瞬时 TLS、`530` 或 release 标记尚未更新，应先查看发布代理日志，区分“仍在发布”“Tunnel/网络抖动”和“已写入失败标记”；仅外部入口瞬时失败时重新验证入口，只有代理明确熔断该 SHA 后才使用 `make production-retry`。
+合并后的交付确认必须等待发布代理完整结束，不能在 API 容器刚切换时提前完成。最终运行 `make production-status`，确认 `current-sha`、API 和 Web 容器标签、Cloudflare Pages 精确 commit 标记及两个公网入口均指向同一 `main` 发布提交。若构建和容器已健康，但公网出现瞬时 TLS、`530` 或 release 标记尚未更新，应先查看发布代理日志，区分“仍在发布”“Tunnel/网络抖动”和“已写入失败标记”；仅外部入口瞬时失败时重新验证入口，只有代理明确熔断该 SHA 后才使用 `make production-retry`。
 
 ## 3. 生产隔离与凭证
 

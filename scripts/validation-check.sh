@@ -148,6 +148,8 @@ test_merged_pr_evidence failed-check failure
 
 grep -Fq 'origin/main)' scripts/pre-push.sh
 grep -Fq "diff_range=\"\${base_ref}..HEAD\"" scripts/pre-push.sh
+grep -Fq "PR_BASE_REF: \${{ github.event.pull_request.base.ref }}" .github/workflows/quality.yml
+grep -Fq "diff_range=\"\$BASE_SHA..\$HEAD_SHA\"" .github/workflows/quality.yml
 
 assert_checks() {
   expected=$1

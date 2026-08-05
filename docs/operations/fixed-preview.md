@@ -70,16 +70,16 @@ make preview-uninstall-agent
 
 该命令停止并移除 `com.hansonyu.zerp-preview-deploy` LaunchAgent，同时删除其被 Git 忽略的控制器、仓库副本、日志和状态；不会停止 PostgreSQL、API 或 Web，也不会删除预览数据库、附件和构建版本。
 
-开发 PR 合入 `dev` 且需要应用预览时，先取得准确的 merge commit 完整 SHA，再执行：
+开发 PR 合入 `dev` 且需要应用预览时，先取得当前 `dev` 提交的完整 SHA，再执行：
 
 ```bash
-make preview-deploy PREVIEW_REF=<dev-merge-full-sha>
+make preview-deploy PREVIEW_REF=<dev-full-sha>
 make preview-status
 ```
 
-部署命令先获取 `origin/dev`，只接受当前 `origin/dev` 的 40 位 merge commit SHA，然后从隔离工作树构建该 SHA，迁移、seed、切换，并核对本机与公网 `_zerp-release`。每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
+部署命令先获取 `origin/dev`，只接受当前 `origin/dev` 的 40 位提交 SHA，然后从隔离工作树构建该 SHA，迁移、seed、切换，并核对本机与公网 `_zerp-release`。每次切换保留上一版本，失败自动恢复，人工可执行 `make preview-rollback`。
 
-文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更不重新部署应用预览。运行代码、契约、迁移、依赖、构建和预览工具变更在合入 `dev` 后部署，人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。后续适用的 PR 合入 `dev` 后，旧预览验收失效，需要重新部署新的 merge SHA。
+文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更不重新部署应用预览。运行代码、契约、迁移、依赖、构建和预览工具变更在合入 `dev` 后部署，人工验收通过后再把一个或多个 `dev` 变更汇总到 `main` 发布 PR。后续适用的 PR 合入 `dev` 后，旧预览验收失效，需要重新部署新的 dev SHA。
 
 ## 5. Cloudflare Tunnel
 
@@ -99,7 +99,7 @@ make preview-status
 
 1. 检查 `preview-deploy` 输出以及 `backend/var/preview-native/` 下的本机进程日志，区分构建、migration 和 seed；
 2. 检查本机 PostgreSQL、`http://127.0.0.1:18082/readyz` 和 `http://127.0.0.1:15176/healthz`；
-3. 对比本机与公网 `/_zerp-release` 是否为同一完整 `dev` merge SHA；
+3. 对比本机与公网 `/_zerp-release` 是否为同一完整 `dev` SHA；
 4. 本机健康但公网返回 `530`、TLS 失败或标记未更新时，核对 Tunnel ingress、edge 连接和准确服务实例，不得用 `preview-reset` 或清空数据修复入口；
 5. 入口恢复后重新执行 `make preview-status`；只有部署本身未完成时才用同一准确 SHA 重新执行 `preview-deploy`。
 

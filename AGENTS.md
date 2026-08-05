@@ -28,7 +28,7 @@
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - 开发 PR 必须直接以 `dev` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `dev` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。`main` 只接受 head 为 `dev` 的汇总发布 PR，禁止功能分支直接向 `main` 提交 PR。
 - 形成可验收提交后先运行 `make pre-push-plan` 核对检查矩阵，再运行 `make pre-push`；门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。普通纯前端源码只运行前端门禁，普通纯后端源码本地运行格式、普通测试、vet 和构建，PR CI 补充静态与安全检查；两者都不默认构建后端容器或运行全栈 E2E。契约、SQL/迁移、依赖、运行配置、跨端、容器/E2E 工具和未知变更仍必须通过后端全量集成/race 及适用的隔离 E2E。需要保守复核时运行 `PRE_PUSH_FULL=1 make pre-push`。
-- 本地门禁通过后先推送并创建目标为 `dev` 的草稿 PR。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必需检查全部通过后才允许合入 `dev`；需要更新固定预览时，合并后使用准确的 `dev` merge commit 执行 `make preview-deploy PREVIEW_REF=<full-sha>`，不得用包含未提交修改的工作区代替。
+- 本地门禁通过后先推送并创建目标为 `dev` 的草稿 PR。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必需检查全部通过后才允许合入 `dev`；需要更新固定预览时，合并后使用准确的当前 `dev` 提交 SHA 执行 `make preview-deploy PREVIEW_REF=<full-sha>`，不得用包含未提交修改的工作区代替。
 - 运行代码、契约、迁移和依赖变更在合入 `dev` 后必须完成固定预览人工验收；native preview 工具本身只执行本机构建、迁移/种子、健康和准确 SHA 校验，不因其变更触发容器门禁。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。需要正式发布时，以已验收的 `dev` 向 `main` 创建汇总发布 PR；只有该发布 PR 的必需检查通过后才允许人工合并。
 - 固定预览失败时必须区分构建、迁移/种子、本机原生进程健康和公网 Tunnel 四层。若本机 Web/API 已健康且运行准确 SHA，公网 `530`、TLS 或资源预热失败不得通过 `preview-reset`、清空数据或重复改代码处理；应核对 Tunnel ingress、edge 连接和准确服务实例，恢复入口后重新运行 `make preview-status`。
 - 合并前必须基于 PR 最新提交确认所有可执行 review thread 均已解决；新提交引入或重新打开的反馈必须重新处理，不得只依赖汇总 review 状态。

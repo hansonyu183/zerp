@@ -54,7 +54,10 @@ test "$(grep -c 'VITE_API_BASE_URL=/api/' scripts/preview.sh)" = 2 || {
 }
 grep -Fq 'git fetch origin dev --prune' scripts/preview-deploy.sh
 grep -Fq "test \"\${release_sha}\" = \"\${dev_sha}\"" scripts/preview-deploy.sh
-grep -Fq "test \"\${parent_count}\" = 2" scripts/preview-deploy.sh
+if grep -Fq 'parent_count' scripts/preview-deploy.sh; then
+  echo "preview deploy must accept squash dev commits" >&2
+  exit 1
+fi
 
 assert_checks() {
   expected=$1

@@ -114,7 +114,7 @@ preview-up:
 	@./scripts/preview.sh up
 
 preview-deploy:
-	@test -n "$(PREVIEW_REF)" || { echo "usage: make preview-deploy PREVIEW_REF=<dev-merge-full-sha>" >&2; exit 2; }
+	@test -n "$(PREVIEW_REF)" || { echo "usage: make preview-deploy PREVIEW_REF=<dev-full-sha>" >&2; exit 2; }
 	@./scripts/preview-deploy.sh "$(PREVIEW_REF)"
 
 preview-down:

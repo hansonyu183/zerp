@@ -7,13 +7,13 @@ cd "${repo_root}"
 preview_ref=${1:-}
 case "${preview_ref}" in
   '' | *[!0-9a-f]*)
-    echo "Preview ref must be the full lowercase SHA of the current dev merge commit" >&2
+    echo "Preview ref must be the full lowercase SHA of the current dev commit" >&2
     exit 2
     ;;
 esac
 sha_length=$(printf '%s' "${preview_ref}" | wc -c | tr -d ' ')
 test "${sha_length}" = 40 || {
-  echo "Preview ref must be the full lowercase SHA of the current dev merge commit" >&2
+  echo "Preview ref must be the full lowercase SHA of the current dev commit" >&2
   exit 2
 }
 
@@ -22,11 +22,6 @@ release_sha=$(git rev-parse --verify "${preview_ref}^{commit}")
 dev_sha=$(git rev-parse --verify 'origin/dev^{commit}')
 test "${release_sha}" = "${dev_sha}" || {
   echo "Preview ref ${release_sha} is not the current origin/dev commit ${dev_sha}" >&2
-  exit 1
-}
-parent_count=$(git rev-list --parents -n 1 "${release_sha}" | awk '{print NF - 1}')
-test "${parent_count}" = 2 || {
-  echo "Preview ref ${release_sha} is not a dev merge commit" >&2
   exit 1
 }
 short_sha=$(printf '%s' "${release_sha}" | cut -c1-12)

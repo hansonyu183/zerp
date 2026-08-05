@@ -1667,6 +1667,19 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{DocumentID: source.DocumentID, Revision: source.Revision}, integrationActorOne, "bill-discount-source-finalize"); err != nil {
 		t.Fatalf("finalize discount source: %v", err)
 	}
+	listed, err := vouchers.Query(t.Context(), voudomain.EntityBillReceipt, voudomain.QueryInput{
+		Page: 1, PageSize: 20, Filters: voudomain.QueryFilters{PartyObjectID: refs.customer.ObjectID},
+		Sort: []voudomain.SortInput{{Field: "documentNo", Order: "desc"}},
+	})
+	if err != nil || len(listed.Items) != 1 || sourceView.Data.Counterparty == nil || listed.Items[0].PartyName != sourceView.Data.Counterparty.Name {
+		t.Fatalf("query bill receipt by party = %+v, err=%v", listed, err)
+	}
+	if _, err = vouchers.Create(t.Context(), voudomain.EntityBillDiscount, voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "USD", CounterpartyType: "other-party", Counterparty: &other, InterestMode: "BANK_DEDUCTED",
+		BillLines: []voudomain.BillLineInput{{BillID: sourceView.Data.BillLines[0].BillID, Purpose: "PRIMARY", AnnualRateBps: 365}},
+	}}, integrationActorOne, "bill-discount-currency-mismatch"); err == nil || !strings.Contains(err.Error(), "source bill currency must match document currency") {
+		t.Fatalf("create bill discount with mismatched currency error = %v", err)
+	}
 	discount, _ := advanceToApproved(t, vouchers, voudomain.EntityBillDiscount, voudomain.DraftInput{
 		BusinessDate: "2026-08-02", Currency: "CNY", CounterpartyType: "other-party", Counterparty: &other,
 		InterestMode: "THIRD_PARTY_PAYABLE", InterestParty: &other,

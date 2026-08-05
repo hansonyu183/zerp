@@ -3151,7 +3151,7 @@ export interface components {
                 /** @enum {string} */
                 positionType?: "ASSET" | "LIABILITY";
                 /** @enum {string} */
-                availability?: "AVAILABLE" | "USED" | "MATURED";
+                availability?: "AVAILABLE" | "USED" | "MATURED" | "HELD";
                 /** @enum {string} */
                 billType?: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
                 billNo?: string;

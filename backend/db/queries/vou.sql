@@ -378,6 +378,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
       OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
+      OR EXISTS (SELECT 1 FROM vou_bill_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -414,6 +415,8 @@ WHERE d.entity = sqlc.arg(entity)
           AND (x.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'))
       OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id
           AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
+      OR EXISTS (SELECT 1 FROM vou_bill_details x WHERE x.document_id = d.id
+          AND (x.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR x.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'))
   );
 
 -- name: ListVouDocuments :many
@@ -421,7 +424,7 @@ SELECT d.*,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
-                aa.supplier_name, asl.counterparty_name, oi.source_name, '') AS party_name
+                aa.supplier_name, asl.counterparty_name, bd.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
@@ -440,6 +443,7 @@ LEFT JOIN vou_employee_loan_writeoff_details elw ON elw.document_id = d.id
 LEFT JOIN vou_other_income_details oi ON oi.document_id = d.id
 LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
 LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
+LEFT JOIN vou_bill_details bd ON bd.document_id = d.id
 WHERE d.entity = sqlc.arg(entity)
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
@@ -461,6 +465,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR oi.counterparty_object_id = sqlc.arg(party_object_id)
       OR aa.supplier_object_id = sqlc.arg(party_object_id)
       OR asl.counterparty_object_id = sqlc.arg(party_object_id)
+      OR bd.counterparty_object_id = sqlc.arg(party_object_id)
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -480,6 +485,7 @@ WHERE d.entity = sqlc.arg(entity)
       OR oi.source_name ILIKE '%' || sqlc.arg(keyword) || '%' OR oi.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR aa.supplier_code ILIKE '%' || sqlc.arg(keyword) || '%' OR aa.supplier_name ILIKE '%' || sqlc.arg(keyword) || '%'
       OR asl.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR asl.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
+      OR bd.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR bd.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN d.updated_at END ASC,

@@ -63,7 +63,7 @@ beforeEach(() => {
         },
       } as never
     if (path.includes('/query'))
-      return { data: { data: { items: [], total: 0 } } } as never
+      return { data: { items: [], total: 0 } } as never
     if (path.includes('/create'))
       return {
         data: {
@@ -481,6 +481,13 @@ describe('bill voucher view model behavior', () => {
       name: '引用',
     })
     await vm.openHeldDialog()
+    expect(mockedPostContract).toHaveBeenLastCalledWith(
+      'led/bill/query',
+      expect.objectContaining({
+        filters: expect.objectContaining({ availability: 'HELD' }),
+      }),
+      expect.anything(),
+    )
     vm.heldSelection.value = ['bill-1']
     vm.applyHeldSelection()
     vm.form.billLines = [
@@ -606,7 +613,7 @@ describe('bill ledger view model behavior', () => {
     vm.maturityShortcut('today')
     vm.maturityShortcut('overdue')
     vm.changePage(1)
-    expect(vm.filters.availability).toBe('AVAILABLE')
+    expect(vm.filters.availability).toBe('MATURED')
     expect(vm.filters.maturityDateTo).toBeTruthy()
     scope.stop()
   })

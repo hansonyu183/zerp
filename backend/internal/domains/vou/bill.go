@@ -552,6 +552,9 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 			if err != nil {
 				return domainError(ErrorConflict, "source bill is not available", nil, err)
 			}
+			if b.Currency != d.Currency {
+				return domainError(ErrorValidation, "source bill currency must match document currency", nil, nil)
+			}
 			balance, balanceErr := billAvailableBalance(ctx, q, b.ID, l.PositionType)
 			if balanceErr != nil || balance != 1 {
 				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)

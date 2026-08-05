@@ -816,7 +816,9 @@ WITH bill_positions AS (
 )
 SELECT filtered.*, count(*) OVER()::bigint AS total_count
 FROM filtered
-WHERE sqlc.arg(availability)::text = '' OR availability = sqlc.arg(availability)
+WHERE sqlc.arg(availability)::text = ''
+   OR availability = sqlc.arg(availability)
+   OR (sqlc.arg(availability)::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'))
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'maturityDate' AND sqlc.arg(sort_order)::text = 'asc' THEN maturity_date END ASC,
   CASE WHEN sqlc.arg(sort_field)::text = 'maturityDate' AND sqlc.arg(sort_order)::text = 'desc' THEN maturity_date END DESC,

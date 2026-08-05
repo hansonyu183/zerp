@@ -1968,7 +1968,9 @@ WITH bill_positions AS (
 )
 SELECT filtered.id, filtered.position_type, filtered.bill_type, filtered.bill_no, filtered.medium, filtered.currency, filtered.face_amount_cents, filtered.issue_date, filtered.maturity_date, filtered.drawer, filtered.acceptor, filtered.payee, filtered.annual_rate_bps, filtered.interest_days, filtered.interest_amount_cents, filtered.customer_cost_amount_cents, filtered.origin_party_entity, filtered.origin_party_object_id, filtered.origin_party_version_id, filtered.origin_party_code, filtered.origin_party_name, filtered.source_document_id, filtered.source_line_id, filtered.created_at, filtered.source_entity, filtered.source_document_no, filtered.available_balance, filtered.availability, count(*) OVER()::bigint AS total_count
 FROM filtered
-WHERE $1::text = '' OR availability = $1
+WHERE $1::text = ''
+   OR availability = $1
+   OR ($1::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'))
 ORDER BY
   CASE WHEN $2::text = 'maturityDate' AND $3::text = 'asc' THEN maturity_date END ASC,
   CASE WHEN $2::text = 'maturityDate' AND $3::text = 'desc' THEN maturity_date END DESC,

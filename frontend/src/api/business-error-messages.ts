@@ -193,6 +193,7 @@ const exactMessages: Readonly<Record<string, string>> = {
     '该票据已存在，请核对票据类型、号码、承兑人、票面金额和到期日。',
   'fields do not match bill receipt': '提交字段与票据收入业务不匹配。',
   'source bill is not available': '所选找零票据当前不可用。',
+  'source bill currency must match document currency': '所选票据币种必须与单据币种一致。',
   'bill payment line is invalid': '付出票据明细无效，请重新选择可用持有票据。',
   'bill payment requires available billId': '付出票据必须引用当前可用持有票据。',
   'bill payment requires supplier': '请选择供应商。',

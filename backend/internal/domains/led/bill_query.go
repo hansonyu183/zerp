@@ -77,7 +77,7 @@ func validateBillQuery(input BillQueryInput) (validatedBillQuery, error) {
 	if result.PositionType != "" && result.PositionType != "ASSET" && result.PositionType != "LIABILITY" {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid bill positionType", nil, nil)
 	}
-	if result.Availability != "" && result.Availability != "AVAILABLE" && result.Availability != "USED" && result.Availability != "MATURED" {
+	if result.Availability != "" && result.Availability != "AVAILABLE" && result.Availability != "USED" && result.Availability != "MATURED" && result.Availability != "HELD" {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid bill availability", nil, nil)
 	}
 	if result.BillType != "" && result.BillType != "BANK_ACCEPTANCE" && result.BillType != "COMMERCIAL_ACCEPTANCE" && result.BillType != "CHECK" && result.BillType != "OTHER" {

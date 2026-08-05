@@ -19,7 +19,7 @@
                   'availability':
                     {
                       'type': 'string',
-                      'enum': ['AVAILABLE', 'USED', 'MATURED'],
+                      'enum': ['AVAILABLE', 'USED', 'MATURED', 'HELD'],
                     },
                   'billType':
                     {

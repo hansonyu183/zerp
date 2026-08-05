@@ -98,10 +98,15 @@ export function useBillLedgerViewModel() {
     const today = new Date()
     const iso = (date: Date) => date.toISOString().slice(0, 10)
     const end = new Date(today)
-    end.setUTCDate(end.getUTCDate() + (kind === '30d' ? 30 : kind === '7d' ? 7 : 0))
+    end.setUTCDate(
+      end.getUTCDate() + (kind === '30d' ? 30 : kind === '7d' ? 7 : 0),
+    )
     filters.maturityDateFrom = kind === 'overdue' ? undefined : iso(today)
-    filters.maturityDateTo = kind === 'overdue' ? iso(new Date(today.getTime() - 86_400_000)) : iso(end)
-    if (kind === 'overdue') filters.availability = 'AVAILABLE'
+    filters.maturityDateTo =
+      kind === 'overdue'
+        ? iso(new Date(today.getTime() - 86_400_000))
+        : iso(end)
+    if (kind === 'overdue') filters.availability = 'MATURED'
     search()
   }
   function changePage(value: number) {

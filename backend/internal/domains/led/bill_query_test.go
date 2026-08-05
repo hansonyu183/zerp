@@ -6,13 +6,13 @@ func TestValidateBillQuery(t *testing.T) {
 	t.Parallel()
 	query, err := validateBillQuery(BillQueryInput{
 		Page: 1, PageSize: 20,
-		Filters: BillQueryFilters{PositionType: "asset", Availability: "available", BillType: "bank_acceptance"},
+		Filters: BillQueryFilters{PositionType: "asset", Availability: "held", BillType: "bank_acceptance"},
 		Sort:    []SortInput{{Field: "maturityDate", Order: "asc"}},
 	})
 	if err != nil {
 		t.Fatalf("validate bill query: %v", err)
 	}
-	if query.PositionType != "ASSET" || query.Availability != "AVAILABLE" || query.BillType != "BANK_ACCEPTANCE" {
+	if query.PositionType != "ASSET" || query.Availability != "HELD" || query.BillType != "BANK_ACCEPTANCE" {
 		t.Fatalf("normalized bill query = %+v", query)
 	}
 	invalid := []BillQueryInput{

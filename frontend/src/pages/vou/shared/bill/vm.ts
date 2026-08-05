@@ -272,14 +272,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         sort: [{ field: 'documentNo', order: 'desc' }],
       }
       const result = await apiClient.post<
-        components['schemas']['VouQueryResponse'],
+        components['schemas']['VouListPage'],
         VouQueryRequest
       >(`vou/${config.entity}/query` as ApiPostPath, request, {
         signal: controller.signal,
       })
       if (current !== sequence) return
-      const pageResult = result.data.data
-      if (!pageResult) throw new Error('查询票据单据返回数据为空。')
+      const pageResult = result.data
       rows.value = pageResult.items
       total.value = pageResult.total
     } catch (error) {
@@ -670,7 +669,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       page: 1,
       pageSize: 20,
       filters: {
-        availability: 'AVAILABLE',
+        availability: config.mode === 'maturity' ? 'HELD' : 'AVAILABLE',
         positionType:
           config.mode === 'maturity' && form.maturityType === 'PAYMENT'
             ? 'LIABILITY'

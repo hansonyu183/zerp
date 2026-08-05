@@ -195,6 +195,11 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 			return err
 		}
 	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillIssue {
+		if err = q.DeleteLedBillsBySource(ctx, event.DocumentID); err != nil {
+			return err
+		}
+	}
 	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
 		return err
 	}

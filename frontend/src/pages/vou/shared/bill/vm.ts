@@ -122,11 +122,23 @@ type BillPaymentSaveRequest = {
   data: BillPaymentData
 }
 type BillIssueCreateRequest = { data: BillIssueData }
-type BillIssueSaveRequest = { documentId: string; revision: number; data: BillIssueData }
+type BillIssueSaveRequest = {
+  documentId: string
+  revision: number
+  data: BillIssueData
+}
 type BillDiscountCreateRequest = { data: BillDiscountData }
-type BillDiscountSaveRequest = { documentId: string; revision: number; data: BillDiscountData }
+type BillDiscountSaveRequest = {
+  documentId: string
+  revision: number
+  data: BillDiscountData
+}
 type BillMaturityCreateRequest = { data: BillMaturityData }
-type BillMaturitySaveRequest = { documentId: string; revision: number; data: BillMaturityData }
+type BillMaturitySaveRequest = {
+  documentId: string
+  revision: number
+  data: BillMaturityData
+}
 
 function key() {
   return crypto.randomUUID()
@@ -378,44 +390,75 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     saving.value = true
     errorMessage.value = null
     try {
-      const data = config.mode === 'payment'
-        ? buildBillPaymentPayload(form)
-        : config.mode === 'issue'
-          ? buildBillIssuePayload(form)
-          : config.mode === 'discount'
-            ? buildBillDiscountPayload(form)
-            : config.mode === 'maturity'
-              ? buildBillMaturityPayload(form)
-              : buildBillReceiptPayload(form)
-      if (documentId.value) {
-        const request = config.mode === 'payment'
-          ? { documentId: documentId.value, revision: revision.value, data } as BillPaymentSaveRequest
+      const data =
+        config.mode === 'payment'
+          ? buildBillPaymentPayload(form)
           : config.mode === 'issue'
-            ? { documentId: documentId.value, revision: revision.value, data } as BillIssueSaveRequest
+            ? buildBillIssuePayload(form)
             : config.mode === 'discount'
-              ? { documentId: documentId.value, revision: revision.value, data } as BillDiscountSaveRequest
+              ? buildBillDiscountPayload(form)
               : config.mode === 'maturity'
-                ? { documentId: documentId.value, revision: revision.value, data } as BillMaturitySaveRequest
-                : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
-        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest | BillIssueSaveRequest | BillDiscountSaveRequest | BillMaturitySaveRequest>(
-          `vou/${config.entity}/save` as ApiPostPath,
-          request,
-        )
+                ? buildBillMaturityPayload(form)
+                : buildBillReceiptPayload(form)
+      if (documentId.value) {
+        const request =
+          config.mode === 'payment'
+            ? ({
+                documentId: documentId.value,
+                revision: revision.value,
+                data,
+              } as BillPaymentSaveRequest)
+            : config.mode === 'issue'
+              ? ({
+                  documentId: documentId.value,
+                  revision: revision.value,
+                  data,
+                } as BillIssueSaveRequest)
+              : config.mode === 'discount'
+                ? ({
+                    documentId: documentId.value,
+                    revision: revision.value,
+                    data,
+                  } as BillDiscountSaveRequest)
+                : config.mode === 'maturity'
+                  ? ({
+                      documentId: documentId.value,
+                      revision: revision.value,
+                      data,
+                    } as BillMaturitySaveRequest)
+                  : ({
+                      documentId: documentId.value,
+                      revision: revision.value,
+                      data,
+                    } as VouSaveRequest)
+        const result = await apiClient.post<
+          MutationResponse,
+          | VouSaveRequest
+          | BillPaymentSaveRequest
+          | BillIssueSaveRequest
+          | BillDiscountSaveRequest
+          | BillMaturitySaveRequest
+        >(`vou/${config.entity}/save` as ApiPostPath, request)
         revision.value = result.data.revision
       } else {
-        const request = config.mode === 'payment'
-          ? { data } as BillPaymentCreateRequest
-          : config.mode === 'issue'
-            ? { data } as BillIssueCreateRequest
-            : config.mode === 'discount'
-              ? { data } as BillDiscountCreateRequest
-              : config.mode === 'maturity'
-                ? { data } as BillMaturityCreateRequest
-                : { data } as VouCreateRequest
-        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest | BillIssueCreateRequest | BillDiscountCreateRequest | BillMaturityCreateRequest>(
-          `vou/${config.entity}/create` as ApiPostPath,
-          request,
-        )
+        const request =
+          config.mode === 'payment'
+            ? ({ data } as BillPaymentCreateRequest)
+            : config.mode === 'issue'
+              ? ({ data } as BillIssueCreateRequest)
+              : config.mode === 'discount'
+                ? ({ data } as BillDiscountCreateRequest)
+                : config.mode === 'maturity'
+                  ? ({ data } as BillMaturityCreateRequest)
+                  : ({ data } as VouCreateRequest)
+        const result = await apiClient.post<
+          MutationResponse,
+          | VouCreateRequest
+          | BillPaymentCreateRequest
+          | BillIssueCreateRequest
+          | BillDiscountCreateRequest
+          | BillMaturityCreateRequest
+        >(`vou/${config.entity}/create` as ApiPostPath, request)
         documentId.value = result.data.documentId
         documentNo.value = result.data.documentNo
         revision.value = result.data.revision
@@ -528,60 +571,71 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     customerController?.abort()
     supplierController?.abort()
     otherPartyController?.abort()
-    customerController = new AbortController()
+    const requestController = new AbortController()
+    customerController = requestController
     const result = await searchReferencesWithSignal(
       'customer',
       value,
-      customerController.signal,
+      requestController.signal,
     )
-    if (current === customerSequence) customerOptions.value = result
+    if (current === customerSequence && !requestController.signal.aborted)
+      customerOptions.value = result
   }
   async function searchSupplier(value: string) {
     const current = ++supplierSequence
     supplierController?.abort()
-    supplierController = new AbortController()
+    const requestController = new AbortController()
+    supplierController = requestController
     const result = await searchReferencesWithSignal(
       'supplier',
       value,
-      supplierController.signal,
+      requestController.signal,
     )
-    if (current === supplierSequence) supplierOptions.value = result
+    if (current === supplierSequence && !requestController.signal.aborted)
+      supplierOptions.value = result
   }
   async function searchOtherParty(value: string) {
     const current = ++otherPartySequence
     otherPartyController?.abort()
-    otherPartyController = new AbortController()
+    const requestController = new AbortController()
+    otherPartyController = requestController
     const result = await searchReferencesWithSignal(
       'other-party',
       value,
-      otherPartyController.signal,
+      requestController.signal,
     )
-    if (current === otherPartySequence) otherPartyOptions.value = result
+    if (current === otherPartySequence && !requestController.signal.aborted)
+      otherPartyOptions.value = result
   }
   async function searchHandler(value: string) {
     const current = ++handlerSequence
     handlerController?.abort()
-    handlerController = new AbortController()
+    const requestController = new AbortController()
+    handlerController = requestController
     const result = await searchReferencesWithSignal(
       'employee',
       value,
-      handlerController.signal,
+      requestController.signal,
     )
-    if (current === handlerSequence) handlerOptions.value = result
+    if (current === handlerSequence && !requestController.signal.aborted)
+      handlerOptions.value = result
   }
   async function searchFundAccount(value: string) {
     const current = ++fundSequence
     fundController?.abort()
-    fundController = new AbortController()
+    const requestController = new AbortController()
+    fundController = requestController
     const result = await searchReferencesWithSignal(
       'fund-account',
       value,
-      fundController.signal,
+      requestController.signal,
     )
-    if (current === fundSequence) fundAccountOptions.value = result
+    if (current === fundSequence && !requestController.signal.aborted)
+      fundAccountOptions.value = result
   }
   async function searchReferencesWithSignal(
-    entity: 'customer' | 'supplier' | 'other-party' | 'employee' | 'fund-account',
+    entity:
+      'customer' | 'supplier' | 'other-party' | 'employee' | 'fund-account',
     value: string,
     signal: AbortSignal,
   ) {
@@ -617,7 +671,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       pageSize: 20,
       filters: {
         availability: 'AVAILABLE',
-        positionType: config.mode === 'maturity' && form.maturityType === 'PAYMENT' ? 'LIABILITY' : 'ASSET',
+        positionType:
+          config.mode === 'maturity' && form.maturityType === 'PAYMENT'
+            ? 'LIABILITY'
+            : 'ASSET',
         ...(value ? { billNo: value } : {}),
       },
       sort: [{ field: 'maturityDate', order: 'asc' }],
@@ -682,10 +739,18 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         direction: 'OUT' as const,
       }))
     if (config.mode === 'maturity' && form.maturityType === 'RECEIPT') {
-      form.billLines = form.billLines.map((line) => ({ ...line, positionType: 'ASSET' as const, direction: 'OUT' as const }))
+      form.billLines = form.billLines.map((line) => ({
+        ...line,
+        positionType: 'ASSET' as const,
+        direction: 'OUT' as const,
+      }))
     }
     if (config.mode === 'maturity' && form.maturityType === 'PAYMENT') {
-      form.billLines = form.billLines.map((line) => ({ ...line, positionType: 'LIABILITY' as const, direction: 'OUT' as const }))
+      form.billLines = form.billLines.map((line) => ({
+        ...line,
+        positionType: 'LIABILITY' as const,
+        direction: 'OUT' as const,
+      }))
     }
     heldDialogOpen.value = false
   }
@@ -700,6 +765,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   onScopeDispose(() => {
     controller?.abort()
     customerController?.abort()
+    supplierController?.abort()
     handlerController?.abort()
     fundController?.abort()
     heldController?.abort()

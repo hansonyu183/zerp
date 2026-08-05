@@ -109,6 +109,7 @@ type Querier interface {
 	DeleteLedAssetEntriesBySource(ctx context.Context, arg DeleteLedAssetEntriesBySourceParams) error
 	DeleteLedAssetsBySource(ctx context.Context, arg DeleteLedAssetsBySourceParams) error
 	DeleteLedBillEntriesBySource(ctx context.Context, arg DeleteLedBillEntriesBySourceParams) error
+	DeleteLedBillsBySource(ctx context.Context, sourceDocumentID string) error
 	DeleteLedContainerEntriesBySource(ctx context.Context, arg DeleteLedContainerEntriesBySourceParams) error
 	DeleteLedDraftContainer(ctx context.Context) error
 	DeleteLedDraftFund(ctx context.Context) error

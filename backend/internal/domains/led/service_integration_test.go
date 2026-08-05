@@ -1363,6 +1363,48 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("uncheck historical bill receipt: %v", err)
 	}
+	resaved, err := vouchers.Save(t.Context(), voudomain.EntityBillReceipt, voudomain.SaveInput{
+		DocumentID: draftAgain.DocumentID, Revision: draftAgain.Revision, Data: receiptDraft,
+	}, integrationActorOne, "bill-receipt-resave-after-reversal")
+	if err != nil {
+		t.Fatalf("resave reversed bill receipt: %v", err)
+	}
+	rechecked, err := vouchers.Check(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: resaved.DocumentID, Revision: resaved.Revision,
+	}, integrationActorOne, "bill-receipt-recheck-after-reversal")
+	if err != nil {
+		t.Fatalf("recheck reversed bill receipt: %v", err)
+	}
+	reapproved, err := vouchers.Approve(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: rechecked.DocumentID, Revision: rechecked.Revision,
+	}, integrationActorOne, "bill-receipt-reapprove-after-reversal")
+	if err != nil {
+		t.Fatalf("reapprove reversed bill receipt: %v", err)
+	}
+	refinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: reapproved.DocumentID, Revision: reapproved.Revision,
+	}, integrationActorOne, "bill-receipt-refinalize-after-reversal")
+	if err != nil {
+		t.Fatalf("refinalize reversed bill receipt: %v", err)
+	}
+	reversedAgain, err := vouchers.Unfinalize(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: refinalized.DocumentID, Revision: refinalized.Revision, Reason: "再次撤回",
+	}, integrationActorOne, "bill-receipt-reverse-after-refinalize")
+	if err != nil {
+		t.Fatalf("unfinalize refinalized bill receipt: %v", err)
+	}
+	checkedAgain, err = vouchers.Unapprove(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: reversedAgain.DocumentID, Revision: reversedAgain.Revision, Reason: "再次退回核对态",
+	}, integrationActorOne, "bill-receipt-unapprove-after-refinalize")
+	if err != nil {
+		t.Fatalf("unapprove refinalized bill receipt: %v", err)
+	}
+	draftAgain, err = vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
+		DocumentID: checkedAgain.DocumentID, Revision: checkedAgain.Revision, Reason: "再次退回草稿态",
+	}, integrationActorOne, "bill-receipt-uncheck-after-refinalize")
+	if err != nil {
+		t.Fatalf("uncheck refinalized bill receipt: %v", err)
+	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityBillReceipt, voudomain.DeleteInput{
 		DocumentID: draftAgain.DocumentID, Revision: draftAgain.Revision, Reason: "不允许删除台账历史",
 	}, integrationActorOne, "bill-receipt-delete-after-history"); err == nil ||
@@ -1632,6 +1674,10 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 		BillLines:     []voudomain.BillLineInput{{BillID: sourceView.Data.BillLines[0].BillID, Purpose: "PRIMARY", AnnualRateBps: 365}},
 		BillCashLines: []voudomain.BillCashLineInput{{FundAccount: refs.fundAccount, Direction: "IN", AmountType: "PRINCIPAL", Amount: "96.35"}},
 	})
+	discountView, err := vouchers.Get(t.Context(), voudomain.EntityBillDiscount, voudomain.GetInput{DocumentID: discount.DocumentID})
+	if err != nil || discountView.Data.Counterparty == nil || discountView.Data.Counterparty.Entity != bobdomain.EntityOtherParty {
+		t.Fatalf("discount counterparty snapshot = %+v, err=%v", discountView.Data.Counterparty, err)
+	}
 	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillDiscount, voudomain.FinalizeInput{DocumentID: discount.DocumentID, Revision: discount.Revision}, integrationActorOne, "bill-discount-finalize")
 	if err != nil {
 		t.Fatalf("finalize bill discount: %v", err)

@@ -515,6 +515,10 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 	partyEntity := "customer"
 	if entity == EntityBillPayment || entity == EntityBillIssue {
 		party, partyEntity = r.Supplier, "supplier"
+	} else if entity == EntityBillDiscount {
+		partyEntity = "other-party"
+	} else if entity == EntityBillMaturity {
+		party = nil
 	}
 	params := dbsqlc.InsertVouBillDetailParams{
 		DocumentID: id, Entity: entity,

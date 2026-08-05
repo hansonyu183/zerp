@@ -452,6 +452,16 @@ func (q *Queries) DeleteLedBillEntriesBySource(ctx context.Context, arg DeleteLe
 	return err
 }
 
+const deleteLedBillsBySource = `-- name: DeleteLedBillsBySource :exec
+DELETE FROM led_bills
+WHERE source_document_id = $1
+`
+
+func (q *Queries) DeleteLedBillsBySource(ctx context.Context, sourceDocumentID string) error {
+	_, err := q.db.Exec(ctx, deleteLedBillsBySource, sourceDocumentID)
+	return err
+}
+
 const deleteLedContainerEntriesBySource = `-- name: DeleteLedContainerEntriesBySource :exec
 DELETE FROM led_container_entries
 WHERE generation_id = $1

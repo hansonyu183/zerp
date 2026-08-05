@@ -46,14 +46,124 @@ beforeEach(() => {
   mockedPost.mockReset()
   mockedPostContract.mockReset()
   mockedPost.mockImplementation(async (path: string) => {
-    if (path.startsWith('bob/')) return { data: { items: [{ objectId: 'r', entity: 'customer', code: 'R', currentVersion: { versionId: 'rv', summary: { name: '引用' } } }], total: 1, page: 1, pageSize: 20 } } as never
-    if (path.includes('/query')) return { data: { data: { items: [], total: 0 } } } as never
-    if (path.includes('/create')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 1, status: 'DRAFT' } } as never
-    if (path.includes('/save')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 2, status: 'DRAFT' } } as never
-    if (path.includes('/get')) return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 1, status: 'DRAFT', entity: 'bill-maturity', amount: '10.00', data: { businessDate: '2026-08-05', currency: 'CNY', billLines: [{ lineId: 'L1', billId: 'B1', purpose: 'PRIMARY', positionType: 'ASSET', direction: 'IN', billType: 'BANK_ACCEPTANCE', billNo: 'B1', medium: 'ELECTRONIC', currency: 'CNY', faceAmount: '10.00', issueDate: '2026-01-01', maturityDate: '2026-09-01', drawer: 'D', acceptor: 'A', payee: 'P', annualRateBps: 100 }], billCashLines: [{ lineId: 'C1', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00' }] } } } as never
-    return { data: { documentId: 'DOC-1', documentNo: 'V-1', revision: 2, status: 'CHECKED' } } as never
+    if (path.startsWith('bob/'))
+      return {
+        data: {
+          items: [
+            {
+              objectId: 'r',
+              entity: 'customer',
+              code: 'R',
+              currentVersion: { versionId: 'rv', summary: { name: '引用' } },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      } as never
+    if (path.includes('/query'))
+      return { data: { data: { items: [], total: 0 } } } as never
+    if (path.includes('/create'))
+      return {
+        data: {
+          documentId: 'DOC-1',
+          documentNo: 'V-1',
+          revision: 1,
+          status: 'DRAFT',
+        },
+      } as never
+    if (path.includes('/save'))
+      return {
+        data: {
+          documentId: 'DOC-1',
+          documentNo: 'V-1',
+          revision: 2,
+          status: 'DRAFT',
+        },
+      } as never
+    if (path.includes('/get'))
+      return {
+        data: {
+          documentId: 'DOC-1',
+          documentNo: 'V-1',
+          revision: 1,
+          status: 'DRAFT',
+          entity: 'bill-maturity',
+          amount: '10.00',
+          data: {
+            businessDate: '2026-08-05',
+            currency: 'CNY',
+            billLines: [
+              {
+                lineId: 'L1',
+                billId: 'B1',
+                purpose: 'PRIMARY',
+                positionType: 'ASSET',
+                direction: 'IN',
+                billType: 'BANK_ACCEPTANCE',
+                billNo: 'B1',
+                medium: 'ELECTRONIC',
+                currency: 'CNY',
+                faceAmount: '10.00',
+                issueDate: '2026-01-01',
+                maturityDate: '2026-09-01',
+                drawer: 'D',
+                acceptor: 'A',
+                payee: 'P',
+                annualRateBps: 100,
+              },
+            ],
+            billCashLines: [
+              {
+                lineId: 'C1',
+                fundAccount: {
+                  objectId: 'f',
+                  versionId: 'fv',
+                  code: 'F',
+                  name: '账户',
+                },
+                direction: 'IN',
+                amountType: 'INTEREST',
+                amount: '1.00',
+              },
+            ],
+          },
+        },
+      } as never
+    return {
+      data: {
+        documentId: 'DOC-1',
+        documentNo: 'V-1',
+        revision: 2,
+        status: 'CHECKED',
+      },
+    } as never
   })
-  mockedPostContract.mockResolvedValue({ data: { items: [{ billId: 'bill-1', positionType: 'ASSET', billType: 'BANK_ACCEPTANCE', billNo: 'B-1', medium: 'ELECTRONIC', currency: 'CNY', faceAmount: '10.00', issueDate: '2026-01-01', maturityDate: '2026-09-01', drawer: 'D', acceptor: 'A', payee: 'P', annualRateBps: 100 }], total: 1, page: 1, pageSize: 20 } } as never)
+  mockedPostContract.mockResolvedValue({
+    data: {
+      items: [
+        {
+          billId: 'bill-1',
+          positionType: 'ASSET',
+          billType: 'BANK_ACCEPTANCE',
+          billNo: 'B-1',
+          medium: 'ELECTRONIC',
+          currency: 'CNY',
+          faceAmount: '10.00',
+          issueDate: '2026-01-01',
+          maturityDate: '2026-09-01',
+          drawer: 'D',
+          acceptor: 'A',
+          payee: 'P',
+          annualRateBps: 100,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    },
+  } as never)
 })
 
 function form(): BillVoucherForm {
@@ -176,11 +286,20 @@ describe('bill payment payload', () => {
   it('requires supplier and submits only held bill ids as PRIMARY', () => {
     const value = form()
     value.customer = null
-    value.supplier = { objectId: 's', versionId: 'sv', code: 'S', name: '供应商' }
-    value.billLines = [{ ...value.billLines[0]!, billId: 'held-1', purpose: 'PRIMARY' }]
+    value.supplier = {
+      objectId: 's',
+      versionId: 'sv',
+      code: 'S',
+      name: '供应商',
+    }
+    value.billLines = [
+      { ...value.billLines[0]!, billId: 'held-1', purpose: 'PRIMARY' },
+    ]
     const payload = buildBillPaymentPayload(value)
     expect(payload.supplier).toEqual({ objectId: 's', versionId: 'sv' })
-    expect(payload.billLines).toEqual([{ billId: 'held-1', purpose: 'PRIMARY' }])
+    expect(payload.billLines).toEqual([
+      { billId: 'held-1', purpose: 'PRIMARY' },
+    ])
     expect(validateBillVoucherForm(value, 20, 0, 'payment')).toBeNull()
   })
 })
@@ -189,13 +308,42 @@ describe('bill issue payload', () => {
   it('submits complete LIABILITY/IN/PRIMARY lines and real cash lines', () => {
     const value = form()
     value.customer = null
-    value.supplier = { objectId: 's', versionId: 'sv', code: 'S', name: '供应商' }
+    value.supplier = {
+      objectId: 's',
+      versionId: 'sv',
+      code: 'S',
+      name: '供应商',
+    }
     value.interestMode = 'THIRD_PARTY_PAYABLE'
-    value.interestParty = { objectId: 'o', versionId: 'ov', code: 'O', name: '其他单位', entity: 'other-party' }
+    value.interestParty = {
+      objectId: 'o',
+      versionId: 'ov',
+      code: 'O',
+      name: '其他单位',
+      entity: 'other-party',
+    }
     value.billLines = [{ ...value.billLines[0]!, billId: undefined }]
-    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'OUT', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    value.billCashLines = [
+      {
+        key: 'cash',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'OUT',
+        amountType: 'INTEREST',
+        amount: '1.00',
+        remark: '',
+      },
+    ]
     const payload = buildBillIssuePayload(value)
-    expect(payload.billLines[0]).toMatchObject({ positionType: 'LIABILITY', direction: 'IN', purpose: 'PRIMARY' })
+    expect(payload.billLines[0]).toMatchObject({
+      positionType: 'LIABILITY',
+      direction: 'IN',
+      purpose: 'PRIMARY',
+    })
     expect(payload.billLines[0]).not.toHaveProperty('billId')
     expect(payload.interestParty).toEqual({ objectId: 'o', versionId: 'ov' })
     expect(payload.billCashLines).toHaveLength(1)
@@ -208,17 +356,52 @@ describe('bill discount payload', () => {
     const value = form()
     value.customer = null
     value.supplier = null
-    value.counterparty = { objectId: 'o', versionId: 'ov', code: 'O', name: '贴现方' }
+    value.counterparty = {
+      objectId: 'o',
+      versionId: 'ov',
+      code: 'O',
+      name: '贴现方',
+    }
     value.interestMode = 'THIRD_PARTY_PAYABLE'
-    value.interestParty = { objectId: 'p', versionId: 'pv', code: 'P', name: '利息方', entity: 'other-party' }
+    value.interestParty = {
+      objectId: 'p',
+      versionId: 'pv',
+      code: 'P',
+      name: '利息方',
+      entity: 'other-party',
+    }
     value.withRecourse = true
     value.billLines = [{ ...value.billLines[0]!, billId: 'held-1' }]
-    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'OUT', amountType: 'FEE', amount: '1.00', remark: '' }]
+    value.billCashLines = [
+      {
+        key: 'cash',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '1.00',
+        remark: '',
+      },
+    ]
     const payload = buildBillDiscountPayload(value)
-    expect(payload).toMatchObject({ counterparty: { objectId: 'o', versionId: 'ov' }, withRecourse: true })
-    expect(payload.billLines[0]).toEqual({ billId: 'held-1', purpose: 'PRIMARY', annualRateBps: 100 })
+    expect(payload).toMatchObject({
+      counterparty: { objectId: 'o', versionId: 'ov' },
+      withRecourse: true,
+    })
+    expect(payload.billLines[0]).toEqual({
+      billId: 'held-1',
+      purpose: 'PRIMARY',
+      annualRateBps: 100,
+    })
     expect(payload.billLines[0]).not.toHaveProperty('faceAmount')
-    expect(payload.billCashLines[0]).toMatchObject({ direction: 'OUT', amountType: 'FEE' })
+    expect(payload.billCashLines[0]).toMatchObject({
+      direction: 'OUT',
+      amountType: 'FEE',
+    })
     expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBeNull()
   })
 })
@@ -227,12 +410,36 @@ describe('bill maturity payload', () => {
   it('submits receipt maturity with selected bills and IN cash rows', () => {
     const value = form()
     value.customer = null
-    value.billLines = [{ ...value.billLines[0]!, billId: 'held-1', positionType: 'ASSET', direction: 'OUT' }]
+    value.billLines = [
+      {
+        ...value.billLines[0]!,
+        billId: 'held-1',
+        positionType: 'ASSET',
+        direction: 'OUT',
+      },
+    ]
     value.maturityType = 'RECEIPT'
-    value.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    value.billCashLines = [
+      {
+        key: 'cash',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'INTEREST',
+        amount: '1.00',
+        remark: '',
+      },
+    ]
     const payload = buildBillMaturityPayload(value)
     expect(payload).toMatchObject({ maturityType: 'RECEIPT' })
-    expect(payload.billLines[0]).toEqual({ billId: 'held-1', purpose: 'PRIMARY' })
+    expect(payload.billLines[0]).toEqual({
+      billId: 'held-1',
+      purpose: 'PRIMARY',
+    })
     expect(validateBillVoucherForm(value, 20, 20, 'maturity')).toBeNull()
   })
 })
@@ -240,9 +447,20 @@ describe('bill maturity payload', () => {
 describe('bill voucher view model behavior', () => {
   it('covers create, references, LED selection, save, lifecycle and delete flows', async () => {
     const session = useSessionStore()
-    session.$patch({ permissions: ['/vou/bill-maturity/query', '/vou/bill-maturity/create', '/vou/bill-maturity/get', '/vou/bill-maturity/save', '/vou/bill-maturity/check', '/vou/bill-maturity/delete'] })
+    session.$patch({
+      permissions: [
+        '/vou/bill-maturity/query',
+        '/vou/bill-maturity/create',
+        '/vou/bill-maturity/get',
+        '/vou/bill-maturity/save',
+        '/vou/bill-maturity/check',
+        '/vou/bill-maturity/delete',
+      ],
+    })
     const scope = effectScope()
-    const vm = scope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-maturity']))!
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
+    )!
     await vm.query()
     expect(vm.rows.value).toEqual([])
     vm.openCreate()
@@ -265,8 +483,31 @@ describe('bill voucher view model behavior', () => {
     await vm.openHeldDialog()
     vm.heldSelection.value = ['bill-1']
     vm.applyHeldSelection()
-    vm.form.billLines = [{ ...vm.form.billLines[0]!, key: 'bill-1', billId: 'bill-1', positionType: 'ASSET', direction: 'OUT', purpose: 'PRIMARY' }]
-    vm.form.billCashLines = [{ key: 'cash', fundAccount: { objectId: 'f', versionId: 'fv', code: 'F', name: '账户' }, direction: 'IN', amountType: 'INTEREST', amount: '1.00', remark: '' }]
+    vm.form.billLines = [
+      {
+        ...vm.form.billLines[0]!,
+        key: 'bill-1',
+        billId: 'bill-1',
+        positionType: 'ASSET',
+        direction: 'OUT',
+        purpose: 'PRIMARY',
+      },
+    ]
+    vm.form.billCashLines = [
+      {
+        key: 'cash',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'INTEREST',
+        amount: '1.00',
+        remark: '',
+      },
+    ]
     expect(await vm.save()).toBe(true)
     await vm.lifecycle('check')
     expect(vm.documentStatus.value).toBe('CHECKED')
@@ -284,14 +525,20 @@ describe('bill voucher view model behavior', () => {
     expect(await vm.deleteDraft('测试删除')).toBe(true)
     scope.stop()
     const issueScope = effectScope()
-    const issueVm = issueScope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-issue']))!
+    const issueVm = issueScope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-issue']),
+    )!
     issueVm.openCreate()
     await issueVm.openDocument({ documentId: 'DOC-1' })
     issueScope.stop()
     const paymentScope = effectScope()
-    const paymentVm = paymentScope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-payment']))!
+    const paymentVm = paymentScope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
     paymentVm.openCreate()
-    paymentVm.heldBillOptions.value = [{ ...form().billLines[0]!, billId: 'bill-1' }]
+    paymentVm.heldBillOptions.value = [
+      { ...form().billLines[0]!, billId: 'bill-1' },
+    ]
     paymentVm.heldSelection.value = ['bill-1']
     paymentVm.applyHeldSelection()
     expect(paymentVm.form.billLines[0]?.direction).toBe('OUT')
@@ -302,11 +549,46 @@ describe('bill voucher view model behavior', () => {
     const session = useSessionStore()
     session.$patch({ permissions: ['/vou/bill-maturity/create'] })
     const scope = effectScope()
-    const vm = scope.run(() => useBillVoucherViewModel(billVoucherConfigs['bill-maturity']))!
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
+    )!
     vm.openCreate()
     expect(await vm.save()).toBe(false)
     expect(vm.errorMessage.value).toContain('到期处理')
     scope.stop()
+  })
+
+  it('does not write reference options after its scope is disposed', async () => {
+    mockedPost.mockImplementation(
+      (_path: string, _body: unknown, options?: { signal?: AbortSignal }) =>
+        new Promise((resolve) => {
+          options?.signal?.addEventListener('abort', () => {
+            resolve({
+              data: {
+                items: [
+                  {
+                    objectId: 'late',
+                    entity: 'supplier',
+                    code: 'LATE',
+                    currentVersion: {
+                      versionId: 'late-version',
+                      summary: { name: '晚到结果' },
+                    },
+                  },
+                ],
+              },
+            } as never)
+          })
+        }) as never,
+    )
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+    const pending = vm.searchSupplier('供应商')
+    scope.stop()
+    await pending
+    expect(vm.supplierOptions.value).toEqual([])
   })
 })
 

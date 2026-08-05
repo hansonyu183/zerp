@@ -45,6 +45,26 @@ export const router = createRouter({
           },
         },
         {
+          path: 'admin/role',
+          name: 'page:admin/role',
+          component: () => import('@/pages/admin/role/Role.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredPermission: '/app/role/query',
+            title: '角色管理',
+          },
+        },
+        {
+          path: 'admin/permission',
+          name: 'page:admin/permission',
+          component: () => import('@/pages/admin/permission/Permission.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredPermission: '/app/permission/query',
+            title: '权限管理',
+          },
+        },
+        {
           path: 'forbidden',
           name: 'forbidden',
           component: Forbidden,

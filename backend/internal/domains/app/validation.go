@@ -139,29 +139,13 @@ func validPermissionIDs(values []string) bool {
 }
 
 func validPermissionID(value string) bool {
-	return validID(value) || validSeededPermissionID(value)
-}
-
-func validSeededPermissionID(value string) bool {
 	if len(value) != 26 {
 		return false
 	}
-	if strings.HasPrefix(value, "01JAPP") ||
-		strings.HasPrefix(value, "01JBOB") ||
-		strings.HasPrefix(value, "01JLED") ||
-		strings.HasPrefix(value, "01JVOU") {
-		for _, character := range value {
-			if (character < 'A' || character > 'Z') && (character < '0' || character > '9') {
-				return false
-			}
-		}
-		return true
-	}
-	if !strings.HasPrefix(value, "WF") && !strings.HasPrefix(value, "V2") {
-		return false
-	}
-	for _, character := range value[2:] {
-		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+	for _, character := range value {
+		if (character < '0' || character > '9') &&
+			(character < 'A' || character > 'Z') &&
+			(character < 'a' || character > 'z') {
 			return false
 		}
 	}

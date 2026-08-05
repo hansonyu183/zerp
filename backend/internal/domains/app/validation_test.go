@@ -29,17 +29,13 @@ func TestStrictIDsAndUnicodeLengths(t *testing.T) {
 	if !validID("01J00000000000000000000000") || validID("user-1") || validID(strings.ToLower("01J00000000000000000000000")) {
 		t.Fatal("validID() did not enforce canonical ULID")
 	}
-	if !validSeededPermissionID("01JAPP00000000000000000001") ||
-		!validSeededPermissionID("01JBOB00000000000000000001") ||
-		!validSeededPermissionID("01JLED00000000000000000001") ||
-		!validSeededPermissionID("01JVOU00000000000000000001") ||
-		!validSeededPermissionID("WF0123456789abcdef01234567") ||
-		!validSeededPermissionID("V2abcdef0123456789abcdef01") ||
-		validSeededPermissionID("01JOTHER000000000000000001") ||
-		validSeededPermissionID("WF0123456789ABCDEF01234567") ||
-		validSeededPermissionID("WF0123456789abcdef0123456g") ||
-		validSeededPermissionID("XX0123456789abcdef01234567") {
-		t.Fatal("validSeededPermissionID() did not limit controlled catalog identifiers")
+	if !validPermissionID("01JAPP00000000000000000001") ||
+		!validPermissionID("01JAUX00000000000000000001") ||
+		!validPermissionID("FA0123456789abcdef01234567") ||
+		!validPermissionID("WF0123456789abcdef01234567") ||
+		validPermissionID("short") ||
+		validPermissionID("FA0123456789abcdef012345-7") {
+		t.Fatal("validPermissionID() did not accept catalog identifiers safely")
 	}
 	displayName := strings.Repeat("中", 128)
 	if !runeLengthBetween(displayName, 1, 128) || runeLengthBetween(displayName+"文", 1, 128) {

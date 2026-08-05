@@ -21,6 +21,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		signoutPath,
 		"/bob/customer/query", "/bob/customer/get",
 		"/bob/customer/unapprove", "/bob/customer/enable", "/bob/customer/disable",
+		"/aux/department/query", "/aux/asset-category/query",
 		"/vou/sale-order/query", "/vou/sale-order/get",
 		"/wfl/sales-fulfillment/query", "/wfl/sales-fulfillment/get",
 	)
@@ -37,16 +38,16 @@ func TestManagementContractsIntegration(t *testing.T) {
 		t.Fatalf("catalog role permissions = %v, want %v", catalogRole.PermissionIDs, catalogPermissionIDs)
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "missing-query", Name: "缺少查询权限",
+		Code: "independent-get", Name: "独立查看权限",
 		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/app/user/get"),
-	}, admin.ID, "reject-role-without-query"); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("missing companion query error = %v", err)
+	}, admin.ID, "allow-role-without-query"); err != nil {
+		t.Fatalf("independent get permission error = %v", err)
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "missing-opening-get", Name: "缺少账簿期初查看权限",
+		Code: "independent-close", Name: "独立结账权限",
 		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/led/closing/close"),
-	}, admin.ID, "reject-led-role-without-opening-get"); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("missing LED opening get error = %v", err)
+	}, admin.ID, "allow-led-role-without-get"); err != nil {
+		t.Fatalf("independent close permission error = %v", err)
 	}
 	role := RoleView{}
 	role, err := service.CreateRole(t.Context(), CreateRoleInput{

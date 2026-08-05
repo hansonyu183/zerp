@@ -36,6 +36,18 @@ const systemManagementItems = computed(() =>
       icon: 'mdi-account-multiple-outline',
       to: '/admin/user',
     },
+    {
+      permission: '/app/role/query',
+      title: '角色管理',
+      icon: 'mdi-account-key-outline',
+      to: '/admin/role',
+    },
+    {
+      permission: '/app/permission/query',
+      title: '权限管理',
+      icon: 'mdi-shield-key-outline',
+      to: '/admin/permission',
+    },
   ].filter((item) => session.can(item.permission)),
 )
 

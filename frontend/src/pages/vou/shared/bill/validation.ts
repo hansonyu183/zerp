@@ -69,8 +69,11 @@ export function validateBillVoucherForm(
   form: BillVoucherForm,
   maxBillLines = 20,
   maxCashLines = 20,
+  mode: 'receipt' | 'payment' = 'receipt',
 ): string | null {
-  if (!form.customer) return '请选择客户。'
+  if (mode === 'payment') {
+    if (!form.supplier) return '请选择供应商。'
+  } else if (!form.customer) return '请选择客户。'
   if (!form.handler) return '请选择经办人。'
   if (!form.businessDate) return '请选择业务日期。'
   if (!/^[A-Z]{3}$/.test(form.currency)) return '币种必须是三位大写字母。'
@@ -87,11 +90,21 @@ export function validateBillVoucherForm(
   if (form.billCashLines.length > maxCashLines) {
     return `现金行数不能超过 ${maxCashLines} 行。`
   }
+  if (mode === 'payment' && form.billCashLines.length > 0)
+    return '票据付出不支持现金行。'
   let primary = 0n
   let change = 0n
   const billIds = new Set<string>()
   const businessKeys = new Set<string>()
   for (const [index, line] of form.billLines.entries()) {
+    if (mode === 'payment') {
+      if (line.purpose !== 'PRIMARY' || !line.billId)
+        return `第 ${index + 1} 行必须选择可用持有票据。`
+      if (billIds.has(line.billId))
+        return `第 ${index + 1} 行重复选择了同一张票据。`
+      billIds.add(line.billId)
+      continue
+    }
     if (line.purpose === 'CHANGE') {
       if (!line.billId) return `第 ${index + 1} 行找零票据必须引用持有票据。`
       if (billIds.has(line.billId))
@@ -140,7 +153,7 @@ export function validateBillVoucherForm(
     if (line.direction === 'IN') cashIn += cents
     else cashOut += cents
   }
-  if (primary + cashIn - change - cashOut <= 0n)
+  if (mode === 'receipt' && primary + cashIn - change - cashOut <= 0n)
     return '客户净结算额必须大于零。'
   return null
 }

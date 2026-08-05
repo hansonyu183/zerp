@@ -1998,7 +1998,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2500,7 +2500,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment";
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2583,7 +2583,13 @@ export interface components {
             purpose: "CHANGE";
             remark?: string;
         };
-        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"];
+        VouBillPaymentLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"];
         VouBillCashLineInput: {
             billLineId?: string;
             fundAccount: {

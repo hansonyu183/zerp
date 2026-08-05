@@ -175,6 +175,71 @@ func validateBillReceiptDraft(input DraftInput, result validatedDraft) (validate
 	return result, nil
 }
 
+func validateBillPaymentDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
+	if input.Supplier == nil {
+		return result, domainError(ErrorValidation, "bill payment requires supplier", nil, nil)
+	}
+	if err := validateReference(input.Supplier, "supplier", true); err != nil {
+		return result, err
+	}
+	if input.Customer != nil || input.Counterparty != nil || input.Employee != nil || input.Handler != nil ||
+		input.FundAccount != nil || len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 ||
+		len(input.BillCashLines) != 0 || input.InternalCostRateBps != 0 || input.MaturityType != "" ||
+		input.InterestMode != "" || input.InterestParty != nil || input.WithRecourse {
+		return result, domainError(ErrorValidation, "fields do not match bill payment", nil, nil)
+	}
+	if len(input.BillLines) < 1 || len(input.BillLines) > 20 {
+		return result, domainError(ErrorValidation, "billLines must contain 1 to 20 items", nil, nil)
+	}
+	result.Supplier = input.Supplier
+	result.CounterpartyType = "supplier"
+	result.MaturityType = "NONE"
+	result.InterestMode = "NONE"
+	seen := make(map[string]struct{}, len(input.BillLines))
+	for _, raw := range input.BillLines {
+		remark, err := lineRemark(raw.Remark)
+		if err != nil {
+			return result, err
+		}
+		line := fixedBillLine{
+			BillID:  strings.TrimSpace(raw.BillID),
+			Purpose: strings.ToUpper(strings.TrimSpace(raw.Purpose)),
+			Remark:  remark,
+		}
+		if line.Purpose != "PRIMARY" || !validID(line.BillID) {
+			return result, domainError(ErrorValidation, "bill payment requires available billId", nil, nil)
+		}
+		if _, duplicate := seen[line.BillID]; duplicate {
+			return result, domainError(ErrorValidation, "duplicate billId", nil, nil)
+		}
+		seen[line.BillID] = struct{}{}
+		line.PositionType, line.Direction = "ASSET", "OUT"
+		result.BillLines = append(result.BillLines, line)
+	}
+	return result, nil
+}
+
+func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine) (int64, error) {
+	var total int64
+	for _, line := range lines {
+		bill, err := q.LockLedBill(ctx, line.BillID)
+		if err != nil {
+			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
+		}
+		balance, err := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
+			BillID: bill.ID, PositionType: "ASSET",
+		})
+		if err != nil || balance != 1 || bill.PositionType != "ASSET" {
+			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
+		}
+		total, err = checkedBillMoneyAdd(total, bill.FaceAmountCents)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
+}
+
 func checkedBillMoneyAdd(left, right int64) (int64, error) {
 	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
 		return 0, domainError(ErrorValidation, "bill amount is out of range", nil, nil)
@@ -192,7 +257,7 @@ func roundedBillAmount(face int64, bps int32, days int32) (int64, error) {
 	return n.Int64(), nil
 }
 
-func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, id string, d validatedDraft, r resolvedDraft, update bool) error {
+func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity, id string, d validatedDraft, r resolvedDraft, update bool) error {
 	if update {
 		if err := q.DeleteVouBillCashLines(ctx, id); err != nil {
 			return err
@@ -204,9 +269,27 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, id str
 			return err
 		}
 	}
-	return q.InsertVouBillDetail(ctx, dbsqlc.InsertVouBillDetailParams{DocumentID: id, CounterpartyObjectID: stringPtr(r.Counterparty.ObjectID), CounterpartyVersionID: stringPtr(r.Counterparty.VersionID), CounterpartyCode: stringPtr(r.Counterparty.Code), CounterpartyName: stringPtr(r.Counterparty.Data.Name), HandlerObjectID: stringPtr(r.Handler.ObjectID), HandlerVersionID: stringPtr(r.Handler.VersionID), HandlerCode: stringPtr(r.Handler.Code), HandlerName: stringPtr(r.Handler.Data.Name), InternalCostRateBps: d.InternalCostRateBps, MaturityType: d.MaturityType, InterestMode: d.InterestMode, InterestPartyEntity: optionalBillPartyEntity(r.InterestParty), InterestPartyObjectID: optionalBillPartyID(r.InterestParty, 0), InterestPartyVersionID: optionalBillPartyID(r.InterestParty, 1), InterestPartyCode: optionalBillPartyCode(r.InterestParty), InterestPartyName: optionalBillPartyName(r.InterestParty), WithRecourse: d.WithRecourse})
+	party := r.Counterparty
+	partyEntity := "customer"
+	if entity == EntityBillPayment {
+		party, partyEntity = r.Supplier, "supplier"
+	}
+	params := dbsqlc.InsertVouBillDetailParams{
+		DocumentID: id, Entity: entity, CounterpartyEntity: stringPtr(partyEntity),
+		CounterpartyObjectID: stringPtr(party.ObjectID), CounterpartyVersionID: stringPtr(party.VersionID),
+		CounterpartyCode: stringPtr(party.Code), CounterpartyName: stringPtr(party.Data.Name),
+		InternalCostRateBps: d.InternalCostRateBps, MaturityType: d.MaturityType, InterestMode: d.InterestMode,
+		InterestPartyEntity: optionalBillPartyEntity(r.InterestParty), InterestPartyObjectID: optionalBillPartyID(r.InterestParty, 0),
+		InterestPartyVersionID: optionalBillPartyID(r.InterestParty, 1), InterestPartyCode: optionalBillPartyCode(r.InterestParty),
+		InterestPartyName: optionalBillPartyName(r.InterestParty), WithRecourse: d.WithRecourse,
+	}
+	if r.Handler != nil {
+		params.HandlerObjectID, params.HandlerVersionID = stringPtr(r.Handler.ObjectID), stringPtr(r.Handler.VersionID)
+		params.HandlerCode, params.HandlerName = stringPtr(r.Handler.Code), stringPtr(r.Handler.Data.Name)
+	}
+	return q.InsertVouBillDetail(ctx, params)
 }
-func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, id string, d validatedDraft, r resolvedDraft) error {
+func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entity, id string, d validatedDraft, r resolvedDraft) error {
 	if err := q.DeleteVouBillCashLines(ctx, id); err != nil {
 		return err
 	}
@@ -216,7 +299,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, id st
 	resolvedLines := make([]fixedBillLine, 0, len(d.BillLines))
 	var change int64
 	for _, l := range d.BillLines {
-		if l.Purpose == "CHANGE" {
+		if l.Purpose == "CHANGE" || entity == EntityBillPayment {
 			b, err := q.LockLedBill(ctx, l.BillID)
 			if err != nil {
 				return domainError(ErrorConflict, "source bill is not available", nil, err)
@@ -234,6 +317,18 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, id st
 			}
 		}
 		resolvedLines = append(resolvedLines, l)
+	}
+	if entity == EntityBillPayment {
+		if err := s.insertResolvedBillLines(ctx, q, id, resolvedLines, d.BillCashLines, r); err != nil {
+			return err
+		}
+		total, err := q.SumVouBillLineFaceAmounts(ctx, id)
+		if err != nil {
+			return err
+		}
+		return q.UpdateVouBillDocumentTotal(ctx, dbsqlc.UpdateVouBillDocumentTotalParams{
+			ID: id, Entity: entity, TotalAmountCents: total,
+		})
 	}
 	net := d.TotalAmount
 	var err error
@@ -254,12 +349,16 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, id st
 	if net <= 0 {
 		return domainError(ErrorValidation, "customer net settlement must be positive", nil, nil)
 	}
-	for i, l := range resolvedLines {
+	return s.insertResolvedBillLines(ctx, q, id, resolvedLines, d.BillCashLines, r)
+}
+
+func (s *Service) insertResolvedBillLines(ctx context.Context, q *dbsqlc.Queries, id string, lines []fixedBillLine, cashLines []fixedBillCashLine, r resolvedDraft) error {
+	for i, l := range lines {
 		if err := q.InsertVouBillLine(ctx, dbsqlc.InsertVouBillLineParams{ID: newID(), DocumentID: id, LineNo: int32(i + 1), BillID: l.BillID, PositionType: l.PositionType, Direction: l.Direction, Purpose: l.Purpose, BillType: l.BillType, BillNo: l.BillNo, Medium: l.Medium, Currency: l.Currency, FaceAmountCents: l.FaceAmount, IssueDate: dateValue(l.IssueDate), MaturityDate: dateValue(l.MaturityDate), Drawer: l.Drawer, Acceptor: l.Acceptor, Payee: l.Payee, AnnualRateBps: l.AnnualRateBps, InterestDays: l.InterestDays, InterestAmountCents: l.InterestAmount, CustomerCostAmountCents: l.CustomerCostAmount, Remark: l.Remark}); err != nil {
 			return err
 		}
 	}
-	for i, l := range d.BillCashLines {
+	for i, l := range cashLines {
 		f := r.BillFunds[i]
 		if err := q.InsertVouBillCashLine(ctx, dbsqlc.InsertVouBillCashLineParams{ID: newID(), DocumentID: id, LineNo: int32(i + 1), BillLineID: nil, FundAccountObjectID: f.ObjectID, FundAccountVersionID: f.VersionID, FundAccountCode: f.Code, FundAccountName: f.Data.Name, Direction: l.Direction, AmountType: l.AmountType, AmountCents: l.Amount, Remark: l.Remark}); err != nil {
 			return err
@@ -268,13 +367,18 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, id st
 	return nil
 }
 
-func (s *Service) loadBillReceiptData(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument, data DocumentDataView) (DocumentDataView, error) {
+func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument, data DocumentDataView) (DocumentDataView, error) {
 	d, err := q.GetVouBillDetail(ctx, document.ID)
 	if err != nil {
 		return data, err
 	}
-	data.Counterparty = optionalReference(d.CounterpartyObjectID, d.CounterpartyVersionID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
-	data.Handler = optionalReference(d.HandlerObjectID, d.HandlerVersionID, "employee", d.HandlerCode, d.HandlerName)
+	party := optionalReference(d.CounterpartyObjectID, d.CounterpartyVersionID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
+	if document.Entity == EntityBillPayment {
+		data.Supplier = party
+	} else {
+		data.Counterparty = party
+		data.Handler = optionalReference(d.HandlerObjectID, d.HandlerVersionID, "employee", d.HandlerCode, d.HandlerName)
+	}
 	data.InternalCostRateBps = d.InternalCostRateBps
 	data.MaturityType = d.MaturityType
 	data.InterestMode = d.InterestMode

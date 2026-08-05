@@ -380,6 +380,7 @@ type Querier interface {
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
+	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error
 	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
@@ -406,6 +407,7 @@ type Querier interface {
 	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)
 	UpdateVouAssetDepreciationDetail(ctx context.Context, arg UpdateVouAssetDepreciationDetailParams) (int64, error)
 	UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error)
+	UpdateVouBillDocumentTotal(ctx context.Context, arg UpdateVouBillDocumentTotalParams) error
 	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
 	UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)

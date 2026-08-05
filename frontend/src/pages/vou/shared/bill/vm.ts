@@ -1,10 +1,10 @@
 import { computed, onScopeDispose, reactive, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
-import { apiClient } from '@/api/client'
+import { apiClient, type ApiPostPath } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
-import { buildBillReceiptPayload } from './payload'
+import { buildBillPaymentPayload, buildBillReceiptPayload } from './payload'
 import { validateBillVoucherForm } from './validation'
 import type { BillVoucherConfig } from './config'
 import { useVoucherArtifacts } from '../artifacts'
@@ -64,6 +64,7 @@ export interface BillVoucherForm {
   currency: string
   remark: string
   customer: BillReference | null
+  supplier: BillReference | null
   handler: BillReference | null
   internalCostRateBps: number
   billLines: BillLineDraft[]
@@ -105,6 +106,13 @@ type VouReverseRequest = components['schemas']['VouReverseRequest']
 type VouFinalizeRequest = components['schemas']['VouFinalizeRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
 type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
+type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
+type BillPaymentCreateRequest = { data: BillPaymentData }
+type BillPaymentSaveRequest = {
+  documentId: string
+  revision: number
+  data: BillPaymentData
+}
 
 function key() {
   return crypto.randomUUID()
@@ -145,6 +153,7 @@ function emptyForm(): BillVoucherForm {
     currency: 'CNY',
     remark: '',
     customer: null,
+    supplier: null,
     handler: null,
     internalCostRateBps: 0,
     billLines: [emptyLine()],
@@ -176,9 +185,12 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = reactive<BillVoucherForm>(emptyForm())
   const customerOptions = ref<BillReference[]>([])
+  const supplierOptions = ref<BillReference[]>([])
   const handlerOptions = ref<BillReference[]>([])
   const fundAccountOptions = ref<BillReference[]>([])
   const heldBillOptions = ref<BillLineDraft[]>([])
+  const heldSelection = ref<string[]>([])
+  const heldDialogOpen = ref(false)
   const actionAvailability = computed<VoucherActionAvailability>(() => ({
     get: session.can(permission('get')),
     save: session.can(permission('save')),
@@ -227,14 +239,17 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         },
         sort: [{ field: 'documentNo', order: 'desc' }],
       }
-      const result = await apiClient.postContract(
-        `vou/${config.entity}/query`,
-        request,
-        { signal: controller.signal },
-      )
+      const result = await apiClient.post<
+        components['schemas']['VouQueryResponse'],
+        VouQueryRequest
+      >(`vou/${config.entity}/query` as ApiPostPath, request, {
+        signal: controller.signal,
+      })
       if (current !== sequence) return
-      rows.value = result.data.items
-      total.value = result.data.total
+      const pageResult = result.data.data
+      if (!pageResult) throw new Error('查询票据单据返回数据为空。')
+      rows.value = pageResult.items
+      total.value = pageResult.total
     } catch (error) {
       if (current === sequence && !controller.signal.aborted)
         errorMessage.value = getErrorMessage(error)
@@ -255,6 +270,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   function openCreate() {
     if (!canCreate.value) return
     Object.assign(form, emptyForm())
+    if (config.mode === 'payment') form.billLines = []
     documentView.value = null
     documentId.value = null
     documentNo.value = ''
@@ -273,7 +289,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     try {
       const request: VouGetRequest = { documentId: row.documentId }
       const result = await apiClient.post<BillDocumentResponse, VouGetRequest>(
-        `vou/${config.entity}/get`,
+        `vou/${config.entity}/get` as ApiPostPath,
         request,
       )
       const data = result.data
@@ -287,6 +303,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         currency: billData.currency,
         remark: billData.remark ?? '',
         customer: billData.counterparty ?? billData.customer ?? null,
+        supplier: billData.supplier ?? null,
         handler: billData.handler ?? null,
         internalCostRateBps: billData.internalCostRateBps ?? 0,
         billLines: (billData.billLines ?? []).map((line) => ({
@@ -314,6 +331,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       form,
       config.maxBillLines,
       config.maxCashLines,
+      config.mode,
     )
     if (validation) {
       errorMessage.value = validation
@@ -322,22 +340,24 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     saving.value = true
     errorMessage.value = null
     try {
-      const data = buildBillReceiptPayload(form)
+      const data = config.mode === 'payment'
+        ? buildBillPaymentPayload(form)
+        : buildBillReceiptPayload(form)
       if (documentId.value) {
-        const request: VouSaveRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-          data,
-        }
-        const result = await apiClient.post<MutationResponse, VouSaveRequest>(
-          `vou/${config.entity}/save`,
+        const request = config.mode === 'payment'
+          ? { documentId: documentId.value, revision: revision.value, data } as BillPaymentSaveRequest
+          : { documentId: documentId.value, revision: revision.value, data } as VouSaveRequest
+        const result = await apiClient.post<MutationResponse, VouSaveRequest | BillPaymentSaveRequest>(
+          `vou/${config.entity}/save` as ApiPostPath,
           request,
         )
         revision.value = result.data.revision
       } else {
-        const request: VouCreateRequest = { data }
-        const result = await apiClient.post<MutationResponse, VouCreateRequest>(
-          `vou/${config.entity}/create`,
+        const request = config.mode === 'payment'
+          ? { data } as BillPaymentCreateRequest
+          : { data } as VouCreateRequest
+        const result = await apiClient.post<MutationResponse, VouCreateRequest | BillPaymentCreateRequest>(
+          `vou/${config.entity}/create` as ApiPostPath,
           request,
         )
         documentId.value = result.data.documentId
@@ -372,7 +392,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           revision: revision.value,
         }
         result = await apiClient.post<MutationResponse, VouFinalizeRequest>(
-          `vou/${config.entity}/finalize`,
+          `vou/${config.entity}/finalize` as ApiPostPath,
           request,
         )
       } else if (
@@ -386,7 +406,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           reason: reason ?? '',
         }
         result = await apiClient.post<MutationResponse, VouReverseRequest>(
-          `vou/${config.entity}/${action}`,
+          `vou/${config.entity}/${action}` as ApiPostPath,
           request,
         )
       } else {
@@ -395,7 +415,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           revision: revision.value,
         }
         result = await apiClient.post<MutationResponse, VouRevisionRequest>(
-          `vou/${config.entity}/${action}`,
+          `vou/${config.entity}/${action}` as ApiPostPath,
           request,
         )
       }
@@ -421,7 +441,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         reason,
       }
       await apiClient.post<MutationResponse, VouReverseRequest>(
-        `vou/${config.entity}/delete`,
+        `vou/${config.entity}/delete` as ApiPostPath,
         request,
       )
       workspaceOpen.value = false
@@ -436,16 +456,19 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   let customerSequence = 0
+  let supplierSequence = 0
   let handlerSequence = 0
   let fundSequence = 0
   let heldSequence = 0
   let customerController: AbortController | undefined
+  let supplierController: AbortController | undefined
   let handlerController: AbortController | undefined
   let fundController: AbortController | undefined
   let heldController: AbortController | undefined
   async function searchCustomer(value: string) {
     const current = ++customerSequence
     customerController?.abort()
+    supplierController?.abort()
     customerController = new AbortController()
     const result = await searchReferencesWithSignal(
       'customer',
@@ -453,6 +476,17 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       customerController.signal,
     )
     if (current === customerSequence) customerOptions.value = result
+  }
+  async function searchSupplier(value: string) {
+    const current = ++supplierSequence
+    supplierController?.abort()
+    supplierController = new AbortController()
+    const result = await searchReferencesWithSignal(
+      'supplier',
+      value,
+      supplierController.signal,
+    )
+    if (current === supplierSequence) supplierOptions.value = result
   }
   async function searchHandler(value: string) {
     const current = ++handlerSequence
@@ -477,7 +511,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (current === fundSequence) fundAccountOptions.value = result
   }
   async function searchReferencesWithSignal(
-    entity: 'customer' | 'employee' | 'fund-account',
+    entity: 'customer' | 'supplier' | 'employee' | 'fund-account',
     value: string,
     signal: AbortSignal,
   ) {
@@ -544,6 +578,25 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         errorMessage.value = getErrorMessage(error)
     }
   }
+  async function openHeldDialog() {
+    heldSelection.value = form.billLines
+      .map((line) => line.billId)
+      .filter((billId): billId is string => Boolean(billId))
+    heldDialogOpen.value = true
+    await searchHeldBills('')
+  }
+  function applyHeldSelection() {
+    const selected = new Set(heldSelection.value)
+    form.billLines = heldBillOptions.value
+      .filter((line) => line.billId && selected.has(line.billId))
+      .slice(0, config.maxBillLines)
+      .map((line) => ({
+        ...line,
+        purpose: 'PRIMARY' as const,
+        direction: 'OUT' as const,
+      }))
+    heldDialogOpen.value = false
+  }
   function addBillLine() {
     if (form.billLines.length < config.maxBillLines)
       form.billLines.push(emptyLine(form.currency))
@@ -583,9 +636,12 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     actionAvailability,
     form,
     customerOptions,
+    supplierOptions,
     handlerOptions,
     fundAccountOptions,
     heldBillOptions,
+    heldSelection,
+    heldDialogOpen,
     query,
     changePage,
     openCreate,
@@ -596,9 +652,12 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     addBillLine,
     addCashLine,
     searchCustomer,
+    searchSupplier,
     searchHandler,
     searchFundAccount,
     searchHeldBills,
+    openHeldDialog,
+    applyHeldSelection,
     ...artifacts,
   }
 }

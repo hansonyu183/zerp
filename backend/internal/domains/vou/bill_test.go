@@ -95,3 +95,32 @@ func TestBillReceiptRejectsDuplicateAndNonPositiveNet(t *testing.T) {
 		t.Fatal("accepted zero customer net settlement")
 	}
 }
+
+func TestBillPaymentValidation(t *testing.T) {
+	t.Parallel()
+	availableBillID := "01J00000000000000000000003"
+	input := DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Supplier: refInput(),
+		BillLines: []BillLineInput{{BillID: availableBillID, Purpose: "PRIMARY"}},
+	}
+	draft, err := validateDraft(EntityBillPayment, input)
+	if err != nil {
+		t.Fatalf("validate bill payment: %v", err)
+	}
+	if len(draft.BillLines) != 1 || draft.BillLines[0].PositionType != "ASSET" || draft.BillLines[0].Direction != "OUT" {
+		t.Fatalf("bill payment line = %+v", draft.BillLines)
+	}
+	input.Supplier = nil
+	if _, err = validateDraft(EntityBillPayment, input); err == nil {
+		t.Fatal("accepted bill payment without supplier")
+	}
+	input.Supplier = refInput()
+	input.BillLines = []BillLineInput{{BillID: availableBillID, Purpose: "CHANGE"}}
+	if _, err = validateDraft(EntityBillPayment, input); err == nil {
+		t.Fatal("accepted bill payment change line")
+	}
+	input.BillLines = []BillLineInput{{BillID: availableBillID, Purpose: "PRIMARY"}, {BillID: availableBillID, Purpose: "PRIMARY"}}
+	if _, err = validateDraft(EntityBillPayment, input); err == nil {
+		t.Fatal("accepted duplicate payment bill")
+	}
+}

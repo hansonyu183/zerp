@@ -193,18 +193,24 @@ func (q *Queries) CountLedAuditEvents(ctx context.Context) (int64, error) {
 }
 
 const countLedBillDownstreamEntries = `-- name: CountLedBillDownstreamEntries :one
+WITH source AS (
+  SELECT entry.bill_id, max(entry.occurred_at) AS occurred_at
+  FROM led_bill_entries AS entry
+  JOIN led_control AS control
+    ON control.active_generation_id = entry.generation_id
+  WHERE entry.source_document_id = $1
+    AND control.status = 'ACTIVE'
+  GROUP BY entry.bill_id
+)
 SELECT count(*)
 FROM led_bill_entries AS downstream
 JOIN led_control AS control
   ON control.active_generation_id = downstream.generation_id
+JOIN source
+  ON source.bill_id = downstream.bill_id
 WHERE downstream.source_document_id <> $1
-  AND downstream.bill_id IN (
-    SELECT source.bill_id
-    FROM led_bill_entries AS source
-    WHERE source.source_document_id = $1
-      AND source.generation_id = control.active_generation_id
-      AND source.purpose = 'PRIMARY'
-  )
+  AND downstream.occurred_at > source.occurred_at
+  AND control.status = 'ACTIVE'
 `
 
 func (q *Queries) CountLedBillDownstreamEntries(ctx context.Context, sourceDocumentID string) (int64, error) {

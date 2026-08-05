@@ -236,6 +236,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/bill-receipt/BillReceipt.vue'),
   }),
   registerPage('vou', {
+    entity: 'bill-payment',
+    entityTitle: '票据付出',
+    icon: 'mdi-cash-minus',
+    order: 131,
+    component: () => import('@/pages/vou/bill-payment/BillPayment.vue'),
+  }),
+  registerPage('vou', {
     entity: 'sale-pricing',
     entityTitle: '销售定价',
     icon: 'mdi-tag-multiple-outline',

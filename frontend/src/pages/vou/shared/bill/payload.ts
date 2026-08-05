@@ -49,3 +49,18 @@ export function buildBillReceiptPayload(form: BillVoucherForm) {
     })),
   }
 }
+
+export function buildBillPaymentPayload(form: BillVoucherForm) {
+  return {
+    businessDate: form.businessDate,
+    currency: form.currency,
+    remark: form.remark || undefined,
+    supplier: reference(form.supplier),
+    handler: reference(form.handler),
+    billLines: form.billLines.map((line: BillLineDraft) => ({
+      billId: line.billId!,
+      purpose: 'PRIMARY' as const,
+      remark: line.remark || undefined,
+    })),
+  }
+}

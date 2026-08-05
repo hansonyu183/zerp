@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildBillReceiptPayload } from '@/pages/vou/shared/bill/payload'
+import {
+  buildBillPaymentPayload,
+  buildBillReceiptPayload,
+} from '@/pages/vou/shared/bill/payload'
 import { appendHeldBillLines } from '@/pages/vou/shared/bill/selection'
 import {
   previewInterestAmount,
@@ -13,8 +16,9 @@ function form(): BillVoucherForm {
     businessDate: '2026-08-05',
     currency: 'CNY',
     remark: '',
-    customer: { objectId: 'c', versionId: 'cv' },
-    handler: { objectId: 'e', versionId: 'ev' },
+    customer: { objectId: 'c', versionId: 'cv', code: 'C', name: '客户' },
+    supplier: null,
+    handler: { objectId: 'e', versionId: 'ev', code: 'E', name: '经办人' },
     internalCostRateBps: 0,
     billLines: [
       {
@@ -115,5 +119,18 @@ describe('bill receipt payload', () => {
       net: '60.01',
       valid: true,
     })
+  })
+})
+
+describe('bill payment payload', () => {
+  it('requires supplier and submits only held bill ids as PRIMARY', () => {
+    const value = form()
+    value.customer = null
+    value.supplier = { objectId: 's', versionId: 'sv', code: 'S', name: '供应商' }
+    value.billLines = [{ ...value.billLines[0]!, billId: 'held-1', purpose: 'PRIMARY' }]
+    const payload = buildBillPaymentPayload(value)
+    expect(payload.supplier).toEqual({ objectId: 's', versionId: 'sv' })
+    expect(payload.billLines).toEqual([{ billId: 'held-1', purpose: 'PRIMARY' }])
+    expect(validateBillVoucherForm(value, 20, 0, 'payment')).toBeNull()
   })
 })

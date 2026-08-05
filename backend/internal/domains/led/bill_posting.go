@@ -95,6 +95,61 @@ func (s *Service) postBillReceipt(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 	return nil
 }
 
+func (s *Service) postBillPayment(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, p postingContext) error {
+	doc := p.Document
+	include, err := requireEffectiveDate(p, doc.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	detail, err := q.GetVouBillDetail(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill payment detail", err)
+	}
+	lines, err := q.ListVouBillLines(ctx, doc.ID)
+	if err != nil {
+		return s.internal("read bill payment lines", err)
+	}
+	var total int64
+	for _, line := range lines {
+		if line.Purpose != "PRIMARY" || line.PositionType != "ASSET" || line.Direction != "OUT" {
+			return domainError(ErrorConflict, "bill payment line is invalid", nil, nil)
+		}
+		bill, lockErr := q.LockLedBill(ctx, line.BillID)
+		if lockErr != nil {
+			return s.writeError("lock bill for payment", lockErr)
+		}
+		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
+			BillID: bill.ID, PositionType: "ASSET",
+		})
+		if balanceErr != nil || balance != 1 {
+			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
+		}
+		if err = q.InsertLedBillEntry(ctx, dbsqlc.InsertLedBillEntryParams{
+			ID: newID(), GenerationID: p.GenerationID, BillID: bill.ID,
+			SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceLineID: line.ID,
+			PositionType: "ASSET", Direction: "OUT", Purpose: "PRIMARY",
+			EffectiveDate: doc.BusinessDate, OccurredAt: p.OccurredAt,
+		}); err != nil {
+			return s.writeError("post bill payment ledger entry", err)
+		}
+		total, err = checkedBillAdd(total, line.FaceAmountCents)
+		if err != nil {
+			return err
+		}
+	}
+	if total <= 0 {
+		return domainError(ErrorConflict, "bill payment total is invalid", nil, nil)
+	}
+	if err = q.InsertLedPartyEntry(ctx, partyParams(
+		p, doc, "", doc.BusinessDate,
+		deref(detail.CounterpartyObjectID), deref(detail.CounterpartyVersionID),
+		deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "supplier", total,
+	)); err != nil {
+		return s.writeError("post bill payment supplier", err)
+	}
+	return nil
+}
+
 func checkedBillAdd(left, right int64) (int64, error) {
 	if (right > 0 && left > math.MaxInt64-right) || (right < 0 && left < math.MinInt64-right) {
 		return 0, domainError(ErrorConflict, "bill amount is out of range", nil, nil)

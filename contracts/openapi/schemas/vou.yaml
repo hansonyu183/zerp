@@ -34,6 +34,7 @@
           'asset-sale',
           'asset-liquidation',
           'bill-receipt',
+          'bill-payment',
         ],
     },
   'VouCreatableEntity':
@@ -67,6 +68,7 @@
           'asset-sale',
           'asset-liquidation',
           'bill-receipt',
+          'bill-payment',
         ],
     },
   'VouStatus':
@@ -141,12 +143,55 @@
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
+  'VouBillPaymentLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillPaymentDataInput':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency', 'supplier', 'billLines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'supplier':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillPaymentLineInput' },
+            },
+        },
+    },
   'VouBillLineInput':
     {
       'oneOf':
         [
           { '$ref': '#/VouBillPrimaryLineInput' },
           { '$ref': '#/VouBillChangeLineInput' },
+          { '$ref': '#/VouBillPaymentLineInput' },
         ],
     },
   'VouBillCashLineInput':

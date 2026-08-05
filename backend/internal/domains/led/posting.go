@@ -41,6 +41,7 @@ var vouEntities = [...]string{
 	voudomain.EntityAssetSale,
 	voudomain.EntityAssetLiquidation,
 	voudomain.EntityBillReceipt,
+	voudomain.EntityBillPayment,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -171,7 +172,7 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
 	}
-	if event.Entity == voudomain.EntityBillReceipt {
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment {
 		count, countErr := q.CountLedBillDownstreamEntries(ctx, event.DocumentID)
 		if countErr != nil {
 			return countErr
@@ -186,7 +187,7 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 			return eventFailure(err)
 		}
 	}
-	if event.Entity == voudomain.EntityBillReceipt {
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment {
 		if err = q.DeleteLedBillEntriesBySource(ctx, dbsqlc.DeleteLedBillEntriesBySourceParams{GenerationID: generationID, SourceDocumentID: event.DocumentID}); err != nil {
 			return err
 		}
@@ -259,6 +260,8 @@ func (s *Service) postDocument(
 		return s.postOtherIncome(ctx, q, posting)
 	case voudomain.EntityBillReceipt:
 		return s.postBillReceipt(ctx, tx, q, posting)
+	case voudomain.EntityBillPayment:
+		return s.postBillPayment(ctx, tx, q, posting)
 	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
 		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return s.postAssetDocument(ctx, tx, q, posting)

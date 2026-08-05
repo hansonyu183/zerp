@@ -360,4 +360,13 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'bill',
     finalizationKind: 'direct',
   },
+  'bill-payment': {
+    entity: 'bill-payment',
+    title: '票据付出',
+    icon: 'mdi-receipt-text-send-outline',
+    order: 131,
+    partyMode: 'supplier',
+    lineKind: 'none',
+    finalizationKind: 'direct',
+  },
 }

@@ -375,8 +375,8 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
-	case EntityBillReceipt:
-		return s.writeBillDetail(ctx, q, documentID, draft, refs, update)
+	case EntityBillReceipt, EntityBillPayment:
+		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -402,8 +402,8 @@ func (s *Service) replaceLines(
 		}
 		return nil
 	}
-	if entity == EntityBillReceipt {
-		return s.replaceBillLines(ctx, q, documentID, draft, refs)
+	if entity == EntityBillReceipt || entity == EntityBillPayment {
+		return s.replaceBillLines(ctx, q, entity, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
 		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
@@ -510,7 +510,7 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
-	case EntityBillReceipt:
+	case EntityBillReceipt, EntityBillPayment:
 		detail, err := q.GetVouBillDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read bill detail", err)
@@ -519,8 +519,10 @@ func (s *Service) validateStoredAttributes(
 		if err != nil {
 			return s.internal("read bill lines", err)
 		}
-		missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil ||
-			detail.HandlerObjectID == nil || detail.HandlerVersionID == nil || len(lines) == 0
+		missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || len(lines) == 0
+		if entity == EntityBillReceipt {
+			missing = missing || detail.HandlerObjectID == nil || detail.HandlerVersionID == nil
+		}
 	case EntityAssetAcquisition:
 		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)
 		if err != nil {

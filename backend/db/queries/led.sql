@@ -694,18 +694,24 @@ WHERE entry.bill_id = sqlc.arg(bill_id)
   AND control.status = 'ACTIVE';
 
 -- name: CountLedBillDownstreamEntries :one
+WITH source AS (
+  SELECT entry.bill_id, max(entry.occurred_at) AS occurred_at
+  FROM led_bill_entries AS entry
+  JOIN led_control AS control
+    ON control.active_generation_id = entry.generation_id
+  WHERE entry.source_document_id = sqlc.arg(source_document_id)
+    AND control.status = 'ACTIVE'
+  GROUP BY entry.bill_id
+)
 SELECT count(*)
 FROM led_bill_entries AS downstream
 JOIN led_control AS control
   ON control.active_generation_id = downstream.generation_id
+JOIN source
+  ON source.bill_id = downstream.bill_id
 WHERE downstream.source_document_id <> sqlc.arg(source_document_id)
-  AND downstream.bill_id IN (
-    SELECT source.bill_id
-    FROM led_bill_entries AS source
-    WHERE source.source_document_id = sqlc.arg(source_document_id)
-      AND source.generation_id = control.active_generation_id
-      AND source.purpose = 'PRIMARY'
-  );
+  AND downstream.occurred_at > source.occurred_at
+  AND control.status = 'ACTIVE';
 
 -- name: EnsureLedBill :execrows
 INSERT INTO led_bills (

@@ -1,5 +1,6 @@
 export type VoucherEntity =
   | 'bill-receipt'
+  | 'bill-payment'
   | 'sale-pricing'
   | 'sale-order'
   | 'sale-outbound'

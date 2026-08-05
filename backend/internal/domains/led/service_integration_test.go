@@ -1475,6 +1475,87 @@ func TestBillReceiptConcurrentChangeAllowsOneWinnerIntegration(t *testing.T) {
 	}
 }
 
+func TestBillPaymentUsesAvailableBillAndReversalRestoresAvailabilityIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	source, sourceView := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer, Handler: &refs.employee,
+		BillLines: []voudomain.BillLineInput{{
+			PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE",
+			BillNo: "BILL-PAY-SOURCE", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00",
+			IssueDate: "2026-08-01", MaturityDate: "2026-09-01", Drawer: "出票人", Acceptor: "承兑行", Payee: "本公司",
+		}},
+	})
+	if _, err := vouchers.Finalize(t.Context(), voudomain.EntityBillReceipt, voudomain.FinalizeInput{
+		DocumentID: source.DocumentID, Revision: source.Revision,
+	}, integrationActorOne, "bill-payment-source-finalize"); err != nil {
+		t.Fatalf("finalize source receipt: %v", err)
+	}
+	billID := sourceView.Data.BillLines[0].BillID
+	createPayment := func() voudomain.MutationResult {
+		approved, _ := advanceToApproved(t, vouchers, voudomain.EntityBillPayment, voudomain.DraftInput{
+			BusinessDate: "2026-08-02", Currency: "CNY", Supplier: &refs.supplier,
+			BillLines: []voudomain.BillLineInput{{BillID: billID, Purpose: "PRIMARY"}},
+		})
+		return approved
+	}
+	contenders := []voudomain.MutationResult{createPayment(), createPayment()}
+	type result struct {
+		mutation voudomain.MutationResult
+		err      error
+	}
+	results := make(chan result, len(contenders))
+	for _, contender := range contenders {
+		go func(item voudomain.MutationResult) {
+			mutation, err := vouchers.Finalize(context.Background(), voudomain.EntityBillPayment, voudomain.FinalizeInput{
+				DocumentID: item.DocumentID, Revision: item.Revision,
+			}, integrationActorOne, "bill-payment-concurrent-finalize-"+item.DocumentID)
+			results <- result{mutation: mutation, err: err}
+		}(contender)
+	}
+	var winner voudomain.MutationResult
+	successes := 0
+	for range contenders {
+		outcome := <-results
+		if outcome.err == nil {
+			successes++
+			winner = outcome.mutation
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("concurrent bill payment successes = %d, want 1", successes)
+	}
+	supplier, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: refs.supplier.ObjectID},
+	}, EntitySupplier)
+	if err != nil || len(supplier.Items) != 1 || supplier.Items[0].BalanceType != "RECEIVABLE" || supplier.Items[0].Amount != "100.00" {
+		t.Fatalf("supplier balance after bill payment = %+v, err=%v", supplier, err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillPayment, voudomain.ReverseInput{
+		DocumentID: winner.DocumentID, Revision: winner.Revision, Reason: "撤回付票",
+	}, integrationActorOne, "bill-payment-unfinalize"); err != nil {
+		t.Fatalf("unfinalize bill payment: %v", err)
+	}
+	bills, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE"},
+	})
+	if err != nil {
+		t.Fatalf("query bills after payment reversal: %v", err)
+	}
+	available := false
+	for _, bill := range bills.Items {
+		available = available || bill.BillID == billID
+	}
+	if !available {
+		t.Fatal("bill did not become available after bill payment reversal")
+	}
+}
+
 func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)

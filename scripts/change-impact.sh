@@ -227,6 +227,7 @@ if [ -n "${changed_files}" ]; then
       frontend/src/*)
         mark_application
         frontend=1
+        e2e=1
         preview=1
         ;;
 

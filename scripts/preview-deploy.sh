@@ -7,13 +7,13 @@ cd "${repo_root}"
 preview_ref=${1:-}
 case "${preview_ref}" in
   '' | *[!0-9a-f]*)
-    echo "Preview ref must be the full lowercase SHA of the current dev merge commit" >&2
+    echo "Preview ref must be the full lowercase SHA of the current dev commit" >&2
     exit 2
     ;;
 esac
 sha_length=$(printf '%s' "${preview_ref}" | wc -c | tr -d ' ')
 test "${sha_length}" = 40 || {
-  echo "Preview ref must be the full lowercase SHA of the current dev merge commit" >&2
+  echo "Preview ref must be the full lowercase SHA of the current dev commit" >&2
   exit 2
 }
 
@@ -24,11 +24,11 @@ test "${release_sha}" = "${dev_sha}" || {
   echo "Preview ref ${release_sha} is not the current origin/dev commit ${dev_sha}" >&2
   exit 1
 }
-parent_count=$(git rev-list --parents -n 1 "${release_sha}" | awk '{print NF - 1}')
-test "${parent_count}" = 2 || {
-  echo "Preview ref ${release_sha} is not a dev merge commit" >&2
-  exit 1
-}
+
+GITHUB_REPOSITORY=${ZERP_GITHUB_REPOSITORY:-hansonyu183/zerp} \
+GITHUB_SHA=${release_sha} \
+ZERP_MERGED_BASE_REF=dev \
+  scripts/verify-merged-pr.sh
 short_sha=$(printf '%s' "${release_sha}" | cut -c1-12)
 
 common_git_dir=$(git rev-parse --path-format=absolute --git-common-dir)

@@ -451,6 +451,7 @@ SELECT (
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = sqlc.arg(target_generation_id) AND p.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = sqlc.arg(target_generation_id) AND c.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = sqlc.arg(target_generation_id) AND a.source_document_id = sqlc.arg(target_document_id))
+    OR EXISTS (SELECT 1 FROM led_bill_entries b WHERE b.generation_id = sqlc.arg(target_generation_id) AND b.source_document_id = sqlc.arg(target_document_id))
 )::boolean;
 
 -- name: HasNegativeLedInventoryTimeline :one
@@ -687,11 +688,10 @@ FOR UPDATE;
 -- name: GetLedBillAvailableBalance :one
 SELECT COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint
 FROM led_bill_entries AS entry
-JOIN led_control AS control
-  ON control.active_generation_id = entry.generation_id
-WHERE entry.bill_id = sqlc.arg(bill_id)
+WHERE entry.generation_id = sqlc.arg(generation_id)
+  AND entry.bill_id = sqlc.arg(bill_id)
   AND entry.position_type = sqlc.arg(position_type)
-  AND control.status = 'ACTIVE';
+;
 
 -- name: CountLedBillDownstreamEntries :one
 WITH source AS (

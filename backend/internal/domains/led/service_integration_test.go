@@ -1406,10 +1406,9 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 		t.Fatalf("uncheck refinalized bill receipt: %v", err)
 	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityBillReceipt, voudomain.DeleteInput{
-		DocumentID: draftAgain.DocumentID, Revision: draftAgain.Revision, Reason: "不允许删除台账历史",
-	}, integrationActorOne, "bill-receipt-delete-after-history"); err == nil ||
-		err.Error() != "bill document with ledger history cannot be deleted" {
-		t.Fatalf("delete historical bill receipt error = %v", err)
+		DocumentID: draftAgain.DocumentID, Revision: draftAgain.Revision, Reason: "删除已撤回票据",
+	}, integrationActorOne, "bill-receipt-delete-after-reversal"); err != nil {
+		t.Fatalf("delete reversed bill receipt: %v", err)
 	}
 	freshDraft, err := vouchers.Create(t.Context(), voudomain.EntityBillReceipt, voudomain.CreateInput{
 		Data: voudomain.DraftInput{
@@ -1660,7 +1659,7 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 		Code: "LD" + newID(), Name: "贴现方", SalespersonEmployeeID: refs.employee.ObjectID,
 	})
 	ledger, vouchers := newIntegratedServices(t, pool)
-	activateEmptyLedger(t, ledger)
+	activated := activateEmptyLedger(t, ledger)
 	source, sourceView := advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer, Handler: &refs.employee,
 		BillLines: []voudomain.BillLineInput{{PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "BILL-DISCOUNT-SOURCE", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "100.00", IssueDate: "2026-08-01", MaturityDate: "2027-08-01", Drawer: "出票人", Acceptor: "承兑行", Payee: "本公司"}},
@@ -1692,8 +1691,30 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 	if err != nil || len(interest.Items) != 1 || interest.Items[0].BalanceType != "PAYABLE" || interest.Items[0].Amount != "3.64" {
 		t.Fatalf("discount interest balance = %+v, err=%v", interest, err)
 	}
+	reopened, err := ledger.Reopen(t.Context(), ReopenInput{Revision: activated.Revision, Reason: "重放票据贴现"}, integrationActorOne, "bill-discount-reopen")
+	if err != nil {
+		t.Fatalf("reopen ledger with bill discount: %v", err)
+	}
+	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{Revision: reopened.Revision, CutoverDate: "2026-01-01", Inventory: []InventoryOpeningInput{}, Fund: []FundOpeningInput{}, Party: []PartyOpeningInput{}}, integrationActorOne, "bill-discount-reopen-save")
+	if err != nil {
+		t.Fatalf("save reopened ledger with bill discount: %v", err)
+	}
+	if _, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision}, integrationActorOne, "bill-discount-reactivate"); err != nil {
+		t.Fatalf("reactivate ledger with bill discount: %v", err)
+	}
 	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillDiscount, voudomain.ReverseInput{DocumentID: finalized.DocumentID, Revision: finalized.Revision, Reason: "撤回贴现"}, integrationActorOne, "bill-discount-unfinalize"); err != nil {
 		t.Fatalf("unfinalize bill discount: %v", err)
+	}
+	billOnly, _ := advanceToApproved(t, vouchers, voudomain.EntityBillDiscount, voudomain.DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: "other-party", Counterparty: &other, InterestMode: "BANK_DEDUCTED",
+		BillLines: []voudomain.BillLineInput{{BillID: sourceView.Data.BillLines[0].BillID, Purpose: "PRIMARY", AnnualRateBps: 365}},
+	})
+	billOnlyFinalized, err := vouchers.Finalize(t.Context(), voudomain.EntityBillDiscount, voudomain.FinalizeInput{DocumentID: billOnly.DocumentID, Revision: billOnly.Revision}, integrationActorOne, "bill-only-discount-finalize")
+	if err != nil {
+		t.Fatalf("finalize bill-only discount: %v", err)
+	}
+	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityBillDiscount, voudomain.ReverseInput{DocumentID: billOnlyFinalized.DocumentID, Revision: billOnlyFinalized.Revision, Reason: "撤回纯票据贴现"}, integrationActorOne, "bill-only-discount-unfinalize"); err != nil {
+		t.Fatalf("unfinalize bill-only discount: %v", err)
 	}
 }
 

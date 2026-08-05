@@ -29,7 +29,7 @@ func (s *Service) postBillReceipt(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 			if lockErr != nil {
 				return s.writeError("lock bill for receipt", lockErr)
 			}
-			balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: b.ID, PositionType: l.PositionType})
+			balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{GenerationID: p.GenerationID, BillID: b.ID, PositionType: l.PositionType})
 			if balanceErr != nil || balance != 1 {
 				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 			}
@@ -119,7 +119,7 @@ func (s *Service) postBillPayment(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 			return s.writeError("lock bill for payment", lockErr)
 		}
 		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
-			BillID: bill.ID, PositionType: "ASSET",
+			GenerationID: p.GenerationID, BillID: bill.ID, PositionType: "ASSET",
 		})
 		if balanceErr != nil || balance != 1 {
 			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
@@ -258,7 +258,7 @@ func (s *Service) postBillDiscount(ctx context.Context, tx pgx.Tx, q *dbsqlc.Que
 		if lockErr != nil {
 			return s.writeError("lock bill for discount", lockErr)
 		}
-		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: bill.ID, PositionType: "ASSET"})
+		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{GenerationID: p.GenerationID, BillID: bill.ID, PositionType: "ASSET"})
 		if balanceErr != nil || balance != 1 {
 			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 		}
@@ -335,7 +335,7 @@ func (s *Service) postBillMaturity(ctx context.Context, tx pgx.Tx, q *dbsqlc.Que
 		if lockErr != nil {
 			return s.writeError("lock bill for maturity", lockErr)
 		}
-		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: bill.ID, PositionType: position})
+		balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{GenerationID: p.GenerationID, BillID: bill.ID, PositionType: position})
 		if balanceErr != nil || balance != 1 || bill.PositionType != position {
 			return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 		}

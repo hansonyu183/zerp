@@ -720,20 +720,19 @@ func (q *Queries) GetActiveLedAsset(ctx context.Context, assetID string) (LedAss
 const getLedBillAvailableBalance = `-- name: GetLedBillAvailableBalance :one
 SELECT COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint
 FROM led_bill_entries AS entry
-JOIN led_control AS control
-  ON control.active_generation_id = entry.generation_id
-WHERE entry.bill_id = $1
-  AND entry.position_type = $2
-  AND control.status = 'ACTIVE'
+WHERE entry.generation_id = $1
+  AND entry.bill_id = $2
+  AND entry.position_type = $3
 `
 
 type GetLedBillAvailableBalanceParams struct {
+	GenerationID string `db:"generation_id" json:"generation_id"`
 	BillID       string `db:"bill_id" json:"bill_id"`
 	PositionType string `db:"position_type" json:"position_type"`
 }
 
 func (q *Queries) GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getLedBillAvailableBalance, arg.BillID, arg.PositionType)
+	row := q.db.QueryRow(ctx, getLedBillAvailableBalance, arg.GenerationID, arg.BillID, arg.PositionType)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -864,6 +863,7 @@ SELECT (
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = $1 AND p.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = $1 AND c.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = $1 AND a.source_document_id = $2)
+    OR EXISTS (SELECT 1 FROM led_bill_entries b WHERE b.generation_id = $1 AND b.source_document_id = $2)
 )::boolean
 `
 

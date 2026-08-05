@@ -468,9 +468,7 @@ func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
-		balance, err := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
-			BillID: bill.ID, PositionType: "ASSET",
-		})
+		balance, err := billAvailableBalance(ctx, q, bill.ID, "ASSET")
 		if err != nil || balance != 1 || bill.PositionType != "ASSET" {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -554,7 +552,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 			if err != nil {
 				return domainError(ErrorConflict, "source bill is not available", nil, err)
 			}
-			balance, balanceErr := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{BillID: b.ID, PositionType: l.PositionType})
+			balance, balanceErr := billAvailableBalance(ctx, q, b.ID, l.PositionType)
 			if balanceErr != nil || balance != 1 {
 				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 			}
@@ -706,9 +704,7 @@ func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, line
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
-		balance, err := q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
-			BillID: bill.ID, PositionType: line.PositionType,
-		})
+		balance, err := billAvailableBalance(ctx, q, bill.ID, line.PositionType)
 		if err != nil || balance != 1 || bill.PositionType != line.PositionType {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -721,4 +717,14 @@ func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, line
 		}
 	}
 	return total, nil
+}
+
+func billAvailableBalance(ctx context.Context, q *dbsqlc.Queries, billID, positionType string) (int64, error) {
+	control, err := q.GetLedControl(ctx)
+	if err != nil || control.Status != "ACTIVE" || control.ActiveGenerationID == nil {
+		return 0, err
+	}
+	return q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
+		GenerationID: *control.ActiveGenerationID, BillID: billID, PositionType: positionType,
+	})
 }

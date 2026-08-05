@@ -19,7 +19,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '登录' }).click()
 
-  await expect(page).not.toHaveURL(/\/signin/)
+  await expect(page).toHaveURL(/\/home\/dashboard$/)
   await expect(page.locator('.account-button')).toBeVisible()
 }
 

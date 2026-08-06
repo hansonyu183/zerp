@@ -311,6 +311,7 @@ type Querier interface {
 	ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error)
 	ListIntermediaryCustomerTradeEvents(ctx context.Context, arg ListIntermediaryCustomerTradeEventsParams) ([]ListIntermediaryCustomerTradeEventsRow, error)
 	ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg ListIntermediaryReturnAdjustmentRowsParams) ([]ListIntermediaryReturnAdjustmentRowsRow, error)
+	ListIntermediarySignoffReturnTimelineRows(ctx context.Context, arg ListIntermediarySignoffReturnTimelineRowsParams) ([]ListIntermediarySignoffReturnTimelineRowsRow, error)
 	ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error)
 	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
 	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)

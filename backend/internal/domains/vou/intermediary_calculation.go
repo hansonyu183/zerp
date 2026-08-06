@@ -42,13 +42,13 @@ type intermediaryDocument struct {
 	date                   time.Time
 	amount                 int64
 	rows                   []dbsqlc.ListIntermediarySignoffSourceRowsRow
-	cumulativeAmount       int64
 	collectionDate         *time.Time
+	hasRemainingQuantity   bool
 }
 
-type intermediaryTimelinePoint struct {
-	date     time.Time
-	capacity int64
+type intermediaryReturnTimelineItem struct {
+	documentID string
+	amount     int64
 }
 
 func monthRange(value time.Time) (time.Time, time.Time) {
@@ -140,6 +140,12 @@ func (s *Service) intermediarySource(
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source signoffs", err)
 	}
+	returnRows, err := q.ListIntermediarySignoffReturnTimelineRows(ctx, dbsqlc.ListIntermediarySignoffReturnTimelineRowsParams{
+		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+	})
+	if err != nil {
+		return IntermediarySourceView{}, s.internal("read intermediary source return timeline", err)
+	}
 	events, err := q.ListIntermediaryCustomerTradeEvents(ctx, dbsqlc.ListIntermediaryCustomerTradeEventsParams{
 		PeriodEnd: dateValue(periodEnd), GenerationID: *control.ActiveGenerationID,
 	})
@@ -150,6 +156,10 @@ func (s *Service) intermediarySource(
 	documents := make([]*intermediaryDocument, 0)
 	byDocument := make(map[string]*intermediaryDocument)
 	for _, row := range rows {
+		if row.SignedQtyMicros < 0 || row.LineAmountCents < 0 {
+			return IntermediarySourceView{}, domainError(ErrorConflict,
+				"sale return exceeds its source signoff", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
+		}
 		if row.SalespersonObjectID == nil || row.SalespersonVersionID == nil ||
 			row.SalespersonCode == nil || row.SalespersonName == nil {
 			return IntermediarySourceView{}, domainError(ErrorConflict,
@@ -164,8 +174,16 @@ func (s *Service) intermediarySource(
 			byDocument[row.SignoffDocumentID] = document
 			documents = append(documents, document)
 		}
-		document.amount += row.LineAmountCents
+		documentAmount, ok := addIntermediaryAmount(document.amount, row.FifoLineAmountCents)
+		if !ok {
+			return IntermediarySourceView{}, domainError(ErrorConflict,
+				"intermediary FIFO amount is out of range", map[string]any{"documentId": row.SignoffDocumentID}, nil)
+		}
+		document.amount = documentAmount
 		document.rows = append(document.rows, row)
+		if row.SignedQtyMicros > 0 {
+			document.hasRemainingQuantity = true
+		}
 	}
 	sort.Slice(documents, func(i, j int) bool {
 		if documents[i].customerID != documents[j].customerID {
@@ -189,23 +207,46 @@ func (s *Service) intermediarySource(
 			eventDates[event.CounterpartyObjectID] = make(map[time.Time]int64)
 		}
 		date := event.EffectiveDate.Time
-		eventDates[event.CounterpartyObjectID][date] += event.AmountDeltaCents
+		amount, ok := addSignedIntermediaryAmount(eventDates[event.CounterpartyObjectID][date], event.AmountDeltaCents)
+		if !ok {
+			return IntermediarySourceView{}, domainError(ErrorConflict,
+				"intermediary FIFO balance is out of range", map[string]any{"customerId": event.CounterpartyObjectID}, nil)
+		}
+		eventDates[event.CounterpartyObjectID][date] = amount
 	}
 	documentsByCustomer := make(map[string][]*intermediaryDocument)
 	for _, document := range documents {
 		documentsByCustomer[document.customerID] = append(documentsByCustomer[document.customerID], document)
 	}
+	returnDates := make(map[string]map[time.Time][]intermediaryReturnTimelineItem)
+	for _, row := range returnRows {
+		document := byDocument[row.SignoffDocumentID]
+		if document == nil || document.customerID != row.CustomerObjectID || !row.ReturnDate.Valid || row.AmountCents < 0 {
+			return IntermediarySourceView{}, domainError(ErrorConflict,
+				"sale return timeline is invalid", map[string]any{"documentId": row.SignoffDocumentID}, nil)
+		}
+		if row.AmountCents == 0 {
+			continue
+		}
+		if returnDates[row.CustomerObjectID] == nil {
+			returnDates[row.CustomerObjectID] = make(map[time.Time][]intermediaryReturnTimelineItem)
+		}
+		date := row.ReturnDate.Time
+		returnDates[row.CustomerObjectID][date] = append(returnDates[row.CustomerObjectID][date], intermediaryReturnTimelineItem{
+			documentID: row.SignoffDocumentID, amount: row.AmountCents,
+		})
+	}
 	for customerID, customerDocuments := range documentsByCustomer {
-		var cumulative int64
-		docAmounts := make(map[time.Time]int64)
+		documentStarts := make(map[time.Time][]*intermediaryDocument)
 		dateSet := make(map[time.Time]bool)
 		for _, document := range customerDocuments {
-			cumulative += document.amount
-			document.cumulativeAmount = cumulative
-			docAmounts[document.date] += document.amount
+			documentStarts[document.date] = append(documentStarts[document.date], document)
 			dateSet[document.date] = true
 		}
 		for date := range eventDates[customerID] {
+			dateSet[date] = true
+		}
+		for date := range returnDates[customerID] {
 			dateSet[date] = true
 		}
 		dates := make([]time.Time, 0, len(dateSet))
@@ -213,24 +254,79 @@ func (s *Service) intermediarySource(
 			dates = append(dates, date)
 		}
 		sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
-		var balance, signedTotal int64
-		timeline := make([]intermediaryTimelinePoint, 0, len(dates))
+		var balance, signedTotal, retiredCovered int64
+		eligibleAmounts := make(map[string]int64, len(customerDocuments))
+		coveredAmounts := make(map[string]int64, len(customerDocuments))
 		for _, date := range dates {
-			signedTotal += docAmounts[date]
-			balance += eventDates[customerID][date]
-			capacity := signedTotal - max(balance, int64(0))
-			capacity = max(capacity, int64(0))
-			capacity = min(capacity, signedTotal)
-			timeline = append(timeline, intermediaryTimelinePoint{date: date, capacity: capacity})
-		}
-		for _, document := range customerDocuments {
-			for _, point := range timeline {
-				if point.date.Before(document.date) || point.capacity < document.cumulativeAmount {
+			for _, document := range documentStarts[date] {
+				eligibleAmounts[document.id] = document.amount
+				var ok bool
+				signedTotal, ok = addIntermediaryAmount(signedTotal, document.amount)
+				if !ok {
+					return IntermediarySourceView{}, domainError(ErrorConflict,
+						"intermediary FIFO amount is out of range", map[string]any{"documentId": document.id}, nil)
+				}
+			}
+			for _, returned := range returnDates[customerID][date] {
+				eligible := eligibleAmounts[returned.documentID]
+				if returned.amount > eligible {
+					return IntermediarySourceView{}, domainError(ErrorConflict,
+						"sale return exceeds its source signoff", map[string]any{"documentId": returned.documentID}, nil)
+				}
+				covered := min(coveredAmounts[returned.documentID], eligible)
+				consumedReturn := max(returned.amount-(eligible-covered), int64(0))
+				coveredAmounts[returned.documentID] = covered - consumedReturn
+				var ok bool
+				retiredCovered, ok = addIntermediaryAmount(retiredCovered, consumedReturn)
+				if !ok {
+					return IntermediarySourceView{}, domainError(ErrorConflict,
+						"intermediary FIFO amount is out of range", map[string]any{"documentId": returned.documentID}, nil)
+				}
+				eligibleAmounts[returned.documentID] = eligible - returned.amount
+				signedTotal -= returned.amount
+				balance, ok = addSignedIntermediaryAmount(balance, -returned.amount)
+				if !ok {
+					return IntermediarySourceView{}, domainError(ErrorConflict,
+						"intermediary FIFO balance is out of range", map[string]any{"customerId": customerID}, nil)
+				}
+			}
+			var ok bool
+			balance, ok = addSignedIntermediaryAmount(balance, eventDates[customerID][date])
+			if !ok {
+				return IntermediarySourceView{}, domainError(ErrorConflict,
+					"intermediary FIFO balance is out of range", map[string]any{"customerId": customerID}, nil)
+			}
+			capacityValue := new(big.Int).Sub(big.NewInt(signedTotal), big.NewInt(balance))
+			capacityValue.Sub(capacityValue, big.NewInt(retiredCovered))
+			var capacity int64
+			if capacityValue.Sign() > 0 {
+				capacity = signedTotal
+				if capacityValue.Cmp(big.NewInt(signedTotal)) < 0 {
+					capacity = capacityValue.Int64()
+				}
+			}
+			available := capacity
+			for _, document := range customerDocuments {
+				if document.date.After(date) {
 					continue
 				}
-				collected := point.date
-				document.collectionDate = &collected
-				break
+				amount := eligibleAmounts[document.id]
+				if amount == 0 {
+					if document.collectionDate == nil && document.hasRemainingQuantity {
+						collected := date
+						document.collectionDate = &collected
+					}
+					continue
+				}
+				covered := min(available, amount)
+				available -= covered
+				if covered > coveredAmounts[document.id] {
+					coveredAmounts[document.id] = covered
+				}
+				if document.collectionDate == nil && covered == amount {
+					collected := date
+					document.collectionDate = &collected
+				}
 			}
 		}
 	}
@@ -244,6 +340,9 @@ func (s *Service) intermediarySource(
 			continue
 		}
 		for _, row := range document.rows {
+			if row.SignedQtyMicros == 0 {
+				continue
+			}
 			pricingQuantity := new(big.Int).Mul(big.NewInt(row.SignedQtyMicros), big.NewInt(row.PricingQuantityPerInventoryUnitMicros))
 			pricingQuantity.Quo(pricingQuantity, big.NewInt(1_000_000))
 			if !pricingQuantity.IsInt64() || pricingQuantity.Sign() <= 0 {

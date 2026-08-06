@@ -51,4 +51,12 @@ func TestProratedIntermediaryAmountUsesCumulativeRounding(t *testing.T) {
 	if _, ok = proratedIntermediaryAmount(100, 4, 3); ok {
 		t.Fatal("proration accepted a return quantity above the original")
 	}
+	firstHalf, ok := proratedIntermediaryAmount(1, 500_000, 1_000_000)
+	if !ok || firstHalf != 1 {
+		t.Fatalf("first returned half-cent = (%d, %t), want (1, true)", firstHalf, ok)
+	}
+	throughSecondHalf, ok := proratedIntermediaryAmount(1, 1_000_000, 1_000_000)
+	if !ok || throughSecondHalf-firstHalf != 0 {
+		t.Fatalf("second returned half-cent = (%d, %t), want (0, true)", throughSecondHalf-firstHalf, ok)
+	}
 }

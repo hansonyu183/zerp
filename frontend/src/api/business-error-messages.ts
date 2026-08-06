@@ -324,6 +324,14 @@ const exactMessages: Readonly<Record<string, string>> = {
     '业务账簿尚未启用，不能生成居间计算来源。',
   'sale signoff is missing its order salesperson snapshot':
     '销售签收单缺少订单业务员快照，请先处理来源单据。',
+  'sale return exceeds its source signoff':
+    '销售退货金额或数量超过来源签收单，请检查退货单。',
+  'sale return timeline is invalid':
+    '销售退货时间线与来源签收单不一致，请检查来源单据。',
+  'intermediary FIFO amount is out of range':
+    '居间计算的签收金额超出可处理范围，请检查来源单据。',
+  'intermediary FIFO balance is out of range':
+    '居间计算的客户应收余额超出可处理范围，请检查往来数据。',
   'source pricing quantity is invalid':
     '销售签收来源的计价数量无效，请检查产品单位换算。',
   'every unclosed month must have an approved intermediary calculation before closing':

@@ -503,21 +503,13 @@ WITH trade AS (
       AND entry.counterparty_entity='customer'
       AND entry.currency='CNY'
 ), mapped AS (
+    -- After-sale returns are applied to their source signoff by the dedicated
+    -- return timeline. Excluding them here prevents a return from becoming
+    -- collection capacity for another signoff.
     SELECT entry.counterparty_object_id,entry.effective_date,
            entry.amount_delta_cents
     FROM trade entry
     WHERE entry.source_entity NOT IN ('bill-receipt','sale-return')
-    UNION ALL
-    -- An after-sale return reduces the eligible signed quantity and its receivable
-    -- at the return date; keeping it separate prevents treating returned quantity
-    -- as a paid original sale.
-    SELECT entry.counterparty_object_id,entry.effective_date,
-           entry.amount_delta_cents
-    FROM trade entry
-    JOIN vou_sale_return_details return_detail
-      ON return_detail.document_id=entry.source_document_id
-     AND return_detail.return_kind='AFTER_SALE'
-    WHERE entry.source_entity='sale-return'
     UNION ALL
     SELECT entry.counterparty_object_id,
            (CASE WHEN bill_line.bill_type='CHECK'
@@ -680,11 +672,108 @@ func (q *Queries) ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg 
 	return items, nil
 }
 
+const listIntermediarySignoffReturnTimelineRows = `-- name: ListIntermediarySignoffReturnTimelineRows :many
+WITH daily_return AS (
+    SELECT
+        signoff.id AS signoff_document_id,
+        signoff_detail.customer_object_id,
+        signoff_line.id AS source_signoff_line_id,
+        signoff_line.signed_qty_micros AS original_quantity_micros,
+        signoff_line.line_amount_cents AS original_amount_cents,
+        return_document.business_date AS return_date,
+        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+    FROM vou_sale_return_lines return_line
+    JOIN vou_sale_return_details return_detail
+      ON return_detail.document_id=return_line.document_id
+     AND return_detail.return_kind='AFTER_SALE'
+    JOIN vou_documents return_document
+      ON return_document.id=return_line.document_id
+     AND return_document.entity='sale-return'
+     AND return_document.status IN ('APPROVED','FINALIZED')
+    JOIN vou_sale_signoff_lines signoff_line
+      ON signoff_line.id=return_line.source_signoff_line_id
+    JOIN vou_documents signoff
+      ON signoff.id=signoff_line.document_id
+     AND signoff.entity='sale-signoff'
+     AND signoff.status IN ('APPROVED','FINALIZED')
+    JOIN vou_sale_signoff_details signoff_detail
+      ON signoff_detail.document_id=signoff.id
+    WHERE signoff.business_date >= $1
+      AND signoff.business_date <= $2
+      AND signoff.currency='CNY'
+      AND return_document.business_date <= $2
+    GROUP BY signoff.id,signoff_detail.customer_object_id,signoff_line.id,
+             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+             return_document.business_date
+), cumulative_return AS (
+    SELECT daily_return.signoff_document_id, daily_return.customer_object_id, daily_return.source_signoff_line_id, daily_return.original_quantity_micros, daily_return.original_amount_cents, daily_return.return_date, daily_return.returned_quantity_micros,
+           sum(returned_quantity_micros) OVER (
+               PARTITION BY source_signoff_line_id ORDER BY return_date
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+           )::bigint AS cumulative_quantity_micros
+    FROM daily_return
+), rounded_return AS (
+    SELECT cumulative_return.signoff_document_id, cumulative_return.customer_object_id, cumulative_return.source_signoff_line_id, cumulative_return.original_quantity_micros, cumulative_return.original_amount_cents, cumulative_return.return_date, cumulative_return.returned_quantity_micros, cumulative_return.cumulative_quantity_micros,
+           COALESCE(round(
+               original_amount_cents::numeric*cumulative_quantity_micros::numeric/
+               NULLIF(original_quantity_micros,0)
+           )::bigint,0) AS cumulative_amount_cents
+    FROM cumulative_return
+), incremental_return AS (
+    SELECT rounded_return.signoff_document_id, rounded_return.customer_object_id, rounded_return.source_signoff_line_id, rounded_return.original_quantity_micros, rounded_return.original_amount_cents, rounded_return.return_date, rounded_return.returned_quantity_micros, rounded_return.cumulative_quantity_micros, rounded_return.cumulative_amount_cents,
+           (cumulative_amount_cents-COALESCE(lag(cumulative_amount_cents) OVER (
+               PARTITION BY source_signoff_line_id ORDER BY return_date
+           ),0))::bigint AS amount_cents
+    FROM rounded_return
+)
+SELECT signoff_document_id,customer_object_id,return_date,
+       sum(amount_cents)::bigint AS amount_cents
+FROM incremental_return
+GROUP BY signoff_document_id,customer_object_id,return_date
+ORDER BY customer_object_id,return_date,signoff_document_id
+`
+
+type ListIntermediarySignoffReturnTimelineRowsParams struct {
+	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+}
+
+type ListIntermediarySignoffReturnTimelineRowsRow struct {
+	SignoffDocumentID string      `db:"signoff_document_id" json:"signoff_document_id"`
+	CustomerObjectID  string      `db:"customer_object_id" json:"customer_object_id"`
+	ReturnDate        pgtype.Date `db:"return_date" json:"return_date"`
+	AmountCents       int64       `db:"amount_cents" json:"amount_cents"`
+}
+
+func (q *Queries) ListIntermediarySignoffReturnTimelineRows(ctx context.Context, arg ListIntermediarySignoffReturnTimelineRowsParams) ([]ListIntermediarySignoffReturnTimelineRowsRow, error) {
+	rows, err := q.db.Query(ctx, listIntermediarySignoffReturnTimelineRows, arg.CutoverDate, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIntermediarySignoffReturnTimelineRowsRow{}
+	for rows.Next() {
+		var i ListIntermediarySignoffReturnTimelineRowsRow
+		if err := rows.Scan(
+			&i.SignoffDocumentID,
+			&i.CustomerObjectID,
+			&i.ReturnDate,
+			&i.AmountCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIntermediarySignoffSourceRows = `-- name: ListIntermediarySignoffSourceRows :many
 WITH returned AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS quantity_micros,
-           sum(return_line.line_amount_cents)::bigint AS amount_cents
+           sum(return_line.quantity_micros)::bigint AS quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -729,9 +818,13 @@ SELECT
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
     customer_version.rebate_unit_price_cents,
-    (line.line_amount_cents-COALESCE(returned.amount_cents,0))::bigint AS line_amount_cents,
+    (line.line_amount_cents-COALESCE(round(
+        line.line_amount_cents::numeric*returned.quantity_micros::numeric/
+        NULLIF(line.signed_qty_micros,0)
+    )::bigint,0))::bigint AS line_amount_cents,
     order_detail.settlement_term_code,
-    order_detail.special_approval
+    order_detail.special_approval,
+    line.line_amount_cents AS fifo_line_amount_cents
 FROM vou_documents signoff
 JOIN vou_sale_signoff_details detail ON detail.document_id=signoff.id
 JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
@@ -750,7 +843,6 @@ WHERE signoff.entity='sale-signoff'
   AND signoff.business_date >= $1
   AND signoff.business_date <= $2
   AND signoff.currency='CNY'
-  AND line.signed_qty_micros-COALESCE(returned.quantity_micros,0) > 0
 ORDER BY detail.customer_object_id,signoff.business_date,signoff.document_no,line.line_no,line.id
 `
 
@@ -795,6 +887,7 @@ type ListIntermediarySignoffSourceRowsRow struct {
 	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
 	SettlementTermCode                    string      `db:"settlement_term_code" json:"settlement_term_code"`
 	SpecialApproval                       bool        `db:"special_approval" json:"special_approval"`
+	FifoLineAmountCents                   int64       `db:"fifo_line_amount_cents" json:"fifo_line_amount_cents"`
 }
 
 func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error) {
@@ -842,6 +935,7 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 			&i.LineAmountCents,
 			&i.SettlementTermCode,
 			&i.SpecialApproval,
+			&i.FifoLineAmountCents,
 		); err != nil {
 			return nil, err
 		}

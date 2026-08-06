@@ -2579,6 +2579,335 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}
 }
 
+func TestIntermediarySourceKeepsReturnedLaterSignoffInFIFOIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+
+	createSignoff := func(businessDate string) (voudomain.MutationResult, voudomain.DocumentView) {
+		t.Helper()
+		order, orderView := approveSaleOrder(t, vouchers, refs, "1")
+		outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+		delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: outbound.DocumentID,
+			Platform: &refs.platform, Vehicle: &refs.vehicle,
+		})
+		return advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: delivery.DocumentID,
+			SignoffLines: []voudomain.SaleSignoffLineInput{{
+				SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+				SignedQuantity: "1", RejectedQuantity: "0",
+			}},
+		})
+	}
+	firstSignoff, _ := createSignoff("2026-07-25")
+	_, secondView := createSignoff("2026-07-26")
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-09-05", Warehouse: &refs.warehouse, ReturnReason: "退回尚未收清的后一张签收单",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: secondView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	unpaidSeptemberSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(unpaidSeptemberSource.Source.Lines) != 0 {
+		t.Fatalf("return of a later signoff collected an earlier unpaid signoff: %+v, err=%v",
+			unpaidSeptemberSource.Source, err)
+	}
+	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
+	})
+
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(augustSource.Source.Lines) != 1 ||
+		augustSource.Source.Lines[0].SignoffDocumentID != firstSignoff.DocumentID ||
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-05" {
+		t.Fatalf("August FIFO source = %+v, err=%v", augustSource.Source, err)
+	}
+	septemberSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(septemberSource.Source.Lines) != 0 {
+		t.Fatalf("September FIFO source repeated an earlier collected signoff: %+v, err=%v",
+			septemberSource.Source, err)
+	}
+}
+
+func TestIntermediarySourceDoesNotReuseReturnedCollectedSignoffCapacityIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+
+	createSignoff := func(businessDate string) (voudomain.MutationResult, voudomain.DocumentView) {
+		t.Helper()
+		order, orderView := approveSaleOrder(t, vouchers, refs, "1")
+		outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+		delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: outbound.DocumentID,
+			Platform: &refs.platform, Vehicle: &refs.vehicle,
+		})
+		return advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: delivery.DocumentID,
+			SignoffLines: []voudomain.SaleSignoffLineInput{{
+				SourceLineID: deliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+			}},
+		})
+	}
+	firstSignoff, firstView := createSignoff("2026-07-25")
+	secondSignoff, _ := createSignoff("2026-07-26")
+	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
+	})
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(augustSource.Source.Lines) != 1 ||
+		augustSource.Source.Lines[0].SignoffDocumentID != firstSignoff.DocumentID ||
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-05" {
+		t.Fatalf("August FIFO source = %+v, err=%v", augustSource.Source, err)
+	}
+
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-09-05", Warehouse: &refs.warehouse, ReturnReason: "退回已收清的前一张签收单",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: firstView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	septemberSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(septemberSource.Source.Lines) != 0 {
+		t.Fatalf("return of collected %s incorrectly collected %s: %+v, err=%v",
+			firstSignoff.DocumentID, secondSignoff.DocumentID, septemberSource.Source, err)
+	}
+}
+
+func TestIntermediarySourceReleasesUncoveredReturnBeforeCollectionIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+
+	createSignoff := func(businessDate string) (voudomain.MutationResult, voudomain.DocumentView) {
+		t.Helper()
+		order, orderView := approveSaleOrder(t, vouchers, refs, "1")
+		outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+		delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: outbound.DocumentID,
+			Platform: &refs.platform, Vehicle: &refs.vehicle,
+		})
+		return advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: delivery.DocumentID,
+			SignoffLines: []voudomain.SaleSignoffLineInput{{
+				SourceLineID: deliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+			}},
+		})
+	}
+	_, firstView := createSignoff("2026-07-25")
+	secondSignoff, _ := createSignoff("2026-07-26")
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "收款前退回前一张签收单",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: firstView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-09-05", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
+	})
+	septemberSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(septemberSource.Source.Lines) != 1 ||
+		septemberSource.Source.Lines[0].SignoffDocumentID != secondSignoff.DocumentID ||
+		septemberSource.Source.Lines[0].CollectionDate != "2026-09-05" {
+		t.Fatalf("uncovered return did not release the next signoff: %+v, err=%v", septemberSource.Source, err)
+	}
+}
+
+func TestIntermediarySourceSplitsPartiallyCoveredReturnCapacityIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+
+	createSignoff := func(businessDate string) (voudomain.MutationResult, voudomain.DocumentView) {
+		t.Helper()
+		order, orderView := approveSaleOrder(t, vouchers, refs, "1")
+		outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+		delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: outbound.DocumentID,
+			Platform: &refs.platform, Vehicle: &refs.vehicle,
+		})
+		return advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+			BusinessDate: businessDate, SourceDocumentID: delivery.DocumentID,
+			SignoffLines: []voudomain.SaleSignoffLineInput{{
+				SourceLineID: deliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+			}},
+		})
+	}
+	_, firstView := createSignoff("2026-07-25")
+	secondSignoff, _ := createSignoff("2026-07-26")
+	createReceipt := func(businessDate, amount string) {
+		t.Helper()
+		advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+			BusinessDate: businessDate, Currency: "CNY", CounterpartyType: "customer",
+			Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: amount,
+		})
+	}
+	createReceipt("2026-08-01", "6.00")
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "退回一半已覆盖一半未覆盖的签收单",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: firstView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	createReceipt("2026-09-01", "6.00")
+	partiallyCovered, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(partiallyCovered.Source.Lines) != 0 {
+		t.Fatalf("partially covered return reused its covered amount: %+v, err=%v", partiallyCovered.Source, err)
+	}
+	createReceipt("2026-09-05", "6.00")
+	fullyCovered, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(fullyCovered.Source.Lines) != 1 ||
+		fullyCovered.Source.Lines[0].SignoffDocumentID != secondSignoff.DocumentID ||
+		fullyCovered.Source.Lines[0].CollectionDate != "2026-09-05" {
+		t.Fatalf("new receipt did not cover the next signoff after a partial return: %+v, err=%v", fullyCovered.Source, err)
+	}
+}
+
+func TestIntermediarySourceRoundsPartialReturnsCumulativelyIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "1", "0.01")
+
+	order, orderView := advanceToApproved(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []voudomain.ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "0.01",
+		}},
+	})
+	outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+	delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	_, signoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID: deliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "第一笔半数退货",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
+		}},
+	})
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(augustSource.Source.Lines) != 1 ||
+		augustSource.Source.Lines[0].SignedQuantity != "0.5" ||
+		augustSource.Source.Lines[0].LineAmount != "0.00" ||
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-05" {
+		t.Fatalf("zero-receivable partial-return source = %+v, err=%v", augustSource.Source, err)
+	}
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-09-05", Warehouse: &refs.warehouse, ReturnReason: "第二笔半数退货",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
+		}},
+	})
+	septemberSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-09-30",
+	})
+	if err != nil || len(septemberSource.Source.Lines) != 0 {
+		t.Fatalf("cumulatively rounded partial-return source = %+v, err=%v", septemberSource.Source, err)
+	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-09-30")
+}
+
+func TestIntermediarySourceCollectsZeroPriceAndIgnoresNonCNYReturnTimelineIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "1", "10.00")
+
+	order, orderView := advanceToApproved(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []voudomain.ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "0.00",
+		}},
+	})
+	outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+	delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	signoff, signoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID: deliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	})
+	julySource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-07-31",
+	})
+	if err != nil || len(julySource.Source.Lines) != 1 ||
+		julySource.Source.Lines[0].LineAmount != "0.00" ||
+		julySource.Source.Lines[0].CollectionDate != "2026-07-26" {
+		t.Fatalf("zero-price signoff source = %+v, err=%v", julySource.Source, err)
+	}
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "外币签收退货时间线隔离",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_documents SET currency='USD' WHERE id=$1`, signoff.DocumentID); err != nil {
+		t.Fatalf("mark signoff as non-CNY: %v", err)
+	}
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(augustSource.Source.Lines) != 0 {
+		t.Fatalf("non-CNY return timeline leaked into CNY source: %+v, err=%v", augustSource.Source, err)
+	}
+}
+
 func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	var count int

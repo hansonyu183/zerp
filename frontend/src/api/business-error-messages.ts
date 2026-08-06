@@ -306,6 +306,10 @@ const exactMessages: Readonly<Record<string, string>> = {
     '跨月退货冲回明细不能分配票据成本。',
   'return adjustment result has an invalid direction':
     '跨月退货冲回金额方向不正确，请重新计算。',
+  'return adjustment source amount is invalid':
+    '跨月退货冲回来源金额无效，请检查原居间计算单。',
+  'return adjustment result amounts do not match its source':
+    '跨月退货冲回金额必须与来源金额一致，请重新计算。',
   'original intermediary calculation source is incomplete':
     '原居间计算来源不完整，无法生成跨月退货冲回。',
   'original intermediary calculation quantity is invalid':

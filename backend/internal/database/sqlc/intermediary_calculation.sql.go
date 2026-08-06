@@ -405,10 +405,10 @@ JOIN vou_bill_details detail ON detail.document_id=document.id
 JOIN vou_bill_lines bill_line ON bill_line.document_id=document.id
 JOIN bob_customer_versions customer_version
   ON customer_version.version_id=detail.counterparty_version_id
-JOIN bob_objects employee_object
+LEFT JOIN bob_objects employee_object
   ON employee_object.id=customer_version.salesperson_employee_id
  AND employee_object.entity='employee'
-JOIN bob_employee_versions employee_version
+LEFT JOIN bob_employee_versions employee_version
   ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
   AND document.status IN ('APPROVED','FINALIZED')
@@ -447,10 +447,10 @@ type ListIntermediaryBillSourceRowsRow struct {
 	CustomerVersionID    *string     `db:"customer_version_id" json:"customer_version_id"`
 	CustomerCode         *string     `db:"customer_code" json:"customer_code"`
 	CustomerName         *string     `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID  string      `db:"salesperson_object_id" json:"salesperson_object_id"`
+	SalespersonObjectID  *string     `db:"salesperson_object_id" json:"salesperson_object_id"`
 	SalespersonVersionID *string     `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode      string      `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName      string      `db:"salesperson_name" json:"salesperson_name"`
+	SalespersonCode      *string     `db:"salesperson_code" json:"salesperson_code"`
+	SalespersonName      *string     `db:"salesperson_name" json:"salesperson_name"`
 	BillType             string      `db:"bill_type" json:"bill_type"`
 	FaceAmountCents      int64       `db:"face_amount_cents" json:"face_amount_cents"`
 	IssueDate            pgtype.Date `db:"issue_date" json:"issue_date"`

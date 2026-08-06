@@ -127,6 +127,25 @@ export function validateIntermediaryResult(
     ) {
       throw new Error('计算结果金额方向与来源类型不一致。')
     }
+    if (
+      sourceLine.sourceKind === 'RETURN_ADJUSTMENT' &&
+      amounts
+        .slice(6)
+        .some(
+          (amount, index) =>
+            amount !==
+            -Number(
+              [
+                sourceLine.adjustmentEmployeeAmount,
+                sourceLine.adjustmentIntermediaryAmount,
+                sourceLine.adjustmentRebateAmount,
+              ][index],
+            ),
+        )
+    ) {
+      throw new Error('跨月退货冲回金额必须与来源金额一致。')
+    }
+    const billGroup = `${sourceLine.customer.objectId}:${sourceLine.salesperson.objectId}`
     for (const billLineId of line.billLineIds) {
       const bill = sourceBills.get(billLineId)
       if (
@@ -139,18 +158,15 @@ export function validateIntermediaryResult(
         throw new Error('票据成本分配必须匹配客户、业务员和来源票据。')
       }
       allocatedBills.add(billLineId)
-      billAllocationGroups.add(
-        `${sourceLine.customer.objectId}:${sourceLine.salesperson.objectId}`,
-      )
+      billAllocationGroups.add(billGroup)
     }
-    if (Number(line.billCost) > 0 && line.billLineIds.length === 0) {
-      billCostGroups.add(
-        `${sourceLine.customer.objectId}:${sourceLine.salesperson.objectId}`,
-      )
-    }
+    if (Number(line.billCost) > 0) billCostGroups.add(billGroup)
   }
   if ([...billCostGroups].some((group) => !billAllocationGroups.has(group))) {
     throw new Error('票据成本必须记录同一客户和业务员的来源票据。')
+  }
+  if ([...billAllocationGroups].some((group) => !billCostGroups.has(group))) {
+    throw new Error('已分配来源票据时必须同时扣除正数票据成本。')
   }
   return {
     lines: value.lines as IntermediaryResultLine[],

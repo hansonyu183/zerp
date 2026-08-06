@@ -2168,9 +2168,12 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		SalespersonEmployeeID: refs.employee.ObjectID, RebateUnitPrice: "0.20",
 		IntermediaryOtherPartyID: intermediary.ObjectID,
 	})
+	carrySalesperson := createApprovedReference(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
+		Code: "LICSE" + newID(), Name: "LED 票据顺延业务员",
+	})
 	carryCustomer := createApprovedReference(t, bobService, bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
 		Code: "LICC" + newID(), Name: "LED 票据成本顺延客户", SettlementMethodID: settlement.ObjectID,
-		SalespersonEmployeeID: refs.employee.ObjectID,
+		SalespersonEmployeeID: carrySalesperson.ObjectID,
 	})
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activateEmptyLedger(t, ledger)
@@ -2250,6 +2253,16 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		julySource.Source.Bills[0].BillType != "BANK_ACCEPTANCE" {
 		t.Fatalf("July intermediary source must include only the non-check bill: %+v", julySource.Source)
 	}
+	if _, err = pool.Exec(t.Context(), `UPDATE bob_objects SET effective_version_id=NULL WHERE id=$1`, carrySalesperson.ObjectID); err != nil {
+		t.Fatalf("remove carried bill salesperson effective version: %v", err)
+	}
+	if _, missingSalespersonErr := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-08-31"}); missingSalespersonErr == nil || !strings.Contains(missingSalespersonErr.Error(), "bill receipt is missing customer salesperson") {
+		t.Fatalf("bill source without an effective salesperson error = %v", missingSalespersonErr)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE bob_objects SET effective_version_id=$2 WHERE id=$1`,
+		carrySalesperson.ObjectID, carrySalesperson.VersionID); err != nil {
+		t.Fatalf("restore carried bill salesperson effective version: %v", err)
+	}
 	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-08-31"})
 	if err != nil {
 		t.Fatalf("load August intermediary source: %v", err)
@@ -2259,8 +2272,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		augustSource.Source.Lines[0].SourceKind != "SALE" ||
 		augustSource.Source.Lines[0].RebateUnitPrice != "0.20" ||
 		augustSource.Source.Lines[0].Intermediary == nil ||
-		augustSource.Source.Lines[0].Intermediary.ObjectID != intermediary.ObjectID ||
-		augustSource.Source.Bills[0].Salesperson.ObjectID != refs.employee.ObjectID {
+		augustSource.Source.Lines[0].Intermediary.ObjectID != intermediary.ObjectID {
 		t.Fatalf("August intermediary source = %+v", augustSource.Source)
 	}
 	sourceLine := augustSource.Source.Lines[0]
@@ -2276,7 +2288,8 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		}
 	}
 	if matchedBill == nil || laterAllocatedBill == nil || carriedBill == nil || matchedBill.BillType != "CHECK" ||
-		matchedBill.CostDays != 9 || matchedBill.Salesperson.ObjectID == billHandler.ObjectID {
+		matchedBill.CostDays != 9 || matchedBill.Salesperson.ObjectID != refs.employee.ObjectID ||
+		matchedBill.Salesperson.ObjectID == billHandler.ObjectID {
 		t.Fatalf("August bill attribution = %+v", augustSource.Source.Bills)
 	}
 	script, err := vouchers.GetIntermediaryScript(t.Context())
@@ -2460,6 +2473,25 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		len(adjustmentLine.ReturnDocumentNos) != 1 ||
 		adjustmentLine.ReturnDocumentNos[0] != septemberReturnView.DocumentNo {
 		t.Fatalf("September return adjustment line = %+v", adjustmentLine)
+	}
+	if _, invalidErr := vouchers.Create(t.Context(), voudomain.EntityIntermediaryCalculation,
+		voudomain.CreateInput{Data: voudomain.DraftInput{
+			BusinessDate: "2026-09-30", Currency: "CNY",
+			IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
+				Source: septemberSource.Source, SourceHash: septemberSource.SourceHash, Script: script,
+				Result: voudomain.IntermediaryCalculationResult{
+					Lines: []voudomain.IntermediaryResultLine{{
+						SourceSignoffLineID: adjustmentLine.SourceSignoffLineID,
+						PremiumUnitPrice:    "0.00", BarrelQuantity: adjustmentLine.BarrelQuantity,
+						BaseCommission: "0.00", PremiumCommission: "0.00", LowPriceCommission: "0.00",
+						MarketMaintenanceSubsidy: "0.00", MarketDevelopmentSubsidy: "0.00",
+						BillCost: "0.00", BillLineIDs: []string{}, EmployeeAmount: "0.00",
+						IntermediaryAmount: "0.00", RebateAmount: "0.00",
+					}}, Summaries: []voudomain.IntermediarySummary{},
+				},
+			},
+		}}, integrationActorOne, "intermediary-return-without-required-reversal"); invalidErr == nil || !strings.Contains(invalidErr.Error(), "return adjustment result amounts do not match its source") {
+		t.Fatalf("return adjustment without required reversal error = %v", invalidErr)
 	}
 	septemberCalculation, septemberCalculationView := advanceToApproved(
 		t, vouchers, voudomain.EntityIntermediaryCalculation, voudomain.DraftInput{

@@ -293,7 +293,7 @@ func (s *Service) intermediarySource(
 	}
 	for _, bill := range bills {
 		if bill.CustomerObjectID == nil || bill.CustomerVersionID == nil || bill.CustomerCode == nil || bill.CustomerName == nil ||
-			bill.SalespersonVersionID == nil {
+			bill.SalespersonObjectID == nil || bill.SalespersonVersionID == nil || bill.SalespersonCode == nil || bill.SalespersonName == nil {
 			return IntermediarySourceView{}, domainError(ErrorConflict, "bill receipt is missing customer salesperson", map[string]any{"documentNo": bill.ReceiptDocumentNo}, nil)
 		}
 		costDays := max(int(bill.MaturityDate.Time.Sub(bill.ReceiptDate.Time).Hours()/24), 0)
@@ -301,7 +301,7 @@ func (s *Service) intermediarySource(
 			BillLineID: bill.BillLineID, ReceiptDocumentID: bill.ReceiptDocumentID, ReceiptDocumentNo: bill.ReceiptDocumentNo,
 			ReceiptDate: formatDate(bill.ReceiptDate),
 			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerVersionID, "customer", *bill.CustomerCode, *bill.CustomerName),
-			Salesperson: intermediaryReference(bill.SalespersonObjectID, *bill.SalespersonVersionID, "employee", bill.SalespersonCode, bill.SalespersonName),
+			Salesperson: intermediaryReference(*bill.SalespersonObjectID, *bill.SalespersonVersionID, "employee", *bill.SalespersonCode, *bill.SalespersonName),
 			BillType:    bill.BillType, FaceAmount: formatMoney(bill.FaceAmountCents),
 			IssueDate: formatDate(bill.IssueDate), MaturityDate: formatDate(bill.MaturityDate), CostDays: costDays,
 		})
@@ -572,6 +572,19 @@ func (s *Service) prepareIntermediaryCalculation(
 			}
 			if len(line.BillLineIDs) != 0 {
 				return prepared, domainError(ErrorValidation, "return adjustment cannot allocate bill cost", nil, nil)
+			}
+			for index, value := range []string{
+				sourceLine.AdjustmentEmployeeAmount,
+				sourceLine.AdjustmentIntermediaryAmount,
+				sourceLine.AdjustmentRebateAmount,
+			} {
+				expectedAmount, parseErr := parseFixed(value, 2, true)
+				if parseErr != nil {
+					return prepared, domainError(ErrorConflict, "return adjustment source amount is invalid", nil, nil)
+				}
+				if parsedAmounts[6+index] != -expectedAmount {
+					return prepared, domainError(ErrorValidation, "return adjustment result amounts do not match its source", nil, nil)
+				}
 			}
 		}
 		premium := strings.TrimPrefix(strings.TrimSpace(line.PremiumUnitPrice), "-")

@@ -285,10 +285,10 @@ JOIN vou_bill_details detail ON detail.document_id=document.id
 JOIN vou_bill_lines bill_line ON bill_line.document_id=document.id
 JOIN bob_customer_versions customer_version
   ON customer_version.version_id=detail.counterparty_version_id
-JOIN bob_objects employee_object
+LEFT JOIN bob_objects employee_object
   ON employee_object.id=customer_version.salesperson_employee_id
  AND employee_object.entity='employee'
-JOIN bob_employee_versions employee_version
+LEFT JOIN bob_employee_versions employee_version
   ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
   AND document.status IN ('APPROVED','FINALIZED')

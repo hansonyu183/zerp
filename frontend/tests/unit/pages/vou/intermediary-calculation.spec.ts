@@ -310,6 +310,31 @@ describe('intermediary calculation QuickJS sandbox', () => {
     ).toThrow('桶数')
   })
 
+  it('rejects a bill allocation that does not deduct a positive cost', () => {
+    const billSource = structuredClone(source)
+    billSource.bills = [
+      {
+        billLineId: 'bill-line-1',
+        receiptDocumentId: 'bill-receipt-1',
+        receiptDocumentNo: 'BRE-001',
+        receiptDate: '2026-07-01',
+        customer,
+        salesperson,
+        billType: 'BANK_ACCEPTANCE',
+        faceAmount: '100.00',
+        issueDate: '2026-07-01',
+        maturityDate: '2026-08-01',
+        costDays: 31,
+      },
+    ]
+    const invalid = result()
+    invalid.lines[0].billLineIds = ['bill-line-1']
+
+    expect(() => validateIntermediaryResult(invalid, billSource)).toThrow(
+      '正数票据成本',
+    )
+  })
+
   it('keeps an unmatched bill available for a later period', async () => {
     const billOnlySource = structuredClone(source)
     billOnlySource.lines = []
@@ -412,5 +437,10 @@ describe('intermediary calculation QuickJS sandbox', () => {
       },
       { payee: customer, category: 'REBATE', amount: '-2.00' },
     ])
+    const invalid = structuredClone(calculated)
+    invalid.lines[0].employeeAmount = '0.00'
+    expect(() => validateIntermediaryResult(invalid, returnSource)).toThrow(
+      '必须与来源金额一致',
+    )
   })
 })

@@ -1717,7 +1717,7 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 }
 
 const listFinalizedVouDocumentsForLed = `-- name: ListFinalizedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id
 `
 
 func (q *Queries) ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
@@ -1755,6 +1755,7 @@ func (q *Queries) ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDoc
 			&i.ParentDocumentID,
 			&i.ParentEntity,
 			&i.DueDate,
+			&i.OitID,
 		); err != nil {
 			return nil, err
 		}

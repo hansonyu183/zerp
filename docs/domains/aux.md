@@ -83,4 +83,6 @@ account-subject ACS             asset-category ACT
 
 `aux_objects` 保存稳定对象和当前版本指针，`aux_versions` 保存版本及类型化 JSON 数据，`aux_audit_events` 保存追加式审计。虽然明细采用 JSONB，不同实体的允许字段、类型、范围和交叉约束必须由服务端严格白名单校验。
 
+`aux_objects.oit_id` 仅作为旧 OIT 聚合根映射的数据库内部字段。非空值不得含首尾空格，长度为 1–64，且在同一 `entity` 内唯一；应用 HTTP/API/UI 不读取或写入它。
+
 BOB、VOU 和 LED 在同一 PostgreSQL 事务中解析辅助对象引用并对稳定对象取得共享锁。历史版本永不被后续保存覆盖；停用、改名或新版本不会改写既有交易快照。

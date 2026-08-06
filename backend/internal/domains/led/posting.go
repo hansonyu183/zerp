@@ -290,6 +290,10 @@ func (s *Service) postDocument(
 func (s *Service) postIntermediaryCalculation(
 	ctx context.Context, q *dbsqlc.Queries, posting postingContext,
 ) error {
+	include, err := requireEffectiveDate(posting, posting.Document.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
 	summaries, err := q.ListVouIntermediaryCalculationSummaries(ctx, posting.Document.ID)
 	if err != nil {
 		return err

@@ -359,9 +359,10 @@ JOIN bob_employee_versions employee_version
   ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
   AND document.status IN ('APPROVED','FINALIZED')
+  AND document.business_date >= $1
   AND (CASE WHEN bill_line.bill_type='CHECK'
         THEN bill_line.maturity_date ELSE document.business_date END)
-      BETWEEN $1::date AND $2::date
+      BETWEEN $2::date AND $3::date
   AND bill_line.purpose='PRIMARY'
   AND bill_line.position_type='ASSET'
   AND bill_line.direction='IN'
@@ -370,6 +371,7 @@ ORDER BY employee_object.id,document.business_date,document.document_no,bill_lin
 `
 
 type ListIntermediaryBillSourceRowsParams struct {
+	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
 	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
 	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
 }
@@ -394,7 +396,7 @@ type ListIntermediaryBillSourceRowsRow struct {
 }
 
 func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error) {
-	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.CutoverDate, arg.PeriodStart, arg.PeriodEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +444,18 @@ WITH trade AS (
     SELECT entry.counterparty_object_id,entry.effective_date,
            entry.amount_delta_cents
     FROM trade entry
-    WHERE entry.source_entity<>'bill-receipt'
+    WHERE entry.source_entity NOT IN ('bill-receipt','sale-return')
+    UNION ALL
+    -- An after-sale return reduces the eligible signed quantity and its receivable
+    -- at the return date; keeping it separate prevents treating returned quantity
+    -- as a paid original sale.
+    SELECT entry.counterparty_object_id,entry.effective_date,
+           entry.amount_delta_cents
+    FROM trade entry
+    JOIN vou_sale_return_details return_detail
+      ON return_detail.document_id=entry.source_document_id
+     AND return_detail.return_kind='AFTER_SALE'
+    WHERE entry.source_entity='sale-return'
     UNION ALL
     SELECT entry.counterparty_object_id,
            (CASE WHEN bill_line.bill_type='CHECK'
@@ -508,6 +521,21 @@ func (q *Queries) ListIntermediaryCustomerTradeEvents(ctx context.Context, arg L
 }
 
 const listIntermediarySignoffSourceRows = `-- name: ListIntermediarySignoffSourceRows :many
+WITH returned AS (
+    SELECT return_line.source_signoff_line_id,
+           sum(return_line.quantity_micros)::bigint AS quantity_micros,
+           sum(return_line.line_amount_cents)::bigint AS amount_cents
+    FROM vou_sale_return_lines return_line
+    JOIN vou_sale_return_details return_detail
+      ON return_detail.document_id=return_line.document_id
+     AND return_detail.return_kind='AFTER_SALE'
+    JOIN vou_documents return_document
+      ON return_document.id=return_line.document_id
+     AND return_document.entity='sale-return'
+     AND return_document.status IN ('APPROVED','FINALIZED')
+     AND return_document.business_date <= $2
+    GROUP BY return_line.source_signoff_line_id
+)
 SELECT
     line.id AS source_signoff_line_id,
     signoff.id AS signoff_document_id,
@@ -535,13 +563,13 @@ SELECT
     line.product_name,
     line.product_unit,
     order_line.product_kind,
-    line.signed_qty_micros,
+    (line.signed_qty_micros-COALESCE(returned.quantity_micros,0))::bigint AS signed_qty_micros,
     order_line.pricing_quantity_per_inventory_unit_micros,
     line.unit_price_cents,
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
     customer_version.rebate_unit_price_cents,
-    line.line_amount_cents,
+    (line.line_amount_cents-COALESCE(returned.amount_cents,0))::bigint AS line_amount_cents,
     order_detail.settlement_term_code,
     order_detail.special_approval
 FROM vou_documents signoff
@@ -556,12 +584,20 @@ LEFT JOIN bob_objects intermediary_object
  AND intermediary_object.entity='other-party'
 LEFT JOIN bob_customer_versions intermediary_version
   ON intermediary_version.version_id=intermediary_object.effective_version_id
+LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status IN ('APPROVED','FINALIZED')
-  AND signoff.business_date <= $1
+  AND signoff.business_date >= $1
+  AND signoff.business_date <= $2
   AND signoff.currency='CNY'
+  AND line.signed_qty_micros-COALESCE(returned.quantity_micros,0) > 0
 ORDER BY detail.customer_object_id,signoff.business_date,signoff.document_no,line.line_no,line.id
 `
+
+type ListIntermediarySignoffSourceRowsParams struct {
+	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+}
 
 type ListIntermediarySignoffSourceRowsRow struct {
 	SourceSignoffLineID                   string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
@@ -601,8 +637,8 @@ type ListIntermediarySignoffSourceRowsRow struct {
 	SpecialApproval                       bool        `db:"special_approval" json:"special_approval"`
 }
 
-func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, periodEnd pgtype.Date) ([]ListIntermediarySignoffSourceRowsRow, error) {
-	rows, err := q.db.Query(ctx, listIntermediarySignoffSourceRows, periodEnd)
+func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error) {
+	rows, err := q.db.Query(ctx, listIntermediarySignoffSourceRows, arg.CutoverDate, arg.PeriodEnd)
 	if err != nil {
 		return nil, err
 	}

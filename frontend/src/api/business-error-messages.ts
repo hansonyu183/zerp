@@ -129,6 +129,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '采购订单当前未开放执行，请先在采购订单中撤销完成后重试。',
   'unfinished documents exist on or before the closing date':
     '结账日及以前仍有未完成单据，请先处理这些单据，或选择更早的结账月末。',
+  'closingDate cannot predate the ledger cutover':
+    '结账日期不能早于业务账簿切换日期。',
   'purchase order is not returnable': '采购订单当前不能退货。',
   'purchase order is not short closed': '采购订单尚未短关闭。',
   'purchase document has no source order': '采购单据缺少来源订单。',
@@ -277,6 +279,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '计算脚本已更新，请重新计算后保存。',
   'calculation source changed; recalculate before saving':
     '计算来源已变化，请重新计算后保存。',
+  'calculation source changed; recalculate before approval':
+    '计算来源已变化，请退回复核并重新计算后再批准。',
   'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
   'calculation summary does not match detail results':
     '计算稿汇总与明细不一致，请重新计算。',
@@ -292,8 +296,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '销售签收单缺少订单业务员快照，请先处理来源单据。',
   'source pricing quantity is invalid':
     '销售签收来源的计价数量无效，请检查产品单位换算。',
-  'the period intermediary calculation must be approved before closing':
-    '结账前必须完成并批准本期居间计算单。',
+  'every unclosed month must have an approved intermediary calculation before closing':
+    '结账范围内存在尚未完成的月度居间计算单，请逐月处理后再结账。',
   'payableCategory only applies to other payable':
     '应付类别筛选仅适用于其它应付台账。',
   'unsupported settlement rule': '当前结算规则不受支持。',

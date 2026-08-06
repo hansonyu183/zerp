@@ -93,10 +93,12 @@ func (s *Service) intermediarySource(
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read ledger control", err)
 	}
-	if control.Status != "ACTIVE" || control.ActiveGenerationID == nil {
+	if control.Status != "ACTIVE" || control.ActiveGenerationID == nil || !control.CutoverDate.Valid {
 		return IntermediarySourceView{}, domainError(ErrorConflict, "ledger must be active before calculation", nil, nil)
 	}
-	rows, err := q.ListIntermediarySignoffSourceRows(ctx, dateValue(periodEnd))
+	rows, err := q.ListIntermediarySignoffSourceRows(ctx, dbsqlc.ListIntermediarySignoffSourceRowsParams{
+		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source signoffs", err)
 	}
@@ -239,7 +241,7 @@ func (s *Service) intermediarySource(
 	}
 
 	bills, err := q.ListIntermediaryBillSourceRows(ctx, dbsqlc.ListIntermediaryBillSourceRowsParams{
-		PeriodStart: dateValue(periodStart), PeriodEnd: dateValue(periodEnd),
+		CutoverDate: control.CutoverDate, PeriodStart: dateValue(periodStart), PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source bills", err)
@@ -448,6 +450,39 @@ func (s *Service) prepareIntermediaryCalculation(
 	prepared.date, prepared.periodStart = date, periodStart
 	prepared.sourceJSON, prepared.resultJSON = sourceJSON, resultJSON
 	return prepared, nil
+}
+
+func (s *Service) validateStoredIntermediaryCalculation(
+	ctx context.Context, q *dbsqlc.Queries, documentID string,
+) error {
+	if _, err := q.LockLedControl(ctx); err != nil {
+		return s.internal("lock ledger control for intermediary calculation validation", err)
+	}
+	detail, err := q.GetVouIntermediaryCalculationDetail(ctx, documentID)
+	if err != nil {
+		return s.internal("read intermediary calculation attributes", err)
+	}
+	current, err := s.intermediarySource(ctx, q, detail.PeriodStart.Time, detail.PeriodEnd.Time)
+	if err != nil {
+		return err
+	}
+	var stored IntermediaryCalculationSource
+	if err = json.Unmarshal(detail.SourceSnapshot, &stored); err != nil {
+		return s.internal("decode intermediary calculation source snapshot", err)
+	}
+	storedJSON, err := json.Marshal(stored)
+	if err != nil {
+		return s.internal("encode intermediary calculation source snapshot", err)
+	}
+	currentJSON, err := json.Marshal(current.Source)
+	if err != nil {
+		return s.internal("encode current intermediary calculation source", err)
+	}
+	if detail.SourceHash != current.SourceHash || intermediaryHash(storedJSON) != detail.SourceHash ||
+		!bytes.Equal(storedJSON, currentJSON) {
+		return domainError(ErrorConflict, "calculation source changed; recalculate before approval", nil, nil)
+	}
+	return nil
 }
 
 func (s *Service) writeIntermediaryCalculation(

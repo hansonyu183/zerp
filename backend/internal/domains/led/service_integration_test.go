@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -323,6 +324,23 @@ func approveZeroIntermediaryCalculation(
 		t.Fatalf("approved intermediary calculation status = %s", view.Status)
 	}
 	return view
+}
+
+func approveZeroIntermediaryCalculations(
+	t *testing.T, service *integratedVoucherService, firstMonth, lastMonth string,
+) {
+	t.Helper()
+	first, err := time.Parse("2006-01-02", firstMonth)
+	if err != nil {
+		t.Fatalf("parse first intermediary month: %v", err)
+	}
+	last, err := time.Parse("2006-01-02", lastMonth)
+	if err != nil {
+		t.Fatalf("parse last intermediary month: %v", err)
+	}
+	for month := time.Date(first.Year(), first.Month(), 1, 0, 0, 0, 0, time.UTC); !month.After(last); month = month.AddDate(0, 1, 0) {
+		approveZeroIntermediaryCalculation(t, service, month.AddDate(0, 1, -1).Format("2006-01-02"))
+	}
 }
 
 func advancePurchaseInboundToApproved(
@@ -1908,7 +1926,7 @@ func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	if err := ledger.EnsureReady(t.Context()); err != nil {
 		t.Fatalf("prepare ledger closing: %v", err)
 	}
-	approveZeroIntermediaryCalculation(t, vouchers, "2026-07-31")
+	approveZeroIntermediaryCalculations(t, vouchers, "2026-01-01", "2026-07-31")
 	closing, err := ledger.GetClosing(t.Context())
 	if err != nil {
 		t.Fatalf("get closing before bill receipt period close: %v", err)
@@ -1932,6 +1950,85 @@ func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	}, integrationActorOne, "bill-receipt-create-closed-period")
 	if err == nil || !strings.Contains(err.Error(), "closed through 2026-07-31") {
 		t.Fatalf("closed-period bill receipt error = %v", err)
+	}
+}
+
+func TestLEDClosingRequiresEveryIntermediaryMonthIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare ledger for skipped intermediary month: %v", err)
+	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-01-31")
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-03-31")
+	closing, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get closing before skipped intermediary month: %v", err)
+	}
+	_, err = ledger.Close(t.Context(), ClosingInput{
+		Revision: closing.Revision, ClosingDate: "2026-03-31",
+	}, integrationActorOne, "close-with-skipped-intermediary-month")
+	var closingErr *DomainError
+	if !errors.As(err, &closingErr) {
+		t.Fatalf("skipped intermediary month closing error = %v", err)
+	}
+	closingData, ok := closingErr.Data.(map[string]any)
+	if !ok || closingData["firstMissingDate"] != "2026-02-28" {
+		t.Fatalf("skipped intermediary month closing error = %s, data = %+v, cause = %v",
+			closingErr.Message, closingErr.Data, closingErr.Cause)
+	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-02-28")
+	if _, err = ledger.Close(t.Context(), ClosingInput{
+		Revision: closing.Revision, ClosingDate: "2026-03-31",
+	}, integrationActorOne, "close-after-intermediary-month-complete"); err != nil {
+		t.Fatalf("close after completing intermediary months: %v", err)
+	}
+}
+
+func TestIntermediaryCalculationPostingRespectsLedgerCutoverIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	ledger, vouchers := newIntegratedServices(t, pool)
+	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{
+		Revision: 1, CutoverDate: "2026-07-01",
+		Inventory: []InventoryOpeningInput{}, Fund: []FundOpeningInput{}, Party: []PartyOpeningInput{},
+	}, integrationActorOne, "intermediary-cutover-opening")
+	if err != nil {
+		t.Fatalf("save intermediary cutover opening: %v", err)
+	}
+	if _, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
+		integrationActorOne, "intermediary-cutover-activate"); err != nil {
+		t.Fatalf("activate intermediary cutover opening: %v", err)
+	}
+	if err = ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare intermediary cutover ledger: %v", err)
+	}
+	source, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-06-30"})
+	if err != nil || len(source.Source.Lines) != 0 || len(source.Source.Bills) != 0 {
+		t.Fatalf("pre-cutover intermediary source = %+v, err=%v", source.Source, err)
+	}
+	script, err := vouchers.GetIntermediaryScript(t.Context())
+	if err != nil {
+		t.Fatalf("load intermediary cutover script: %v", err)
+	}
+	checked, _ := advanceToChecked(t, vouchers, voudomain.EntityIntermediaryCalculation, voudomain.DraftInput{
+		BusinessDate: "2026-06-30", Currency: "CNY",
+		IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
+			Source: source.Source, SourceHash: source.SourceHash, Script: script,
+			Result: voudomain.IntermediaryCalculationResult{
+				Lines: []voudomain.IntermediaryResultLine{}, Summaries: []voudomain.IntermediarySummary{},
+			},
+		},
+	})
+	if _, err = vouchers.Approve(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: checked.DocumentID, Revision: checked.Revision,
+	}, integrationActorOne, "approve-pre-cutover-intermediary-calculation"); err == nil ||
+		!strings.Contains(err.Error(), "predates ledger cutover") {
+		t.Fatalf("pre-cutover intermediary approval error = %v", err)
 	}
 }
 
@@ -2043,9 +2140,64 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 			},
 		},
 	}
-	_, calculationView := advanceToApproved(t, vouchers, voudomain.EntityIntermediaryCalculation, voudomain.DraftInput{
+	calculationDraft := voudomain.DraftInput{
 		BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: calculation,
+	}
+	checkedCalculation, _ := advanceToChecked(t, vouchers, voudomain.EntityIntermediaryCalculation, calculationDraft)
+	returnApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-06", Warehouse: &refs.warehouse, ReturnReason: "居间计算来源变更测试",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
+		}},
 	})
+	returnedSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-08-31"})
+	if err != nil || len(returnedSource.Source.Lines) != 1 ||
+		returnedSource.Source.Lines[0].SignedQuantity != "0.5" ||
+		returnedSource.Source.Lines[0].BarrelQuantity != "0.5" ||
+		returnedSource.Source.Lines[0].LineAmount != "6.00" {
+		t.Fatalf("intermediary source after partial return = %+v, err=%v", returnedSource.Source, err)
+	}
+	if _, err = vouchers.Approve(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: checkedCalculation.DocumentID, Revision: checkedCalculation.Revision,
+	}, integrationActorOne, "approve-stale-intermediary-calculation"); err == nil ||
+		!strings.Contains(err.Error(), "calculation source changed") {
+		t.Fatalf("stale intermediary calculation approval error = %v", err)
+	}
+	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntitySaleReturn, voudomain.ReverseInput{
+		DocumentID: returnApproved.DocumentID, Revision: returnApproved.Revision, Reason: "恢复居间计算来源",
+	}, integrationActorTwo, "unapprove-intermediary-source-return"); err != nil {
+		t.Fatalf("unapprove intermediary source return: %v", err)
+	}
+	draftCalculation, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: checkedCalculation.DocumentID, Revision: checkedCalculation.Revision, Reason: "重新计算变更来源",
+	}, integrationActorTwo, "uncheck-stale-intermediary-calculation")
+	if err != nil {
+		t.Fatalf("uncheck stale intermediary calculation: %v", err)
+	}
+	savedCalculation, err := vouchers.Save(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.SaveInput{
+		DocumentID: draftCalculation.DocumentID, Revision: draftCalculation.Revision, Data: calculationDraft,
+	}, integrationActorOne, "save-recalculated-intermediary-calculation")
+	if err != nil {
+		t.Fatalf("save recalculated intermediary calculation: %v", err)
+	}
+	recheckedCalculation, err := vouchers.Check(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: savedCalculation.DocumentID, Revision: savedCalculation.Revision,
+	}, integrationActorOne, "check-recalculated-intermediary-calculation")
+	if err != nil {
+		t.Fatalf("check recalculated intermediary calculation: %v", err)
+	}
+	approvedCalculation, err := vouchers.Approve(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: recheckedCalculation.DocumentID, Revision: recheckedCalculation.Revision,
+	}, integrationActorOne, "approve-recalculated-intermediary-calculation")
+	if err != nil {
+		t.Fatalf("approve recalculated intermediary calculation: %v", err)
+	}
+	calculationView, err := vouchers.Get(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.GetInput{
+		DocumentID: approvedCalculation.DocumentID,
+	})
+	if err != nil {
+		t.Fatalf("get approved intermediary calculation: %v", err)
+	}
 	if calculationView.Status != voudomain.StatusFinalized || calculationView.Amount != "17.00" ||
 		calculationView.Data.IntermediaryCalculation == nil ||
 		len(calculationView.Data.IntermediaryCalculation.Result.Lines) != 1 {
@@ -2253,7 +2405,7 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 		WHERE status <> 'FINALIZED'`).Scan(&unfinished); err != nil || unfinished != 0 {
 		t.Fatalf("unfinished documents before opening-backed rebuild = %d, err=%v", unfinished, err)
 	}
-	approveZeroIntermediaryCalculation(t, vouchers, "2026-07-31")
+	approveZeroIntermediaryCalculations(t, vouchers, "2026-06-01", "2026-07-31")
 	beforeClosing, err := ledger.GetClosing(t.Context())
 	if err != nil {
 		t.Fatalf("get closing before opening-backed rebuild: %v", err)

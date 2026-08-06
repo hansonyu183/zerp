@@ -511,11 +511,7 @@ func (s *Service) validateStoredAttributes(
 	missing := false
 	switch entity {
 	case EntityIntermediaryCalculation:
-		_, err := q.GetVouIntermediaryCalculationDetail(ctx, documentID)
-		if err != nil {
-			return s.internal("read intermediary calculation attributes", err)
-		}
-		return nil
+		return s.validateStoredIntermediaryCalculation(ctx, q, documentID)
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		detail, err := q.GetVouBillDetail(ctx, documentID)
 		if err != nil {

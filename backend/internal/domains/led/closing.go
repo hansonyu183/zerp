@@ -250,14 +250,20 @@ func (s *Service) Close(
 	var revision int64
 	var lastClosingID, generationID *string
 	var rebuildRequired bool
-	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required
+	var cutoverDate time.Time
+	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required,cutover_date
 		FROM led_control WHERE singleton=true FOR UPDATE`).
-		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired)
+		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired, &cutoverDate)
 	if err != nil {
 		return ClosingMutationResult{}, s.internal("lock closing control", err)
 	}
 	if revision != input.Revision || rebuildRequired || generationID == nil {
 		return ClosingMutationResult{}, domainError(ErrorConflict, "ledger closing changed", nil, nil)
+	}
+	if closingDate.Before(cutoverDate) {
+		return ClosingMutationResult{}, domainError(
+			ErrorValidation, "closingDate cannot predate the ledger cutover", nil, nil,
+		)
 	}
 	var periodStart = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 	if lastClosingID != nil {
@@ -286,16 +292,37 @@ func (s *Service) Close(
 			nil,
 		)
 	}
-	var calculationCount int64
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_documents
-		WHERE entity='intermediary-calculation' AND business_date=$1 AND status='FINALIZED'`, closingDate).
-		Scan(&calculationCount); err != nil {
-		return ClosingMutationResult{}, s.internal("check intermediary calculation", err)
+	calculationStart := periodStart
+	if lastClosingID == nil {
+		calculationStart = time.Date(cutoverDate.Year(), cutoverDate.Month(), 1, 0, 0, 0, 0, cutoverDate.Location())
+		if cutoverDate.Year() == 1 {
+			calculationStart = time.Date(closingDate.Year(), closingDate.Month(), 1, 0, 0, 0, 0, closingDate.Location())
+		}
 	}
-	if calculationCount != 1 {
+	var missingCalculationCount int64
+	var firstMissingCalculationDate pgtype.Date
+	if err = tx.QueryRow(ctx, `WITH required_months AS (
+		SELECT (month_start + interval '1 month - 1 day')::date AS month_end
+		FROM generate_series(date_trunc('month',$1::date),date_trunc('month',$2::date),interval '1 month') month_start
+	)
+	SELECT count(*),min(month_end) FROM required_months
+	WHERE NOT EXISTS (
+		SELECT 1 FROM vou_documents document
+		WHERE document.entity='intermediary-calculation'
+		  AND document.business_date=required_months.month_end
+		  AND document.status='FINALIZED'
+	)`, calculationStart, closingDate).Scan(&missingCalculationCount, &firstMissingCalculationDate); err != nil {
+		return ClosingMutationResult{}, s.internal("check intermediary calculations", err)
+	}
+	if missingCalculationCount != 0 {
+		firstMissing := ""
+		if firstMissingCalculationDate.Valid {
+			firstMissing = firstMissingCalculationDate.Time.Format(dateLayout)
+		}
 		return ClosingMutationResult{}, domainError(ErrorConflict,
-			"the period intermediary calculation must be approved before closing",
-			map[string]any{"closingDate": closingDate.Format(dateLayout)}, nil)
+			"every unclosed month must have an approved intermediary calculation before closing",
+			map[string]any{"count": missingCalculationCount, "firstMissingDate": firstMissing,
+				"closingDate": closingDate.Format(dateLayout)}, nil)
 	}
 	closingID := newID()
 	nextRevision := revision + 1

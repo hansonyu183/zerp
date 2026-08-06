@@ -22,6 +22,8 @@ const customerForm = {
   settlementMethodId: 'SM-1',
   monthlyClosingDay: 25,
   salespersonEmployeeId: 'EMP-1',
+  rebateUnitPrice: '0.35',
+  intermediaryOtherPartyId: 'OTP-1',
   taxNumber: 'TAX-001',
   contactName: '张三',
   contactPhone: '13800000000',
@@ -96,6 +98,8 @@ describe('customer shared BOB configuration and view model', () => {
       settlementMethodId: '',
       monthlyClosingDay: 31,
       salespersonEmployeeId: '',
+      rebateUnitPrice: '0.00',
+      intermediaryOtherPartyId: '',
       taxNumber: '',
       contactName: '',
       contactPhone: '',
@@ -113,6 +117,28 @@ describe('customer shared BOB configuration and view model', () => {
       domain: 'bob',
       entity: 'settlement-method',
     })
+    expect(customerConfig.references?.intermediaryOtherPartyId).toMatchObject({
+      entity: 'other-party',
+    })
+    const rebateField = customerConfig
+      .fields({
+        mode: 'create',
+        referenceErrors: {},
+        referenceLoading: {},
+        referenceOptions: {},
+      })
+      .find((field) => field.key === 'rebateUnitPrice')
+    expect(rebateField).toMatchObject({
+      type: 'text',
+      required: true,
+      placeholder: '0.00',
+    })
+    expect(rebateField?.rules?.[0]?.('0.35', customerConfig.emptyForm())).toBe(
+      true,
+    )
+    expect(
+      rebateField?.rules?.[0]?.('0.351', customerConfig.emptyForm()),
+    ).toBe('返点价必须是非负且最多两位小数的数值。')
     expect(customerConfig.filters.map((field) => field.key)).toEqual([
       'status',
       'enabled',
@@ -222,6 +248,8 @@ describe('customer shared BOB configuration and view model', () => {
           customerType: 'DIT-0002',
           monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
+          rebateUnitPrice: '0.35',
+          intermediaryOtherPartyId: 'OTP-1',
         },
       },
     )
@@ -281,6 +309,8 @@ describe('customer shared BOB configuration and view model', () => {
           settlementMethodId: '',
           monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
+          rebateUnitPrice: '0.35',
+          intermediaryOtherPartyId: 'OTP-1',
           taxNumber: 'TAX-001',
           contactName: '',
           contactPhone: '',

@@ -17,15 +17,25 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		if monthlyClosingDay == 0 {
 			monthlyClosingDay = 31
 		}
+		var rebateUnitPrice int64
+		if entity == EntityCustomer {
+			var err error
+			rebateUnitPrice, err = moneyCents(data.RebateUnitPrice)
+			if err != nil {
+				return err
+			}
+		}
 		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
 			VersionID: versionID, Entity: entity, Name: data.Name, CustomerType: data.CustomerType,
 			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:    nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:     monthlyClosingDay,
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
+			SettlementMethodID:       nilIfEmpty(data.SettlementMethodID),
+			MonthlyClosingDay:        monthlyClosingDay,
+			SalespersonEmployeeID:    data.SalespersonEmployeeID,
+			RebateUnitPriceCents:     rebateUnitPrice,
+			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
 		})
 	case EntitySupplier:
 		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
@@ -136,15 +146,25 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		if monthlyClosingDay == 0 {
 			monthlyClosingDay = 31
 		}
+		var rebateUnitPrice int64
+		if entity == EntityCustomer {
+			var parseErr error
+			rebateUnitPrice, parseErr = moneyCents(data.RebateUnitPrice)
+			if parseErr != nil {
+				return parseErr
+			}
+		}
 		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
 			Name: data.Name, CustomerType: data.CustomerType, ShortName: nilIfEmpty(data.ShortName),
 			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:     monthlyClosingDay,
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
-			VersionID:             versionID,
+			MonthlyClosingDay:        monthlyClosingDay,
+			SalespersonEmployeeID:    data.SalespersonEmployeeID,
+			RebateUnitPriceCents:     rebateUnitPrice,
+			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
+			VersionID:                versionID,
 		})
 	case EntitySupplier:
 		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{

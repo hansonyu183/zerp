@@ -67,14 +67,25 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}}, integrationActorOne, "inactive-salesperson-target"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("inactive salesperson target error = %v", err)
 	}
+	intermediary, _ := createApprovedIntegration(t, service, EntityOtherParty, CreateDetailInput{
+		Code: "IM" + newID(), Name: "客户居间商", SalespersonEmployeeID: salesperson.ObjectID,
+	}, "customer-intermediary")
+	if _, err = service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+		Code: "WI" + newID(), Name: "错误居间商客户", SalespersonEmployeeID: salesperson.ObjectID,
+		IntermediaryOtherPartyID: position.ObjectID,
+	}}, integrationActorOne, "wrong-intermediary-target"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("wrong intermediary target error = %v", err)
+	}
 	taxNumber := "TAX" + newID()
 	customer, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
 		Code: "CA" + newID(), Name: "属性客户", CustomerType: stringIntegrationPointer(CustomerTypeDealer),
 		ShortName: "属性客户简称", TaxNumber: taxNumber,
 		ContactName: "联系人", ContactPhone: "+86 13800000000",
 		Email: "CONTACT@EXAMPLE.COM", Address: "上海市示例路", Remark: "新增属性",
-		SettlementMethodID:    settlementObjectID,
-		SalespersonEmployeeID: salesperson.ObjectID,
+		SettlementMethodID:       settlementObjectID,
+		SalespersonEmployeeID:    salesperson.ObjectID,
+		RebateUnitPrice:          "0.35",
+		IntermediaryOtherPartyID: intermediary.ObjectID,
 	}}, integrationActorOne, "common-customer-create")
 	if err != nil {
 		t.Fatalf("create customer attributes: %v", err)
@@ -90,7 +101,9 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	if err != nil || view.Data.ShortName != "属性客户简称" || view.Data.TaxNumber != taxNumber ||
 		view.Data.Email != "contact@example.com" ||
 		view.Data.SettlementMethodID != settlementObjectID ||
-		view.Data.SalespersonEmployeeID != salesperson.ObjectID {
+		view.Data.SalespersonEmployeeID != salesperson.ObjectID ||
+		view.Data.RebateUnitPrice != "0.35" ||
+		view.Data.IntermediaryOtherPartyID != intermediary.ObjectID {
 		t.Fatalf("preserved customer view=%+v err=%v", view, err)
 	}
 	page, err := service.Query(t.Context(), EntityCustomer, QueryInput{
@@ -102,7 +115,9 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	})
 	if err != nil || page.Total != 1 || len(page.Items) != 1 ||
 		page.Items[0].CurrentVersion.Summary.SettlementMethodID != settlementObjectID ||
-		page.Items[0].CurrentVersion.Summary.SalespersonEmployeeID != salesperson.ObjectID {
+		page.Items[0].CurrentVersion.Summary.SalespersonEmployeeID != salesperson.ObjectID ||
+		page.Items[0].CurrentVersion.Summary.RebateUnitPrice != "0.35" ||
+		page.Items[0].CurrentVersion.Summary.IntermediaryOtherPartyID != intermediary.ObjectID {
 		t.Fatalf("query common attributes page=%+v err=%v", page, err)
 	}
 	supplier, err := service.Create(t.Context(), EntitySupplier, CreateInput{Data: CreateDetailInput{

@@ -113,6 +113,7 @@ SELECT EXISTS (
     WHERE category_id = $1
        OR settlement_method_id = $1
        OR salesperson_employee_id = $1
+       OR intermediary_other_party_id = $1
 
     UNION ALL
 
@@ -345,11 +346,13 @@ const copyBobCustomerDetail = `-- name: CopyBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
     version_id, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    monthly_closing_day, salesperson_employee_id
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 )
 SELECT $1, d.name, d.customer_type, d.short_name, d.category_id,
        d.tax_number, d.contact_name, d.contact_phone, d.email, d.address, d.remark,
-       d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id
+       d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id,
+       d.rebate_unit_price_cents, d.intermediary_other_party_id
 FROM bob_customer_versions d WHERE d.version_id = $2
 `
 
@@ -1075,7 +1078,7 @@ func (q *Queries) GetBobProductFormula(ctx context.Context, productVersionID str
 }
 
 const getBobVersionView = `-- name: GetBobVersionView :one
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents, intermediary_other_party_id FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
   AND version_id = COALESCE(NULLIF($3::text, ''), current_version_id)
 `
@@ -1162,6 +1165,8 @@ func (q *Queries) GetBobVersionView(ctx context.Context, arg GetBobVersionViewPa
 		&i.MonthlyClosingDay,
 		&i.SettlementTermCode,
 		&i.SettlementDefaultSalesSurchargeCents,
+		&i.RebateUnitPriceCents,
+		&i.IntermediaryOtherPartyID,
 	)
 	return i, err
 }
@@ -1237,33 +1242,37 @@ const insertBobCustomerDetail = `-- name: InsertBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
     version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    monthly_closing_day, salesperson_employee_id
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
     $8, $9, $10,
     $11, $12, $13,
     $14,
-    $15
+    $15, $16,
+    $17
 )
 `
 
 type InsertBobCustomerDetailParams struct {
-	VersionID             string  `db:"version_id" json:"version_id"`
-	Entity                string  `db:"entity" json:"entity"`
-	Name                  string  `db:"name" json:"name"`
-	CustomerType          string  `db:"customer_type" json:"customer_type"`
-	ShortName             *string `db:"short_name" json:"short_name"`
-	CategoryID            *string `db:"category_id" json:"category_id"`
-	TaxNumber             *string `db:"tax_number" json:"tax_number"`
-	ContactName           *string `db:"contact_name" json:"contact_name"`
-	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
-	Email                 *string `db:"email" json:"email"`
-	Address               *string `db:"address" json:"address"`
-	Remark                *string `db:"remark" json:"remark"`
-	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
-	MonthlyClosingDay     int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
-	SalespersonEmployeeID string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	VersionID                string  `db:"version_id" json:"version_id"`
+	Entity                   string  `db:"entity" json:"entity"`
+	Name                     string  `db:"name" json:"name"`
+	CustomerType             string  `db:"customer_type" json:"customer_type"`
+	ShortName                *string `db:"short_name" json:"short_name"`
+	CategoryID               *string `db:"category_id" json:"category_id"`
+	TaxNumber                *string `db:"tax_number" json:"tax_number"`
+	ContactName              *string `db:"contact_name" json:"contact_name"`
+	ContactPhone             *string `db:"contact_phone" json:"contact_phone"`
+	Email                    *string `db:"email" json:"email"`
+	Address                  *string `db:"address" json:"address"`
+	Remark                   *string `db:"remark" json:"remark"`
+	SettlementMethodID       *string `db:"settlement_method_id" json:"settlement_method_id"`
+	MonthlyClosingDay        int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
+	SalespersonEmployeeID    string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	RebateUnitPriceCents     int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	IntermediaryOtherPartyID *string `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
 }
 
 func (q *Queries) InsertBobCustomerDetail(ctx context.Context, arg InsertBobCustomerDetailParams) error {
@@ -1283,6 +1292,8 @@ func (q *Queries) InsertBobCustomerDetail(ctx context.Context, arg InsertBobCust
 		arg.SettlementMethodID,
 		arg.MonthlyClosingDay,
 		arg.SalespersonEmployeeID,
+		arg.RebateUnitPriceCents,
+		arg.IntermediaryOtherPartyID,
 	)
 	return err
 }
@@ -1875,7 +1886,7 @@ func (q *Queries) ListBobAuditEvents(ctx context.Context, arg ListBobAuditEvents
 }
 
 const listBobObjects = `-- name: ListBobObjects :many
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents, view.intermediary_other_party_id
 FROM bob_version_views view
 WHERE view.entity = $1 AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
@@ -2059,6 +2070,8 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.MonthlyClosingDay,
 			&i.SettlementTermCode,
 			&i.SettlementDefaultSalesSurchargeCents,
+			&i.RebateUnitPriceCents,
+			&i.IntermediaryOtherPartyID,
 		); err != nil {
 			return nil, err
 		}
@@ -2155,7 +2168,7 @@ func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productVersion
 }
 
 const listBobVersions = `-- name: ListBobVersions :many
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, currency, supplier_type, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, container_type, quantity_per_container_micros, product_kind, inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros, returnable, packaging_specs, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents, intermediary_other_party_id FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
 ORDER BY version_no DESC
 LIMIT $4 OFFSET $3
@@ -2255,6 +2268,8 @@ func (q *Queries) ListBobVersions(ctx context.Context, arg ListBobVersionsParams
 			&i.MonthlyClosingDay,
 			&i.SettlementTermCode,
 			&i.SettlementDefaultSalesSurchargeCents,
+			&i.RebateUnitPriceCents,
+			&i.IntermediaryOtherPartyID,
 		); err != nil {
 			return nil, err
 		}
@@ -2544,7 +2559,7 @@ func (q *Queries) RejectBobVersion(ctx context.Context, arg RejectBobVersionPara
 }
 
 const resolveBobEffectiveReference = `-- name: ResolveBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents, view.intermediary_other_party_id
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -2637,12 +2652,14 @@ func (q *Queries) ResolveBobEffectiveReference(ctx context.Context, arg ResolveB
 		&i.MonthlyClosingDay,
 		&i.SettlementTermCode,
 		&i.SettlementDefaultSalesSurchargeCents,
+		&i.RebateUnitPriceCents,
+		&i.IntermediaryOtherPartyID,
 	)
 	return i, err
 }
 
 const resolveCurrentBobEffectiveReference = `-- name: ResolveCurrentBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.currency, view.supplier_type, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.container_type, view.quantity_per_container_micros, view.product_kind, view.inventory_unit_id, view.pricing_unit_id, view.pricing_quantity_per_inventory_unit_micros, view.returnable, view.packaging_specs, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents, view.intermediary_other_party_id
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -2734,6 +2751,8 @@ func (q *Queries) ResolveCurrentBobEffectiveReference(ctx context.Context, arg R
 		&i.MonthlyClosingDay,
 		&i.SettlementTermCode,
 		&i.SettlementDefaultSalesSurchargeCents,
+		&i.RebateUnitPriceCents,
+		&i.IntermediaryOtherPartyID,
 	)
 	return i, err
 }
@@ -2916,25 +2935,29 @@ SET name = $1, customer_type = $2,
     address = $9, remark = $10,
     settlement_method_id = $11,
     monthly_closing_day = $12,
-    salesperson_employee_id = $13
-WHERE version_id = $14
+    salesperson_employee_id = $13,
+    rebate_unit_price_cents = $14,
+    intermediary_other_party_id = $15
+WHERE version_id = $16
 `
 
 type UpdateBobCustomerDetailParams struct {
-	Name                  string  `db:"name" json:"name"`
-	CustomerType          string  `db:"customer_type" json:"customer_type"`
-	ShortName             *string `db:"short_name" json:"short_name"`
-	CategoryID            *string `db:"category_id" json:"category_id"`
-	TaxNumber             *string `db:"tax_number" json:"tax_number"`
-	ContactName           *string `db:"contact_name" json:"contact_name"`
-	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
-	Email                 *string `db:"email" json:"email"`
-	Address               *string `db:"address" json:"address"`
-	Remark                *string `db:"remark" json:"remark"`
-	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
-	MonthlyClosingDay     int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
-	SalespersonEmployeeID string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
-	VersionID             string  `db:"version_id" json:"version_id"`
+	Name                     string  `db:"name" json:"name"`
+	CustomerType             string  `db:"customer_type" json:"customer_type"`
+	ShortName                *string `db:"short_name" json:"short_name"`
+	CategoryID               *string `db:"category_id" json:"category_id"`
+	TaxNumber                *string `db:"tax_number" json:"tax_number"`
+	ContactName              *string `db:"contact_name" json:"contact_name"`
+	ContactPhone             *string `db:"contact_phone" json:"contact_phone"`
+	Email                    *string `db:"email" json:"email"`
+	Address                  *string `db:"address" json:"address"`
+	Remark                   *string `db:"remark" json:"remark"`
+	SettlementMethodID       *string `db:"settlement_method_id" json:"settlement_method_id"`
+	MonthlyClosingDay        int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
+	SalespersonEmployeeID    string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	RebateUnitPriceCents     int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	IntermediaryOtherPartyID *string `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
+	VersionID                string  `db:"version_id" json:"version_id"`
 }
 
 func (q *Queries) UpdateBobCustomerDetail(ctx context.Context, arg UpdateBobCustomerDetailParams) (int64, error) {
@@ -2952,6 +2975,8 @@ func (q *Queries) UpdateBobCustomerDetail(ctx context.Context, arg UpdateBobCust
 		arg.SettlementMethodID,
 		arg.MonthlyClosingDay,
 		arg.SalespersonEmployeeID,
+		arg.RebateUnitPriceCents,
+		arg.IntermediaryOtherPartyID,
 		arg.VersionID,
 	)
 	if err != nil {

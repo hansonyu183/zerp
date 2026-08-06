@@ -46,17 +46,17 @@ BOB 不负责：
 
 八类实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。除由服务端生成且创建后不可修改的 `code` 外，下表字段均随版本保存：
 
-| 实体           | 版本字段                                                                                                                                                                                             |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`monthlyClosingDay`、`salespersonEmployeeId`                    |
-| `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                         |
-| `other-party`  | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                         |
-| `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                         |
-| `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark` |
-| `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                   |
-| `warehouse`    | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                                      |
-| `vehicle`      | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                                          |
-| `fund-account` | `name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                               |
+| 实体           | 版本字段                                                                                                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `customer`     | `name`、`customerType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`monthlyClosingDay`、`salespersonEmployeeId`、`rebateUnitPrice`、`intermediaryOtherPartyId` |
+| `supplier`     | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                     |
+| `other-party`  | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                                     |
+| `employee`     | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                                                     |
+| `product`      | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark`                             |
+| `service`      | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                                               |
+| `warehouse`    | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                                                                  |
+| `vehicle`      | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                                                                      |
+| `fund-account` | `name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                                                           |
 
 `customerType` 和 `vehicleType` 保存 AUX 字典项编码；初始客户类型为 `DIT-0001`（终端客户）、
 `DIT-0002`（经销商），初始车辆类型为 `DIT-0003`（厢式货车）。`supplierType` 仍是业务枚举，
@@ -73,6 +73,8 @@ BOB 不负责：
 客户和供应商的 `settlementMethodId` 引用当前启用且生效的 BOB 结算方式，可选维护。交易单据的到期日和销售加价规则见 VOU 文档。
 
 客户的 `monthlyClosingDay` 为月结日，取 `1–31`，默认为 `31`。实际签收日在该日及之前时归入当月账单，在该日之后归入下月账单。`31` 与自然月等价，因此未单独设置时使用 `31`，数据库列保持 `NOT NULL DEFAULT 31`。新建时省略或 UI 空值均归一化为 `31`；保存时省略表示保持原值。
+
+客户的 `rebateUnitPrice` 为返点单价，使用非负、最多两位小数的元/kg 定点字符串，默认 `0.00`。`intermediaryOtherPartyId` 可选引用一个当前有效的 `other-party` 对象。两项都随客户版本保存；销售订单引用客户历史版本，因此后续居间计算以开单时客户版本中的返点价和居间商为准，客户后续修改不追溯改变既有订单。
 
 ### 2.2 固定结算方式
 

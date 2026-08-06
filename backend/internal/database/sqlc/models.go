@@ -275,6 +275,8 @@ type BobCustomerVersion struct {
 	SalespersonEmployeeID     string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
 	SalespersonEmployeeEntity string  `db:"salesperson_employee_entity" json:"salesperson_employee_entity"`
 	MonthlyClosingDay         int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
+	RebateUnitPriceCents      int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	IntermediaryOtherPartyID  *string `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
 }
 
 type BobDepartmentVersion struct {
@@ -575,6 +577,8 @@ type BobVersionView struct {
 	MonthlyClosingDay                     int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
 	SettlementTermCode                    string             `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDefaultSalesSurchargeCents  int64              `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	RebateUnitPriceCents                  int64              `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	IntermediaryOtherPartyID              string             `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
 }
 
 type BobVersionViews00046Base struct {
@@ -648,6 +652,81 @@ type BobVersionViews00046Base struct {
 	Returnable                            bool               `db:"returnable" json:"returnable"`
 	PackagingSpecs                        interface{}        `db:"packaging_specs" json:"packaging_specs"`
 	MonthlyClosingDay                     int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
+}
+
+type BobVersionViews00056Base struct {
+	ObjectID                              string             `db:"object_id" json:"object_id"`
+	Entity                                string             `db:"entity" json:"entity"`
+	Code                                  string             `db:"code" json:"code"`
+	CurrentVersionID                      string             `db:"current_version_id" json:"current_version_id"`
+	EffectiveVersionID                    *string            `db:"effective_version_id" json:"effective_version_id"`
+	ObjectRevision                        int64              `db:"object_revision" json:"object_revision"`
+	ObjectUpdatedAt                       pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
+	VersionID                             string             `db:"version_id" json:"version_id"`
+	VersionNo                             int32              `db:"version_no" json:"version_no"`
+	Status                                string             `db:"status" json:"status"`
+	VersionRevision                       int64              `db:"version_revision" json:"version_revision"`
+	CreatedAt                             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy                             string             `db:"created_by" json:"created_by"`
+	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                             string             `db:"updated_by" json:"updated_by"`
+	SubmittedAt                           pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	SubmittedBy                           *string            `db:"submitted_by" json:"submitted_by"`
+	ReviewedAt                            pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
+	ReviewedBy                            *string            `db:"reviewed_by" json:"reviewed_by"`
+	ReviewComment                         *string            `db:"review_comment" json:"review_comment"`
+	Name                                  string             `db:"name" json:"name"`
+	Unit                                  string             `db:"unit" json:"unit"`
+	Currency                              *string            `db:"currency" json:"currency"`
+	SupplierType                          *string            `db:"supplier_type" json:"supplier_type"`
+	PlateNumber                           *string            `db:"plate_number" json:"plate_number"`
+	VehicleType                           *string            `db:"vehicle_type" json:"vehicle_type"`
+	PlatformObjectID                      *string            `db:"platform_object_id" json:"platform_object_id"`
+	CustomerType                          string             `db:"customer_type" json:"customer_type"`
+	ShortName                             string             `db:"short_name" json:"short_name"`
+	CategoryID                            string             `db:"category_id" json:"category_id"`
+	TaxNumber                             string             `db:"tax_number" json:"tax_number"`
+	ContactName                           string             `db:"contact_name" json:"contact_name"`
+	ContactPhone                          string             `db:"contact_phone" json:"contact_phone"`
+	Email                                 string             `db:"email" json:"email"`
+	Address                               string             `db:"address" json:"address"`
+	Remark                                string             `db:"remark" json:"remark"`
+	DepartmentID                          string             `db:"department_id" json:"department_id"`
+	PositionID                            string             `db:"position_id" json:"position_id"`
+	Phone                                 string             `db:"phone" json:"phone"`
+	HireDate                              string             `db:"hire_date" json:"hire_date"`
+	Specification                         string             `db:"specification" json:"specification"`
+	Model                                 string             `db:"model" json:"model"`
+	Barcode                               string             `db:"barcode" json:"barcode"`
+	Description                           string             `db:"description" json:"description"`
+	ManagerEmployeeID                     string             `db:"manager_employee_id" json:"manager_employee_id"`
+	Vin                                   string             `db:"vin" json:"vin"`
+	EngineNumber                          string             `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        string             `db:"load_capacity_kg" json:"load_capacity_kg"`
+	AccountName                           string             `db:"account_name" json:"account_name"`
+	BankName                              string             `db:"bank_name" json:"bank_name"`
+	BankBranch                            string             `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                         string             `db:"account_number" json:"account_number"`
+	TargetEntity                          string             `db:"target_entity" json:"target_entity"`
+	ParentID                              string             `db:"parent_id" json:"parent_id"`
+	SettlementMethodID                    string             `db:"settlement_method_id" json:"settlement_method_id"`
+	SalespersonEmployeeID                 string             `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	SettlementMethodVersionID             string             `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementRuleType                    string             `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                 int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                  int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                   int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
+	ContainerType                         string             `db:"container_type" json:"container_type"`
+	QuantityPerContainerMicros            int64              `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
+	ProductKind                           string             `db:"product_kind" json:"product_kind"`
+	InventoryUnitID                       string             `db:"inventory_unit_id" json:"inventory_unit_id"`
+	PricingUnitID                         string             `db:"pricing_unit_id" json:"pricing_unit_id"`
+	PricingQuantityPerInventoryUnitMicros int64              `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
+	Returnable                            bool               `db:"returnable" json:"returnable"`
+	PackagingSpecs                        interface{}        `db:"packaging_specs" json:"packaging_specs"`
+	MonthlyClosingDay                     int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
+	SettlementTermCode                    string             `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementDefaultSalesSurchargeCents  int64              `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
 }
 
 type BobWarehouseVersion struct {

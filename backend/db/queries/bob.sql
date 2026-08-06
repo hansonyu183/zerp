@@ -24,14 +24,16 @@ INSERT INTO bob_versions (
 INSERT INTO bob_customer_versions (
     version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    monthly_closing_day, salesperson_employee_id
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 ) VALUES (
     sqlc.arg(version_id), sqlc.arg(entity), sqlc.arg(name), sqlc.arg(customer_type),
     sqlc.narg(short_name), sqlc.narg(category_id), sqlc.narg(tax_number),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(email),
     sqlc.narg(address), sqlc.narg(remark), sqlc.narg(settlement_method_id),
     sqlc.arg(monthly_closing_day),
-    sqlc.arg(salesperson_employee_id)
+    sqlc.arg(salesperson_employee_id), sqlc.arg(rebate_unit_price_cents),
+    sqlc.narg(intermediary_other_party_id)
 );
 
 -- name: InsertBobSupplierDetail :exec
@@ -139,11 +141,13 @@ INSERT INTO bob_settlement_method_versions (
 INSERT INTO bob_customer_versions (
     version_id, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    monthly_closing_day, salesperson_employee_id
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 )
 SELECT sqlc.arg(new_version_id), d.name, d.customer_type, d.short_name, d.category_id,
        d.tax_number, d.contact_name, d.contact_phone, d.email, d.address, d.remark,
-       d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id
+       d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id,
+       d.rebate_unit_price_cents, d.intermediary_other_party_id
 FROM bob_customer_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobSupplierDetail :exec
@@ -241,7 +245,9 @@ SET name = sqlc.arg(name), customer_type = sqlc.arg(customer_type),
     address = sqlc.narg(address), remark = sqlc.narg(remark),
     settlement_method_id = sqlc.narg(settlement_method_id),
     monthly_closing_day = sqlc.arg(monthly_closing_day),
-    salesperson_employee_id = sqlc.arg(salesperson_employee_id)
+    salesperson_employee_id = sqlc.arg(salesperson_employee_id),
+    rebate_unit_price_cents = sqlc.arg(rebate_unit_price_cents),
+    intermediary_other_party_id = sqlc.narg(intermediary_other_party_id)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobSupplierDetail :execrows
@@ -491,6 +497,7 @@ SELECT EXISTS (
     WHERE category_id = sqlc.arg(target_object_id)
        OR settlement_method_id = sqlc.arg(target_object_id)
        OR salesperson_employee_id = sqlc.arg(target_object_id)
+       OR intermediary_other_party_id = sqlc.arg(target_object_id)
 
     UNION ALL
 

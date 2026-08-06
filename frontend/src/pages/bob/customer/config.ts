@@ -23,6 +23,8 @@ export const customerConfig = defineBobEntityConfig({
     settlementMethodId: '',
     monthlyClosingDay: 31,
     salespersonEmployeeId: '',
+    rebateUnitPrice: '0.00',
+    intermediaryOtherPartyId: '',
     taxNumber: '',
     contactName: '',
     contactPhone: '',
@@ -54,6 +56,10 @@ export const customerConfig = defineBobEntityConfig({
       entity: 'employee',
       label: '业务员',
     },
+    intermediaryOtherPartyId: {
+      entity: 'other-party',
+      label: '居间商',
+    },
   },
   fields: (context) => [
     ...commonFields(context, '客户编码', '客户名称'),
@@ -69,6 +75,21 @@ export const customerConfig = defineBobEntityConfig({
       hint: '该日之后至当月月底的业务归入下月账单。',
     },
     reference('salespersonEmployeeId', '业务员', context, true),
+    {
+      key: 'rebateUnitPrice',
+      label: '返点价（元/kg）',
+      type: 'text',
+      required: true,
+      placeholder: '0.00',
+      rules: [
+        patternRule(
+          /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/,
+          '返点价必须是非负且最多两位小数的数值。',
+        ),
+      ],
+      hint: '居间计算时按签收数量计入客户的返点类其他应付。',
+    },
+    reference('intermediaryOtherPartyId', '居间商', context),
     text('taxNumber', '税号', 50, {
       rules: [
         patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),

@@ -2498,6 +2498,10 @@ export interface components {
                 termCode?: string | null;
                 defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
+                /** @description 仅客户适用；返点单价，单位为元/kg，省略按 0 处理 */
+                rebateUnitPrice?: string | null;
+                /** @description 仅客户适用；引用其他往来单位中的居间商 */
+                intermediaryOtherPartyId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
                 inventoryUnitId?: string | null;
@@ -2551,6 +2555,8 @@ export interface components {
                 termCode?: string | null;
                 defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
+                rebateUnitPrice?: string | null;
+                intermediaryOtherPartyId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
                 inventoryUnitId?: string | null;

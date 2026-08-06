@@ -2004,15 +2004,53 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save opening before approved-posting rebuild: %v", err)
 	}
-	activated, err := ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
+	_, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
 		integrationActorOne, "activate-before-approved-posting-rebuild")
 	if err != nil {
 		t.Fatalf("activate opening before approved-posting rebuild: %v", err)
+	}
+	if err = ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare active opening before approved-posting rebuild: %v", err)
+	}
+	activeBeforeRebuild, err := ledger.GetOpening(t.Context())
+	if err != nil {
+		t.Fatalf("get active opening before approved-posting rebuild: %v", err)
 	}
 	order, orderView := approveSaleOrder(t, vouchers, refs, "6")
 	outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "6")
 	if outbound.Status != voudomain.StatusFinalized {
 		t.Fatalf("approved sale outbound status = %s", outbound.Status)
+	}
+	delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	signoff, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+			SignedQuantity: "6", RejectedQuantity: "0",
+		}},
+	})
+	if signoff.Status != voudomain.StatusFinalized {
+		t.Fatalf("approved sale signoff status = %s", signoff.Status)
+	}
+	if err = vouchers.ReconcileCompletionStatuses(t.Context()); err != nil {
+		t.Fatalf("reconcile sales completion before opening-backed rebuild: %v", err)
+	}
+	var unfinished int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_documents
+		WHERE status <> 'FINALIZED'`).Scan(&unfinished); err != nil || unfinished != 0 {
+		t.Fatalf("unfinished documents before opening-backed rebuild = %d, err=%v", unfinished, err)
+	}
+	beforeClosing, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get closing before opening-backed rebuild: %v", err)
+	}
+	if _, err = ledger.Close(t.Context(), ClosingInput{
+		Revision: beforeClosing.Revision, ClosingDate: "2026-07-31",
+	}, integrationActorOne, "close-before-opening-backed-rebuild"); err != nil {
+		t.Fatalf("close before opening-backed rebuild: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), `UPDATE led_control SET rebuild_required=true WHERE singleton=true`); err != nil {
 		t.Fatalf("request approved-posting rebuild with opening: %v", err)
@@ -2025,7 +2063,7 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get opening after approved-posting rebuild: %v", err)
 	}
-	if opening.CutoverDate != "2026-06-01" || opening.ActiveGenerationID == activated.GenerationID ||
+	if opening.CutoverDate != "2026-06-01" || opening.ActiveGenerationID == activeBeforeRebuild.ActiveGenerationID ||
 		len(opening.Inventory) != 1 || opening.Inventory[0].Quantity != "10.0" || opening.Inventory[0].Amount != "100.00" ||
 		len(opening.Fund) != 1 || opening.Fund[0].Amount != "100.00" ||
 		len(opening.Party) != 1 || opening.Party[0].Amount != "50.00" ||
@@ -2037,6 +2075,12 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 	})
 	if err != nil || len(inventory.Items) != 1 || inventory.Items[0].Quantity != "4.0" {
 		t.Fatalf("inventory after approved-posting rebuild = %+v, err=%v", inventory, err)
+	}
+	closing, err := ledger.GetClosing(t.Context())
+	if err != nil || closing.LatestClosingDate != "2026-07-31" ||
+		len(closing.Inventory) != 1 || closing.Inventory[0].Quantity != "4.0" ||
+		closing.Inventory[0].CostAmount != "40.00" {
+		t.Fatalf("closing after opening-backed rebuild = %+v, err=%v", closing, err)
 	}
 	var openingEntries, outboundEntries int
 	if err = pool.QueryRow(t.Context(), `SELECT

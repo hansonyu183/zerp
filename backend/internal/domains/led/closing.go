@@ -465,7 +465,43 @@ func (s *Service) calculateInventoryClosing(
 	periodStart, closingDate time.Time,
 ) error {
 	balances := make(map[string]*inventoryCostBalance)
-	if previousClosingID != nil {
+	if previousClosingID == nil {
+		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
+			warehouse_code,warehouse_name,product_object_id,product_version_id,
+			product_code,product_name,product_unit,quantity_micros,currency,amount_cents
+			FROM led_opening_inventory WHERE generation_id=$1`, generationID)
+		if err != nil {
+			return s.internal("load inventory opening for closing", err)
+		}
+		for rows.Next() {
+			balance := &inventoryCostBalance{}
+			var currency *string
+			var amount *int64
+			if err = rows.Scan(
+				&balance.warehouseObjectID, &balance.warehouseVersionID,
+				&balance.warehouseCode, &balance.warehouseName,
+				&balance.productObjectID, &balance.productVersionID,
+				&balance.productCode, &balance.productName, &balance.productUnit,
+				&balance.quantity, &currency, &amount,
+			); err != nil {
+				rows.Close()
+				return s.internal("scan inventory opening for closing", err)
+			}
+			if currency == nil || *currency != "CNY" || amount == nil {
+				rows.Close()
+				return domainError(
+					ErrorConflict, "inventory opening cost must be complete and use CNY", nil, nil,
+				)
+			}
+			balance.amount = *amount
+			balances[inventoryCostKey(balance.warehouseObjectID, balance.productObjectID)] = balance
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			return s.internal("read inventory opening for closing", err)
+		}
+		rows.Close()
+	} else {
 		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
 			warehouse_code,warehouse_name,product_object_id,product_version_id,
 			product_code,product_name,product_unit,quantity_micros,cost_amount_cents

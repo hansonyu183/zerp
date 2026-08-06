@@ -2908,23 +2908,23 @@ func TestIntermediarySourceCollectsZeroPriceAndIgnoresNonCNYReturnTimelineIntegr
 	}
 }
 
-func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningIntegration(t *testing.T) {
+func TestIntermediarySourceSeedsAndRoundsPreCutoverSourceReturnsAgainstOpeningIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
 	refs := prepareLEDReferences(t, pool)
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activated := activateEmptyLedger(t, ledger)
-	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "0.01")
+	advancePurchaseInboundToApproved(t, vouchers, refs, "3", "0.01")
 
 	oldOrder, oldOrderView := advanceToApproved(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []voudomain.ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "0.01",
+			Product: refs.product, OrderedQuantity: "2", UnitPrice: "0.01",
 		}},
 	})
-	oldOutbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, oldOrder, oldOrderView, "1")
+	oldOutbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, oldOrder, oldOrderView, "2")
 	oldDelivery, oldDeliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
 		BusinessDate: "2026-07-25", SourceDocumentID: oldOutbound.DocumentID,
 		Platform: &refs.platform, Vehicle: &refs.vehicle,
@@ -2932,7 +2932,13 @@ func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningInte
 	_, oldSignoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: oldDelivery.DocumentID,
 		SignoffLines: []voudomain.SaleSignoffLineInput{{
-			SourceLineID: oldDeliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+			SourceLineID: oldDeliveryView.Data.ProductLines[0].LineID, SignedQuantity: "2", RejectedQuantity: "0",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-07-27", Warehouse: &refs.warehouse, ReturnReason: "切换日前首次冲减应收",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
 		}},
 	})
 
@@ -2947,7 +2953,7 @@ func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningInte
 		Inventory: []InventoryOpeningInput{{
 			Warehouse: ReferenceInput{ObjectID: refs.warehouse.ObjectID, VersionID: refs.warehouse.VersionID},
 			Product:   ReferenceInput{ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID},
-			Quantity:  "1", UnitPrice: "0.01", Currency: "CNY",
+			Quantity:  "1.5", UnitPrice: "0.01", Currency: "CNY",
 		}},
 		Fund: []FundOpeningInput{},
 		Party: []PartyOpeningInput{{
@@ -2989,13 +2995,19 @@ func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningInte
 		}},
 	})
 	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
-		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "第一次冲减期初应收",
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "切换日后第一次冲减期初应收",
 		ReturnLines: []voudomain.ReturnLineInput{{
 			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
 		}},
 	})
 	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
-		BusinessDate: "2026-08-06", Warehouse: &refs.warehouse, ReturnReason: "第二次冲减期初应收",
+		BusinessDate: "2026-08-06", Warehouse: &refs.warehouse, ReturnReason: "切换日后第二次冲减期初应收",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-07", Warehouse: &refs.warehouse, ReturnReason: "切换日后第三次冲减期初应收",
 		ReturnLines: []voudomain.ReturnLineInput{{
 			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
 		}},
@@ -3008,7 +3020,7 @@ func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningInte
 			beforeReceipt.Source, err)
 	}
 	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
-		BusinessDate: "2026-08-07", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-08-08", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "0.01",
 	})
 
@@ -3017,7 +3029,7 @@ func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningInte
 	})
 	if err != nil || len(augustSource.Source.Lines) != 1 ||
 		augustSource.Source.Lines[0].SignoffDocumentID != newSignoff.DocumentID ||
-		augustSource.Source.Lines[0].CollectionDate != "2026-08-07" {
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-08" {
 		t.Fatalf("pre-cutover return did not reduce opening receivable: %+v, err=%v", augustSource.Source, err)
 	}
 }

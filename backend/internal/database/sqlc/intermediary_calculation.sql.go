@@ -502,6 +502,19 @@ WITH trade AS (
       AND entry.account_type='TRADE'
       AND entry.counterparty_entity='customer'
       AND entry.currency='CNY'
+), precutover_return_baseline AS (
+    SELECT return_line.source_signoff_line_id,
+           sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+    FROM vou_sale_return_lines return_line
+    JOIN vou_sale_return_details return_detail
+      ON return_detail.document_id=return_line.document_id
+     AND return_detail.return_kind='AFTER_SALE'
+    JOIN vou_documents return_document
+      ON return_document.id=return_line.document_id
+     AND return_document.entity='sale-return'
+     AND return_document.status IN ('APPROVED','FINALIZED')
+    WHERE return_document.business_date < $3
+    GROUP BY return_line.source_signoff_line_id
 ), precutover_daily_return AS (
     SELECT
         entry.counterparty_object_id,
@@ -525,23 +538,34 @@ WITH trade AS (
              entry.effective_date
 ), precutover_cumulative_return AS (
     SELECT precutover_daily_return.counterparty_object_id, precutover_daily_return.source_signoff_line_id, precutover_daily_return.original_quantity_micros, precutover_daily_return.original_amount_cents, precutover_daily_return.return_date, precutover_daily_return.returned_quantity_micros,
-           sum(returned_quantity_micros) OVER (
-               PARTITION BY source_signoff_line_id ORDER BY return_date
+           COALESCE(precutover_return_baseline.returned_quantity_micros,0)::bigint
+             AS baseline_quantity_micros,
+           (COALESCE(precutover_return_baseline.returned_quantity_micros,0)+
+             sum(precutover_daily_return.returned_quantity_micros) OVER (
+               PARTITION BY precutover_daily_return.source_signoff_line_id
+               ORDER BY precutover_daily_return.return_date
                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-           )::bigint AS cumulative_quantity_micros
+           ))::bigint AS cumulative_quantity_micros
     FROM precutover_daily_return
+    LEFT JOIN precutover_return_baseline
+      ON precutover_return_baseline.source_signoff_line_id=
+         precutover_daily_return.source_signoff_line_id
 ), precutover_rounded_return AS (
-    SELECT precutover_cumulative_return.counterparty_object_id, precutover_cumulative_return.source_signoff_line_id, precutover_cumulative_return.original_quantity_micros, precutover_cumulative_return.original_amount_cents, precutover_cumulative_return.return_date, precutover_cumulative_return.returned_quantity_micros, precutover_cumulative_return.cumulative_quantity_micros,
+    SELECT precutover_cumulative_return.counterparty_object_id, precutover_cumulative_return.source_signoff_line_id, precutover_cumulative_return.original_quantity_micros, precutover_cumulative_return.original_amount_cents, precutover_cumulative_return.return_date, precutover_cumulative_return.returned_quantity_micros, precutover_cumulative_return.baseline_quantity_micros, precutover_cumulative_return.cumulative_quantity_micros,
+           COALESCE(round(
+               original_amount_cents::numeric*baseline_quantity_micros::numeric/
+               NULLIF(original_quantity_micros,0)
+           )::bigint,0) AS baseline_amount_cents,
            COALESCE(round(
                original_amount_cents::numeric*cumulative_quantity_micros::numeric/
                NULLIF(original_quantity_micros,0)
            )::bigint,0) AS cumulative_amount_cents
     FROM precutover_cumulative_return
 ), precutover_incremental_return AS (
-    SELECT precutover_rounded_return.counterparty_object_id, precutover_rounded_return.source_signoff_line_id, precutover_rounded_return.original_quantity_micros, precutover_rounded_return.original_amount_cents, precutover_rounded_return.return_date, precutover_rounded_return.returned_quantity_micros, precutover_rounded_return.cumulative_quantity_micros, precutover_rounded_return.cumulative_amount_cents,
+    SELECT precutover_rounded_return.counterparty_object_id, precutover_rounded_return.source_signoff_line_id, precutover_rounded_return.original_quantity_micros, precutover_rounded_return.original_amount_cents, precutover_rounded_return.return_date, precutover_rounded_return.returned_quantity_micros, precutover_rounded_return.baseline_quantity_micros, precutover_rounded_return.cumulative_quantity_micros, precutover_rounded_return.baseline_amount_cents, precutover_rounded_return.cumulative_amount_cents,
            (cumulative_amount_cents-COALESCE(lag(cumulative_amount_cents) OVER (
                PARTITION BY source_signoff_line_id ORDER BY return_date
-           ),0))::bigint AS amount_cents
+           ),baseline_amount_cents))::bigint AS amount_cents
     FROM precutover_rounded_return
 ), mapped AS (
     -- In-scope after-sale returns are applied to their source signoff by the

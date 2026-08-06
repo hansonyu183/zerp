@@ -11,7 +11,6 @@ import {
   VoucherAssetLinesEditor,
   VoucherAuditHistory,
   VoucherDocumentHeader,
-  VoucherExecutionDialog,
   VoucherExpenseLinesEditor,
   VoucherList,
   VoucherProductLinesEditor,
@@ -104,9 +103,7 @@ const secondaryTitle = ref('')
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove' | 'unfinalize'>>(
-    'uncheck',
-  )
+  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove'>>('uncheck')
 const listLifecycleReason = ref('')
 const listLifecycleTitle = computed(
   () => labels.value[listLifecycleAction.value],
@@ -206,11 +203,7 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (
-    action === 'uncheck' ||
-    action === 'unapprove' ||
-    action === 'unfinalize'
-  ) {
+  if (action === 'uncheck' || action === 'unapprove') {
     listLifecycleTarget.value = row
     listLifecycleAction.value = action
     listLifecycleReason.value = ''
@@ -1065,21 +1058,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       </v-card>
     </template>
   </VoucherWorkspace>
-
-  <VoucherExecutionDialog
-    v-model="vm.executionOpen"
-    :document="vm.documentView"
-    :error-message="vm.executionError"
-    :kind="vm.config.finalizationKind"
-    :platform-loading="vm.referenceLoading('platform')"
-    :platform-options="vm.referenceOptions('platform')"
-    :saving="vm.actionLoading === 'finalize'"
-    :vehicle-loading="vm.referenceLoading('vehicle')"
-    :vehicle-options="vm.referenceOptions('vehicle')"
-    @platform-search="vm.searchReference('platform', $event)"
-    @submit="vm.finalize"
-    @vehicle-search="vm.searchReference('vehicle', $event)"
-  />
 
   <VoucherReasonDialog
     v-model="secondaryOpen"

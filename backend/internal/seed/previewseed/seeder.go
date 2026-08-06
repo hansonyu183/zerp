@@ -106,6 +106,9 @@ func New(
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}
+	if err = vouchers.RegisterCompletionSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register voucher completion subscriptions: %w", err)
+	}
 	return &Seeder{
 		pool: pool, auxiliary: auxiliary, business: business, ledger: ledger,
 		vouchers: vouchers, auxRefs: make(map[string]auxdomain.ObjectView),

@@ -107,7 +107,6 @@ type VouCreateRequest = components['schemas']['VouCreateRequest']
 type VouSaveRequest = components['schemas']['VouSaveRequest']
 type VouRevisionRequest = components['schemas']['VouDocumentRevisionRequest']
 type VouReverseRequest = components['schemas']['VouReverseRequest']
-type VouFinalizeRequest = components['schemas']['VouFinalizeRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
 type BobListPage = components['schemas']['BobListPage']
 type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
@@ -230,8 +229,6 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     uncheck: session.can(permission('uncheck')),
     approve: session.can(permission('approve')),
     unapprove: session.can(permission('unapprove')),
-    finalize: session.can(permission('finalize')),
-    unfinalize: session.can(permission('unfinalize')),
     delete: session.can(permission('delete')),
     shortCloseRequest: false,
     shortCloseCancel: false,
@@ -476,28 +473,14 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   async function lifecycle(
-    action:
-      'check' | 'uncheck' | 'approve' | 'unapprove' | 'finalize' | 'unfinalize',
+    action: 'check' | 'uncheck' | 'approve' | 'unapprove',
     reason?: string,
   ) {
     if (!documentId.value) return
     actionLoading.value = action
     try {
       let result: { data: MutationResponse }
-      if (action === 'finalize') {
-        const request: VouFinalizeRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-        }
-        result = await apiClient.post<MutationResponse, VouFinalizeRequest>(
-          `vou/${config.entity}/finalize` as ApiPostPath,
-          request,
-        )
-      } else if (
-        action === 'unfinalize' ||
-        action === 'uncheck' ||
-        action === 'unapprove'
-      ) {
+      if (action === 'uncheck' || action === 'unapprove') {
         const request: VouReverseRequest = {
           documentId: documentId.value,
           revision: revision.value,

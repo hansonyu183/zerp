@@ -25,20 +25,16 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  action: [
-    action:
-      'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize',
-    reason?: string,
-  ]
+  action: [action: 'check' | 'approve' | 'uncheck' | 'unapprove', reason?: string]
 }>()
 
 const reverseOpen = ref(false)
-const reverseAction = ref<'uncheck' | 'unapprove' | 'unfinalize'>('uncheck')
+const reverseAction = ref<'uncheck' | 'unapprove'>('uncheck')
 const reason = ref('')
 const reverseTitle = ref('')
 
 function openReverse(
-  action: 'uncheck' | 'unapprove' | 'unfinalize',
+  action: 'uncheck' | 'unapprove',
   title: string,
 ): void {
   reverseAction.value = action
@@ -92,7 +88,7 @@ function confirmReverse(): void {
         {{ labels.approve }}
       </v-btn>
     </template>
-    <template v-if="status === 'APPROVED'">
+    <template v-if="status === 'APPROVED' || status === 'FINALIZED'">
       <v-btn
         v-if="availability.unapprove"
         :disabled="disabled"
@@ -104,30 +100,7 @@ function confirmReverse(): void {
       >
         {{ labels.unapprove }}
       </v-btn>
-      <v-btn
-        v-if="availability.finalize"
-        color="primary"
-        :disabled="disabled"
-        :loading="loadingAction === 'finalize'"
-        :title="disabled ? disabledReason : undefined"
-        prepend-icon="mdi-play-circle-outline"
-        @click="emit('action', 'finalize')"
-      >
-        {{ labels.finalize }}
-      </v-btn>
     </template>
-    <v-btn
-      v-if="status === 'FINALIZED' && availability.unfinalize"
-      color="warning"
-      :disabled="disabled"
-      :loading="loadingAction === 'unfinalize'"
-      :title="disabled ? disabledReason : undefined"
-      prepend-icon="mdi-backup-restore"
-      variant="tonal"
-      @click="openReverse('unfinalize', labels.unfinalize)"
-    >
-      {{ labels.unfinalize }}
-    </v-btn>
   </div>
 
   <v-dialog v-model="reverseOpen" max-width="560">

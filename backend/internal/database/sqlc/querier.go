@@ -276,6 +276,7 @@ type Querier interface {
 	InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error
 	InsertVouSalePricingDetail(ctx context.Context, documentID string) error
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
+	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
 	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
@@ -286,6 +287,7 @@ type Querier interface {
 	ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]AppRole, error)
 	ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
+	ListApprovedVouDocumentsForCompletion(ctx context.Context) ([]VouDocument, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error)
 	ListBobObjectsEnabled(ctx context.Context, ids []string) ([]ListBobObjectsEnabledRow, error)
@@ -293,7 +295,6 @@ type Querier interface {
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
 	ListDepreciableLedAssetsForVou(ctx context.Context, arg ListDepreciableLedAssetsForVouParams) ([]LedAsset, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
-	ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
 	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
 	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
@@ -315,6 +316,8 @@ type Querier interface {
 	ListLedPartyBalances(ctx context.Context, arg ListLedPartyBalancesParams) ([]ListLedPartyBalancesRow, error)
 	ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPartyEntriesBySourceParams) ([]LedPartyEntry, error)
+	ListOpenPeriodFinalizedVouDocumentsForCompletion(ctx context.Context) ([]VouDocument, error)
+	ListPostedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error)
 	ListPurchaseOrderKgSummaries(ctx context.Context, orderIds []string) ([]ListPurchaseOrderKgSummariesRow, error)
 	ListPurchaseWorkflowProgress(ctx context.Context, processIds []string) ([]ListPurchaseWorkflowProgressRow, error)
 	ListPurchaseWorkflowSummaries(ctx context.Context, arg ListPurchaseWorkflowSummariesParams) ([]ListPurchaseWorkflowSummariesRow, error)

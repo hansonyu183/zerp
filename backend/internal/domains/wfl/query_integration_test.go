@@ -189,6 +189,9 @@ func newWorkflowIntegrationServices(
 	if err != nil {
 		t.Fatalf("new workflow service: %v", err)
 	}
+	if err = vouchers.RegisterCompletionSubscriptions(events); err != nil {
+		t.Fatalf("register voucher completion subscriptions: %v", err)
+	}
 	return workflows, vouchers, refs
 }
 
@@ -211,13 +214,7 @@ func advanceWorkflowDocument(
 	if err != nil {
 		t.Fatalf("approve %s: %v", entity, err)
 	}
-	finalized, err := service.Finalize(t.Context(), entity, voudomain.FinalizeInput{
-		DocumentID: created.DocumentID, Revision: approved.Revision,
-	}, workflowIntegrationActor, "wfl-finalize")
-	if err != nil {
-		t.Fatalf("finalize %s: %v", entity, err)
-	}
-	return finalized
+	return approved
 }
 
 func createWorkflowDocument(

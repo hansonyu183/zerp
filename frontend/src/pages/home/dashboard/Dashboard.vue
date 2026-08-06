@@ -38,7 +38,7 @@ function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const actions =
     domain === 'bob'
       ? ['submit', 'approve', 'reject']
-      : ['check', 'approve', 'finalize']
+      : ['check', 'approve']
   return (
     session.can(`/${domain}/${entity}/query`) &&
     actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
@@ -82,9 +82,6 @@ const entityFilterOptions = computed(() => {
 const pendingStageFilterOptions = computed(() => [
   { title: '待核对', value: 'CHECK' as const },
   { title: '待批准', value: 'APPROVE' as const },
-  ...(vm.activeCategory === 'VOU'
-    ? [{ title: '待完成', value: 'FINALIZE' as const }]
-    : []),
 ])
 
 const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
@@ -120,8 +117,6 @@ const documentLifecycleLabels: VoucherLifecycleLabels = {
   uncheck: '反核对',
   approve: '批准',
   unapprove: '反批准',
-  finalize: '完成',
-  unfinalize: '撤销完成',
   checked: '已核对',
   finalized: '已完成',
 }
@@ -137,11 +132,6 @@ const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   },
   reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
   check: { label: '核对', icon: 'mdi-account-check-outline', color: 'primary' },
-  finalize: {
-    label: '完成',
-    icon: 'mdi-play-circle-outline',
-    color: 'primary',
-  },
 }
 
 function entityTitle(row: Readonly<WorkbenchItem>): string {
@@ -155,13 +145,11 @@ function pendingStatus(row: Readonly<WorkbenchItem>): string {
   return {
     CHECK: '待核对',
     APPROVE: '待批准',
-    FINALIZE: '待完成',
   }[row.pendingStage]
 }
 
 function pendingColor(row: Readonly<WorkbenchItem>): string {
   if (row.pendingStage === 'APPROVE') return 'success'
-  if (row.pendingStage === 'FINALIZE') return 'primary'
   return 'warning'
 }
 
@@ -181,7 +169,7 @@ function rowActions(row: WorkbenchItem): {
 } {
   const actions = visibleActions(row)
   const forward = actions.find((action) =>
-    ['submit', 'approve', 'check', 'finalize', 'reject'].includes(action),
+    ['submit', 'approve', 'check', 'reject'].includes(action),
   )
   const primaryAction = forward ?? actions[0]
   const toAction = (action: WorkbenchAction): ListRowAction => ({
@@ -206,11 +194,7 @@ function updateEntityFilters(value: unknown): void {
 }
 
 function updatePendingStageFilters(value: unknown): void {
-  const validStages = new Set<WorkbenchPendingStage>([
-    'CHECK',
-    'APPROVE',
-    'FINALIZE',
-  ])
+  const validStages = new Set<WorkbenchPendingStage>(['CHECK', 'APPROVE'])
   vm.activeState.pendingStages = Array.isArray(value)
     ? value.filter(
         (stage): stage is WorkbenchPendingStage =>
@@ -249,8 +233,7 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
   if (
     action === 'submit' ||
     action === 'approve' ||
-    action === 'check' ||
-    action === 'finalize'
+    action === 'check'
   ) {
     await vm.runAction(row, action)
   }

@@ -253,23 +253,6 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 		t.Fatal("receipt accepted mismatched fund account currency")
 	}
 
-	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "1.00",
-		}},
-	}}, integrationActorOne, "platform-mismatch-create")
-	if err != nil {
-		t.Fatalf("create sale: %v", err)
-	}
-	if _, err = service.Finalize(t.Context(), EntitySaleOrder, FinalizeInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
-	}, integrationActorOne, "legacy-sale-finalize"); err == nil {
-		t.Fatal("sale order accepted legacy execution fields")
-	}
-
 	tx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("begin invalid document: %v", err)

@@ -578,8 +578,6 @@ describe('bill voucher view model behavior', () => {
     await vm.lifecycle('uncheck', '测试')
     await vm.lifecycle('approve')
     await vm.lifecycle('unapprove', '测试')
-    await vm.lifecycle('finalize')
-    await vm.lifecycle('unfinalize', '测试')
     await vm.changePage(0)
     await vm.openDocument({ documentId: 'DOC-1' }, true)
     await vm.loadAudit()

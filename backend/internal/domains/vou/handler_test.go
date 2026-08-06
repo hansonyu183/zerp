@@ -54,12 +54,6 @@ func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInpu
 func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerServiceStub) Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
 func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }

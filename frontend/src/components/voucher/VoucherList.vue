@@ -144,20 +144,8 @@ const lifecycleActionDefinitions: ReadonlyArray<{
   },
   {
     action: 'unapprove',
-    statuses: ['APPROVED'],
+    statuses: ['APPROVED', 'FINALIZED'],
     icon: 'mdi-undo-variant',
-  },
-  {
-    action: 'finalize',
-    statuses: ['APPROVED'],
-    icon: 'mdi-play-circle-outline',
-    color: 'primary',
-  },
-  {
-    action: 'unfinalize',
-    statuses: ['FINALIZED'],
-    icon: 'mdi-backup-restore',
-    color: 'warning',
   },
 ]
 

@@ -112,17 +112,18 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				DocumentID: created.DocumentID, Revision: reviewed.Revision,
 			}, integrationActorOne, "vou-approve")
 			if err != nil {
-				t.Fatalf("approve: %v", err)
+				t.Fatalf("approve: %v (cause: %v)", err, errors.Unwrap(err))
 			}
-			execute := FinalizeInput{DocumentID: created.DocumentID, Revision: approved.Revision}
-			executed, err := service.Finalize(t.Context(), test.entity, execute,
-				integrationActorOne, "vou-execute")
-			if err != nil {
-				t.Fatalf("execute: %v", err)
+			expectedStatus := StatusFinalized
+			if test.entity == EntitySaleOrder {
+				expectedStatus = StatusApproved
+			}
+			if approved.Status != expectedStatus {
+				t.Fatalf("approved status = %s, want %s", approved.Status, expectedStatus)
 			}
 			view, err := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-			if err != nil || view.Status != StatusFinalized || view.Amount == "" {
-				t.Fatalf("executed view=%+v err=%v", view, err)
+			if err != nil || view.Status != expectedStatus || view.Amount == "" {
+				t.Fatalf("approved view=%+v err=%v", view, err)
 			}
 			if view.Data.Remark != "单据备注" {
 				t.Fatalf("header remark = %q", view.Data.Remark)
@@ -154,7 +155,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
 				Page: 1, PageSize: 20,
 				Filters: QueryFilters{
-					Keyword: created.DocumentNo, Status: []string{StatusFinalized},
+					Keyword: created.DocumentNo, Status: []string{expectedStatus},
 					DateFrom: "2026-07-24", DateTo: "2026-07-24",
 				},
 				Sort: []SortInput{{Field: "documentNo", Order: "asc"}},
@@ -176,14 +177,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					page.Items[0].SalesSummary.NetSignedQuantity != "0" {
 					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
 				}
-				unexecuted, reverseErr := service.Unfinalize(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "修正执行结果",
-				}, integrationActorOne, "vou-unexecute")
-				if reverseErr != nil {
-					t.Fatalf("unexecute: %v", reverseErr)
-				}
 				unapproved, reverseErr := service.Unapprove(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: unexecuted.Revision, Reason: "修正批准内容",
+					DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "修正批准内容",
 				}, integrationActorOne, "vou-unapprove")
 				if reverseErr != nil {
 					t.Fatalf("unapprove: %v", reverseErr)
@@ -197,7 +192,11 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				history, historyErr := service.AuditHistory(t.Context(), test.entity, HistoryInput{
 					DocumentID: created.DocumentID, Page: 1, PageSize: 20,
 				})
-				if historyErr != nil || history.Total != 7 {
+				expectedAudits := int64(7)
+				if test.entity == EntitySaleOrder {
+					expectedAudits = 5
+				}
+				if historyErr != nil || history.Total != expectedAudits {
 					t.Fatalf("history total=%d err=%v", history.Total, historyErr)
 				}
 			}
@@ -301,7 +300,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 512
+	wantPermissions := 444
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -325,7 +324,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
-	if legacyPermissions != 0 || purchaseWritePermissions != 12 ||
+	if legacyPermissions != 0 || purchaseWritePermissions != 10 ||
 		purchaseWorkflowPermissions != 7 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)

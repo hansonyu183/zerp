@@ -38,7 +38,7 @@ export function useVoucherSalesChain(
           page: 1,
           pageSize: 50,
           filters: {
-            status: ['FINALIZED'],
+            status: ['APPROVED', 'FINALIZED'],
             ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
           },
           sort: [{ field: 'updatedAt', order: 'desc' }],

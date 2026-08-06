@@ -170,8 +170,6 @@ function mountList(
         uncheck: '反核对',
         approve: '批准',
         unapprove: '反批准',
-        finalize: '完成',
-        unfinalize: '撤销完成',
         checked: '已核对',
         finalized: '已完成',
       },
@@ -455,8 +453,6 @@ describe('VoucherList', () => {
       'uncheck',
       'approve',
       'unapprove',
-      'finalize',
-      'unfinalize',
     ])
     const wrapper = mountList({
       rows,
@@ -468,8 +464,7 @@ describe('VoucherList', () => {
       '反核对 SO-CHECKED',
       '批准 SO-CHECKED',
       '反批准 SO-APPROVED',
-      '完成 SO-APPROVED',
-      '撤销完成 SO-FINALIZED',
+      '反批准 SO-FINALIZED',
     ]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true)
     }

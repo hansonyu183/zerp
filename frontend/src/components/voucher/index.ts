@@ -3,7 +3,6 @@ export { default as VoucherAssetLinesEditor } from './VoucherAssetLinesEditor.vu
 export { default as VoucherAuditHistory } from './VoucherAuditHistory.vue'
 export { default as VoucherDocumentHeader } from './VoucherDocumentHeader.vue'
 export { default as VoucherDocumentShell } from './VoucherDocumentShell.vue'
-export { default as VoucherExecutionDialog } from './VoucherExecutionDialog.vue'
 export { default as VoucherExpenseLinesEditor } from './VoucherExpenseLinesEditor.vue'
 export { default as VoucherLifecycleActions } from './VoucherLifecycleActions.vue'
 export { default as VoucherList } from './VoucherList.vue'

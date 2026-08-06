@@ -248,7 +248,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		ctx,
 		"production-source-order",
 		voudomain.EntitySaleOrder,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-03", Currency: "CNY", Customer: &customer,
@@ -369,7 +369,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		ctx,
 		"sales-complete-order",
 		voudomain.EntitySaleOrder,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-05", Currency: "CNY", Customer: &customer,
@@ -392,7 +392,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		ctx,
 		"sales-complete-outbound",
 		voudomain.EntitySaleOutbound,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleOutbound, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-06", SourceDocumentID: order.DocumentID,
@@ -411,7 +411,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		ctx,
 		"sales-complete-delivery",
 		voudomain.EntitySaleDelivery,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleDelivery, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-07", SourceDocumentID: outbound.DocumentID,
@@ -531,7 +531,7 @@ func (s *Seeder) seedCompletedSalesWorkflow(ctx context.Context, counts *Counts)
 		ctx,
 		"sales-fulfilled-order",
 		voudomain.EntitySaleOrder,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", Currency: "CNY", Customer: &customer,
@@ -581,7 +581,7 @@ func (s *Seeder) seedCompletedSalesWorkflow(ctx context.Context, counts *Counts)
 		ctx,
 		"sales-fulfilled-outbound",
 		voudomain.EntitySaleOutbound,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		outboundID,
 	)
 	if err != nil {
@@ -616,7 +616,7 @@ func (s *Seeder) seedCompletedSalesWorkflow(ctx context.Context, counts *Counts)
 		ctx,
 		"sales-fulfilled-delivery",
 		voudomain.EntitySaleDelivery,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		deliveryID,
 	)
 	if err != nil {
@@ -942,10 +942,6 @@ func (s *Seeder) advanceVoucher(
 			current, err = s.vouchers.Approve(ctx, entity, voudomain.DocumentRevisionInput{
 				DocumentID: current.DocumentID, Revision: current.Revision,
 			}, actorID, requestID(key, "approve"))
-		case voudomain.StatusApproved:
-			current, err = s.vouchers.Finalize(ctx, entity, voudomain.FinalizeInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key, "finalize"))
 		default:
 			return current, fmt.Errorf("cannot advance %s from %s", entity, current.Status)
 		}

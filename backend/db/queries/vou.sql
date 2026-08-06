@@ -321,6 +321,7 @@ RETURNING revision;
 UPDATE vou_documents
 SET status = 'APPROVED', revision = revision + 1,
     approved_at = now(), approved_by = sqlc.arg(actor_id),
+    posted_at = now(), posted_by = sqlc.arg(actor_id),
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'CHECKED'
@@ -330,6 +331,7 @@ RETURNING revision;
 UPDATE vou_documents
 SET status = 'CHECKED', revision = revision + 1,
     approved_at = NULL, approved_by = NULL,
+    posted_at = NULL, posted_by = NULL,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'APPROVED'
@@ -352,6 +354,34 @@ SET status = 'APPROVED', revision = revision + 1,
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'FINALIZED'
 RETURNING revision;
+
+-- name: ListApprovedVouDocumentsForCompletion :many
+SELECT * FROM vou_documents
+WHERE status = 'APPROVED'
+ORDER BY business_date, document_no, id;
+
+-- name: ListOpenPeriodFinalizedVouDocumentsForCompletion :many
+SELECT document.*
+FROM vou_documents document
+WHERE document.status = 'FINALIZED'
+  AND document.business_date > COALESCE((
+      SELECT closing_date FROM led_closings
+      WHERE status = 'ACTIVE'
+      ORDER BY closing_date DESC
+      LIMIT 1
+  ), DATE '0001-01-01')
+ORDER BY document.business_date DESC, document.document_no DESC, document.id DESC;
+
+-- name: IsVouDocumentInClosedPeriod :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_documents document
+    JOIN led_control control ON control.singleton = true
+    JOIN led_closings closing
+      ON closing.id = control.last_closing_id AND closing.status = 'ACTIVE'
+    WHERE document.id = $1
+      AND document.business_date <= closing.closing_date
+);
 
 -- name: CountVouDocuments :one
 SELECT count(*)

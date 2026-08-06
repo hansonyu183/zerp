@@ -258,16 +258,9 @@ async function seedInventoryThroughLifecycle(
     'vou/purchase-inbound/check',
     { documentId: inbound.documentId, revision: inbound.revision },
   )
-  const approvedInbound = await operator.post<VouMutation>(
-    'vou/purchase-inbound/approve',
-    {
-      documentId: checkedInbound.documentId,
-      revision: checkedInbound.revision,
-    },
-  )
-  await operator.post<VouMutation>('vou/purchase-inbound/finalize', {
-    documentId: approvedInbound.documentId,
-    revision: approvedInbound.revision,
+  await operator.post<VouMutation>('vou/purchase-inbound/approve', {
+    documentId: checkedInbound.documentId,
+    revision: checkedInbound.revision,
   })
 }
 

@@ -7,7 +7,7 @@ import {
   submitBusinessObject,
 } from '@/api/bob'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
-import { approveVoucher, checkVoucher, finalizeVoucher } from '@/api/vou'
+import { approveVoucher, checkVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
@@ -147,8 +147,6 @@ export function useDashboardViewModel() {
           await checkVoucher(item.entity, request)
         } else if (action === 'approve') {
           await approveVoucher(item.entity, request)
-        } else if (action === 'finalize') {
-          await finalizeVoucher(item.entity, request)
         }
       }
       if (state.rows.length === 1 && state.page > 1) state.page -= 1
@@ -159,7 +157,6 @@ export function useDashboardViewModel() {
         approve: item.category === 'BOB' ? '已审核通过' : '已批准',
         reject: '已审核驳回',
         check: '已核对',
-        finalize: '已完成',
       }[action]
       successMessage.value = `${identity} ${label}。`
       return true

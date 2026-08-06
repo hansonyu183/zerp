@@ -1879,63 +1879,6 @@
           'reason': { 'type': 'string' },
         },
     },
-  'VouFinalizeRequest':
-    {
-      'type': 'object',
-      'required': ['documentId', 'revision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'documentId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'outboundDate': { 'type': 'string', 'format': 'date' },
-          'signoffDate': { 'type': 'string', 'format': 'date' },
-          'inboundDate': { 'type': 'string', 'format': 'date' },
-          'platform':
-            {
-              'type': 'object',
-              'required': ['objectId', 'versionId'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
-            },
-          'vehicle':
-            {
-              'type': 'object',
-              'required': ['objectId', 'versionId'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
-            },
-          'differenceReason': { 'type': 'string' },
-          'saleLines':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
-          'purchaseLines':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
-        },
-    },
   'VouHistoryRequest':
     {
       'type': 'object',

@@ -1315,6 +1315,8 @@ type VouDocument struct {
 	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
 	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
 	OitID            *string            `db:"oit_id" json:"oit_id"`
+	PostedAt         pgtype.Timestamptz `db:"posted_at" json:"posted_at"`
+	PostedBy         *string            `db:"posted_by" json:"posted_by"`
 }
 
 type VouDocumentAttachment struct {

@@ -82,8 +82,7 @@ func validateWorkbenchQuery(input WorkbenchQueryInput) (WorkbenchQueryInput, pag
 	stageSet := make(map[string]struct{}, len(input.PendingStages))
 	for index, stage := range input.PendingStages {
 		stage = strings.ToUpper(strings.TrimSpace(stage))
-		valid := stage == "CHECK" || stage == "APPROVE" ||
-			(input.Category == WorkbenchCategoryVou && stage == "FINALIZE")
+		valid := stage == "CHECK" || stage == "APPROVE"
 		if !valid {
 			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench pending stage filter", nil)
 		}
@@ -218,24 +217,17 @@ func (s *Service) queryWorkbenchVou(
 	checkedEntities := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "approve")
 	})
-	approvedEntities := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "finalize")
-	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
 	checkedEntities = filterWorkbenchEntities(checkedEntities, input.Entities)
-	approvedEntities = filterWorkbenchEntities(approvedEntities, input.Entities)
 	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
 		draftEntities = nil
 	}
 	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
 		checkedEntities = nil
 	}
-	if !includesWorkbenchStage(input.PendingStages, "FINALIZE") {
-		approvedEntities = nil
-	}
 	params := dbsqlc.CountWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
-		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
+		Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchVouItems(ctx, params)
 	if err != nil {
@@ -243,7 +235,7 @@ func (s *Service) queryWorkbenchVou(
 	}
 	rows, err := s.queries.ListWorkbenchVouItems(ctx, dbsqlc.ListWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
-		ApprovedEntities: approvedEntities, Keyword: input.Keyword,
+		Keyword:  input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
 	if err != nil {
@@ -261,8 +253,6 @@ func (s *Service) queryWorkbenchVou(
 		pendingStage, action := "CHECK", "check"
 		if row.Status == "CHECKED" {
 			pendingStage, action = "APPROVE", "approve"
-		} else if row.Status == "APPROVED" {
-			pendingStage, action = "FINALIZE", "finalize"
 		}
 		if scope.can("vou", row.Entity, action) {
 			actions = append(actions, action)

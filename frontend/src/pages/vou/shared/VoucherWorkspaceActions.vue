@@ -80,8 +80,9 @@ const lifecycleDisabledReason = computed(() => {
     </span>
     <v-btn
       v-if="
+        vm.documentView &&
         vm.config.entity === 'sale-signoff' &&
-        vm.documentView?.status === 'FINALIZED' &&
+        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
         session.can('/vou/sale-return/create')
       "
       :to="{
@@ -95,8 +96,9 @@ const lifecycleDisabledReason = computed(() => {
     </v-btn>
     <v-btn
       v-if="
+        vm.documentView &&
         vm.config.entity === 'purchase-inbound' &&
-        vm.documentView?.status === 'FINALIZED' &&
+        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
         session.can('/vou/purchase-return/create')
       "
       :to="{

@@ -48,6 +48,12 @@ type AttachmentOptions struct {
 	DownloadTTL time.Duration
 }
 
+type auditInput struct {
+	DocumentID, Entity, Event, To, ActorID, RequestID string
+	From, Reason                                      *string
+	Summary                                           map[string]any
+}
+
 func NewService(
 	pool *pgxpool.Pool,
 	resolver effectiveReferenceResolver,

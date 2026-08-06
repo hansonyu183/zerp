@@ -8,9 +8,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type inventoryCostBalance struct {
@@ -44,72 +46,117 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
 	var rebuild bool
-	var generationID *string
+	var previousGenerationID *string
 	err = tx.QueryRow(ctx, `SELECT rebuild_required,active_generation_id
-		FROM led_control WHERE singleton=true FOR UPDATE`).Scan(&rebuild, &generationID)
+		FROM led_control WHERE singleton=true FOR UPDATE`).Scan(&rebuild, &previousGenerationID)
 	if err != nil {
 		return s.internal("lock ledger initialization", err)
 	}
 	if !rebuild {
 		return tx.Commit(ctx)
 	}
-	if generationID == nil {
-		id := newID()
-		if _, err = tx.Exec(ctx, `INSERT INTO led_generations(
-			id,cutover_date,status,activated_by,request_id
-		) VALUES($1,DATE '0001-01-01','ACTIVE',$2,'zero-opening')`,
-			id, systemidentity.UserID); err != nil {
-			return s.writeError("create ledger base generation", err)
-		}
-		generationID = &id
-		if _, err = tx.Exec(ctx, `UPDATE led_control SET status='ACTIVE',
-			cutover_date=DATE '0001-01-01',active_generation_id=$1
-			WHERE singleton=true`, id); err != nil {
-			return s.writeError("attach ledger base generation", err)
-		}
+	generationID := newID()
+	zeroDate := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	if err = q.InsertLedGeneration(ctx, dbsqlc.InsertLedGenerationParams{
+		ID: generationID, CutoverDate: pgtype.Date{Time: zeroDate, Valid: true},
+		ActorID: systemidentity.UserID, RequestID: "approved-posting-rebuild",
+	}); err != nil {
+		return s.writeError("create rebuilt ledger generation", err)
 	}
-	for _, table := range []string{
-		"led_inventory_entries", "led_fund_entries", "led_party_entries", "led_container_entries",
-		"led_asset_entries", "led_assets",
-	} {
-		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE generation_id=$1", *generationID); err != nil {
-			return s.writeError("clear ledger for zero rebuild", err)
-		}
-	}
-	if _, err = tx.Exec(ctx, `TRUNCATE led_draft_inventory,led_draft_fund,led_draft_party,
-		led_draft_container,led_opening_inventory,led_opening_fund,led_opening_party,
-		led_opening_container`); err != nil {
-		return s.writeError("clear legacy opening data", err)
-	}
-	documents, err := q.ListFinalizedVouDocumentsForLed(ctx)
+	documents, err := q.ListPostedVouDocumentsForLed(ctx)
 	if err != nil {
 		return s.internal("list documents for zero rebuild", err)
 	}
 	if err = s.replayVouDocuments(
-		ctx, tx, q, *generationID, time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
-		documents, systemidentity.UserID, "zero-opening",
+		ctx, tx, q, generationID, zeroDate,
+		documents, systemidentity.UserID, "approved-posting-rebuild",
 	); err != nil {
 		return err
 	}
-	negative, err := q.HasNegativeLedInventoryTimeline(ctx, *generationID)
+	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
 	if err != nil {
 		return s.internal("validate zero-opening rebuild", err)
 	}
 	if negative {
 		return domainError(
 			ErrorConflict,
-			"zero-opening rebuild would create negative inventory",
+			"approved posting rebuild would create negative inventory",
 			nil,
 			nil,
 		)
 	}
-	if _, err = tx.Exec(ctx, `UPDATE led_control SET rebuild_required=false,
-		cutover_date=DATE '0001-01-01',updated_at=now(),updated_by=$1
-		WHERE singleton=true`, systemidentity.UserID); err != nil {
+	if err = s.rebuildClosingSnapshots(ctx, tx, generationID); err != nil {
+		return err
+	}
+	if previousGenerationID != nil {
+		if err = q.ArchiveActiveLedGeneration(ctx, *previousGenerationID); err != nil {
+			return s.writeError("archive previous ledger generation", err)
+		}
+	}
+	if _, err = tx.Exec(ctx, `UPDATE led_control SET status='ACTIVE',rebuild_required=false,
+		cutover_date=DATE '0001-01-01',active_generation_id=$1,revision=revision+1,
+		updated_at=now(),updated_by=$2 WHERE singleton=true`, generationID, systemidentity.UserID); err != nil {
 		return s.writeError("finish ledger initialization", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return s.writeError("commit ledger initialization", err)
+	}
+	return nil
+}
+
+func (s *Service) rebuildClosingSnapshots(
+	ctx context.Context,
+	tx pgx.Tx,
+	generationID string,
+) error {
+	rows, err := tx.Query(ctx, `SELECT id,closing_date
+		FROM led_closings WHERE status='ACTIVE'
+		ORDER BY closing_date,id`)
+	if err != nil {
+		return s.internal("list closings for ledger rebuild", err)
+	}
+	type closingPeriod struct {
+		id   string
+		date time.Time
+	}
+	closings := make([]closingPeriod, 0)
+	for rows.Next() {
+		var closing closingPeriod
+		if err = rows.Scan(&closing.id, &closing.date); err != nil {
+			rows.Close()
+			return s.internal("scan closing for ledger rebuild", err)
+		}
+		closings = append(closings, closing)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return s.internal("read closings for ledger rebuild", err)
+	}
+	rows.Close()
+	for _, closing := range closings {
+		for _, table := range []string{
+			"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
+			"led_closing_party", "led_closing_container",
+		} {
+			if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", closing.id); err != nil {
+				return s.writeError("clear closing snapshot for ledger rebuild", err)
+			}
+		}
+	}
+	periodStart := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	var previousClosingID *string
+	for _, closing := range closings {
+		if err = s.calculateInventoryClosing(
+			ctx, tx, generationID, previousClosingID, closing.id, periodStart, closing.date,
+		); err != nil {
+			return err
+		}
+		if err = s.snapshotNonInventoryBalances(ctx, tx, generationID, closing.id, closing.date); err != nil {
+			return err
+		}
+		id := closing.id
+		previousClosingID = &id
+		periodStart = closing.date.AddDate(0, 0, 1)
 	}
 	return nil
 }

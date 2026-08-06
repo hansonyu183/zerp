@@ -193,9 +193,8 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve expense payment: %v", err)
 	}
-	finalized, err := vouchers.Finalize(t.Context(), voudomain.EntityExpensePayment, voudomain.FinalizeInput{DocumentID: paymentID, Revision: approvedPayment.Revision}, workflowIntegrationActor, "expense-payment-finalize")
-	if err != nil {
-		t.Fatalf("finalize expense payment: %v", err)
+	if approvedPayment.Status != voudomain.StatusFinalized {
+		t.Fatalf("approved expense payment status = %s", approvedPayment.Status)
 	}
 	instance, err := workflows.InstanceGet(t.Context(), InstanceGetInput{ProcessID: processID})
 	if err != nil || instance.Status != InstanceCompleted {
@@ -206,8 +205,8 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 		len(page.Items[0].Progress) != 2 || page.Items[0].Progress[1].CompletedCount != 1 {
 		t.Fatalf("completed current nodes = %+v, err=%v", page.Items, err)
 	}
-	if _, err = vouchers.Unfinalize(t.Context(), voudomain.EntityExpensePayment, voudomain.ReverseInput{DocumentID: paymentID, Revision: finalized.Revision, Reason: "重新处理"}, workflowIntegrationActor, "expense-payment-unfinalize"); err != nil {
-		t.Fatalf("unfinalize expense payment: %v", err)
+	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityExpensePayment, voudomain.ReverseInput{DocumentID: paymentID, Revision: approvedPayment.Revision, Reason: "重新处理"}, workflowIntegrationActor, "expense-payment-unapprove"); err != nil {
+		t.Fatalf("unapprove expense payment: %v", err)
 	}
 	instance, err = workflows.InstanceGet(t.Context(), InstanceGetInput{ProcessID: processID})
 	if err != nil || instance.Status != InstanceActive {

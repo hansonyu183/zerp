@@ -2908,16 +2908,22 @@ func TestIntermediarySourceCollectsZeroPriceAndIgnoresNonCNYReturnTimelineIntegr
 	}
 }
 
-func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegration(t *testing.T) {
+func TestIntermediarySourceCumulativelyRoundsPreCutoverReturnsAgainstOpeningIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
 	refs := prepareLEDReferences(t, pool)
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activated := activateEmptyLedger(t, ledger)
-	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "0.01")
 
-	oldOrder, oldOrderView := approveSaleOrder(t, vouchers, refs, "1")
+	oldOrder, oldOrderView := advanceToApproved(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []voudomain.ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "0.01",
+		}},
+	})
 	oldOutbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, oldOrder, oldOrderView, "1")
 	oldDelivery, oldDeliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
 		BusinessDate: "2026-07-25", SourceDocumentID: oldOutbound.DocumentID,
@@ -2941,13 +2947,13 @@ func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegratio
 		Inventory: []InventoryOpeningInput{{
 			Warehouse: ReferenceInput{ObjectID: refs.warehouse.ObjectID, VersionID: refs.warehouse.VersionID},
 			Product:   ReferenceInput{ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID},
-			Quantity:  "1", UnitPrice: "10.00", Currency: "CNY",
+			Quantity:  "1", UnitPrice: "0.01", Currency: "CNY",
 		}},
 		Fund: []FundOpeningInput{},
 		Party: []PartyOpeningInput{{
 			CounterpartyType: "customer",
 			Counterparty:     ReferenceInput{ObjectID: refs.customer.ObjectID, VersionID: refs.customer.VersionID},
-			Currency:         "CNY", BalanceType: "RECEIVABLE", Amount: "12.00",
+			Currency:         "CNY", BalanceType: "RECEIVABLE", Amount: "0.01",
 		}},
 	}, integrationActorOne, "intermediary-pre-cutover-return-opening")
 	if err != nil {
@@ -2962,7 +2968,7 @@ func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegratio
 		BusinessDate: "2026-08-02", Currency: "CNY", Customer: &refs.customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []voudomain.ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "12.00",
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "0.01",
 		}},
 	})
 	newOutbound, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleOutbound, voudomain.DraftInput{
@@ -2983,14 +2989,27 @@ func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegratio
 		}},
 	})
 	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
-		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "冲减期初应收",
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "第一次冲减期初应收",
 		ReturnLines: []voudomain.ReturnLineInput{{
-			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "1",
+			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
 		}},
 	})
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-06", Warehouse: &refs.warehouse, ReturnReason: "第二次冲减期初应收",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
+		}},
+	})
+	beforeReceipt, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(beforeReceipt.Source.Lines) != 0 {
+		t.Fatalf("independently rounded pre-cutover returns created collection capacity: %+v, err=%v",
+			beforeReceipt.Source, err)
+	}
 	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
-		BusinessDate: "2026-08-06", Currency: "CNY", CounterpartyType: "customer",
-		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
+		BusinessDate: "2026-08-07", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "0.01",
 	})
 
 	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
@@ -2998,7 +3017,7 @@ func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegratio
 	})
 	if err != nil || len(augustSource.Source.Lines) != 1 ||
 		augustSource.Source.Lines[0].SignoffDocumentID != newSignoff.DocumentID ||
-		augustSource.Source.Lines[0].CollectionDate != "2026-08-06" {
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-07" {
 		t.Fatalf("pre-cutover return did not reduce opening receivable: %+v, err=%v", augustSource.Source, err)
 	}
 }

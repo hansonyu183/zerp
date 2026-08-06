@@ -276,6 +276,47 @@ WITH trade AS (
       AND entry.account_type='TRADE'
       AND entry.counterparty_entity='customer'
       AND entry.currency='CNY'
+), precutover_daily_return AS (
+    SELECT
+        entry.counterparty_object_id,
+        signoff_line.id AS source_signoff_line_id,
+        signoff_line.signed_qty_micros AS original_quantity_micros,
+        signoff_line.line_amount_cents AS original_amount_cents,
+        entry.effective_date AS return_date,
+        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+    FROM trade entry
+    JOIN vou_sale_return_lines return_line
+      ON return_line.id=entry.source_line_id
+    JOIN vou_sale_signoff_lines signoff_line
+      ON signoff_line.id=return_line.source_signoff_line_id
+    JOIN vou_documents signoff
+      ON signoff.id=signoff_line.document_id
+     AND signoff.entity='sale-signoff'
+    WHERE entry.source_entity='sale-return'
+      AND signoff.business_date < sqlc.arg(cutover_date)
+    GROUP BY entry.counterparty_object_id,signoff_line.id,
+             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+             entry.effective_date
+), precutover_cumulative_return AS (
+    SELECT precutover_daily_return.*,
+           sum(returned_quantity_micros) OVER (
+               PARTITION BY source_signoff_line_id ORDER BY return_date
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+           )::bigint AS cumulative_quantity_micros
+    FROM precutover_daily_return
+), precutover_rounded_return AS (
+    SELECT precutover_cumulative_return.*,
+           COALESCE(round(
+               original_amount_cents::numeric*cumulative_quantity_micros::numeric/
+               NULLIF(original_quantity_micros,0)
+           )::bigint,0) AS cumulative_amount_cents
+    FROM precutover_cumulative_return
+), precutover_incremental_return AS (
+    SELECT precutover_rounded_return.*,
+           (cumulative_amount_cents-COALESCE(lag(cumulative_amount_cents) OVER (
+               PARTITION BY source_signoff_line_id ORDER BY return_date
+           ),0))::bigint AS amount_cents
+    FROM precutover_rounded_return
 ), mapped AS (
     -- In-scope after-sale returns are applied to their source signoff by the
     -- dedicated return timeline. Excluding them here prevents a return from
@@ -287,19 +328,9 @@ WITH trade AS (
     UNION ALL
     -- Returns against signoffs before the active cutover reduce the opening
     -- receivable. They have no in-scope source document for the dedicated
-    -- return timeline, so retain their line-level ledger credits here.
-    SELECT entry.counterparty_object_id,entry.effective_date,
-           entry.amount_delta_cents
-    FROM trade entry
-    JOIN vou_sale_return_lines return_line
-      ON return_line.id=entry.source_line_id
-    JOIN vou_sale_signoff_lines signoff_line
-      ON signoff_line.id=return_line.source_signoff_line_id
-    JOIN vou_documents signoff
-      ON signoff.id=signoff_line.document_id
-     AND signoff.entity='sale-signoff'
-    WHERE entry.source_entity='sale-return'
-      AND signoff.business_date < sqlc.arg(cutover_date)
+    -- return timeline, so retain their cumulatively rounded credits here.
+    SELECT counterparty_object_id,return_date,-amount_cents
+    FROM precutover_incremental_return
     UNION ALL
     SELECT entry.counterparty_object_id,
            (CASE WHEN bill_line.bill_type='CHECK'

@@ -337,6 +337,41 @@ describe('intermediary calculation QuickJS sandbox', () => {
     })
   })
 
+  it('carries a matched bill when the current commission cannot absorb its full cost', async () => {
+    const insufficientSource = structuredClone(source)
+    insufficientSource.bills = [
+      {
+        billLineId: 'bill-line-too-large',
+        receiptDocumentId: 'bill-receipt-too-large',
+        receiptDocumentNo: 'BRE-TOO-LARGE',
+        receiptDate: '2026-07-01',
+        customer,
+        salesperson,
+        billType: 'BANK_ACCEPTANCE',
+        faceAmount: '365000.00',
+        issueDate: '2026-07-01',
+        maturityDate: '2026-10-09',
+        costDays: 100,
+      },
+    ]
+
+    const calculated = await runIntermediaryScript(
+      seededScript,
+      insufficientSource,
+    )
+
+    expect(calculated.lines[0]).toMatchObject({
+      billCost: '0.00',
+      billLineIds: [],
+      employeeAmount: '1890.00',
+    })
+    expect(calculated.summaries).toContainEqual({
+      payee: salesperson,
+      category: 'COMMISSION',
+      amount: '1890.00',
+    })
+  })
+
   it('reverses the saved original amounts for a cross-month return', async () => {
     const returnSource = structuredClone(source)
     returnSource.lines[0] = {

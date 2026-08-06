@@ -512,12 +512,8 @@ func (s *Service) prepareIntermediaryCalculation(
 	}
 
 	lineSources := make(map[string]IntermediarySourceLine, len(calculation.Source.Lines))
-	eligibleBillGroups := make(map[string]bool)
 	for _, line := range calculation.Source.Lines {
 		lineSources[line.SourceSignoffLineID] = line
-		if line.SourceKind == intermediarySourceSale {
-			eligibleBillGroups[line.Customer.ObjectID+":"+line.Salesperson.ObjectID] = true
-		}
 	}
 	if len(calculation.Result.Lines) != len(lineSources) {
 		return prepared, domainError(ErrorValidation, "calculation result must contain one row per source line", nil, nil)
@@ -539,6 +535,8 @@ func (s *Service) prepareIntermediaryCalculation(
 		billSources[bill.BillLineID] = bill
 	}
 	allocatedBills := make(map[string]bool, len(calculation.Source.Bills))
+	billCostGroups := make(map[string]bool)
+	billAllocationGroups := make(map[string]bool)
 	seenLines := make(map[string]bool, len(calculation.Result.Lines))
 	for _, line := range calculation.Result.Lines {
 		sourceLine, ok := lineSources[line.SourceSignoffLineID]
@@ -631,20 +629,22 @@ func (s *Service) prepareIntermediaryCalculation(
 			allocatedBills[billLineID] = true
 		}
 		if parsedAmounts[5] > 0 && len(line.BillLineIDs) == 0 {
-			return prepared, domainError(ErrorValidation, "bill cost requires its source bill allocation", nil, nil)
+			billCostGroups[sourceLine.Customer.ObjectID+":"+sourceLine.Salesperson.ObjectID] = true
+		}
+		if len(line.BillLineIDs) != 0 {
+			billAllocationGroups[sourceLine.Customer.ObjectID+":"+sourceLine.Salesperson.ObjectID] = true
 		}
 		prepared.lineBillIDs = append(prepared.lineBillIDs, append([]string(nil), line.BillLineIDs...))
+	}
+	for key := range billCostGroups {
+		if !billAllocationGroups[key] {
+			return prepared, domainError(ErrorValidation, "bill cost requires its source bill allocation", nil, nil)
+		}
 	}
 	for key, amount := range expected {
 		if amount == 0 {
 			delete(expected, key)
 			delete(expectedPayees, key)
-		}
-	}
-	for _, bill := range calculation.Source.Bills {
-		key := bill.Customer.ObjectID + ":" + bill.Salesperson.ObjectID
-		if eligibleBillGroups[key] && !allocatedBills[bill.BillLineID] {
-			return prepared, domainError(ErrorValidation, "eligible bill cost must be allocated to a calculation line", nil, nil)
 		}
 	}
 	seenSummaries := make(map[summaryKey]bool)

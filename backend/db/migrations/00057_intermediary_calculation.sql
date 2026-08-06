@@ -255,7 +255,7 @@ globalThis.calculate = function calculate(input) {
     if (!special) employeeGroup.barrels += barrels;
     byEmployee.set(employeeKey, employeeGroup);
     const costKey = line.customer.objectId + ':' + line.salesperson.objectId;
-    const costGroup = byCustomerEmployee.get(costKey) || { lines: [], bills: 0, billLineIds: [] };
+    const costGroup = byCustomerEmployee.get(costKey) || { lines: [], bills: [] };
     costGroup.lines.push(item);
     byCustomerEmployee.set(costKey, costGroup);
     return row;
@@ -264,8 +264,10 @@ globalThis.calculate = function calculate(input) {
     const key = bill.customer.objectId + ':' + bill.salesperson.objectId;
     const group = byCustomerEmployee.get(key);
     if (group) {
-      group.bills += number(bill.faceAmount) * 0.03 * Number(bill.costDays) / 365;
-      group.billLineIds.push(bill.billLineId);
+      group.bills.push({
+        billLineId: bill.billLineId,
+        cost: number(money(number(bill.faceAmount) * 0.03 * Number(bill.costDays) / 365))
+      });
     }
   }
   for (const group of byEmployee.values()) {
@@ -279,18 +281,25 @@ globalThis.calculate = function calculate(input) {
     }
   }
   for (const group of byCustomerEmployee.values()) {
-    if (group.lines.length) group.lines[0].result.billLineIds = group.billLineIds.slice();
-    let remainingCost = group.bills;
-    for (const item of group.lines) {
-      const available = number(item.result.employeeAmount);
-      const deducted = Math.min(available, remainingCost);
-      item.result.billCost = money(deducted);
-      item.result.employeeAmount = money(available - deducted);
-      remainingCost -= deducted;
+    let available = number(money(group.lines.reduce(
+      (sum, item) => sum + number(item.result.employeeAmount), 0
+    )));
+    const allocatedBillLineIds = [];
+    for (const bill of group.bills) {
+      if (bill.cost > available) break;
+      allocatedBillLineIds.push(bill.billLineId);
+      available = number(money(available - bill.cost));
+      let remainingCost = bill.cost;
+      for (const item of group.lines) {
+        if (remainingCost <= 0) break;
+        const lineAvailable = number(item.result.employeeAmount);
+        const deducted = Math.min(lineAvailable, remainingCost);
+        item.result.billCost = money(number(item.result.billCost) + deducted);
+        item.result.employeeAmount = money(lineAvailable - deducted);
+        remainingCost = number(money(remainingCost - deducted));
+      }
     }
-    if (remainingCost > 0 && group.lines.length) {
-      group.lines[0].result.billCost = money(number(group.lines[0].result.billCost) + remainingCost);
-    }
+    if (group.lines.length) group.lines[0].result.billLineIds = allocatedBillLineIds;
   }
   const summaries = new Map();
   const add = (payee, category, amount) => {

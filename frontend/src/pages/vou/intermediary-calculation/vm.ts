@@ -89,6 +89,26 @@ export function useIntermediaryCalculationViewModel() {
     base.form.value.intermediaryCalculation = null
   }
 
+  async function openDocument(
+    ...args: Parameters<typeof base.openDocument>
+  ): Promise<void> {
+    calculationRequest += 1
+    calculating.value = false
+    await base.openDocument(...args)
+  }
+
+  function cancelEditing(): void {
+    calculationRequest += 1
+    calculating.value = false
+    base.cancelEditing()
+  }
+
+  function closeWorkspace(): void {
+    calculationRequest += 1
+    calculating.value = false
+    base.closeWorkspace()
+  }
+
   async function calculate(): Promise<void> {
     if (!canCalculate.value) return
     if (!isMonthEnd(base.form.value.businessDate)) {
@@ -263,6 +283,9 @@ export function useIntermediaryCalculationViewModel() {
     canReadSource,
     canCalculate,
     openCreate,
+    openDocument,
+    cancelEditing,
+    closeWorkspace,
     changeBusinessDate,
     calculate,
     openScript,

@@ -111,11 +111,8 @@ export function validateIntermediaryResult(
     source.bills.map((bill) => [bill.billLineId, bill]),
   )
   const allocatedBills = new Set<string>()
-  const eligibleGroups = new Set(
-    source.lines
-      .filter((line) => line.sourceKind === 'SALE')
-      .map((line) => `${line.customer.objectId}:${line.salesperson.objectId}`),
-  )
+  const billCostGroups = new Set<string>()
+  const billAllocationGroups = new Set<string>()
   for (const line of value.lines as IntermediaryResultLine[]) {
     const sourceLine = sourceById.get(line.sourceSignoffLineId)
     if (!sourceLine) continue
@@ -142,20 +139,18 @@ export function validateIntermediaryResult(
         throw new Error('票据成本分配必须匹配客户、业务员和来源票据。')
       }
       allocatedBills.add(billLineId)
+      billAllocationGroups.add(
+        `${sourceLine.customer.objectId}:${sourceLine.salesperson.objectId}`,
+      )
     }
     if (Number(line.billCost) > 0 && line.billLineIds.length === 0) {
-      throw new Error('票据成本必须记录来源票据。')
+      billCostGroups.add(
+        `${sourceLine.customer.objectId}:${sourceLine.salesperson.objectId}`,
+      )
     }
   }
-  if (
-    source.bills.some(
-      (bill) =>
-        eligibleGroups.has(
-          `${bill.customer.objectId}:${bill.salesperson.objectId}`,
-        ) && !allocatedBills.has(bill.billLineId),
-    )
-  ) {
-    throw new Error('存在可分配但未分配的票据成本。')
+  if ([...billCostGroups].some((group) => !billAllocationGroups.has(group))) {
+    throw new Error('票据成本必须记录同一客户和业务员的来源票据。')
   }
   return {
     lines: value.lines as IntermediaryResultLine[],

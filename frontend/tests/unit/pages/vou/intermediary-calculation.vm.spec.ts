@@ -4,6 +4,7 @@ import { apiClient } from '@/api/client'
 import type {
   IntermediaryCalculationSource,
   IntermediaryScriptSnapshot,
+  VoucherDocumentView,
 } from '@/components/voucher'
 import { runIntermediaryScript } from '@/pages/vou/intermediary-calculation/sandbox'
 import {
@@ -28,6 +29,7 @@ vi.mock('@/pages/vou/intermediary-calculation/sandbox', () => ({
 }))
 
 const mockedPostContract = vi.mocked(apiClient.postContract)
+const mockedPost = vi.mocked(apiClient.post)
 const mockedRunScript = vi.mocked(runIntermediaryScript)
 
 const source: IntermediaryCalculationSource = {
@@ -49,6 +51,8 @@ const script: IntermediaryScriptSnapshot = {
 function grantPermissions(): void {
   useSessionStore().permissions = [
     '/vou/intermediary-calculation/create',
+    '/vou/intermediary-calculation/get',
+    '/vou/intermediary-calculation/save',
     '/vou/intermediary-calculation/source',
     '/vou/intermediary-calculation/script-get',
     '/vou/intermediary-calculation/script-save',
@@ -133,6 +137,67 @@ describe('intermediary calculation view model', () => {
     expect(vm.form.value.intermediaryCalculation).toBeNull()
     expect(vm.successMessage.value).toBeNull()
     expect(vm.calculating.value).toBe(false)
+  })
+
+  it('discards a calculation from a closed workspace after reopening the same document', async () => {
+    grantPermissions()
+    let resolveSource!: (value: { data: unknown }) => void
+    let resolveScript!: (value: { data: unknown }) => void
+    mockedPostContract
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSource = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveScript = resolve
+          }),
+      )
+    mockedRunScript.mockResolvedValueOnce({ lines: [], summaries: [] })
+    const storedCalculation = {
+      source,
+      sourceHash: 'STORED-SOURCE-HASH',
+      script,
+      result: { lines: [], summaries: [] },
+    }
+    const document: VoucherDocumentView = {
+      documentId: 'CALCULATION-1',
+      entity: 'intermediary-calculation',
+      documentNo: 'ICL-20260731-0001',
+      status: 'DRAFT',
+      revision: 1,
+      amount: '0.00',
+      data: {
+        businessDate: '2026-07-31',
+        currency: 'CNY',
+        intermediaryCalculation: storedCalculation,
+      },
+      attachments: [],
+      createdAt: '2026-08-01T00:00:00Z',
+      createdBy: 'USER-1',
+      updatedAt: '2026-08-01T00:00:00Z',
+      updatedBy: 'USER-1',
+    }
+    mockedPost.mockResolvedValueOnce({ data: document })
+    const vm = useIntermediaryCalculationViewModel()
+    vm.openCreate()
+    vm.form.value.businessDate = '2026-07-31'
+
+    const pending = vm.calculate()
+    await vi.waitFor(() => expect(mockedPostContract).toHaveBeenCalledTimes(2))
+    vm.closeWorkspace()
+    await vm.openDocument({ documentId: document.documentId })
+    resolveSource({ data: { source, sourceHash: 'OBSOLETE-SOURCE-HASH' } })
+    resolveScript({ data: script })
+    await pending
+
+    expect(vm.form.value.intermediaryCalculation).toEqual(storedCalculation)
+    expect(vm.editing.value).toBe(false)
+    expect(vm.calculating.value).toBe(false)
+    expect(vm.successMessage.value).toBeNull()
   })
 
   it('requires a successful test of the current text before saving a script', async () => {

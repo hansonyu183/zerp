@@ -256,6 +256,46 @@ const exactMessages: Readonly<Record<string, string>> = {
     '到期处理现金行不能关联票据行。',
   'billLineId is not supported in bill discount cash lines':
     '票据贴现现金行不能关联票据行。',
+  'bill receipt is missing customer salesperson':
+    '票据收入单缺少客户业务员，请先补全客户资料。',
+  'businessDate must be the calendar month end':
+    '居间计算单业务日期必须是期间月末。',
+  'calculation result contains an invalid amount':
+    '计算稿包含格式不正确的金额。',
+  'calculation result contains an invalid barrel quantity':
+    '计算稿包含格式不正确的桶数。',
+  'calculation result barrel quantity does not match its source':
+    '计算稿桶数与销售签收来源不一致，请重新计算。',
+  'calculation result note is too long': '计算稿说明不能超过 1000 个字符。',
+  'calculation result contains an invalid premium price':
+    '计算稿包含格式不正确的溢价。',
+  'calculation result line does not match its source':
+    '计算稿明细与销售签收来源不一致，请重新计算。',
+  'calculation result must contain one row per source line':
+    '每条销售签收来源必须对应一条计算明细。',
+  'calculation script changed; recalculate before saving':
+    '计算脚本已更新，请重新计算后保存。',
+  'calculation source changed; recalculate before saving':
+    '计算来源已变化，请重新计算后保存。',
+  'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
+  'calculation summary does not match detail results':
+    '计算稿汇总与明细不一致，请重新计算。',
+  'calculation summary category is invalid':
+    '计算稿汇总类别无效，请重新计算。',
+  'intermediary amount requires a source intermediary':
+    '居间金额缺少对应居间商，请检查客户资料后重新计算。',
+  'intermediary calculation must use CNY and include its calculation draft':
+    '居间计算单必须使用人民币并包含完整计算稿。',
+  'ledger must be active before calculation':
+    '业务账簿尚未启用，不能生成居间计算来源。',
+  'sale signoff is missing its order salesperson snapshot':
+    '销售签收单缺少订单业务员快照，请先处理来源单据。',
+  'source pricing quantity is invalid':
+    '销售签收来源的计价数量无效，请检查产品单位换算。',
+  'the period intermediary calculation must be approved before closing':
+    '结账前必须完成并批准本期居间计算单。',
+  'payableCategory only applies to other payable':
+    '应付类别筛选仅适用于其它应付台账。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',

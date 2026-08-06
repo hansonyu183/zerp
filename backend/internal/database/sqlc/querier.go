@@ -68,6 +68,8 @@ type Querier interface {
 	CountLedFundEntries(ctx context.Context, arg CountLedFundEntriesParams) (int64, error)
 	CountLedInventoryBalances(ctx context.Context, arg CountLedInventoryBalancesParams) (int64, error)
 	CountLedInventoryEntries(ctx context.Context, arg CountLedInventoryEntriesParams) (int64, error)
+	CountLedOtherPayableBalances(ctx context.Context, arg CountLedOtherPayableBalancesParams) (int64, error)
+	CountLedOtherPayableEntries(ctx context.Context, arg CountLedOtherPayableEntriesParams) (int64, error)
 	CountLedPartyBalances(ctx context.Context, arg CountLedPartyBalancesParams) (int64, error)
 	CountLedPartyEntries(ctx context.Context, arg CountLedPartyEntriesParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
@@ -132,6 +134,8 @@ type Querier interface {
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
+	DeleteVouIntermediaryCalculationLines(ctx context.Context, documentID string) error
+	DeleteVouIntermediaryCalculationSummaries(ctx context.Context, documentID string) error
 	DeleteVouInventoryCountLines(ctx context.Context, documentID string) error
 	DeleteVouPriceLines(ctx context.Context, documentID string) error
 	DeleteVouProductLines(ctx context.Context, documentID string) error
@@ -176,6 +180,8 @@ type Querier interface {
 	GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
+	GetVouIntermediaryCalculationDetail(ctx context.Context, documentID string) (VouIntermediaryCalculationDetail, error)
+	GetVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
 	GetVouInventoryCountBookQuantity(ctx context.Context, arg GetVouInventoryCountBookQuantityParams) (int64, error)
 	GetVouInventoryCountClosingDate(ctx context.Context, id string) (pgtype.Date, error)
 	GetVouInventoryCountDetail(ctx context.Context, documentID string) (VouInventoryCountDetail, error)
@@ -239,6 +245,7 @@ type Querier interface {
 	InsertLedOpeningInventoryFromDraft(ctx context.Context, generationID string) error
 	InsertLedOpeningPartyEntries(ctx context.Context, arg InsertLedOpeningPartyEntriesParams) error
 	InsertLedOpeningPartyFromDraft(ctx context.Context, generationID string) error
+	InsertLedOtherPayableEntry(ctx context.Context, arg InsertLedOtherPayableEntryParams) error
 	InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEntryParams) error
 	InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error
 	InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error
@@ -260,6 +267,9 @@ type Querier interface {
 	InsertVouExpensePaymentDetail(ctx context.Context, arg InsertVouExpensePaymentDetailParams) error
 	InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error
 	InsertVouFile(ctx context.Context, arg InsertVouFileParams) error
+	InsertVouIntermediaryCalculationDetail(ctx context.Context, arg InsertVouIntermediaryCalculationDetailParams) error
+	InsertVouIntermediaryCalculationLine(ctx context.Context, arg InsertVouIntermediaryCalculationLineParams) error
+	InsertVouIntermediaryCalculationSummary(ctx context.Context, arg InsertVouIntermediaryCalculationSummaryParams) error
 	InsertVouInventoryCountDetail(ctx context.Context, arg InsertVouInventoryCountDetailParams) error
 	InsertVouInventoryCountLine(ctx context.Context, arg InsertVouInventoryCountLineParams) error
 	InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouOtherIncomeDetailParams) error
@@ -295,6 +305,9 @@ type Querier interface {
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
 	ListDepreciableLedAssetsForVou(ctx context.Context, arg ListDepreciableLedAssetsForVouParams) ([]LedAsset, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
+	ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error)
+	ListIntermediaryCustomerTradeEvents(ctx context.Context, arg ListIntermediaryCustomerTradeEventsParams) ([]ListIntermediaryCustomerTradeEventsRow, error)
+	ListIntermediarySignoffSourceRows(ctx context.Context, periodEnd pgtype.Date) ([]ListIntermediarySignoffSourceRowsRow, error)
 	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
 	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)
 	ListLedAuditEvents(ctx context.Context, arg ListLedAuditEventsParams) ([]LedAuditEvent, error)
@@ -313,6 +326,8 @@ type Querier interface {
 	ListLedOpeningFund(ctx context.Context, generationID string) ([]LedOpeningFund, error)
 	ListLedOpeningInventory(ctx context.Context, generationID string) ([]LedOpeningInventory, error)
 	ListLedOpeningParty(ctx context.Context, generationID string) ([]LedOpeningParty, error)
+	ListLedOtherPayableBalances(ctx context.Context, arg ListLedOtherPayableBalancesParams) ([]ListLedOtherPayableBalancesRow, error)
+	ListLedOtherPayableEntries(ctx context.Context, arg ListLedOtherPayableEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyBalances(ctx context.Context, arg ListLedPartyBalancesParams) ([]ListLedPartyBalancesRow, error)
 	ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPartyEntriesBySourceParams) ([]LedPartyEntry, error)
@@ -336,6 +351,8 @@ type Querier interface {
 	ListVouBillLines(ctx context.Context, documentID string) ([]VouBillLine, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
 	ListVouExpenseLines(ctx context.Context, documentID string) ([]VouExpenseLine, error)
+	ListVouIntermediaryCalculationLines(ctx context.Context, documentID string) ([]VouIntermediaryCalculationLine, error)
+	ListVouIntermediaryCalculationSummaries(ctx context.Context, documentID string) ([]VouIntermediaryCalculationSummary, error)
 	ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error)
 	ListVouInventoryCountLines(ctx context.Context, documentID string) ([]VouInventoryCountLine, error)
 	ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error)
@@ -363,6 +380,7 @@ type Querier interface {
 	LockUnsubmittedAppFeedbackFile(ctx context.Context, arg LockUnsubmittedAppFeedbackFileParams) (AppFeedbackFile, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
 	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
+	LockVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
 	MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
@@ -429,6 +447,8 @@ type Querier interface {
 	UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)
+	UpdateVouIntermediaryCalculationDetail(ctx context.Context, arg UpdateVouIntermediaryCalculationDetailParams) (int64, error)
+	UpdateVouIntermediaryScript(ctx context.Context, arg UpdateVouIntermediaryScriptParams) (VouIntermediaryScript, error)
 	UpdateVouInventoryCountDetail(ctx context.Context, arg UpdateVouInventoryCountDetailParams) (int64, error)
 	UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouOtherIncomeDetailParams) (int64, error)
 	UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPaymentDetailParams) (int64, error)

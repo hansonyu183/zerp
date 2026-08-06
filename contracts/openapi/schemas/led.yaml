@@ -283,6 +283,11 @@
                   'documentNo': { 'type': 'string' },
                   'direction':
                     { 'type': 'array', 'items': { 'type': 'string' } },
+                  'payableCategory':
+                    {
+                      'type': 'string',
+                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                    },
                 },
             },
           'sort':

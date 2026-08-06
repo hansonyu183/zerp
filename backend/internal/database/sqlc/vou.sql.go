@@ -1147,7 +1147,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -1187,6 +1187,7 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.WarehouseCode,
 		&i.WarehouseName,
 		&i.SettlementTermCode,
+		&i.SpecialApproval,
 	)
 	return i, err
 }
@@ -2490,7 +2491,7 @@ INSERT INTO vou_sale_order_details (
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
     settlement_default_sales_surcharge_cents, settlement_term_code,
-    settlement_description
+    settlement_description, special_approval
 ) VALUES (
     $1, $2, $3,
     $4, $5,
@@ -2505,7 +2506,7 @@ INSERT INTO vou_sale_order_details (
     $23, $24,
     $25, $26,
     $27, $28,
-    $29
+    $29, $30
 )
 `
 
@@ -2539,6 +2540,7 @@ type InsertVouSaleOrderDetailParams struct {
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
 	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
+	SpecialApproval                      bool    `db:"special_approval" json:"special_approval"`
 }
 
 func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error {
@@ -2572,6 +2574,7 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementTermCode,
 		arg.SettlementDescription,
+		arg.SpecialApproval,
 	)
 	return err
 }
@@ -4756,8 +4759,9 @@ SET customer_object_id = $1, customer_version_id = $2,
     settlement_cutoff_day = $25,
     settlement_default_sales_surcharge_cents = $26,
     settlement_term_code = $27,
-    settlement_description = $28
-WHERE document_id = $29
+    settlement_description = $28,
+    special_approval = $29
+WHERE document_id = $30
 `
 
 type UpdateVouSaleOrderDetailParams struct {
@@ -4789,6 +4793,7 @@ type UpdateVouSaleOrderDetailParams struct {
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
 	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
+	SpecialApproval                      bool    `db:"special_approval" json:"special_approval"`
 	DocumentID                           string  `db:"document_id" json:"document_id"`
 }
 
@@ -4822,6 +4827,7 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		arg.SettlementDefaultSalesSurchargeCents,
 		arg.SettlementTermCode,
 		arg.SettlementDescription,
+		arg.SpecialApproval,
 		arg.DocumentID,
 	)
 	if err != nil {

@@ -359,4 +359,12 @@ export const voucherEntityConfigs: Readonly<
     partyMode: 'none',
     lineKind: 'none',
   },
+  'intermediary-calculation': {
+    entity: 'intermediary-calculation',
+    title: '居间计算单',
+    icon: 'mdi-calculator-variant-outline',
+    order: 45,
+    partyMode: 'none',
+    lineKind: 'none',
+  },
 }

@@ -39,11 +39,12 @@ bill-payment
 bill-issue
 bill-discount
 bill-maturity
+intermediary-calculation
 ```
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 34 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+当前共 35 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
 
 业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
@@ -57,7 +58,7 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ/BRE/BLP/BLI/BLD/BLM-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ/BRE/BLP/BLI/BLD/BLM/ICL-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
@@ -170,6 +171,69 @@ BOB 引用结构固定为：
   "revision": 1
 }
 ```
+
+### 2.4 居间计算单
+
+`intermediary-calculation`（居间计算单）是人工制单的月度计算型单据。每个自然月只能保存一张未删除单据，
+`businessDate` 必须是该月最后一天，币种固定为 `CNY`。结账前必须存在业务日期等于结账日且状态为
+`FINALIZED` 的居间计算单；没有符合条件的签收单时仍创建金额为零的单据，作为当月已处理凭据。
+
+计算来源由 `POST /vou/intermediary-calculation/source` 生成。后端只提供稳定业务事实，不执行提成公式：
+
+- 计算稿以销售签收单明细 ID 为唯一索引；签收单必须已批准入账。
+- 以客户贸易应收流水倒推回款，按客户、签收日期、单号顺序先进先出。期初应收视为早于所有签收单；
+  每张签收单首次被累计回款能力完全覆盖的日期是其收清日，只选收清日在统计月内的签收单。
+- 销售成本取销售订单开单时保存的销售定价参考价；结算方式加价、客户版本返点价分别作为独立来源字段，
+  不重复计入销售定价。
+- 客户返点价和居间商取销售订单引用的客户历史版本；业务员、客户、商品、结算方式沿用订单快照。
+- 票据成本来源按客户与业务员归集，脚本按收票日至票面到期日的天数及年化 3% 计算；支票在票面到期日
+  视为收清并进入该月计算稿，其他票据在收票日进入计算稿。
+- 销售订单保存 `specialApproval`（特批销售）快照；特批销售按低价 3 元/桶处理，不豁免收款延期，
+  且没有市场维护补贴和市场开发补贴。
+
+前端通过“计算脚本”入口读取和保存全局当前脚本。脚本在浏览器 QuickJS WebAssembly 沙箱内执行，只获得
+JSON 来源数据并返回 JSON 结果，不接触 DOM、Cookie、网络或宿主 JavaScript。运行时设置内存、栈和时间限制。
+后端保存当前脚本的乐观锁 revision；每张计算单同时保存脚本名称、文本、revision、SHA-256、来源 JSON、
+来源 SHA-256、逐签收明细计算结果和按收款方汇总结果。保存时后端重新生成来源并校验哈希、来源明细集合、
+收款方、分类、金额精度、明细汇总与单据总额，但不复算可变公式。
+
+默认脚本实现 2026 规则：标准销售基础提成 8 元/桶；每完整溢价 0.05 元/kg 增加 2.5 元/桶；低价和
+特批销售为 3 元/桶；结算方式加价和返点价从溢价中扣除；普通销售含市场维护补贴 2 元/桶及按业务员月度
+桶数计算的市场开发补贴（0–300 桶 1800 元，超过 300 桶后每完整增加 100 桶增加 200 元）。存在居间商时，
+该行员工溢价提成清零，居间金额为 `正溢价 × 计价数量 ÷ 1.13`。返点金额为 `返点价 × 计价数量`。
+票据成本按客户与业务员组合汇总后从员工提成中扣除。基础、低价和溢价提成按结算方式及收清延期天数执行
+2026 计付依据的回款超期扣减规则；预付、现结及货到 3/5/7/15 天采用现结扣减档位，月结 90 天默认不计提
+并提示单独审批。
+
+默认脚本的延期档位如下，边界天数均包含本日；“基础/低价”是对应销售类型每桶金额，溢价为是否保留：
+
+| 结算方式                     |  延期天数 | 基础/低价（元/桶） | 溢价           |
+| ---------------------------- | --------: | -----------------: | -------------- |
+| 预付、现结、货到 3/5/7/15 天 |       0–7 |                8/3 | 保留           |
+| 同上                         |      8–15 |                0/0 | 保留           |
+| 同上                         | 16 天以上 |                0/0 | 清零           |
+| 当月结                       |       0–7 |                5/3 | 保留           |
+| 当月结                       |      8–20 |                3/0 | 保留           |
+| 当月结                       | 21 天以上 |                0/0 | 清零           |
+| 货到 30 天                   |       0–7 |                8/3 | 保留           |
+| 货到 30 天                   |      8–15 |                3/3 | 保留           |
+| 货到 30 天                   |     16–20 |                0/0 | 保留           |
+| 货到 30 天                   | 21 天以上 |                0/0 | 清零           |
+| 月结 30 天                   |       0–7 |                8/3 | 保留           |
+| 月结 30 天                   |      8–10 |                5/3 | 保留           |
+| 月结 30 天                   |     11–20 |                3/3 | 保留           |
+| 月结 30 天                   |     21–30 |                0/0 | 保留           |
+| 月结 30 天                   | 31 天以上 |                0/0 | 清零           |
+| 月结 60 天                   |         0 |                8/3 | 保留           |
+| 月结 60 天                   |       1–7 |                5/3 | 保留           |
+| 月结 60 天                   |      8–30 |                3/3 | 保留           |
+| 月结 60 天                   | 31 天以上 |                0/0 | 清零           |
+| 月结 90 天                   |      任意 |                0/0 | 清零并提示审批 |
+
+脚本结果可以随规则变化编辑；历史单据始终保留当次计算稿。
+
+计算结果按 `COMMISSION`（员工提成）、`INTERMEDIARY`（居间费）、`REBATE`（客户返点）分组。
+单据批准时同步贷记 LED 分类其它应付，客户返点只增加客户名下其它应付，不改变客户贸易应收。
 
 ## 3. 单据字段
 
@@ -573,42 +637,43 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 
 ### 9.1 实体与页面
 
-| 实体                     | 页面            | 创建入口 |
-| ------------------------ | --------------- | -------- |
-| `sale-pricing`           | 销售定价        | 公开     |
-| `sale-order`             | 销售订单        | 公开     |
-| `sale-outbound`          | 销售出库        | WFL 自动 |
-| `sale-delivery`          | 销售送货        | WFL 自动 |
-| `sale-signoff`           | 销售签收        | WFL 自动 |
-| `sale-return`            | 销售退货        | 公开     |
-| `purchase-order`         | 采购订单        | 公开     |
-| `purchase-inbound`       | 采购入库        | 公开     |
-| `purchase-return`        | 采购退货        | 公开     |
-| `purchase-inquiry`       | 采购询价        | 公开     |
-| `order-production`       | 生产配货        | 公开     |
-| `self-production`        | 生产自制品      | 公开     |
-| `inventory-count`        | 库存盘点        | 公开     |
-| `customer-receipt`       | 往来收款-客户   | 公开     |
-| `supplier-receipt`       | 往来收款-供应商 | 公开     |
-| `other-receipt`          | 往来收款-其他   | 公开     |
-| `customer-payment`       | 往来付款-客户   | 公开     |
-| `supplier-payment`       | 往来付款-供应商 | 公开     |
-| `other-payment`          | 往来付款-其他   | 公开     |
-| `employee-loan`          | 员工借款        | 公开     |
-| `employee-repayment`     | 员工还款        | 公开     |
-| `employee-loan-writeoff` | 员工借款核销    | 公开     |
-| `expense-reimbursement`  | 费用报销        | 公开     |
-| `expense-payment`        | 费用付款        | WFL 自动 |
-| `other-income`           | 其他收入        | 公开     |
-| `asset-acquisition`      | 资产购置        | 公开     |
-| `asset-depreciation`     | 资产折旧        | 公开     |
-| `asset-sale`             | 资产出让        | 公开     |
-| `asset-liquidation`      | 资产清算        | 公开     |
-| `bill-receipt`           | 票据收入        | 公开     |
-| `bill-payment`           | 票据支付        | 公开     |
-| `bill-issue`             | 票据开具        | 公开     |
-| `bill-discount`          | 票据贴现        | 公开     |
-| `bill-maturity`          | 票据到期        | 公开     |
+| 实体                       | 页面            | 创建入口 |
+| -------------------------- | --------------- | -------- |
+| `sale-pricing`             | 销售定价        | 公开     |
+| `sale-order`               | 销售订单        | 公开     |
+| `sale-outbound`            | 销售出库        | WFL 自动 |
+| `sale-delivery`            | 销售送货        | WFL 自动 |
+| `sale-signoff`             | 销售签收        | WFL 自动 |
+| `sale-return`              | 销售退货        | 公开     |
+| `purchase-order`           | 采购订单        | 公开     |
+| `purchase-inbound`         | 采购入库        | 公开     |
+| `purchase-return`          | 采购退货        | 公开     |
+| `purchase-inquiry`         | 采购询价        | 公开     |
+| `order-production`         | 生产配货        | 公开     |
+| `self-production`          | 生产自制品      | 公开     |
+| `inventory-count`          | 库存盘点        | 公开     |
+| `customer-receipt`         | 往来收款-客户   | 公开     |
+| `supplier-receipt`         | 往来收款-供应商 | 公开     |
+| `other-receipt`            | 往来收款-其他   | 公开     |
+| `customer-payment`         | 往来付款-客户   | 公开     |
+| `supplier-payment`         | 往来付款-供应商 | 公开     |
+| `other-payment`            | 往来付款-其他   | 公开     |
+| `employee-loan`            | 员工借款        | 公开     |
+| `employee-repayment`       | 员工还款        | 公开     |
+| `employee-loan-writeoff`   | 员工借款核销    | 公开     |
+| `expense-reimbursement`    | 费用报销        | 公开     |
+| `expense-payment`          | 费用付款        | WFL 自动 |
+| `other-income`             | 其他收入        | 公开     |
+| `asset-acquisition`        | 资产购置        | 公开     |
+| `asset-depreciation`       | 资产折旧        | 公开     |
+| `asset-sale`               | 资产出让        | 公开     |
+| `asset-liquidation`        | 资产清算        | 公开     |
+| `bill-receipt`             | 票据收入        | 公开     |
+| `bill-payment`             | 票据支付        | 公开     |
+| `bill-issue`               | 票据开具        | 公开     |
+| `bill-discount`            | 票据贴现        | 公开     |
+| `bill-maturity`            | 票据到期        | 公开     |
+| `intermediary-calculation` | 居间计算        | 公开     |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 

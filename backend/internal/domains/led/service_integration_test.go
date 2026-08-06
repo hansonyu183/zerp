@@ -79,7 +79,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE led_bill_entries,led_bills,
 			led_asset_entries,led_assets,led_asset_number_assignments,led_asset_number_counters,
-			led_inventory_cost_allocations,led_closing_container,led_closing_party,
+			led_inventory_cost_allocations,led_closing_container,led_closing_other_payable,led_closing_party,
 			led_closing_fund,led_closing_inventory,led_closings,
 			led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
 			led_opening_container, led_draft_container,
@@ -93,6 +93,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
 			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,
+			vou_intermediary_calculation_lines,vou_intermediary_calculation_summaries,vou_intermediary_calculation_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -285,6 +286,43 @@ func advanceToChecked(
 		t.Fatalf("get %s: %v", entity, err)
 	}
 	return reviewed, view
+}
+
+func approveZeroIntermediaryCalculation(
+	t *testing.T, service *integratedVoucherService, businessDate string,
+) voudomain.DocumentView {
+	t.Helper()
+	source, err := service.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: businessDate,
+	})
+	if err != nil {
+		t.Fatalf("load intermediary source for %s: %v", businessDate, err)
+	}
+	script, err := service.GetIntermediaryScript(t.Context())
+	if err != nil {
+		t.Fatalf("load intermediary script for %s: %v", businessDate, err)
+	}
+	lines := make([]voudomain.IntermediaryResultLine, 0, len(source.Source.Lines))
+	for _, item := range source.Source.Lines {
+		lines = append(lines, voudomain.IntermediaryResultLine{
+			SourceSignoffLineID: item.SourceSignoffLineID,
+			PremiumUnitPrice:    "0.00", BarrelQuantity: item.BarrelQuantity,
+			BaseCommission: "0.00", PremiumCommission: "0.00", LowPriceCommission: "0.00",
+			MarketMaintenanceSubsidy: "0.00", MarketDevelopmentSubsidy: "0.00",
+			BillCost: "0.00", EmployeeAmount: "0.00", IntermediaryAmount: "0.00", RebateAmount: "0.00",
+		})
+	}
+	_, view := advanceToApproved(t, service, voudomain.EntityIntermediaryCalculation, voudomain.DraftInput{
+		BusinessDate: businessDate, Currency: "CNY",
+		IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
+			Source: source.Source, SourceHash: source.SourceHash, Script: script,
+			Result: voudomain.IntermediaryCalculationResult{Lines: lines, Summaries: []voudomain.IntermediarySummary{}},
+		},
+	})
+	if view.Status != voudomain.StatusFinalized {
+		t.Fatalf("approved intermediary calculation status = %s", view.Status)
+	}
+	return view
 }
 
 func advancePurchaseInboundToApproved(
@@ -1870,6 +1908,7 @@ func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	if err := ledger.EnsureReady(t.Context()); err != nil {
 		t.Fatalf("prepare ledger closing: %v", err)
 	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-07-31")
 	closing, err := ledger.GetClosing(t.Context())
 	if err != nil {
 		t.Fatalf("get closing before bill receipt period close: %v", err)
@@ -1896,14 +1935,184 @@ func TestBillReceiptRespectsLedgerClosingIntegration(t *testing.T) {
 	}
 }
 
+func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	bobService := bobdomain.NewService(pool)
+	intermediary := createApprovedReference(t, bobService, bobdomain.EntityOtherParty, bobdomain.CreateDetailInput{
+		Code: "LI" + newID(), Name: "LED 居间商", SalespersonEmployeeID: refs.employee.ObjectID,
+	})
+	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermArrival3)
+	refs.customer = createApprovedReference(t, bobService, bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
+		Code: "LIC" + newID(), Name: "LED 居间客户", SettlementMethodID: settlement.ObjectID,
+		SalespersonEmployeeID: refs.employee.ObjectID, RebateUnitPrice: "0.20",
+		IntermediaryOtherPartyID: intermediary.ObjectID,
+	})
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	zeroCalculation := approveZeroIntermediaryCalculation(t, vouchers, "2026-06-30")
+	reversedZero, err := vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: zeroCalculation.DocumentID, Revision: zeroCalculation.Revision, Reason: "撤回零金额居间计算",
+	}, integrationActorTwo, "zero-intermediary-calculation-unapprove")
+	if err != nil || reversedZero.Status != voudomain.StatusChecked {
+		t.Fatalf("unapprove zero intermediary calculation = %+v, err=%v", reversedZero, err)
+	}
+
+	advancePurchaseInboundToApproved(t, vouchers, refs, "1", "10.00")
+	order, orderView := approveSaleOrder(t, vouchers, refs, "1")
+	outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "1")
+	delivery, deliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	signoff, signoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+			SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	})
+	if signoff.Status != voudomain.StatusFinalized || len(signoffView.Data.SignoffLines) != 1 {
+		t.Fatalf("approved sale signoff = %+v, view=%+v", signoff, signoffView.Data.SignoffLines)
+	}
+	advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-07-27", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &refs.employee, BillLines: []voudomain.BillLineInput{{
+			PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+			BillType: "CHECK", BillNo: "ICL-CHECK-001", Medium: "PAPER",
+			Currency: "CNY", FaceAmount: "12.00", IssueDate: "2026-07-27",
+			MaturityDate: "2026-08-05", Drawer: "居间客户", Acceptor: "付款银行", Payee: "本公司",
+		}},
+	})
+	if _, insertErr := pool.Exec(t.Context(), `INSERT INTO led_party_entries(
+		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+		counterparty_entity,counterparty_object_id,counterparty_version_id,
+		counterparty_code,counterparty_name,currency,amount_delta_cents
+	)
+	SELECT $1,generation_id,'POSTING','foreign-currency-test',$2,'FX-COLLECTION',$3,1,
+		'2026-07-28',now(),$4,'intermediary-foreign-currency',counterparty_entity,
+		counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,
+		'USD',-amount_delta_cents
+	FROM led_party_entries
+	WHERE source_document_id=$5 AND account_type='TRADE'
+	LIMIT 1`, newID(), newID(), newID(), integrationActorOne, signoff.DocumentID); insertErr != nil {
+		t.Fatalf("insert unrelated foreign-currency collection: %v", insertErr)
+	}
+
+	julySource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-07-31"})
+	if err != nil {
+		t.Fatalf("load July intermediary source: %v", err)
+	}
+	if len(julySource.Source.Lines) != 0 || len(julySource.Source.Bills) != 0 {
+		t.Fatalf("July intermediary source must defer the check to maturity: %+v", julySource.Source)
+	}
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-08-31"})
+	if err != nil {
+		t.Fatalf("load August intermediary source: %v", err)
+	}
+	if len(augustSource.Source.Lines) != 1 || len(augustSource.Source.Bills) != 1 ||
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-05" ||
+		augustSource.Source.Lines[0].RebateUnitPrice != "0.20" ||
+		augustSource.Source.Lines[0].Intermediary == nil ||
+		augustSource.Source.Lines[0].Intermediary.ObjectID != intermediary.ObjectID ||
+		augustSource.Source.Bills[0].BillType != "CHECK" || augustSource.Source.Bills[0].CostDays != 9 {
+		t.Fatalf("August intermediary source = %+v", augustSource.Source)
+	}
+	sourceLine := augustSource.Source.Lines[0]
+	script, err := vouchers.GetIntermediaryScript(t.Context())
+	if err != nil {
+		t.Fatalf("load intermediary script: %v", err)
+	}
+	calculation := &voudomain.IntermediaryCalculationInput{
+		Source: augustSource.Source, SourceHash: augustSource.SourceHash, Script: script,
+		Result: voudomain.IntermediaryCalculationResult{
+			Lines: []voudomain.IntermediaryResultLine{{
+				SourceSignoffLineID: sourceLine.SourceSignoffLineID,
+				PremiumUnitPrice:    "0.50", BarrelQuantity: sourceLine.BarrelQuantity,
+				BaseCommission: "11.00", PremiumCommission: "5.00", LowPriceCommission: "0.00",
+				MarketMaintenanceSubsidy: "2.00", MarketDevelopmentSubsidy: "0.00",
+				BillCost: "8.00", EmployeeAmount: "10.00", IntermediaryAmount: "5.00", RebateAmount: "2.00",
+			}},
+			Summaries: []voudomain.IntermediarySummary{
+				{Payee: sourceLine.Salesperson, Category: "COMMISSION", Amount: "10.00"},
+				{Payee: *sourceLine.Intermediary, Category: "INTERMEDIARY", Amount: "5.00"},
+				{Payee: sourceLine.Customer, Category: "REBATE", Amount: "2.00"},
+			},
+		},
+	}
+	_, calculationView := advanceToApproved(t, vouchers, voudomain.EntityIntermediaryCalculation, voudomain.DraftInput{
+		BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: calculation,
+	})
+	if calculationView.Status != voudomain.StatusFinalized || calculationView.Amount != "17.00" ||
+		calculationView.Data.IntermediaryCalculation == nil ||
+		len(calculationView.Data.IntermediaryCalculation.Result.Lines) != 1 {
+		t.Fatalf("approved intermediary calculation = %+v", calculationView)
+	}
+
+	entries, err := ledger.QueryOtherPayable(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-08-31", SourceEntity: voudomain.EntityIntermediaryCalculation},
+	})
+	if err != nil || entries.Total != 3 || len(entries.Items) != 3 {
+		t.Fatalf("other payable entries = %+v, err=%v", entries, err)
+	}
+	amounts := make(map[string]string, len(entries.Items))
+	for _, item := range entries.Items {
+		if item.Direction != "CREDIT" || item.SourceDocumentID != calculationView.DocumentID {
+			t.Fatalf("other payable entry = %+v", item)
+		}
+		amounts[item.PayableCategory] = item.Amount
+	}
+	if amounts["COMMISSION"] != "10.00" || amounts["INTERMEDIARY"] != "5.00" || amounts["REBATE"] != "2.00" {
+		t.Fatalf("other payable amounts = %+v", amounts)
+	}
+	balances, err := ledger.OtherPayableBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-31"},
+	})
+	if err != nil || balances.Total != 3 || len(balances.Items) != 3 {
+		t.Fatalf("other payable balances = %+v, err=%v", balances, err)
+	}
+	tradeBalance, err := ledger.PartyBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-31", ObjectID: refs.customer.ObjectID},
+	}, EntityCustomer)
+	var cnyTradeBalance *PartyBalanceView
+	for index := range tradeBalance.Items {
+		if tradeBalance.Items[index].Currency == "CNY" {
+			cnyTradeBalance = &tradeBalance.Items[index]
+			break
+		}
+	}
+	if err != nil || cnyTradeBalance == nil ||
+		cnyTradeBalance.BalanceType != "ZERO" || cnyTradeBalance.Amount != "0.00" {
+		t.Fatalf("customer trade balance must stay separate from other payable: %+v, err=%v", tradeBalance, err)
+	}
+
+	reversed, err := vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: calculationView.DocumentID, Revision: calculationView.Revision, Reason: "撤回居间计算",
+	}, integrationActorTwo, "intermediary-calculation-unapprove")
+	if err != nil || reversed.Status != voudomain.StatusChecked {
+		t.Fatalf("unapprove intermediary calculation = %+v, err=%v", reversed, err)
+	}
+	entries, err = ledger.QueryOtherPayable(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-08-31", SourceEntity: voudomain.EntityIntermediaryCalculation},
+	})
+	if err != nil || entries.Total != 0 || len(entries.Items) != 0 {
+		t.Fatalf("other payable entries after reversal = %+v, err=%v", entries, err)
+	}
+}
+
 func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	var count int
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 21 {
-		t.Fatalf("LED permission count = %d, want 21", count)
+	if count != 23 {
+		t.Fatalf("LED permission count = %d, want 23", count)
 	}
 }
 
@@ -1921,6 +2130,7 @@ func TestApprovedPostingRebuildPreservesActiveClosingSnapshotsIntegration(t *tes
 	if approved.Status != voudomain.StatusFinalized {
 		t.Fatalf("approved purchase inbound status = %s", approved.Status)
 	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-07-31")
 	before, err := ledger.GetClosing(t.Context())
 	if err != nil {
 		t.Fatalf("get closing before approved-posting rebuild: %v", err)
@@ -2043,6 +2253,7 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 		WHERE status <> 'FINALIZED'`).Scan(&unfinished); err != nil || unfinished != 0 {
 		t.Fatalf("unfinished documents before opening-backed rebuild = %d, err=%v", unfinished, err)
 	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-07-31")
 	beforeClosing, err := ledger.GetClosing(t.Context())
 	if err != nil {
 		t.Fatalf("get closing before opening-backed rebuild: %v", err)
@@ -2098,7 +2309,7 @@ func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
-	ledger, _ := newIntegratedServices(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
 	if err := ledger.EnsureReady(t.Context()); err != nil {
 		t.Fatalf("initialize ledger: %v", err)
 	}
@@ -2140,6 +2351,7 @@ func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert closing cost movements: %v", err)
 	}
+	approveZeroIntermediaryCalculation(t, vouchers, "2026-06-30")
 	closed, err := ledger.Close(t.Context(), ClosingInput{
 		Revision: before.Revision, ClosingDate: "2026-06-30",
 	}, integrationActorOne, "close-june")

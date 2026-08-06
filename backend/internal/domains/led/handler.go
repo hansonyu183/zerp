@@ -41,6 +41,11 @@ type billApplicationService interface {
 	QueryBills(context.Context, BillQueryInput) (Page[BillView], error)
 }
 
+type otherPayableApplicationService interface {
+	QueryOtherPayable(context.Context, QueryInput) (Page[PartyEntryView], error)
+	OtherPayableBalance(context.Context, BalanceInput) (Page[PartyBalanceView], error)
+}
+
 type Handler struct {
 	service    applicationService
 	authorizer authorization.Authorizer
@@ -83,10 +88,38 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityAsset, "query", h.queryAssets},
 		{EntityAsset, "get", h.getAsset},
 		{EntityBill, "query", h.queryBills},
+		{EntityOtherPayable, "query", h.queryOtherPayable},
+		{EntityOtherPayable, "balance", h.otherPayableBalance},
 	}
 	for _, route := range routes {
 		path := "/led/" + route.entity + "/" + route.action
 		router.POST(path, h.authorize(path), route.handle)
+	}
+}
+
+func (h *Handler) queryOtherPayable(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(otherPayableApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "other payable ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.QueryOtherPayable(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) otherPayableBalance(c *gin.Context) {
+	var input BalanceInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(otherPayableApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "other payable ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.OtherPayableBalance(c.Request.Context(), input)
+		h.result(c, result, err)
 	}
 }
 

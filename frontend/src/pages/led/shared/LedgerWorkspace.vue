@@ -158,6 +158,17 @@ void vm.load()
               multiple
               variant="outlined"
             />
+            <v-select
+              v-if="config.payableCategories?.length"
+              v-model="vm.queryFilters.payableCategory"
+              clearable
+              density="comfortable"
+              item-title="title"
+              item-value="value"
+              :items="config.payableCategories"
+              label="应付类别"
+              variant="outlined"
+            />
           </template>
           <template v-else>
             <v-text-field

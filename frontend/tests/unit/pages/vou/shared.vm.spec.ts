@@ -192,6 +192,27 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesFundAccount) form.fundAccount = reference('fund-account')
   if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
+  if (config.entity === 'intermediary-calculation') {
+    form.businessDate = '2026-07-31'
+    form.intermediaryCalculation = {
+      source: {
+        periodStart: '2026-07-01',
+        periodEnd: '2026-07-31',
+        currency: 'CNY',
+        lines: [],
+        bills: [],
+      },
+      sourceHash: 'source-hash',
+      script: {
+        scriptId: 'script-1',
+        revision: 1,
+        name: '测试脚本',
+        source: 'globalThis.calculate = () => ({ lines: [], summaries: [] });',
+        hash: 'script-hash',
+      },
+      result: { lines: [], summaries: [] },
+    }
+  }
   if (config.productionMode) {
     const warehouse = reference('warehouse')
     const product = {
@@ -393,7 +414,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('defines all twenty-five atomic document entities', () => {
+  it('defines all atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -429,6 +450,7 @@ describe('shared VOU entity view model', () => {
       'bill-issue',
       'bill-discount',
       'bill-maturity',
+      'intermediary-calculation',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
     expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(
@@ -536,7 +558,10 @@ describe('shared VOU entity view model', () => {
       expect(data).not.toHaveProperty('inboundDate')
       expect(data).toHaveProperty(
         'businessDate',
-        config.entity === 'asset-depreciation' ? '2026-07-31' : '2026-07-24',
+        config.entity === 'asset-depreciation' ||
+          config.entity === 'intermediary-calculation'
+          ? '2026-07-31'
+          : '2026-07-24',
       )
       if (config.lineKind !== 'product')
         expect(data).not.toHaveProperty('productLines')

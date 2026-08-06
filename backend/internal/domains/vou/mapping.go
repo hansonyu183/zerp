@@ -2,6 +2,7 @@ package vou
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -19,6 +20,26 @@ func (s *Service) loadData(
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntityIntermediaryCalculation:
+		detail, err := q.GetVouIntermediaryCalculationDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		var source IntermediaryCalculationSource
+		var result IntermediaryCalculationResult
+		if err = json.Unmarshal(detail.SourceSnapshot, &source); err != nil {
+			return data, err
+		}
+		if err = json.Unmarshal(detail.ResultSnapshot, &result); err != nil {
+			return data, err
+		}
+		data.IntermediaryCalculation = &IntermediaryCalculationInput{
+			Source: source, SourceHash: detail.SourceHash,
+			Script: IntermediaryScriptSnapshot{ScriptID: detail.ScriptID, Revision: detail.ScriptRevision,
+				Name: detail.ScriptName, Source: detail.ScriptSource, Hash: detail.ScriptHash},
+			Result: result,
+		}
+		return data, nil
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return s.loadBillData(ctx, q, document, data)
 	case EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
@@ -68,6 +89,7 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.FulfillmentStatus = detail.FulfillmentStatus
+		data.SpecialApproval = detail.SpecialApproval
 		data.ShortCloseRequestedBy = deref(detail.ShortCloseRequestedBy)
 		data.ShortCloseReason = deref(detail.ShortCloseReason)
 		if err = s.setSaleOrderBalances(ctx, document.ID, &data); err != nil {

@@ -342,7 +342,7 @@ const countLedPartyBalances = `-- name: CountLedPartyBalances :one
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = $1
+    WHERE generation_id = $1 AND account_type = 'TRADE'
       AND ($2::text = '' OR counterparty_entity = $2)
       AND effective_date <= $3
       AND ($4::text = '' OR counterparty_object_id = $4)
@@ -371,7 +371,7 @@ func (q *Queries) CountLedPartyBalances(ctx context.Context, arg CountLedPartyBa
 
 const countLedPartyEntries = `-- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id = $1
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date >= $3 AND effective_date <= $4
   AND ($5::text = '' OR counterparty_object_id = $5)
@@ -767,7 +767,7 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 const getLedPartyBalanceAtDate = `-- name: GetLedPartyBalanceAtDate :one
 SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
 FROM led_party_entries
-WHERE generation_id=$1
+WHERE generation_id=$1 AND account_type = 'TRADE'
   AND counterparty_entity=$2
   AND counterparty_object_id=$3
   AND currency=$4
@@ -814,13 +814,13 @@ const hasInvalidEmployeeWriteoffTimeline = `-- name: HasInvalidEmployeeWriteoffT
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=$1
+    WHERE writeoff.generation_id=$1 AND writeoff.account_type = 'TRADE'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type = 'TRADE'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency
@@ -2775,7 +2775,7 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = $1
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date <= $3
   AND ($4::text = '' OR counterparty_object_id = $4)
@@ -2839,8 +2839,8 @@ func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBala
 }
 
 const listLedPartyEntries = `-- name: ListLedPartyEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
-WHERE generation_id = $1
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, payable_category FROM led_party_entries
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date >= $3 AND effective_date <= $4
   AND ($5::text = '' OR counterparty_object_id = $5)
@@ -2917,6 +2917,8 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountDeltaCents,
+			&i.AccountType,
+			&i.PayableCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2929,7 +2931,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 }
 
 const listLedPartyEntriesBySource = `-- name: ListLedPartyEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, payable_category FROM led_party_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -2971,6 +2973,8 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountDeltaCents,
+			&i.AccountType,
+			&i.PayableCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2995,7 +2999,8 @@ WHERE status IN ('APPROVED', 'FINALIZED')
     'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
     'expense-reimbursement', 'expense-payment', 'other-income',
     'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
-    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity'
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity',
+    'intermediary-calculation'
   )
 ORDER BY posted_at, id
 `

@@ -13,6 +13,8 @@ export interface DraftPayload {
   businessDate: string
   currency?: string
   remark?: string
+  specialApproval?: boolean
+  intermediaryCalculation?: VoucherDraftForm['intermediaryCalculation']
   returnReason?: string
   customer?: VoucherReferenceInput
   supplier?: VoucherReferenceInput
@@ -117,6 +119,8 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     businessDate: localDate(),
     currency: config.productionMode ? '' : 'CNY',
     remark: '',
+    specialApproval: false,
+    intermediaryCalculation: null,
     returnReason: '',
     returnKind: '',
     customer: null,
@@ -262,6 +266,8 @@ export function formFromDocument(
     businessDate: data.businessDate,
     currency: data.currency,
     remark: data.remark ?? '',
+    specialApproval: data.specialApproval ?? false,
+    intermediaryCalculation: data.intermediaryCalculation ?? null,
     returnReason: data.returnReason ?? '',
     returnKind: data.returnKind ?? '',
     customer: formReference(data.customer),

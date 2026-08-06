@@ -487,6 +487,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     @search="search('salesperson', $event)"
                     @update:model-value="updateReference('salesperson', $event)"
                   />
+                  <v-switch
+                    v-if="vm.config.entity === 'sale-order'"
+                    v-model="vm.form.specialApproval"
+                    color="warning"
+                    :disabled="!vm.editing"
+                    hide-details
+                    label="特批销售"
+                  />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.usesPurchaser"
                     :disabled="!vm.editing"

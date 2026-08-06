@@ -16,6 +16,17 @@ export function validateVoucherDraft(
 ): string | null {
   if (!value.businessDate) return '请选择业务日期。'
   if (Array.from(value.remark).length > 1000) return '备注不能超过 1000 字。'
+  if (config.entity === 'intermediary-calculation') {
+    const [year, month] = value.businessDate.split('-').map(Number)
+    const monthEnd = new Date(Date.UTC(year ?? 0, month ?? 0, 0))
+      .toISOString()
+      .slice(0, 10)
+    if (value.businessDate !== monthEnd) return '业务日期必须是期间月末。'
+    if (!value.intermediaryCalculation) return '请先执行居间计算。'
+    if (value.intermediaryCalculation.source.periodEnd !== value.businessDate) {
+      return '计算稿期间与业务日期不一致，请重新计算。'
+    }
+  }
   if (config.partyMode === 'customer' && !value.customer) return '请选择客户。'
   if (config.partyMode === 'supplier' && !value.supplier)
     return '请选择供应商。'

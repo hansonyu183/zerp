@@ -320,6 +320,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/sale-return/SaleReturn.vue'),
   }),
   registerPage('vou', {
+    entity: 'intermediary-calculation',
+    entityTitle: '居间计算单',
+    icon: 'mdi-calculator-variant-outline',
+    order: 45,
+    component: () =>
+      import('@/pages/vou/intermediary-calculation/IntermediaryCalculation.vue'),
+  }),
+  registerPage('vou', {
     entity: 'order-production',
     entityTitle: '生产配货',
     icon: 'mdi-factory',
@@ -556,6 +564,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-account-cash-outline',
     order: 43,
     component: () => import('@/pages/led/employee/Employee.vue'),
+  }),
+  registerPage('led', {
+    entity: 'other-payable',
+    entityTitle: '其它应付',
+    icon: 'mdi-account-cash-outline',
+    order: 44,
+    component: () => import('@/pages/led/other-payable/OtherPayable.vue'),
   }),
   registerPage('led', {
     entity: 'bill',

@@ -87,6 +87,7 @@ type validatedDraft struct {
 	MaturityType, InterestMode                              string
 	InterestParty                                           *ReferenceInput
 	WithRecourse                                            bool
+	SpecialApproval                                         bool
 	TotalAmount                                             int64
 }
 
@@ -183,6 +184,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		Handler: input.Handler, Warehouse: input.Warehouse,
 		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
 		SourceName:       strings.TrimSpace(input.SourceName),
+		SpecialApproval:  input.SpecialApproval,
 	}
 	if entity == EntityBillReceipt {
 		return validateBillReceiptDraft(input, result)

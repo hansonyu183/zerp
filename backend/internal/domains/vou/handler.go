@@ -37,6 +37,9 @@ type applicationService interface {
 	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (MutationResult, error)
 	Upload(context.Context, string, io.Reader, int64, string, string) error
 	OpenDownload(context.Context, string) (DownloadFile, error)
+	IntermediarySource(context.Context, IntermediarySourceInput) (IntermediarySourceView, error)
+	GetIntermediaryScript(context.Context) (IntermediaryScriptSnapshot, error)
+	SaveIntermediaryScript(context.Context, IntermediaryScriptSaveInput, string) (IntermediaryScriptSnapshot, error)
 }
 
 type Handler struct {
@@ -68,6 +71,9 @@ var actionRoutes = [...]actionRoute{
 	{action: "attachment-initiate", handle: (*Handler).attachmentInitiate},
 	{action: "attachment-download", handle: (*Handler).attachmentDownload},
 	{action: "attachment-remove", handle: (*Handler).attachmentRemove},
+	{action: "source", handle: (*Handler).intermediarySource},
+	{action: "script-get", handle: (*Handler).intermediaryScriptGet},
+	{action: "script-save", handle: (*Handler).intermediaryScriptSave},
 }
 
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
@@ -103,6 +109,10 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "preview" && entity != EntityAssetDepreciation {
 				continue
 			}
+			if (route.action == "source" || route.action == "script-get" || route.action == "script-save") &&
+				entity != EntityIntermediaryCalculation {
+				continue
+			}
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
@@ -113,6 +123,42 @@ func (h *Handler) Register(router *gin.Engine) {
 	}
 	router.PUT("/files/attachments/upload/:token", h.upload)
 	router.GET("/files/attachments/download/:token", h.download)
+}
+
+func (h *Handler) intermediarySource(c *gin.Context, entity string) {
+	if entity != EntityIntermediaryCalculation {
+		h.result(c, IntermediarySourceView{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input IntermediarySourceInput
+	if h.bind(c, &input) {
+		result, err := h.service.IntermediarySource(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) intermediaryScriptGet(c *gin.Context, entity string) {
+	if entity != EntityIntermediaryCalculation {
+		h.result(c, IntermediaryScriptSnapshot{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input struct{}
+	if h.bind(c, &input) {
+		result, err := h.service.GetIntermediaryScript(c.Request.Context())
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) intermediaryScriptSave(c *gin.Context, entity string) {
+	if entity != EntityIntermediaryCalculation {
+		h.result(c, IntermediaryScriptSnapshot{}, domainError(ErrorValidation, "invalid entity", nil, nil))
+		return
+	}
+	var input IntermediaryScriptSaveInput
+	if h.bind(c, &input) {
+		result, err := h.service.SaveIntermediaryScript(c.Request.Context(), input, h.actorID(c))
+		h.result(c, result, err)
+	}
 }
 
 func (h *Handler) inventoryCountBookBalance(c *gin.Context, entity string) {

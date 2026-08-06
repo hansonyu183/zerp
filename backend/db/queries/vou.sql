@@ -542,7 +542,7 @@ INSERT INTO vou_sale_order_details (
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
     settlement_default_sales_surcharge_cents, settlement_term_code,
-    settlement_description
+    settlement_description, special_approval
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_version_id),
     sqlc.arg(customer_code), sqlc.arg(customer_name),
@@ -557,7 +557,7 @@ INSERT INTO vou_sale_order_details (
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
     sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
     sqlc.arg(settlement_default_sales_surcharge_cents), sqlc.arg(settlement_term_code),
-    sqlc.narg(settlement_description)
+    sqlc.narg(settlement_description), sqlc.arg(special_approval)
 );
 
 -- name: UpdateVouSaleOrderDetail :execrows
@@ -584,7 +584,8 @@ SET customer_object_id = sqlc.arg(customer_object_id), customer_version_id = sql
     settlement_cutoff_day = sqlc.narg(settlement_cutoff_day),
     settlement_default_sales_surcharge_cents = sqlc.arg(settlement_default_sales_surcharge_cents),
     settlement_term_code = sqlc.arg(settlement_term_code),
-    settlement_description = sqlc.narg(settlement_description)
+    settlement_description = sqlc.narg(settlement_description),
+    special_approval = sqlc.arg(special_approval)
 WHERE document_id = sqlc.arg(document_id);
 
 -- name: GetVouSaleOrderDetail :one

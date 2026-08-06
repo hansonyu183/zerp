@@ -168,7 +168,7 @@ func (s *Service) rebuildClosingSnapshots(
 	for _, closing := range closings {
 		for _, table := range []string{
 			"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-			"led_closing_party", "led_closing_container",
+			"led_closing_party", "led_closing_other_payable", "led_closing_container",
 		} {
 			if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", closing.id); err != nil {
 				return s.writeError("clear closing snapshot for ledger rebuild", err)
@@ -286,6 +286,17 @@ func (s *Service) Close(
 			nil,
 		)
 	}
+	var calculationCount int64
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_documents
+		WHERE entity='intermediary-calculation' AND business_date=$1 AND status='FINALIZED'`, closingDate).
+		Scan(&calculationCount); err != nil {
+		return ClosingMutationResult{}, s.internal("check intermediary calculation", err)
+	}
+	if calculationCount != 1 {
+		return ClosingMutationResult{}, domainError(ErrorConflict,
+			"the period intermediary calculation must be approved before closing",
+			map[string]any{"closingDate": closingDate.Format(dateLayout)}, nil)
+	}
 	closingID := newID()
 	nextRevision := revision + 1
 	if _, err = tx.Exec(ctx, `INSERT INTO led_closings(
@@ -357,7 +368,7 @@ func (s *Service) Unclose(
 	}
 	for _, table := range []string{
 		"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-		"led_closing_party", "led_closing_container",
+		"led_closing_party", "led_closing_other_payable", "led_closing_container",
 	} {
 		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", *closingID); err != nil {
 			return ClosingMutationResult{}, s.writeError("clear reversed closing snapshot", err)
@@ -930,8 +941,20 @@ func (s *Service) snapshotNonInventoryBalances(
 			max(counterparty_code),
 			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			currency,sum(amount_delta_cents)
-		FROM led_party_entries WHERE generation_id=$2 AND effective_date <= $3
+		FROM led_party_entries WHERE generation_id=$2 AND account_type='TRADE' AND effective_date <= $3
 		GROUP BY counterparty_entity,counterparty_object_id,currency
+		HAVING sum(amount_delta_cents) <> 0`,
+		`INSERT INTO led_closing_other_payable(
+			closing_id,payable_category,counterparty_entity,counterparty_object_id,
+			counterparty_version_id,counterparty_code,counterparty_name,currency,amount_cents
+		)
+		SELECT $1,payable_category,counterparty_entity,counterparty_object_id,
+			(array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
+			max(counterparty_code),
+			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
+			currency,sum(amount_delta_cents)
+		FROM led_party_entries WHERE generation_id=$2 AND account_type='OTHER_PAYABLE' AND effective_date <= $3
+		GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
 		HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_container(
 			closing_id,customer_object_id,customer_version_id,customer_code,

@@ -1625,6 +1625,130 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/source':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '生成居间计算来源',
+              'operationId': 'vouIntermediaryCalculationSource',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouIntermediarySourceRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '居间计算来源及哈希。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouIntermediarySourceResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/vou/{entity}/script-get':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '读取当前居间计算脚本',
+              'operationId': 'vouIntermediaryCalculationScriptGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前居间计算脚本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouIntermediaryScriptGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/vou/{entity}/script-save':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '保存当前居间计算脚本',
+              'operationId': 'vouIntermediaryCalculationScriptSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouIntermediaryScriptSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的居间计算脚本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouIntermediaryScriptGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/vou/{entity}/book-balance':
         {
           'post':
@@ -3053,6 +3177,54 @@
               'tags': ['led'],
               'summary': '查询员工往来余额',
               'operationId': 'ledemployeebalance',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/other-payable/query':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询分类其它应付流水',
+              'operationId': 'ledOtherPayableQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/led/other-payable/balance':
+        {
+          'post':
+            {
+              'tags': ['led'],
+              'summary': '查询分类其它应付余额',
+              'operationId': 'ledOtherPayableBalance',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {

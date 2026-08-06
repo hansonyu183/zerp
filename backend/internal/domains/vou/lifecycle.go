@@ -15,6 +15,9 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediaryCalculation {
+		return s.CreateIntermediaryCalculation(ctx, input, actorID, requestID)
+	}
 	if isAssetEntity(entity) {
 		return s.CreateAssetDocument(ctx, entity, input, actorID, requestID)
 	}
@@ -172,6 +175,9 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediaryCalculation {
+		return s.SaveIntermediaryCalculation(ctx, input, actorID, requestID)
+	}
 	if isAssetEntity(entity) {
 		return s.SaveAssetDocument(ctx, entity, input, actorID, requestID)
 	}

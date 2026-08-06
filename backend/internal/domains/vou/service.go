@@ -138,8 +138,9 @@ func entityPrefix(entity string) string {
 		EntityAssetAcquisition: "ACQ", EntityAssetDepreciation: "DEP",
 		EntityAssetSale: "DSL", EntityAssetLiquidation: "LIQ",
 		EntityBillReceipt: "BRE", EntityBillPayment: "BLP", EntityBillIssue: "BLI",
-		EntityBillDiscount: "BLD",
-		EntityBillMaturity: "BLM",
+		EntityBillDiscount:            "BLD",
+		EntityBillMaturity:            "BLM",
+		EntityIntermediaryCalculation: "ICL",
 	}[entity]
 }
 

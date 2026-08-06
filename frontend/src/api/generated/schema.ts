@@ -973,6 +973,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成居间计算来源 */
+        post: operations["vouIntermediaryCalculationSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/script-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取当前居间计算脚本 */
+        post: operations["vouIntermediaryCalculationScriptGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/script-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存当前居间计算脚本 */
+        post: operations["vouIntermediaryCalculationScriptSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/book-balance": {
         parameters: {
             query?: never;
@@ -1891,6 +1942,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/led/other-payable/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询分类其它应付流水 */
+        post: operations["ledOtherPayableQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/led/other-payable/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询分类其它应付余额 */
+        post: operations["ledOtherPayableBalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/led/container/query": {
         parameters: {
             query?: never;
@@ -2100,7 +2185,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2682,6 +2767,107 @@ export interface components {
         VouGetRequest: {
             documentId: string;
         };
+        VouIntermediarySourceRequest: {
+            /** Format: date */
+            businessDate: string;
+        };
+        VouIntermediaryReference: {
+            objectId: string;
+            versionId: string;
+            /** @enum {string} */
+            entity: "customer" | "employee" | "other-party" | "product";
+            code: string;
+            name: string;
+        };
+        VouIntermediarySourceLine: {
+            sourceSignoffLineId: string;
+            signoffDocumentId: string;
+            signoffDocumentNo: string;
+            /** Format: date */
+            signoffDate: string;
+            orderDocumentId: string;
+            orderDocumentNo: string;
+            /** Format: date */
+            orderDate: string;
+            /** Format: date */
+            dueDate: string;
+            /** Format: date */
+            collectionDate: string;
+            collectionDelayDays: number;
+            customer: components["schemas"]["VouIntermediaryReference"];
+            salesperson: components["schemas"]["VouIntermediaryReference"];
+            intermediary?: components["schemas"]["VouIntermediaryReference"];
+            product: components["schemas"]["VouIntermediaryReference"];
+            productKind: string;
+            signedQuantity: string;
+            pricingQuantity: string;
+            barrelQuantity: string;
+            unitPrice: string;
+            referenceUnitPrice: string;
+            settlementSurcharge: string;
+            rebateUnitPrice: string;
+            lineAmount: string;
+            settlementTermCode: string;
+            specialApproval: boolean;
+        };
+        VouIntermediarySourceBill: {
+            billLineId: string;
+            receiptDocumentId: string;
+            receiptDocumentNo: string;
+            /** Format: date */
+            receiptDate: string;
+            customer: components["schemas"]["VouIntermediaryReference"];
+            salesperson: components["schemas"]["VouIntermediaryReference"];
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            costDays: number;
+        };
+        VouIntermediaryCalculationSource: {
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** @enum {string} */
+            currency: "CNY";
+            lines: components["schemas"]["VouIntermediarySourceLine"][];
+            bills: components["schemas"]["VouIntermediarySourceBill"][];
+        };
+        VouIntermediarySourceResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: {
+                source: components["schemas"]["VouIntermediaryCalculationSource"];
+                sourceHash: string;
+            };
+            requestId: string;
+        };
+        VouIntermediaryScriptSnapshot: {
+            scriptId: string;
+            /** Format: int64 */
+            revision: number;
+            name: string;
+            source: string;
+            hash: string;
+        };
+        VouIntermediaryScriptGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["VouIntermediaryScriptSnapshot"];
+            requestId: string;
+        };
+        VouIntermediaryScriptSaveRequest: {
+            /** Format: int64 */
+            revision: number;
+            name: string;
+            source: string;
+        };
         VouInventoryCountBalanceRequest: {
             page: number;
             pageSize: number;
@@ -2729,7 +2915,38 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouIntermediaryResultLine: {
+            sourceSignoffLineId: string;
+            premiumUnitPrice: string;
+            barrelQuantity: string;
+            baseCommission: string;
+            premiumCommission: string;
+            lowPriceCommission: string;
+            marketMaintenanceSubsidy: string;
+            marketDevelopmentSubsidy: string;
+            billCost: string;
+            employeeAmount: string;
+            intermediaryAmount: string;
+            rebateAmount: string;
+            note?: string;
+        };
+        VouIntermediarySummary: {
+            payee: components["schemas"]["VouIntermediaryReference"];
+            /** @enum {string} */
+            category: "COMMISSION" | "INTERMEDIARY" | "REBATE";
+            amount: string;
+        };
+        VouIntermediaryCalculationResult: {
+            lines: components["schemas"]["VouIntermediaryResultLine"][];
+            summaries: components["schemas"]["VouIntermediarySummary"][];
+        };
+        VouIntermediaryCalculationInput: {
+            source: components["schemas"]["VouIntermediaryCalculationSource"];
+            sourceHash: string;
+            script: components["schemas"]["VouIntermediaryScriptSnapshot"];
+            result: components["schemas"]["VouIntermediaryCalculationResult"];
+        };
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2909,6 +3126,8 @@ export interface components {
                 currency?: string;
                 remark?: string;
                 returnReason?: string;
+                specialApproval?: boolean;
+                intermediaryCalculation?: components["schemas"]["VouIntermediaryCalculationInput"];
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -3037,6 +3256,8 @@ export interface components {
                 currency?: string;
                 remark?: string;
                 returnReason?: string;
+                specialApproval?: boolean;
+                intermediaryCalculation?: components["schemas"]["VouIntermediaryCalculationInput"];
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -3340,6 +3561,8 @@ export interface components {
                 sourceEntity?: string;
                 documentNo?: string;
                 direction?: string[];
+                /** @enum {string} */
+                payableCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
             };
             sort: {
                 field: string;
@@ -4543,6 +4766,84 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    vouIntermediaryCalculationSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouIntermediarySourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 居间计算来源及哈希。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediarySourceResponse"];
+                };
+            };
+        };
+    };
+    vouIntermediaryCalculationScriptGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description 当前居间计算脚本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediaryScriptGetResponse"];
+                };
+            };
+        };
+    };
+    vouIntermediaryCalculationScriptSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouIntermediaryScriptSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的居间计算脚本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediaryScriptGetResponse"];
+                };
+            };
+        };
+    };
     vouInventoryCountBookBalance: {
         parameters: {
             query?: never;
@@ -5460,6 +5761,38 @@ export interface operations {
         };
     };
     ledemployeebalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedBalanceRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledOtherPayableQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    ledOtherPayableBalance: {
         parameters: {
             query?: never;
             header?: never;

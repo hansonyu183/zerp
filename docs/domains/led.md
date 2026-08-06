@@ -9,6 +9,7 @@ closing
 inventory
 fund
 party
+other-payable
 container
 asset
 ```
@@ -32,35 +33,38 @@ LED 提供库存、资金、往来流水与指定日期余额，并保存库存�
 - 库存余额按仓库和商品聚合；资金余额按资金账户和币种聚合；往来余额按往来方和币种聚合。
 - 员工往来只接受日常员工借款、还款和核销，不提供期初录入。
 - 往来净额大于零为 `RECEIVABLE`，小于零为 `PAYABLE`，等于零为 `ZERO`。
+- 贸易往来和其它应付共用可追溯的往来流水存储，但通过 `accountType` 强制隔离。现有客户、供应商、
+  其他和员工台账只查询 `TRADE`；其它应付页只查询 `OTHER_PAYABLE`，不得用其它应付余额参与客户回款倒推。
 - 空桶按客户和 `SOLVENT/RESIN` 聚合；正数为客户欠桶，负数为客户多还形成的抵扣余额。
 
 单据入账映射如下：
 
-| VOU 实体                 | 库存                   | 资金                                   | 往来                                     |
-| ------------------------ | ---------------------- | -------------------------------------- | ---------------------------------------- |
-| `sale-order`             | 无                     | 无                                     | 无                                       |
-| `sale-outbound`          | 出库日按出库数量 `OUT` | 无                                     | 无                                       |
-| `sale-delivery`          | 无                     | 无                                     | 无                                       |
-| `sale-signoff`           | 无                     | 无                                     | 签收日按签收数量与销售单价借记客户       |
-| `sale-return`            | 退货数量 `IN`          | 无                                     | 事后退货按原签收价贷记客户；拒收退货无   |
-| `purchase-order`         | 无                     | 无                                     | 无                                       |
-| `purchase-inbound`       | 入库日按实际数量 `IN`  | 无                                     | 入库日按实际数量与订单采购单价贷记供应商 |
-| `purchase-return`        | 退货日按退货数量 `OUT` | 无                                     | 退货日按原入库价借记供应商，减少应付     |
-| `inventory-count`        | 盘点日按差异 `IN/OUT`  | 无                                     | 无                                       |
-| `order-production`       | 材料 `OUT`、成品 `IN`  | 无                                     | 无                                       |
-| `self-production`        | 材料 `OUT`、成品 `IN`  | 无                                     | 无                                       |
-| `receipt`                | 无                     | 业务日期 `IN`                          | 业务日期贷记往来方                       |
-| `payment`                | 无                     | 业务日期 `OUT`                         | 业务日期借记往来方                       |
-| `employee-loan`          | 无                     | 业务日期 `OUT`                         | 业务日期借记员工                         |
-| `employee-repayment`     | 无                     | 业务日期 `IN`                          | 业务日期贷记员工                         |
-| `employee-loan-writeoff` | 无                     | 无                                     | 业务日期贷记员工                         |
-| `expense-reimbursement`  | 无                     | 新单据无；历史直付单据为业务日期 `OUT` | 无                                       |
-| `expense-payment`        | 无                     | 业务日期 `OUT`                         | 无                                       |
-| `other-income`           | 无                     | 业务日期 `IN`                          | 无                                       |
-| `asset-acquisition`      | 无                     | 无                                     | 按资产行原值贷记供应商，形成应付         |
-| `asset-depreciation`     | 无                     | 无                                     | 无                                       |
-| `asset-sale`             | 无                     | 无                                     | 按出让金额借记客户或其他往来方，形成应收 |
-| `asset-liquidation`      | 无                     | 无                                     | 无                                       |
+| VOU 实体                   | 库存                   | 资金                                   | 往来                                     |
+| -------------------------- | ---------------------- | -------------------------------------- | ---------------------------------------- |
+| `sale-order`               | 无                     | 无                                     | 无                                       |
+| `sale-outbound`            | 出库日按出库数量 `OUT` | 无                                     | 无                                       |
+| `sale-delivery`            | 无                     | 无                                     | 无                                       |
+| `sale-signoff`             | 无                     | 无                                     | 签收日按签收数量与销售单价借记客户       |
+| `sale-return`              | 退货数量 `IN`          | 无                                     | 事后退货按原签收价贷记客户；拒收退货无   |
+| `purchase-order`           | 无                     | 无                                     | 无                                       |
+| `purchase-inbound`         | 入库日按实际数量 `IN`  | 无                                     | 入库日按实际数量与订单采购单价贷记供应商 |
+| `purchase-return`          | 退货日按退货数量 `OUT` | 无                                     | 退货日按原入库价借记供应商，减少应付     |
+| `inventory-count`          | 盘点日按差异 `IN/OUT`  | 无                                     | 无                                       |
+| `order-production`         | 材料 `OUT`、成品 `IN`  | 无                                     | 无                                       |
+| `self-production`          | 材料 `OUT`、成品 `IN`  | 无                                     | 无                                       |
+| `receipt`                  | 无                     | 业务日期 `IN`                          | 业务日期贷记往来方                       |
+| `payment`                  | 无                     | 业务日期 `OUT`                         | 业务日期借记往来方                       |
+| `employee-loan`            | 无                     | 业务日期 `OUT`                         | 业务日期借记员工                         |
+| `employee-repayment`       | 无                     | 业务日期 `IN`                          | 业务日期贷记员工                         |
+| `employee-loan-writeoff`   | 无                     | 无                                     | 业务日期贷记员工                         |
+| `expense-reimbursement`    | 无                     | 新单据无；历史直付单据为业务日期 `OUT` | 无                                       |
+| `expense-payment`          | 无                     | 业务日期 `OUT`                         | 无                                       |
+| `other-income`             | 无                     | 业务日期 `IN`                          | 无                                       |
+| `asset-acquisition`        | 无                     | 无                                     | 按资产行原值贷记供应商，形成应付         |
+| `asset-depreciation`       | 无                     | 无                                     | 无                                       |
+| `asset-sale`               | 无                     | 无                                     | 按出让金额借记客户或其他往来方，形成应收 |
+| `asset-liquidation`        | 无                     | 无                                     | 无                                       |
+| `intermediary-calculation` | 无                     | 无                                     | 按汇总行贷记分类其它应付                 |
 
 销售库存由出库单扣减，拒收及签收后退货均由销售退货单重新入库；应收只按签收数量形成，
 其中签收后退货按原价冲减应收，拒收和损耗不形成应收。
@@ -79,6 +83,10 @@ LED 在 VOU 写事务提交前同步订阅需要入账的单据批准和反审�
 
 VOU 审计保留批准、反审的操作者、时间和原因。LED 只表达当前有效业务结果，
 不再通过冲销行重复承担操作审计。由 VOU 事件自动生成的流水、操作字段和 LED 审计事件统一归属系统用户；VOU 源动作的人工操作人仅保留在 VOU 审计中。
+
+居间计算单的其它应付分类固定为 `COMMISSION`、`INTERMEDIARY`、`REBATE`，收款方分别为员工、其他往来方和客户。
+金额在批准时以单据业务日期入账；反审删除该单据当前 generation 的其它应付流水。客户返点虽以客户为收款方，
+但 `accountType=OTHER_PAYABLE`，因此与客户贸易应收、回款倒推和贸易往来余额完全隔离。
 
 ### 2.3 票据台账
 
@@ -136,6 +144,8 @@ POST /led/other/query
 POST /led/other/balance
 POST /led/employee/query
 POST /led/employee/balance
+POST /led/other-payable/query
+POST /led/other-payable/balance
 POST /led/asset/query
 POST /led/asset/get
 POST /led/container/query
@@ -279,7 +289,7 @@ LED（Ledger）把已经执行或最终确认的 VOU/WFL 业务结果展示为�
 | `container` | 空桶台账        | 查询客户空桶增量和指定日期欠桶余额                 |
 | `asset`     | 固定资产台账    | 查询资产卡片、折旧余额、状态和完整变动历史         |
 
-页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other`、`/led/employee`、`/led/container`、`/led/asset` 和 `/led/bill`。四类往来台账由服务端固定隔离往来方类型。每个动作使用独立 APP 权限；没有相应权限时不发起请求，其中员工台账没有 `query` 或 `balance` 权限时不发起对应请求。
+页面路由分别为 `/led/closing`、`/led/inventory`、`/led/fund`、`/led/customer`、`/led/supplier`、`/led/other`、`/led/employee`、`/led/other-payable`、`/led/container`、`/led/asset` 和 `/led/bill`。四类贸易往来台账由服务端固定隔离往来方类型；其它应付按员工、客户或居间方及分类查询。每个动作使用独立 APP 权限；没有相应权限时不发起请求，其中员工台账没有 `query` 或 `balance` 权限时不发起对应请求。
 
 ### 8.2 期初与结账
 

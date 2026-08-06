@@ -144,6 +144,8 @@ type DetailInput struct {
 	SettlementMethodID              OptionalString        `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               *int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           OptionalString        `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 *string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        OptionalString        `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string                `json:"ruleType,omitempty"`
 	MonthOffset                     int32                 `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32                `json:"dayOfMonth,omitempty"`
@@ -201,6 +203,8 @@ type CreateDetailInput struct {
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32               `json:"dayOfMonth,omitempty"`
@@ -418,6 +422,8 @@ type DetailView struct {
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`

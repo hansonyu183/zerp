@@ -1043,6 +1043,7 @@ func (s *Service) validateDetailReferences(
 	add(EntityEmployee, data.ManagerEmployeeID)
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
+	add(EntityOtherParty, data.IntermediaryOtherPartyID)
 	if entity == EntityDepartment {
 		add(EntityDepartment, data.ParentID)
 	}

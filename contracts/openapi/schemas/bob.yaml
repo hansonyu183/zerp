@@ -200,6 +200,18 @@
                     { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
+                  'rebateUnitPrice':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅客户适用；返点单价，单位为元/kg，省略按 0 处理',
+                    },
+                  'intermediaryOtherPartyId':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅客户适用；引用其他往来单位中的居间商',
+                    },
                   'productKind':
                     {
                       'type': 'string',
@@ -299,6 +311,9 @@
                   'defaultSalesSurcharge':
                     { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
+                    { 'type': 'string', 'nullable': true },
+                  'rebateUnitPrice': { 'type': 'string', 'nullable': true },
+                  'intermediaryOtherPartyId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':
                     {

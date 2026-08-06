@@ -31,7 +31,7 @@ func conflictData(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionR
 func detailFields(entity string) []string {
 	switch entity {
 	case EntityCustomer:
-		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId"}
+		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice", "intermediaryOtherPartyId"}
 	case EntityOtherParty:
 		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntitySupplier:
@@ -128,6 +128,8 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 	}
 	if row.Entity == EntityCustomer {
 		result.MonthlyClosingDay = row.MonthlyClosingDay
+		result.RebateUnitPrice = formatMoneyCents(row.RebateUnitPriceCents)
+		result.IntermediaryOtherPartyID = row.IntermediaryOtherPartyID
 	}
 	if row.Entity == EntitySettlementMethod {
 		result.TermCode = row.SettlementTermCode

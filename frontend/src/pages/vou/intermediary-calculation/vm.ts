@@ -197,19 +197,24 @@ export function useIntermediaryCalculationViewModel() {
     scriptMessage.value = null
     scriptError.value = null
     lastTestedScriptSource.value = null
+    const testedSource = scriptSource.value
     try {
       const { data } = await apiClient.postContract(
         'vou/intermediary-calculation/source',
         { businessDate: scriptTestDate.value },
       )
       const result = await runIntermediaryScript(
-        scriptSource.value,
+        testedSource,
         data.source as IntermediaryCalculationSource,
       )
+      if (scriptSource.value !== testedSource) {
+        scriptError.value = '脚本内容已变化，请重新试运行。'
+        return
+      }
       const total = result.summaries
         .reduce((sum, item) => sum + Number(item.amount), 0)
         .toFixed(2)
-      lastTestedScriptSource.value = scriptSource.value
+      lastTestedScriptSource.value = testedSource
       scriptMessage.value = `试运行成功：${result.lines.length} 行，${result.summaries.length} 个汇总，应付合计 ${total} 元。`
     } catch (error) {
       scriptError.value = getErrorMessage(error)

@@ -167,4 +167,35 @@ describe('intermediary calculation view model', () => {
     )
     expect(vm.scriptSnapshot.value?.revision).toBe(4)
   })
+
+  it('does not certify script text edited while a test run is pending', async () => {
+    grantPermissions()
+    mockedPostContract
+      .mockResolvedValueOnce({ data: script })
+      .mockResolvedValueOnce({ data: { source } })
+    let resolveRun!: (value: { lines: []; summaries: [] }) => void
+    mockedRunScript.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRun = resolve
+        }),
+    )
+    const vm = useIntermediaryCalculationViewModel()
+    await vm.openScript()
+    vm.scriptTestDate.value = '2026-07-31'
+    const testedSource = `${script.source}\n// tested`
+    vm.scriptSource.value = testedSource
+
+    const pending = vm.testScript()
+    await vi.waitFor(() => expect(mockedRunScript).toHaveBeenCalled())
+    vm.scriptSource.value = `${testedSource}\n// edited while pending`
+    resolveRun({ lines: [], summaries: [] })
+    await pending
+
+    expect(mockedRunScript).toHaveBeenCalledWith(testedSource, source)
+    expect(vm.scriptError.value).toContain('已变化')
+    await vm.saveScript()
+    expect(vm.scriptError.value).toContain('必须先试运行成功')
+    expect(mockedPostContract).toHaveBeenCalledTimes(2)
+  })
 })

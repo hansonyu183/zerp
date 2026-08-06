@@ -1990,6 +1990,43 @@ func TestLEDClosingRequiresEveryIntermediaryMonthIntegration(t *testing.T) {
 	}
 }
 
+func TestLEDInitialClosingRequiresCalculationsFromFirstActivityMonthIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare initial zero-balance ledger: %v", err)
+	}
+	advanceToApproved(t, vouchers, voudomain.EntityOtherIncome, voudomain.DraftInput{
+		BusinessDate: "2026-06-15", Currency: "CNY", SourceName: "首次经营月份测试",
+		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "5.00",
+	})
+	closing, err := ledger.GetClosing(t.Context())
+	if err != nil {
+		t.Fatalf("get initial closing: %v", err)
+	}
+	_, err = ledger.Close(t.Context(), ClosingInput{
+		Revision: closing.Revision, ClosingDate: "2026-07-31",
+	}, integrationActorOne, "initial-close-before-all-intermediary-months")
+	var closingErr *DomainError
+	if !errors.As(err, &closingErr) {
+		t.Fatalf("initial closing missing-calculation error = %v", err)
+	}
+	closingData, ok := closingErr.Data.(map[string]any)
+	if !ok || closingData["firstMissingDate"] != "2026-06-30" {
+		t.Fatalf("initial closing missing-calculation error = %s, data = %+v, cause = %v",
+			closingErr.Message, closingErr.Data, closingErr.Cause)
+	}
+	approveZeroIntermediaryCalculations(t, vouchers, "2026-06-01", "2026-07-31")
+	if _, err = ledger.Close(t.Context(), ClosingInput{
+		Revision: closing.Revision, ClosingDate: "2026-07-31",
+	}, integrationActorOne, "initial-close-after-all-intermediary-months"); err != nil {
+		t.Fatalf("initial close after completing intermediary months: %v", err)
+	}
+}
+
 func TestLEDClosingRejectsStaleIntermediaryCalculationIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
@@ -2254,6 +2291,17 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}
 	calculationDraft := voudomain.DraftInput{
 		BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: calculation,
+	}
+	deletableCalculation, err := vouchers.Create(t.Context(), voudomain.EntityIntermediaryCalculation,
+		voudomain.CreateInput{Data: calculationDraft}, integrationActorOne, "intermediary-calculation-delete-create")
+	if err != nil {
+		t.Fatalf("create intermediary calculation for draft deletion: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DeleteInput{
+		DocumentID: deletableCalculation.DocumentID, Revision: deletableCalculation.Revision,
+		Reason: "删除带票据分摊的居间计算草稿",
+	}, integrationActorOne, "intermediary-calculation-delete"); err != nil {
+		t.Fatalf("delete intermediary calculation with bill allocations: %v", err)
 	}
 	checkedCalculation, _ := advanceToChecked(t, vouchers, voudomain.EntityIntermediaryCalculation, calculationDraft)
 	returnApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{

@@ -296,7 +296,18 @@ func (s *Service) Close(
 	if lastClosingID == nil {
 		calculationStart = time.Date(cutoverDate.Year(), cutoverDate.Month(), 1, 0, 0, 0, 0, cutoverDate.Location())
 		if cutoverDate.Year() == 1 {
-			calculationStart = time.Date(closingDate.Year(), closingDate.Month(), 1, 0, 0, 0, 0, closingDate.Location())
+			var firstActivityDate pgtype.Date
+			if err = tx.QueryRow(ctx, `SELECT min(business_date) FROM vou_documents
+				WHERE status='FINALIZED' AND business_date <= $1`, closingDate).Scan(&firstActivityDate); err != nil {
+				return ClosingMutationResult{}, s.internal("find first document month for closing", err)
+			}
+			if firstActivityDate.Valid {
+				calculationStart = time.Date(firstActivityDate.Time.Year(), firstActivityDate.Time.Month(), 1,
+					0, 0, 0, 0, firstActivityDate.Time.Location())
+			} else {
+				calculationStart = time.Date(closingDate.Year(), closingDate.Month(), 1,
+					0, 0, 0, 0, closingDate.Location())
+			}
 		}
 	}
 	var missingCalculationCount int64

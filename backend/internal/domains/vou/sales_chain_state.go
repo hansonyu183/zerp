@@ -428,9 +428,16 @@ func (s *Service) Delete(
 	}
 	switch entity {
 	case EntityIntermediaryCalculation:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_lines WHERE document_id=$1;
-			DELETE FROM vou_intermediary_calculation_summaries WHERE document_id=$1;
-			DELETE FROM vou_intermediary_calculation_details WHERE document_id=$1`, input.DocumentID)
+		_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_bill_allocations WHERE document_id=$1`, input.DocumentID)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_lines WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_summaries WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_details WHERE document_id=$1`, input.DocumentID)
+		}
 	case EntitySalePricing:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_price_lines WHERE document_id=$1;
 			DELETE FROM vou_sale_pricing_details WHERE document_id=$1`, input.DocumentID)

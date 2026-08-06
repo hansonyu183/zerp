@@ -64,6 +64,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_asset_sale_lines,vou_asset_sale_details,
 			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
+			vou_intermediary_calculation_bill_allocations,
 			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,
 			vou_intermediary_calculation_lines,vou_intermediary_calculation_summaries,vou_intermediary_calculation_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,

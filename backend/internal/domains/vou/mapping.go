@@ -441,7 +441,7 @@ func derefInt32(value *int32) int32 {
 func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachments []AttachmentView) DocumentView {
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
-		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
+		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: documentAmount(document.Entity, document.TotalAmountCents),
 		Data: data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,

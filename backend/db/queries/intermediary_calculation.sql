@@ -58,6 +58,17 @@ INSERT INTO vou_intermediary_calculation_lines(
 SELECT * FROM vou_intermediary_calculation_lines
 WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
+-- name: DeleteVouIntermediaryCalculationBillAllocations :exec
+DELETE FROM vou_intermediary_calculation_bill_allocations
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouIntermediaryCalculationBillAllocation :exec
+INSERT INTO vou_intermediary_calculation_bill_allocations(
+    document_id,bill_line_id,source_signoff_line_id
+) VALUES (
+    sqlc.arg(document_id),sqlc.arg(bill_line_id),sqlc.arg(source_signoff_line_id)
+);
+
 -- name: DeleteVouIntermediaryCalculationSummaries :exec
 DELETE FROM vou_intermediary_calculation_summaries
 WHERE document_id=sqlc.arg(document_id);
@@ -149,6 +160,52 @@ WHERE signoff.entity='sale-signoff'
   AND line.signed_qty_micros-COALESCE(returned.quantity_micros,0) > 0
 ORDER BY detail.customer_object_id,signoff.business_date,signoff.document_no,line.line_no,line.id;
 
+-- name: ListIntermediaryReturnAdjustmentRows :many
+SELECT
+    return_line.id AS return_line_id,
+    return_line.source_signoff_line_id,
+    return_line.quantity_micros,
+    return_line.line_amount_cents,
+    return_document.id AS return_document_id,
+    return_document.document_no AS return_document_no,
+    return_document.business_date AS return_date,
+    original.document_id AS calculation_document_id,
+    original.business_date AS calculation_date,
+    original.result AS original_result,
+    original.source_snapshot
+FROM vou_sale_return_lines return_line
+JOIN vou_sale_return_details return_detail
+  ON return_detail.document_id=return_line.document_id
+ AND return_detail.return_kind='AFTER_SALE'
+JOIN vou_documents return_document
+  ON return_document.id=return_line.document_id
+ AND return_document.entity='sale-return'
+ AND return_document.status IN ('APPROVED','FINALIZED')
+JOIN LATERAL (
+    SELECT calculation_document.id AS document_id,
+           calculation_document.business_date,
+           calculation_line.result,
+           calculation_detail.source_snapshot
+    FROM vou_intermediary_calculation_lines calculation_line
+    JOIN vou_intermediary_calculation_details calculation_detail
+      ON calculation_detail.document_id=calculation_line.document_id
+    JOIN vou_documents calculation_document
+      ON calculation_document.id=calculation_line.document_id
+     AND calculation_document.entity='intermediary-calculation'
+     AND calculation_document.status IN ('APPROVED','FINALIZED')
+    WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
+      AND calculation_document.business_date < return_document.business_date
+      AND (calculation_line.employee_amount_cents>0
+        OR calculation_line.intermediary_amount_cents>0
+        OR calculation_line.rebate_amount_cents>0)
+    ORDER BY calculation_document.business_date,calculation_document.document_no
+    LIMIT 1
+) original ON true
+WHERE return_document.business_date >= sqlc.arg(cutover_date)
+  AND return_document.business_date <= sqlc.arg(period_end)
+ORDER BY return_line.source_signoff_line_id,return_document.business_date,
+         return_document.document_no,return_line.line_no,return_line.id;
+
 -- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
     SELECT entry.*
@@ -238,11 +295,21 @@ WHERE document.entity='bill-receipt'
   AND document.business_date >= sqlc.arg(cutover_date)
   AND (CASE WHEN bill_line.bill_type='CHECK'
         THEN bill_line.maturity_date ELSE document.business_date END)
-      BETWEEN sqlc.arg(period_start)::date AND sqlc.arg(period_end)::date
+      <= sqlc.arg(period_end)::date
   AND bill_line.purpose='PRIMARY'
   AND bill_line.position_type='ASSET'
   AND bill_line.direction='IN'
   AND bill_line.currency='CNY'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM vou_intermediary_calculation_bill_allocations allocation
+      JOIN vou_documents allocation_document
+        ON allocation_document.id=allocation.document_id
+       AND allocation_document.entity='intermediary-calculation'
+       AND allocation_document.status IN ('APPROVED','FINALIZED')
+      WHERE allocation.bill_line_id=bill_line.id
+        AND allocation_document.business_date < sqlc.arg(period_start)::date
+  )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
 
 -- name: HasLedOtherPayableBalanceBeforeCutover :one

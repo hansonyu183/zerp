@@ -391,7 +391,7 @@ async function confirmDelete(): Promise<void> {
       <v-card-text>
         <v-alert class="mb-5" type="info" variant="tonal">
           来源以销售签收明细为索引；收清日期由客户应收余额按日期、单号 FIFO
-          倒推。脚本快照：
+          倒推，跨月退货按原计算稿形成冲回。脚本快照：
           {{ vm.calculationInput()!.script.name }} · R{{
             vm.calculationInput()!.script.revision
           }}。
@@ -401,7 +401,9 @@ async function confirmDelete(): Promise<void> {
           <v-table density="compact" class="responsive-table">
             <thead>
               <tr>
+                <th>来源类型</th>
                 <th>签收单</th>
+                <th>退货单</th>
                 <th>签收日期</th>
                 <th>应收日期</th>
                 <th>收清日期</th>
@@ -437,7 +439,17 @@ async function confirmDelete(): Promise<void> {
                 v-for="source in vm.calculationInput()!.source.lines"
                 :key="source.sourceSignoffLineId"
               >
+                <td data-label="来源类型">
+                  {{
+                    source.sourceKind === 'RETURN_ADJUSTMENT'
+                      ? '跨月退货冲回'
+                      : '销售计提'
+                  }}
+                </td>
                 <td data-label="签收单">{{ source.signoffDocumentNo }}</td>
+                <td data-label="退货单">
+                  {{ source.returnDocumentNos?.join('、') || '—' }}
+                </td>
                 <td data-label="签收日期">{{ source.signoffDate }}</td>
                 <td data-label="应收日期">{{ source.dueDate }}</td>
                 <td data-label="收清日期">{{ source.collectionDate }}</td>
@@ -546,6 +558,7 @@ async function confirmDelete(): Promise<void> {
                 <th>收票日</th>
                 <th>票面到期日</th>
                 <th class="text-end">成本天数</th>
+                <th>分配状态</th>
               </tr>
             </thead>
             <tbody>
@@ -565,12 +578,23 @@ async function confirmDelete(): Promise<void> {
                 <td class="text-end" data-label="成本天数">
                   {{ bill.costDays }}
                 </td>
+                <td data-label="分配状态">
+                  {{
+                    vm
+                      .calculationInput()!
+                      .result.lines.some((line) =>
+                        line.billLineIds.includes(bill.billLineId),
+                      )
+                      ? '本期已分配'
+                      : '顺延待分配'
+                  }}
+                </td>
               </tr>
               <tr
                 v-if="vm.calculationInput()!.source.bills.length === 0"
                 class="responsive-table__empty-row"
               >
-                <td class="text-center" colspan="8">本期无票据成本来源</td>
+                <td class="text-center" colspan="9">本期无票据成本来源</td>
               </tr>
             </tbody>
           </v-table>

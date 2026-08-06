@@ -134,6 +134,7 @@ type Querier interface {
 	DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVouDocumentAttachmentParams) (int64, error)
 	DeleteVouExpenseLines(ctx context.Context, documentID string) error
 	DeleteVouFile(ctx context.Context, id string) (int64, error)
+	DeleteVouIntermediaryCalculationBillAllocations(ctx context.Context, documentID string) error
 	DeleteVouIntermediaryCalculationLines(ctx context.Context, documentID string) error
 	DeleteVouIntermediaryCalculationSummaries(ctx context.Context, documentID string) error
 	DeleteVouInventoryCountLines(ctx context.Context, documentID string) error
@@ -268,6 +269,7 @@ type Querier interface {
 	InsertVouExpensePaymentDetail(ctx context.Context, arg InsertVouExpensePaymentDetailParams) error
 	InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error
 	InsertVouFile(ctx context.Context, arg InsertVouFileParams) error
+	InsertVouIntermediaryCalculationBillAllocation(ctx context.Context, arg InsertVouIntermediaryCalculationBillAllocationParams) error
 	InsertVouIntermediaryCalculationDetail(ctx context.Context, arg InsertVouIntermediaryCalculationDetailParams) error
 	InsertVouIntermediaryCalculationLine(ctx context.Context, arg InsertVouIntermediaryCalculationLineParams) error
 	InsertVouIntermediaryCalculationSummary(ctx context.Context, arg InsertVouIntermediaryCalculationSummaryParams) error
@@ -308,6 +310,7 @@ type Querier interface {
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
 	ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error)
 	ListIntermediaryCustomerTradeEvents(ctx context.Context, arg ListIntermediaryCustomerTradeEventsParams) ([]ListIntermediaryCustomerTradeEventsRow, error)
+	ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg ListIntermediaryReturnAdjustmentRowsParams) ([]ListIntermediaryReturnAdjustmentRowsRow, error)
 	ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error)
 	ListLedAssetHistory(ctx context.Context, assetID string) ([]LedAssetEntry, error)
 	ListLedAssets(ctx context.Context, arg ListLedAssetsParams) ([]LedAsset, error)

@@ -16,10 +16,15 @@ import (
 	"unicode/utf8"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 )
 
-const intermediaryCurrency = "CNY"
+const (
+	intermediaryCurrency               = "CNY"
+	intermediarySourceSale             = "SALE"
+	intermediarySourceReturnAdjustment = "RETURN_ADJUSTMENT"
+)
 
 type preparedIntermediaryCalculation struct {
 	date, periodStart              time.Time
@@ -27,6 +32,7 @@ type preparedIntermediaryCalculation struct {
 	lineJSON                       [][]byte
 	lineEmployee, lineIntermediary []int64
 	lineRebate                     []int64
+	lineBillIDs                    [][]string
 	summaryAmounts                 []int64
 	total                          int64
 }
@@ -72,6 +78,38 @@ func addIntermediaryAmount(total, amount int64) (int64, bool) {
 		return 0, false
 	}
 	return total + amount, true
+}
+
+func addSignedIntermediaryAmount(total, amount int64) (int64, bool) {
+	if (amount > 0 && total > math.MaxInt64-amount) ||
+		(amount < 0 && total < math.MinInt64-amount) {
+		return 0, false
+	}
+	return total + amount, true
+}
+
+func proratedIntermediaryAmount(amount, quantity, totalQuantity int64) (int64, bool) {
+	if amount < 0 || quantity < 0 || totalQuantity <= 0 || quantity > totalQuantity {
+		return 0, false
+	}
+	product := new(big.Int).Mul(big.NewInt(amount), big.NewInt(quantity))
+	quotient, remainder := new(big.Int), new(big.Int)
+	quotient.QuoRem(product, big.NewInt(totalQuantity), remainder)
+	if new(big.Int).Mul(remainder, big.NewInt(2)).Cmp(big.NewInt(totalQuantity)) >= 0 {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	return quotient.Int64(), quotient.IsInt64()
+}
+
+func formatSignedMoney(value int64) string {
+	return fixeddecimal.Format(value, 2, false)
+}
+
+func documentAmount(entity string, value int64) string {
+	if entity == EntityIntermediaryCalculation {
+		return formatSignedMoney(value)
+	}
+	return formatMoney(value)
 }
 
 func intermediaryReference(objectID, versionID, entity, code, name string) IntermediaryReference {
@@ -213,6 +251,7 @@ func (s *Service) intermediarySource(
 			}
 			line := IntermediarySourceLine{
 				SourceSignoffLineID: row.SourceSignoffLineID,
+				SourceKind:          intermediarySourceSale,
 				SignoffDocumentID:   row.SignoffDocumentID, SignoffDocumentNo: row.SignoffDocumentNo,
 				SignoffDate: formatDate(row.SignoffDate), DueDate: formatDate(row.DueDate),
 				CollectionDate:      document.collectionDate.Format(dateLayout),
@@ -227,7 +266,8 @@ func (s *Service) intermediarySource(
 				UnitPrice: formatMoney(row.UnitPriceCents), ReferenceUnitPrice: formatMoney(row.ReferenceUnitPriceCents),
 				SettlementSurcharge: formatMoney(row.SettlementSurchargeCents), RebateUnitPrice: formatMoney(row.RebateUnitPriceCents),
 				LineAmount: formatMoney(row.LineAmountCents), SettlementTermCode: row.SettlementTermCode,
-				SpecialApproval: row.SpecialApproval,
+				SpecialApproval: row.SpecialApproval, AdjustmentEmployeeAmount: "0.00",
+				AdjustmentIntermediaryAmount: "0.00", AdjustmentRebateAmount: "0.00",
 			}
 			if row.IntermediaryOtherPartyID != nil {
 				if row.IntermediaryVersionID == nil || row.IntermediaryCode == nil || row.IntermediaryName == nil {
@@ -238,6 +278,11 @@ func (s *Service) intermediarySource(
 			}
 			source.Lines = append(source.Lines, line)
 		}
+	}
+	if err = s.appendIntermediaryReturnAdjustments(
+		ctx, q, control.CutoverDate.Time, periodStart, periodEnd, &source,
+	); err != nil {
+		return IntermediarySourceView{}, err
 	}
 
 	bills, err := q.ListIntermediaryBillSourceRows(ctx, dbsqlc.ListIntermediaryBillSourceRowsParams{
@@ -266,6 +311,132 @@ func (s *Service) intermediarySource(
 		return IntermediarySourceView{}, s.internal("encode intermediary source", err)
 	}
 	return IntermediarySourceView{Source: source, SourceHash: intermediaryHash(encoded)}, nil
+}
+
+type intermediaryReturnAdjustment struct {
+	source                         IntermediarySourceLine
+	originalResult                 IntermediaryResultLine
+	originalQuantity               int64
+	returnedBefore, returnedPeriod int64
+	periodAmount                   int64
+	returnDocumentNos              []string
+	returnDocumentSet              map[string]bool
+	lastReturnDate                 time.Time
+}
+
+func (s *Service) appendIntermediaryReturnAdjustments(
+	ctx context.Context,
+	q *dbsqlc.Queries,
+	cutoverDate, periodStart, periodEnd time.Time,
+	source *IntermediaryCalculationSource,
+) error {
+	rows, err := q.ListIntermediaryReturnAdjustmentRows(ctx, dbsqlc.ListIntermediaryReturnAdjustmentRowsParams{
+		CutoverDate: dateValue(cutoverDate), PeriodEnd: dateValue(periodEnd),
+	})
+	if err != nil {
+		return s.internal("read intermediary return adjustments", err)
+	}
+	groups := make(map[string]*intermediaryReturnAdjustment)
+	ordered := make([]*intermediaryReturnAdjustment, 0)
+	for _, row := range rows {
+		group := groups[row.SourceSignoffLineID]
+		if group == nil {
+			var originalSource IntermediaryCalculationSource
+			var originalResult IntermediaryResultLine
+			if err = json.Unmarshal(row.SourceSnapshot, &originalSource); err != nil {
+				return s.internal("decode original intermediary source", err)
+			}
+			if err = json.Unmarshal(row.OriginalResult, &originalResult); err != nil {
+				return s.internal("decode original intermediary result", err)
+			}
+			var originalLine *IntermediarySourceLine
+			for index := range originalSource.Lines {
+				if originalSource.Lines[index].SourceSignoffLineID == row.SourceSignoffLineID {
+					originalLine = &originalSource.Lines[index]
+					break
+				}
+			}
+			if originalLine == nil {
+				return domainError(ErrorConflict, "original intermediary calculation source is incomplete",
+					map[string]any{"lineId": row.SourceSignoffLineID}, nil)
+			}
+			originalQuantity, parseErr := quantityMicros(originalLine.BarrelQuantity, false)
+			if parseErr != nil {
+				return domainError(ErrorConflict, "original intermediary calculation quantity is invalid",
+					map[string]any{"lineId": row.SourceSignoffLineID}, nil)
+			}
+			group = &intermediaryReturnAdjustment{
+				source: *originalLine, originalResult: originalResult, originalQuantity: originalQuantity,
+				returnDocumentSet: make(map[string]bool),
+			}
+			groups[row.SourceSignoffLineID] = group
+			ordered = append(ordered, group)
+		}
+		if row.ReturnDate.Time.Before(periodStart) {
+			group.returnedBefore += row.QuantityMicros
+			continue
+		}
+		group.returnedPeriod += row.QuantityMicros
+		group.periodAmount += row.LineAmountCents
+		group.lastReturnDate = row.ReturnDate.Time
+		if !group.returnDocumentSet[row.ReturnDocumentNo] {
+			group.returnDocumentSet[row.ReturnDocumentNo] = true
+			group.returnDocumentNos = append(group.returnDocumentNos, row.ReturnDocumentNo)
+		}
+	}
+	for _, group := range ordered {
+		if group.returnedPeriod == 0 {
+			continue
+		}
+		totalReturned := group.returnedBefore + group.returnedPeriod
+		if totalReturned > group.originalQuantity {
+			return domainError(ErrorConflict, "intermediary return quantity exceeds its original calculation",
+				map[string]any{"lineId": group.source.SourceSignoffLineID}, nil)
+		}
+		adjustments := make([]int64, 0, 3)
+		for _, value := range []string{
+			group.originalResult.EmployeeAmount,
+			group.originalResult.IntermediaryAmount,
+			group.originalResult.RebateAmount,
+		} {
+			originalAmount, parseErr := parseFixed(value, 2, true)
+			if parseErr != nil {
+				return domainError(ErrorConflict, "original intermediary calculation amount is invalid",
+					map[string]any{"lineId": group.source.SourceSignoffLineID}, nil)
+			}
+			throughPeriod, ok := proratedIntermediaryAmount(originalAmount, totalReturned, group.originalQuantity)
+			if !ok {
+				return domainError(ErrorConflict, "intermediary return adjustment is out of range", nil, nil)
+			}
+			beforePeriod, ok := proratedIntermediaryAmount(originalAmount, group.returnedBefore, group.originalQuantity)
+			if !ok {
+				return domainError(ErrorConflict, "intermediary return adjustment is out of range", nil, nil)
+			}
+			adjustments = append(adjustments, throughPeriod-beforePeriod)
+		}
+		pricingQuantity, parseErr := quantityMicros(group.source.PricingQuantity, false)
+		if parseErr != nil {
+			return domainError(ErrorConflict, "original intermediary pricing quantity is invalid", nil, nil)
+		}
+		adjustmentPricing, ok := proratedIntermediaryAmount(pricingQuantity, group.returnedPeriod, group.originalQuantity)
+		if !ok {
+			return domainError(ErrorConflict, "intermediary return pricing quantity is out of range", nil, nil)
+		}
+		line := group.source
+		line.SourceKind = intermediarySourceReturnAdjustment
+		line.CollectionDate = group.lastReturnDate.Format(dateLayout)
+		line.CollectionDelayDays = 0
+		line.SignedQuantity = formatQuantity(group.returnedPeriod)
+		line.BarrelQuantity = line.SignedQuantity
+		line.PricingQuantity = formatQuantity(adjustmentPricing)
+		line.LineAmount = formatMoney(group.periodAmount)
+		line.ReturnDocumentNos = group.returnDocumentNos
+		line.AdjustmentEmployeeAmount = formatMoney(adjustments[0])
+		line.AdjustmentIntermediaryAmount = formatMoney(adjustments[1])
+		line.AdjustmentRebateAmount = formatMoney(adjustments[2])
+		source.Lines = append(source.Lines, line)
+	}
+	return nil
 }
 
 func (s *Service) GetIntermediaryScript(ctx context.Context) (IntermediaryScriptSnapshot, error) {
@@ -341,8 +512,12 @@ func (s *Service) prepareIntermediaryCalculation(
 	}
 
 	lineSources := make(map[string]IntermediarySourceLine, len(calculation.Source.Lines))
+	eligibleBillGroups := make(map[string]bool)
 	for _, line := range calculation.Source.Lines {
 		lineSources[line.SourceSignoffLineID] = line
+		if line.SourceKind == intermediarySourceSale {
+			eligibleBillGroups[line.Customer.ObjectID+":"+line.Salesperson.ObjectID] = true
+		}
 	}
 	if len(calculation.Result.Lines) != len(lineSources) {
 		return prepared, domainError(ErrorValidation, "calculation result must contain one row per source line", nil, nil)
@@ -351,7 +526,7 @@ func (s *Service) prepareIntermediaryCalculation(
 	expected := make(map[summaryKey]int64)
 	expectedPayees := make(map[summaryKey]IntermediaryReference)
 	addExpected := func(key summaryKey, payee IntermediaryReference, amount int64) error {
-		total, ok := addIntermediaryAmount(expected[key], amount)
+		total, ok := addSignedIntermediaryAmount(expected[key], amount)
 		if !ok {
 			return domainError(ErrorValidation, "calculation summary is out of range", nil, nil)
 		}
@@ -359,6 +534,11 @@ func (s *Service) prepareIntermediaryCalculation(
 		expectedPayees[key] = payee
 		return nil
 	}
+	billSources := make(map[string]IntermediarySourceBill, len(calculation.Source.Bills))
+	for _, bill := range calculation.Source.Bills {
+		billSources[bill.BillLineID] = bill
+	}
+	allocatedBills := make(map[string]bool, len(calculation.Source.Bills))
 	seenLines := make(map[string]bool, len(calculation.Result.Lines))
 	for _, line := range calculation.Result.Lines {
 		sourceLine, ok := lineSources[line.SourceSignoffLineID]
@@ -369,9 +549,31 @@ func (s *Service) prepareIntermediaryCalculation(
 		amountFields := []string{line.BaseCommission, line.PremiumCommission, line.LowPriceCommission,
 			line.MarketMaintenanceSubsidy, line.MarketDevelopmentSubsidy, line.BillCost,
 			line.EmployeeAmount, line.IntermediaryAmount, line.RebateAmount}
+		parsedAmounts := make([]int64, 0, len(amountFields))
 		for _, value := range amountFields {
-			if _, parseErr := parseFixed(value, 2, true); parseErr != nil {
+			var amount int64
+			var parseErr error
+			if sourceLine.SourceKind == intermediarySourceReturnAdjustment {
+				amount, parseErr = fixeddecimal.ParseSigned(value, 2, true)
+			} else {
+				amount, parseErr = parseFixed(value, 2, true)
+			}
+			if parseErr != nil {
 				return prepared, domainError(ErrorValidation, "calculation result contains an invalid amount", nil, nil)
+			}
+			parsedAmounts = append(parsedAmounts, amount)
+		}
+		if sourceLine.SourceKind != intermediarySourceSale && sourceLine.SourceKind != intermediarySourceReturnAdjustment {
+			return prepared, domainError(ErrorValidation, "calculation source kind is invalid", nil, nil)
+		}
+		if sourceLine.SourceKind == intermediarySourceReturnAdjustment {
+			for index, amount := range parsedAmounts {
+				if (index < 6 && amount != 0) || (index >= 6 && amount > 0) {
+					return prepared, domainError(ErrorValidation, "return adjustment result has an invalid direction", nil, nil)
+				}
+			}
+			if len(line.BillLineIDs) != 0 {
+				return prepared, domainError(ErrorValidation, "return adjustment cannot allocate bill cost", nil, nil)
 			}
 		}
 		premium := strings.TrimPrefix(strings.TrimSpace(line.PremiumUnitPrice), "-")
@@ -387,16 +589,16 @@ func (s *Service) prepareIntermediaryCalculation(
 		if line.Note != nil && utf8.RuneCountInString(*line.Note) > 1000 {
 			return prepared, domainError(ErrorValidation, "calculation result note is too long", nil, nil)
 		}
-		employeeAmount, _ := parseFixed(line.EmployeeAmount, 2, true)
-		intermediaryAmount, _ := parseFixed(line.IntermediaryAmount, 2, true)
-		rebateAmount, _ := parseFixed(line.RebateAmount, 2, true)
-		if employeeAmount > 0 {
+		employeeAmount := parsedAmounts[6]
+		intermediaryAmount := parsedAmounts[7]
+		rebateAmount := parsedAmounts[8]
+		if employeeAmount != 0 {
 			key := summaryKey{"COMMISSION", sourceLine.Salesperson.Entity, sourceLine.Salesperson.ObjectID}
 			if err := addExpected(key, sourceLine.Salesperson, employeeAmount); err != nil {
 				return prepared, err
 			}
 		}
-		if intermediaryAmount > 0 {
+		if intermediaryAmount != 0 {
 			if sourceLine.Intermediary == nil {
 				return prepared, domainError(ErrorValidation, "intermediary amount requires a source intermediary", nil, nil)
 			}
@@ -405,7 +607,7 @@ func (s *Service) prepareIntermediaryCalculation(
 				return prepared, err
 			}
 		}
-		if rebateAmount > 0 {
+		if rebateAmount != 0 {
 			key := summaryKey{"REBATE", sourceLine.Customer.Entity, sourceLine.Customer.ObjectID}
 			if err := addExpected(key, sourceLine.Customer, rebateAmount); err != nil {
 				return prepared, err
@@ -419,6 +621,31 @@ func (s *Service) prepareIntermediaryCalculation(
 		prepared.lineEmployee = append(prepared.lineEmployee, employeeAmount)
 		prepared.lineIntermediary = append(prepared.lineIntermediary, intermediaryAmount)
 		prepared.lineRebate = append(prepared.lineRebate, rebateAmount)
+		for _, billLineID := range line.BillLineIDs {
+			bill, exists := billSources[billLineID]
+			if !exists || allocatedBills[billLineID] || sourceLine.SourceKind != intermediarySourceSale ||
+				bill.Customer.ObjectID != sourceLine.Customer.ObjectID ||
+				bill.Salesperson.ObjectID != sourceLine.Salesperson.ObjectID {
+				return prepared, domainError(ErrorValidation, "calculation bill allocation does not match its source", nil, nil)
+			}
+			allocatedBills[billLineID] = true
+		}
+		if parsedAmounts[5] > 0 && len(line.BillLineIDs) == 0 {
+			return prepared, domainError(ErrorValidation, "bill cost requires its source bill allocation", nil, nil)
+		}
+		prepared.lineBillIDs = append(prepared.lineBillIDs, append([]string(nil), line.BillLineIDs...))
+	}
+	for key, amount := range expected {
+		if amount == 0 {
+			delete(expected, key)
+			delete(expectedPayees, key)
+		}
+	}
+	for _, bill := range calculation.Source.Bills {
+		key := bill.Customer.ObjectID + ":" + bill.Salesperson.ObjectID
+		if eligibleBillGroups[key] && !allocatedBills[bill.BillLineID] {
+			return prepared, domainError(ErrorValidation, "eligible bill cost must be allocated to a calculation line", nil, nil)
+		}
 	}
 	seenSummaries := make(map[summaryKey]bool)
 	for _, summary := range calculation.Result.Summaries {
@@ -427,13 +654,13 @@ func (s *Service) prepareIntermediaryCalculation(
 			return prepared, domainError(ErrorValidation, "calculation summary category is invalid", nil, nil)
 		}
 		key := summaryKey{category, summary.Payee.Entity, summary.Payee.ObjectID}
-		amount, parseErr := moneyCents(summary.Amount)
-		if parseErr != nil || seenSummaries[key] || expected[key] != amount ||
+		amount, parseErr := fixeddecimal.ParseSigned(summary.Amount, 2, false)
+		if parseErr != nil || amount == 0 || seenSummaries[key] || expected[key] != amount ||
 			summary.Payee != expectedPayees[key] {
 			return prepared, domainError(ErrorValidation, "calculation summary does not match detail results", nil, nil)
 		}
 		seenSummaries[key] = true
-		total, ok := addIntermediaryAmount(prepared.total, amount)
+		total, ok := addSignedIntermediaryAmount(prepared.total, amount)
 		if !ok {
 			return prepared, domainError(ErrorValidation, "calculation total is out of range", nil, nil)
 		}
@@ -485,6 +712,15 @@ func (s *Service) validateStoredIntermediaryCalculation(
 	return nil
 }
 
+func (s *Service) ValidateIntermediaryCalculation(
+	ctx context.Context, tx pgx.Tx, documentID string,
+) error {
+	if tx == nil {
+		return domainError(ErrorValidation, "intermediary calculation validation transaction is required", nil, nil)
+	}
+	return s.validateStoredIntermediaryCalculation(ctx, s.queries.WithTx(tx), documentID)
+}
+
 func (s *Service) writeIntermediaryCalculation(
 	ctx context.Context, q *dbsqlc.Queries, documentID string,
 	calculation *IntermediaryCalculationInput, prepared preparedIntermediaryCalculation, update bool,
@@ -506,6 +742,9 @@ func (s *Service) writeIntermediaryCalculation(
 		if err := oneRow(rows, err); err != nil {
 			return err
 		}
+		if err := q.DeleteVouIntermediaryCalculationBillAllocations(ctx, documentID); err != nil {
+			return err
+		}
 		if err := q.DeleteVouIntermediaryCalculationLines(ctx, documentID); err != nil {
 			return err
 		}
@@ -522,6 +761,16 @@ func (s *Service) writeIntermediaryCalculation(
 			IntermediaryAmountCents: prepared.lineIntermediary[index], RebateAmountCents: prepared.lineRebate[index],
 		}); err != nil {
 			return err
+		}
+		for _, billLineID := range prepared.lineBillIDs[index] {
+			if err := q.InsertVouIntermediaryCalculationBillAllocation(
+				ctx, dbsqlc.InsertVouIntermediaryCalculationBillAllocationParams{
+					DocumentID: documentID, BillLineID: billLineID,
+					SourceSignoffLineID: line.SourceSignoffLineID,
+				},
+			); err != nil {
+				return err
+			}
 		}
 	}
 	for index, summary := range calculation.Result.Summaries {

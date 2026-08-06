@@ -2781,6 +2781,8 @@ export interface components {
         };
         VouIntermediarySourceLine: {
             sourceSignoffLineId: string;
+            /** @enum {string} */
+            sourceKind: "SALE" | "RETURN_ADJUSTMENT";
             signoffDocumentId: string;
             signoffDocumentNo: string;
             /** Format: date */
@@ -2809,6 +2811,10 @@ export interface components {
             lineAmount: string;
             settlementTermCode: string;
             specialApproval: boolean;
+            returnDocumentNos?: string[];
+            adjustmentEmployeeAmount: string;
+            adjustmentIntermediaryAmount: string;
+            adjustmentRebateAmount: string;
         };
         VouIntermediarySourceBill: {
             billLineId: string;
@@ -2926,6 +2932,7 @@ export interface components {
             marketMaintenanceSubsidy: string;
             marketDevelopmentSubsidy: string;
             billCost: string;
+            billLineIds: string[];
             employeeAmount: string;
             intermediaryAmount: string;
             rebateAmount: string;

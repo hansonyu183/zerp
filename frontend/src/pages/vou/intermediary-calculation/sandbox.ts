@@ -7,7 +7,6 @@ import type {
   IntermediarySummary,
 } from '@/components/voucher'
 
-const moneyPattern = /^(?:0|[1-9]\d{0,11})\.\d{2}$/u
 const signedMoneyPattern = /^-?(?:0|[1-9]\d{0,11})\.\d{2}$/u
 const quantityPattern = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,6})?$/u
 const resultMoneyFields: readonly (keyof IntermediaryResultLine)[] = [
@@ -46,10 +45,13 @@ function isResultLine(value: unknown): value is IntermediaryResultLine {
     signedMoneyPattern.test(value.premiumUnitPrice) &&
     typeof value.barrelQuantity === 'string' &&
     quantityPattern.test(value.barrelQuantity) &&
+    Array.isArray(value.billLineIds) &&
+    value.billLineIds.every((item) => typeof item === 'string') &&
+    new Set(value.billLineIds).size === value.billLineIds.length &&
     resultMoneyFields.every(
       (field) =>
         typeof value[field] === 'string' &&
-        moneyPattern.test(value[field] as string),
+        signedMoneyPattern.test(value[field] as string),
     ) &&
     (value.note === undefined ||
       (typeof value.note === 'string' && Array.from(value.note).length <= 1000))
@@ -63,8 +65,8 @@ function isSummary(value: unknown): value is IntermediarySummary {
     typeof value.category === 'string' &&
     categories.has(value.category) &&
     typeof value.amount === 'string' &&
-    moneyPattern.test(value.amount) &&
-    Number(value.amount) > 0
+    signedMoneyPattern.test(value.amount) &&
+    Number(value.amount) !== 0
   )
 }
 
@@ -104,6 +106,56 @@ export function validateIntermediaryResult(
     )
   ) {
     throw new Error('计算结果桶数必须与销售签收来源一致。')
+  }
+  const sourceBills = new Map(
+    source.bills.map((bill) => [bill.billLineId, bill]),
+  )
+  const allocatedBills = new Set<string>()
+  const eligibleGroups = new Set(
+    source.lines
+      .filter((line) => line.sourceKind === 'SALE')
+      .map((line) => `${line.customer.objectId}:${line.salesperson.objectId}`),
+  )
+  for (const line of value.lines as IntermediaryResultLine[]) {
+    const sourceLine = sourceById.get(line.sourceSignoffLineId)
+    if (!sourceLine) continue
+    const amounts = resultMoneyFields.map((field) => Number(line[field]))
+    if (
+      (sourceLine.sourceKind === 'SALE' &&
+        amounts.some((amount) => amount < 0)) ||
+      (sourceLine.sourceKind === 'RETURN_ADJUSTMENT' &&
+        (amounts.slice(0, 6).some((amount) => amount !== 0) ||
+          amounts.slice(6).some((amount) => amount > 0) ||
+          line.billLineIds.length !== 0))
+    ) {
+      throw new Error('计算结果金额方向与来源类型不一致。')
+    }
+    for (const billLineId of line.billLineIds) {
+      const bill = sourceBills.get(billLineId)
+      if (
+        !bill ||
+        allocatedBills.has(billLineId) ||
+        sourceLine.sourceKind !== 'SALE' ||
+        bill.customer.objectId !== sourceLine.customer.objectId ||
+        bill.salesperson.objectId !== sourceLine.salesperson.objectId
+      ) {
+        throw new Error('票据成本分配必须匹配客户、业务员和来源票据。')
+      }
+      allocatedBills.add(billLineId)
+    }
+    if (Number(line.billCost) > 0 && line.billLineIds.length === 0) {
+      throw new Error('票据成本必须记录来源票据。')
+    }
+  }
+  if (
+    source.bills.some(
+      (bill) =>
+        eligibleGroups.has(
+          `${bill.customer.objectId}:${bill.salesperson.objectId}`,
+        ) && !allocatedBills.has(bill.billLineId),
+    )
+  ) {
+    throw new Error('存在可分配但未分配的票据成本。')
   }
   return {
     lines: value.lines as IntermediaryResultLine[],

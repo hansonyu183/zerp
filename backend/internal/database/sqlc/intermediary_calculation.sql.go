@@ -75,6 +75,16 @@ func (q *Queries) CountLedOtherPayableEntries(ctx context.Context, arg CountLedO
 	return count, err
 }
 
+const deleteVouIntermediaryCalculationBillAllocations = `-- name: DeleteVouIntermediaryCalculationBillAllocations :exec
+DELETE FROM vou_intermediary_calculation_bill_allocations
+WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouIntermediaryCalculationBillAllocations(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouIntermediaryCalculationBillAllocations, documentID)
+	return err
+}
+
 const deleteVouIntermediaryCalculationLines = `-- name: DeleteVouIntermediaryCalculationLines :exec
 DELETE FROM vou_intermediary_calculation_lines
 WHERE document_id=$1
@@ -233,6 +243,25 @@ func (q *Queries) InsertLedOtherPayableEntry(ctx context.Context, arg InsertLedO
 	return err
 }
 
+const insertVouIntermediaryCalculationBillAllocation = `-- name: InsertVouIntermediaryCalculationBillAllocation :exec
+INSERT INTO vou_intermediary_calculation_bill_allocations(
+    document_id,bill_line_id,source_signoff_line_id
+) VALUES (
+    $1,$2,$3
+)
+`
+
+type InsertVouIntermediaryCalculationBillAllocationParams struct {
+	DocumentID          string `db:"document_id" json:"document_id"`
+	BillLineID          string `db:"bill_line_id" json:"bill_line_id"`
+	SourceSignoffLineID string `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+}
+
+func (q *Queries) InsertVouIntermediaryCalculationBillAllocation(ctx context.Context, arg InsertVouIntermediaryCalculationBillAllocationParams) error {
+	_, err := q.db.Exec(ctx, insertVouIntermediaryCalculationBillAllocation, arg.DocumentID, arg.BillLineID, arg.SourceSignoffLineID)
+	return err
+}
+
 const insertVouIntermediaryCalculationDetail = `-- name: InsertVouIntermediaryCalculationDetail :exec
 INSERT INTO vou_intermediary_calculation_details(
     document_id,period_start,period_end,source_hash,source_snapshot,
@@ -386,18 +415,28 @@ WHERE document.entity='bill-receipt'
   AND document.business_date >= $1
   AND (CASE WHEN bill_line.bill_type='CHECK'
         THEN bill_line.maturity_date ELSE document.business_date END)
-      BETWEEN $2::date AND $3::date
+      <= $2::date
   AND bill_line.purpose='PRIMARY'
   AND bill_line.position_type='ASSET'
   AND bill_line.direction='IN'
   AND bill_line.currency='CNY'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM vou_intermediary_calculation_bill_allocations allocation
+      JOIN vou_documents allocation_document
+        ON allocation_document.id=allocation.document_id
+       AND allocation_document.entity='intermediary-calculation'
+       AND allocation_document.status IN ('APPROVED','FINALIZED')
+      WHERE allocation.bill_line_id=bill_line.id
+        AND allocation_document.business_date < $3::date
+  )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no
 `
 
 type ListIntermediaryBillSourceRowsParams struct {
 	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
-	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
 	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
 }
 
 type ListIntermediaryBillSourceRowsRow struct {
@@ -420,7 +459,7 @@ type ListIntermediaryBillSourceRowsRow struct {
 }
 
 func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error) {
-	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.CutoverDate, arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.CutoverDate, arg.PeriodEnd, arg.PeriodStart)
 	if err != nil {
 		return nil, err
 	}
@@ -534,6 +573,104 @@ func (q *Queries) ListIntermediaryCustomerTradeEvents(ctx context.Context, arg L
 	for rows.Next() {
 		var i ListIntermediaryCustomerTradeEventsRow
 		if err := rows.Scan(&i.CounterpartyObjectID, &i.EffectiveDate, &i.AmountDeltaCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIntermediaryReturnAdjustmentRows = `-- name: ListIntermediaryReturnAdjustmentRows :many
+SELECT
+    return_line.id AS return_line_id,
+    return_line.source_signoff_line_id,
+    return_line.quantity_micros,
+    return_line.line_amount_cents,
+    return_document.id AS return_document_id,
+    return_document.document_no AS return_document_no,
+    return_document.business_date AS return_date,
+    original.document_id AS calculation_document_id,
+    original.business_date AS calculation_date,
+    original.result AS original_result,
+    original.source_snapshot
+FROM vou_sale_return_lines return_line
+JOIN vou_sale_return_details return_detail
+  ON return_detail.document_id=return_line.document_id
+ AND return_detail.return_kind='AFTER_SALE'
+JOIN vou_documents return_document
+  ON return_document.id=return_line.document_id
+ AND return_document.entity='sale-return'
+ AND return_document.status IN ('APPROVED','FINALIZED')
+JOIN LATERAL (
+    SELECT calculation_document.id AS document_id,
+           calculation_document.business_date,
+           calculation_line.result,
+           calculation_detail.source_snapshot
+    FROM vou_intermediary_calculation_lines calculation_line
+    JOIN vou_intermediary_calculation_details calculation_detail
+      ON calculation_detail.document_id=calculation_line.document_id
+    JOIN vou_documents calculation_document
+      ON calculation_document.id=calculation_line.document_id
+     AND calculation_document.entity='intermediary-calculation'
+     AND calculation_document.status IN ('APPROVED','FINALIZED')
+    WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
+      AND calculation_document.business_date < return_document.business_date
+      AND (calculation_line.employee_amount_cents>0
+        OR calculation_line.intermediary_amount_cents>0
+        OR calculation_line.rebate_amount_cents>0)
+    ORDER BY calculation_document.business_date,calculation_document.document_no
+    LIMIT 1
+) original ON true
+WHERE return_document.business_date >= $1
+  AND return_document.business_date <= $2
+ORDER BY return_line.source_signoff_line_id,return_document.business_date,
+         return_document.document_no,return_line.line_no,return_line.id
+`
+
+type ListIntermediaryReturnAdjustmentRowsParams struct {
+	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+}
+
+type ListIntermediaryReturnAdjustmentRowsRow struct {
+	ReturnLineID          string      `db:"return_line_id" json:"return_line_id"`
+	SourceSignoffLineID   string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	QuantityMicros        int64       `db:"quantity_micros" json:"quantity_micros"`
+	LineAmountCents       int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	ReturnDocumentID      string      `db:"return_document_id" json:"return_document_id"`
+	ReturnDocumentNo      string      `db:"return_document_no" json:"return_document_no"`
+	ReturnDate            pgtype.Date `db:"return_date" json:"return_date"`
+	CalculationDocumentID string      `db:"calculation_document_id" json:"calculation_document_id"`
+	CalculationDate       pgtype.Date `db:"calculation_date" json:"calculation_date"`
+	OriginalResult        []byte      `db:"original_result" json:"original_result"`
+	SourceSnapshot        []byte      `db:"source_snapshot" json:"source_snapshot"`
+}
+
+func (q *Queries) ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg ListIntermediaryReturnAdjustmentRowsParams) ([]ListIntermediaryReturnAdjustmentRowsRow, error) {
+	rows, err := q.db.Query(ctx, listIntermediaryReturnAdjustmentRows, arg.CutoverDate, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIntermediaryReturnAdjustmentRowsRow{}
+	for rows.Next() {
+		var i ListIntermediaryReturnAdjustmentRowsRow
+		if err := rows.Scan(
+			&i.ReturnLineID,
+			&i.SourceSignoffLineID,
+			&i.QuantityMicros,
+			&i.LineAmountCents,
+			&i.ReturnDocumentID,
+			&i.ReturnDocumentNo,
+			&i.ReturnDate,
+			&i.CalculationDocumentID,
+			&i.CalculationDate,
+			&i.OriginalResult,
+			&i.SourceSnapshot,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

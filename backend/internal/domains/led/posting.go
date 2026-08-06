@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -301,6 +302,9 @@ func (s *Service) postIntermediaryCalculation(
 		return err
 	}
 	for _, summary := range summaries {
+		if summary.AmountCents == math.MinInt64 {
+			return domainError(ErrorValidation, "intermediary calculation amount is out of range", nil, nil)
+		}
 		category := summary.Category
 		if err = q.InsertLedOtherPayableEntry(ctx, dbsqlc.InsertLedOtherPayableEntryParams{
 			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,

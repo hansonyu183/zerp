@@ -283,11 +283,12 @@ const exactMessages: Readonly<Record<string, string>> = {
     '计算来源已变化，请重新计算后保存。',
   'calculation source changed; recalculate before approval':
     '计算来源已变化，请退回复核并重新计算后再批准。',
+  'intermediary calculation source changed; recalculate before closing':
+    '居间计算来源已变化，请重新计算后再结账。',
   'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
   'calculation summary does not match detail results':
     '计算稿汇总与明细不一致，请重新计算。',
-  'calculation summary category is invalid':
-    '计算稿汇总类别无效，请重新计算。',
+  'calculation summary category is invalid': '计算稿汇总类别无效，请重新计算。',
   'intermediary amount requires a source intermediary':
     '居间金额缺少对应居间商，请检查客户资料后重新计算。',
   'intermediary calculation must use CNY and include its calculation draft':

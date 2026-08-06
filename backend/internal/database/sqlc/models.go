@@ -1491,6 +1491,12 @@ type VouFile struct {
 	CreatedBy       string             `db:"created_by" json:"created_by"`
 }
 
+type VouIntermediaryCalculationBillAllocation struct {
+	DocumentID          string `db:"document_id" json:"document_id"`
+	BillLineID          string `db:"bill_line_id" json:"bill_line_id"`
+	SourceSignoffLineID string `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+}
+
 type VouIntermediaryCalculationDetail struct {
 	DocumentID     string      `db:"document_id" json:"document_id"`
 	Entity         string      `db:"entity" json:"entity"`

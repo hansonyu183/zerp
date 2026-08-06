@@ -455,6 +455,7 @@ export interface IntermediaryReference {
 
 export interface IntermediarySourceLine {
   sourceSignoffLineId: string
+  sourceKind: 'SALE' | 'RETURN_ADJUSTMENT'
   signoffDocumentId: string
   signoffDocumentNo: string
   signoffDate: string
@@ -479,6 +480,10 @@ export interface IntermediarySourceLine {
   lineAmount: string
   settlementTermCode: string
   specialApproval: boolean
+  returnDocumentNos?: string[]
+  adjustmentEmployeeAmount: string
+  adjustmentIntermediaryAmount: string
+  adjustmentRebateAmount: string
 }
 
 export interface IntermediarySourceBill {
@@ -521,6 +526,7 @@ export interface IntermediaryResultLine {
   marketMaintenanceSubsidy: string
   marketDevelopmentSubsidy: string
   billCost: string
+  billLineIds: string[]
   employeeAmount: string
   intermediaryAmount: string
   rebateAmount: string

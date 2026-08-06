@@ -136,6 +136,7 @@ func (s *Seeder) seedZeroIntermediaryCalculation(ctx context.Context, businessDa
 			MarketMaintenanceSubsidy: "0.00",
 			MarketDevelopmentSubsidy: "0.00",
 			BillCost:                 "0.00",
+			BillLineIDs:              []string{},
 			EmployeeAmount:           "0.00",
 			IntermediaryAmount:       "0.00",
 			RebateAmount:             "0.00",

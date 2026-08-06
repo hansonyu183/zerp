@@ -103,6 +103,7 @@
       'required':
         [
           'sourceSignoffLineId',
+          'sourceKind',
           'signoffDocumentId',
           'signoffDocumentNo',
           'signoffDate',
@@ -126,11 +127,16 @@
           'lineAmount',
           'settlementTermCode',
           'specialApproval',
+          'adjustmentEmployeeAmount',
+          'adjustmentIntermediaryAmount',
+          'adjustmentRebateAmount',
         ],
       'additionalProperties': false,
       'properties':
         {
           'sourceSignoffLineId': { 'type': 'string' },
+          'sourceKind':
+            { 'type': 'string', 'enum': ['SALE', 'RETURN_ADJUSTMENT'] },
           'signoffDocumentId': { 'type': 'string' },
           'signoffDocumentNo': { 'type': 'string' },
           'signoffDate': { 'type': 'string', 'format': 'date' },
@@ -155,6 +161,15 @@
           'lineAmount': { 'type': 'string' },
           'settlementTermCode': { 'type': 'string' },
           'specialApproval': { 'type': 'boolean' },
+          'returnDocumentNos':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
+          'adjustmentEmployeeAmount': { 'type': 'string' },
+          'adjustmentIntermediaryAmount': { 'type': 'string' },
+          'adjustmentRebateAmount': { 'type': 'string' },
         },
     },
   'VouIntermediarySourceBill':
@@ -231,6 +246,7 @@
           'marketMaintenanceSubsidy',
           'marketDevelopmentSubsidy',
           'billCost',
+          'billLineIds',
           'employeeAmount',
           'intermediaryAmount',
           'rebateAmount',
@@ -247,6 +263,12 @@
           'marketMaintenanceSubsidy': { 'type': 'string' },
           'marketDevelopmentSubsidy': { 'type': 'string' },
           'billCost': { 'type': 'string' },
+          'billLineIds':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
           'employeeAmount': { 'type': 'string' },
           'intermediaryAmount': { 'type': 'string' },
           'rebateAmount': { 'type': 'string' },

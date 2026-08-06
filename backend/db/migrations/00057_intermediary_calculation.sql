@@ -17,10 +17,11 @@ ALTER TABLE vou_documents
     )),
     DROP CONSTRAINT vou_documents_total_amount_ck,
     ADD CONSTRAINT vou_documents_total_amount_ck CHECK (
-        (entity IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
+        entity = 'intermediary-calculation'
+        OR (entity IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                     'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
-                    'order-production','self-production','inventory-count','asset-liquidation',
-                    'intermediary-calculation') AND total_amount_cents >= 0)
+                    'order-production','self-production','inventory-count','asset-liquidation')
+            AND total_amount_cents >= 0)
         OR (entity NOT IN ('sale-pricing','purchase-inquiry','sale-order','sale-outbound','sale-delivery',
                            'sale-signoff','sale-return','purchase-order','purchase-inbound','purchase-return',
                            'order-production','self-production','inventory-count','asset-liquidation',
@@ -72,9 +73,9 @@ CREATE TABLE vou_intermediary_calculation_lines (
     source_signoff_line_id varchar(26) NOT NULL
         REFERENCES vou_sale_signoff_lines(id) ON DELETE RESTRICT,
     result jsonb NOT NULL CHECK (jsonb_typeof(result) = 'object'),
-    employee_amount_cents bigint NOT NULL CHECK (employee_amount_cents >= 0),
-    intermediary_amount_cents bigint NOT NULL CHECK (intermediary_amount_cents >= 0),
-    rebate_amount_cents bigint NOT NULL CHECK (rebate_amount_cents >= 0),
+    employee_amount_cents bigint NOT NULL,
+    intermediary_amount_cents bigint NOT NULL,
+    rebate_amount_cents bigint NOT NULL,
     UNIQUE (document_id, line_no),
     UNIQUE (document_id, source_signoff_line_id)
 );
@@ -90,10 +91,21 @@ CREATE TABLE vou_intermediary_calculation_summaries (
     payee_version_id varchar(26) NOT NULL,
     payee_code varchar(64) NOT NULL,
     payee_name varchar(200) NOT NULL,
-    amount_cents bigint NOT NULL CHECK (amount_cents > 0),
+    amount_cents bigint NOT NULL CHECK (amount_cents <> 0),
     UNIQUE (document_id, line_no),
     UNIQUE (document_id, category, payee_entity, payee_object_id)
 );
+
+CREATE TABLE vou_intermediary_calculation_bill_allocations (
+    document_id varchar(26) NOT NULL
+        REFERENCES vou_intermediary_calculation_details(document_id) ON DELETE RESTRICT,
+    bill_line_id varchar(26) NOT NULL REFERENCES vou_bill_lines(id) ON DELETE RESTRICT,
+    source_signoff_line_id varchar(26) NOT NULL
+        REFERENCES vou_sale_signoff_lines(id) ON DELETE RESTRICT,
+    PRIMARY KEY (document_id, bill_line_id)
+);
+CREATE INDEX vou_intermediary_bill_allocation_source_idx
+    ON vou_intermediary_calculation_bill_allocations(source_signoff_line_id);
 
 ALTER TABLE led_party_entries
     ADD COLUMN account_type varchar(32) NOT NULL DEFAULT 'TRADE'
@@ -179,6 +191,24 @@ globalThis.calculate = function calculate(input) {
     return { baseRate, lowRate, premiumAllowed };
   };
   const rows = input.lines.map((line) => {
+    if (line.sourceKind === 'RETURN_ADJUSTMENT') {
+      return {
+        sourceSignoffLineId: line.sourceSignoffLineId,
+        premiumUnitPrice: '0.00',
+        barrelQuantity: line.barrelQuantity,
+        baseCommission: '0.00',
+        premiumCommission: '0.00',
+        lowPriceCommission: '0.00',
+        marketMaintenanceSubsidy: '0.00',
+        marketDevelopmentSubsidy: '0.00',
+        billCost: '0.00',
+        billLineIds: [],
+        employeeAmount: money(-number(line.adjustmentEmployeeAmount)),
+        intermediaryAmount: money(-number(line.adjustmentIntermediaryAmount)),
+        rebateAmount: money(-number(line.adjustmentRebateAmount)),
+        note: '跨月退货冲回：' + (line.returnDocumentNos || []).join('、')
+      };
+    }
     const unitPrice = number(line.unitPrice);
     const referencePrice = number(line.referenceUnitPrice);
     const surcharge = number(line.settlementSurcharge);
@@ -210,6 +240,7 @@ globalThis.calculate = function calculate(input) {
       marketMaintenanceSubsidy: money(maintenance),
       marketDevelopmentSubsidy: '0.00',
       billCost: '0.00',
+      billLineIds: [],
       employeeAmount: money(gross),
       intermediaryAmount: money(intermediary),
       rebateAmount: money(rebate),
@@ -224,7 +255,7 @@ globalThis.calculate = function calculate(input) {
     if (!special) employeeGroup.barrels += barrels;
     byEmployee.set(employeeKey, employeeGroup);
     const costKey = line.customer.objectId + ':' + line.salesperson.objectId;
-    const costGroup = byCustomerEmployee.get(costKey) || { lines: [], bills: 0 };
+    const costGroup = byCustomerEmployee.get(costKey) || { lines: [], bills: 0, billLineIds: [] };
     costGroup.lines.push(item);
     byCustomerEmployee.set(costKey, costGroup);
     return row;
@@ -232,7 +263,10 @@ globalThis.calculate = function calculate(input) {
   for (const bill of input.bills) {
     const key = bill.customer.objectId + ':' + bill.salesperson.objectId;
     const group = byCustomerEmployee.get(key);
-    if (group) group.bills += number(bill.faceAmount) * 0.03 * Number(bill.costDays) / 365;
+    if (group) {
+      group.bills += number(bill.faceAmount) * 0.03 * Number(bill.costDays) / 365;
+      group.billLineIds.push(bill.billLineId);
+    }
   }
   for (const group of byEmployee.values()) {
     const ordinary = group.lines.find((item) => item.source.specialApproval !== true);
@@ -245,6 +279,7 @@ globalThis.calculate = function calculate(input) {
     }
   }
   for (const group of byCustomerEmployee.values()) {
+    if (group.lines.length) group.lines[0].result.billLineIds = group.billLineIds.slice();
     let remainingCost = group.bills;
     for (const item of group.lines) {
       const available = number(item.result.employeeAmount);
@@ -260,7 +295,7 @@ globalThis.calculate = function calculate(input) {
   const summaries = new Map();
   const add = (payee, category, amount) => {
     const rounded = number(money(number(amount)));
-    if (!payee || rounded <= 0) return;
+    if (!payee || rounded === 0) return;
     const key = category + ':' + payee.entity + ':' + payee.objectId;
     const current = summaries.get(key);
     summaries.set(key, { payee, category, amount: money((current ? number(current.amount) : 0) + rounded) });
@@ -271,7 +306,7 @@ globalThis.calculate = function calculate(input) {
     add(source.intermediary, 'INTERMEDIARY', row.intermediaryAmount);
     add(source.customer, 'REBATE', row.rebateAmount);
   });
-  return { lines: rows, summaries: Array.from(summaries.values()) };
+  return { lines: rows, summaries: Array.from(summaries.values()).filter((item) => number(item.amount) !== 0) };
 };
 $script$))
 INSERT INTO vou_intermediary_scripts(id,name,source,source_hash,updated_by)

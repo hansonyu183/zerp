@@ -337,31 +337,36 @@ type IntermediaryReference struct {
 }
 
 type IntermediarySourceLine struct {
-	SourceSignoffLineID string                 `json:"sourceSignoffLineId"`
-	SignoffDocumentID   string                 `json:"signoffDocumentId"`
-	SignoffDocumentNo   string                 `json:"signoffDocumentNo"`
-	SignoffDate         string                 `json:"signoffDate"`
-	DueDate             string                 `json:"dueDate"`
-	CollectionDate      string                 `json:"collectionDate"`
-	CollectionDelayDays int                    `json:"collectionDelayDays"`
-	OrderDocumentID     string                 `json:"orderDocumentId"`
-	OrderDocumentNo     string                 `json:"orderDocumentNo"`
-	OrderDate           string                 `json:"orderDate"`
-	Customer            IntermediaryReference  `json:"customer"`
-	Salesperson         IntermediaryReference  `json:"salesperson"`
-	Product             IntermediaryReference  `json:"product"`
-	Intermediary        *IntermediaryReference `json:"intermediary,omitempty"`
-	ProductKind         string                 `json:"productKind"`
-	SignedQuantity      string                 `json:"signedQuantity"`
-	PricingQuantity     string                 `json:"pricingQuantity"`
-	BarrelQuantity      string                 `json:"barrelQuantity"`
-	UnitPrice           string                 `json:"unitPrice"`
-	ReferenceUnitPrice  string                 `json:"referenceUnitPrice"`
-	SettlementSurcharge string                 `json:"settlementSurcharge"`
-	RebateUnitPrice     string                 `json:"rebateUnitPrice"`
-	LineAmount          string                 `json:"lineAmount"`
-	SettlementTermCode  string                 `json:"settlementTermCode"`
-	SpecialApproval     bool                   `json:"specialApproval"`
+	SourceSignoffLineID          string                 `json:"sourceSignoffLineId"`
+	SourceKind                   string                 `json:"sourceKind"`
+	SignoffDocumentID            string                 `json:"signoffDocumentId"`
+	SignoffDocumentNo            string                 `json:"signoffDocumentNo"`
+	SignoffDate                  string                 `json:"signoffDate"`
+	DueDate                      string                 `json:"dueDate"`
+	CollectionDate               string                 `json:"collectionDate"`
+	CollectionDelayDays          int                    `json:"collectionDelayDays"`
+	OrderDocumentID              string                 `json:"orderDocumentId"`
+	OrderDocumentNo              string                 `json:"orderDocumentNo"`
+	OrderDate                    string                 `json:"orderDate"`
+	Customer                     IntermediaryReference  `json:"customer"`
+	Salesperson                  IntermediaryReference  `json:"salesperson"`
+	Product                      IntermediaryReference  `json:"product"`
+	Intermediary                 *IntermediaryReference `json:"intermediary,omitempty"`
+	ProductKind                  string                 `json:"productKind"`
+	SignedQuantity               string                 `json:"signedQuantity"`
+	PricingQuantity              string                 `json:"pricingQuantity"`
+	BarrelQuantity               string                 `json:"barrelQuantity"`
+	UnitPrice                    string                 `json:"unitPrice"`
+	ReferenceUnitPrice           string                 `json:"referenceUnitPrice"`
+	SettlementSurcharge          string                 `json:"settlementSurcharge"`
+	RebateUnitPrice              string                 `json:"rebateUnitPrice"`
+	LineAmount                   string                 `json:"lineAmount"`
+	SettlementTermCode           string                 `json:"settlementTermCode"`
+	SpecialApproval              bool                   `json:"specialApproval"`
+	ReturnDocumentNos            []string               `json:"returnDocumentNos,omitempty"`
+	AdjustmentEmployeeAmount     string                 `json:"adjustmentEmployeeAmount"`
+	AdjustmentIntermediaryAmount string                 `json:"adjustmentIntermediaryAmount"`
+	AdjustmentRebateAmount       string                 `json:"adjustmentRebateAmount"`
 }
 
 type IntermediarySourceBill struct {
@@ -387,19 +392,20 @@ type IntermediaryCalculationSource struct {
 }
 
 type IntermediaryResultLine struct {
-	SourceSignoffLineID      string  `json:"sourceSignoffLineId"`
-	PremiumUnitPrice         string  `json:"premiumUnitPrice"`
-	BarrelQuantity           string  `json:"barrelQuantity"`
-	BaseCommission           string  `json:"baseCommission"`
-	PremiumCommission        string  `json:"premiumCommission"`
-	LowPriceCommission       string  `json:"lowPriceCommission"`
-	MarketMaintenanceSubsidy string  `json:"marketMaintenanceSubsidy"`
-	MarketDevelopmentSubsidy string  `json:"marketDevelopmentSubsidy"`
-	BillCost                 string  `json:"billCost"`
-	EmployeeAmount           string  `json:"employeeAmount"`
-	IntermediaryAmount       string  `json:"intermediaryAmount"`
-	RebateAmount             string  `json:"rebateAmount"`
-	Note                     *string `json:"note,omitempty"`
+	SourceSignoffLineID      string   `json:"sourceSignoffLineId"`
+	PremiumUnitPrice         string   `json:"premiumUnitPrice"`
+	BarrelQuantity           string   `json:"barrelQuantity"`
+	BaseCommission           string   `json:"baseCommission"`
+	PremiumCommission        string   `json:"premiumCommission"`
+	LowPriceCommission       string   `json:"lowPriceCommission"`
+	MarketMaintenanceSubsidy string   `json:"marketMaintenanceSubsidy"`
+	MarketDevelopmentSubsidy string   `json:"marketDevelopmentSubsidy"`
+	BillCost                 string   `json:"billCost"`
+	BillLineIDs              []string `json:"billLineIds"`
+	EmployeeAmount           string   `json:"employeeAmount"`
+	IntermediaryAmount       string   `json:"intermediaryAmount"`
+	RebateAmount             string   `json:"rebateAmount"`
+	Note                     *string  `json:"note,omitempty"`
 }
 
 type IntermediarySummary struct {

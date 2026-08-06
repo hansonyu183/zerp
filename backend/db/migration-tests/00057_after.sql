@@ -25,6 +25,10 @@ BEGIN
         RAISE EXCEPTION 'intermediary calculation period uniqueness is missing';
     END IF;
 
+    IF to_regclass('public.vou_intermediary_calculation_bill_allocations') IS NULL THEN
+        RAISE EXCEPTION 'intermediary calculation bill allocation storage is missing';
+    END IF;
+
     IF (SELECT count(*) FROM app_permissions
         WHERE domain='vou' AND entity='intermediary-calculation') <> 16 THEN
         RAISE EXCEPTION 'intermediary calculation permissions are incomplete';

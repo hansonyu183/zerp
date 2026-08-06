@@ -32,6 +32,7 @@ const source: IntermediaryCalculationSource = {
   lines: [
     {
       sourceSignoffLineId: 'signoff-line-1',
+      sourceKind: 'SALE',
       signoffDocumentId: 'signoff-1',
       signoffDocumentNo: 'SOF-001',
       signoffDate: '2026-07-01',
@@ -61,6 +62,9 @@ const source: IntermediaryCalculationSource = {
       lineAmount: '2000.00',
       settlementTermCode: 'MONTHLY_30',
       specialApproval: false,
+      adjustmentEmployeeAmount: '0.00',
+      adjustmentIntermediaryAmount: '0.00',
+      adjustmentRebateAmount: '0.00',
     },
   ],
   bills: [],
@@ -76,6 +80,7 @@ const resultLine: IntermediaryResultLine = {
   marketMaintenanceSubsidy: '4.00',
   marketDevelopmentSubsidy: '1800.00',
   billCost: '0.00',
+  billLineIds: [],
   employeeAmount: '1890.00',
   intermediaryAmount: '0.00',
   rebateAmount: '80.00',
@@ -126,6 +131,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
       marketMaintenanceSubsidy: '4.00',
       marketDevelopmentSubsidy: '1800.00',
       billCost: '30.00',
+      billLineIds: ['bill-line-1'],
       employeeAmount: '1860.00',
       rebateAmount: '80.00',
     })
@@ -199,9 +205,10 @@ describe('intermediary calculation QuickJS sandbox', () => {
       caseSource.lines[0].settlementTermCode = term
       caseSource.lines[0].collectionDelayDays = delay
       const calculated = await runIntermediaryScript(seededScript, caseSource)
-      expect(calculated.lines[0].baseCommission, `${term} 延期 ${delay} 天`).toBe(
-        baseCommission,
-      )
+      expect(
+        calculated.lines[0].baseCommission,
+        `${term} 延期 ${delay} 天`,
+      ).toBe(baseCommission)
       expect(
         calculated.lines[0].premiumCommission,
         `${term} 延期 ${delay} 天`,
@@ -230,6 +237,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
           baseCommission: '16.00', premiumCommission: '70.00',
           lowPriceCommission: '0.00', marketMaintenanceSubsidy: '4.00',
           marketDevelopmentSubsidy: '1800.00', billCost: '0.00',
+          billLineIds: [],
           employeeAmount: '1890.00', intermediaryAmount: '0.00',
           rebateAmount: '80.00'
         }],
@@ -270,7 +278,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
         },
         source,
       ),
-    ).toThrow('金额格式')
+    ).toThrow('金额方向')
     expect(() =>
       validateIntermediaryResult(
         {
@@ -300,5 +308,74 @@ describe('intermediary calculation QuickJS sandbox', () => {
         source,
       ),
     ).toThrow('桶数')
+  })
+
+  it('keeps an unmatched bill available for a later period', async () => {
+    const billOnlySource = structuredClone(source)
+    billOnlySource.lines = []
+    billOnlySource.bills = [
+      {
+        billLineId: 'bill-line-carry',
+        receiptDocumentId: 'bill-receipt-carry',
+        receiptDocumentNo: 'BRE-CARRY',
+        receiptDate: '2026-07-01',
+        customer,
+        salesperson,
+        billType: 'CHECK',
+        faceAmount: '100.00',
+        issueDate: '2026-07-01',
+        maturityDate: '2026-07-31',
+        costDays: 30,
+      },
+    ]
+
+    await expect(
+      runIntermediaryScript(seededScript, billOnlySource),
+    ).resolves.toEqual({
+      lines: [],
+      summaries: [],
+    })
+  })
+
+  it('reverses the saved original amounts for a cross-month return', async () => {
+    const returnSource = structuredClone(source)
+    returnSource.lines[0] = {
+      ...returnSource.lines[0],
+      sourceKind: 'RETURN_ADJUSTMENT',
+      signedQuantity: '1',
+      pricingQuantity: '200',
+      barrelQuantity: '1',
+      lineAmount: '1000.00',
+      returnDocumentNos: ['SRT-001'],
+      adjustmentEmployeeAmount: '10.00',
+      adjustmentIntermediaryAmount: '5.00',
+      adjustmentRebateAmount: '2.00',
+      intermediary: {
+        objectId: 'other-party-1',
+        versionId: 'other-party-v1',
+        entity: 'other-party',
+        code: 'OTP-001',
+        name: '居间商一',
+      },
+    }
+
+    const calculated = await runIntermediaryScript(seededScript, returnSource)
+    expect(calculated.lines[0]).toMatchObject({
+      sourceSignoffLineId: 'signoff-line-1',
+      billLineIds: [],
+      employeeAmount: '-10.00',
+      intermediaryAmount: '-5.00',
+      rebateAmount: '-2.00',
+      note: '跨月退货冲回：SRT-001',
+    })
+    expect(calculated.summaries).toEqual([
+      { payee: salesperson, category: 'COMMISSION', amount: '-10.00' },
+      {
+        payee: returnSource.lines[0].intermediary,
+        category: 'INTERMEDIARY',
+        amount: '-5.00',
+      },
+      { payee: customer, category: 'REBATE', amount: '-2.00' },
+    ])
   })
 })

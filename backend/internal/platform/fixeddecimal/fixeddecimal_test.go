@@ -49,6 +49,26 @@ func TestParsePositive(t *testing.T) {
 	}
 }
 
+func TestParseSigned(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		value string
+		want  int64
+	}{
+		{value: "12.34", want: 1234},
+		{value: "-12.34", want: -1234},
+		{value: "0.00", want: 0},
+	} {
+		got, err := ParseSigned(test.value, 2, true)
+		if err != nil || got != test.want {
+			t.Fatalf("ParseSigned(%q) = %d, %v; want %d", test.value, got, err, test.want)
+		}
+	}
+	if _, err := ParseSigned("+1.00", 2, true); err == nil {
+		t.Fatal("ParseSigned accepted an explicit plus sign")
+	}
+}
+
 func TestLineAmountCents(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

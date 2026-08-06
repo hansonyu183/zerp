@@ -324,6 +324,45 @@ func (s *Service) Close(
 			map[string]any{"count": missingCalculationCount, "firstMissingDate": firstMissing,
 				"closingDate": closingDate.Format(dateLayout)}, nil)
 	}
+	calculationRows, err := tx.Query(ctx, `SELECT id,document_no,business_date
+		FROM vou_documents
+		WHERE entity='intermediary-calculation' AND status='FINALIZED'
+		  AND business_date BETWEEN date_trunc('month',$1::date)::date AND $2::date
+		ORDER BY business_date,document_no`, calculationStart, closingDate)
+	if err != nil {
+		return ClosingMutationResult{}, s.internal("list intermediary calculations for closing validation", err)
+	}
+	type calculationForClosing struct {
+		id, number string
+		date       time.Time
+	}
+	calculations := make([]calculationForClosing, 0)
+	for calculationRows.Next() {
+		var calculation calculationForClosing
+		if err = calculationRows.Scan(&calculation.id, &calculation.number, &calculation.date); err != nil {
+			calculationRows.Close()
+			return ClosingMutationResult{}, s.internal("scan intermediary calculation for closing validation", err)
+		}
+		calculations = append(calculations, calculation)
+	}
+	if err = calculationRows.Err(); err != nil {
+		calculationRows.Close()
+		return ClosingMutationResult{}, s.internal("read intermediary calculations for closing validation", err)
+	}
+	calculationRows.Close()
+	for _, calculation := range calculations {
+		if err = s.intermediaryValidator.ValidateIntermediaryCalculation(ctx, tx, calculation.id); err != nil {
+			return ClosingMutationResult{}, domainError(
+				ErrorConflict,
+				"intermediary calculation source changed; recalculate before closing",
+				map[string]any{
+					"documentId": calculation.id, "documentNo": calculation.number,
+					"businessDate": calculation.date.Format(dateLayout),
+				},
+				err,
+			)
+		}
+	}
 	closingID := newID()
 	nextRevision := revision + 1
 	if _, err = tx.Exec(ctx, `INSERT INTO led_closings(

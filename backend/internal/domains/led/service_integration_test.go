@@ -2032,6 +2032,53 @@ func TestIntermediaryCalculationPostingRespectsLedgerCutoverIntegration(t *testi
 	}
 }
 
+func TestLedgerRecutoverRejectsDroppedOtherPayableBalanceIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, _ := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("prepare ledger for other payable recutover: %v", err)
+	}
+	opening, err := ledger.GetOpening(t.Context())
+	if err != nil {
+		t.Fatalf("get ledger before other payable recutover: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
+		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+		counterparty_entity,counterparty_object_id,counterparty_version_id,
+		counterparty_code,counterparty_name,currency,amount_delta_cents,
+		account_type,payable_category
+	) VALUES($1,$2,'POSTING','intermediary-calculation',$3,'ICL-20260131-0001',$4,1,
+		'2026-01-31',now(),$5,'other-payable-recutover','employee',$6,$7,'EMP-RECUTOVER',
+		'待结提成员工','CNY',-100,'OTHER_PAYABLE','COMMISSION')`,
+		newID(), opening.ActiveGenerationID, newID(), newID(), integrationActorOne,
+		refs.employee.ObjectID, refs.employee.VersionID); err != nil {
+		t.Fatalf("insert other payable before recutover: %v", err)
+	}
+	reopened, err := ledger.Reopen(t.Context(), ReopenInput{
+		Revision: opening.Revision, Reason: "测试其它应付切点保护",
+	}, integrationActorOne, "reopen-with-other-payable")
+	if err != nil {
+		t.Fatalf("reopen ledger with other payable: %v", err)
+	}
+	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{
+		Revision: reopened.Revision, CutoverDate: "2026-02-01",
+		Inventory: []InventoryOpeningInput{}, Fund: []FundOpeningInput{}, Party: []PartyOpeningInput{},
+	}, integrationActorOne, "save-recutover-with-other-payable")
+	if err != nil {
+		t.Fatalf("save recutover with other payable: %v", err)
+	}
+	if _, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
+		integrationActorOne, "activate-recutover-with-other-payable"); err == nil ||
+		!strings.Contains(err.Error(), "other payable balances exist") {
+		t.Fatalf("other payable recutover activation error = %v", err)
+	}
+}
+
 func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
@@ -2040,6 +2087,9 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	bobService := bobdomain.NewService(pool)
 	intermediary := createApprovedReference(t, bobService, bobdomain.EntityOtherParty, bobdomain.CreateDetailInput{
 		Code: "LI" + newID(), Name: "LED 居间商", SalespersonEmployeeID: refs.employee.ObjectID,
+	})
+	billHandler := createApprovedReference(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
+		Code: "LIBH" + newID(), Name: "LED 票据经办人",
 	})
 	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermArrival3)
 	refs.customer = createApprovedReference(t, bobService, bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
@@ -2076,7 +2126,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}
 	advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-07-27", Currency: "CNY", Counterparty: &refs.customer,
-		Handler: &refs.employee, BillLines: []voudomain.BillLineInput{{
+		Handler: &billHandler, BillLines: []voudomain.BillLineInput{{
 			PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
 			BillType: "CHECK", BillNo: "ICL-CHECK-001", Medium: "PAPER",
 			Currency: "CNY", FaceAmount: "12.00", IssueDate: "2026-07-27",
@@ -2115,7 +2165,9 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		augustSource.Source.Lines[0].RebateUnitPrice != "0.20" ||
 		augustSource.Source.Lines[0].Intermediary == nil ||
 		augustSource.Source.Lines[0].Intermediary.ObjectID != intermediary.ObjectID ||
-		augustSource.Source.Bills[0].BillType != "CHECK" || augustSource.Source.Bills[0].CostDays != 9 {
+		augustSource.Source.Bills[0].BillType != "CHECK" || augustSource.Source.Bills[0].CostDays != 9 ||
+		augustSource.Source.Bills[0].Salesperson.ObjectID != refs.employee.ObjectID ||
+		augustSource.Source.Bills[0].Salesperson.ObjectID == billHandler.ObjectID {
 		t.Fatalf("August intermediary source = %+v", augustSource.Source)
 	}
 	sourceLine := augustSource.Source.Lines[0]

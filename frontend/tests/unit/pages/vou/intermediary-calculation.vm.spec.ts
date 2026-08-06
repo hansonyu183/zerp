@@ -100,6 +100,41 @@ describe('intermediary calculation view model', () => {
     expect(vm.successMessage.value).toContain('生成 0 行计算稿')
   })
 
+  it('discards an obsolete calculation after the business month changes', async () => {
+    grantPermissions()
+    let resolveSource!: (value: { data: unknown }) => void
+    let resolveScript!: (value: { data: unknown }) => void
+    mockedPostContract
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSource = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveScript = resolve
+          }),
+      )
+    mockedRunScript.mockResolvedValueOnce({ lines: [], summaries: [] })
+    const vm = useIntermediaryCalculationViewModel()
+    vm.openCreate()
+    vm.form.value.businessDate = '2026-07-31'
+
+    const pending = vm.calculate()
+    vm.changeBusinessDate('2026-08-31')
+    resolveSource({ data: { source, sourceHash: 'SOURCE-HASH' } })
+    resolveScript({ data: script })
+    await pending
+
+    expect(mockedRunScript).toHaveBeenCalledWith(script.source, source)
+    expect(vm.form.value.businessDate).toBe('2026-08-31')
+    expect(vm.form.value.intermediaryCalculation).toBeNull()
+    expect(vm.successMessage.value).toBeNull()
+    expect(vm.calculating.value).toBe(false)
+  })
+
   it('requires a successful test of the current text before saving a script', async () => {
     grantPermissions()
     mockedPostContract.mockResolvedValueOnce({ data: script })

@@ -88,7 +88,9 @@ func (s *Service) Activate(
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
-	if err = s.preflightActivation(ctx, q, documents, control.CutoverDate.Time); err != nil {
+	if err = s.preflightActivation(
+		ctx, q, control.CutoverDate.Time, control.ActiveGenerationID,
+	); err != nil {
 		return MutationResult{}, err
 	}
 	generationID := newID()

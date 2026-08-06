@@ -198,6 +198,7 @@ type Querier interface {
 	HasInvalidEmployeeWriteoffTimeline(ctx context.Context, generationID string) (bool, error)
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
+	HasLedOtherPayableBalanceBeforeCutover(ctx context.Context, arg HasLedOtherPayableBalanceBeforeCutoverParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error

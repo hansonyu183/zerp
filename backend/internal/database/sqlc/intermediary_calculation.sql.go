@@ -140,6 +140,30 @@ func (q *Queries) GetVouIntermediaryScript(ctx context.Context) (VouIntermediary
 	return i, err
 }
 
+const hasLedOtherPayableBalanceBeforeCutover = `-- name: HasLedOtherPayableBalanceBeforeCutover :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_party_entries
+    WHERE generation_id=$1
+      AND account_type='OTHER_PAYABLE'
+      AND effective_date < $2
+    GROUP BY counterparty_entity,counterparty_object_id,currency,payable_category
+    HAVING sum(amount_delta_cents)<>0
+)::boolean
+`
+
+type HasLedOtherPayableBalanceBeforeCutoverParams struct {
+	GenerationID string      `db:"generation_id" json:"generation_id"`
+	CutoverDate  pgtype.Date `db:"cutover_date" json:"cutover_date"`
+}
+
+func (q *Queries) HasLedOtherPayableBalanceBeforeCutover(ctx context.Context, arg HasLedOtherPayableBalanceBeforeCutoverParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasLedOtherPayableBalanceBeforeCutover, arg.GenerationID, arg.CutoverDate)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertLedOtherPayableEntry = `-- name: InsertLedOtherPayableEntry :exec
 INSERT INTO led_party_entries(
     id,generation_id,entry_type,source_entity,source_document_id,source_document_no,

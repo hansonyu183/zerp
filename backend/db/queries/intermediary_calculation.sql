@@ -245,6 +245,17 @@ WHERE document.entity='bill-receipt'
   AND bill_line.currency='CNY'
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
 
+-- name: HasLedOtherPayableBalanceBeforeCutover :one
+SELECT EXISTS (
+    SELECT 1
+    FROM led_party_entries
+    WHERE generation_id=sqlc.arg(generation_id)
+      AND account_type='OTHER_PAYABLE'
+      AND effective_date < sqlc.arg(cutover_date)
+    GROUP BY counterparty_entity,counterparty_object_id,currency,payable_category
+    HAVING sum(amount_delta_cents)<>0
+)::boolean;
+
 -- name: InsertLedOtherPayableEntry :exec
 INSERT INTO led_party_entries(
     id,generation_id,entry_type,source_entity,source_document_id,source_document_no,

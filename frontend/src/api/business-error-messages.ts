@@ -175,6 +175,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '盘点明细在台账重建期间发生变化，请重试。',
   'inventory ledger is not active': '库存台账尚未启用。',
   'ledger cannot be activated': '当前台账不能启用。',
+  'other payable balances exist before the new ledger cutover':
+    '新台账切换日前仍有其它应付余额，请先撤销或处理对应负债。',
   'ledger cannot be reopened': '当前台账不能重新打开。',
   'fixed asset currency must be CNY': '固定资产业务币种必须为人民币。',
   'asset is fully depreciated': '固定资产已提足折旧。',

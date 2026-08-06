@@ -43,6 +43,7 @@ export function useIntermediaryCalculationViewModel() {
   const scriptMessage = ref<string | null>(null)
   const scriptError = ref<string | null>(null)
   const lastTestedScriptSource = ref<string | null>(null)
+  let calculationRequest = 0
 
   const calculation = computed(() => base.form.value.intermediaryCalculation)
   const summaryTotal = computed(() =>
@@ -73,6 +74,8 @@ export function useIntermediaryCalculationViewModel() {
   )
 
   function openCreate(): void {
+    calculationRequest += 1
+    calculating.value = false
     base.openCreate()
     base.form.value.businessDate = previousMonthEnd(localDate())
     base.form.value.currency = 'CNY'
@@ -80,6 +83,8 @@ export function useIntermediaryCalculationViewModel() {
   }
 
   function changeBusinessDate(value: string): void {
+    calculationRequest += 1
+    calculating.value = false
     base.form.value.businessDate = value
     base.form.value.intermediaryCalculation = null
   }
@@ -90,18 +95,25 @@ export function useIntermediaryCalculationViewModel() {
       base.workspaceError.value = '业务日期必须是期间月末。'
       return
     }
+    const requestedDate = base.form.value.businessDate
+    const request = ++calculationRequest
     calculating.value = true
     base.workspaceError.value = null
     try {
       const [sourceResponse, scriptResponse] = await Promise.all([
         apiClient.postContract('vou/intermediary-calculation/source', {
-          businessDate: base.form.value.businessDate,
+          businessDate: requestedDate,
         }),
         apiClient.postContract('vou/intermediary-calculation/script-get', {}),
       ])
       const source = sourceResponse.data.source as IntermediaryCalculationSource
       const script = scriptResponse.data as IntermediaryScriptSnapshot
       const result = await runIntermediaryScript(script.source, source)
+      if (
+        request !== calculationRequest ||
+        base.form.value.businessDate !== requestedDate
+      )
+        return
       base.form.value.intermediaryCalculation = {
         source,
         sourceHash: sourceResponse.data.sourceHash,
@@ -110,9 +122,13 @@ export function useIntermediaryCalculationViewModel() {
       }
       base.successMessage.value = `已按脚本“${script.name}”生成 ${result.lines.length} 行计算稿。`
     } catch (error) {
-      base.workspaceError.value = getErrorMessage(error)
+      if (
+        request === calculationRequest &&
+        base.form.value.businessDate === requestedDate
+      )
+        base.workspaceError.value = getErrorMessage(error)
     } finally {
-      calculating.value = false
+      if (request === calculationRequest) calculating.value = false
     }
   }
 

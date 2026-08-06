@@ -286,7 +286,7 @@ func (s *Service) intermediarySource(
 	}
 
 	bills, err := q.ListIntermediaryBillSourceRows(ctx, dbsqlc.ListIntermediaryBillSourceRowsParams{
-		CutoverDate: control.CutoverDate, PeriodStart: dateValue(periodStart), PeriodEnd: dateValue(periodEnd),
+		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source bills", err)

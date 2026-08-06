@@ -428,7 +428,7 @@ WHERE document.entity='bill-receipt'
        AND allocation_document.entity='intermediary-calculation'
        AND allocation_document.status IN ('APPROVED','FINALIZED')
       WHERE allocation.bill_line_id=bill_line.id
-        AND allocation_document.business_date < $3::date
+        AND allocation_document.business_date <> $2::date
   )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no
 `
@@ -436,7 +436,6 @@ ORDER BY employee_object.id,document.business_date,document.document_no,bill_lin
 type ListIntermediaryBillSourceRowsParams struct {
 	CutoverDate pgtype.Date `db:"cutover_date" json:"cutover_date"`
 	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
-	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
 }
 
 type ListIntermediaryBillSourceRowsRow struct {
@@ -459,7 +458,7 @@ type ListIntermediaryBillSourceRowsRow struct {
 }
 
 func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error) {
-	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.CutoverDate, arg.PeriodEnd, arg.PeriodStart)
+	rows, err := q.db.Query(ctx, listIntermediaryBillSourceRows, arg.CutoverDate, arg.PeriodEnd)
 	if err != nil {
 		return nil, err
 	}

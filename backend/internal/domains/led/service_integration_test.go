@@ -2209,6 +2209,15 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		}},
 	})
 	advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-07-29", Currency: "CNY", Counterparty: &refs.customer,
+		Handler: &billHandler, BillLines: []voudomain.BillLineInput{{
+			PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
+			BillType: "BANK_ACCEPTANCE", BillNo: "ICL-LATER-ALLOCATED", Medium: "ELECTRONIC",
+			Currency: "CNY", FaceAmount: "1.00", IssueDate: "2026-07-29",
+			MaturityDate: "2026-09-01", Drawer: "居间客户", Acceptor: "承兑银行", Payee: "本公司",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY", Counterparty: &carryCustomer,
 		Handler: &billHandler, BillLines: []voudomain.BillLineInput{{
 			PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY",
@@ -2237,14 +2246,15 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	if err != nil {
 		t.Fatalf("load July intermediary source: %v", err)
 	}
-	if len(julySource.Source.Lines) != 0 || len(julySource.Source.Bills) != 0 {
-		t.Fatalf("July intermediary source must defer the check to maturity: %+v", julySource.Source)
+	if len(julySource.Source.Lines) != 0 || len(julySource.Source.Bills) != 1 ||
+		julySource.Source.Bills[0].BillType != "BANK_ACCEPTANCE" {
+		t.Fatalf("July intermediary source must include only the non-check bill: %+v", julySource.Source)
 	}
 	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{BusinessDate: "2026-08-31"})
 	if err != nil {
 		t.Fatalf("load August intermediary source: %v", err)
 	}
-	if len(augustSource.Source.Lines) != 1 || len(augustSource.Source.Bills) != 2 ||
+	if len(augustSource.Source.Lines) != 1 || len(augustSource.Source.Bills) != 3 ||
 		augustSource.Source.Lines[0].CollectionDate != "2026-08-05" ||
 		augustSource.Source.Lines[0].SourceKind != "SALE" ||
 		augustSource.Source.Lines[0].RebateUnitPrice != "0.20" ||
@@ -2254,16 +2264,18 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		t.Fatalf("August intermediary source = %+v", augustSource.Source)
 	}
 	sourceLine := augustSource.Source.Lines[0]
-	var matchedBill, carriedBill *voudomain.IntermediarySourceBill
+	var matchedBill, laterAllocatedBill, carriedBill *voudomain.IntermediarySourceBill
 	for index := range augustSource.Source.Bills {
 		bill := &augustSource.Source.Bills[index]
-		if bill.Customer.ObjectID == refs.customer.ObjectID {
+		if bill.Customer.ObjectID == refs.customer.ObjectID && bill.BillType == "CHECK" {
 			matchedBill = bill
+		} else if bill.Customer.ObjectID == refs.customer.ObjectID {
+			laterAllocatedBill = bill
 		} else if bill.Customer.ObjectID == carryCustomer.ObjectID {
 			carriedBill = bill
 		}
 	}
-	if matchedBill == nil || carriedBill == nil || matchedBill.BillType != "CHECK" ||
+	if matchedBill == nil || laterAllocatedBill == nil || carriedBill == nil || matchedBill.BillType != "CHECK" ||
 		matchedBill.CostDays != 9 || matchedBill.Salesperson.ObjectID == billHandler.ObjectID {
 		t.Fatalf("August bill attribution = %+v", augustSource.Source.Bills)
 	}
@@ -2279,7 +2291,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 				PremiumUnitPrice:    "0.50", BarrelQuantity: sourceLine.BarrelQuantity,
 				BaseCommission: "11.00", PremiumCommission: "5.00", LowPriceCommission: "0.00",
 				MarketMaintenanceSubsidy: "2.00", MarketDevelopmentSubsidy: "0.00",
-				BillCost: "8.00", BillLineIDs: []string{matchedBill.BillLineID},
+				BillCost: "8.00", BillLineIDs: []string{matchedBill.BillLineID, laterAllocatedBill.BillLineID},
 				EmployeeAmount: "10.00", IntermediaryAmount: "5.00", RebateAmount: "2.00",
 			}},
 			Summaries: []voudomain.IntermediarySummary{
@@ -2363,6 +2375,13 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		len(calculationView.Data.IntermediaryCalculation.Result.Lines) != 1 {
 		t.Fatalf("approved intermediary calculation = %+v", calculationView)
 	}
+	julyAfterAugustAllocation, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-07-31",
+	})
+	if err != nil || len(julyAfterAugustAllocation.Source.Bills) != 0 {
+		t.Fatalf("July source reused a bill allocated by August calculation: %+v, err=%v",
+			julyAfterAugustAllocation.Source.Bills, err)
+	}
 
 	entries, err := ledger.QueryOtherPayable(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,
@@ -2398,7 +2417,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		}
 	}
 	if err != nil || cnyTradeBalance == nil ||
-		cnyTradeBalance.BalanceType != "ZERO" || cnyTradeBalance.Amount != "0.00" {
+		cnyTradeBalance.BalanceType != "PAYABLE" || cnyTradeBalance.Amount != "1.00" {
 		t.Fatalf("customer trade balance must stay separate from other payable: %+v, err=%v", tradeBalance, err)
 	}
 

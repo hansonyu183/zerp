@@ -308,7 +308,7 @@ WHERE document.entity='bill-receipt'
        AND allocation_document.entity='intermediary-calculation'
        AND allocation_document.status IN ('APPROVED','FINALIZED')
       WHERE allocation.bill_line_id=bill_line.id
-        AND allocation_document.business_date < sqlc.arg(period_start)::date
+        AND allocation_document.business_date <> sqlc.arg(period_end)::date
   )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
 

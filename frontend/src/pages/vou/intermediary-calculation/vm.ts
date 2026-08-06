@@ -187,18 +187,22 @@ export function useIntermediaryCalculationViewModel() {
     scriptSaving.value = true
     scriptMessage.value = null
     scriptError.value = null
+    const submittedEditorName = scriptName.value
+    const submittedName = submittedEditorName.trim()
+    const submittedSource = scriptSource.value
     try {
       const { data } = await apiClient.postContract(
         'vou/intermediary-calculation/script-save',
         {
           revision: scriptSnapshot.value.revision,
-          name: scriptName.value.trim(),
-          source: scriptSource.value,
+          name: submittedName,
+          source: submittedSource,
         },
       )
       scriptSnapshot.value = data as IntermediaryScriptSnapshot
-      scriptName.value = data.name
-      scriptSource.value = data.source
+      if (scriptName.value === submittedEditorName) scriptName.value = data.name
+      if (scriptSource.value === submittedSource)
+        scriptSource.value = data.source
       scriptMessage.value =
         '计算脚本已保存；已有草稿不会改变，重新计算后才采用新规则。'
     } catch (error) {

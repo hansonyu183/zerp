@@ -233,6 +233,55 @@ describe('intermediary calculation view model', () => {
     expect(vm.scriptSnapshot.value?.revision).toBe(4)
   })
 
+  it('preserves the next edit made while the tested script is being saved', async () => {
+    grantPermissions()
+    mockedPostContract.mockResolvedValueOnce({ data: script })
+    const vm = useIntermediaryCalculationViewModel()
+    await vm.openScript()
+    const submittedSource = `${script.source}\n// submitted`
+    vm.scriptName.value = '已提交版本'
+    vm.scriptSource.value = submittedSource
+    vm.scriptTestDate.value = '2026-07-31'
+    mockedPostContract.mockResolvedValueOnce({ data: { source } })
+    mockedRunScript.mockResolvedValueOnce({ lines: [], summaries: [] })
+    await vm.testScript()
+
+    let resolveSave!: (value: { data: IntermediaryScriptSnapshot }) => void
+    mockedPostContract.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        }),
+    )
+    const pending = vm.saveScript()
+    await vi.waitFor(() =>
+      expect(mockedPostContract).toHaveBeenLastCalledWith(
+        'vou/intermediary-calculation/script-save',
+        { revision: 3, name: '已提交版本', source: submittedSource },
+      ),
+    )
+    const nextSource = `${submittedSource}\n// next edit`
+    vm.scriptName.value = '下一版本'
+    vm.scriptSource.value = nextSource
+    resolveSave({
+      data: {
+        ...script,
+        revision: 4,
+        name: '已提交版本',
+        source: submittedSource,
+      },
+    })
+    await pending
+
+    expect(vm.scriptSnapshot.value?.revision).toBe(4)
+    expect(vm.scriptName.value).toBe('下一版本')
+    expect(vm.scriptSource.value).toBe(nextSource)
+    const callsBeforeRetry = mockedPostContract.mock.calls.length
+    await vm.saveScript()
+    expect(vm.scriptError.value).toContain('必须先试运行成功')
+    expect(mockedPostContract).toHaveBeenCalledTimes(callsBeforeRetry)
+  })
+
   it('does not certify script text edited while a test run is pending', async () => {
     grantPermissions()
     mockedPostContract

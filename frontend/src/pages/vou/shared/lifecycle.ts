@@ -15,8 +15,6 @@ const lifecycleStatuses: Record<VoucherLifecycleAction, VoucherStatus> = {
   uncheck: 'CHECKED',
   approve: 'CHECKED',
   unapprove: 'APPROVED',
-  finalize: 'APPROVED',
-  unfinalize: 'FINALIZED',
 }
 
 export function lifecycleActionSuccessLabel(
@@ -27,8 +25,6 @@ export function lifecycleActionSuccessLabel(
     uncheck: '已反核对',
     approve: '已批准',
     unapprove: '已反批准',
-    finalize: '已完成',
-    unfinalize: '已撤销完成',
   }[action]
 }
 
@@ -57,8 +53,8 @@ export function canRunListLifecycleAction(
   can: (permission: string) => boolean,
 ): boolean {
   return (
-    row.status === lifecycleStatuses[action] &&
-    (action !== 'finalize' || config.finalizationKind === 'direct') &&
+    (row.status === lifecycleStatuses[action] ||
+      (action === 'unapprove' && row.status === 'FINALIZED')) &&
     can(`/vou/${config.entity}/${action}`)
   )
 }

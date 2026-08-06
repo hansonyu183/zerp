@@ -967,7 +967,6 @@ describe('shared VOU entity view model', () => {
       approve: true,
       uncheck: true,
       check: false,
-      finalize: false,
       unapprove: false,
     })
   })

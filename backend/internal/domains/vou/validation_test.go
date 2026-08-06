@@ -234,25 +234,6 @@ func TestValidateFormulaRules(t *testing.T) {
 	}
 }
 
-func TestValidateSaleExecutionReconcilesQuantities(t *testing.T) {
-	t.Parallel()
-	valid := FinalizeInput{
-		DocumentID: testObjectID, Revision: 3, OutboundDate: "2026-07-25", SignoffDate: "2026-07-26",
-		Platform: refInput(), Vehicle: refInput(),
-		SaleLines: []SaleExecutionLineInput{{
-			LineID: testVersionID, OutboundQuantity: "10", SignedQuantity: "8",
-			RejectedQuantity: "1", LossQuantity: "1",
-		}},
-	}
-	if _, err := validateSaleExecution(valid); err != nil {
-		t.Fatalf("valid execution rejected: %v", err)
-	}
-	valid.SaleLines[0].LossQuantity = "0"
-	if _, err := validateSaleExecution(valid); err == nil {
-		t.Fatal("unbalanced sale quantities accepted")
-	}
-}
-
 func TestValidateAttachmentInitiate(t *testing.T) {
 	t.Parallel()
 	input := AttachmentInitiateInput{

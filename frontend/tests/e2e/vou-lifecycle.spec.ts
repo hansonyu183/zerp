@@ -123,11 +123,10 @@ async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
     })
 }
 
-async function finalizeCurrentDraft(workspace: Locator): Promise<void> {
+async function approveCurrentDraft(workspace: Locator): Promise<void> {
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成', exact: true }).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 }
 
@@ -137,7 +136,7 @@ function isoDateOffset(days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
-test('票据收入批次完成后进入真实票据台账', async ({ page }) => {
+test('票据收入批准后进入真实票据台账', async ({ page }) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',
     '桌面批量表格流程已覆盖，移动端由响应式单元测试与完整门禁覆盖。',
@@ -179,7 +178,6 @@ test('票据收入批次完成后进入真实票据台账', async ({ page }) => 
   await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
   await workspace.getByRole('button', { name: '检查', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成', exact: true }).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
   const ledgerResponse = page.waitForResponse(
@@ -219,7 +217,7 @@ async function verifyEmployeeLoanLifecycle(
       workspace,
       new RegExp(`^${document.prefix}-\\d{8}-\\d{4}$`),
     )
-    await finalizeCurrentDraft(workspace)
+    await approveCurrentDraft(workspace)
   }
 
   await page.goto('/vou/employee-loan-writeoff')
@@ -235,10 +233,10 @@ async function verifyEmployeeLoanLifecycle(
   await expenseInputs.nth(2).fill('50.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^ELW-\d{8}-\d{4}$/)
-  await finalizeCurrentDraft(workspace)
+  await approveCurrentDraft(workspace)
 }
 
-test('员工借还核销及收款单完成真实后端生命周期', async ({ page }) => {
+test('员工借还核销及收款单批准后入账', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
@@ -284,8 +282,6 @@ test('员工借还核销及收款单完成真实后端生命周期', async ({ pa
   await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
   await expect(workbenchRow).toContainText('待批准')
   await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
-  await expect(workbenchRow).toContainText('待完成')
-  await workbenchRow.getByLabel(`完成 ${documentNo}`).click()
   await expect(workbenchRow).toHaveCount(0)
 
   await page.goto('/vou/customer-receipt')
@@ -298,7 +294,6 @@ test('员工借还核销及收款单完成真实后端生命周期', async ({ pa
   await documentRow.getByLabel(`查看 ${documentNo}`).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
-  await reverse(page, '撤销完成')
   await reverse(page, '反批准')
   await reverse(page, '反核对')
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
@@ -315,7 +310,7 @@ test('员工借还核销及收款单完成真实后端生命周期', async ({ pa
   await expect(workspace.getByText('暂无附件')).toBeVisible()
 })
 
-test('库存盘点加载账面库存并按完成时差异过账', async ({ page }) => {
+test('库存盘点加载账面库存并按批准时差异过账', async ({ page }) => {
   test.setTimeout(180_000)
   const fixture = vouFixture()
   await signIn(page)
@@ -349,7 +344,6 @@ test('库存盘点加载账面库存并按完成时差异过账', async ({ page 
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成盘点', exact: true }).click()
   await expect(workspace.getByText(/^已盘点 · r\d+$/)).toBeVisible()
   await expect
     .poll(async () =>
@@ -364,7 +358,7 @@ test('库存盘点加载账面库存并按完成时差异过账', async ({ page 
     )
     .toBe(1)
 
-  await reverse(page, '撤销盘点')
+  await reverse(page, '反批准')
 })
 
 test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {
@@ -503,8 +497,6 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const orderWorkbenchRow = page
     .locator('tbody tr')
     .filter({ hasText: orderNo! })
-  await expect(orderWorkbenchRow).toContainText('待完成')
-  await orderWorkbenchRow.getByLabel(`完成 ${orderNo}`).click()
   await expect(orderWorkbenchRow).toHaveCount(0)
 
   await keyword.fill(outboundNo!)
@@ -516,8 +508,6 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await outboundWorkbenchRow.getByLabel(`核对 ${outboundNo}`).click()
   await expect(outboundWorkbenchRow).toContainText('待批准')
   await outboundWorkbenchRow.getByLabel(`批准 ${outboundNo}`).click()
-  await expect(outboundWorkbenchRow).toContainText('待完成')
-  await outboundWorkbenchRow.getByLabel(`完成 ${outboundNo}`).click()
   await expect(outboundWorkbenchRow).toHaveCount(0)
 })
 

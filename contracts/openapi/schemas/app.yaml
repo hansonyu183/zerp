@@ -434,13 +434,11 @@
       'properties': { 'feedbackId': { 'type': 'string' } },
     },
   'WorkbenchCategory': { 'type': 'string', 'enum': ['BOB', 'VOU'] },
-  'WorkbenchPendingStage':
-    { 'type': 'string', 'enum': ['CHECK', 'APPROVE', 'FINALIZE'] },
+  'WorkbenchPendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
   'WorkbenchAction':
     {
       'type': 'string',
-      'enum':
-        ['view', 'edit', 'submit', 'approve', 'reject', 'check', 'finalize'],
+      'enum': ['view', 'edit', 'submit', 'approve', 'reject', 'check'],
     },
   'WorkbenchQueryRequest':
     {

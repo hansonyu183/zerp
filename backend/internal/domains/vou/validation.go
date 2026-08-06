@@ -97,18 +97,6 @@ type validatedQuery struct {
 	DateFrom, DateTo                             *time.Time
 }
 
-type fixedSaleExecutionLine struct {
-	LineID                           string
-	Outbound, Signed, Rejected, Loss int64
-}
-
-type validatedSaleExecution struct {
-	OutboundDate, SignoffDate time.Time
-	Platform, Vehicle         ReferenceInput
-	DifferenceReason          *string
-	Lines                     []fixedSaleExecutionLine
-}
-
 func validEntity(entity string) bool {
 	if entity == EntityReceipt || entity == EntityPayment {
 		return true
@@ -671,76 +659,6 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 func validateHistory(input HistoryInput) error {
 	if !validID(input.DocumentID) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 100 {
 		return domainError(ErrorValidation, "invalid history query", nil, nil)
-	}
-	return nil
-}
-
-func validateSaleExecution(input FinalizeInput) (validatedSaleExecution, error) {
-	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	outboundDate, err := time.Parse(dateLayout, strings.TrimSpace(input.OutboundDate))
-	if err != nil {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundDate", nil, nil)
-	}
-	signoffDate, err := time.Parse(dateLayout, strings.TrimSpace(input.SignoffDate))
-	if err != nil || outboundDate.After(signoffDate) {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signoffDate", nil, nil)
-	}
-	if err = validateReference(input.Platform, "platform", true); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	if err = validateReference(input.Vehicle, "vehicle", true); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	if len(input.SaleLines) == 0 || len(input.PurchaseLines) != 0 || strings.TrimSpace(input.InboundDate) != "" {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lines", nil, nil)
-	}
-	result := validatedSaleExecution{
-		OutboundDate: outboundDate, SignoffDate: signoffDate, Platform: *input.Platform,
-		Vehicle: *input.Vehicle, DifferenceReason: optionalText(input.DifferenceReason),
-	}
-	if result.DifferenceReason != nil && utf8.RuneCountInString(*result.DifferenceReason) > 1000 {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "differenceReason is too long", nil, nil)
-	}
-	seen := map[string]bool{}
-	for _, line := range input.SaleLines {
-		if !validID(line.LineID) || seen[line.LineID] {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lineId", nil, nil)
-		}
-		seen[line.LineID] = true
-		outbound, err := quantityMicros(line.OutboundQuantity, false)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundQuantity", nil, err)
-		}
-		signed, err := quantityMicros(line.SignedQuantity, true)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signedQuantity", nil, err)
-		}
-		rejected, err := quantityMicros(line.RejectedQuantity, true)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid rejectedQuantity", nil, err)
-		}
-		loss, err := quantityMicros(line.LossQuantity, true)
-		if err != nil || signed > math.MaxInt64-rejected || signed+rejected > math.MaxInt64-loss ||
-			signed+rejected+loss != outbound {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "sale quantities do not reconcile", nil, err)
-		}
-		result.Lines = append(result.Lines, fixedSaleExecutionLine{
-			LineID: line.LineID, Outbound: outbound, Signed: signed, Rejected: rejected, Loss: loss,
-		})
-	}
-	return result, nil
-}
-
-func validateFinancialExecution(input FinalizeInput) error {
-	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
-		return err
-	}
-	if input.OutboundDate != "" || input.SignoffDate != "" || input.InboundDate != "" ||
-		input.Platform != nil || input.Vehicle != nil || input.DifferenceReason != "" ||
-		len(input.SaleLines) != 0 || len(input.PurchaseLines) != 0 {
-		return domainError(ErrorValidation, "execution fields do not match entity", nil, nil)
 	}
 	return nil
 }

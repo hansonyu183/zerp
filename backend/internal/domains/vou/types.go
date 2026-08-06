@@ -370,32 +370,6 @@ type ReverseInput struct {
 	Reason     string `json:"reason"`
 }
 
-type SaleExecutionLineInput struct {
-	LineID           string `json:"lineId"`
-	OutboundQuantity string `json:"outboundQuantity"`
-	SignedQuantity   string `json:"signedQuantity"`
-	RejectedQuantity string `json:"rejectedQuantity"`
-	LossQuantity     string `json:"lossQuantity"`
-}
-
-type PurchaseExecutionLineInput struct {
-	LineID          string `json:"lineId"`
-	InboundQuantity string `json:"inboundQuantity"`
-}
-
-type FinalizeInput struct {
-	DocumentID       string                       `json:"documentId"`
-	Revision         int64                        `json:"revision"`
-	OutboundDate     string                       `json:"outboundDate,omitempty"`
-	SignoffDate      string                       `json:"signoffDate,omitempty"`
-	InboundDate      string                       `json:"inboundDate,omitempty"`
-	Platform         *ReferenceInput              `json:"platform,omitempty"`
-	Vehicle          *ReferenceInput              `json:"vehicle,omitempty"`
-	DifferenceReason string                       `json:"differenceReason,omitempty"`
-	SaleLines        []SaleExecutionLineInput     `json:"saleLines,omitempty"`
-	PurchaseLines    []PurchaseExecutionLineInput `json:"purchaseLines,omitempty"`
-}
-
 type DeleteInput = ReverseInput
 
 type GetInput struct {

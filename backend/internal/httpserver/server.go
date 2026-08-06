@@ -59,7 +59,13 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err = ledService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}
+	if err = vouService.RegisterCompletionSubscriptions(eventBus); err != nil {
+		return nil, nil, err
+	}
 	if err = ledService.EnsureReady(context.Background()); err != nil {
+		return nil, nil, err
+	}
+	if err = vouService.ReconcileCompletionStatuses(context.Background()); err != nil {
 		return nil, nil, err
 	}
 	var publisher *appdomain.FeedbackPublisher

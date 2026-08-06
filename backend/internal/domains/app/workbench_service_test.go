@@ -12,7 +12,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		"/bob/supplier/approve",
 		"/bob/product/query", "/bob/product/reject",
 		"/vou/sale-order/query", "/vou/sale-order/check",
-		"/vou/supplier-payment/query", "/vou/supplier-payment/finalize",
+		"/vou/supplier-payment/query",
 	})
 
 	draftBob := scope.entitiesWith("bob", func(entity string) bool {
@@ -24,9 +24,6 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	draftVou := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "check")
 	})
-	approvedVou := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "finalize")
-	})
 
 	if !reflect.DeepEqual(draftBob, []string{"customer"}) {
 		t.Fatalf("draft BOB entities = %v", draftBob)
@@ -36,9 +33,6 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	}
 	if !reflect.DeepEqual(draftVou, []string{"sale-order"}) {
 		t.Fatalf("draft VOU entities = %v", draftVou)
-	}
-	if !reflect.DeepEqual(approvedVou, []string{"supplier-payment"}) {
-		t.Fatalf("approved VOU entities = %v", approvedVou)
 	}
 }
 

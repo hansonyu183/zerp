@@ -107,6 +107,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '流程已有下游单据，不能移除。',
   'downstream workflow document has changed':
     '下游流程单据已变化，请刷新后重试。',
+  'downstream documents must be reversed first':
+    '已有下游单据，请先反向处理下游单据。',
   'sales-chain source is not finalized': '销售来源单据尚未完成。',
   'sales-chain source is not ready': '销售来源资料尚未准备完成。',
   'sales fulfillment cannot be changed': '销售履约已生成后续单据，不能修改。',
@@ -167,6 +169,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'inventory count date is already closed': '盘点日期所在期间已关账。',
   'inventory count predates the active ledger': '盘点日期早于台账启用日期。',
   'inventory count result is incomplete': '盘点结果不完整，请补全实盘数量。',
+  'inventory count line changed during replay':
+    '盘点明细在台账重建期间发生变化，请重试。',
   'inventory ledger is not active': '库存台账尚未启用。',
   'ledger cannot be activated': '当前台账不能启用。',
   'ledger cannot be reopened': '当前台账不能重新打开。',

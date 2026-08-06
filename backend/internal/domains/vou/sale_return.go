@@ -91,7 +91,7 @@ func (s *Service) resolveReturnSource(
 		if err != nil {
 			return result, s.internal("lock return source", err)
 		}
-		if status != StatusFinalized || date.Before(line.signoffDate) {
+		if status != StatusApproved && status != StatusFinalized || date.Before(line.signoffDate) {
 			return result, domainError(ErrorConflict, "source signoff is not returnable", nil, nil)
 		}
 		if result.orderID == "" {

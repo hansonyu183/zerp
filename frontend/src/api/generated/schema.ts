@@ -1160,40 +1160,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/vou/{entity}/finalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 最终处理业务单据 */
-        post: operations["voufinalize"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/vou/{entity}/unfinalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 撤销业务单据最终处理 */
-        post: operations["vouunfinalize"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/vou/{entity}/audit-history": {
         parameters: {
             query?: never;
@@ -2100,7 +2066,7 @@ export interface components {
         /** @enum {string} */
         WorkbenchCategory: "BOB" | "VOU";
         /** @enum {string} */
-        WorkbenchPendingStage: "CHECK" | "APPROVE" | "FINALIZE";
+        WorkbenchPendingStage: "CHECK" | "APPROVE";
         WorkbenchQueryRequest: {
             category: components["schemas"]["WorkbenchCategory"];
             keyword?: string;
@@ -2112,7 +2078,7 @@ export interface components {
         /** @enum {string} */
         BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "settlement-method";
         /** @enum {string} */
-        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
+        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check";
         WorkbenchObjectItem: {
             /** @enum {string} */
             category: "BOB";
@@ -3188,32 +3154,6 @@ export interface components {
             documentId: string;
             /** Format: int64 */
             revision: number;
-        };
-        VouFinalizeRequest: {
-            documentId: string;
-            /** Format: int64 */
-            revision: number;
-            /** Format: date */
-            outboundDate?: string;
-            /** Format: date */
-            signoffDate?: string;
-            /** Format: date */
-            inboundDate?: string;
-            platform?: {
-                objectId: string;
-                versionId: string;
-            };
-            vehicle?: {
-                objectId: string;
-                versionId: string;
-            };
-            differenceReason?: string;
-            saleLines?: {
-                [key: string]: unknown;
-            }[];
-            purchaseLines?: {
-                [key: string]: unknown;
-            }[];
         };
         VouHistoryRequest: {
             documentId: string;
@@ -4786,42 +4726,6 @@ export interface operations {
         };
     };
     vouunapprove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["VouEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VouReverseRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    voufinalize: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["VouEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VouFinalizeRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    vouunfinalize: {
         parameters: {
             query?: never;
             header?: never;

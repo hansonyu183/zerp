@@ -170,8 +170,6 @@ onMounted(() => void vm.query())
             uncheck: '反检查',
             approve: '批准',
             unapprove: '反批准',
-            finalize: '完成',
-            unfinalize: '反完成',
             checked: '已检查',
             finalized: '已完成',
           }"

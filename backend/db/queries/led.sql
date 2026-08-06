@@ -254,8 +254,22 @@ SELECT id,sqlc.arg(generation_id),'OPENING','opening',id,sqlc.arg(cutover_date),
        container_type,quantity
 FROM led_draft_container WHERE quantity <> 0;
 
--- name: ListFinalizedVouDocumentsForLed :many
-SELECT * FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id;
+-- name: ListPostedVouDocumentsForLed :many
+SELECT * FROM vou_documents
+WHERE status IN ('APPROVED', 'FINALIZED')
+  AND entity IN (
+    'sale-outbound', 'sale-signoff', 'sale-return',
+    'purchase-inbound', 'purchase-return',
+    'order-production', 'self-production', 'inventory-count',
+    'receipt', 'payment',
+    'customer-receipt', 'supplier-receipt', 'other-receipt',
+    'customer-payment', 'supplier-payment', 'other-payment',
+    'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
+    'expense-reimbursement', 'expense-payment', 'other-income',
+    'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity'
+  )
+ORDER BY posted_at, id;
 
 -- name: InsertLedInventoryEntry :exec
 INSERT INTO led_inventory_entries (

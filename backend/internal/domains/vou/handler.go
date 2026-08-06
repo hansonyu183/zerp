@@ -29,8 +29,6 @@ type applicationService interface {
 	Uncheck(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
 	Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error)
-	Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error)
-	Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	InventoryCountBookBalance(context.Context, InventoryCountBalanceInput) (Page[InventoryCountBalanceItem], error)
@@ -65,8 +63,6 @@ var actionRoutes = [...]actionRoute{
 	{action: "uncheck", handle: (*Handler).uncheck},
 	{action: "approve", handle: (*Handler).approve},
 	{action: "unapprove", handle: (*Handler).unapprove},
-	{action: "finalize", handle: (*Handler).finalize},
-	{action: "unfinalize", handle: (*Handler).unfinalize},
 	{action: "delete", handle: (*Handler).delete},
 	{action: "audit-history", handle: (*Handler).auditHistory},
 	{action: "attachment-initiate", handle: (*Handler).attachmentInitiate},
@@ -229,22 +225,6 @@ func (h *Handler) unapprove(c *gin.Context, entity string) {
 	var input ReverseInput
 	if h.bind(c, &input) {
 		result, err := h.service.Unapprove(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) finalize(c *gin.Context, entity string) {
-	var input FinalizeInput
-	if h.bind(c, &input) {
-		result, err := h.service.Finalize(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) unfinalize(c *gin.Context, entity string) {
-	var input ReverseInput
-	if h.bind(c, &input) {
-		result, err := h.service.Unfinalize(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }

@@ -111,7 +111,7 @@ function previewDifference(line: VoucherInventoryCountLineDraft): string {
       </div>
     </div>
     <v-alert class="mb-3" density="compact" type="info" variant="tonal">
-      草稿账面数量仅供录入参考；完成盘点时，系统会在事务内重新计算并固定差异。
+      草稿账面数量仅供录入参考；批准盘点时，系统会在事务内重新计算并固定差异。
     </v-alert>
     <div class="responsive-table-wrap">
       <v-table

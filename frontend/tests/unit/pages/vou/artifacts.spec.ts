@@ -65,8 +65,6 @@ const allowed: VoucherActionAvailability = {
   uncheck: true,
   approve: true,
   unapprove: true,
-  finalize: true,
-  unfinalize: true,
   delete: true,
   shortCloseRequest: true,
   shortCloseCancel: true,

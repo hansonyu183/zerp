@@ -1716,57 +1716,6 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 	return err
 }
 
-const listFinalizedVouDocumentsForLed = `-- name: ListFinalizedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id
-`
-
-func (q *Queries) ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
-	rows, err := q.db.Query(ctx, listFinalizedVouDocumentsForLed)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouDocument{}
-	for rows.Next() {
-		var i VouDocument
-		if err := rows.Scan(
-			&i.ID,
-			&i.Entity,
-			&i.DocumentNo,
-			&i.Status,
-			&i.Revision,
-			&i.BusinessDate,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.Remark,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-			&i.ReviewedAt,
-			&i.ReviewedBy,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
-			&i.CheckedAt,
-			&i.CheckedBy,
-			&i.CompletedAt,
-			&i.ParentDocumentID,
-			&i.ParentEntity,
-			&i.DueDate,
-			&i.OitID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listLedAssetHistory = `-- name: ListLedAssetHistory :many
 SELECT e.id, e.generation_id, e.asset_id, e.entry_type, e.source_entity, e.source_document_id, e.source_document_no, e.source_line_id, e.source_revision, e.effective_date, e.occurred_at, e.amount_cents, e.status_from, e.status_to, e.actor_id, e.request_id, e.summary FROM led_asset_entries e JOIN led_control c ON c.active_generation_id=e.generation_id
 WHERE c.singleton=true AND c.status='ACTIVE' AND e.asset_id=$1
@@ -3022,6 +2971,73 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountDeltaCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostedVouDocumentsForLed = `-- name: ListPostedVouDocumentsForLed :many
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by FROM vou_documents
+WHERE status IN ('APPROVED', 'FINALIZED')
+  AND entity IN (
+    'sale-outbound', 'sale-signoff', 'sale-return',
+    'purchase-inbound', 'purchase-return',
+    'order-production', 'self-production', 'inventory-count',
+    'receipt', 'payment',
+    'customer-receipt', 'supplier-receipt', 'other-receipt',
+    'customer-payment', 'supplier-payment', 'other-payment',
+    'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
+    'expense-reimbursement', 'expense-payment', 'other-income',
+    'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity'
+  )
+ORDER BY posted_at, id
+`
+
+func (q *Queries) ListPostedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
+	rows, err := q.db.Query(ctx, listPostedVouDocumentsForLed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouDocument{}
+	for rows.Next() {
+		var i VouDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.Entity,
+			&i.DocumentNo,
+			&i.Status,
+			&i.Revision,
+			&i.BusinessDate,
+			&i.Currency,
+			&i.TotalAmountCents,
+			&i.Remark,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.ExecutedAt,
+			&i.ExecutedBy,
+			&i.CheckedAt,
+			&i.CheckedBy,
+			&i.CompletedAt,
+			&i.ParentDocumentID,
+			&i.ParentEntity,
+			&i.DueDate,
+			&i.OitID,
+			&i.PostedAt,
+			&i.PostedBy,
 		); err != nil {
 			return nil, err
 		}

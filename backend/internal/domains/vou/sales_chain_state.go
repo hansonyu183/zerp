@@ -180,8 +180,8 @@ func (s *Service) setSaleOrderBalances(
 	ctx context.Context, orderID string, data *DocumentDataView,
 ) error {
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.ordered_qty_micros,
-		COALESCE(sum(CASE WHEN sd.status='FINALIZED' THEN sl.signed_qty_micros ELSE 0 END),0)::bigint,
-		COALESCE(sum(CASE WHEN od.status='FINALIZED' AND (sd.id IS NULL OR sd.status<>'FINALIZED')
+		COALESCE(sum(CASE WHEN sd.status IN ('APPROVED','FINALIZED') THEN sl.signed_qty_micros ELSE 0 END),0)::bigint,
+		COALESCE(sum(CASE WHEN od.status IN ('APPROVED','FINALIZED') AND (sd.id IS NULL OR sd.status NOT IN ('APPROVED','FINALIZED'))
 			THEN ol.quantity_micros ELSE 0 END),0)::bigint
 		FROM vou_product_lines l
 		LEFT JOIN vou_sale_outbound_lines ol ON ol.source_order_line_id=l.id
@@ -276,7 +276,7 @@ func (s *Service) prepareSalesChainFinalization(
 		if err := tx.QueryRow(ctx, `SELECT x.source_order_id,o.fulfillment_status
 			FROM vou_sale_outbound_details x JOIN vou_sale_order_details o ON o.document_id=x.source_order_id
 			JOIN vou_documents d ON d.id=x.source_order_id
-			WHERE x.document_id=$1 AND d.status='FINALIZED' FOR UPDATE OF d`,
+			WHERE x.document_id=$1 AND d.status IN ('APPROVED','FINALIZED') FOR UPDATE OF d`,
 			document.ID).Scan(&orderID, &fulfillment); err != nil {
 			return nil, domainError(ErrorConflict, "sale order is not finalized", nil, err)
 		}
@@ -285,14 +285,14 @@ func (s *Service) prepareSalesChainFinalization(
 		}
 		rows, err := tx.Query(ctx, `SELECT ol.source_order_line_id,ol.quantity_micros,l.ordered_qty_micros,
 			COALESCE((SELECT sum(sl.signed_qty_micros) FROM vou_sale_signoff_lines sl
-				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status='FINALIZED'
+				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status IN ('APPROVED','FINALIZED')
 				WHERE sl.source_order_line_id=l.id),0)::bigint,
 			COALESCE((SELECT sum(other.quantity_micros) FROM vou_sale_outbound_lines other
-				JOIN vou_documents od ON od.id=other.document_id AND od.status='FINALIZED'
+				JOIN vou_documents od ON od.id=other.document_id AND od.status IN ('APPROVED','FINALIZED')
 				LEFT JOIN vou_sale_signoff_lines sl2 ON sl2.source_outbound_line_id=other.id
 				LEFT JOIN vou_documents sd2 ON sd2.id=sl2.document_id
 				WHERE other.source_order_line_id=l.id
-				AND (sd2.id IS NULL OR sd2.status<>'FINALIZED')),0)::bigint
+				AND (sd2.id IS NULL OR sd2.status NOT IN ('APPROVED','FINALIZED'))),0)::bigint
 			FROM vou_sale_outbound_lines ol JOIN vou_product_lines l ON l.id=ol.source_order_line_id
 			WHERE ol.document_id=$1`, document.ID)
 		if err != nil {
@@ -319,28 +319,10 @@ func (s *Service) prepareSalesChainFinalization(
 	if err := tx.QueryRow(ctx, `SELECT p.status FROM vou_documents d
 		JOIN vou_documents p ON p.id=d.parent_document_id
 		WHERE d.id=$1 FOR UPDATE OF p`, document.ID).Scan(&sourceStatus); err != nil ||
-		sourceStatus != StatusFinalized {
+		sourceStatus != StatusApproved && sourceStatus != StatusFinalized {
 		return nil, domainError(ErrorConflict, "sales-chain source is not finalized", nil, err)
 	}
 	return map[string]any{"parentDocumentId": document.ParentDocumentID}, nil
-}
-
-func (s *Service) ensureNoSalesChainChildren(
-	ctx context.Context, tx pgx.Tx, document dbsqlc.VouDocument,
-) error {
-	if document.Entity != EntitySaleOrder && document.Entity != EntitySaleOutbound &&
-		document.Entity != EntitySaleDelivery {
-		return nil
-	}
-	var count int64
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM vou_documents WHERE parent_document_id=$1`,
-		document.ID).Scan(&count); err != nil {
-		return err
-	}
-	if count != 0 {
-		return domainError(ErrorConflict, "downstream sales document exists", nil, nil)
-	}
-	return nil
 }
 
 func (s *Service) refreshSaleOrderFulfillment(
@@ -356,7 +338,7 @@ func (s *Service) refreshSaleOrderFulfillment(
 	var remaining int64
 	err := tx.QueryRow(ctx, `SELECT COALESCE(sum(GREATEST(l.ordered_qty_micros -
 		COALESCE((SELECT sum(sl.signed_qty_micros) FROM vou_sale_signoff_lines sl
-			JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status='FINALIZED'
+			JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status IN ('APPROVED','FINALIZED')
 			WHERE sl.source_order_line_id=l.id),0),0)),0)::bigint
 		FROM vou_product_lines l WHERE l.document_id=$1`, orderID).Scan(&remaining)
 	if err != nil {
@@ -611,10 +593,33 @@ func (s *Service) shortCloseMutation(
 	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
 		ID: inputRevision.DocumentID, Entity: EntitySaleOrder,
 	})
-	if err = documentWriteConflict(
-		err, document.Revision, inputRevision.Revision, document.Status, StatusFinalized,
-	); err != nil {
-		return MutationResult{}, err
+	if err != nil || document.Revision != inputRevision.Revision {
+		return MutationResult{}, domainError(ErrorConflict, "sale order changed", nil, err)
+	}
+	expectedStatus := StatusApproved
+	if event == "SHORT_CLOSE_REOPENED" {
+		expectedStatus = StatusFinalized
+	}
+	if document.Status != expectedStatus {
+		return MutationResult{}, domainError(ErrorConflict, "sale order changed", map[string]any{
+			"expectedStatus": expectedStatus, "actualStatus": document.Status,
+		}, nil)
+	}
+	if event == "SHORT_CLOSE_REOPENED" {
+		if _, err = s.systemUnfinalizeDocument(ctx, tx, document, requestID, "反短结重新打开"); err != nil {
+			return MutationResult{}, err
+		}
+		document, err = q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
+			ID: inputRevision.DocumentID, Entity: EntitySaleOrder,
+		})
+		if err != nil {
+			return MutationResult{}, s.internal("relock reopened sale order", err)
+		}
+	}
+	if event == "SHORT_CLOSED" {
+		if err = s.removeUntouchedGeneratedDraftChildren(ctx, tx, document.ID); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	var current, requestedBy string
 	var currentReason *string
@@ -630,12 +635,12 @@ func (s *Service) shortCloseMutation(
 		var inTransit int64
 		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(ol.quantity_micros),0)::bigint
 			FROM vou_sale_outbound_lines ol
-			JOIN vou_documents od ON od.id=ol.document_id AND od.status='FINALIZED'
+			JOIN vou_documents od ON od.id=ol.document_id AND od.status IN ('APPROVED','FINALIZED')
 			LEFT JOIN vou_sale_signoff_lines sl ON sl.source_outbound_line_id=ol.id
 			LEFT JOIN vou_documents sd ON sd.id=sl.document_id
 			WHERE ol.source_order_line_id IN (
 				SELECT id FROM vou_product_lines WHERE document_id=$1)
-			AND (sd.id IS NULL OR sd.status<>'FINALIZED')`, document.ID).Scan(&inTransit); err != nil {
+			AND (sd.id IS NULL OR sd.status NOT IN ('APPROVED','FINALIZED'))`, document.ID).Scan(&inTransit); err != nil {
 			return MutationResult{}, err
 		}
 		if inTransit != 0 {
@@ -666,7 +671,7 @@ func (s *Service) shortCloseMutation(
 		next, requester, storedReason, document.ID)
 	if err == nil {
 		err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
-			WHERE id=$2 RETURNING revision`, actorID, document.ID).Scan(&revision)
+			WHERE id=$2 AND revision=$3 RETURNING revision`, actorID, document.ID, document.Revision).Scan(&revision)
 	}
 	if err != nil {
 		return MutationResult{}, err
@@ -682,22 +687,36 @@ func (s *Service) shortCloseMutation(
 	}
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: document.ID, Entity: EntitySaleOrder, Event: event,
-		From: stringPtr(StatusFinalized), To: StatusFinalized, ActorID: actorID,
+		From: stringPtr(StatusApproved), To: StatusApproved, ActorID: actorID,
 		Reason: reason, RequestID: requestID,
 		Summary: map[string]any{"fulfillmentStatus": next},
 	}); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.touchWorkflow(
-		ctx, tx, document, event, StatusFinalized, actorID, requestID,
+		ctx, tx, document, event, StatusApproved, actorID, requestID,
 		map[string]any{"fulfillmentStatus": next},
 	); err != nil {
 		return MutationResult{}, err
 	}
+	status := StatusApproved
+	if next == "SHORT_CLOSED" {
+		current, lockErr := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
+			ID: document.ID, Entity: EntitySaleOrder,
+		})
+		if lockErr != nil {
+			return MutationResult{}, s.internal("lock short-closed sale order", lockErr)
+		}
+		revision, err = s.systemFinalizeDocument(ctx, tx, current, requestID)
+		if err != nil {
+			return MutationResult{}, err
+		}
+		status = StatusFinalized
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return mutation(document, StatusFinalized, revision), nil
+	return mutation(document, status, revision), nil
 }
 
 func (s *Service) ShortCloseRequest(

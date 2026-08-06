@@ -7,7 +7,6 @@ import {
   type VoucherDraftForm,
   type VoucherEntity,
   type VoucherEntityConfig,
-  type VoucherExecutionForm,
   type VoucherLifecycleAction,
   type VoucherListItem,
   type VoucherMutationResult,
@@ -20,7 +19,6 @@ import { useVoucherArtifacts } from './artifacts'
 import {
   emptyForm,
   formFromDocument,
-  inputReference,
   snapshot,
   type DraftPayload,
 } from './form'
@@ -100,8 +98,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     refreshPriceReferences,
   )
 
-  const executionOpen = ref(false)
-  const executionError = ref<string | null>(null)
   const {
     sourceOptions,
     sourceLoading,
@@ -369,7 +365,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     documentView.value = null
     editing.value = false
     workspaceError.value = null
-    executionOpen.value = false
     personnelDirty.clear()
     clearReferenceSearches()
     clearSourceDocuments()
@@ -439,11 +434,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   ): Promise<boolean> {
     const current = documentView.value
     if (!current || !actionAvailability.value[action]) return false
-    if (action === 'finalize' && config.finalizationKind !== 'direct') {
-      executionError.value = null
-      executionOpen.value = true
-      return false
-    }
     actionLoading.value = action
     workspaceError.value = null
     try {
@@ -481,62 +471,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     loadDocument,
     loadAudit,
   })
-
-  async function finalize(execution: VoucherExecutionForm): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.finalize) return
-    actionLoading.value = 'finalize'
-    executionError.value = null
-    try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/finalize`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          ...(config.finalizationKind === 'sale'
-            ? {
-                outboundDate: execution.outboundDate,
-                signoffDate: execution.signoffDate,
-                platform: inputReference(execution.platform),
-                vehicle: inputReference(execution.vehicle),
-                ...(execution.differenceReason.trim()
-                  ? { differenceReason: execution.differenceReason.trim() }
-                  : {}),
-                saleLines: execution.saleLines.map((line) => ({
-                  lineId: line.lineId,
-                  outboundQuantity: line.outboundQuantity,
-                  signedQuantity: line.signedQuantity,
-                  rejectedQuantity: line.rejectedQuantity,
-                  lossQuantity: line.lossQuantity,
-                })),
-              }
-            : {}),
-          ...(config.finalizationKind === 'purchase'
-            ? {
-                inboundDate: execution.inboundDate,
-                ...(execution.differenceReason.trim()
-                  ? { differenceReason: execution.differenceReason.trim() }
-                  : {}),
-                purchaseLines: execution.purchaseLines.map((line) => ({
-                  lineId: line.lineId,
-                  inboundQuantity: line.inboundQuantity,
-                })),
-              }
-            : {}),
-        },
-      )
-      executionOpen.value = false
-      await loadDocument(current.documentId)
-      successMessage.value = `${current.documentNo} 已完成。`
-    } catch (error) {
-      executionError.value = getDiagnosticErrorMessage(error)
-    } finally {
-      actionLoading.value = null
-      if (documentView.value?.documentId === current.documentId) {
-        void Promise.allSettled([query(), loadAudit(1)])
-      }
-    }
-  }
 
   async function secondaryAction(
     action:
@@ -618,8 +552,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     canCreate,
     canQuery,
     actionAvailability,
-    executionOpen,
-    executionError,
     attachmentLoading,
     attachmentError,
     auditEvents,
@@ -654,7 +586,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     save,
     lifecycleAction,
     lifecycleActionFromList,
-    finalize,
     secondaryAction,
     uploadAttachments,
     downloadAttachment,

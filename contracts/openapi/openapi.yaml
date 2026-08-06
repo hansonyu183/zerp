@@ -1928,58 +1928,6 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/vou/{entity}/finalize':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '最终处理业务单据',
-              'operationId': 'voufinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/vou.yaml#/VouFinalizeRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/unfinalize':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '撤销业务单据最终处理',
-              'operationId': 'vouunfinalize',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
       '/vou/{entity}/audit-history':
         {
           'post':

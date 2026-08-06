@@ -578,32 +578,6 @@ export interface VoucherSort {
   order: 'asc' | 'desc'
 }
 
-export interface VoucherExecutionSaleLine {
-  lineId: string
-  orderedQuantity: string
-  outboundQuantity: string
-  signedQuantity: string
-  rejectedQuantity: string
-  lossQuantity: string
-}
-
-export interface VoucherExecutionPurchaseLine {
-  lineId: string
-  orderedQuantity: string
-  inboundQuantity: string
-}
-
-export interface VoucherExecutionForm {
-  outboundDate: string
-  signoffDate: string
-  inboundDate: string
-  platform: VoucherReference | null
-  vehicle: VoucherReference | null
-  differenceReason: string
-  saleLines: VoucherExecutionSaleLine[]
-  purchaseLines: VoucherExecutionPurchaseLine[]
-}
-
 export type VoucherLineKind =
   | 'product'
   | 'price'
@@ -615,21 +589,17 @@ export type VoucherLineKind =
   | 'asset-liquidation'
   | 'bill'
   | 'none'
-export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
-
 export interface VoucherLifecycleLabels {
   check: string
   uncheck: string
   approve: string
   unapprove: string
-  finalize: string
-  unfinalize: string
   checked: string
   finalized: string
 }
 
 export type VoucherLifecycleAction =
-  'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize'
+  'check' | 'approve' | 'uncheck' | 'unapprove'
 
 export interface VoucherEntityConfig {
   entity: VoucherEntity
@@ -639,7 +609,6 @@ export interface VoucherEntityConfig {
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
   fixedCounterpartyType?: 'customer' | 'supplier' | 'other-party' | 'employee'
   lineKind: VoucherLineKind
-  finalizationKind: VoucherFinalizationKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
   parentEntity?: VoucherEntity
   usesSalesperson?: boolean
@@ -661,8 +630,6 @@ export interface VoucherActionAvailability {
   uncheck: boolean
   approve: boolean
   unapprove: boolean
-  finalize: boolean
-  unfinalize: boolean
   delete: boolean
   shortCloseRequest: boolean
   shortCloseCancel: boolean

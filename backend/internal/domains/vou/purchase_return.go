@@ -72,8 +72,8 @@ func (s *Service) resolvePurchaseReturnSource(
 		if err != nil {
 			return result, s.internal("lock purchase return source", err)
 		}
-		if inboundStatus != StatusFinalized || date.Before(inboundDate) ||
-			orderStatus != StatusApproved || fulfillment == "SHORT_CLOSE_REQUESTED" {
+		if inboundStatus != StatusApproved && inboundStatus != StatusFinalized || date.Before(inboundDate) ||
+			orderStatus != StatusApproved && orderStatus != StatusFinalized || fulfillment == "SHORT_CLOSE_REQUESTED" {
 			return result, domainError(ErrorConflict, "source inbound is not returnable", nil, nil)
 		}
 		if result.orderID == "" {

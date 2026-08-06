@@ -105,10 +105,10 @@ func (s *Service) replayVouDocuments(
 ) error {
 	for _, document := range documents {
 		postedBy := actorID
-		if document.ExecutedBy != nil {
-			postedBy = *document.ExecutedBy
+		if document.PostedBy != nil {
+			postedBy = *document.PostedBy
 		}
-		occurredAt := document.ExecutedAt
+		occurredAt := document.PostedAt
 		if !occurredAt.Valid {
 			occurredAt = document.UpdatedAt
 		}

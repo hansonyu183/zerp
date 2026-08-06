@@ -52,10 +52,10 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 		return errors.New("LED event bus is required")
 	}
 	for _, entity := range vouEntities {
-		if err := bus.Subscribe(voudomain.DocumentFinalizedTopic(entity), "led-posting", s.HandleDocumentFinalized); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentApprovedTopic(entity), "led-posting", s.HandleDocumentApproved); err != nil {
 			return err
 		}
-		if err := bus.Subscribe(voudomain.DocumentUnfinalizedTopic(entity), "led-reversal", s.HandleDocumentUnfinalized); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentUnapprovedTopic(entity), "led-reversal", s.HandleDocumentUnapproved); err != nil {
 			return err
 		}
 	}
@@ -83,7 +83,7 @@ func (s *Service) Activate(
 		!control.CutoverDate.Valid {
 		return MutationResult{}, domainError(ErrorConflict, "ledger cannot be activated", nil, nil)
 	}
-	documents, err := q.ListFinalizedVouDocumentsForLed(ctx)
+	documents, err := q.ListPostedVouDocumentsForLed(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
@@ -111,10 +111,10 @@ func (s *Service) Activate(
 	return MutationResult{Status: StatusActive, Revision: revision, GenerationID: generationID}, nil
 }
 
-func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentFinalizedEvent)
+func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentApprovedEvent)
 	if !ok {
-		return fmt.Errorf("unexpected LED executed event %T", raw)
+		return fmt.Errorf("unexpected LED approved event %T", raw)
 	}
 	q := s.queries.WithTx(tx)
 	control, err := q.LockLedControl(ctx)
@@ -131,7 +131,7 @@ func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw tx
 	err = s.postDocument(ctx, tx, q, postingContext{
 		GenerationID: *control.ActiveGenerationID, CutoverDate: control.CutoverDate.Time,
 		Document: document, EntryType: "POSTING", SourceRevision: event.Revision,
-		OccurredAt: document.ExecutedAt, ActorID: systemidentity.UserID, RequestID: event.RequestID, Live: true,
+		OccurredAt: document.PostedAt, ActorID: systemidentity.UserID, RequestID: event.RequestID, Live: true,
 	})
 	if err != nil {
 		return eventFailure(err)
@@ -146,10 +146,10 @@ func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw tx
 	return nil
 }
 
-func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentUnfinalizedEvent)
+func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentUnapprovedEvent)
 	if !ok {
-		return fmt.Errorf("unexpected LED unexecuted event %T", raw)
+		return fmt.Errorf("unexpected LED unapproved event %T", raw)
 	}
 	q := s.queries.WithTx(tx)
 	control, err := q.LockLedControl(ctx)

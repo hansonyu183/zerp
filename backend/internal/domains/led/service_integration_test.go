@@ -1974,6 +1974,82 @@ func TestApprovedPostingRebuildPreservesActiveClosingSnapshotsIntegration(t *tes
 	}
 }
 
+func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	warehouse := ReferenceInput{ObjectID: refs.warehouse.ObjectID, VersionID: refs.warehouse.VersionID}
+	product := ReferenceInput{ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID}
+	fundAccount := ReferenceInput{ObjectID: refs.fundAccount.ObjectID, VersionID: refs.fundAccount.VersionID}
+	customer := ReferenceInput{ObjectID: refs.customer.ObjectID, VersionID: refs.customer.VersionID}
+	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{
+		Revision: 1, CutoverDate: "2026-06-01",
+		Inventory: []InventoryOpeningInput{{
+			Warehouse: warehouse, Product: product,
+			Quantity: "10", UnitPrice: "10.00", Currency: "CNY",
+		}},
+		Fund: []FundOpeningInput{{
+			FundAccount: fundAccount, BalanceType: "POSITIVE", Amount: "100.00",
+		}},
+		Party: []PartyOpeningInput{{
+			CounterpartyType: "customer", Counterparty: customer,
+			Currency: "CNY", BalanceType: "RECEIVABLE", Amount: "50.00",
+		}},
+		Container: []ContainerOpeningInput{{
+			Customer: customer, ContainerType: "SOLVENT", Quantity: 20,
+		}},
+	}, integrationActorOne, "opening-before-approved-posting-rebuild")
+	if err != nil {
+		t.Fatalf("save opening before approved-posting rebuild: %v", err)
+	}
+	activated, err := ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
+		integrationActorOne, "activate-before-approved-posting-rebuild")
+	if err != nil {
+		t.Fatalf("activate opening before approved-posting rebuild: %v", err)
+	}
+	order, orderView := approveSaleOrder(t, vouchers, refs, "6")
+	outbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, order, orderView, "6")
+	if outbound.Status != voudomain.StatusFinalized {
+		t.Fatalf("approved sale outbound status = %s", outbound.Status)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE led_control SET rebuild_required=true WHERE singleton=true`); err != nil {
+		t.Fatalf("request approved-posting rebuild with opening: %v", err)
+	}
+	if err = ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("run approved-posting rebuild with opening: %v", err)
+	}
+
+	opening, err := ledger.GetOpening(t.Context())
+	if err != nil {
+		t.Fatalf("get opening after approved-posting rebuild: %v", err)
+	}
+	if opening.CutoverDate != "2026-06-01" || opening.ActiveGenerationID == activated.GenerationID ||
+		len(opening.Inventory) != 1 || opening.Inventory[0].Quantity != "10.0" || opening.Inventory[0].Amount != "100.00" ||
+		len(opening.Fund) != 1 || opening.Fund[0].Amount != "100.00" ||
+		len(opening.Party) != 1 || opening.Party[0].Amount != "50.00" ||
+		len(opening.Container) != 1 || opening.Container[0].Quantity != 20 {
+		t.Fatalf("opening after approved-posting rebuild = %+v", opening)
+	}
+	inventory, err := ledger.InventoryBalance(t.Context(), BalanceInput{
+		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
+	})
+	if err != nil || len(inventory.Items) != 1 || inventory.Items[0].Quantity != "4.0" {
+		t.Fatalf("inventory after approved-posting rebuild = %+v, err=%v", inventory, err)
+	}
+	var openingEntries, outboundEntries int
+	if err = pool.QueryRow(t.Context(), `SELECT
+		(SELECT count(*) FROM led_inventory_entries WHERE generation_id=$1 AND entry_type='OPENING'),
+		(SELECT count(*) FROM led_inventory_entries WHERE generation_id=$1 AND source_document_id=$2)`,
+		opening.ActiveGenerationID, outbound.DocumentID).Scan(&openingEntries, &outboundEntries); err != nil {
+		t.Fatalf("read approved-posting rebuilt entries: %v", err)
+	}
+	if openingEntries != 1 || outboundEntries != 1 {
+		t.Fatalf("approved-posting rebuilt entries = opening:%d outbound:%d", openingEntries, outboundEntries)
+	}
+}
+
 func TestLEDMonthEndClosingAndUncloseIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)

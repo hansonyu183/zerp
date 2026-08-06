@@ -503,13 +503,29 @@ WITH trade AS (
       AND entry.counterparty_entity='customer'
       AND entry.currency='CNY'
 ), mapped AS (
-    -- After-sale returns are applied to their source signoff by the dedicated
-    -- return timeline. Excluding them here prevents a return from becoming
-    -- collection capacity for another signoff.
+    -- In-scope after-sale returns are applied to their source signoff by the
+    -- dedicated return timeline. Excluding them here prevents a return from
+    -- becoming collection capacity for another signoff.
     SELECT entry.counterparty_object_id,entry.effective_date,
            entry.amount_delta_cents
     FROM trade entry
     WHERE entry.source_entity NOT IN ('bill-receipt','sale-return')
+    UNION ALL
+    -- Returns against signoffs before the active cutover reduce the opening
+    -- receivable. They have no in-scope source document for the dedicated
+    -- return timeline, so retain their line-level ledger credits here.
+    SELECT entry.counterparty_object_id,entry.effective_date,
+           entry.amount_delta_cents
+    FROM trade entry
+    JOIN vou_sale_return_lines return_line
+      ON return_line.id=entry.source_line_id
+    JOIN vou_sale_signoff_lines signoff_line
+      ON signoff_line.id=return_line.source_signoff_line_id
+    JOIN vou_documents signoff
+      ON signoff.id=signoff_line.document_id
+     AND signoff.entity='sale-signoff'
+    WHERE entry.source_entity='sale-return'
+      AND signoff.business_date < $3
     UNION ALL
     SELECT entry.counterparty_object_id,
            (CASE WHEN bill_line.bill_type='CHECK'
@@ -546,6 +562,7 @@ ORDER BY counterparty_object_id,effective_date
 type ListIntermediaryCustomerTradeEventsParams struct {
 	PeriodEnd    pgtype.Date `db:"period_end" json:"period_end"`
 	GenerationID string      `db:"generation_id" json:"generation_id"`
+	CutoverDate  pgtype.Date `db:"cutover_date" json:"cutover_date"`
 }
 
 type ListIntermediaryCustomerTradeEventsRow struct {
@@ -555,7 +572,7 @@ type ListIntermediaryCustomerTradeEventsRow struct {
 }
 
 func (q *Queries) ListIntermediaryCustomerTradeEvents(ctx context.Context, arg ListIntermediaryCustomerTradeEventsParams) ([]ListIntermediaryCustomerTradeEventsRow, error) {
-	rows, err := q.db.Query(ctx, listIntermediaryCustomerTradeEvents, arg.PeriodEnd, arg.GenerationID)
+	rows, err := q.db.Query(ctx, listIntermediaryCustomerTradeEvents, arg.PeriodEnd, arg.GenerationID, arg.CutoverDate)
 	if err != nil {
 		return nil, err
 	}

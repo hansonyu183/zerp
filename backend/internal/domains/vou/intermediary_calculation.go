@@ -147,7 +147,8 @@ func (s *Service) intermediarySource(
 		return IntermediarySourceView{}, s.internal("read intermediary source return timeline", err)
 	}
 	events, err := q.ListIntermediaryCustomerTradeEvents(ctx, dbsqlc.ListIntermediaryCustomerTradeEventsParams{
-		PeriodEnd: dateValue(periodEnd), GenerationID: *control.ActiveGenerationID,
+		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+		GenerationID: *control.ActiveGenerationID,
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read customer collection events", err)

@@ -2908,6 +2908,101 @@ func TestIntermediarySourceCollectsZeroPriceAndIgnoresNonCNYReturnTimelineIntegr
 	}
 }
 
+func TestIntermediarySourceAppliesPreCutoverReturnsToOpeningReceivableIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activated := activateEmptyLedger(t, ledger)
+	advancePurchaseInboundToApproved(t, vouchers, refs, "2", "10.00")
+
+	oldOrder, oldOrderView := approveSaleOrder(t, vouchers, refs, "1")
+	oldOutbound, _ := advanceSaleOutboundToApproved(t, vouchers, refs, oldOrder, oldOrderView, "1")
+	oldDelivery, oldDeliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: oldOutbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	_, oldSignoffView := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: oldDelivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID: oldDeliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	})
+
+	reopened, err := ledger.Reopen(t.Context(), ReopenInput{
+		Revision: activated.Revision, Reason: "验证期初应收对应的跨切换日退货",
+	}, integrationActorOne, "intermediary-pre-cutover-return-reopen")
+	if err != nil {
+		t.Fatalf("reopen ledger for pre-cutover return: %v", err)
+	}
+	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{
+		Revision: reopened.Revision, CutoverDate: "2026-08-01",
+		Inventory: []InventoryOpeningInput{{
+			Warehouse: ReferenceInput{ObjectID: refs.warehouse.ObjectID, VersionID: refs.warehouse.VersionID},
+			Product:   ReferenceInput{ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID},
+			Quantity:  "1", UnitPrice: "10.00", Currency: "CNY",
+		}},
+		Fund: []FundOpeningInput{},
+		Party: []PartyOpeningInput{{
+			CounterpartyType: "customer",
+			Counterparty:     ReferenceInput{ObjectID: refs.customer.ObjectID, VersionID: refs.customer.VersionID},
+			Currency:         "CNY", BalanceType: "RECEIVABLE", Amount: "12.00",
+		}},
+	}, integrationActorOne, "intermediary-pre-cutover-return-opening")
+	if err != nil {
+		t.Fatalf("save opening for pre-cutover return: %v", err)
+	}
+	if _, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
+		integrationActorOne, "intermediary-pre-cutover-return-activate"); err != nil {
+		t.Fatalf("activate opening for pre-cutover return: %v", err)
+	}
+
+	newOrder, newOrderView := advanceToApproved(t, vouchers, voudomain.EntitySaleOrder, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", Currency: "CNY", Customer: &refs.customer,
+		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []voudomain.ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "12.00",
+		}},
+	})
+	newOutbound, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleOutbound, voudomain.DraftInput{
+		BusinessDate: "2026-08-02", SourceDocumentID: newOrder.DocumentID,
+		Warehouse: &refs.warehouse,
+		SourceLines: []voudomain.SourceQuantityLineInput{{
+			SourceLineID: newOrderView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	})
+	newDelivery, newDeliveryView := advanceToApproved(t, vouchers, voudomain.EntitySaleDelivery, voudomain.DraftInput{
+		BusinessDate: "2026-08-03", SourceDocumentID: newOutbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	})
+	newSignoff, _ := advanceToApproved(t, vouchers, voudomain.EntitySaleSignoff, voudomain.DraftInput{
+		BusinessDate: "2026-08-04", SourceDocumentID: newDelivery.DocumentID,
+		SignoffLines: []voudomain.SaleSignoffLineInput{{
+			SourceLineID: newDeliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "冲减期初应收",
+		ReturnLines: []voudomain.ReturnLineInput{{
+			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "1",
+		}},
+	})
+	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+		BusinessDate: "2026-08-06", Currency: "CNY", CounterpartyType: "customer",
+		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
+	})
+
+	augustSource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
+		BusinessDate: "2026-08-31",
+	})
+	if err != nil || len(augustSource.Source.Lines) != 1 ||
+		augustSource.Source.Lines[0].SignoffDocumentID != newSignoff.DocumentID ||
+		augustSource.Source.Lines[0].CollectionDate != "2026-08-06" {
+		t.Fatalf("pre-cutover return did not reduce opening receivable: %+v, err=%v", augustSource.Source, err)
+	}
+}
+
 func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	var count int

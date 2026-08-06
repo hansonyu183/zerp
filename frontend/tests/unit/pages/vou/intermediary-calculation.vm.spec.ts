@@ -233,6 +233,40 @@ describe('intermediary calculation view model', () => {
     expect(vm.scriptSnapshot.value?.revision).toBe(4)
   })
 
+  it('ignores an obsolete script response after the dialog is reopened', async () => {
+    grantPermissions()
+    let resolveFirst!: (value: { data: IntermediaryScriptSnapshot }) => void
+    let resolveSecond!: (value: { data: IntermediaryScriptSnapshot }) => void
+    mockedPostContract
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          }),
+      )
+    const vm = useIntermediaryCalculationViewModel()
+
+    const first = vm.openScript()
+    vm.scriptOpen.value = false
+    const second = vm.openScript()
+    const latestScript = { ...script, revision: 4, name: '最新规则' }
+    resolveSecond({ data: latestScript })
+    await second
+    resolveFirst({ data: script })
+    await first
+
+    expect(vm.scriptSnapshot.value).toEqual(latestScript)
+    expect(vm.scriptName.value).toBe('最新规则')
+    expect(vm.scriptSource.value).toBe(latestScript.source)
+    expect(vm.scriptLoading.value).toBe(false)
+  })
+
   it('preserves the next edit made while the tested script is being saved', async () => {
     grantPermissions()
     mockedPostContract.mockResolvedValueOnce({ data: script })

@@ -44,6 +44,7 @@ export function useIntermediaryCalculationViewModel() {
   const scriptError = ref<string | null>(null)
   const lastTestedScriptSource = ref<string | null>(null)
   let calculationRequest = 0
+  let scriptRequest = 0
 
   const calculation = computed(() => base.form.value.intermediaryCalculation)
   const summaryTotal = computed(() =>
@@ -154,6 +155,7 @@ export function useIntermediaryCalculationViewModel() {
 
   async function openScript(): Promise<void> {
     if (!canReadScript.value) return
+    const request = ++scriptRequest
     scriptOpen.value = true
     scriptLoading.value = true
     scriptMessage.value = null
@@ -163,14 +165,16 @@ export function useIntermediaryCalculationViewModel() {
         'vou/intermediary-calculation/script-get',
         {},
       )
+      if (request !== scriptRequest || !scriptOpen.value) return
       scriptSnapshot.value = data as IntermediaryScriptSnapshot
       scriptName.value = data.name
       scriptSource.value = data.source
       lastTestedScriptSource.value = null
     } catch (error) {
-      scriptError.value = getErrorMessage(error)
+      if (request === scriptRequest && scriptOpen.value)
+        scriptError.value = getErrorMessage(error)
     } finally {
-      scriptLoading.value = false
+      if (request === scriptRequest) scriptLoading.value = false
     }
   }
 

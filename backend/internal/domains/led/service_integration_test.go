@@ -2304,6 +2304,15 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	calculationDraft := voudomain.DraftInput{
 		BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: calculation,
 	}
+	allocationWithoutCost := *calculation
+	allocationWithoutCost.Result.Lines = append([]voudomain.IntermediaryResultLine(nil), calculation.Result.Lines...)
+	allocationWithoutCost.Result.Lines[0].BillCost = "0.00"
+	if _, invalidErr := vouchers.Create(t.Context(), voudomain.EntityIntermediaryCalculation,
+		voudomain.CreateInput{Data: voudomain.DraftInput{
+			BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: &allocationWithoutCost,
+		}}, integrationActorOne, "intermediary-calculation-allocation-without-cost"); invalidErr == nil || !strings.Contains(invalidErr.Error(), "bill allocation requires a positive bill cost") {
+		t.Fatalf("bill allocation without deducted cost error = %v", invalidErr)
+	}
 	deletableCalculation, err := vouchers.Create(t.Context(), voudomain.EntityIntermediaryCalculation,
 		voudomain.CreateInput{Data: calculationDraft}, integrationActorOne, "intermediary-calculation-delete-create")
 	if err != nil {

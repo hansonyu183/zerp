@@ -628,7 +628,7 @@ func (s *Service) prepareIntermediaryCalculation(
 			}
 			allocatedBills[billLineID] = true
 		}
-		if parsedAmounts[5] > 0 && len(line.BillLineIDs) == 0 {
+		if parsedAmounts[5] > 0 {
 			billCostGroups[sourceLine.Customer.ObjectID+":"+sourceLine.Salesperson.ObjectID] = true
 		}
 		if len(line.BillLineIDs) != 0 {
@@ -639,6 +639,11 @@ func (s *Service) prepareIntermediaryCalculation(
 	for key := range billCostGroups {
 		if !billAllocationGroups[key] {
 			return prepared, domainError(ErrorValidation, "bill cost requires its source bill allocation", nil, nil)
+		}
+	}
+	for key := range billAllocationGroups {
+		if !billCostGroups[key] {
+			return prepared, domainError(ErrorValidation, "bill allocation requires a positive bill cost", nil, nil)
 		}
 	}
 	for key, amount := range expected {

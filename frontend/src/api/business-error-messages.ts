@@ -278,6 +278,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '票据成本分配与客户、业务员或来源票据不一致。',
   'bill cost requires its source bill allocation':
     '票据成本必须记录对应的来源票据。',
+  'bill allocation requires a positive bill cost':
+    '已分配来源票据时必须同时扣除正数票据成本。',
   'eligible bill cost must be allocated to a calculation line':
     '存在可分配但尚未分配的票据成本，请重新计算。',
   'calculation result line does not match its source':

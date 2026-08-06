@@ -56,26 +56,57 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 		return tx.Commit(ctx)
 	}
 	generationID := newID()
-	zeroDate := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
-	if err = q.InsertLedGeneration(ctx, dbsqlc.InsertLedGenerationParams{
-		ID: generationID, CutoverDate: pgtype.Date{Time: zeroDate, Valid: true},
-		ActorID: systemidentity.UserID, RequestID: "approved-posting-rebuild",
-	}); err != nil {
-		return s.writeError("create rebuilt ledger generation", err)
+	cutoverDate := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	if previousGenerationID == nil {
+		if err = q.InsertLedGeneration(ctx, dbsqlc.InsertLedGenerationParams{
+			ID: generationID, CutoverDate: pgtype.Date{Time: cutoverDate, Valid: true},
+			ActorID: systemidentity.UserID, RequestID: "approved-posting-rebuild",
+		}); err != nil {
+			return s.writeError("create rebuilt ledger generation", err)
+		}
+	} else {
+		if err = tx.QueryRow(ctx, `SELECT cutover_date FROM led_generations
+			WHERE id=$1 AND status='ACTIVE'`, *previousGenerationID).Scan(&cutoverDate); err != nil {
+			return s.internal("get active ledger cutover", err)
+		}
+		if err = clearDraft(ctx, q); err != nil {
+			return s.writeError("clear approved-posting rebuild draft", err)
+		}
+		if err = q.CopyLedOpeningToDraftInventory(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy inventory opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftFund(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy fund opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftParty(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy party opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftContainer(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy container opening for approved-posting rebuild", err)
+		}
+		if err = s.createOpeningGeneration(
+			ctx, q, generationID, pgtype.Date{Time: cutoverDate, Valid: true},
+			systemidentity.UserID, "approved-posting-rebuild",
+		); err != nil {
+			return err
+		}
+		if err = clearDraft(ctx, q); err != nil {
+			return s.writeError("clear approved-posting rebuild draft", err)
+		}
 	}
 	documents, err := q.ListPostedVouDocumentsForLed(ctx)
 	if err != nil {
-		return s.internal("list documents for zero rebuild", err)
+		return s.internal("list documents for approved-posting rebuild", err)
 	}
 	if err = s.replayVouDocuments(
-		ctx, tx, q, generationID, zeroDate,
+		ctx, tx, q, generationID, cutoverDate,
 		documents, systemidentity.UserID, "approved-posting-rebuild",
 	); err != nil {
 		return err
 	}
 	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
 	if err != nil {
-		return s.internal("validate zero-opening rebuild", err)
+		return s.internal("validate approved-posting rebuild", err)
 	}
 	if negative {
 		return domainError(
@@ -85,7 +116,7 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 			nil,
 		)
 	}
-	if err = s.rebuildClosingSnapshots(ctx, tx, generationID); err != nil {
+	if err = s.rebuildClosingSnapshots(ctx, tx, generationID, cutoverDate); err != nil {
 		return err
 	}
 	if previousGenerationID != nil {
@@ -94,8 +125,8 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 		}
 	}
 	if _, err = tx.Exec(ctx, `UPDATE led_control SET status='ACTIVE',rebuild_required=false,
-		cutover_date=DATE '0001-01-01',active_generation_id=$1,revision=revision+1,
-		updated_at=now(),updated_by=$2 WHERE singleton=true`, generationID, systemidentity.UserID); err != nil {
+		cutover_date=$2,active_generation_id=$1,revision=revision+1,
+		updated_at=now(),updated_by=$3 WHERE singleton=true`, generationID, cutoverDate, systemidentity.UserID); err != nil {
 		return s.writeError("finish ledger initialization", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -108,6 +139,7 @@ func (s *Service) rebuildClosingSnapshots(
 	ctx context.Context,
 	tx pgx.Tx,
 	generationID string,
+	cutoverDate time.Time,
 ) error {
 	rows, err := tx.Query(ctx, `SELECT id,closing_date
 		FROM led_closings WHERE status='ACTIVE'
@@ -143,7 +175,7 @@ func (s *Service) rebuildClosingSnapshots(
 			}
 		}
 	}
-	periodStart := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	periodStart := cutoverDate
 	var previousClosingID *string
 	for _, closing := range closings {
 		if err = s.calculateInventoryClosing(
@@ -433,7 +465,43 @@ func (s *Service) calculateInventoryClosing(
 	periodStart, closingDate time.Time,
 ) error {
 	balances := make(map[string]*inventoryCostBalance)
-	if previousClosingID != nil {
+	if previousClosingID == nil {
+		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
+			warehouse_code,warehouse_name,product_object_id,product_version_id,
+			product_code,product_name,product_unit,quantity_micros,currency,amount_cents
+			FROM led_opening_inventory WHERE generation_id=$1`, generationID)
+		if err != nil {
+			return s.internal("load inventory opening for closing", err)
+		}
+		for rows.Next() {
+			balance := &inventoryCostBalance{}
+			var currency *string
+			var amount *int64
+			if err = rows.Scan(
+				&balance.warehouseObjectID, &balance.warehouseVersionID,
+				&balance.warehouseCode, &balance.warehouseName,
+				&balance.productObjectID, &balance.productVersionID,
+				&balance.productCode, &balance.productName, &balance.productUnit,
+				&balance.quantity, &currency, &amount,
+			); err != nil {
+				rows.Close()
+				return s.internal("scan inventory opening for closing", err)
+			}
+			if currency == nil || *currency != "CNY" || amount == nil {
+				rows.Close()
+				return domainError(
+					ErrorConflict, "inventory opening cost must be complete and use CNY", nil, nil,
+				)
+			}
+			balance.amount = *amount
+			balances[inventoryCostKey(balance.warehouseObjectID, balance.productObjectID)] = balance
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			return s.internal("read inventory opening for closing", err)
+		}
+		rows.Close()
+	} else {
 		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
 			warehouse_code,warehouse_name,product_object_id,product_version_id,
 			product_code,product_name,product_unit,quantity_micros,cost_amount_cents

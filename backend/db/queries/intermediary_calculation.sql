@@ -364,6 +364,10 @@ WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER_PAYABLE'
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text='effectiveDate' AND sqlc.arg(sort_order)::text='asc' THEN effective_date END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='effectiveDate' AND sqlc.arg(sort_order)::text='desc' THEN effective_date END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text='occurredAt' AND sqlc.arg(sort_order)::text='asc' THEN occurred_at END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='occurredAt' AND sqlc.arg(sort_order)::text='desc' THEN occurred_at END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text='documentNo' AND sqlc.arg(sort_order)::text='asc' THEN source_document_no END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='documentNo' AND sqlc.arg(sort_order)::text='desc' THEN source_document_no END DESC,
   CASE WHEN sqlc.arg(sort_field)::text='amount' AND sqlc.arg(sort_order)::text='asc' THEN abs(amount_delta_cents) END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='amount' AND sqlc.arg(sort_order)::text='desc' THEN abs(amount_delta_cents) END DESC,
   effective_date DESC,occurred_at DESC,id DESC

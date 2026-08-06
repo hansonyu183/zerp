@@ -294,6 +294,34 @@ describe('intermediary calculation QuickJS sandbox', () => {
       validateIntermediaryResult(
         {
           ...result(),
+          summaries: [
+            { payee: salesperson, category: 'COMMISSION', amount: '1889.00' },
+            { payee: customer, category: 'REBATE', amount: '80.00' },
+          ],
+        },
+        source,
+      ),
+    ).toThrow('明细金额和收款方')
+    expect(() =>
+      validateIntermediaryResult(
+        {
+          ...result(),
+          summaries: [
+            {
+              payee: { ...salesperson, versionId: 'employee-v2' },
+              category: 'COMMISSION',
+              amount: '1890.00',
+            },
+            { payee: customer, category: 'REBATE', amount: '80.00' },
+          ],
+        },
+        source,
+      ),
+    ).toThrow('明细金额和收款方')
+    expect(() =>
+      validateIntermediaryResult(
+        {
+          ...result(),
           lines: [{ ...resultLine, sourceSignoffLineId: 'other-line' }],
         },
         source,
@@ -359,6 +387,33 @@ describe('intermediary calculation QuickJS sandbox', () => {
     ).resolves.toEqual({
       lines: [],
       summaries: [],
+    })
+  })
+
+  it('does not allocate a bill whose calculated cost rounds to zero', async () => {
+    const zeroCostSource = structuredClone(source)
+    zeroCostSource.bills = [
+      {
+        billLineId: 'bill-line-zero-cost',
+        receiptDocumentId: 'bill-receipt-zero-cost',
+        receiptDocumentNo: 'BRE-ZERO-COST',
+        receiptDate: '2026-07-01',
+        customer,
+        salesperson,
+        billType: 'CHECK',
+        faceAmount: '1.00',
+        issueDate: '2026-07-01',
+        maturityDate: '2026-07-02',
+        costDays: 1,
+      },
+    ]
+
+    const calculated = await runIntermediaryScript(seededScript, zeroCostSource)
+
+    expect(calculated.lines[0]).toMatchObject({
+      billCost: '0.00',
+      billLineIds: [],
+      employeeAmount: '1890.00',
     })
   })
 

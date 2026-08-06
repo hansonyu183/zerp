@@ -70,6 +70,34 @@ function isSummary(value: unknown): value is IntermediarySummary {
   )
 }
 
+function referenceEquals(
+  left: IntermediaryReference,
+  right: IntermediaryReference,
+): boolean {
+  return (
+    left.objectId === right.objectId &&
+    left.versionId === right.versionId &&
+    left.entity === right.entity &&
+    left.code === right.code &&
+    left.name === right.name
+  )
+}
+
+function moneyCents(value: string): number {
+  const negative = value.startsWith('-')
+  const unsigned = negative ? value.slice(1) : value
+  const [whole, fraction] = unsigned.split('.')
+  const cents = Number(whole) * 100 + Number(fraction)
+  return negative ? -cents : cents
+}
+
+function summaryKey(
+  category: IntermediarySummary['category'],
+  payee: IntermediaryReference,
+): string {
+  return `${category}:${payee.entity}:${payee.objectId}`
+}
+
 export function validateIntermediaryResult(
   value: unknown,
   source: IntermediaryCalculationSource,
@@ -167,6 +195,69 @@ export function validateIntermediaryResult(
   }
   if ([...billAllocationGroups].some((group) => !billCostGroups.has(group))) {
     throw new Error('已分配来源票据时必须同时扣除正数票据成本。')
+  }
+  const expectedSummaries = new Map<
+    string,
+    { payee: IntermediaryReference; amountCents: number }
+  >()
+  const addExpectedSummary = (
+    payee: IntermediaryReference | undefined,
+    category: IntermediarySummary['category'],
+    amount: string,
+  ) => {
+    const amountCents = moneyCents(amount)
+    if (amountCents === 0) return
+    if (!payee) {
+      throw new Error('计算结果汇总必须与明细金额和收款方一致。')
+    }
+    const key = summaryKey(category, payee)
+    const current = expectedSummaries.get(key)
+    if (current && !referenceEquals(current.payee, payee)) {
+      throw new Error('计算结果汇总必须与明细金额和收款方一致。')
+    }
+    expectedSummaries.set(key, {
+      payee,
+      amountCents: (current?.amountCents ?? 0) + amountCents,
+    })
+  }
+  for (const line of value.lines as IntermediaryResultLine[]) {
+    const sourceLine = sourceById.get(line.sourceSignoffLineId)
+    if (!sourceLine) continue
+    addExpectedSummary(
+      sourceLine.salesperson,
+      'COMMISSION',
+      line.employeeAmount,
+    )
+    addExpectedSummary(
+      sourceLine.intermediary,
+      'INTERMEDIARY',
+      line.intermediaryAmount,
+    )
+    addExpectedSummary(sourceLine.customer, 'REBATE', line.rebateAmount)
+  }
+  for (const [key, summary] of expectedSummaries) {
+    if (summary.amountCents === 0) expectedSummaries.delete(key)
+  }
+  const actualSummaries = new Map<string, IntermediarySummary>()
+  for (const summary of value.summaries as IntermediarySummary[]) {
+    const key = summaryKey(summary.category, summary.payee)
+    if (actualSummaries.has(key)) {
+      throw new Error('计算结果汇总必须与明细金额和收款方一致。')
+    }
+    actualSummaries.set(key, summary)
+  }
+  if (
+    actualSummaries.size !== expectedSummaries.size ||
+    [...expectedSummaries].some(([key, expected]) => {
+      const actual = actualSummaries.get(key)
+      return (
+        !actual ||
+        !referenceEquals(actual.payee, expected.payee) ||
+        moneyCents(actual.amount) !== expected.amountCents
+      )
+    })
+  ) {
+    throw new Error('计算结果汇总必须与明细金额和收款方一致。')
   }
   return {
     lines: value.lines as IntermediaryResultLine[],

@@ -286,6 +286,7 @@ globalThis.calculate = function calculate(input) {
     )));
     const allocatedBillLineIds = [];
     for (const bill of group.bills) {
+      if (bill.cost <= 0) continue;
       if (bill.cost > available) break;
       allocatedBillLineIds.push(bill.billLineId);
       available = number(money(available - bill.cost));

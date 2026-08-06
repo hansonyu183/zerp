@@ -2537,6 +2537,27 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		septemberAmounts["INTERMEDIARY"] != "2.50" || septemberAmounts["REBATE"] != "1.00" {
 		t.Fatalf("September return adjustment amounts = %+v", septemberAmounts)
 	}
+	for _, sortCase := range []struct {
+		name  string
+		sort  SortInput
+		first string
+	}{
+		{name: "document number ascending", sort: SortInput{Field: "documentNo", Order: "asc"}, first: calculationView.DocumentNo},
+		{name: "document number descending", sort: SortInput{Field: "documentNo", Order: "desc"}, first: septemberCalculationView.DocumentNo},
+		{name: "occurred at ascending", sort: SortInput{Field: "occurredAt", Order: "asc"}, first: calculationView.DocumentNo},
+		{name: "occurred at descending", sort: SortInput{Field: "occurredAt", Order: "desc"}, first: septemberCalculationView.DocumentNo},
+	} {
+		t.Run(sortCase.name, func(t *testing.T) {
+			sorted, sortErr := ledger.QueryOtherPayable(t.Context(), QueryInput{
+				Page: 1, PageSize: 20,
+				Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-09-30", SourceEntity: voudomain.EntityIntermediaryCalculation},
+				Sort:    []SortInput{sortCase.sort},
+			})
+			if sortErr != nil || len(sorted.Items) != 6 || sorted.Items[0].SourceDocumentNo != sortCase.first {
+				t.Fatalf("sorted other payable entries = %+v, err=%v", sorted, sortErr)
+			}
+		})
+	}
 	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
 		DocumentID: septemberCalculation.DocumentID, Revision: septemberCalculation.Revision, Reason: "撤回跨月退货冲回",
 	}, integrationActorTwo, "return-adjustment-intermediary-unapprove"); err != nil {

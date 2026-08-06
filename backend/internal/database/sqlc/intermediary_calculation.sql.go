@@ -936,6 +936,10 @@ WHERE generation_id=$1 AND account_type='OTHER_PAYABLE'
 ORDER BY
   CASE WHEN $9::text='effectiveDate' AND $10::text='asc' THEN effective_date END ASC,
   CASE WHEN $9::text='effectiveDate' AND $10::text='desc' THEN effective_date END DESC,
+  CASE WHEN $9::text='occurredAt' AND $10::text='asc' THEN occurred_at END ASC,
+  CASE WHEN $9::text='occurredAt' AND $10::text='desc' THEN occurred_at END DESC,
+  CASE WHEN $9::text='documentNo' AND $10::text='asc' THEN source_document_no END ASC,
+  CASE WHEN $9::text='documentNo' AND $10::text='desc' THEN source_document_no END DESC,
   CASE WHEN $9::text='amount' AND $10::text='asc' THEN abs(amount_delta_cents) END ASC,
   CASE WHEN $9::text='amount' AND $10::text='desc' THEN abs(amount_delta_cents) END DESC,
   effective_date DESC,occurred_at DESC,id DESC

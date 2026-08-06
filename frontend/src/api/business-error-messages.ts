@@ -273,6 +273,13 @@ const exactMessages: Readonly<Record<string, string>> = {
   'calculation result note is too long': '计算稿说明不能超过 1000 个字符。',
   'calculation result contains an invalid premium price':
     '计算稿包含格式不正确的溢价。',
+  'calculation source kind is invalid': '计算来源类型无效，请重新生成计算稿。',
+  'calculation bill allocation does not match its source':
+    '票据成本分配与客户、业务员或来源票据不一致。',
+  'bill cost requires its source bill allocation':
+    '票据成本必须记录对应的来源票据。',
+  'eligible bill cost must be allocated to a calculation line':
+    '存在可分配但尚未分配的票据成本，请重新计算。',
   'calculation result line does not match its source':
     '计算稿明细与销售签收来源不一致，请重新计算。',
   'calculation result must contain one row per source line':
@@ -291,6 +298,20 @@ const exactMessages: Readonly<Record<string, string>> = {
   'calculation summary category is invalid': '计算稿汇总类别无效，请重新计算。',
   'intermediary amount requires a source intermediary':
     '居间金额缺少对应居间商，请检查客户资料后重新计算。',
+  'intermediary return quantity exceeds its original calculation':
+    '跨月退货数量超过原居间计算数量，请检查退货单。',
+  'return adjustment cannot allocate bill cost':
+    '跨月退货冲回明细不能分配票据成本。',
+  'return adjustment result has an invalid direction':
+    '跨月退货冲回金额方向不正确，请重新计算。',
+  'original intermediary calculation source is incomplete':
+    '原居间计算来源不完整，无法生成跨月退货冲回。',
+  'original intermediary calculation quantity is invalid':
+    '原居间计算数量无效，无法生成跨月退货冲回。',
+  'original intermediary pricing quantity is invalid':
+    '原居间计算计价数量无效，无法生成跨月退货冲回。',
+  'original intermediary calculation amount is invalid':
+    '原居间计算金额无效，无法生成跨月退货冲回。',
   'intermediary calculation must use CNY and include its calculation draft':
     '居间计算单必须使用人民币并包含完整计算稿。',
   'ledger must be active before calculation':
@@ -428,6 +449,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'IN condition value must be an array': 'IN 条件的值必须是列表。',
   'IN requires array': 'IN 条件必须提供列表值。',
   'LED pool and BOB resolver are required':
+    '账簿服务配置不完整，请联系管理员。',
+  'LED pool, BOB resolver, and intermediary validator are required':
     '账簿服务配置不完整，请联系管理员。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',

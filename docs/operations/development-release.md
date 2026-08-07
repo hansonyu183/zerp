@@ -20,19 +20,21 @@ make pre-push
 - 契约、SQL/迁移、依赖、运行配置、跨端、E2E 工具及未知变更继续运行后端全量集成/race 与适用的隔离全栈 E2E；
 - 单元测试-only 只运行所属端门禁，E2E-only 运行隔离 E2E，二者都不部署应用预览。
 
+`scripts/change-impact.sh --checks` 还会输出 `frontend_full`、`backend_deps`、`api_image` 和 `web_image`：`frontend_full` 控制完整前端门禁，`backend_deps` 标记后端依赖文件变化；所有后端源码 PR 都会校验模块完整性。后两项只在对应镜像真实输入变化或 `main` 发布 PR 时开启。这样 Draft/Ready 分层不会因为文档、验证工具或未变化的一侧而重复构建镜像。
+
 前端生产依赖审计只在 workspace、锁文件或前端依赖清单变化时运行；普通前端源码变化继续运行 lint、覆盖率和构建，但不重复执行只依赖锁文件的审计。后端数据库门禁会从上一迁移版本加载 `backend/db/migration-tests/<version>_{before,after}.sql` 夹具后升级到最新版本；每个新迁移必须同时提供对应升级夹具，不能只证明空库可迁移。
 
 `make pre-push-plan` 只显示将执行的阶段和预览要求；需要忽略细分结果并保守执行全部门禁时运行 `PRE_PUSH_FULL=1 make pre-push`。任何失败都必须修复并形成新提交，不得推送红色分支。
 
-本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 `backend/Dockerfile.ci` 把 Go module 下载固化为只由依赖文件失效的可导出镜像层，并在单个构建层内连续产出全部后端二进制，再由 GitHub Actions 层缓存跨 runner 复用；这种结构不依赖无法直接导出的 BuildKit cache mount，也没有额外缓存回写尾巴。CI 一次安装 Chromium、构建与生产镜像内容对齐的 API/Web 镜像并启动隔离全栈，然后以单 worker 依次运行桌面和手机 Playwright 项目，避免重复构建和共享数据库并发污染。验证工具会拒绝 CI 镜像的二进制集合、运行时阶段或依赖层约定与标准约定漂移。CI 重试后通过的 flaky 用例按失败处理；失败时保留 Playwright HTML、trace、截图和测试结果 14 天。
+E2E 只有一条原生路径：使用一次性 PostgreSQL 容器和本机 Go API、Web 进程启动完整隔离栈，再由 Playwright 使用 3 个 worker 并行运行桌面和手机项目；修改系统级共享状态的用例单独串行。E2E 不再构建或依赖专用 CI Dockerfile，也不把容器镜像缓存当作测试结果。后端集成测试复用模板库准备的数据库夹具，并行运行相互独立的测试包；共享状态的场景必须显式串行化，避免并发污染。CI 重试后通过的 flaky 用例按失败处理；失败时保留 Playwright HTML、trace、截图和测试结果 14 天。
 
 本地门禁默认比较最新 `origin/dev`。通过后推送分支并创建目标为 `dev` 的 Draft PR；有依赖的后续分支等前置 PR 合并后基于最新 `dev` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `dev` ancestry、分支没有 merge commit、其他未合并 PR head 和检查矩阵，再决定是否启动重任务。禁止先创建 PR，再因分支落后执行 rebase 和强推。只有 head 恰好为 `dev` 的汇总发布 PR 才能以 `main` 为目标；发布前需要比较生产差异时显式运行 `PRE_PUSH_BASE_REF=origin/main make pre-push-plan` 和 `PRE_PUSH_BASE_REF=origin/main make pre-push`。
 
-应用变更的 Draft PR 只运行聚焦门禁，延后后端测试与隔离全栈 E2E；此时独立的 `full-validation` 检查按设计保持失败，明确表示尚不可合并。Draft 创建后立即请求 Codex Review，并在同一等待周期内持续检查 required checks、新增 review、未解决 review threads 和分支是否落后于 `dev`。出现可执行意见时立即停止等待旧 CI，转回或保持 Draft，修复并补充回归测试后推送；`cancel-in-progress` 会取消同一 PR ref 的过期 run。全部可执行意见和 conversation 解决、再次确认分支基于最新 `dev` 后，最后才转为 Ready。普通前端源码的最终 Ready head 运行一次完整 E2E；登录、路由、契约、迁移、依赖、跨端和其他高风险变更继续使用其完整矩阵。Ready 后如需再提交，先转回 Draft 处理并重新请求 Review，只等待最终版本的门禁；禁止在 CI 全绿后才首次读取 review threads。
+应用变更分 Draft/Ready 两层：Draft 只运行格式、静态检查、聚焦单元测试、前端构建和可静态验证的契约/流程检查，延后后端集成/race、完整前端覆盖率和隔离全栈 E2E；`full-validation` 按设计保持失败，明确表示尚不可合并。Draft 创建后立即请求 Codex Review，并在同一等待周期内持续检查 required checks、新增 review、未解决 review threads 和分支是否落后于 `dev`。出现可执行意见时立即停止等待旧 CI，转回或保持 Draft，修复并补充回归测试后推送；`cancel-in-progress` 会取消同一 PR ref 的过期 run。全部可执行意见和 conversation 解决、再次确认分支基于最新 `dev` 后，最后才转为 Ready。Ready head 才运行完整前端覆盖率、后端模板库并行集成/race 及一次原生全栈 E2E；登录、路由、契约、迁移、依赖、跨端和其他高风险变更继续使用其完整矩阵。Ready 后如需再提交，先转回 Draft 处理并重新请求 Review，只等待最终版本的门禁；禁止在 CI 全绿后才首次读取 review threads。
 
 文档和普通验证/发布工具变更不属于应用影响：无论 Draft 或 Ready，都只运行文档格式、actionlint、ShellCheck、流程自检以及变更直接要求的容器配置检查，`full-validation` 聚合这些轻量结果后通过，不启动后端集成/race、应用构建或隔离全栈 E2E。需要验证完整工作流编排时使用 `workflow_dispatch` 明确触发一次全套检查，不把该验证扩散为流程类 PR 的固定合并成本。
 
-开发 PR 当前 head 在 Ready 状态下运行的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必须全部成功，随后才能使用 squash merge 人工合入 `dev`。合并后 `dev` 门禁验证当前 `dev` 提交与 PR head 的 Git tree 一致并复用这些成功检查；需要固定预览时，从准确的 `dev` 提交手动执行：
+开发 PR 当前 head 在 Ready 状态下运行的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `full-validation` 必须全部成功，随后才能使用 squash merge 人工合入 `dev`。普通文档、验证工具和单元测试-only 变更不构建 API/Web 镜像；应用 PR 仅在真实镜像输入变化时设置 `api_image` 或 `web_image` 并构建对应镜像。合并后 `dev` 门禁验证当前 `dev` 提交与 PR head 的 Git tree 一致并复用这些成功检查；需要固定预览时，从准确的 `dev` 提交手动执行：
 
 ```bash
 make preview-deploy PREVIEW_REF=<dev-full-sha>
@@ -51,7 +53,7 @@ make preview-status
 
 1. Cloudflare Pages Git 集成构建并发布同一 `main` commit；
 2. 本机发布代理确认 `main` 已复用的五项 PR 检查和 `Cloudflare Pages` 全部成功；
-3. 从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；
+3. 仅 `main` 发布 PR（或 API/Web 镜像输入发生变化）才从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；文档、验证工具和 native preview 不构建生产镜像；
 4. 备份 PostgreSQL、附件及上一版发布清单；
 5. 运行向后兼容的 Goose migration；
 6. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；

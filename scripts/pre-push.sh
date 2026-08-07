@@ -75,9 +75,13 @@ if [ "${PRE_PUSH_FULL:-0}" = "1" ]; then
   contracts=1
   frontend=1
   frontend_audit=1
+  frontend_full=1
   backend=1
   backend_full=1
+  backend_deps=1
   containers=1
+  api_image=1
+  web_image=1
   e2e=1
   local_e2e=1
   preview=1
@@ -90,9 +94,13 @@ print_plan() {
     printf '  contracts: %s\n' "${contracts}"
     printf '  frontend: %s\n' "${frontend}"
     printf '  frontend dependency audit: %s\n' "${frontend_audit}"
+    printf '  frontend full Draft gate: %s\n' "${frontend_full}"
     printf '  backend: %s\n' "${backend}"
     printf '  backend full integration/race: %s\n' "${backend_full}"
+    printf '  backend dependency integrity: %s\n' "${backend_deps}"
     printf '  containers: %s\n' "${containers}"
+    printf '  API image: %s\n' "${api_image}"
+    printf '  Web image: %s\n' "${web_image}"
     printf '  PR E2E: %s\n' "${e2e}"
     printf '  local E2E: %s\n' "${local_e2e}"
     printf '  fixed preview after green CI: %s\n' "${preview}"

@@ -15,25 +15,6 @@ if GITHUB_BASE_REF=main ZERP_PR_HEAD_REF=feature scripts/verify-pr-base.sh >/dev
   exit 1
 fi
 
-standard_runtime=$(sed -n '/^FROM alpine:3\.23$/,$p' backend/Dockerfile)
-ci_runtime=$(sed -n '/^FROM alpine:3\.23$/,$p' backend/Dockerfile.ci)
-test "${standard_runtime}" = "${ci_runtime}" || {
-  echo "backend/Dockerfile.ci runtime stage drifted from backend/Dockerfile" >&2
-  exit 1
-}
-standard_binaries=$(sed -n 's#.*-o \(/out/[^ ]*\).*#\1#p' backend/Dockerfile | sort)
-ci_binaries=$(sed -n 's#.*-o \(/out/[^ ]*\).*#\1#p' backend/Dockerfile.ci | sort)
-test "${standard_binaries}" = "${ci_binaries}" || {
-  echo "backend/Dockerfile.ci binaries drifted from backend/Dockerfile" >&2
-  exit 1
-}
-if grep -q -- '--mount=type=cache' backend/Dockerfile.ci; then
-  echo "backend/Dockerfile.ci cache mounts are not exportable by the GHA layer cache" >&2
-  exit 1
-fi
-grep -q '^RUN go mod download' backend/Dockerfile.ci
-test "$(grep -c '^RUN CGO_ENABLED=0 GOOS=linux go build' backend/Dockerfile.ci)" = 1
-
 system_user_id=$(sed -n 's/^[[:space:]]*UserID[[:space:]]*=[[:space:]]*"\([^"]*\)"/\1/p' \
   backend/internal/platform/systemidentity/identity.go)
 test -n "${system_user_id}"
@@ -155,12 +136,100 @@ assert_checks() {
   expected=$1
   shift
   actual=$(printf '%s\n' "$@" | scripts/change-impact.sh --checks --paths)
+  actual=$(printf '%s\n' "${actual}" | grep -E \
+    '^(impact|contracts|frontend|frontend_audit|backend|backend_full|containers|e2e|local_e2e|preview)=')
   test "${actual}" = "${expected}" || {
     echo "unexpected check matrix for: $*" >&2
     printf 'expected:\n%s\nactual:\n%s\n' "${expected}" "${actual}" >&2
     exit 1
   }
 }
+
+# Keep the image/dependency dimensions explicit even while the workflow grows
+# its older check fields.  These values are consumed by CI to avoid rebuilding
+# unrelated frontend/backend images or dependency caches.
+assert_matrix_fields() {
+  expected=$1
+  shift
+  actual=$(printf '%s\n' "$@" | scripts/change-impact.sh --checks --paths)
+  actual=$(printf '%s\n' "${actual}" | grep -E '^(frontend_full|backend_deps|api_image|web_image)=' | sort || :)
+  expected=$(printf '%s\n' "${expected}" | sort)
+  test "${actual}" = "${expected}" || {
+    echo "unexpected extended check matrix for: $*" >&2
+    printf 'expected:\n%s\nactual:\n%s\n' "${expected}" "${actual}" >&2
+    exit 1
+  }
+}
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=0
+web_image=0" \
+  docs/operations/development-release.md
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=0
+web_image=0" \
+  frontend/src/main.ts
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=0
+web_image=0" \
+  backend/internal/httpserver/server.go
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=1
+api_image=1
+web_image=0" \
+  backend/go.mod
+
+assert_matrix_fields \
+  "frontend_full=1
+backend_deps=0
+api_image=0
+web_image=1" \
+  frontend/package.json
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=1
+web_image=0" \
+  backend/Dockerfile
+
+assert_matrix_fields \
+  "frontend_full=1
+backend_deps=0
+api_image=0
+web_image=1" \
+  frontend/Dockerfile
+
+assert_matrix_fields \
+  "frontend_full=1
+backend_deps=0
+api_image=0
+web_image=0" \
+  contracts/openapi/openapi.yaml
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=1
+web_image=0" \
+  backend/db/migrations/00001_initial.sql
+
+assert_matrix_fields \
+  "frontend_full=0
+backend_deps=0
+api_image=0
+web_image=0" \
+  backend/Dockerfile.ci backend/scripts/run-integration-tests.sh
 
 assert_checks \
   "impact=docs
@@ -280,17 +349,17 @@ preview=0" \
   scripts/e2e.sh
 
 assert_checks \
-  "impact=validation
+  "impact=application
 contracts=0
 frontend=0
 frontend_audit=0
-backend=0
-backend_full=0
+backend=1
+backend_full=1
 containers=1
 e2e=0
 local_e2e=0
 preview=0" \
-  backend/Dockerfile.ci
+  backend/Dockerfile.ci backend/scripts/run-integration-tests.sh
 
 assert_checks \
   "impact=validation

@@ -26,9 +26,13 @@ jobs:
       contracts: ${{ steps.change_impact.outputs.contracts }}
       frontend: ${{ steps.change_impact.outputs.frontend }}
       frontend_audit: ${{ steps.change_impact.outputs.frontend_audit }}
+      frontend_full: ${{ steps.change_impact.outputs.frontend_full }}
       backend: ${{ steps.change_impact.outputs.backend }}
       backend_full: ${{ steps.change_impact.outputs.backend_full }}
+      backend_deps: ${{ steps.change_impact.outputs.backend_deps }}
       containers: ${{ steps.change_impact.outputs.containers }}
+      api_image: ${{ steps.change_impact.outputs.api_image }}
+      web_image: ${{ steps.change_impact.outputs.web_image }}
       e2e: ${{ steps.change_impact.outputs.e2e }}
       local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
       preview: ${{ steps.change_impact.outputs.preview }}
@@ -54,14 +58,25 @@ jobs:
               diff_range="$BASE_SHA...$HEAD_SHA"
             fi
             checks=$(scripts/change-impact.sh --checks "$diff_range")
+            if [ "$PR_BASE_REF" = "main" ]; then
+              checks=$(printf '%s\n' "$checks" | sed \
+                -e 's/^frontend_full=.*/frontend_full=1/' \
+                -e 's/^containers=.*/containers=1/' \
+                -e 's/^api_image=.*/api_image=1/' \
+                -e 's/^web_image=.*/web_image=1/')
+            fi
           else
             checks='impact=application
           contracts=1
           frontend=1
           frontend_audit=1
+          frontend_full=1
           backend=1
           backend_full=1
+          backend_deps=1
           containers=1
+          api_image=1
+          web_image=1
           e2e=1
           local_e2e=1
           preview=1'
@@ -162,6 +177,8 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.frontend == '1'
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
         if: >-
           github.event_name != 'push' &&
@@ -181,7 +198,27 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.frontend == '1'
-        run: pnpm --filter @zerp/frontend check:core
+        env:
+          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          FRONTEND_FULL: ${{ needs.merge_evidence.outputs.frontend_full }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$FULL_VALIDATION" = "1" ] || [ "$FRONTEND_FULL" = "1" ]; then
+            pnpm --filter @zerp/frontend check:core
+          else
+            pnpm --filter @zerp/frontend lint
+            pnpm --filter @zerp/frontend format:check
+            pnpm --filter @zerp/frontend check:deployment-config
+            mapfile -t changed_files < <(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- \
+              frontend/src frontend/tests/unit | sed -n 's#^frontend/##p')
+            if [ "${#changed_files[@]}" -gt 0 ]; then
+              pnpm --dir frontend exec vitest related --run "${changed_files[@]}"
+            else
+              pnpm --filter @zerp/frontend test:unit
+            fi
+            pnpm --filter @zerp/frontend build
+          fi
       - name: Verify Cloudflare Pages compatibility build
         if: >-
           github.event_name != 'push' &&
@@ -207,8 +244,7 @@ jobs:
     name: backend-test
     if: >-
       github.event_name != 'push' &&
-      needs.merge_evidence.outputs.backend == '1' &&
-      needs.merge_evidence.outputs.full_validation == '1'
+      needs.merge_evidence.outputs.backend == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -239,19 +275,40 @@ jobs:
       - name: Run focused or full backend gates
         env:
           BACKEND_FULL: ${{ needs.merge_evidence.outputs.backend_full }}
+          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
         run: |
-          if [ "$BACKEND_FULL" = "1" ]; then
+          if [ "$BACKEND_FULL" = "1" ] && [ "$FULL_VALIDATION" = "1" ]; then
             make -C backend ENV_FILE=.env.ci quality-test
-            make -C backend quality-vet-build quality-race
+            make -C backend quality-vet-build
           else
-            make -C backend test-unit quality-vet-build
+            make -C backend quality-fast
           fi
+
+  backend_race:
+    name: backend-race
+    if: >-
+      github.event_name != 'push' &&
+      needs.merge_evidence.outputs.backend == '1' &&
+      needs.merge_evidence.outputs.backend_full == '1' &&
+      needs.merge_evidence.outputs.full_validation == '1'
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Run backend race and coverage gate
+        run: make -C backend quality-race
 
   backend_static:
     name: backend-static
     if: >-
       github.event_name != 'push' &&
-      needs.merge_evidence.outputs.backend == '1'
+      needs.merge_evidence.outputs.backend == '1' &&
+      needs.merge_evidence.outputs.full_validation == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -264,7 +321,14 @@ jobs:
             backend/go.sum
             backend/tools/go.sum
       - name: Run backend formatting, static and security gates
-        run: make -C backend quality-format quality-staticcheck quality-vuln
+        env:
+          BACKEND_DEPS: ${{ needs.merge_evidence.outputs.backend_deps }}
+        run: |
+          make -C backend quality-format-fast
+          if [ "$BACKEND_DEPS" = "1" ]; then
+            make -C backend quality-modules
+          fi
+          make -C backend quality-staticcheck quality-vuln
 
   backend:
     name: backend
@@ -272,6 +336,7 @@ jobs:
     needs:
       - merge_evidence
       - backend_test
+      - backend_race
       - backend_static
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -281,24 +346,33 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BACKEND_REQUIRED: ${{ needs.merge_evidence.outputs.backend }}
           FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          BACKEND_FULL: ${{ needs.merge_evidence.outputs.backend_full }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
           TEST_RESULT: ${{ needs.backend_test.result }}
+          RACE_RESULT: ${{ needs.backend_race.result }}
           STATIC_RESULT: ${{ needs.backend_static.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
           if [ "$EVENT_NAME" != "push" ] && [ "$BACKEND_REQUIRED" = "1" ]; then
-            test "$STATIC_RESULT" = "success"
+            test "$TEST_RESULT" = "success"
             if [ "$FULL_VALIDATION" = "1" ]; then
-              test "$TEST_RESULT" = "success"
+              test "$STATIC_RESULT" = "success"
+              if [ "$BACKEND_FULL" = "1" ]; then
+                test "$RACE_RESULT" = "success"
+              else
+                test "$RACE_RESULT" = "skipped"
+              fi
             else
-              test "$TEST_RESULT" = "skipped"
+              test "$STATIC_RESULT" = "skipped"
+              test "$RACE_RESULT" = "skipped"
             fi
           fi
       - name: Reuse successful PR backend check
         if: github.event_name == 'push'
         run: echo "Reused merged PR backend result"
 
-  containers:
+  container_config:
+    name: container-config
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -324,6 +398,86 @@ jobs:
         if: github.event_name == 'push'
         run: echo "Reused merged PR containers result"
 
+  api_image:
+    name: api-image
+    if: >-
+      github.event_name != 'push' &&
+      needs.merge_evidence.outputs.api_image == '1' &&
+      needs.merge_evidence.outputs.full_validation == '1'
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: false
+          cache-from: type=gha,scope=zerp-api-image
+          cache-to: type=gha,mode=max,scope=zerp-api-image
+
+  web_image:
+    name: web-image
+    if: >-
+      github.event_name != 'push' &&
+      needs.merge_evidence.outputs.web_image == '1' &&
+      needs.merge_evidence.outputs.full_validation == '1'
+    needs: merge_evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: false
+          cache-from: type=gha,scope=zerp-web-image
+          cache-to: type=gha,mode=max,scope=zerp-web-image
+
+  containers:
+    name: containers
+    if: always()
+    needs:
+      - merge_evidence
+      - container_config
+      - api_image
+      - web_image
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require relevant container gates
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          API_IMAGE_REQUIRED: ${{ needs.merge_evidence.outputs.api_image }}
+          WEB_IMAGE_REQUIRED: ${{ needs.merge_evidence.outputs.web_image }}
+          EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
+          CONFIG_RESULT: ${{ needs.container_config.result }}
+          API_IMAGE_RESULT: ${{ needs.api_image.result }}
+          WEB_IMAGE_RESULT: ${{ needs.web_image.result }}
+        run: |
+          test "$EVIDENCE_RESULT" = "success"
+          test "$CONFIG_RESULT" = "success"
+          if [ "$EVENT_NAME" != "push" ] && [ "$FULL_VALIDATION" = "1" ]; then
+            if [ "$API_IMAGE_REQUIRED" = "1" ]; then
+              test "$API_IMAGE_RESULT" = "success"
+            else
+              test "$API_IMAGE_RESULT" = "skipped"
+            fi
+            if [ "$WEB_IMAGE_REQUIRED" = "1" ]; then
+              test "$WEB_IMAGE_RESULT" = "success"
+            else
+              test "$WEB_IMAGE_RESULT" = "skipped"
+            fi
+          else
+            test "$API_IMAGE_RESULT" = "skipped"
+            test "$WEB_IMAGE_RESULT" = "skipped"
+          fi
+
   e2e:
     name: e2e
     needs: merge_evidence
@@ -348,57 +502,49 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: actions/setup-go@v6
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1'
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
       - if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
           needs.merge_evidence.outputs.full_validation == '1'
         run: pnpm install --frozen-lockfile
-      - name: Install Chromium once
+      - name: Cache Playwright Chromium
+        id: playwright-cache
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
           needs.merge_evidence.outputs.full_validation == '1'
-        run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
-      - uses: docker/setup-buildx-action@v4
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
-      - name: Build and cache E2E backend image once
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
-        uses: docker/build-push-action@v7
+        uses: actions/cache@v5
         with:
-          context: backend
-          file: backend/Dockerfile.ci
-          load: true
-          tags: zerp-e2e-api:${{ github.sha }}
-          cache-from: type=gha,scope=zerp-e2e-backend
-          cache-to: type=gha,mode=max,scope=zerp-e2e-backend
-      - name: Build and cache E2E web image once
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Chromium system dependencies
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
           needs.merge_evidence.outputs.full_validation == '1'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: frontend/Dockerfile
-          load: true
-          tags: zerp-e2e-web:${{ github.sha }}
-          cache-from: type=gha,scope=zerp-e2e-web
-          cache-to: type=gha,mode=max,scope=zerp-e2e-web
+        run: pnpm --filter @zerp/frontend exec playwright install-deps chromium
+      - name: Install Chromium
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.e2e == '1' &&
+          needs.merge_evidence.outputs.full_validation == '1' &&
+          steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @zerp/frontend exec playwright install chromium
       - name: Run desktop and mobile against one full stack
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
           needs.merge_evidence.outputs.full_validation == '1'
-        env:
-          E2E_SKIP_IMAGE_BUILD: '1'
-          ZERP_API_IMAGE: zerp-e2e-api:${{ github.sha }}
-          ZERP_WEB_IMAGE: zerp-e2e-web:${{ github.sha }}
         run: make e2e
       - name: Upload Playwright failure evidence
         if: >-

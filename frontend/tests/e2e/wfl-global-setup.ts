@@ -1,15 +1,9 @@
 import { randomBytes } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { mkdir, rmdir } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { request, type APIRequestContext } from '@playwright/test'
 import type { ClosingView } from '../../src/pages/led/opening/types'
-import {
-  e2eEnv,
-  wflBootstrapEnabled,
-  wflOperatorAuthStatePath,
-  wflBootstrapStatePath,
-  type WflBootstrapState,
-} from './wfl-runtime'
 
 interface Envelope<T> {
   code: number | string
@@ -62,6 +56,30 @@ interface VouDocumentView {
   data: {
     productLines?: Array<{ lineId: string }>
   }
+}
+
+export interface E2ECredentials {
+  username: string
+  password: string
+}
+
+export interface WflFixtures {
+  customer: string
+  supplier: string
+  employee: string
+  solventProduct: string
+  resinProduct: string
+  platform: string
+  vehicle: string
+  warehouse: string
+  fundAccount: string
+}
+
+export interface WflWorkerState {
+  operator: E2ECredentials
+  reviewer: E2ECredentials
+  fixtures: WflFixtures
+  storageState: Awaited<ReturnType<APIRequestContext['storageState']>>
 }
 
 async function ensureLedgerReady(api: RealApi): Promise<void> {
@@ -264,44 +282,107 @@ async function seedInventoryThroughLifecycle(
   })
 }
 
-export default async function globalSetup(): Promise<void> {
-  if (!wflBootstrapEnabled()) return
-
-  const baseURL = e2eEnv('E2E_API_BASE_URL')
-  const username = e2eEnv('E2E_USERNAME')
-  const password = e2eEnv('E2E_PASSWORD')
-  if (!baseURL || !username || !password) {
-    throw new Error(
-      'E2E_WFL_BOOTSTRAP=true 时必须配置隔离后端地址和管理员账号。',
-    )
+async function withLedgerProvisioningLock<T>(
+  work: () => Promise<T>,
+): Promise<T> {
+  const runId = (process.env.E2E_RUN_ID ?? 'local').replaceAll(
+    /[^A-Za-z0-9_-]/g,
+    '_',
+  )
+  const lockDirectory = join(tmpdir(), `zerp-e2e-ledger-${runId}.lock`)
+  const deadline = Date.now() + 120_000
+  for (;;) {
+    try {
+      await mkdir(lockDirectory)
+      break
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        error.code !== 'EEXIST'
+      ) {
+        throw error
+      }
+      if (Date.now() >= deadline) {
+        throw new Error('等待 E2E 共享账本初始化锁超时。', {
+          cause: error,
+        })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
   }
-
-  const operatorSession = await signIn(baseURL, username, password)
-  const contexts: APIRequestContext[] = [operatorSession.context]
   try {
-    const permissions = await allPermissions(operatorSession.api)
-    const selected = permissions.filter(
+    return await work()
+  } finally {
+    await rmdir(lockDirectory)
+  }
+}
+
+export async function createWflWorkerState(options: {
+  baseURL: string
+  bootstrap: E2ECredentials
+  parallelIndex: number
+}): Promise<WflWorkerState> {
+  const bootstrapSession = await signIn(
+    options.baseURL,
+    options.bootstrap.username,
+    options.bootstrap.password,
+  )
+  const contexts: APIRequestContext[] = [bootstrapSession.context]
+  try {
+    const permissions = await allPermissions(bootstrapSession.api)
+    const enabledPermissions = permissions.filter(
+      (item) => item.status === 'ENABLED',
+    )
+    const selectedReviewerPermissions = enabledPermissions.filter(
       (item) => item.status === 'ENABLED' && bobReviewerActions.has(item.path),
     )
 
     const suffix =
-      `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.toUpperCase()
+      `${options.parallelIndex.toString(36)}${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.toUpperCase()
+    const operatorPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
     const reviewerPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
-    const role = await operatorSession.api.post<RoleView>('app/role/create', {
-      code: `e2e-wfl-${suffix}`.toLowerCase(),
-      name: `E2E WFL ${suffix}`,
-      description: '隔离测试临时精确权限角色',
-      permissionIds: selected.map((item) => item.id),
+    const operatorRole = await bootstrapSession.api.post<RoleView>(
+      'app/role/create',
+      {
+        code: `e2e-operator-${suffix}`.toLowerCase(),
+        name: `E2E Operator ${suffix}`,
+        description: '隔离测试 worker 全权限操作角色',
+        permissionIds: enabledPermissions.map((item) => item.id),
+      },
+    )
+    const operatorUsername = `e2e-operator-${suffix}`.toLowerCase()
+    await bootstrapSession.api.post('app/user/create', {
+      username: operatorUsername,
+      displayName: `E2E 操作员 ${suffix}`,
+      password: operatorPassword,
+      roleIds: [operatorRole.id],
     })
+    const operatorSession = await signIn(
+      options.baseURL,
+      operatorUsername,
+      operatorPassword,
+    )
+    contexts.push(operatorSession.context)
+
+    const reviewerRole = await bootstrapSession.api.post<RoleView>(
+      'app/role/create',
+      {
+        code: `e2e-wfl-${suffix}`.toLowerCase(),
+        name: `E2E WFL ${suffix}`,
+        description: '隔离测试临时精确权限角色',
+        permissionIds: selectedReviewerPermissions.map((item) => item.id),
+      },
+    )
     const reviewerUsername = `e2e-wfl-${suffix}`.toLowerCase()
-    await operatorSession.api.post('app/user/create', {
+    await bootstrapSession.api.post('app/user/create', {
       username: reviewerUsername,
       displayName: `E2E WFL 复核 ${suffix}`,
       password: reviewerPassword,
-      roleIds: [role.id],
+      roleIds: [reviewerRole.id],
     })
     const reviewerSession = await signIn(
-      baseURL,
+      options.baseURL,
       reviewerUsername,
       reviewerPassword,
     )
@@ -402,16 +483,22 @@ export default async function globalSetup(): Promise<void> {
       },
     )
 
-    await ensureLedgerReady(operatorSession.api)
-    await seedInventoryThroughLifecycle(
-      operatorSession.api,
-      supplier,
-      employee,
-      warehouse,
-      solventProduct,
-    )
+    await withLedgerProvisioningLock(async () => {
+      await ensureLedgerReady(operatorSession.api)
+      await seedInventoryThroughLifecycle(
+        operatorSession.api,
+        supplier,
+        employee,
+        warehouse,
+        solventProduct,
+      )
+    })
 
-    const state: WflBootstrapState = {
+    return {
+      operator: {
+        username: operatorUsername,
+        password: operatorPassword,
+      },
       reviewer: {
         username: reviewerUsername,
         password: reviewerPassword,
@@ -427,15 +514,8 @@ export default async function globalSetup(): Promise<void> {
         warehouse: warehouse.code,
         fundAccount: fundAccount.code,
       },
+      storageState: await operatorSession.context.storageState(),
     }
-    await mkdir(dirname(wflBootstrapStatePath), { recursive: true })
-    await operatorSession.context.storageState({
-      path: wflOperatorAuthStatePath,
-    })
-    await writeFile(wflBootstrapStatePath, `${JSON.stringify(state)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    })
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()))
   }

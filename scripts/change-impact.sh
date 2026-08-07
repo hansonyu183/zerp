@@ -44,9 +44,13 @@ impact=docs
 contracts=0
 frontend=0
 frontend_audit=0
+frontend_full=0
 backend=0
 backend_full=0
+backend_deps=0
 containers=0
+api_image=0
+web_image=0
 e2e=0
 local_e2e=0
 preview=0
@@ -59,6 +63,7 @@ mark_full() {
   mark_application
   contracts=1
   frontend=1
+  frontend_full=1
   backend=1
   backend_full=1
   containers=1
@@ -112,6 +117,7 @@ if [ -n "${changed_files}" ]; then
         backend=1
         backend_full=1
         containers=1
+        api_image=1
         e2e=1
         local_e2e=1
         preview=1
@@ -121,6 +127,8 @@ if [ -n "${changed_files}" ]; then
         mark_application
         frontend=1
         frontend_audit=1
+        frontend_full=1
+        web_image=1
         containers=1
         e2e=1
         local_e2e=1
@@ -130,6 +138,8 @@ if [ -n "${changed_files}" ]; then
       .nvmrc | tools/typescript-native/*)
         mark_application
         frontend=1
+        frontend_full=1
+        web_image=1
         containers=1
         e2e=1
         local_e2e=1
@@ -140,6 +150,8 @@ if [ -n "${changed_files}" ]; then
         mark_application
         backend=1
         backend_full=1
+        backend_deps=1
+        api_image=1
         containers=1
         e2e=1
         local_e2e=1
@@ -153,8 +165,45 @@ if [ -n "${changed_files}" ]; then
         containers=1
         ;;
 
-      compose.yaml | compose.dev.yaml | .dockerignore | frontend/Dockerfile | \
-        backend/Dockerfile)
+      backend/scripts/run-integration-tests.sh)
+        mark_application
+        backend=1
+        backend_full=1
+        ;;
+
+      .dockerignore)
+        mark_application
+        containers=1
+        api_image=1
+        web_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      frontend/Dockerfile)
+        mark_application
+        frontend=1
+        frontend_full=1
+        containers=1
+        web_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      backend/Dockerfile)
+        mark_application
+        backend=1
+        backend_full=1
+        containers=1
+        api_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      compose.yaml | compose.dev.yaml)
         mark_application
         containers=1
         e2e=1
@@ -234,6 +283,7 @@ if [ -n "${changed_files}" ]; then
       frontend/vite.config.ts | frontend/nginx.conf | frontend/tsconfig*.json)
         mark_application
         frontend=1
+        frontend_full=1
         containers=1
         e2e=1
         local_e2e=1
@@ -261,10 +311,16 @@ if [ -n "${changed_files}" ]; then
 
       backend/*)
         mark_full
+        backend_deps=1
+        api_image=1
+        web_image=1
         ;;
 
       *)
         mark_full
+        backend_deps=1
+        api_image=1
+        web_image=1
         ;;
     esac
   done
@@ -284,9 +340,13 @@ if [ "${output}" = "checks" ]; then
     "contracts=${contracts}" \
     "frontend=${frontend}" \
     "frontend_audit=${frontend_audit}" \
+    "frontend_full=${frontend_full}" \
     "backend=${backend}" \
     "backend_full=${backend_full}" \
+    "backend_deps=${backend_deps}" \
     "containers=${containers}" \
+    "api_image=${api_image}" \
+    "web_image=${web_image}" \
     "e2e=${e2e}" \
     "local_e2e=${local_e2e}" \
     "preview=${preview}"

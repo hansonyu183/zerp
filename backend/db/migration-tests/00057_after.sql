@@ -39,16 +39,6 @@ BEGIN
         RAISE EXCEPTION 'other payable permissions are incomplete';
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM app_business_menu_items
-        WHERE route_key='vou/intermediary-calculation'
-    ) OR NOT EXISTS (
-        SELECT 1 FROM app_business_menu_items
-        WHERE route_key='led/other-payable'
-    ) THEN
-        RAISE EXCEPTION 'intermediary calculation menu routes are incomplete';
-    END IF;
-
     BEGIN
         INSERT INTO vou_documents(
             id,entity,document_no,status,revision,business_date,currency,total_amount_cents,

@@ -360,16 +360,6 @@ WHERE role.code='superadmin'
        OR (permission.domain='led' AND permission.entity='other-payable'))
 ON CONFLICT DO NOTHING;
 
-INSERT INTO app_business_menu_items(
-    id,parent_id,item_type,item_level,sort_order,display_name,icon,enabled,
-    route_key,permission_code,revision,created_by,updated_by
-) VALUES
-('menu-route-intermediary-calculation','menu-group-sales','ROUTE',2,45,'居间计算','mdi-calculator-variant-outline',true,
- 'vou/intermediary-calculation','/vou/intermediary-calculation/query',1,'01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
-('menu-route-other-payable','menu-group-accounting','ROUTE',2,20,'其它应付','mdi-account-cash-outline',true,
- 'led/other-payable','/led/other-payable/query',1,'01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000')
-ON CONFLICT(id) DO NOTHING;
-
 -- +goose Down
 -- +goose StatementBegin
 DO $$

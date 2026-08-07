@@ -934,6 +934,18 @@ type LedClosingInventory struct {
 	CostAmountCents    int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
 }
 
+type LedClosingOtherPayable struct {
+	ClosingID             string `db:"closing_id" json:"closing_id"`
+	PayableCategory       string `db:"payable_category" json:"payable_category"`
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	Currency              string `db:"currency" json:"currency"`
+	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+}
+
 type LedClosingParty struct {
 	ClosingID             string `db:"closing_id" json:"closing_id"`
 	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
@@ -1172,6 +1184,8 @@ type LedPartyEntry struct {
 	CounterpartyName      string             `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string             `db:"currency" json:"currency"`
 	AmountDeltaCents      int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
+	AccountType           string             `db:"account_type" json:"account_type"`
+	PayableCategory       *string            `db:"payable_category" json:"payable_category"`
 }
 
 type MigrationWflRolePermission struct {
@@ -1475,6 +1489,63 @@ type VouFile struct {
 	StoredAt        pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy       string             `db:"created_by" json:"created_by"`
+}
+
+type VouIntermediaryCalculationBillAllocation struct {
+	DocumentID          string `db:"document_id" json:"document_id"`
+	BillLineID          string `db:"bill_line_id" json:"bill_line_id"`
+	SourceSignoffLineID string `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+}
+
+type VouIntermediaryCalculationDetail struct {
+	DocumentID     string      `db:"document_id" json:"document_id"`
+	Entity         string      `db:"entity" json:"entity"`
+	PeriodStart    pgtype.Date `db:"period_start" json:"period_start"`
+	PeriodEnd      pgtype.Date `db:"period_end" json:"period_end"`
+	SourceHash     string      `db:"source_hash" json:"source_hash"`
+	SourceSnapshot []byte      `db:"source_snapshot" json:"source_snapshot"`
+	ScriptID       string      `db:"script_id" json:"script_id"`
+	ScriptRevision int64       `db:"script_revision" json:"script_revision"`
+	ScriptName     string      `db:"script_name" json:"script_name"`
+	ScriptSource   string      `db:"script_source" json:"script_source"`
+	ScriptHash     string      `db:"script_hash" json:"script_hash"`
+	ResultSnapshot []byte      `db:"result_snapshot" json:"result_snapshot"`
+}
+
+type VouIntermediaryCalculationLine struct {
+	ID                          string  `db:"id" json:"id"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	LineNo                      int32   `db:"line_no" json:"line_no"`
+	SourceSignoffLineID         string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceCalculationDocumentID *string `db:"source_calculation_document_id" json:"source_calculation_document_id"`
+	Result                      []byte  `db:"result" json:"result"`
+	EmployeeAmountCents         int64   `db:"employee_amount_cents" json:"employee_amount_cents"`
+	IntermediaryAmountCents     int64   `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
+	RebateAmountCents           int64   `db:"rebate_amount_cents" json:"rebate_amount_cents"`
+}
+
+type VouIntermediaryCalculationSummary struct {
+	ID             string `db:"id" json:"id"`
+	DocumentID     string `db:"document_id" json:"document_id"`
+	LineNo         int32  `db:"line_no" json:"line_no"`
+	Category       string `db:"category" json:"category"`
+	PayeeEntity    string `db:"payee_entity" json:"payee_entity"`
+	PayeeObjectID  string `db:"payee_object_id" json:"payee_object_id"`
+	PayeeVersionID string `db:"payee_version_id" json:"payee_version_id"`
+	PayeeCode      string `db:"payee_code" json:"payee_code"`
+	PayeeName      string `db:"payee_name" json:"payee_name"`
+	AmountCents    int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+type VouIntermediaryScript struct {
+	ID         string             `db:"id" json:"id"`
+	Singleton  bool               `db:"singleton" json:"singleton"`
+	Revision   int64              `db:"revision" json:"revision"`
+	Name       string             `db:"name" json:"name"`
+	Source     string             `db:"source" json:"source"`
+	SourceHash string             `db:"source_hash" json:"source_hash"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy  string             `db:"updated_by" json:"updated_by"`
 }
 
 type VouInventoryCountDetail struct {
@@ -1819,6 +1890,7 @@ type VouSaleOrderDetail struct {
 	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
 	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
 	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
+	SpecialApproval                      bool    `db:"special_approval" json:"special_approval"`
 }
 
 type VouSaleOrderFormula struct {

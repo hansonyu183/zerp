@@ -267,7 +267,8 @@ WHERE status IN ('APPROVED', 'FINALIZED')
     'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
     'expense-reimbursement', 'expense-payment', 'other-income',
     'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
-    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity'
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity',
+    'intermediary-calculation'
   )
 ORDER BY posted_at, id;
 
@@ -545,7 +546,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -556,7 +557,7 @@ WHERE generation_id = sqlc.arg(generation_id)
 
 -- name: ListLedPartyEntries :many
 SELECT * FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -627,7 +628,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = sqlc.arg(generation_id)
+    WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
       AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
       AND effective_date <= sqlc.arg(as_of_date)
       AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -637,7 +638,7 @@ SELECT count(*) FROM (
 -- name: GetLedPartyBalanceAtDate :one
 SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
 FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id)
+WHERE generation_id=sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND counterparty_entity=sqlc.arg(counterparty_entity)
   AND counterparty_object_id=sqlc.arg(counterparty_object_id)
   AND currency=sqlc.arg(currency)
@@ -647,13 +648,13 @@ WHERE generation_id=sqlc.arg(generation_id)
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=sqlc.arg(generation_id)
+    WHERE writeoff.generation_id=sqlc.arg(generation_id) AND writeoff.account_type = 'TRADE'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type = 'TRADE'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency
@@ -668,7 +669,7 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date <= sqlc.arg(as_of_date)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))

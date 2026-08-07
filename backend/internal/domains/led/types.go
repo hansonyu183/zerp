@@ -10,18 +10,19 @@ const (
 	StatusActive    = "ACTIVE"
 	StatusReopening = "REOPENING"
 
-	EntityOpening   = "opening"
-	EntityClosing   = "closing"
-	EntityInventory = "inventory"
-	EntityFund      = "fund"
-	EntityParty     = "party"
-	EntityCustomer  = "customer"
-	EntitySupplier  = "supplier"
-	EntityOther     = "other"
-	EntityEmployee  = "employee"
-	EntityContainer = "container"
-	EntityAsset     = "asset"
-	EntityBill      = "bill"
+	EntityOpening      = "opening"
+	EntityClosing      = "closing"
+	EntityInventory    = "inventory"
+	EntityFund         = "fund"
+	EntityParty        = "party"
+	EntityCustomer     = "customer"
+	EntitySupplier     = "supplier"
+	EntityOther        = "other"
+	EntityEmployee     = "employee"
+	EntityContainer    = "container"
+	EntityAsset        = "asset"
+	EntityBill         = "bill"
+	EntityOtherPayable = "other-payable"
 )
 
 type ReferenceInput struct {
@@ -178,12 +179,13 @@ type ClosingHistoryView struct {
 }
 
 type QueryFilters struct {
-	DateFrom     string   `json:"dateFrom"`
-	DateTo       string   `json:"dateTo"`
-	ObjectID     string   `json:"objectId,omitempty"`
-	SourceEntity string   `json:"sourceEntity,omitempty"`
-	DocumentNo   string   `json:"documentNo,omitempty"`
-	Direction    []string `json:"direction,omitempty"`
+	DateFrom        string   `json:"dateFrom"`
+	DateTo          string   `json:"dateTo"`
+	ObjectID        string   `json:"objectId,omitempty"`
+	SourceEntity    string   `json:"sourceEntity,omitempty"`
+	DocumentNo      string   `json:"documentNo,omitempty"`
+	Direction       []string `json:"direction,omitempty"`
+	PayableCategory string   `json:"payableCategory,omitempty"`
 }
 
 type SortInput struct {
@@ -373,6 +375,7 @@ type PartyEntryView struct {
 	Counterparty     ReferenceView `json:"counterparty"`
 	Currency         string        `json:"currency"`
 	Remark           string        `json:"remark,omitempty"`
+	PayableCategory  string        `json:"payableCategory,omitempty"`
 }
 
 type ContainerEntryView struct {
@@ -411,6 +414,7 @@ type PartyBalanceView struct {
 	Currency         string        `json:"currency"`
 	BalanceType      string        `json:"balanceType"`
 	Amount           string        `json:"amount"`
+	PayableCategory  string        `json:"payableCategory,omitempty"`
 }
 
 type ContainerBalanceView struct {

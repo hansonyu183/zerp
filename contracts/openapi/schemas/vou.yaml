@@ -38,6 +38,7 @@
           'bill-issue',
           'bill-discount',
           'bill-maturity',
+          'intermediary-calculation',
         ],
     },
   'VouCreatableEntity':
@@ -75,7 +76,322 @@
           'bill-issue',
           'bill-discount',
           'bill-maturity',
+          'intermediary-calculation',
         ],
+    },
+  'VouIntermediaryReference':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'entity':
+            {
+              'type': 'string',
+              'enum': ['customer', 'employee', 'other-party', 'product'],
+            },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'VouIntermediarySourceLine':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceSignoffLineId',
+          'sourceKind',
+          'signoffDocumentId',
+          'signoffDocumentNo',
+          'signoffDate',
+          'orderDocumentId',
+          'orderDocumentNo',
+          'orderDate',
+          'dueDate',
+          'collectionDate',
+          'collectionDelayDays',
+          'customer',
+          'salesperson',
+          'product',
+          'productKind',
+          'signedQuantity',
+          'pricingQuantity',
+          'barrelQuantity',
+          'unitPrice',
+          'referenceUnitPrice',
+          'settlementSurcharge',
+          'rebateUnitPrice',
+          'lineAmount',
+          'settlementTermCode',
+          'specialApproval',
+          'adjustmentEmployeeAmount',
+          'adjustmentIntermediaryAmount',
+          'adjustmentRebateAmount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceSignoffLineId': { 'type': 'string' },
+          'sourceKind':
+            { 'type': 'string', 'enum': ['SALE', 'RETURN_ADJUSTMENT'] },
+          'signoffDocumentId': { 'type': 'string' },
+          'signoffDocumentNo': { 'type': 'string' },
+          'signoffDate': { 'type': 'string', 'format': 'date' },
+          'orderDocumentId': { 'type': 'string' },
+          'orderDocumentNo': { 'type': 'string' },
+          'orderDate': { 'type': 'string', 'format': 'date' },
+          'dueDate': { 'type': 'string', 'format': 'date' },
+          'collectionDate': { 'type': 'string', 'format': 'date' },
+          'collectionDelayDays': { 'type': 'integer', 'minimum': 0 },
+          'customer': { '$ref': '#/VouIntermediaryReference' },
+          'salesperson': { '$ref': '#/VouIntermediaryReference' },
+          'intermediary': { '$ref': '#/VouIntermediaryReference' },
+          'product': { '$ref': '#/VouIntermediaryReference' },
+          'productKind': { 'type': 'string' },
+          'signedQuantity': { 'type': 'string' },
+          'pricingQuantity': { 'type': 'string' },
+          'barrelQuantity': { 'type': 'string' },
+          'unitPrice': { 'type': 'string' },
+          'referenceUnitPrice': { 'type': 'string' },
+          'settlementSurcharge': { 'type': 'string' },
+          'rebateUnitPrice': { 'type': 'string' },
+          'lineAmount': { 'type': 'string' },
+          'settlementTermCode': { 'type': 'string' },
+          'specialApproval': { 'type': 'boolean' },
+          'returnDocumentNos':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
+          'adjustmentEmployeeAmount': { 'type': 'string' },
+          'adjustmentIntermediaryAmount': { 'type': 'string' },
+          'adjustmentRebateAmount': { 'type': 'string' },
+        },
+    },
+  'VouIntermediarySourceBill':
+    {
+      'type': 'object',
+      'required':
+        [
+          'billLineId',
+          'receiptDocumentId',
+          'receiptDocumentNo',
+          'receiptDate',
+          'customer',
+          'salesperson',
+          'billType',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'costDays',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billLineId': { 'type': 'string' },
+          'receiptDocumentId': { 'type': 'string' },
+          'receiptDocumentNo': { 'type': 'string' },
+          'receiptDate': { 'type': 'string', 'format': 'date' },
+          'customer': { '$ref': '#/VouIntermediaryReference' },
+          'salesperson': { '$ref': '#/VouIntermediaryReference' },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'costDays': { 'type': 'integer', 'minimum': 0 },
+        },
+    },
+  'VouIntermediaryCalculationSource':
+    {
+      'type': 'object',
+      'required': ['periodStart', 'periodEnd', 'currency', 'lines', 'bills'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'periodStart': { 'type': 'string', 'format': 'date' },
+          'periodEnd': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'enum': ['CNY'] },
+          'lines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySourceLine' },
+            },
+          'bills':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySourceBill' },
+            },
+        },
+    },
+  'VouIntermediaryResultLine':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceSignoffLineId',
+          'premiumUnitPrice',
+          'barrelQuantity',
+          'baseCommission',
+          'premiumCommission',
+          'lowPriceCommission',
+          'marketMaintenanceSubsidy',
+          'marketDevelopmentSubsidy',
+          'billCost',
+          'billLineIds',
+          'employeeAmount',
+          'intermediaryAmount',
+          'rebateAmount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceSignoffLineId': { 'type': 'string' },
+          'premiumUnitPrice': { 'type': 'string' },
+          'barrelQuantity': { 'type': 'string' },
+          'baseCommission': { 'type': 'string' },
+          'premiumCommission': { 'type': 'string' },
+          'lowPriceCommission': { 'type': 'string' },
+          'marketMaintenanceSubsidy': { 'type': 'string' },
+          'marketDevelopmentSubsidy': { 'type': 'string' },
+          'billCost': { 'type': 'string' },
+          'billLineIds':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
+          'employeeAmount': { 'type': 'string' },
+          'intermediaryAmount': { 'type': 'string' },
+          'rebateAmount': { 'type': 'string' },
+          'note': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouIntermediarySummary':
+    {
+      'type': 'object',
+      'required': ['payee', 'category', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'payee': { '$ref': '#/VouIntermediaryReference' },
+          'category':
+            {
+              'type': 'string',
+              'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+            },
+          'amount': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryCalculationResult':
+    {
+      'type': 'object',
+      'required': ['lines', 'summaries'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'lines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediaryResultLine' },
+            },
+          'summaries':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySummary' },
+            },
+        },
+    },
+  'VouIntermediaryScriptSnapshot':
+    {
+      'type': 'object',
+      'required': ['scriptId', 'revision', 'name', 'source', 'hash'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scriptId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
+          'hash': { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+        },
+    },
+  'VouIntermediaryCalculationInput':
+    {
+      'type': 'object',
+      'required': ['source', 'sourceHash', 'script', 'result'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'source': { '$ref': '#/VouIntermediaryCalculationSource' },
+          'sourceHash': { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+          'script': { '$ref': '#/VouIntermediaryScriptSnapshot' },
+          'result': { '$ref': '#/VouIntermediaryCalculationResult' },
+        },
+    },
+  'VouIntermediarySourceRequest':
+    {
+      'type': 'object',
+      'required': ['businessDate'],
+      'additionalProperties': false,
+      'properties': { 'businessDate': { 'type': 'string', 'format': 'date' } },
+    },
+  'VouIntermediarySourceResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['source', 'sourceHash'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'source': { '$ref': '#/VouIntermediaryCalculationSource' },
+                  'sourceHash':
+                    { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryScriptGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/VouIntermediaryScriptSnapshot' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryScriptSaveRequest':
+    {
+      'type': 'object',
+      'required': ['revision', 'name', 'source'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
+        },
     },
   'VouStatus':
     {
@@ -824,6 +1140,9 @@
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
                   'returnReason': { 'type': 'string' },
+                  'specialApproval': { 'type': 'boolean' },
+                  'intermediaryCalculation':
+                    { '$ref': '#/VouIntermediaryCalculationInput' },
                   'customer':
                     {
                       'type': 'object',
@@ -1190,6 +1509,9 @@
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
                   'returnReason': { 'type': 'string' },
+                  'specialApproval': { 'type': 'boolean' },
+                  'intermediaryCalculation':
+                    { '$ref': '#/VouIntermediaryCalculationInput' },
                   'customer':
                     {
                       'type': 'object',

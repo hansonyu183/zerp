@@ -64,7 +64,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if businessEntities != 8 {
 		t.Fatalf("preview BOB distinct entities = %d, want 8", businessEntities)
 	}
-	assertDistinctEntities(t, pool, "vou_documents", 14)
+	assertDistinctEntities(t, pool, "vou_documents", 15)
 	var completedWorkflows int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(DISTINCT process_type)

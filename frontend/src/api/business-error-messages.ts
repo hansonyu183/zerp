@@ -129,6 +129,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '采购订单当前未开放执行，请先在采购订单中撤销完成后重试。',
   'unfinished documents exist on or before the closing date':
     '结账日及以前仍有未完成单据，请先处理这些单据，或选择更早的结账月末。',
+  'closingDate cannot predate the ledger cutover':
+    '结账日期不能早于业务账簿切换日期。',
   'purchase order is not returnable': '采购订单当前不能退货。',
   'purchase order is not short closed': '采购订单尚未短关闭。',
   'purchase document has no source order': '采购单据缺少来源订单。',
@@ -173,6 +175,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '盘点明细在台账重建期间发生变化，请重试。',
   'inventory ledger is not active': '库存台账尚未启用。',
   'ledger cannot be activated': '当前台账不能启用。',
+  'other payable balances exist before the new ledger cutover':
+    '新台账切换日前仍有其它应付余额，请先撤销或处理对应负债。',
   'ledger cannot be reopened': '当前台账不能重新打开。',
   'fixed asset currency must be CNY': '固定资产业务币种必须为人民币。',
   'asset is fully depreciated': '固定资产已提足折旧。',
@@ -256,6 +260,92 @@ const exactMessages: Readonly<Record<string, string>> = {
     '到期处理现金行不能关联票据行。',
   'billLineId is not supported in bill discount cash lines':
     '票据贴现现金行不能关联票据行。',
+  'bill receipt is missing customer salesperson':
+    '票据收入单缺少客户业务员，请先补全客户资料。',
+  'businessDate must be the calendar month end':
+    '居间计算单业务日期必须是期间月末。',
+  'calculation result contains an invalid amount':
+    '计算稿包含格式不正确的金额。',
+  'calculation result contains an invalid barrel quantity':
+    '计算稿包含格式不正确的桶数。',
+  'calculation result barrel quantity does not match its source':
+    '计算稿桶数与销售签收来源不一致，请重新计算。',
+  'calculation result note is too long': '计算稿说明不能超过 1000 个字符。',
+  'calculation result contains an invalid premium price':
+    '计算稿包含格式不正确的溢价。',
+  'calculation source kind is invalid': '计算来源类型无效，请重新生成计算稿。',
+  'calculation bill allocation does not match its source':
+    '票据成本分配与客户、业务员或来源票据不一致。',
+  'bill cost requires its source bill allocation':
+    '票据成本必须记录对应的来源票据。',
+  'bill allocation requires a positive bill cost':
+    '已分配来源票据时必须同时扣除正数票据成本。',
+  'eligible bill cost must be allocated to a calculation line':
+    '存在可分配但尚未分配的票据成本，请重新计算。',
+  'calculation result line does not match its source':
+    '计算稿明细与销售签收来源不一致，请重新计算。',
+  'calculation result must contain one row per source line':
+    '每条销售签收来源必须对应一条计算明细。',
+  'calculation script changed; recalculate before saving':
+    '计算脚本已更新，请重新计算后保存。',
+  'calculation source changed; recalculate before saving':
+    '计算来源已变化，请重新计算后保存。',
+  'calculation source changed; recalculate before approval':
+    '计算来源已变化，请退回复核并重新计算后再批准。',
+  'later intermediary calculations must be reversed first':
+    '该居间计算单已被后续退货冲回使用，请先反批准后续居间计算单。',
+  'later intermediary calculations must be deleted first':
+    '该居间计算单仍被后续退货冲回引用，请先将后续居间计算单退回草稿并删除。',
+  'intermediary calculation source changed; recalculate before closing':
+    '居间计算来源已变化，请重新计算后再结账。',
+  'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
+  'calculation summary does not match detail results':
+    '计算稿汇总与明细不一致，请重新计算。',
+  'calculation summary category is invalid': '计算稿汇总类别无效，请重新计算。',
+  'intermediary amount requires a source intermediary':
+    '居间金额缺少对应居间商，请检查客户资料后重新计算。',
+  'intermediary return quantity exceeds its original calculation':
+    '跨月退货数量超过原居间计算数量，请检查退货单。',
+  'return adjustment cannot allocate bill cost':
+    '跨月退货冲回明细不能分配票据成本。',
+  'return adjustment result has an invalid direction':
+    '跨月退货冲回金额方向不正确，请重新计算。',
+  'return adjustment source amount is invalid':
+    '跨月退货冲回来源金额无效，请检查原居间计算单。',
+  'return adjustment source calculation is missing':
+    '跨月退货冲回缺少原居间计算单，请重新生成计算稿。',
+  'return adjustment source calculation changed':
+    '跨月退货冲回引用的原居间计算单已变化，请重新生成计算稿。',
+  'return adjustment result amounts do not match its source':
+    '跨月退货冲回金额必须与来源金额一致，请重新计算。',
+  'original intermediary calculation source is incomplete':
+    '原居间计算来源不完整，无法生成跨月退货冲回。',
+  'original intermediary calculation quantity is invalid':
+    '原居间计算数量无效，无法生成跨月退货冲回。',
+  'original intermediary pricing quantity is invalid':
+    '原居间计算计价数量无效，无法生成跨月退货冲回。',
+  'original intermediary calculation amount is invalid':
+    '原居间计算金额无效，无法生成跨月退货冲回。',
+  'intermediary calculation must use CNY and include its calculation draft':
+    '居间计算单必须使用人民币并包含完整计算稿。',
+  'ledger must be active before calculation':
+    '业务账簿尚未启用，不能生成居间计算来源。',
+  'sale signoff is missing its order salesperson snapshot':
+    '销售签收单缺少订单业务员快照，请先处理来源单据。',
+  'sale return exceeds its source signoff':
+    '销售退货金额或数量超过来源签收单，请检查退货单。',
+  'sale return timeline is invalid':
+    '销售退货时间线与来源签收单不一致，请检查来源单据。',
+  'intermediary FIFO amount is out of range':
+    '居间计算的签收金额超出可处理范围，请检查来源单据。',
+  'intermediary FIFO balance is out of range':
+    '居间计算的客户应收余额超出可处理范围，请检查往来数据。',
+  'source pricing quantity is invalid':
+    '销售签收来源的计价数量无效，请检查产品单位换算。',
+  'every unclosed month must have an approved intermediary calculation before closing':
+    '结账范围内存在尚未完成的月度居间计算单，请逐月处理后再结账。',
+  'payableCategory only applies to other payable':
+    '应付类别筛选仅适用于其它应付台账。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',
@@ -381,6 +471,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'IN condition value must be an array': 'IN 条件的值必须是列表。',
   'IN requires array': 'IN 条件必须提供列表值。',
   'LED pool and BOB resolver are required':
+    '账簿服务配置不完整，请联系管理员。',
+  'LED pool, BOB resolver, and intermediary validator are required':
     '账簿服务配置不完整，请联系管理员。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',

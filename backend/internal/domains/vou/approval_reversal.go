@@ -14,6 +14,19 @@ func (s *Service) prepareUnapproval(
 	actorID string,
 	requestID string,
 ) error {
+	if document.Entity == EntityIntermediaryCalculation {
+		q := s.queries.WithTx(tx)
+		if _, err := q.LockLedControl(ctx); err != nil {
+			return s.internal("lock ledger control for intermediary calculation reversal", err)
+		}
+		hasDependents, err := q.HasApprovedIntermediaryCalculationDependents(ctx, stringPtr(document.ID))
+		if err != nil {
+			return s.internal("read intermediary calculation dependents", err)
+		}
+		if hasDependents {
+			return domainError(ErrorConflict, "later intermediary calculations must be reversed first", nil, nil)
+		}
+	}
 	if document.Entity == EntitySaleSignoff {
 		if err := s.removeSignoffReturnDrafts(ctx, tx, document, actorID, requestID); err != nil {
 			return err

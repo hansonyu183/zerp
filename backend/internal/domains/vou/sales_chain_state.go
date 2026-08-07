@@ -402,6 +402,12 @@ func (s *Service) Delete(
 			return MutationResult{}, domainError(ErrorConflict, "automatic refusal return cannot be deleted", nil, nil)
 		}
 	}
+	if entity == EntityIntermediaryCalculation {
+		q := s.queries.WithTx(tx)
+		if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	var attachments, children int64
 	if err = tx.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM vou_document_attachments WHERE document_id=$1),
@@ -427,6 +433,17 @@ func (s *Service) Delete(
 		return MutationResult{}, err
 	}
 	switch entity {
+	case EntityIntermediaryCalculation:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_bill_allocations WHERE document_id=$1`, input.DocumentID)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_lines WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_summaries WHERE document_id=$1`, input.DocumentID)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_intermediary_calculation_details WHERE document_id=$1`, input.DocumentID)
+		}
 	case EntitySalePricing:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_price_lines WHERE document_id=$1;
 			DELETE FROM vou_sale_pricing_details WHERE document_id=$1`, input.DocumentID)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ var vouEntities = [...]string{
 	voudomain.EntityBillIssue,
 	voudomain.EntityBillDiscount,
 	voudomain.EntityBillMaturity,
+	voudomain.EntityIntermediaryCalculation,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -87,7 +89,9 @@ func (s *Service) Activate(
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
-	if err = s.preflightActivation(ctx, q, documents, control.CutoverDate.Time); err != nil {
+	if err = s.preflightActivation(
+		ctx, q, control.CutoverDate.Time, control.ActiveGenerationID,
+	); err != nil {
 		return MutationResult{}, err
 	}
 	generationID := newID()
@@ -170,7 +174,7 @@ func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, raw t
 		return err
 	}
 	if !exists {
-		if event.Entity == voudomain.EntityInventoryCount {
+		if event.Entity == voudomain.EntityInventoryCount || event.Entity == voudomain.EntityIntermediaryCalculation {
 			return nil
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
@@ -276,12 +280,48 @@ func (s *Service) postDocument(
 		return s.postBillDiscount(ctx, tx, q, posting)
 	case voudomain.EntityBillMaturity:
 		return s.postBillMaturity(ctx, tx, q, posting)
+	case voudomain.EntityIntermediaryCalculation:
+		return s.postIntermediaryCalculation(ctx, q, posting)
 	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
 		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return s.postAssetDocument(ctx, tx, q, posting)
 	default:
 		return domainError(ErrorValidation, "unsupported VOU entity", nil, nil)
 	}
+}
+
+func (s *Service) postIntermediaryCalculation(
+	ctx context.Context, q *dbsqlc.Queries, posting postingContext,
+) error {
+	include, err := requireEffectiveDate(posting, posting.Document.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	summaries, err := q.ListVouIntermediaryCalculationSummaries(ctx, posting.Document.ID)
+	if err != nil {
+		return err
+	}
+	for _, summary := range summaries {
+		if summary.AmountCents == math.MinInt64 {
+			return domainError(ErrorValidation, "intermediary calculation amount is out of range", nil, nil)
+		}
+		category := summary.Category
+		if err = q.InsertLedOtherPayableEntry(ctx, dbsqlc.InsertLedOtherPayableEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: posting.Document.Entity, SourceDocumentID: posting.Document.ID,
+			SourceDocumentNo: posting.Document.DocumentNo, SourceLineID: summary.ID,
+			SourceRevision: posting.SourceRevision, EffectiveDate: posting.Document.BusinessDate,
+			OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+			Remark: posting.Document.Remark, CounterpartyEntity: summary.PayeeEntity,
+			CounterpartyObjectID: summary.PayeeObjectID, CounterpartyVersionID: summary.PayeeVersionID,
+			CounterpartyCode: summary.PayeeCode, CounterpartyName: summary.PayeeName,
+			Currency: "CNY", AmountDeltaCents: -summary.AmountCents,
+			PayableCategory: &category,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func fundParams(

@@ -168,7 +168,7 @@ func (s *Service) rebuildClosingSnapshots(
 	for _, closing := range closings {
 		for _, table := range []string{
 			"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-			"led_closing_party", "led_closing_container",
+			"led_closing_party", "led_closing_other_payable", "led_closing_container",
 		} {
 			if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", closing.id); err != nil {
 				return s.writeError("clear closing snapshot for ledger rebuild", err)
@@ -250,14 +250,20 @@ func (s *Service) Close(
 	var revision int64
 	var lastClosingID, generationID *string
 	var rebuildRequired bool
-	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required
+	var cutoverDate time.Time
+	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required,cutover_date
 		FROM led_control WHERE singleton=true FOR UPDATE`).
-		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired)
+		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired, &cutoverDate)
 	if err != nil {
 		return ClosingMutationResult{}, s.internal("lock closing control", err)
 	}
 	if revision != input.Revision || rebuildRequired || generationID == nil {
 		return ClosingMutationResult{}, domainError(ErrorConflict, "ledger closing changed", nil, nil)
+	}
+	if closingDate.Before(cutoverDate) {
+		return ClosingMutationResult{}, domainError(
+			ErrorValidation, "closingDate cannot predate the ledger cutover", nil, nil,
+		)
 	}
 	var periodStart = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 	if lastClosingID != nil {
@@ -285,6 +291,88 @@ func (s *Service) Close(
 			map[string]any{"count": pendingCount, "closingDate": closingDate.Format(dateLayout)},
 			nil,
 		)
+	}
+	calculationStart := periodStart
+	if lastClosingID == nil {
+		calculationStart = time.Date(cutoverDate.Year(), cutoverDate.Month(), 1, 0, 0, 0, 0, cutoverDate.Location())
+		if cutoverDate.Year() == 1 {
+			var firstActivityDate pgtype.Date
+			if err = tx.QueryRow(ctx, `SELECT min(business_date) FROM vou_documents
+				WHERE status='FINALIZED' AND business_date <= $1`, closingDate).Scan(&firstActivityDate); err != nil {
+				return ClosingMutationResult{}, s.internal("find first document month for closing", err)
+			}
+			if firstActivityDate.Valid {
+				calculationStart = time.Date(firstActivityDate.Time.Year(), firstActivityDate.Time.Month(), 1,
+					0, 0, 0, 0, firstActivityDate.Time.Location())
+			} else {
+				calculationStart = time.Date(closingDate.Year(), closingDate.Month(), 1,
+					0, 0, 0, 0, closingDate.Location())
+			}
+		}
+	}
+	var missingCalculationCount int64
+	var firstMissingCalculationDate pgtype.Date
+	if err = tx.QueryRow(ctx, `WITH required_months AS (
+		SELECT (month_start + interval '1 month - 1 day')::date AS month_end
+		FROM generate_series(date_trunc('month',$1::date),date_trunc('month',$2::date),interval '1 month') month_start
+	)
+	SELECT count(*),min(month_end) FROM required_months
+	WHERE NOT EXISTS (
+		SELECT 1 FROM vou_documents document
+		WHERE document.entity='intermediary-calculation'
+		  AND document.business_date=required_months.month_end
+		  AND document.status='FINALIZED'
+	)`, calculationStart, closingDate).Scan(&missingCalculationCount, &firstMissingCalculationDate); err != nil {
+		return ClosingMutationResult{}, s.internal("check intermediary calculations", err)
+	}
+	if missingCalculationCount != 0 {
+		firstMissing := ""
+		if firstMissingCalculationDate.Valid {
+			firstMissing = firstMissingCalculationDate.Time.Format(dateLayout)
+		}
+		return ClosingMutationResult{}, domainError(ErrorConflict,
+			"every unclosed month must have an approved intermediary calculation before closing",
+			map[string]any{"count": missingCalculationCount, "firstMissingDate": firstMissing,
+				"closingDate": closingDate.Format(dateLayout)}, nil)
+	}
+	calculationRows, err := tx.Query(ctx, `SELECT id,document_no,business_date
+		FROM vou_documents
+		WHERE entity='intermediary-calculation' AND status='FINALIZED'
+		  AND business_date BETWEEN date_trunc('month',$1::date)::date AND $2::date
+		ORDER BY business_date,document_no`, calculationStart, closingDate)
+	if err != nil {
+		return ClosingMutationResult{}, s.internal("list intermediary calculations for closing validation", err)
+	}
+	type calculationForClosing struct {
+		id, number string
+		date       time.Time
+	}
+	calculations := make([]calculationForClosing, 0)
+	for calculationRows.Next() {
+		var calculation calculationForClosing
+		if err = calculationRows.Scan(&calculation.id, &calculation.number, &calculation.date); err != nil {
+			calculationRows.Close()
+			return ClosingMutationResult{}, s.internal("scan intermediary calculation for closing validation", err)
+		}
+		calculations = append(calculations, calculation)
+	}
+	if err = calculationRows.Err(); err != nil {
+		calculationRows.Close()
+		return ClosingMutationResult{}, s.internal("read intermediary calculations for closing validation", err)
+	}
+	calculationRows.Close()
+	for _, calculation := range calculations {
+		if err = s.intermediaryValidator.ValidateIntermediaryCalculation(ctx, tx, calculation.id); err != nil {
+			return ClosingMutationResult{}, domainError(
+				ErrorConflict,
+				"intermediary calculation source changed; recalculate before closing",
+				map[string]any{
+					"documentId": calculation.id, "documentNo": calculation.number,
+					"businessDate": calculation.date.Format(dateLayout),
+				},
+				err,
+			)
+		}
 	}
 	closingID := newID()
 	nextRevision := revision + 1
@@ -357,7 +445,7 @@ func (s *Service) Unclose(
 	}
 	for _, table := range []string{
 		"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-		"led_closing_party", "led_closing_container",
+		"led_closing_party", "led_closing_other_payable", "led_closing_container",
 	} {
 		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", *closingID); err != nil {
 			return ClosingMutationResult{}, s.writeError("clear reversed closing snapshot", err)
@@ -930,8 +1018,20 @@ func (s *Service) snapshotNonInventoryBalances(
 			max(counterparty_code),
 			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			currency,sum(amount_delta_cents)
-		FROM led_party_entries WHERE generation_id=$2 AND effective_date <= $3
+		FROM led_party_entries WHERE generation_id=$2 AND account_type='TRADE' AND effective_date <= $3
 		GROUP BY counterparty_entity,counterparty_object_id,currency
+		HAVING sum(amount_delta_cents) <> 0`,
+		`INSERT INTO led_closing_other_payable(
+			closing_id,payable_category,counterparty_entity,counterparty_object_id,
+			counterparty_version_id,counterparty_code,counterparty_name,currency,amount_cents
+		)
+		SELECT $1,payable_category,counterparty_entity,counterparty_object_id,
+			(array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
+			max(counterparty_code),
+			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
+			currency,sum(amount_delta_cents)
+		FROM led_party_entries WHERE generation_id=$2 AND account_type='OTHER_PAYABLE' AND effective_date <= $3
+		GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
 		HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_container(
 			closing_id,customer_object_id,customer_version_id,customer_code,

@@ -61,6 +61,7 @@ func (s *Service) reserveOrderSettlementAmount(
 	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(entry.amount_delta_cents),0)::bigint
 		FROM led_party_entries entry
 		WHERE entry.generation_id=$1
+		  AND entry.account_type='TRADE'
 		  AND entry.counterparty_entity=$2 AND entry.counterparty_object_id=$3
 		  AND entry.currency=$4 AND entry.effective_date<=CURRENT_DATE`,
 		activeGenerationID, gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency).Scan(&balance); err != nil {

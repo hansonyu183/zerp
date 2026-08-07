@@ -59,6 +59,16 @@ const employeePartySourceEntities: readonly LedgerOption[] = [
   { title: '员工借款核销', value: 'employee-loan-writeoff' },
 ]
 
+const otherPayableSourceEntities: readonly LedgerOption[] = [
+  { title: '居间计算单', value: 'intermediary-calculation' },
+]
+
+const otherPayableCategories: readonly LedgerOption[] = [
+  { title: '员工提成', value: 'COMMISSION' },
+  { title: '居间费', value: 'INTERMEDIARY' },
+  { title: '客户返点', value: 'REBATE' },
+]
+
 const containerSourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
 ]
@@ -324,6 +334,55 @@ export const ledgerEntityConfigs: Readonly<
     ],
     balanceColumns: [
       col('counterparty', '员工', (row) => reference(row, 'counterparty')),
+      col('balanceType', '性质', (row) =>
+        translated(row, 'balanceType', balanceText),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+    ],
+  },
+  'other-payable': {
+    entity: 'other-payable',
+    title: '其它应付',
+    objectLabel: '员工、居间商或客户',
+    referenceSources: [
+      { entity: 'employee' },
+      { entity: 'other-party' },
+      { entity: 'customer' },
+    ],
+    sourceEntities: otherPayableSourceEntities,
+    payableCategories: otherPayableCategories,
+    directions: [
+      { title: '增加应付', value: 'CREDIT' },
+      { title: '减少应付', value: 'DEBIT' },
+    ],
+    entryColumns: [
+      ...commonEntryColumns,
+      col('counterparty', '应付对象', (row) => reference(row, 'counterparty')),
+      col('payableCategory', '类别', (row) =>
+        translated(row, 'payableCategory', {
+          COMMISSION: '员工提成',
+          INTERMEDIARY: '居间费',
+          REBATE: '客户返点',
+        }),
+      ),
+      col('direction', '方向', (row) =>
+        translated(row, 'direction', {
+          CREDIT: '增加应付',
+          DEBIT: '减少应付',
+        }),
+      ),
+      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
+      ...endingEntryColumns,
+    ],
+    balanceColumns: [
+      col('counterparty', '应付对象', (row) => reference(row, 'counterparty')),
+      col('payableCategory', '类别', (row) =>
+        translated(row, 'payableCategory', {
+          COMMISSION: '员工提成',
+          INTERMEDIARY: '居间费',
+          REBATE: '客户返点',
+        }),
+      ),
       col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText),
       ),

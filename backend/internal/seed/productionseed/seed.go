@@ -52,13 +52,6 @@ func New(
 	bobService := bobdomain.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
 	events := txevent.NewBus()
-	ledger, err := leddomain.NewService(pool, bobService)
-	if err != nil {
-		return nil, err
-	}
-	if err = ledger.RegisterSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register LED subscriptions: %w", err)
-	}
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -69,6 +62,13 @@ func New(
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
+	}
+	ledger, err := leddomain.NewService(pool, bobService, vouchers)
+	if err != nil {
+		return nil, err
+	}
+	if err = ledger.RegisterSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register LED subscriptions: %w", err)
 	}
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)

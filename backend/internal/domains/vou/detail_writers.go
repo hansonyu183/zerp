@@ -38,6 +38,7 @@ func (s *Service) writeSaleDetail(
 		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
 		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
 		SettlementDescription:                settlement.Description,
+		SpecialApproval:                      draft.SpecialApproval,
 	}
 	if update {
 		rows, err := q.UpdateVouSaleOrderDetail(ctx, dbsqlc.UpdateVouSaleOrderDetailParams{
@@ -58,6 +59,7 @@ func (s *Service) writeSaleDetail(
 			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
 			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
 			SettlementDescription:                params.SettlementDescription, DocumentID: documentID,
+			SpecialApproval: params.SpecialApproval,
 		})
 		return oneRow(rows, err)
 	}

@@ -18,6 +18,7 @@ type validatedQuery struct {
 	DateFrom, DateTo                                     time.Time
 	ObjectID, SourceEntity, DocumentNo, SortField, Order string
 	Directions                                           []string
+	PayableCategory                                      string
 }
 
 func validID(value string) bool {
@@ -169,11 +170,20 @@ func validateQuery(entity string, input QueryInput) (validatedQuery, error) {
 		SourceEntity: sourceEntity,
 		DocumentNo:   strings.TrimSpace(input.Filters.DocumentNo),
 		SortField:    "effectiveDate", Order: "desc",
+		PayableCategory: strings.ToUpper(strings.TrimSpace(input.Filters.PayableCategory)),
+	}
+	if result.PayableCategory != "" && result.PayableCategory != "COMMISSION" &&
+		result.PayableCategory != "INTERMEDIARY" && result.PayableCategory != "REBATE" {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid payableCategory", nil, nil)
+	}
+	if result.PayableCategory != "" && entity != EntityOtherPayable {
+		return validatedQuery{}, domainError(ErrorValidation, "payableCategory only applies to other payable", nil, nil)
 	}
 	allowedDirections := map[string]bool{
-		"IN":    entity == EntityInventory || entity == EntityFund,
-		"OUT":   entity == EntityInventory || entity == EntityFund,
-		"DEBIT": entity == EntityParty, "CREDIT": entity == EntityParty,
+		"IN":     entity == EntityInventory || entity == EntityFund,
+		"OUT":    entity == EntityInventory || entity == EntityFund,
+		"DEBIT":  entity == EntityParty || entity == EntityOtherPayable,
+		"CREDIT": entity == EntityParty || entity == EntityOtherPayable,
 	}
 	seen := map[string]bool{}
 	for _, raw := range input.Filters.Direction {

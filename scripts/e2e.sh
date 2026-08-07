@@ -36,20 +36,39 @@ compose() {
 }
 
 cleanup() {
-  cleanup_status=$?
+  cleanup_status=$1
   trap - EXIT HUP INT TERM
+  set +e
   if [ -n "${web_pid}" ]; then kill "${web_pid}" 2>/dev/null || true; fi
   if [ -n "${api_pid}" ]; then kill "${api_pid}" 2>/dev/null || true; fi
   if [ -n "${web_pid}" ]; then wait "${web_pid}" 2>/dev/null || true; fi
   if [ -n "${api_pid}" ]; then wait "${api_pid}" 2>/dev/null || true; fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose down --volumes --remove-orphans >/dev/null 2>&1
+  compose_status=$?
+  if [ "${cleanup_status}" -eq 0 ] && [ "${compose_status}" -ne 0 ]; then
+    echo "failed to remove the disposable E2E database" >&2
+    cleanup_status=${compose_status}
+  fi
   case "${runtime_dir}" in
-    "${TMPDIR:-/tmp}"/zerp-e2e.*) rm -rf "${runtime_dir}" ;;
-    *) echo "refusing to remove unexpected E2E runtime directory: ${runtime_dir}" >&2 ;;
+    "${TMPDIR:-/tmp}"/zerp-e2e.*)
+      rm -rf "${runtime_dir}"
+      runtime_status=$?
+      if [ "${cleanup_status}" -eq 0 ] && [ "${runtime_status}" -ne 0 ]; then
+        echo "failed to remove the E2E runtime directory" >&2
+        cleanup_status=${runtime_status}
+      fi
+      ;;
+    *)
+      echo "refusing to remove unexpected E2E runtime directory: ${runtime_dir}" >&2
+      if [ "${cleanup_status}" -eq 0 ]; then cleanup_status=1; fi
+      ;;
   esac
   exit "${cleanup_status}"
 }
-trap cleanup EXIT HUP INT TERM
+trap 'cleanup $?' EXIT
+trap 'cleanup 129' HUP
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 wait_for_url() {
   label=$1

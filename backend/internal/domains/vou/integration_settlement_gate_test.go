@@ -193,7 +193,7 @@ func TestPrepaidApprovalExcludesFutureDatedFundsIntegration(t *testing.T) {
 	}
 }
 
-func TestPrepaidApprovalExcludesCustomerOtherPayableIntegration(t *testing.T) {
+func TestPrepaidApprovalExcludesCustomerOtherBalanceIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
@@ -202,10 +202,10 @@ func TestPrepaidApprovalExcludesCustomerOtherPayableIntegration(t *testing.T) {
 	customer := createSettlementCustomer(
 		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "返点不抵预付款客户",
 	)
-	order := createCheckedSettlementSale(t, service, refs, customer, "prepaid-other-payable")
+	order := createCheckedSettlementSale(t, service, refs, customer, "prepaid-other")
 	var amount int64
 	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, order.DocumentID).Scan(&amount); err != nil {
-		t.Fatalf("read other-payable prepaid order amount: %v", err)
+		t.Fatalf("read other prepaid order amount: %v", err)
 	}
 	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
 	if _, err := pool.Exec(t.Context(), `INSERT INTO led_party_entries(
@@ -213,19 +213,19 @@ func TestPrepaidApprovalExcludesCustomerOtherPayableIntegration(t *testing.T) {
 		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
 		counterparty_entity,counterparty_object_id,counterparty_version_id,
 		counterparty_code,counterparty_name,currency,amount_delta_cents,
-		account_type,payable_category
+		account_type,other_category
 	) SELECT $1,active_generation_id,'POSTING','intermediary-calculation',$2,'ICL-REBATE','',1,
-		CURRENT_DATE,now(),$3,'prepaid-other-payable-entry','customer',$4,$5,'CUSTOMER',
-		'Rebate customer','CNY',$6,'OTHER_PAYABLE','REBATE'
+		CURRENT_DATE,now(),$3,'prepaid-other-entry','customer',$4,$5,'CUSTOMER',
+		'Rebate customer','CNY',$6,'OTHER','REBATE'
 		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(),
 		integrationActorOne, customer.ObjectID, customer.VersionID, -amount); err != nil {
-		t.Fatalf("insert customer rebate other payable: %v", err)
+		t.Fatalf("insert customer rebate other balance: %v", err)
 	}
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "prepaid-other-payable-approve"); err == nil ||
+	}, integrationActorTwo, "prepaid-other-approve"); err == nil ||
 		!strings.Contains(err.Error(), "insufficient prepaid funds") {
-		t.Fatalf("customer other payable used as prepaid funds: %v", err)
+		t.Fatalf("customer other balance used as prepaid funds: %v", err)
 	}
 }
 

@@ -17,7 +17,7 @@ func (s *Service) RegisterCompletionSubscriptions(bus *txevent.Bus) error {
 	if bus == nil {
 		return errors.New("VOU completion event bus is required")
 	}
-	completionEntities := append(entities[:], EntityReceipt, EntityPayment)
+	completionEntities := entities[:]
 	for _, entity := range completionEntities {
 		if err := bus.Subscribe(DocumentApprovedTopic(entity), "vou-system-completion", s.handleApprovedCompletion); err != nil {
 			return err

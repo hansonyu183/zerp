@@ -19,13 +19,11 @@ const (
 	EntityOrderProduction         = "order-production"
 	EntitySelfProduction          = "self-production"
 	EntityInventoryCount          = "inventory-count"
-	EntityReceipt                 = "receipt"
-	EntityPayment                 = "payment"
-	EntityCustomerReceipt         = "customer-receipt"
-	EntitySupplierReceipt         = "supplier-receipt"
+	EntitySalesReceipt            = "sales-receipt"
+	EntityPurchaseRefund          = "purchase-refund"
 	EntityOtherReceipt            = "other-receipt"
-	EntityCustomerPayment         = "customer-payment"
-	EntitySupplierPayment         = "supplier-payment"
+	EntitySalesRefund             = "sales-refund"
+	EntityPurchasePayment         = "purchase-payment"
 	EntityOtherPayment            = "other-payment"
 	EntityEmployeeLoan            = "employee-loan"
 	EntityEmployeeRepayment       = "employee-repayment"
@@ -67,11 +65,11 @@ var entities = [...]string{
 	EntityOrderProduction,
 	EntitySelfProduction,
 	EntityInventoryCount,
-	EntityCustomerReceipt,
-	EntitySupplierReceipt,
+	EntitySalesReceipt,
+	EntityPurchaseRefund,
 	EntityOtherReceipt,
-	EntityCustomerPayment,
-	EntitySupplierPayment,
+	EntitySalesRefund,
+	EntityPurchasePayment,
 	EntityOtherPayment,
 	EntityEmployeeLoan,
 	EntityEmployeeRepayment,
@@ -96,8 +94,8 @@ func publicCreateEntity(entity string) bool {
 	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
 		EntitySaleReturn, EntityPurchaseReturn, EntityOrderProduction, EntitySelfProduction,
 		EntityInventoryCount,
-		EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment,
+		EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment,
 		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
 		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation,
@@ -291,6 +289,7 @@ type DraftInput struct {
 	Customer                *ReferenceInput               `json:"customer,omitempty"`
 	Supplier                *ReferenceInput               `json:"supplier,omitempty"`
 	CounterpartyType        string                        `json:"counterpartyType,omitempty"`
+	OtherCategory           string                        `json:"otherCategory,omitempty"`
 	Counterparty            *ReferenceInput               `json:"counterparty,omitempty"`
 	Employee                *ReferenceInput               `json:"employee,omitempty"`
 	Salesperson             *ReferenceInput               `json:"salesperson,omitempty"`
@@ -847,6 +846,7 @@ type DocumentDataView struct {
 	Customer                  *ReferenceView                `json:"customer,omitempty"`
 	Supplier                  *ReferenceView                `json:"supplier,omitempty"`
 	Counterparty              *ReferenceView                `json:"counterparty,omitempty"`
+	OtherCategory             string                        `json:"otherCategory,omitempty"`
 	Employee                  *ReferenceView                `json:"employee,omitempty"`
 	Salesperson               *ReferenceView                `json:"salesperson,omitempty"`
 	Purchaser                 *ReferenceView                `json:"purchaser,omitempty"`

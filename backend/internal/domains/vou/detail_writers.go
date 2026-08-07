@@ -131,6 +131,10 @@ func (s *Service) writeCashDetail(
 	update bool,
 ) error {
 	counterparty := refs.Counterparty
+	var otherCategory *string
+	if draft.OtherCategory != "" {
+		otherCategory = &draft.OtherCategory
+	}
 	if receiptEntity(entity) {
 		params := dbsqlc.InsertVouReceiptDetailParams{
 			DocumentID: documentID, Entity: entity, CounterpartyEntity: draft.CounterpartyType,
@@ -138,6 +142,7 @@ func (s *Service) writeCashDetail(
 			CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 			FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,
 			FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
+			OtherCategory:   otherCategory,
 			HandlerObjectID: stringPtr(refs.Handler.ObjectID), HandlerVersionID: stringPtr(refs.Handler.VersionID),
 			HandlerCode: stringPtr(refs.Handler.Code), HandlerName: stringPtr(refs.Handler.Data.Name),
 		}
@@ -148,6 +153,7 @@ func (s *Service) writeCashDetail(
 				CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 				FundAccountVersionID: params.FundAccountVersionID, FundAccountCode: params.FundAccountCode,
 				FundAccountName: params.FundAccountName,
+				OtherCategory:   params.OtherCategory,
 				HandlerObjectID: params.HandlerObjectID, HandlerVersionID: params.HandlerVersionID,
 				HandlerCode: params.HandlerCode, HandlerName: params.HandlerName, DocumentID: documentID,
 			})
@@ -161,6 +167,7 @@ func (s *Service) writeCashDetail(
 		CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 		FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,
 		FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
+		OtherCategory:   otherCategory,
 		HandlerObjectID: stringPtr(refs.Handler.ObjectID), HandlerVersionID: stringPtr(refs.Handler.VersionID),
 		HandlerCode: stringPtr(refs.Handler.Code), HandlerName: stringPtr(refs.Handler.Data.Name),
 	}
@@ -171,6 +178,7 @@ func (s *Service) writeCashDetail(
 			CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 			FundAccountVersionID: params.FundAccountVersionID, FundAccountCode: params.FundAccountCode,
 			FundAccountName: params.FundAccountName,
+			OtherCategory:   params.OtherCategory,
 			HandlerObjectID: params.HandlerObjectID, HandlerVersionID: params.HandlerVersionID,
 			HandlerCode: params.HandlerCode, HandlerName: params.HandlerName, DocumentID: documentID,
 		})

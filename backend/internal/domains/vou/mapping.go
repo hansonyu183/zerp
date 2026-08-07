@@ -205,7 +205,7 @@ func (s *Service) loadData(
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
 		return data, nil
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -218,7 +218,8 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+		data.OtherCategory = deref(detail.OtherCategory)
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -231,6 +232,7 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
+		data.OtherCategory = deref(detail.OtherCategory)
 	case EntityExpenseReimbursement:
 		detail, err := q.GetVouExpenseReimbursementDetail(ctx, document.ID)
 		if err != nil {

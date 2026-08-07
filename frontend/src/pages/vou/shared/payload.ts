@@ -40,6 +40,12 @@ export function buildVoucherDraftPayload(
     }
     payload.counterparty = inputReference(value.counterparty)
   }
+  if (
+    (config.entity === 'other-receipt' || config.entity === 'other-payment') &&
+    value.otherCategory
+  ) {
+    payload.otherCategory = value.otherCategory
+  }
   if (config.usesEmployee) payload.employee = inputReference(value.employee)
   if (
     config.usesSalesperson &&

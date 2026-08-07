@@ -33,8 +33,8 @@ func (s *Service) registerDocumentSubscriptions(bus *txevent.Bus) error {
 		voudomain.EntitySaleReturn,
 		voudomain.EntityPurchaseOrder, voudomain.EntityPurchaseInbound,
 		voudomain.EntityOrderProduction,
-		voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt,
-		voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment,
+		voudomain.EntitySalesReceipt, voudomain.EntityPurchaseRefund, voudomain.EntityOtherReceipt,
+		voudomain.EntitySalesRefund, voudomain.EntityPurchasePayment, voudomain.EntityOtherPayment,
 		voudomain.EntityExpenseReimbursement, voudomain.EntityOtherIncome,
 	} {
 		if err := bus.Subscribe(

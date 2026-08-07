@@ -51,7 +51,7 @@ func createApprovedReceipt(
 ) (MutationResult, MutationResult) {
 	t.Helper()
 	created, reviewed := createCheckedReceipt(t, service, refs)
-	approved, err := service.Approve(t.Context(), EntityReceipt, DocumentRevisionInput{
+	approved, err := service.Approve(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: reviewed.Revision,
 	}, integrationActorOne, "event-receipt-approve")
 	if err != nil {
@@ -64,7 +64,7 @@ func createCheckedReceipt(
 	t *testing.T, service *Service, refs integrationReferences,
 ) (MutationResult, MutationResult) {
 	t.Helper()
-	created, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY",
 		CounterpartyType: bobdomain.EntityCustomer, Counterparty: &refs.customer,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
@@ -72,7 +72,7 @@ func createCheckedReceipt(
 	if err != nil {
 		t.Fatalf("create receipt: %v", err)
 	}
-	reviewed, err := service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
+	reviewed, err := service.Check(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: created.Revision,
 	}, integrationActorOne, "event-receipt-review")
 	if err != nil {
@@ -130,7 +130,7 @@ func TestVOUTransactionalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 		}); err != nil {
 		t.Fatalf("subscribe wrong document type: %v", err)
 	}
-	if err := bus.Subscribe(DocumentApprovedTopic(EntityReceipt), "ledger",
+	if err := bus.Subscribe(DocumentApprovedTopic(EntitySalesReceipt), "ledger",
 		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
 			event, ok := raw.(DocumentApprovedEvent)
 			if !ok {
@@ -155,7 +155,7 @@ func TestVOUTransactionalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 		}); err != nil {
 		t.Fatalf("subscribe approval: %v", err)
 	}
-	if err := bus.Subscribe(DocumentUnapprovedTopic(EntityReceipt), "ledger-reversal",
+	if err := bus.Subscribe(DocumentUnapprovedTopic(EntitySalesReceipt), "ledger-reversal",
 		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
 			event, ok := raw.(DocumentUnapprovedEvent)
 			if !ok || event.Reason != "冲销错误入账" {
@@ -190,7 +190,7 @@ func TestVOUTransactionalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 		t.Fatalf("wrong document type subscriber calls = %d", wrongTopicCalls.Load())
 	}
 
-	unapproved, err := service.Unapprove(t.Context(), EntityReceipt, ReverseInput{
+	unapproved, err := service.Unapprove(t.Context(), EntitySalesReceipt, ReverseInput{
 		DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "冲销错误入账",
 	}, integrationActorOne, "event-receipt-unapprove")
 	if err != nil {
@@ -212,7 +212,7 @@ func TestVOUApprovedSubscriberFailureRollsBackEverythingIntegration(t *testing.T
 	refs := prepareReferences(t, pool)
 	bus := txevent.NewBus()
 	var calls atomic.Int32
-	if err := bus.Subscribe(DocumentApprovedTopic(EntityReceipt), "first-writer",
+	if err := bus.Subscribe(DocumentApprovedTopic(EntitySalesReceipt), "first-writer",
 		func(ctx context.Context, tx pgx.Tx, event txevent.Event) error {
 			calls.Add(1)
 			_, err := tx.Exec(ctx, `
@@ -222,14 +222,14 @@ func TestVOUApprovedSubscriberFailureRollsBackEverythingIntegration(t *testing.T
 		}); err != nil {
 		t.Fatalf("subscribe first writer: %v", err)
 	}
-	if err := bus.Subscribe(DocumentApprovedTopic(EntityReceipt), "closed-period",
+	if err := bus.Subscribe(DocumentApprovedTopic(EntitySalesReceipt), "closed-period",
 		func(context.Context, pgx.Tx, txevent.Event) error {
 			calls.Add(1)
 			return txevent.Reject("账簿期间已关闭", map[string]any{"period": "2026-07"})
 		}); err != nil {
 		t.Fatalf("subscribe rejector: %v", err)
 	}
-	if err := bus.Subscribe(DocumentApprovedTopic(EntityReceipt), "must-not-run",
+	if err := bus.Subscribe(DocumentApprovedTopic(EntitySalesReceipt), "must-not-run",
 		func(context.Context, pgx.Tx, txevent.Event) error {
 			calls.Add(1)
 			return nil
@@ -239,7 +239,7 @@ func TestVOUApprovedSubscriberFailureRollsBackEverythingIntegration(t *testing.T
 
 	service := integrationServiceWithEvents(t, pool, bus)
 	created, reviewed := createCheckedReceipt(t, service, refs)
-	_, err := service.Approve(t.Context(), EntityReceipt, DocumentRevisionInput{
+	_, err := service.Approve(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: reviewed.Revision,
 	}, integrationActorOne, "event-rejected-approve")
 	var domainErr *DomainError
@@ -267,14 +267,14 @@ func TestVOUApprovedSubscriberFailureRollsBackEverythingIntegration(t *testing.T
 	}
 
 	failingBus := txevent.NewBus()
-	if subscribeErr := failingBus.Subscribe(DocumentApprovedTopic(EntityReceipt), "database-failure",
+	if subscribeErr := failingBus.Subscribe(DocumentApprovedTopic(EntitySalesReceipt), "database-failure",
 		func(context.Context, pgx.Tx, txevent.Event) error {
 			return errors.New("downstream database unavailable")
 		}); subscribeErr != nil {
 		t.Fatalf("subscribe ordinary failure: %v", subscribeErr)
 	}
 	service.events = failingBus
-	_, err = service.Approve(t.Context(), EntityReceipt, DocumentRevisionInput{
+	_, err = service.Approve(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: reviewed.Revision,
 	}, integrationActorOne, "event-failed-approve")
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorInternal ||
@@ -295,7 +295,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresDocumentIntegration(t *testing.T)
 	refs := prepareReferences(t, pool)
 	service := integrationServiceWithEvents(t, pool, txevent.NewBus())
 
-	created, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
@@ -303,20 +303,20 @@ func TestVOUUnapprovedSubscriberFailureRestoresDocumentIntegration(t *testing.T)
 	if err != nil {
 		t.Fatalf("create purchase: %v", err)
 	}
-	reviewed, err := service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
+	reviewed, err := service.Check(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: created.Revision,
 	}, integrationActorOne, "event-purchase-review")
 	if err != nil {
 		t.Fatalf("review purchase: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityReceipt, DocumentRevisionInput{
+	approved, err := service.Approve(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: created.DocumentID, Revision: reviewed.Revision,
 	}, integrationActorOne, "event-purchase-approve")
 	if err != nil {
 		t.Fatalf("approve purchase: %v", err)
 	}
 	bus := txevent.NewBus()
-	if err = bus.Subscribe(DocumentUnapprovedTopic(EntityReceipt), "reversal-writer",
+	if err = bus.Subscribe(DocumentUnapprovedTopic(EntitySalesReceipt), "reversal-writer",
 		func(ctx context.Context, tx pgx.Tx, event txevent.Event) error {
 			_, execErr := tx.Exec(ctx, `
 				INSERT INTO txevent_vou_test_effects (id, document_id, topic)
@@ -325,7 +325,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresDocumentIntegration(t *testing.T)
 		}); err != nil {
 		t.Fatalf("subscribe reversal writer: %v", err)
 	}
-	if err = bus.Subscribe(DocumentUnapprovedTopic(EntityReceipt), "reversal-failure",
+	if err = bus.Subscribe(DocumentUnapprovedTopic(EntitySalesReceipt), "reversal-failure",
 		func(context.Context, pgx.Tx, txevent.Event) error {
 			return errors.New("cannot reverse ledger")
 		}); err != nil {
@@ -333,7 +333,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresDocumentIntegration(t *testing.T)
 	}
 	service.events = bus
 
-	_, err = service.Unapprove(t.Context(), EntityReceipt, ReverseInput{
+	_, err = service.Unapprove(t.Context(), EntitySalesReceipt, ReverseInput{
 		DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "回滚测试",
 	}, integrationActorOne, "event-purchase-unapprove")
 	var domainErr *DomainError

@@ -719,7 +719,7 @@ func (q *Queries) GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAtta
 }
 
 const getVouAssetAcquisitionDetail = `-- name: GetVouAssetAcquisitionDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name FROM vou_asset_acquisition_details WHERE document_id=$1
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, party_account_type FROM vou_asset_acquisition_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error) {
@@ -732,6 +732,7 @@ func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID s
 		&i.SupplierVersionID,
 		&i.SupplierCode,
 		&i.SupplierName,
+		&i.PartyAccountType,
 	)
 	return i, err
 }
@@ -759,7 +760,7 @@ func (q *Queries) GetVouAssetLiquidationDetail(ctx context.Context, documentID s
 }
 
 const getVouAssetSaleDetail = `-- name: GetVouAssetSaleDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name FROM vou_asset_sale_details WHERE document_id=$1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, party_account_type FROM vou_asset_sale_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error) {
@@ -773,6 +774,7 @@ func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) 
 		&i.CounterpartyVersionID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
+		&i.PartyAccountType,
 	)
 	return i, err
 }
@@ -1007,7 +1009,7 @@ func (q *Queries) GetVouOtherIncomeDetail(ctx context.Context, documentID string
 }
 
 const getVouPaymentDetail = `-- name: GetVouPaymentDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name FROM vou_payment_details WHERE document_id = $1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name, other_category FROM vou_payment_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPaymentDetail(ctx context.Context, documentID string) (VouPaymentDetail, error) {
@@ -1029,6 +1031,7 @@ func (q *Queries) GetVouPaymentDetail(ctx context.Context, documentID string) (V
 		&i.HandlerVersionID,
 		&i.HandlerCode,
 		&i.HandlerName,
+		&i.OtherCategory,
 	)
 	return i, err
 }
@@ -1120,7 +1123,7 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 }
 
 const getVouReceiptDetail = `-- name: GetVouReceiptDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name FROM vou_receipt_details WHERE document_id = $1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name, other_category FROM vou_receipt_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error) {
@@ -1142,6 +1145,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 		&i.HandlerVersionID,
 		&i.HandlerCode,
 		&i.HandlerName,
+		&i.OtherCategory,
 	)
 	return i, err
 }
@@ -2031,16 +2035,16 @@ const insertVouPaymentDetail = `-- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
     document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
-    fund_account_code, fund_account_name,
+    fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
     $1, $2,
     $3, $4,
     $5, $6, $7,
     $8, $9,
-    $10, $11,
-    $12, $13,
-    $14, $15
+    $10, $11, $12,
+    $13, $14,
+    $15, $16
 )
 `
 
@@ -2056,6 +2060,7 @@ type InsertVouPaymentDetailParams struct {
 	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
 	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
@@ -2075,6 +2080,7 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
+		arg.OtherCategory,
 		arg.HandlerObjectID,
 		arg.HandlerVersionID,
 		arg.HandlerCode,
@@ -2428,16 +2434,16 @@ const insertVouReceiptDetail = `-- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
     document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
-    fund_account_code, fund_account_name,
+    fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
     $1, $2,
     $3, $4,
     $5, $6, $7,
     $8, $9,
-    $10, $11,
-    $12, $13,
-    $14, $15
+    $10, $11, $12,
+    $13, $14,
+    $15, $16
 )
 `
 
@@ -2453,6 +2459,7 @@ type InsertVouReceiptDetailParams struct {
 	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
 	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
@@ -2472,6 +2479,7 @@ func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouRecei
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
+		arg.OtherCategory,
 		arg.HandlerObjectID,
 		arg.HandlerVersionID,
 		arg.HandlerCode,
@@ -4482,10 +4490,10 @@ SET counterparty_entity = $1, counterparty_object_id = $2,
     counterparty_version_id = $3, counterparty_code = $4,
     counterparty_name = $5, fund_account_object_id = $6,
     fund_account_version_id = $7, fund_account_code = $8,
-    fund_account_name = $9,
-    handler_object_id = $10, handler_version_id = $11,
-    handler_code = $12, handler_name = $13
-WHERE document_id = $14
+    fund_account_name = $9, other_category = $10,
+    handler_object_id = $11, handler_version_id = $12,
+    handler_code = $13, handler_name = $14
+WHERE document_id = $15
 `
 
 type UpdateVouPaymentDetailParams struct {
@@ -4498,6 +4506,7 @@ type UpdateVouPaymentDetailParams struct {
 	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
 	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
@@ -4516,6 +4525,7 @@ func (q *Queries) UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPayme
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
+		arg.OtherCategory,
 		arg.HandlerObjectID,
 		arg.HandlerVersionID,
 		arg.HandlerCode,
@@ -4689,10 +4699,10 @@ SET counterparty_entity = $1, counterparty_object_id = $2,
     counterparty_version_id = $3, counterparty_code = $4,
     counterparty_name = $5, fund_account_object_id = $6,
     fund_account_version_id = $7, fund_account_code = $8,
-    fund_account_name = $9,
-    handler_object_id = $10, handler_version_id = $11,
-    handler_code = $12, handler_name = $13
-WHERE document_id = $14
+    fund_account_name = $9, other_category = $10,
+    handler_object_id = $11, handler_version_id = $12,
+    handler_code = $13, handler_name = $14
+WHERE document_id = $15
 `
 
 type UpdateVouReceiptDetailParams struct {
@@ -4705,6 +4715,7 @@ type UpdateVouReceiptDetailParams struct {
 	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
 	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
 	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
@@ -4723,6 +4734,7 @@ func (q *Queries) UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouRecei
 		arg.FundAccountVersionID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
+		arg.OtherCategory,
 		arg.HandlerObjectID,
 		arg.HandlerVersionID,
 		arg.HandlerCode,

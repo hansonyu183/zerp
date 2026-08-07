@@ -198,6 +198,7 @@ void vm.load()
                 <v-table>
                   <thead>
                     <tr>
+                      <th>账户类型</th>
                       <th>往来方</th>
                       <th>性质</th>
                       <th>金额</th>
@@ -205,6 +206,13 @@ void vm.load()
                   </thead>
                   <tbody>
                     <tr v-for="item in vm.closing.value.party" :key="item.id">
+                      <td>
+                        {{
+                          item.accountType === 'TRADE'
+                            ? '贸易往来'
+                            : '其他往来'
+                        }}
+                      </td>
                       <td>
                         {{
                           reference(
@@ -221,7 +229,7 @@ void vm.load()
                       <td>{{ item.amount }} {{ item.currency }}</td>
                     </tr>
                     <tr v-if="vm.closing.value.party.length === 0">
-                      <td colspan="3">暂无非零余额</td>
+                      <td colspan="4">暂无非零余额</td>
                     </tr>
                   </tbody>
                 </v-table>

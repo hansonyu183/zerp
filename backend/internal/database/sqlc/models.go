@@ -934,18 +934,6 @@ type LedClosingInventory struct {
 	CostAmountCents    int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
 }
 
-type LedClosingOtherPayable struct {
-	ClosingID             string `db:"closing_id" json:"closing_id"`
-	PayableCategory       string `db:"payable_category" json:"payable_category"`
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string `db:"currency" json:"currency"`
-	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
-}
-
 type LedClosingParty struct {
 	ClosingID             string `db:"closing_id" json:"closing_id"`
 	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
@@ -955,6 +943,7 @@ type LedClosingParty struct {
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string `db:"currency" json:"currency"`
 	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+	AccountType           string `db:"account_type" json:"account_type"`
 }
 
 type LedContainerEntry struct {
@@ -1039,6 +1028,7 @@ type LedDraftParty struct {
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string `db:"currency" json:"currency"`
 	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+	AccountType           string `db:"account_type" json:"account_type"`
 }
 
 type LedFundEntry struct {
@@ -1161,6 +1151,7 @@ type LedOpeningParty struct {
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string `db:"currency" json:"currency"`
 	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+	AccountType           string `db:"account_type" json:"account_type"`
 }
 
 type LedPartyEntry struct {
@@ -1185,7 +1176,7 @@ type LedPartyEntry struct {
 	Currency              string             `db:"currency" json:"currency"`
 	AmountDeltaCents      int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
 	AccountType           string             `db:"account_type" json:"account_type"`
-	PayableCategory       *string            `db:"payable_category" json:"payable_category"`
+	OtherCategory         *string            `db:"other_category" json:"other_category"`
 }
 
 type MigrationWflRolePermission struct {
@@ -1213,6 +1204,7 @@ type VouAssetAcquisitionDetail struct {
 	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
 	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
 	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+	PartyAccountType  string `db:"party_account_type" json:"party_account_type"`
 }
 
 type VouAssetAcquisitionLine struct {
@@ -1286,6 +1278,7 @@ type VouAssetSaleDetail struct {
 	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
 	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	PartyAccountType      string `db:"party_account_type" json:"party_account_type"`
 }
 
 type VouAssetSaleLine struct {
@@ -1613,6 +1606,7 @@ type VouPaymentDetail struct {
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
 	HandlerName           *string `db:"handler_name" json:"handler_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 }
 
 type VouPriceLine struct {
@@ -1835,6 +1829,7 @@ type VouReceiptDetail struct {
 	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
 	HandlerCode           *string `db:"handler_code" json:"handler_code"`
 	HandlerName           *string `db:"handler_name" json:"handler_name"`
+	OtherCategory         *string `db:"other_category" json:"other_category"`
 }
 
 type VouSaleDeliveryDetail struct {

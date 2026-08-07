@@ -17,11 +17,11 @@ export type VoucherEntity =
   | 'purchase-inbound'
   | 'purchase-return'
   | 'purchase-inquiry'
-  | 'customer-receipt'
-  | 'supplier-receipt'
+  | 'sales-receipt'
+  | 'purchase-refund'
   | 'other-receipt'
-  | 'customer-payment'
-  | 'supplier-payment'
+  | 'sales-refund'
+  | 'purchase-payment'
   | 'other-payment'
   | 'employee-loan'
   | 'employee-repayment'
@@ -185,6 +185,7 @@ export interface VoucherDraftForm {
   supplier: VoucherReference | null
   counterpartyType: '' | 'customer' | 'supplier' | 'other-party' | 'employee'
   counterparty: VoucherReference | null
+  otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee: VoucherReference | null
   salesperson: VoucherReference | null
   purchaser: VoucherReference | null
@@ -397,6 +398,7 @@ export interface VoucherDocumentData {
   customer?: VoucherReferenceView
   supplier?: VoucherReferenceView
   counterparty?: VoucherReferenceView
+  otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee?: VoucherReferenceView
   salesperson?: VoucherReferenceView
   purchaser?: VoucherReferenceView

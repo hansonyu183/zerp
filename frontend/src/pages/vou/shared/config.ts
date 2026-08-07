@@ -147,9 +147,9 @@ export const voucherEntityConfigs: Readonly<
     usesWarehouse: true,
     parentEntity: 'purchase-order',
   },
-  'customer-receipt': {
-    entity: 'customer-receipt',
-    title: '往来收款-客户',
+  'sales-receipt': {
+    entity: 'sales-receipt',
+    title: '销售收款',
     icon: 'mdi-cash-plus',
     order: 80,
     partyMode: 'counterparty',
@@ -159,9 +159,9 @@ export const voucherEntityConfigs: Readonly<
     usesHandler: true,
     directAmount: true,
   },
-  'supplier-receipt': {
-    entity: 'supplier-receipt',
-    title: '往来收款-供应商',
+  'purchase-refund': {
+    entity: 'purchase-refund',
+    title: '采购退款',
     icon: 'mdi-cash-plus',
     order: 81,
     partyMode: 'counterparty',
@@ -173,19 +173,18 @@ export const voucherEntityConfigs: Readonly<
   },
   'other-receipt': {
     entity: 'other-receipt',
-    title: '往来收款-其他',
+    title: '其他往来收款',
     icon: 'mdi-cash-plus',
     order: 82,
     partyMode: 'counterparty',
-    fixedCounterpartyType: 'other-party',
     lineKind: 'none',
     usesFundAccount: true,
     usesHandler: true,
     directAmount: true,
   },
-  'customer-payment': {
-    entity: 'customer-payment',
-    title: '往来付款-客户',
+  'sales-refund': {
+    entity: 'sales-refund',
+    title: '销售退款',
     icon: 'mdi-cash-minus',
     order: 90,
     partyMode: 'counterparty',
@@ -195,9 +194,9 @@ export const voucherEntityConfigs: Readonly<
     usesHandler: true,
     directAmount: true,
   },
-  'supplier-payment': {
-    entity: 'supplier-payment',
-    title: '往来付款-供应商',
+  'purchase-payment': {
+    entity: 'purchase-payment',
+    title: '采购付款',
     icon: 'mdi-cash-minus',
     order: 91,
     partyMode: 'counterparty',
@@ -209,11 +208,10 @@ export const voucherEntityConfigs: Readonly<
   },
   'other-payment': {
     entity: 'other-payment',
-    title: '往来付款-其他',
+    title: '其他往来付款',
     icon: 'mdi-cash-minus',
     order: 92,
     partyMode: 'counterparty',
-    fixedCounterpartyType: 'other-party',
     lineKind: 'none',
     usesFundAccount: true,
     usesHandler: true,

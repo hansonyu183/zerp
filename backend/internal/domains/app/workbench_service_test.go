@@ -12,7 +12,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		"/bob/supplier/approve",
 		"/bob/product/query", "/bob/product/reject",
 		"/vou/sale-order/query", "/vou/sale-order/check",
-		"/vou/supplier-payment/query",
+		"/vou/purchase-payment/query",
 	})
 
 	draftBob := scope.entitiesWith("bob", func(entity string) bool {

@@ -177,7 +177,14 @@ function referenceProps(key: string) {
 }
 
 function changeCounterpartyType(value: string): void {
-  vm.form.counterpartyType = value === 'supplier' ? 'supplier' : 'customer'
+  vm.form.counterpartyType = [
+    'customer',
+    'supplier',
+    'other-party',
+    'employee',
+  ].includes(value)
+    ? (value as typeof vm.form.counterpartyType)
+    : ''
   vm.form.counterparty = null
   vm.markReferenceChanged('counterpartyType')
   vm.searchReference('counterparty', '')
@@ -446,10 +453,18 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                             { title: '客户', value: 'customer' },
                             { title: '其他往来单位', value: 'other-party' },
                           ]
-                        : [
-                            { title: '客户', value: 'customer' },
-                            { title: '供应商', value: 'supplier' },
-                          ]
+                        : vm.config.entity === 'other-receipt' ||
+                            vm.config.entity === 'other-payment'
+                          ? [
+                              { title: '客户', value: 'customer' },
+                              { title: '供应商', value: 'supplier' },
+                              { title: '其他单位', value: 'other-party' },
+                              { title: '员工', value: 'employee' },
+                            ]
+                          : [
+                              { title: '客户', value: 'customer' },
+                              { title: '供应商', value: 'supplier' },
+                            ]
                     "
                     label="往来方类型"
                     :model-value="vm.form.counterpartyType"
@@ -466,7 +481,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         : vm.form.counterpartyType === 'other-party'
                           ? '其他往来单位'
                           : vm.form.counterpartyType === 'employee'
-                            ? '借款员工'
+                            ? vm.config.entity === 'other-receipt' ||
+                              vm.config.entity === 'other-payment'
+                              ? '员工'
+                              : '借款员工'
                             : '客户'
                     "
                     :model-value="vm.form.counterparty"
@@ -475,6 +493,25 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     @update:model-value="
                       updateReference('counterparty', $event)
                     "
+                  />
+
+                  <v-select
+                    v-if="
+                      vm.config.entity === 'other-receipt' ||
+                      vm.config.entity === 'other-payment'
+                    "
+                    v-model="vm.form.otherCategory"
+                    :disabled="!vm.editing"
+                    clearable
+                    item-title="title"
+                    item-value="value"
+                    :items="[
+                      { title: '提成', value: 'COMMISSION' },
+                      { title: '居间', value: 'INTERMEDIARY' },
+                      { title: '返点', value: 'REBATE' },
+                    ]"
+                    label="其他往来分类（可选）"
+                    variant="outlined"
                   />
 
                   <VoucherReferenceAutocomplete

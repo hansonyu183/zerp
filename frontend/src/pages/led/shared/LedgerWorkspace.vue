@@ -129,6 +129,17 @@ void vm.load()
               @search="vm.references.search"
             />
             <v-select
+              v-if="config.counterpartyTypes?.length"
+              v-model="vm.queryFilters.counterpartyType"
+              clearable
+              density="comfortable"
+              item-title="title"
+              item-value="value"
+              :items="config.counterpartyTypes"
+              label="往来方类型"
+              variant="outlined"
+            />
+            <v-select
               v-model="vm.queryFilters.sourceEntity"
               clearable
               density="comfortable"
@@ -159,14 +170,14 @@ void vm.load()
               variant="outlined"
             />
             <v-select
-              v-if="config.payableCategories?.length"
-              v-model="vm.queryFilters.payableCategory"
+              v-if="config.otherCategories?.length"
+              v-model="vm.queryFilters.otherCategory"
               clearable
               density="comfortable"
               item-title="title"
               item-value="value"
-              :items="config.payableCategories"
-              label="应付类别"
+              :items="config.otherCategories"
+              label="其他往来分类"
               variant="outlined"
             />
           </template>
@@ -185,6 +196,17 @@ void vm.load()
               :loading="vm.references.loading"
               :options="vm.references.options"
               @search="vm.references.search"
+            />
+            <v-select
+              v-if="config.counterpartyTypes?.length"
+              v-model="vm.balanceFilters.counterpartyType"
+              clearable
+              density="comfortable"
+              item-title="title"
+              item-value="value"
+              :items="config.counterpartyTypes"
+              label="往来方类型"
+              variant="outlined"
             />
           </template>
         </template>

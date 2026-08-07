@@ -352,8 +352,8 @@ func (s *Service) writeDetail(
 		return s.writeSaleDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityPurchaseOrder:
 		return s.writePurchaseDetail(ctx, q, entity, documentID, draft, refs, update)
-	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		return s.writeCashDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityExpenseReimbursement:
 		return s.writeExpenseDetail(ctx, q, entity, documentID, draft, refs, update)
@@ -592,13 +592,13 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read purchase inbound lines", lineErr)
 		}
 		missing = detail.WarehouseObjectID == "" || len(lines) == 0
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read receipt attributes", err)
 		}
 		missing = detail.HandlerObjectID == nil
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read payment attributes", err)

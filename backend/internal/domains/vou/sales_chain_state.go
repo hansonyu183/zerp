@@ -489,9 +489,9 @@ func (s *Service) Delete(
 	case EntityPurchaseOrder:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
 			DELETE FROM vou_purchase_order_details WHERE document_id=$1`, input.DocumentID)
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_receipt_details WHERE document_id=$1`, input.DocumentID)
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_payment_details WHERE document_id=$1`, input.DocumentID)
 	case EntityExpenseReimbursement:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_lines WHERE document_id=$1;

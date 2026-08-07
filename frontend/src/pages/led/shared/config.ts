@@ -19,12 +19,12 @@ const inventorySourceEntities: readonly LedgerOption[] = [
 
 const fundSourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
-  { title: '往来收款-客户', value: 'customer-receipt' },
-  { title: '往来收款-供应商', value: 'supplier-receipt' },
-  { title: '往来收款-其他', value: 'other-receipt' },
-  { title: '往来付款-客户', value: 'customer-payment' },
-  { title: '往来付款-供应商', value: 'supplier-payment' },
-  { title: '往来付款-其他', value: 'other-payment' },
+  { title: '销售收款', value: 'sales-receipt' },
+  { title: '采购退款', value: 'purchase-refund' },
+  { title: '其他往来收款', value: 'other-receipt' },
+  { title: '销售退款', value: 'sales-refund' },
+  { title: '采购付款', value: 'purchase-payment' },
+  { title: '其他往来付款', value: 'other-payment' },
   { title: '员工借款', value: 'employee-loan' },
   { title: '员工还款', value: 'employee-repayment' },
   { title: '费用报销', value: 'expense-reimbursement' },
@@ -35,38 +35,45 @@ const customerPartySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
   { title: '销售签收', value: 'sale-signoff' },
   { title: '销售退货', value: 'sale-return' },
-  { title: '往来收款', value: 'customer-receipt' },
-  { title: '往来付款', value: 'customer-payment' },
+  { title: '销售收款', value: 'sales-receipt' },
+  { title: '销售退款', value: 'sales-refund' },
 ]
 
 const supplierPartySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
   { title: '采购入库', value: 'purchase-inbound' },
   { title: '采购退货', value: 'purchase-return' },
-  { title: '往来收款', value: 'supplier-receipt' },
-  { title: '往来付款', value: 'supplier-payment' },
+  { title: '采购退款', value: 'purchase-refund' },
+  { title: '采购付款', value: 'purchase-payment' },
 ]
 
 const otherPartySourceEntities: readonly LedgerOption[] = [
   { title: '期初', value: 'opening' },
-  { title: '往来收款', value: 'other-receipt' },
-  { title: '往来付款', value: 'other-payment' },
-]
-
-const employeePartySourceEntities: readonly LedgerOption[] = [
+  { title: '其他往来收款', value: 'other-receipt' },
+  { title: '其他往来付款', value: 'other-payment' },
   { title: '员工借款', value: 'employee-loan' },
   { title: '员工还款', value: 'employee-repayment' },
   { title: '员工借款核销', value: 'employee-loan-writeoff' },
-]
-
-const otherPayableSourceEntities: readonly LedgerOption[] = [
+  { title: '费用报销', value: 'expense-reimbursement' },
+  { title: '费用付款', value: 'expense-payment' },
+  { title: '固定资产购置', value: 'asset-acquisition' },
+  { title: '固定资产出让', value: 'asset-sale' },
+  { title: '开票', value: 'bill-issue' },
+  { title: '贴现', value: 'bill-discount' },
   { title: '居间计算单', value: 'intermediary-calculation' },
 ]
 
-const otherPayableCategories: readonly LedgerOption[] = [
+const otherCategories: readonly LedgerOption[] = [
   { title: '员工提成', value: 'COMMISSION' },
   { title: '居间费', value: 'INTERMEDIARY' },
   { title: '客户返点', value: 'REBATE' },
+]
+
+const counterpartyTypes: readonly LedgerOption[] = [
+  { title: '客户', value: 'customer' },
+  { title: '供应商', value: 'supplier' },
+  { title: '其他单位', value: 'other-party' },
+  { title: '员工', value: 'employee' },
 ]
 
 const containerSourceEntities: readonly LedgerOption[] = [
@@ -288,101 +295,55 @@ export const ledgerEntityConfigs: Readonly<
   },
   other: {
     entity: 'other',
-    title: '往来台账-其他',
-    objectLabel: '其他往来单位',
-    referenceSources: [{ entity: 'other-party' }],
-    sourceEntities: otherPartySourceEntities,
-    directions: [
-      { title: '借记', value: 'DEBIT' },
-      { title: '贷记', value: 'CREDIT' },
-    ],
-    entryColumns: [
-      ...commonEntryColumns,
-      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
-      col('direction', '方向', (row) =>
-        translated(row, 'direction', directionText),
-      ),
-      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-      ...endingEntryColumns,
-    ],
-    balanceColumns: [
-      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
-      col('balanceType', '性质', (row) =>
-        translated(row, 'balanceType', balanceText),
-      ),
-      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-    ],
-  },
-  employee: {
-    entity: 'employee',
-    title: '往来台账-员工',
-    objectLabel: '员工',
-    referenceSources: [{ entity: 'employee' }],
-    sourceEntities: employeePartySourceEntities,
-    directions: [
-      { title: '借记', value: 'DEBIT' },
-      { title: '贷记', value: 'CREDIT' },
-    ],
-    entryColumns: [
-      ...commonEntryColumns,
-      col('counterparty', '员工', (row) => reference(row, 'counterparty')),
-      col('direction', '方向', (row) =>
-        translated(row, 'direction', directionText),
-      ),
-      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-      ...endingEntryColumns,
-    ],
-    balanceColumns: [
-      col('counterparty', '员工', (row) => reference(row, 'counterparty')),
-      col('balanceType', '性质', (row) =>
-        translated(row, 'balanceType', balanceText),
-      ),
-      col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
-    ],
-  },
-  'other-payable': {
-    entity: 'other-payable',
-    title: '其它应付',
-    objectLabel: '员工、居间商或客户',
+    title: '其他往来',
+    objectLabel: '往来方',
     referenceSources: [
-      { entity: 'employee' },
-      { entity: 'other-party' },
       { entity: 'customer' },
+      { entity: 'supplier' },
+      { entity: 'other-party' },
+      { entity: 'employee' },
     ],
-    sourceEntities: otherPayableSourceEntities,
-    payableCategories: otherPayableCategories,
+    sourceEntities: otherPartySourceEntities,
+    counterpartyTypes,
+    otherCategories,
     directions: [
-      { title: '增加应付', value: 'CREDIT' },
-      { title: '减少应付', value: 'DEBIT' },
+      { title: '借记', value: 'DEBIT' },
+      { title: '贷记', value: 'CREDIT' },
     ],
     entryColumns: [
       ...commonEntryColumns,
-      col('counterparty', '应付对象', (row) => reference(row, 'counterparty')),
-      col('payableCategory', '类别', (row) =>
-        translated(row, 'payableCategory', {
-          COMMISSION: '员工提成',
-          INTERMEDIARY: '居间费',
-          REBATE: '客户返点',
+      col('counterpartyType', '主体类型', (row) =>
+        translated(row, 'counterpartyType', {
+          customer: '客户',
+          supplier: '供应商',
+          'other-party': '其他单位',
+          employee: '员工',
+        }),
+      ),
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
+      col('otherCategory', '分类', (row) =>
+        translated(row, 'otherCategory', {
+          COMMISSION: '提成',
+          INTERMEDIARY: '居间',
+          REBATE: '返点',
         }),
       ),
       col('direction', '方向', (row) =>
-        translated(row, 'direction', {
-          CREDIT: '增加应付',
-          DEBIT: '减少应付',
-        }),
+        translated(row, 'direction', directionText),
       ),
       col('amount', '金额', (row) => text(row, 'amount'), { align: 'end' }),
       ...endingEntryColumns,
     ],
     balanceColumns: [
-      col('counterparty', '应付对象', (row) => reference(row, 'counterparty')),
-      col('payableCategory', '类别', (row) =>
-        translated(row, 'payableCategory', {
-          COMMISSION: '员工提成',
-          INTERMEDIARY: '居间费',
-          REBATE: '客户返点',
+      col('counterpartyType', '主体类型', (row) =>
+        translated(row, 'counterpartyType', {
+          customer: '客户',
+          supplier: '供应商',
+          'other-party': '其他单位',
+          employee: '员工',
         }),
       ),
+      col('counterparty', '往来方', (row) => reference(row, 'counterparty')),
       col('balanceType', '性质', (row) =>
         translated(row, 'balanceType', balanceText),
       ),

@@ -25,11 +25,11 @@ var vouEntities = [...]string{
 	voudomain.EntityOrderProduction,
 	voudomain.EntitySelfProduction,
 	voudomain.EntityInventoryCount,
-	voudomain.EntityCustomerReceipt,
-	voudomain.EntitySupplierReceipt,
+	voudomain.EntitySalesReceipt,
+	voudomain.EntityPurchaseRefund,
 	voudomain.EntityOtherReceipt,
-	voudomain.EntityCustomerPayment,
-	voudomain.EntitySupplierPayment,
+	voudomain.EntitySalesRefund,
+	voudomain.EntityPurchasePayment,
 	voudomain.EntityOtherPayment,
 	voudomain.EntityEmployeeLoan,
 	voudomain.EntityEmployeeRepayment,
@@ -89,9 +89,7 @@ func (s *Service) Activate(
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
-	if err = s.preflightActivation(
-		ctx, q, control.CutoverDate.Time, control.ActiveGenerationID,
-	); err != nil {
+	if err = s.preflightActivation(ctx, q); err != nil {
 		return MutationResult{}, err
 	}
 	generationID := newID()
@@ -258,9 +256,9 @@ func (s *Service) postDocument(
 		return s.postProduction(ctx, tx, q, posting)
 	case voudomain.EntityInventoryCount:
 		return s.postInventoryCount(ctx, tx, q, posting)
-	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt, voudomain.EntityEmployeeRepayment:
+	case voudomain.EntitySalesReceipt, voudomain.EntityPurchaseRefund, voudomain.EntityOtherReceipt, voudomain.EntityEmployeeRepayment:
 		return s.postReceipt(ctx, q, posting)
-	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment, voudomain.EntityEmployeeLoan:
+	case voudomain.EntitySalesRefund, voudomain.EntityPurchasePayment, voudomain.EntityOtherPayment, voudomain.EntityEmployeeLoan:
 		return s.postPayment(ctx, q, posting)
 	case voudomain.EntityEmployeeLoanWriteoff:
 		return s.postEmployeeLoanWriteoff(ctx, tx, q, posting)
@@ -306,7 +304,7 @@ func (s *Service) postIntermediaryCalculation(
 			return domainError(ErrorValidation, "intermediary calculation amount is out of range", nil, nil)
 		}
 		category := summary.Category
-		if err = q.InsertLedOtherPayableEntry(ctx, dbsqlc.InsertLedOtherPayableEntryParams{
+		if err = q.InsertLedOtherEntry(ctx, dbsqlc.InsertLedOtherEntryParams{
 			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
 			SourceEntity: posting.Document.Entity, SourceDocumentID: posting.Document.ID,
 			SourceDocumentNo: posting.Document.DocumentNo, SourceLineID: summary.ID,
@@ -316,7 +314,7 @@ func (s *Service) postIntermediaryCalculation(
 			CounterpartyObjectID: summary.PayeeObjectID, CounterpartyVersionID: summary.PayeeVersionID,
 			CounterpartyCode: summary.PayeeCode, CounterpartyName: summary.PayeeName,
 			Currency: "CNY", AmountDeltaCents: -summary.AmountCents,
-			PayableCategory: &category,
+			OtherCategory: &category,
 		}); err != nil {
 			return err
 		}
@@ -351,6 +349,22 @@ func partyParams(
 		Remark:             preferredRemark(nil, doc.Remark),
 		CounterpartyEntity: entity, CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
 		CounterpartyCode: code, CounterpartyName: name, Currency: deref(doc.Currency), AmountDeltaCents: delta,
+	}
+}
+
+func otherPartyParams(
+	posting postingContext, doc dbsqlc.VouDocument, lineID string, effectiveDate pgtype.Date,
+	objectID, versionID, code, name, entity string, delta int64, category *string,
+) dbsqlc.InsertLedOtherEntryParams {
+	return dbsqlc.InsertLedOtherEntryParams{
+		ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+		SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+		SourceLineID: lineID, SourceRevision: posting.SourceRevision, EffectiveDate: effectiveDate,
+		OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+		Remark: preferredRemark(nil, doc.Remark), CounterpartyEntity: entity,
+		CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
+		CounterpartyCode: code, CounterpartyName: name, Currency: deref(doc.Currency),
+		AmountDeltaCents: delta, OtherCategory: category,
 	}
 }
 

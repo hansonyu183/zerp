@@ -27,7 +27,6 @@ func TestInitialBusinessMenuClassifiesEveryCashRoute(t *testing.T) {
 		"led/customer",
 		"led/supplier",
 		"led/other",
-		"led/employee",
 	} {
 		if group := classifyBusinessRoute(key); group != "menu-group-cash" {
 			t.Errorf("classifyBusinessRoute(%q) = %q, want menu-group-cash", key, group)

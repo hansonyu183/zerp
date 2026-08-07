@@ -175,8 +175,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '盘点明细在台账重建期间发生变化，请重试。',
   'inventory ledger is not active': '库存台账尚未启用。',
   'ledger cannot be activated': '当前台账不能启用。',
-  'other payable balances exist before the new ledger cutover':
-    '新台账切换日前仍有其它应付余额，请先撤销或处理对应负债。',
   'ledger cannot be reopened': '当前台账不能重新打开。',
   'fixed asset currency must be CNY': '固定资产业务币种必须为人民币。',
   'asset is fully depreciated': '固定资产已提足折旧。',
@@ -344,8 +342,12 @@ const exactMessages: Readonly<Record<string, string>> = {
     '销售签收来源的计价数量无效，请检查产品单位换算。',
   'every unclosed month must have an approved intermediary calculation before closing':
     '结账范围内存在尚未完成的月度居间计算单，请逐月处理后再结账。',
-  'payableCategory only applies to other payable':
-    '应付类别筛选仅适用于其它应付台账。',
+  'other transaction filters only apply to other ledger':
+    '主体类型和分类筛选仅适用于其他往来。',
+  'otherCategory only applies to other transactions':
+    '其他往来分类仅适用于其他往来收付款。',
+  'trade opening requires customer or supplier':
+    '贸易往来期初只能选择客户或供应商。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',

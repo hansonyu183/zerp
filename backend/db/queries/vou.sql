@@ -699,14 +699,14 @@ ORDER BY line_no;
 INSERT INTO vou_receipt_details (
     document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
-    fund_account_code, fund_account_name,
+    fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(entity),
     sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
-    sqlc.arg(fund_account_code), sqlc.arg(fund_account_name),
+    sqlc.arg(fund_account_code), sqlc.arg(fund_account_name), sqlc.narg(other_category),
     sqlc.arg(handler_object_id), sqlc.arg(handler_version_id),
     sqlc.arg(handler_code), sqlc.arg(handler_name)
 );
@@ -717,7 +717,7 @@ SET counterparty_entity = sqlc.arg(counterparty_entity), counterparty_object_id 
     counterparty_version_id = sqlc.arg(counterparty_version_id), counterparty_code = sqlc.arg(counterparty_code),
     counterparty_name = sqlc.arg(counterparty_name), fund_account_object_id = sqlc.arg(fund_account_object_id),
     fund_account_version_id = sqlc.arg(fund_account_version_id), fund_account_code = sqlc.arg(fund_account_code),
-    fund_account_name = sqlc.arg(fund_account_name),
+    fund_account_name = sqlc.arg(fund_account_name), other_category = sqlc.narg(other_category),
     handler_object_id = sqlc.arg(handler_object_id), handler_version_id = sqlc.arg(handler_version_id),
     handler_code = sqlc.arg(handler_code), handler_name = sqlc.arg(handler_name)
 WHERE document_id = sqlc.arg(document_id);
@@ -729,14 +729,14 @@ SELECT * FROM vou_receipt_details WHERE document_id = sqlc.arg(document_id);
 INSERT INTO vou_payment_details (
     document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
-    fund_account_code, fund_account_name,
+    fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_version_id, handler_code, handler_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(entity),
     sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_version_id),
-    sqlc.arg(fund_account_code), sqlc.arg(fund_account_name),
+    sqlc.arg(fund_account_code), sqlc.arg(fund_account_name), sqlc.narg(other_category),
     sqlc.arg(handler_object_id), sqlc.arg(handler_version_id),
     sqlc.arg(handler_code), sqlc.arg(handler_name)
 );
@@ -747,7 +747,7 @@ SET counterparty_entity = sqlc.arg(counterparty_entity), counterparty_object_id 
     counterparty_version_id = sqlc.arg(counterparty_version_id), counterparty_code = sqlc.arg(counterparty_code),
     counterparty_name = sqlc.arg(counterparty_name), fund_account_object_id = sqlc.arg(fund_account_object_id),
     fund_account_version_id = sqlc.arg(fund_account_version_id), fund_account_code = sqlc.arg(fund_account_code),
-    fund_account_name = sqlc.arg(fund_account_name),
+    fund_account_name = sqlc.arg(fund_account_name), other_category = sqlc.narg(other_category),
     handler_object_id = sqlc.arg(handler_object_id), handler_version_id = sqlc.arg(handler_version_id),
     handler_code = sqlc.arg(handler_code), handler_name = sqlc.arg(handler_name)
 WHERE document_id = sqlc.arg(document_id);

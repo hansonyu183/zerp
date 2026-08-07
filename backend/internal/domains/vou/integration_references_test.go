@@ -139,7 +139,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "10.00",
 	}
-	receipt, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: receiptDraft},
+	receipt, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: receiptDraft},
 		integrationActorOne, "legacy-receipt-create")
 	if err != nil {
 		t.Fatalf("create receipt for legacy compatibility: %v", err)
@@ -152,22 +152,22 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	`, receipt.DocumentID); err != nil {
 		t.Fatalf("simulate legacy receipt: %v", err)
 	}
-	legacy, err := service.Get(t.Context(), EntityReceipt, GetInput{DocumentID: receipt.DocumentID})
+	legacy, err := service.Get(t.Context(), EntitySalesReceipt, GetInput{DocumentID: receipt.DocumentID})
 	if err != nil || legacy.Data.Handler != nil {
 		t.Fatalf("read legacy receipt view=%+v err=%v", legacy, err)
 	}
-	if _, err = service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
+	if _, err = service.Check(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: receipt.DocumentID, Revision: receipt.Revision,
 	}, integrationActorOne, "legacy-receipt-review"); err == nil {
 		t.Fatal("legacy receipt with missing handler advanced")
 	}
-	saved, err := service.Save(t.Context(), EntityReceipt, SaveInput{
+	saved, err := service.Save(t.Context(), EntitySalesReceipt, SaveInput{
 		DocumentID: receipt.DocumentID, Revision: receipt.Revision, Data: receiptDraft,
 	}, integrationActorOne, "legacy-receipt-save")
 	if err != nil {
 		t.Fatalf("complete legacy receipt: %v", err)
 	}
-	if _, err = service.Check(t.Context(), EntityReceipt, DocumentRevisionInput{
+	if _, err = service.Check(t.Context(), EntitySalesReceipt, DocumentRevisionInput{
 		DocumentID: receipt.DocumentID, Revision: saved.Revision,
 	}, integrationActorOne, "legacy-receipt-reviewed"); err != nil {
 		t.Fatalf("review completed legacy receipt: %v", err)
@@ -244,7 +244,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 
 	usdAccount := createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntityFundAccount,
 		bobdomain.CreateDetailInput{Code: "USD" + newID(), Name: "美元账户", Currency: "USD"})
-	_, err = service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	_, err = service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &usdAccount,
 		Handler: &refs.employee, Amount: "1.00",
@@ -260,8 +260,8 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 	_, err = tx.Exec(t.Context(), `
 		INSERT INTO vou_documents (
 			id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
-		) VALUES ($1, 'receipt', $2, DATE '2026-07-24', 'CNY', 100, $3, $3)`,
-		newID(), "REC-20260724-9999", integrationActorOne)
+		) VALUES ($1, 'sales-receipt', $2, DATE '2026-07-24', 'CNY', 100, $3, $3)`,
+		newID(), "SRC-20260724-9999", integrationActorOne)
 	if err != nil {
 		t.Fatalf("insert invalid document: %v", err)
 	}

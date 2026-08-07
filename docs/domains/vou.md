@@ -18,11 +18,11 @@ purchase-inquiry
 order-production
 self-production
 inventory-count
-customer-receipt
-supplier-receipt
+sales-receipt
+purchase-refund
 other-receipt
-customer-payment
-supplier-payment
+sales-refund
+purchase-payment
 other-payment
 employee-loan
 employee-repayment
@@ -58,11 +58,11 @@ VOU 自身不保存库存流水、资金余额、应收应付或往来核销数�
 单据号由服务端按类型和创建时业务日期生成，格式为三位前缀、八位业务日期和四位流水号：
 
 ```text
-SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/REC/PAY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ/BRE/BLP/BLI/BLD/BLM/ICL-YYYYMMDD-####
+SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/ERP/ELW/EXR/EXP/OIN/ACQ/DEP/DSL/LIQ/BRE/BLP/BLI/BLD/BLM/ICL-YYYYMMDD-####
 ```
 
 前缀依次对应销售定价、销售订单、销售出库、销售送货、销售签收、销售退货、采购询价、采购订单、采购入库、
-采购退货、生产配货、生产自制品、库存盘点、收款、付款、员工借款、员工还款、员工借款核销、费用报销、费用付款和其他收入。三类收款共享 REC 序列，三类付款共享 PAY 序列；其他流水按实体和业务日期分别从 `0001` 开始，
+采购退货、生产配货、生产自制品、库存盘点、销售收款、销售退款、采购付款、采购退款、其他往来收款、其他往来付款、员工借款、员工还款、员工借款核销、费用报销、费用付款和其他收入。六类现金单据分别使用 `SRC`、`SRF`、`PPY`、`PRF`、`ORC`、`OPY` 独立序列；其他流水按实体和业务日期分别从 `0001` 开始，
 员工借款、员工还款和员工借款核销分别使用 `ELN`、`ERP`、`ELW` 序列，`ACQ/DEP/DSL/LIQ` 分别对应资产购置、折旧、出让和清算。达到 `9999` 后拒绝继续创建。编号创建后不可修改或复用。数量以最多六位小数的十进制字符串传输，金额以两位小数的十进制字符串传输，后端使用定点整数计算。
 
 所有 BOB 引用都传 `objectId` 和 `versionId`。VOU 在写事务内调用 `ResolveEffectiveReference`，并保存编码、名称、单位、币种、车牌等业务快照。之后 BOB 版本失效不改变历史单据。
@@ -217,7 +217,7 @@ JSON 来源数据并返回 JSON 结果，不接触 DOM、Cookie、网络或宿�
 来源快照，不能以过期计算稿结账。后端另校验来源明细集合、票据分配、收款方、分类、金额精度、明细汇总
 与单据总额，但不复算可变公式。退货冲回明细保存其原计提居间计算单依赖；已有后续月份批准的退货冲回时，
 原计提单必须在后续冲回单反批准后才能反批准。原计提单退回草稿后仍不得越过任何引用它的后续单修改或删除，
-必须先将后续单退回草稿并删除。退货冲回允许汇总金额为负数，批准后借记并冲减对应其它应付。
+必须先将后续单退回草稿并删除。退货冲回允许汇总金额为负数，批准后借记并冲减对应分类的其他往来应付余额。
 
 默认脚本实现 2026 规则：标准销售基础提成 8 元/桶；每完整溢价 0.05 元/kg 增加 2.5 元/桶；低价和
 特批销售为 3 元/桶；结算方式加价和返点价从溢价中扣除；普通销售含市场维护补贴 2 元/桶及按业务员月度
@@ -255,7 +255,7 @@ JSON 来源数据并返回 JSON 结果，不接触 DOM、Cookie、网络或宿�
 脚本结果可以随规则变化编辑；历史单据始终保留当次计算稿。
 
 计算结果按 `COMMISSION`（员工提成）、`INTERMEDIARY`（居间费）、`REBATE`（客户返点）分组。
-单据批准时同步贷记 LED 分类其它应付，客户返点只增加客户名下其它应付，不改变客户贸易应收。
+单据批准时同步贷记 LED 分类其他往来，客户返点只增加客户名下其他往来应付余额，不改变客户贸易应收。
 
 ## 3. 单据字段
 
@@ -360,7 +360,7 @@ WFL 流程或 LED 流水。
 
 ### 3.6 往来收款与往来付款
 
-往来收付款按客户、供应商和其他往来单位拆为六个独立实体：`customer-receipt`、`supplier-receipt`、`other-receipt`、`customer-payment`、`supplier-payment`、`other-payment`。各实体拥有独立路由与权限，往来方类型由实体固定，草稿不再提交 `counterpartyType`。草稿包含对应往来方、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；批准确认单据已实际发生并入账。
+往来收付款固定为六个独立实体：`sales-receipt`（销售收款）、`sales-refund`（销售退款）、`purchase-payment`（采购付款）、`purchase-refund`（采购退款）、`other-receipt`（其他往来收款）、`other-payment`（其他往来付款）。销售实体固定客户、采购实体固定供应商并结算贸易往来；其他往来收付款必须从客户、供应商、其他单位、员工中选择主体类型，始终结算其他往来，并可选 `COMMISSION`、`INTERMEDIARY`、`REBATE` 分类。各实体拥有独立路由与权限，草稿包含往来方、一个资金账户、必填经办人、业务日期、币种、金额和备注。单据币种必须与资金账户币种一致。首版不关联或核销来源单据；批准确认单据已实际发生并入账。
 
 ### 3.7 员工借款、还款与借款核销
 
@@ -446,26 +446,26 @@ WFL 流程或 LED 流水。
 
 各实体在通用字段之外使用：
 
-| 实体                     | 草稿专用字段                                                                             |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `sale-pricing`           | `priceLines`（产品、销售基准价、可选备注）                                               |
-| `sale-order`             | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                           |
-| `sale-outbound`          | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                      |
-| `sale-delivery`          | WFL 注入来源；客户端只传 `platform`、`vehicle`                                           |
-| `sale-signoff`           | WFL 注入来源；客户端只传 `signoffLines`                                                  |
-| `order-production`       | 销售订单来源、`materialWarehouse`、`finishedWarehouse`、`productionLines`                |
-| `self-production`        | `materialWarehouse`、`finishedWarehouse`、`productionLines`                              |
-| `purchase-order`         | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`              |
-| `purchase-inquiry`       | 必填 `supplier`、`priceLines`（产品、采购询价、可选备注）                                |
-| `purchase-inbound`       | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                            |
-| `inventory-count`        | `warehouse`、`inventoryCountLines`（商品和实盘数量）                                     |
-| 六类往来收付款实体       | 对应类型 `counterparty`、`fundAccount`、`handler`、`amount`                              |
-| `employee-loan`          | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                          |
-| `employee-repayment`     | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                          |
-| `employee-loan-writeoff` | `employee`、`expenseLines`                                                               |
-| `expense-reimbursement`  | `employee`、`expenseLines`                                                               |
-| `expense-payment`        | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                       |
-| `other-income`           | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount` |
+| 实体                     | 草稿专用字段                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `sale-pricing`           | `priceLines`（产品、销售基准价、可选备注）                                                                                |
+| `sale-order`             | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                                                            |
+| `sale-outbound`          | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                                                       |
+| `sale-delivery`          | WFL 注入来源；客户端只传 `platform`、`vehicle`                                                                            |
+| `sale-signoff`           | WFL 注入来源；客户端只传 `signoffLines`                                                                                   |
+| `order-production`       | 销售订单来源、`materialWarehouse`、`finishedWarehouse`、`productionLines`                                                 |
+| `self-production`        | `materialWarehouse`、`finishedWarehouse`、`productionLines`                                                               |
+| `purchase-order`         | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`                                               |
+| `purchase-inquiry`       | 必填 `supplier`、`priceLines`（产品、采购询价、可选备注）                                                                 |
+| `purchase-inbound`       | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                                                             |
+| `inventory-count`        | `warehouse`、`inventoryCountLines`（商品和实盘数量）                                                                      |
+| 六类往来收付款实体       | 对应类型 `counterparty`、`fundAccount`、`handler`、`amount`；其他往来收付款另传 `counterpartyType` 和可选 `otherCategory` |
+| `employee-loan`          | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                                                           |
+| `employee-repayment`     | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                                                           |
+| `employee-loan-writeoff` | `employee`、`expenseLines`                                                                                                |
+| `expense-reimbursement`  | `employee`、`expenseLines`                                                                                                |
+| `expense-payment`        | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                                                        |
+| `other-income`           | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount`                                  |
 
 往来收付款、员工借还与核销、费用报销、费用付款和其他收入批准只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
 `reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
@@ -659,43 +659,43 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 
 ### 9.1 实体与页面
 
-| 实体                       | 页面            | 创建入口 |
-| -------------------------- | --------------- | -------- |
-| `sale-pricing`             | 销售定价        | 公开     |
-| `sale-order`               | 销售订单        | 公开     |
-| `sale-outbound`            | 销售出库        | WFL 自动 |
-| `sale-delivery`            | 销售送货        | WFL 自动 |
-| `sale-signoff`             | 销售签收        | WFL 自动 |
-| `sale-return`              | 销售退货        | 公开     |
-| `purchase-order`           | 采购订单        | 公开     |
-| `purchase-inbound`         | 采购入库        | 公开     |
-| `purchase-return`          | 采购退货        | 公开     |
-| `purchase-inquiry`         | 采购询价        | 公开     |
-| `order-production`         | 生产配货        | 公开     |
-| `self-production`          | 生产自制品      | 公开     |
-| `inventory-count`          | 库存盘点        | 公开     |
-| `customer-receipt`         | 往来收款-客户   | 公开     |
-| `supplier-receipt`         | 往来收款-供应商 | 公开     |
-| `other-receipt`            | 往来收款-其他   | 公开     |
-| `customer-payment`         | 往来付款-客户   | 公开     |
-| `supplier-payment`         | 往来付款-供应商 | 公开     |
-| `other-payment`            | 往来付款-其他   | 公开     |
-| `employee-loan`            | 员工借款        | 公开     |
-| `employee-repayment`       | 员工还款        | 公开     |
-| `employee-loan-writeoff`   | 员工借款核销    | 公开     |
-| `expense-reimbursement`    | 费用报销        | 公开     |
-| `expense-payment`          | 费用付款        | WFL 自动 |
-| `other-income`             | 其他收入        | 公开     |
-| `asset-acquisition`        | 资产购置        | 公开     |
-| `asset-depreciation`       | 资产折旧        | 公开     |
-| `asset-sale`               | 资产出让        | 公开     |
-| `asset-liquidation`        | 资产清算        | 公开     |
-| `bill-receipt`             | 票据收入        | 公开     |
-| `bill-payment`             | 票据支付        | 公开     |
-| `bill-issue`               | 票据开具        | 公开     |
-| `bill-discount`            | 票据贴现        | 公开     |
-| `bill-maturity`            | 票据到期        | 公开     |
-| `intermediary-calculation` | 居间计算        | 公开     |
+| 实体                       | 页面         | 创建入口 |
+| -------------------------- | ------------ | -------- |
+| `sale-pricing`             | 销售定价     | 公开     |
+| `sale-order`               | 销售订单     | 公开     |
+| `sale-outbound`            | 销售出库     | WFL 自动 |
+| `sale-delivery`            | 销售送货     | WFL 自动 |
+| `sale-signoff`             | 销售签收     | WFL 自动 |
+| `sale-return`              | 销售退货     | 公开     |
+| `purchase-order`           | 采购订单     | 公开     |
+| `purchase-inbound`         | 采购入库     | 公开     |
+| `purchase-return`          | 采购退货     | 公开     |
+| `purchase-inquiry`         | 采购询价     | 公开     |
+| `order-production`         | 生产配货     | 公开     |
+| `self-production`          | 生产自制品   | 公开     |
+| `inventory-count`          | 库存盘点     | 公开     |
+| `sales-receipt`            | 销售收款     | 公开     |
+| `purchase-refund`          | 采购退款     | 公开     |
+| `other-receipt`            | 其他往来收款 | 公开     |
+| `sales-refund`             | 销售退款     | 公开     |
+| `purchase-payment`         | 采购付款     | 公开     |
+| `other-payment`            | 其他往来付款 | 公开     |
+| `employee-loan`            | 员工借款     | 公开     |
+| `employee-repayment`       | 员工还款     | 公开     |
+| `employee-loan-writeoff`   | 员工借款核销 | 公开     |
+| `expense-reimbursement`    | 费用报销     | 公开     |
+| `expense-payment`          | 费用付款     | WFL 自动 |
+| `other-income`             | 其他收入     | 公开     |
+| `asset-acquisition`        | 资产购置     | 公开     |
+| `asset-depreciation`       | 资产折旧     | 公开     |
+| `asset-sale`               | 资产出让     | 公开     |
+| `asset-liquidation`        | 资产清算     | 公开     |
+| `bill-receipt`             | 票据收入     | 公开     |
+| `bill-payment`             | 票据支付     | 公开     |
+| `bill-issue`               | 票据开具     | 公开     |
+| `bill-discount`            | 票据贴现     | 公开     |
+| `bill-maturity`            | 票据到期     | 公开     |
+| `intermediary-calculation` | 居间计算     | 公开     |
 
 实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
 

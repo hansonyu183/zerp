@@ -462,23 +462,12 @@ WHERE document.entity='bill-receipt'
   )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
 
--- name: HasLedOtherPayableBalanceBeforeCutover :one
-SELECT EXISTS (
-    SELECT 1
-    FROM led_party_entries
-    WHERE generation_id=sqlc.arg(generation_id)
-      AND account_type='OTHER_PAYABLE'
-      AND effective_date < sqlc.arg(cutover_date)
-    GROUP BY counterparty_entity,counterparty_object_id,currency,payable_category
-    HAVING sum(amount_delta_cents)<>0
-)::boolean;
-
--- name: InsertLedOtherPayableEntry :exec
+-- name: InsertLedOtherEntry :exec
 INSERT INTO led_party_entries(
     id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
     source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,remark,
     counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,
-    counterparty_name,currency,amount_delta_cents,account_type,payable_category
+    counterparty_name,currency,amount_delta_cents,account_type,other_category
 ) VALUES (
     sqlc.arg(id),sqlc.arg(generation_id),sqlc.arg(entry_type),sqlc.arg(source_entity),
     sqlc.arg(source_document_id),sqlc.arg(source_document_no),sqlc.arg(source_line_id),
@@ -487,28 +476,30 @@ INSERT INTO led_party_entries(
     sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id),sqlc.arg(counterparty_code),
     sqlc.arg(counterparty_name),sqlc.arg(currency),sqlc.arg(amount_delta_cents),
-    'OTHER_PAYABLE',sqlc.arg(payable_category)
+    'OTHER',sqlc.narg(other_category)
 ) ON CONFLICT DO NOTHING;
 
--- name: CountLedOtherPayableEntries :one
+-- name: CountLedOtherEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER_PAYABLE'
+WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
   AND effective_date BETWEEN sqlc.arg(date_from) AND sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text='' OR source_entity=sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text='' OR source_document_no ILIKE '%'||sqlc.arg(document_no)||'%')
-  AND (sqlc.arg(payable_category)::text='' OR payable_category=sqlc.arg(payable_category))
+  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
+  AND (sqlc.arg(other_category)::text='' OR other_category=sqlc.arg(other_category))
   AND (COALESCE(cardinality(sqlc.arg(directions)::text[]),0)=0
        OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY(sqlc.arg(directions)::text[]));
 
--- name: ListLedOtherPayableEntries :many
+-- name: ListLedOtherEntries :many
 SELECT * FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER_PAYABLE'
+WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
   AND effective_date BETWEEN sqlc.arg(date_from) AND sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
   AND (sqlc.arg(source_entity)::text='' OR source_entity=sqlc.arg(source_entity))
   AND (sqlc.arg(document_no)::text='' OR source_document_no ILIKE '%'||sqlc.arg(document_no)||'%')
-  AND (sqlc.arg(payable_category)::text='' OR payable_category=sqlc.arg(payable_category))
+  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
+  AND (sqlc.arg(other_category)::text='' OR other_category=sqlc.arg(other_category))
   AND (COALESCE(cardinality(sqlc.arg(directions)::text[]),0)=0
        OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY(sqlc.arg(directions)::text[]))
 ORDER BY
@@ -523,28 +514,30 @@ ORDER BY
   effective_date DESC,occurred_at DESC,id DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
--- name: CountLedOtherPayableBalances :one
+-- name: CountLedOtherBalances :one
 SELECT count(*) FROM (
-  SELECT payable_category,counterparty_entity,counterparty_object_id,currency
+  SELECT counterparty_entity,counterparty_object_id,currency
   FROM led_party_entries
-  WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER_PAYABLE'
+  WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
     AND effective_date<=sqlc.arg(as_of_date)
     AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-  GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
+    AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
+  GROUP BY counterparty_entity,counterparty_object_id,currency
   HAVING sum(amount_delta_cents)<>0
 ) balances;
 
--- name: ListLedOtherPayableBalances :many
-SELECT payable_category,counterparty_entity,counterparty_object_id,
+-- name: ListLedOtherBalances :many
+SELECT counterparty_entity,counterparty_object_id,
        (array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS counterparty_version_id,
        max(counterparty_code)::varchar(64) AS counterparty_code,
        (array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS counterparty_name,
        currency,sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER_PAYABLE'
+WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
   AND effective_date<=sqlc.arg(as_of_date)
   AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
+  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
+GROUP BY counterparty_entity,counterparty_object_id,currency
 HAVING sum(amount_delta_cents)<>0
-ORDER BY counterparty_entity,counterparty_code,payable_category,currency
+ORDER BY counterparty_entity,counterparty_code,currency
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);

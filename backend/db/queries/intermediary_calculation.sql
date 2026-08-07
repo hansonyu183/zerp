@@ -278,7 +278,8 @@ WITH trade AS (
       AND entry.currency='CNY'
 ), precutover_return_baseline AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+           sum(return_line.quantity_micros)::bigint AS returned_quantity_micros,
+           sum(return_line.line_amount_cents)::bigint AS returned_amount_cents
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -291,29 +292,39 @@ WITH trade AS (
     GROUP BY return_line.source_signoff_line_id
 ), precutover_daily_return AS (
     SELECT
-        entry.counterparty_object_id,
+        return_detail.customer_object_id AS counterparty_object_id,
         signoff_line.id AS source_signoff_line_id,
         signoff_line.signed_qty_micros AS original_quantity_micros,
         signoff_line.line_amount_cents AS original_amount_cents,
-        entry.effective_date AS return_date,
+        return_document.business_date AS return_date,
         sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
-    FROM trade entry
-    JOIN vou_sale_return_lines return_line
-      ON return_line.id=entry.source_line_id
+    FROM vou_sale_return_lines return_line
+    JOIN vou_sale_return_details return_detail
+      ON return_detail.document_id=return_line.document_id
+     AND return_detail.return_kind='AFTER_SALE'
+    JOIN vou_documents return_document
+      ON return_document.id=return_line.document_id
+     AND return_document.entity='sale-return'
+     AND return_document.status IN ('APPROVED','FINALIZED')
     JOIN vou_sale_signoff_lines signoff_line
       ON signoff_line.id=return_line.source_signoff_line_id
     JOIN vou_documents signoff
       ON signoff.id=signoff_line.document_id
      AND signoff.entity='sale-signoff'
-    WHERE entry.source_entity='sale-return'
-      AND signoff.business_date < sqlc.arg(cutover_date)
-    GROUP BY entry.counterparty_object_id,signoff_line.id,
+     AND signoff.status IN ('APPROVED','FINALIZED')
+     AND signoff.currency='CNY'
+    WHERE signoff.business_date < sqlc.arg(cutover_date)
+      AND return_document.business_date >= sqlc.arg(cutover_date)
+      AND return_document.business_date <= sqlc.arg(period_end)
+    GROUP BY return_detail.customer_object_id,signoff_line.id,
              signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
-             entry.effective_date
+             return_document.business_date
 ), precutover_cumulative_return AS (
     SELECT precutover_daily_return.*,
            COALESCE(precutover_return_baseline.returned_quantity_micros,0)::bigint
              AS baseline_quantity_micros,
+           COALESCE(precutover_return_baseline.returned_amount_cents,0)::bigint
+             AS baseline_amount_cents,
            (COALESCE(precutover_return_baseline.returned_quantity_micros,0)+
              sum(precutover_daily_return.returned_quantity_micros) OVER (
                PARTITION BY precutover_daily_return.source_signoff_line_id
@@ -326,10 +337,6 @@ WITH trade AS (
          precutover_daily_return.source_signoff_line_id
 ), precutover_rounded_return AS (
     SELECT precutover_cumulative_return.*,
-           COALESCE(round(
-               original_amount_cents::numeric*baseline_quantity_micros::numeric/
-               NULLIF(original_quantity_micros,0)
-           )::bigint,0) AS baseline_amount_cents,
            COALESCE(round(
                original_amount_cents::numeric*cumulative_quantity_micros::numeric/
                NULLIF(original_quantity_micros,0)

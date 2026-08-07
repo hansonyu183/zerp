@@ -2996,18 +2996,30 @@ func TestIntermediarySourceUsesPostedBaselineAndRoundsPreCutoverSourceReturnsInt
 			SourceLineID: newDeliveryView.Data.ProductLines[0].LineID, SignedQuantity: "1", RejectedQuantity: "0",
 		}},
 	})
-	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
-		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "切换日后第一次冲减期初应收",
+	zeroReturn, err := vouchers.Create(t.Context(), voudomain.EntitySaleReturn, voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "切换日后累计金额不得低于已过账基线",
 		ReturnLines: []voudomain.ReturnLineInput{{
 			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
 		}},
-	})
-	advanceToApproved(t, vouchers, voudomain.EntitySaleReturn, voudomain.DraftInput{
-		BusinessDate: "2026-08-06", Warehouse: &refs.warehouse, ReturnReason: "切换日后第二次冲减期初应收",
-		ReturnLines: []voudomain.ReturnLineInput{{
-			SourceLineID: oldSignoffView.Data.SignoffLines[0].LineID, Quantity: "0.5",
-		}},
-	})
+	}}, integrationActorOne, "intermediary-zero-return-create")
+	if err != nil {
+		t.Fatalf("create zero-value return fixture: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_sale_return_lines
+		SET quantity_micros=100000,line_amount_cents=0 WHERE document_id=$1`, zeroReturn.DocumentID); err != nil {
+		t.Fatalf("set zero-value return fixture: %v", err)
+	}
+	checkedReturn, err := vouchers.Check(t.Context(), voudomain.EntitySaleReturn, voudomain.DocumentRevisionInput{
+		DocumentID: zeroReturn.DocumentID, Revision: zeroReturn.Revision,
+	}, integrationActorOne, "intermediary-zero-return-check")
+	if err != nil {
+		t.Fatalf("check zero-value return fixture: %v", err)
+	}
+	if _, err = vouchers.Approve(t.Context(), voudomain.EntitySaleReturn, voudomain.DocumentRevisionInput{
+		DocumentID: checkedReturn.DocumentID, Revision: checkedReturn.Revision,
+	}, integrationActorOne, "intermediary-zero-return-approve"); err != nil {
+		t.Fatalf("approve zero-value return fixture: %v", err)
+	}
 	beforeReceipt, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
 		BusinessDate: "2026-08-31",
 	})

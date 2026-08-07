@@ -563,10 +563,10 @@ WITH trade AS (
          precutover_daily_return.source_signoff_line_id
 ), precutover_rounded_return AS (
     SELECT precutover_cumulative_return.counterparty_object_id, precutover_cumulative_return.source_signoff_line_id, precutover_cumulative_return.original_quantity_micros, precutover_cumulative_return.original_amount_cents, precutover_cumulative_return.return_date, precutover_cumulative_return.returned_quantity_micros, precutover_cumulative_return.baseline_quantity_micros, precutover_cumulative_return.baseline_amount_cents, precutover_cumulative_return.cumulative_quantity_micros,
-           COALESCE(round(
+           GREATEST(baseline_amount_cents,COALESCE(round(
                original_amount_cents::numeric*cumulative_quantity_micros::numeric/
                NULLIF(original_quantity_micros,0)
-           )::bigint,0) AS cumulative_amount_cents
+           )::bigint,0)) AS cumulative_amount_cents
     FROM precutover_cumulative_return
 ), precutover_incremental_return AS (
     SELECT precutover_rounded_return.counterparty_object_id, precutover_rounded_return.source_signoff_line_id, precutover_rounded_return.original_quantity_micros, precutover_rounded_return.original_amount_cents, precutover_rounded_return.return_date, precutover_rounded_return.returned_quantity_micros, precutover_rounded_return.baseline_quantity_micros, precutover_rounded_return.baseline_amount_cents, precutover_rounded_return.cumulative_quantity_micros, precutover_rounded_return.cumulative_amount_cents,

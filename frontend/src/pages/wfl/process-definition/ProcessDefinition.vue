@@ -12,6 +12,7 @@ const vm = useProcessDefinitionViewModel()
 const rootEntity = ref('')
 const childConverter = ref('')
 const drag = ref<{ id: string; dx: number; dy: number } | null>(null)
+const scriptEditor = ref<{ $el?: HTMLElement } | null>(null)
 
 const availableConverters = computed(() =>
   vm.converters.value.filter(
@@ -25,6 +26,7 @@ const nodeMap = computed(
 )
 
 function startDrag(event: PointerEvent, id: string): void {
+  if (vm.selected.value?.sourceKind === 'STARLARK') return
   const node = nodeMap.value.get(id)
   if (!node) return
   drag.value = {
@@ -57,6 +59,19 @@ function addSelectedChild(): void {
 function removeSelectedNode(): void {
   const node = vm.selectedNode.value
   if (node) vm.removeNode(node.id)
+}
+
+function locateScriptDiagnostic(): void {
+  const diagnostic = vm.scriptDiagnostic.value
+  const textarea = scriptEditor.value?.$el?.querySelector('textarea')
+  if (!diagnostic || !textarea) return
+  const lines = vm.scriptText.value.split('\n')
+  const preceding = lines.slice(0, diagnostic.line - 1)
+  const offset =
+    preceding.reduce((total, line) => total + line.length + 1, 0) +
+    Math.max(0, diagnostic.column - 1)
+  textarea.focus()
+  textarea.setSelectionRange(offset, offset)
 }
 </script>
 
@@ -92,6 +107,7 @@ function removeSelectedNode(): void {
             <th>编码</th>
             <th>名称</th>
             <th>根单据</th>
+            <th>定义方式</th>
             <th>节点</th>
             <th>状态</th>
             <th>更新时间</th>
@@ -107,6 +123,7 @@ function removeSelectedNode(): void {
             <td>{{ item.code }}</td>
             <td>{{ item.name }}</td>
             <td>{{ documentEntityText(item.rootEntity) }}</td>
+            <td>{{ item.sourceKind === 'STARLARK' ? '脚本' : '画布' }}</td>
             <td>{{ item.nodeCount }}</td>
             <td>
               <v-chip size="small">{{
@@ -116,7 +133,7 @@ function removeSelectedNode(): void {
             <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
           </tr>
           <tr v-if="!vm.loading.value && vm.definitions.value.length === 0">
-            <td colspan="6" class="text-center py-8 text-medium-emphasis">
+            <td colspan="7" class="text-center py-8 text-medium-emphasis">
               暂无流程定义
             </td>
           </tr>
@@ -136,6 +153,11 @@ function removeSelectedNode(): void {
           }}</v-chip>
           <span>编码：{{ item.code }}</span>
           <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
+          <span
+            >定义方式：{{
+              item.sourceKind === 'STARLARK' ? '脚本' : '画布'
+            }}</span
+          >
           <span>节点：{{ item.nodeCount }}</span>
         </button>
         <div
@@ -159,13 +181,20 @@ function removeSelectedNode(): void {
             vm.selected.value.definitionId ? '编辑流程' : '新建流程'
           }}</v-toolbar-title>
           <v-spacer />
-          <v-btn :loading="vm.saving.value" color="primary" @click="vm.save"
+          <v-btn
+            v-if="
+              vm.selected.value.definitionId ? vm.can('save') : vm.can('create')
+            "
+            :loading="vm.saving.value"
+            color="primary"
+            @click="vm.save"
             >保存</v-btn
           >
           <v-btn
             v-if="
               vm.selected.value.definitionId &&
-              vm.selected.value.status !== 'ENABLED'
+              vm.selected.value.status !== 'ENABLED' &&
+              vm.selected.value.sourceKind !== 'STARLARK'
             "
             :loading="vm.saving.value"
             color="success"
@@ -188,100 +217,196 @@ function removeSelectedNode(): void {
             >删除</v-btn
           >
         </v-toolbar>
-        <v-card-text class="definition-editor__body">
+        <v-card-text
+          class="definition-editor__body"
+          :class="{
+            'definition-editor__body--script':
+              vm.selected.value.sourceKind === 'STARLARK',
+          }"
+        >
           <aside class="definition-editor__sidebar">
-            <v-text-field
-              v-model="vm.selected.value.code"
-              label="流程编码"
-              :readonly="Boolean(vm.selected.value.definitionId)"
-              variant="outlined"
-              hint="保存后作为流程 API 类型，不可修改。"
-              persistent-hint
-            />
-            <v-text-field
-              v-model="vm.selected.value.name"
-              label="流程名称"
-              variant="outlined"
-            />
-            <v-textarea
-              v-model="vm.startConditionText.value"
-              label="启动条件（JSON）"
-              rows="5"
-              variant="outlined"
-              hint="空对象表示所有批准单据；支持 all、any、lineAll、lineAny。"
-              persistent-hint
-            />
-            <template v-if="vm.selected.value.nodes.length === 0">
-              <v-select
-                v-model="rootEntity"
-                :items="vm.catalogNodes.value"
-                item-title="name"
-                item-value="entity"
-                label="根单据"
-                variant="outlined"
-              />
-              <v-btn
-                block
-                :disabled="!rootEntity"
-                color="primary"
-                @click="vm.addRoot(rootEntity)"
-                >添加根节点</v-btn
-              >
-            </template>
-            <template v-else-if="vm.selectedNode.value">
-              <v-divider class="my-4" />
-              <div class="text-subtitle-2 mb-3">
-                节点：{{ vm.selectedNode.value.name }}
+            <template v-if="vm.selected.value.sourceKind === 'STARLARK'">
+              <div class="text-h6 mb-1">Starlark 流程脚本</div>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                脚本是唯一可编辑来源；右侧图形由保存后的脚本生成，只读展示。
               </div>
-              <v-text-field
-                v-model="vm.selectedNode.value.name"
-                label="节点名称"
-                variant="outlined"
-              />
-              <v-textarea
-                v-model="vm.defaultsText.value"
-                label="下级单据默认值（JSON）"
-                rows="5"
-                variant="outlined"
-              />
-              <v-select
-                v-model="childConverter"
-                :items="availableConverters"
-                item-title="key"
-                item-value="key"
-                label="新增下级节点"
-                variant="outlined"
-              />
-              <v-btn
-                block
-                :disabled="!childConverter"
-                prepend-icon="mdi-source-branch-plus"
-                @click="addSelectedChild"
-                >添加分支</v-btn
+              <v-alert
+                v-if="vm.errorMessage.value || vm.scriptDiagnostic.value"
+                class="mb-4"
+                type="error"
+                variant="tonal"
               >
-              <v-btn
-                v-if="vm.selectedNode.value.id !== vm.selected.value.rootNodeId"
-                block
-                color="error"
-                class="mt-2"
-                variant="text"
-                @click="removeSelectedNode"
-                >删除此节点及后代</v-btn
-              >
-            </template>
-            <template v-else-if="vm.selectedEdge.value">
-              <v-divider class="my-4" />
-              <div class="text-subtitle-2 mb-3">
-                分支：{{ vm.selectedEdge.value.converterKey }}
-              </div>
+                <div v-if="vm.errorMessage.value">{{ vm.errorMessage.value }}</div>
+                <div v-else-if="vm.scriptDiagnostic.value">
+                  {{ vm.scriptDiagnostic.value.message }}
+                </div>
+                <template v-if="vm.scriptDiagnostic.value">
+                  <div class="mt-2 text-caption">
+                    第 {{ vm.scriptDiagnostic.value.line }} 行，第
+                    {{ vm.scriptDiagnostic.value.column }} 列
+                  </div>
+                  <v-btn
+                    class="mt-2"
+                    size="small"
+                    variant="text"
+                    @click="locateScriptDiagnostic"
+                  >
+                    定位到脚本
+                  </v-btn>
+                </template>
+              </v-alert>
               <v-textarea
-                v-model="vm.conditionText.value"
-                label="分支条件（JSON）"
-                rows="10"
+                ref="scriptEditor"
+                v-model="vm.scriptText.value"
+                class="definition-script"
+                label="流程脚本"
+                rows="18"
                 variant="outlined"
-                hint="所有匹配分支都会执行。"
+                spellcheck="false"
+                hint="使用 node、edge 和 workflow 声明单根树；保存时编译并校验。"
                 persistent-hint
               />
+              <template v-if="vm.selected.value.definitionId">
+                <v-divider class="my-5" />
+                <div class="text-subtitle-1 mb-2">手工试算</div>
+                <v-textarea
+                  v-model="vm.trialSourceText.value"
+                  class="definition-script"
+                  label="源单 JSON"
+                  rows="6"
+                  variant="outlined"
+                  spellcheck="false"
+                />
+                <v-btn
+                  v-if="vm.can('save')"
+                  block
+                  color="primary"
+                  variant="tonal"
+                  :loading="vm.trialing.value"
+                  @click="vm.trial"
+                >
+                  试算当前修订
+                </v-btn>
+                <v-card
+                  v-if="vm.trialResult.value"
+                  class="mt-4"
+                  color="success"
+                  variant="tonal"
+                >
+                  <v-card-text>
+                    <div class="font-weight-medium mb-2">
+                      试算通过（不创建活动实例）
+                    </div>
+                    <div
+                      v-for="(trace, index) in vm.trialResult.value.trace"
+                      :key="`${trace.nodeKey}-${index}`"
+                      class="text-body-2"
+                    >
+                      {{ trace.kind }} · {{ trace.nodeKey }}
+                      <span v-if="trace.documentEntity">
+                        · {{ documentEntityText(trace.documentEntity) }}
+                      </span>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </template>
+            </template>
+            <template v-else>
+              <v-text-field
+                v-model="vm.selected.value.code"
+                label="流程编码"
+                :readonly="Boolean(vm.selected.value.definitionId)"
+                variant="outlined"
+                hint="保存后作为流程 API 类型，不可修改。"
+                persistent-hint
+              />
+              <v-text-field
+                v-model="vm.selected.value.name"
+                label="流程名称"
+                variant="outlined"
+              />
+              <v-textarea
+                v-model="vm.startConditionText.value"
+                label="启动条件（JSON）"
+                rows="5"
+                variant="outlined"
+                hint="空对象表示所有批准单据；支持 all、any、lineAll、lineAny。"
+                persistent-hint
+              />
+              <template v-if="vm.selected.value.nodes.length === 0">
+                <v-select
+                  v-model="rootEntity"
+                  :items="vm.catalogNodes.value"
+                  item-title="name"
+                  item-value="entity"
+                  label="根单据"
+                  variant="outlined"
+                />
+                <v-btn
+                  block
+                  :disabled="!rootEntity"
+                  color="primary"
+                  @click="vm.addRoot(rootEntity)"
+                  >添加根节点</v-btn
+                >
+              </template>
+              <template v-else-if="vm.selectedNode.value">
+                <v-divider class="my-4" />
+                <div class="text-subtitle-2 mb-3">
+                  节点：{{ vm.selectedNode.value.name }}
+                </div>
+                <v-text-field
+                  v-model="vm.selectedNode.value.name"
+                  label="节点名称"
+                  variant="outlined"
+                />
+                <v-textarea
+                  v-model="vm.defaultsText.value"
+                  label="下级单据默认值（JSON）"
+                  rows="5"
+                  variant="outlined"
+                />
+                <v-select
+                  v-model="childConverter"
+                  :items="availableConverters"
+                  item-title="key"
+                  item-value="key"
+                  label="新增下级节点"
+                  variant="outlined"
+                />
+                <v-btn
+                  block
+                  :disabled="!childConverter"
+                  prepend-icon="mdi-source-branch-plus"
+                  @click="addSelectedChild"
+                  >添加分支</v-btn
+                >
+                <v-btn
+                  v-if="
+                    vm.selectedNode.value.id !== vm.selected.value.rootNodeId
+                  "
+                  block
+                  color="error"
+                  class="mt-2"
+                  variant="text"
+                  @click="removeSelectedNode"
+                  >删除此节点及后代</v-btn
+                >
+              </template>
+              <template v-else-if="vm.selectedEdge.value">
+                <v-divider class="my-4" />
+                <div class="text-subtitle-2 mb-3">
+                  分支：{{ vm.selectedEdge.value.converterKey }}
+                </div>
+                <v-textarea
+                  v-model="vm.conditionText.value"
+                  label="分支条件（JSON）"
+                  rows="10"
+                  variant="outlined"
+                  hint="所有匹配分支都会执行。"
+                  persistent-hint
+                />
+              </template>
             </template>
           </aside>
 
@@ -316,7 +441,10 @@ function removeSelectedNode(): void {
                     vm.selectedEdge.value?.id === edge.id,
                 }"
                 marker-end="url(#arrow)"
-                @click.stop="vm.selectEdge(edge.id)"
+                @click.stop="
+                  vm.selected.value.sourceKind === 'GRAPH' &&
+                  vm.selectEdge(edge.id)
+                "
               />
             </svg>
             <button
@@ -332,7 +460,10 @@ function removeSelectedNode(): void {
                 top: `${node.positionY}px`,
               }"
               type="button"
-              @click="vm.selectNode(node.id)"
+              @click="
+                vm.selected.value.sourceKind === 'GRAPH' &&
+                vm.selectNode(node.id)
+              "
               @pointerdown="startDrag($event, node.id)"
             >
               <v-icon size="20">mdi-file-document-outline</v-icon>
@@ -381,6 +512,9 @@ function removeSelectedNode(): void {
   height: calc(100vh - 64px);
   padding: 0;
 }
+.definition-editor__body--script {
+  grid-template-columns: minmax(420px, 52vw) minmax(0, 1fr);
+}
 .definition-editor__sidebar {
   overflow-y: auto;
   padding: 20px;
@@ -407,6 +541,15 @@ function removeSelectedNode(): void {
   stroke: currentColor;
   stroke-width: 2;
   cursor: pointer;
+}
+.definition-editor__body--script .definition-canvas__edges line,
+.definition-editor__body--script .definition-node {
+  cursor: default;
+}
+.definition-script :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 .definition-canvas__edges line:hover,
 .definition-canvas__edges .definition-edge--selected {

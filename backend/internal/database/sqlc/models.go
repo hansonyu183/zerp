@@ -2106,17 +2106,22 @@ type WflNodeInstance struct {
 }
 
 type WflProcessDefinition struct {
-	ID             string             `db:"id" json:"id"`
-	Code           string             `db:"code" json:"code"`
-	Name           string             `db:"name" json:"name"`
-	Status         string             `db:"status" json:"status"`
-	Revision       int64              `db:"revision" json:"revision"`
-	RootNodeID     string             `db:"root_node_id" json:"root_node_id"`
-	StartCondition []byte             `db:"start_condition" json:"start_condition"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy      string             `db:"created_by" json:"created_by"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy      string             `db:"updated_by" json:"updated_by"`
+	ID                string             `db:"id" json:"id"`
+	Code              string             `db:"code" json:"code"`
+	Name              string             `db:"name" json:"name"`
+	Status            string             `db:"status" json:"status"`
+	Revision          int64              `db:"revision" json:"revision"`
+	RootNodeID        string             `db:"root_node_id" json:"root_node_id"`
+	StartCondition    []byte             `db:"start_condition" json:"start_condition"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+	SourceKind        string             `db:"source_kind" json:"source_kind"`
+	DraftScript       *string            `db:"draft_script" json:"draft_script"`
+	DraftDiagnostic   *string            `db:"draft_diagnostic" json:"draft_diagnostic"`
+	LastTrialRevision *int64             `db:"last_trial_revision" json:"last_trial_revision"`
+	LastTrialAt       pgtype.Timestamptz `db:"last_trial_at" json:"last_trial_at"`
 }
 
 type WflProcessDocument struct {

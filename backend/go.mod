@@ -9,6 +9,7 @@ require (
 	github.com/oapi-codegen/gin-middleware v1.1.0
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/oklog/ulid/v2 v2.1.1
+	go.starlark.net v0.0.0-20260708150628-5395d018f003
 	golang.org/x/crypto v0.54.0
 )
 

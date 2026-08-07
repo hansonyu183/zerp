@@ -2264,6 +2264,32 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/wfl/process-definition/trial':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '试算流程草稿',
+              'operationId': 'wflProcessDefinitionTrial',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionTrialRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/wfl/process-definition/enable':
         {
           'post':

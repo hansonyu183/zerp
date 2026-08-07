@@ -97,7 +97,7 @@ describe('ApiClient', () => {
         HttpResponse.json({
           code: 42201,
           message: '订单字段校验失败',
-          data: null,
+          data: { diagnostic: 'workflow.star:7:13: invalid edge' },
           requestId: 'req-2',
         }),
       ),
@@ -114,6 +114,7 @@ describe('ApiClient', () => {
       kind: 'business',
       code: 42201,
       requestId: 'req-2',
+      details: { diagnostic: 'workflow.star:7:13: invalid edge' },
     })
   })
 

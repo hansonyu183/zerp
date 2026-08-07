@@ -50,6 +50,7 @@ SELECT d.id,
        d.name,
        d.status,
        d.revision,
+       d.source_kind,
        n.document_entity,
        (SELECT count(*)
         FROM wfl_definition_nodes child
@@ -66,9 +67,75 @@ ORDER BY d.updated_at DESC, d.id DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetWorkflowDefinition :one
-SELECT id, code, name, status, revision, root_node_id, start_condition, updated_at
+SELECT id, code, name, status, revision, source_kind, draft_script, draft_diagnostic,
+       root_node_id, start_condition, last_trial_revision, last_trial_at, updated_at
 FROM wfl_process_definitions
 WHERE id = $1;
+
+-- name: CreateWorkflowDefinition :exec
+INSERT INTO wfl_process_definitions (
+  id, code, name, status, source_kind, draft_script, root_node_id,
+  start_condition, created_by, updated_by
+) VALUES (
+  sqlc.arg(id), sqlc.arg(code), sqlc.arg(name), 'DRAFT',
+  sqlc.arg(source_kind), sqlc.narg(draft_script), sqlc.arg(root_node_id),
+  sqlc.arg(start_condition), sqlc.arg(actor_id), sqlc.arg(actor_id)
+);
+
+-- name: LockWorkflowDefinitionDraft :one
+SELECT revision, status, code, source_kind, root_node_id
+FROM wfl_process_definitions
+WHERE id = $1
+FOR UPDATE;
+
+-- name: SaveWorkflowDefinitionDraft :exec
+UPDATE wfl_process_definitions
+SET name = sqlc.arg(name),
+    root_node_id = sqlc.arg(root_node_id),
+    start_condition = sqlc.arg(start_condition),
+    draft_script = sqlc.narg(draft_script),
+    draft_diagnostic = NULL,
+    revision = revision + 1,
+    last_trial_revision = NULL,
+    last_trial_at = NULL,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE id = sqlc.arg(id);
+
+-- name: SaveWorkflowDefinitionScriptDiagnostic :exec
+UPDATE wfl_process_definitions
+SET draft_script = sqlc.arg(draft_script),
+    draft_diagnostic = sqlc.arg(draft_diagnostic),
+    revision = revision + 1,
+    last_trial_revision = NULL,
+    last_trial_at = NULL,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE id = sqlc.arg(id);
+
+-- name: ListWorkflowDefinitionNodeIdentities :many
+SELECT id, node_key
+FROM wfl_definition_nodes
+WHERE definition_id = $1
+ORDER BY archived, created_at, id;
+
+-- name: ListWorkflowDefinitionEdgeIdentities :many
+SELECT edge.id,
+       source.node_key AS source_node_key,
+       target.node_key AS target_node_key,
+       edge.converter_key
+FROM wfl_definition_edges edge
+JOIN wfl_definition_nodes source ON source.id = edge.source_node_id
+JOIN wfl_definition_nodes target ON target.id = edge.target_node_id
+WHERE edge.definition_id = $1
+ORDER BY edge.archived, edge.created_at, edge.id;
+
+-- name: RecordWorkflowDefinitionTrial :execrows
+UPDATE wfl_process_definitions
+SET last_trial_revision = sqlc.arg(revision),
+    last_trial_at = now()
+WHERE id = sqlc.arg(definition_id)
+  AND revision = sqlc.arg(revision);
 
 -- name: ListWorkflowDefinitionNodes :many
 SELECT id, node_key, name, document_entity, position_x, position_y, defaults

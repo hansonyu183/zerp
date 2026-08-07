@@ -1,6 +1,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import type { components } from '@/api/generated/schema'
+import { ApiError, getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
 export interface CatalogNode {
@@ -39,6 +40,9 @@ export interface DefinitionView {
   name: string
   status: 'DRAFT' | 'ENABLED' | 'DISABLED'
   revision: number
+  sourceKind: 'GRAPH' | 'STARLARK'
+  script?: string
+  diagnostic?: string
   rootNodeId: string
   startCondition: Record<string, unknown>
   nodes: DefinitionNode[]
@@ -52,9 +56,104 @@ export interface DefinitionListItem {
   name: string
   status: DefinitionView['status']
   revision: number
+  sourceKind: DefinitionView['sourceKind']
   rootEntity: string
   nodeCount: number
   updatedAt: string
+}
+
+export interface DefinitionTrialResult {
+  definitionId?: string
+  revision?: number
+  matched: boolean
+  rootNodeKey?: string
+  trace: Array<{
+    kind: string
+    nodeKey: string
+    documentEntity?: string
+  }>
+}
+
+export interface ScriptDiagnostic {
+  line: number
+  column: number
+  message: string
+}
+
+type DefinitionCreateRequest =
+  components['schemas']['WflDefinitionCreateRequest']
+type DefinitionSaveRequest = components['schemas']['WflDefinitionSaveRequest']
+type DefinitionTrialRequest = components['schemas']['WflDefinitionTrialRequest']
+
+const DEFAULT_STARLARK_SCRIPT = `root = node(
+    key = "root",
+    name = "销售订单",
+    entity = "sale-order",
+)
+
+outbound = node(
+    key = "outbound",
+    name = "销售出库",
+    entity = "sale-outbound",
+)
+
+workflow(
+    code = "new-process",
+    name = "新流程",
+    root = root,
+    edges = [
+        edge(
+            source = root,
+            target = outbound,
+            converter = "sale-order-to-outbound",
+        ),
+    ],
+)`
+
+const DEFAULT_TRIAL_SOURCE = `{
+  "entity": "sale-order",
+  "data": {
+    "businessDate": "2026-08-08",
+    "currency": "CNY",
+    "customer": {
+      "objectId": "01J00000000000000000000001",
+      "versionId": "01J00000000000000000000002"
+    },
+    "warehouse": {
+      "objectId": "01J00000000000000000000003",
+      "versionId": "01J00000000000000000000004"
+    },
+    "productLines": [{
+      "product": {
+        "objectId": "01J00000000000000000000005",
+        "versionId": "01J00000000000000000000006"
+      },
+      "orderedQuantity": "1",
+      "unitPrice": "10"
+    }]
+  }
+}`
+
+function diagnosticFromError(error: unknown): ScriptDiagnostic | null {
+  if (
+    !(error instanceof ApiError) ||
+    !error.details ||
+    typeof error.details !== 'object'
+  ) {
+    return null
+  }
+  const diagnostic = (error.details as Record<string, unknown>).diagnostic
+  return typeof diagnostic === 'string' ? diagnosticFromString(diagnostic) : null
+}
+
+function diagnosticFromString(diagnostic?: string): ScriptDiagnostic | null {
+  if (!diagnostic) return null
+  const location = /workflow\.star:(\d+):(\d+)/u.exec(diagnostic)
+  return {
+    line: Number(location?.[1] ?? 1),
+    column: Number(location?.[2] ?? 1),
+    message: diagnostic,
+  }
 }
 
 function workflowId(prefix: string): string {
@@ -77,13 +176,18 @@ export function useProcessDefinitionViewModel() {
   const keyword = ref('')
   const loading = ref(false)
   const saving = ref(false)
+  const trialing = ref(false)
   const editorOpen = ref(false)
   const errorMessage = ref<string | null>(null)
+  const scriptDiagnostic = ref<ScriptDiagnostic | null>(null)
   const selectedNodeId = ref<string | null>(null)
   const selectedEdgeId = ref<string | null>(null)
   const startConditionText = ref('{}')
   const conditionText = ref('{}')
   const defaultsText = ref('{}')
+  const scriptText = ref(DEFAULT_STARLARK_SCRIPT)
+  const trialSourceText = ref(DEFAULT_TRIAL_SOURCE)
+  const trialResult = ref<DefinitionTrialResult | null>(null)
 
   const can = (action: string) =>
     session.can(`/wfl/process-definition/${action}`)
@@ -157,6 +261,18 @@ export function useProcessDefinitionViewModel() {
         { definitionId: string }
       >('wfl/process-definition/get', { definitionId: item.definitionId })
       selected.value = data
+      scriptText.value = data.script ?? ''
+      scriptDiagnostic.value = diagnosticFromString(data.diagnostic)
+      trialSourceText.value = JSON.stringify(
+        {
+          entity:
+            data.nodes.find((node) => node.id === data.rootNodeId)
+              ?.documentEntity ?? '',
+        },
+        null,
+        2,
+      )
+      trialResult.value = null
       selectNode(data.rootNodeId, false)
       editorOpen.value = true
     } catch (error) {
@@ -173,6 +289,8 @@ export function useProcessDefinitionViewModel() {
       name: '',
       status: 'DRAFT',
       revision: 0,
+      sourceKind: 'STARLARK',
+      script: DEFAULT_STARLARK_SCRIPT,
       rootNodeId: '',
       startCondition: {},
       nodes: [],
@@ -181,6 +299,9 @@ export function useProcessDefinitionViewModel() {
     }
     selectedNodeId.value = null
     selectedEdgeId.value = null
+    scriptText.value = DEFAULT_STARLARK_SCRIPT
+    trialSourceText.value = '{"entity":"sale-order"}'
+    trialResult.value = null
     syncEditors()
     editorOpen.value = true
   }
@@ -242,11 +363,7 @@ export function useProcessDefinitionViewModel() {
   }
 
   function removeNode(nodeId: string): void {
-    if (
-      !selected.value ||
-      nodeId === selected.value.rootNodeId ||
-      !applyJson()
-    )
+    if (!selected.value || nodeId === selected.value.rootNodeId || !applyJson())
       return
     const descendants = new Set([nodeId])
     let changed = true
@@ -310,7 +427,47 @@ export function useProcessDefinitionViewModel() {
 
   async function save(): Promise<void> {
     const definition = selected.value
-    if (!definition || !applyJson()) return
+    if (!definition) return
+    if (definition.sourceKind === 'STARLARK') {
+      if (!scriptText.value.trim()) {
+        errorMessage.value = '请填写流程脚本。'
+        return
+      }
+      saving.value = true
+      errorMessage.value = null
+      scriptDiagnostic.value = null
+      trialResult.value = null
+      try {
+        const createBody: DefinitionCreateRequest = {
+          script: scriptText.value,
+        }
+        const { data } = definition.definitionId
+          ? await apiClient.post<DefinitionView, DefinitionSaveRequest>(
+              'wfl/process-definition/save',
+              {
+                script: scriptText.value,
+                definitionId: definition.definitionId,
+                revision: definition.revision,
+              },
+            )
+          : await apiClient.post<DefinitionView, DefinitionCreateRequest>(
+              'wfl/process-definition/create',
+              createBody,
+            )
+        selected.value = data
+        scriptText.value = data.script ?? scriptText.value
+        scriptDiagnostic.value = diagnosticFromString(data.diagnostic)
+        selectNode(data.rootNodeId, false)
+        await query()
+      } catch (error) {
+        scriptDiagnostic.value = diagnosticFromError(error)
+        errorMessage.value = getErrorMessage(error)
+      } finally {
+        saving.value = false
+      }
+      return
+    }
+    if (!applyJson()) return
     if (
       !definition.code.trim() ||
       !definition.name.trim() ||
@@ -350,6 +507,58 @@ export function useProcessDefinitionViewModel() {
       errorMessage.value = getErrorMessage(error)
     } finally {
       saving.value = false
+    }
+  }
+
+  async function trial(): Promise<void> {
+    const definition = selected.value
+    if (
+      !definition?.definitionId ||
+      definition.sourceKind !== 'STARLARK' ||
+      !can('save')
+    )
+      return
+    let source: DefinitionTrialRequest['source']
+    try {
+      const parsed: unknown = JSON.parse(trialSourceText.value)
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        throw new TypeError('trial source must be an object')
+      }
+      const record = parsed as Record<string, unknown>
+      const entity = record.entity
+      if (typeof entity !== 'string' || !entity.trim()) {
+        throw new TypeError('trial source must have an entity')
+      }
+      if (
+        !record.data ||
+        Array.isArray(record.data) ||
+        typeof record.data !== 'object'
+      ) {
+        throw new TypeError('trial source must have document data')
+      }
+      source = record as DefinitionTrialRequest['source']
+    } catch {
+      errorMessage.value =
+        '试算源单必须是包含 entity 和 data 的有效 JSON 对象。'
+      return
+    }
+    trialing.value = true
+    errorMessage.value = null
+    trialResult.value = null
+    try {
+      const { data } = await apiClient.post<
+        DefinitionTrialResult,
+        DefinitionTrialRequest
+      >('wfl/process-definition/trial', {
+        definitionId: definition.definitionId,
+        revision: definition.revision,
+        source,
+      })
+      trialResult.value = data
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+    } finally {
+      trialing.value = false
     }
   }
 
@@ -396,12 +605,15 @@ export function useProcessDefinitionViewModel() {
     keyword,
     loading,
     saving,
+    trialing,
     editorOpen,
     errorMessage,
+    scriptDiagnostic,
     query,
     create,
     open,
     save,
+    trial,
     action,
     addRoot,
     addChild,
@@ -412,5 +624,8 @@ export function useProcessDefinitionViewModel() {
     startConditionText,
     conditionText,
     defaultsText,
+    scriptText,
+    trialSourceText,
+    trialResult,
   }
 }

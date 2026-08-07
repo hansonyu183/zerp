@@ -77,21 +77,63 @@ func (q *Queries) CountWorkflowDefinitions(ctx context.Context, arg CountWorkflo
 	return count, err
 }
 
+const createWorkflowDefinition = `-- name: CreateWorkflowDefinition :exec
+INSERT INTO wfl_process_definitions (
+  id, code, name, status, source_kind, draft_script, root_node_id,
+  start_condition, created_by, updated_by
+) VALUES (
+  $1, $2, $3, 'DRAFT',
+  $4, $5, $6,
+  $7, $8, $8
+)
+`
+
+type CreateWorkflowDefinitionParams struct {
+	ID             string  `db:"id" json:"id"`
+	Code           string  `db:"code" json:"code"`
+	Name           string  `db:"name" json:"name"`
+	SourceKind     string  `db:"source_kind" json:"source_kind"`
+	DraftScript    *string `db:"draft_script" json:"draft_script"`
+	RootNodeID     string  `db:"root_node_id" json:"root_node_id"`
+	StartCondition []byte  `db:"start_condition" json:"start_condition"`
+	ActorID        string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowDefinition,
+		arg.ID,
+		arg.Code,
+		arg.Name,
+		arg.SourceKind,
+		arg.DraftScript,
+		arg.RootNodeID,
+		arg.StartCondition,
+		arg.ActorID,
+	)
+	return err
+}
+
 const getWorkflowDefinition = `-- name: GetWorkflowDefinition :one
-SELECT id, code, name, status, revision, root_node_id, start_condition, updated_at
+SELECT id, code, name, status, revision, source_kind, draft_script, draft_diagnostic,
+       root_node_id, start_condition, last_trial_revision, last_trial_at, updated_at
 FROM wfl_process_definitions
 WHERE id = $1
 `
 
 type GetWorkflowDefinitionRow struct {
-	ID             string             `db:"id" json:"id"`
-	Code           string             `db:"code" json:"code"`
-	Name           string             `db:"name" json:"name"`
-	Status         string             `db:"status" json:"status"`
-	Revision       int64              `db:"revision" json:"revision"`
-	RootNodeID     string             `db:"root_node_id" json:"root_node_id"`
-	StartCondition []byte             `db:"start_condition" json:"start_condition"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                string             `db:"id" json:"id"`
+	Code              string             `db:"code" json:"code"`
+	Name              string             `db:"name" json:"name"`
+	Status            string             `db:"status" json:"status"`
+	Revision          int64              `db:"revision" json:"revision"`
+	SourceKind        string             `db:"source_kind" json:"source_kind"`
+	DraftScript       *string            `db:"draft_script" json:"draft_script"`
+	DraftDiagnostic   *string            `db:"draft_diagnostic" json:"draft_diagnostic"`
+	RootNodeID        string             `db:"root_node_id" json:"root_node_id"`
+	StartCondition    []byte             `db:"start_condition" json:"start_condition"`
+	LastTrialRevision *int64             `db:"last_trial_revision" json:"last_trial_revision"`
+	LastTrialAt       pgtype.Timestamptz `db:"last_trial_at" json:"last_trial_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error) {
@@ -103,8 +145,13 @@ func (q *Queries) GetWorkflowDefinition(ctx context.Context, id string) (GetWork
 		&i.Name,
 		&i.Status,
 		&i.Revision,
+		&i.SourceKind,
+		&i.DraftScript,
+		&i.DraftDiagnostic,
 		&i.RootNodeID,
 		&i.StartCondition,
+		&i.LastTrialRevision,
+		&i.LastTrialAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -790,6 +837,50 @@ func (q *Queries) ListSalesWorkflowSummaries(ctx context.Context, arg ListSalesW
 	return items, nil
 }
 
+const listWorkflowDefinitionEdgeIdentities = `-- name: ListWorkflowDefinitionEdgeIdentities :many
+SELECT edge.id,
+       source.node_key AS source_node_key,
+       target.node_key AS target_node_key,
+       edge.converter_key
+FROM wfl_definition_edges edge
+JOIN wfl_definition_nodes source ON source.id = edge.source_node_id
+JOIN wfl_definition_nodes target ON target.id = edge.target_node_id
+WHERE edge.definition_id = $1
+ORDER BY edge.archived, edge.created_at, edge.id
+`
+
+type ListWorkflowDefinitionEdgeIdentitiesRow struct {
+	ID            string `db:"id" json:"id"`
+	SourceNodeKey string `db:"source_node_key" json:"source_node_key"`
+	TargetNodeKey string `db:"target_node_key" json:"target_node_key"`
+	ConverterKey  string `db:"converter_key" json:"converter_key"`
+}
+
+func (q *Queries) ListWorkflowDefinitionEdgeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgeIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowDefinitionEdgeIdentities, definitionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowDefinitionEdgeIdentitiesRow{}
+	for rows.Next() {
+		var i ListWorkflowDefinitionEdgeIdentitiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceNodeKey,
+			&i.TargetNodeKey,
+			&i.ConverterKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkflowDefinitionEdges = `-- name: ListWorkflowDefinitionEdges :many
 SELECT id, source_node_id, target_node_id, converter_key, condition
 FROM wfl_definition_edges
@@ -821,6 +912,38 @@ func (q *Queries) ListWorkflowDefinitionEdges(ctx context.Context, definitionID 
 			&i.ConverterKey,
 			&i.Condition,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowDefinitionNodeIdentities = `-- name: ListWorkflowDefinitionNodeIdentities :many
+SELECT id, node_key
+FROM wfl_definition_nodes
+WHERE definition_id = $1
+ORDER BY archived, created_at, id
+`
+
+type ListWorkflowDefinitionNodeIdentitiesRow struct {
+	ID      string `db:"id" json:"id"`
+	NodeKey string `db:"node_key" json:"node_key"`
+}
+
+func (q *Queries) ListWorkflowDefinitionNodeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodeIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowDefinitionNodeIdentities, definitionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowDefinitionNodeIdentitiesRow{}
+	for rows.Next() {
+		var i ListWorkflowDefinitionNodeIdentitiesRow
+		if err := rows.Scan(&i.ID, &i.NodeKey); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -882,6 +1005,7 @@ SELECT d.id,
        d.name,
        d.status,
        d.revision,
+       d.source_kind,
        n.document_entity,
        (SELECT count(*)
         FROM wfl_definition_nodes child
@@ -911,6 +1035,7 @@ type ListWorkflowDefinitionsRow struct {
 	Name           string             `db:"name" json:"name"`
 	Status         string             `db:"status" json:"status"`
 	Revision       int64              `db:"revision" json:"revision"`
+	SourceKind     string             `db:"source_kind" json:"source_kind"`
 	DocumentEntity string             `db:"document_entity" json:"document_entity"`
 	NodeCount      int64              `db:"node_count" json:"node_count"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -936,6 +1061,7 @@ func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowD
 			&i.Name,
 			&i.Status,
 			&i.Revision,
+			&i.SourceKind,
 			&i.DocumentEntity,
 			&i.NodeCount,
 			&i.UpdatedAt,
@@ -948,4 +1074,118 @@ func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowD
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockWorkflowDefinitionDraft = `-- name: LockWorkflowDefinitionDraft :one
+SELECT revision, status, code, source_kind, root_node_id
+FROM wfl_process_definitions
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockWorkflowDefinitionDraftRow struct {
+	Revision   int64  `db:"revision" json:"revision"`
+	Status     string `db:"status" json:"status"`
+	Code       string `db:"code" json:"code"`
+	SourceKind string `db:"source_kind" json:"source_kind"`
+	RootNodeID string `db:"root_node_id" json:"root_node_id"`
+}
+
+func (q *Queries) LockWorkflowDefinitionDraft(ctx context.Context, id string) (LockWorkflowDefinitionDraftRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowDefinitionDraft, id)
+	var i LockWorkflowDefinitionDraftRow
+	err := row.Scan(
+		&i.Revision,
+		&i.Status,
+		&i.Code,
+		&i.SourceKind,
+		&i.RootNodeID,
+	)
+	return i, err
+}
+
+const recordWorkflowDefinitionTrial = `-- name: RecordWorkflowDefinitionTrial :execrows
+UPDATE wfl_process_definitions
+SET last_trial_revision = $1,
+    last_trial_at = now()
+WHERE id = $2
+  AND revision = $1
+`
+
+type RecordWorkflowDefinitionTrialParams struct {
+	Revision     *int64 `db:"revision" json:"revision"`
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordWorkflowDefinitionTrial, arg.Revision, arg.DefinitionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const saveWorkflowDefinitionDraft = `-- name: SaveWorkflowDefinitionDraft :exec
+UPDATE wfl_process_definitions
+SET name = $1,
+    root_node_id = $2,
+    start_condition = $3,
+    draft_script = $4,
+    draft_diagnostic = NULL,
+    revision = revision + 1,
+    last_trial_revision = NULL,
+    last_trial_at = NULL,
+    updated_at = now(),
+    updated_by = $5
+WHERE id = $6
+`
+
+type SaveWorkflowDefinitionDraftParams struct {
+	Name           string  `db:"name" json:"name"`
+	RootNodeID     string  `db:"root_node_id" json:"root_node_id"`
+	StartCondition []byte  `db:"start_condition" json:"start_condition"`
+	DraftScript    *string `db:"draft_script" json:"draft_script"`
+	ActorID        string  `db:"actor_id" json:"actor_id"`
+	ID             string  `db:"id" json:"id"`
+}
+
+func (q *Queries) SaveWorkflowDefinitionDraft(ctx context.Context, arg SaveWorkflowDefinitionDraftParams) error {
+	_, err := q.db.Exec(ctx, saveWorkflowDefinitionDraft,
+		arg.Name,
+		arg.RootNodeID,
+		arg.StartCondition,
+		arg.DraftScript,
+		arg.ActorID,
+		arg.ID,
+	)
+	return err
+}
+
+const saveWorkflowDefinitionScriptDiagnostic = `-- name: SaveWorkflowDefinitionScriptDiagnostic :exec
+UPDATE wfl_process_definitions
+SET draft_script = $1,
+    draft_diagnostic = $2,
+    revision = revision + 1,
+    last_trial_revision = NULL,
+    last_trial_at = NULL,
+    updated_at = now(),
+    updated_by = $3
+WHERE id = $4
+`
+
+type SaveWorkflowDefinitionScriptDiagnosticParams struct {
+	DraftScript     *string `db:"draft_script" json:"draft_script"`
+	DraftDiagnostic *string `db:"draft_diagnostic" json:"draft_diagnostic"`
+	ActorID         string  `db:"actor_id" json:"actor_id"`
+	ID              string  `db:"id" json:"id"`
+}
+
+func (q *Queries) SaveWorkflowDefinitionScriptDiagnostic(ctx context.Context, arg SaveWorkflowDefinitionScriptDiagnosticParams) error {
+	_, err := q.db.Exec(ctx, saveWorkflowDefinitionScriptDiagnostic,
+		arg.DraftScript,
+		arg.DraftDiagnostic,
+		arg.ActorID,
+		arg.ID,
+	)
+	return err
 }

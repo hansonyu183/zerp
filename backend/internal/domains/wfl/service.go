@@ -18,6 +18,7 @@ type Service struct {
 	sales     salesVoucherService
 	purchase  purchaseVoucherService
 	converter workflowDocumentConverter
+	validator workflowDocumentValidator
 	logger    *slog.Logger
 }
 
@@ -25,6 +26,7 @@ type documentService interface {
 	salesVoucherService
 	purchaseVoucherService
 	workflowDocumentConverter
+	workflowDocumentValidator
 }
 
 func NewService(
@@ -41,7 +43,7 @@ func NewService(
 	}
 	service := &Service{
 		pool: pool, queries: sqlc.New(pool), logger: logger,
-		sales: documents, purchase: documents, converter: documents,
+		sales: documents, purchase: documents, converter: documents, validator: documents,
 	}
 	if err := service.registerDocumentSubscriptions(events); err != nil {
 		return nil, err

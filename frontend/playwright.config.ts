@@ -6,6 +6,8 @@ const requiredE2EEnvNames = [
   'E2E_API_BASE_URL',
   'E2E_USERNAME',
   'E2E_PASSWORD',
+  'E2E_RUN_ID',
+  'E2E_DISPOSABLE_RUN_ID',
 ] as const
 
 for (const name of requiredE2EEnvNames) {
@@ -20,8 +22,12 @@ const missingE2EEnvNames = requiredE2EEnvNames.filter(
 
 if (missingE2EEnvNames.length > 0) {
   throw new Error(
-    `Playwright 必须连接真实测试后端，缺少配置：${missingE2EEnvNames.join(', ')}`,
+    `Playwright 必须通过根目录 make e2e 连接可销毁隔离后端，缺少配置：${missingE2EEnvNames.join(', ')}`,
   )
+}
+
+if (process.env.E2E_DISPOSABLE_RUN_ID !== process.env.E2E_RUN_ID) {
+  throw new Error('Playwright 拒绝连接未经 make e2e 标记的后端。')
 }
 
 const appUrl = process.env.E2E_APP_BASE_URL ?? 'http://127.0.0.1:5173'

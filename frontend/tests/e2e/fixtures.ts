@@ -11,8 +11,13 @@ export const test = base.extend<object, WorkerFixtures>({
       const baseURL = process.env.E2E_API_BASE_URL
       const username = process.env.E2E_USERNAME
       const password = process.env.E2E_PASSWORD
+      const runId = process.env.E2E_RUN_ID
+      const disposableRunId = process.env.E2E_DISPOSABLE_RUN_ID
       if (!baseURL || !username || !password) {
         throw new Error('隔离 E2E 缺少 API 地址或 bootstrap 管理员凭证。')
+      }
+      if (!runId || disposableRunId !== runId) {
+        throw new Error('隔离 E2E 只能向 make e2e 创建的可销毁后端写入测试资料。')
       }
       await use(
         await createWflWorkerState({

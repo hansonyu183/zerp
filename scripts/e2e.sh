@@ -96,5 +96,6 @@ export E2E_APP_BASE_URL="http://127.0.0.1:${WEB_PORT}"
 export E2E_USERNAME="${APP_BOOTSTRAP_USERNAME}"
 export E2E_PASSWORD="${APP_BOOTSTRAP_PASSWORD}"
 export E2E_RUN_ID="${runtime_dir##*/}"
+export E2E_DISPOSABLE_RUN_ID="${E2E_RUN_ID}"
 
 pnpm --filter @zerp/frontend test:e2e

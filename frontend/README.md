@@ -32,11 +32,11 @@ pnpm format:check
 pnpm docs:check
 pnpm test:unit
 pnpm test:coverage
-pnpm test:e2e
 pnpm check
 ```
 
-以上命令用于模块开发期反馈；形成可验收提交后，在根目录统一运行 `make pre-push`。
+以上命令用于模块开发期反馈。真实全栈 Playwright 必须从仓库根目录运行
+`make e2e`，形成可验收提交后统一运行 `make pre-push`。
 
 ## 目录与页面
 

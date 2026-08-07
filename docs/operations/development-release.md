@@ -20,7 +20,7 @@ make pre-push
 - 契约、SQL/迁移、依赖、运行配置、跨端、E2E 工具及未知变更继续运行后端全量集成/race 与适用的隔离全栈 E2E；
 - 单元测试-only 只运行所属端门禁，E2E-only 运行隔离 E2E，二者都不部署应用预览。
 
-`scripts/change-impact.sh --checks` 还会输出 `frontend_full`、`backend_deps`、`api_image` 和 `web_image`：前两项分别控制完整前端门禁和后端依赖准备，后两项只在对应镜像真实输入变化或 `main` 发布 PR 时开启。这样 Draft/Ready 分层不会因为文档、验证工具或未变化的一侧而重复构建镜像。
+`scripts/change-impact.sh --checks` 还会输出 `frontend_full`、`backend_deps`、`api_image` 和 `web_image`：`frontend_full` 控制完整前端门禁，`backend_deps` 标记后端依赖文件变化；所有后端源码 PR 都会校验模块完整性。后两项只在对应镜像真实输入变化或 `main` 发布 PR 时开启。这样 Draft/Ready 分层不会因为文档、验证工具或未变化的一侧而重复构建镜像。
 
 前端生产依赖审计只在 workspace、锁文件或前端依赖清单变化时运行；普通前端源码变化继续运行 lint、覆盖率和构建，但不重复执行只依赖锁文件的审计。后端数据库门禁会从上一迁移版本加载 `backend/db/migration-tests/<version>_{before,after}.sql` 夹具后升级到最新版本；每个新迁移必须同时提供对应升级夹具，不能只证明空库可迁移。
 

@@ -319,14 +319,9 @@ jobs:
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
-      - name: Run backend formatting, static and security gates
-        env:
-          BACKEND_DEPS: ${{ needs.merge_evidence.outputs.backend_deps }}
+      - name: Run backend module, formatting, static and security gates
         run: |
-          make -C backend quality-format-fast
-          if [ "$BACKEND_DEPS" = "1" ]; then
-            make -C backend quality-modules
-          fi
+          make -C backend quality-format
           make -C backend quality-staticcheck quality-vuln
 
   backend:

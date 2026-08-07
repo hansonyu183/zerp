@@ -4986,7 +4986,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["VouReverseRequest"];
+                "application/json": components["schemas"]["VouDocumentRevisionRequest"];
             };
         };
         responses: {

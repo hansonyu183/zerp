@@ -187,6 +187,22 @@ func TestValidateLineRemarkBoundaries(t *testing.T) {
 	}
 }
 
+func TestValidateReverseRequiresReason(t *testing.T) {
+	t.Parallel()
+	valid := ReverseInput{DocumentID: testObjectID, Revision: 1, Reason: " 修正数据 "}
+	reason, err := validateReverse(valid)
+	if err != nil || reason == nil || *reason != "修正数据" {
+		t.Fatalf("validated reason=%v err=%v", reason, err)
+	}
+	for _, reason := range []string{"", "  ", strings.Repeat("原", 1001)} {
+		input := valid
+		input.Reason = reason
+		if _, err := validateReverse(input); err == nil {
+			t.Fatalf("reason %q was accepted", reason)
+		}
+	}
+}
+
 func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	t.Parallel()
 	product := *refInput()

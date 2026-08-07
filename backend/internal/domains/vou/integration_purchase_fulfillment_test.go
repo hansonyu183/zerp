@@ -306,9 +306,8 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if err != nil {
 		t.Fatalf("unapprove partial purchase return: %v", err)
 	}
-	partialDraft, err := service.Uncheck(t.Context(), EntityPurchaseReturn, ReverseInput{
+	partialDraft, err := service.Uncheck(t.Context(), EntityPurchaseReturn, DocumentRevisionInput{
 		DocumentID: partialReturn.DocumentID, Revision: partialReversed.Revision,
-		Reason: "清理部分退货测试",
 	}, integrationActorOne, "partial-purchase-return-uncheck")
 	if err != nil {
 		t.Fatalf("uncheck partial purchase return: %v", err)

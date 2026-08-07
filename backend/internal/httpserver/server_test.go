@@ -277,6 +277,39 @@ func TestOpenAPIValidatorAcceptsBillReceiptRequest(t *testing.T) {
 	}
 }
 
+func TestOpenAPIValidatorEnforcesVOUReverseReasonRules(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
+	})
+	for _, test := range []struct {
+		name, path, body string
+	}{
+		{
+			name: "uncheck rejects a reason", path: "/vou/customer-receipt/uncheck",
+			body: `{"documentId":"01J00000000000000000000001","revision":1,"reason":"不应传入"}`,
+		},
+		{
+			name: "unapprove requires a reason", path: "/vou/customer-receipt/unapprove",
+			body: `{"documentId":"01J00000000000000000000001","revision":1}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			responseRecorder := httptest.NewRecorder()
+			router.ServeHTTP(responseRecorder, request)
+
+			var envelope response.Envelope
+			if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if envelope.Code != response.CodeValidation {
+				t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
+			}
+		})
+	}
+}
+
 func TestOpenAPIValidatorRejectsInvalidBusinessResponse(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))

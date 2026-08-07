@@ -183,8 +183,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				if reverseErr != nil {
 					t.Fatalf("unapprove: %v", reverseErr)
 				}
-				unreviewed, reverseErr := service.Uncheck(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: unapproved.Revision, Reason: "退回制单",
+				unreviewed, reverseErr := service.Uncheck(t.Context(), test.entity, DocumentRevisionInput{
+					DocumentID: created.DocumentID, Revision: unapproved.Revision,
 				}, integrationActorOne, "vou-unreview")
 				if reverseErr != nil || unreviewed.Status != StatusDraft {
 					t.Fatalf("unreview=%+v err=%v", unreviewed, reverseErr)

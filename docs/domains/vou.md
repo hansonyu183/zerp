@@ -102,7 +102,7 @@ DRAFT ⇄ CHECKED ⇄ APPROVED ⇄ FINALIZED
 - `check`、`approve` 由用户逐级前进；`APPROVED` 即为已审批并已入账。
 - 从“完成时入账”升级到“批准时入账”时，迁移前仍为 `APPROVED` 且需要业务入账或完成阶段校验的单据退回 `CHECKED`，必须重新批准并通过当前入账校验；不产生业务流水且批准语义未变的订单、定价和询价保留 `APPROVED`，原 `FINALIZED` 单据保留完成状态并按原完成时间重建台账。
 - `FINALIZED` 是系统跟踪状态：原子单据没有未完成后续单据时自动进入；销售、采购订单在全部履约或人工短结确认后进入。不对用户提供 `finalize` 或 `unfinalize` 动作。
-- `unapprove`、`uncheck` 由用户逆向处理并要求原因。已系统完成的无后续单据可直接反审，服务端先重新打开再同一事务撤销入账；有后续单据时必须先逆向处理后续单据。
+- `unapprove`、`uncheck` 由用户逆向处理；`unapprove` 要求原因，`uncheck` 不要求原因。已系统完成的无后续单据可直接反审，服务端先重新打开再同一事务撤销入账；有后续单据时必须先逆向处理后续单据。
 - 不提供提交、作废或更正单。草稿可携带原因删除，但有附件或下级单据时拒绝删除。
 - 不比较动作操作者身份，只校验精确 APP 路径权限。
 - 所有写动作携带文档 `revision`，使用乐观并发控制。
@@ -148,18 +148,19 @@ BOB 引用结构固定为：
 
 动作请求按下表固定，未列出的字段会被拒绝：
 
-| 动作                   | 请求字段                                                    |
-| ---------------------- | ----------------------------------------------------------- |
-| `query`                | `page`、`pageSize`、`filters`、最多一项 `sort`              |
-| `get`                  | `documentId`                                                |
-| `formula-default`      | 销售订单可选 `customer`，销售订单和生产自制品均传 `product` |
-| `create`               | `data`                                                      |
-| `save`                 | `documentId`、`revision`、`data`                            |
-| `delete`               | `documentId`、`revision`、`reason`                          |
-| `check`、`approve`     | `documentId`、`revision`                                    |
-| `uncheck`、`unapprove` | `documentId`、`revision`、`reason`                          |
-| `audit-history`        | `documentId`、`page`、`pageSize`                            |
-| 附件动作               | 见第 5 节                                                   |
+| 动作               | 请求字段                                                    |
+| ------------------ | ----------------------------------------------------------- |
+| `query`            | `page`、`pageSize`、`filters`、最多一项 `sort`              |
+| `get`              | `documentId`                                                |
+| `formula-default`  | 销售订单可选 `customer`，销售订单和生产自制品均传 `product` |
+| `create`           | `data`                                                      |
+| `save`             | `documentId`、`revision`、`data`                            |
+| `delete`           | `documentId`、`revision`、`reason`                          |
+| `check`、`approve` | `documentId`、`revision`                                    |
+| `uncheck`          | `documentId`、`revision`                                    |
+| `unapprove`        | `documentId`、`revision`、`reason`                          |
+| `audit-history`    | `documentId`、`page`、`pageSize`                            |
+| 附件动作           | 见第 5 节                                                   |
 
 创建、保存和生命周期动作成功时，`data` 使用同一结构：
 
@@ -469,7 +470,7 @@ WFL 流程或 LED 流水。
 | `expense-payment`        | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                                                        |
 | `other-income`           | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount`                                  |
 
-往来收付款、员工借还与核销、费用报销、费用付款和其他收入批准只传 `documentId`、`revision`，不接受日期、车辆或行字段。反向动作的
+往来收付款、员工借还与核销、费用报销、费用付款和其他收入批准只传 `documentId`、`revision`，不接受日期、车辆或行字段。`unapprove` 的
 `reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
 
 ## 4. 查询与展示语义
@@ -609,7 +610,7 @@ WFL 流程或 LED 流水。
 
 创建、保存、状态变化、入账结果、反向动作和附件关联都在文档锁及 revision 校验下完成。编号计数器按实体和业务日期加锁，允许业务上出现号码间隙但禁止重复。
 
-审计事件追加保存事件类型、前后状态、操作者、发生时间、反向原因、请求 ID 和必要的变更摘要。反向动作清理当前态字段，但不得删除历史事件。
+审计事件追加保存事件类型、前后状态、操作者、发生时间、适用时的反向原因、请求 ID 和必要的变更摘要。反向动作清理当前态字段，但不得删除历史事件。
 
 单据 `approve` 和 `unapprove` 在完成 VOU 当前态及审计写入后、提交事务前，分别发布
 `DocumentApprovedEvent` 和 `DocumentUnapprovedEvent`。主题同时包含生命周期动作和单据实体，
@@ -706,7 +707,7 @@ VOU 权限提供完整能力；销售出库、销售送货和销售签收不注�
 - 实体页由列表和全屏单据工作区组成；页面状态由同目录 VM 和 VOU 共享 VM 管理，不进入 Pinia。
 - 单据状态固定为 `DRAFT ⇄ CHECKED ⇄ APPROVED ⇄ FINALIZED`。`check/uncheck`、`approve/unapprove` 是用户动作；
   `FINALIZED` 由后端按后续流程完成或订单短结确认自动维护，页面仅展示“已完成”状态。
-  所有反向动作必须填写原因。
+  `unapprove` 必须填写原因；`uncheck` 直接执行。
 - 仅草稿可编辑和增删附件。所有写操作使用详情响应中的当前 `revision`，冲突后由用户重新加载，不自动覆盖。
 - BOB 新引用必须来自当前 `EFFECTIVE` 版本，并同时提交 `objectId` 和 `versionId`。详情中的历史快照可以展示，但不会被转换成新的有效引用。
 - 已有贸易草稿的业务员和采购员没有被用户改动时，保存请求省略该字段，以保留后端人员快照；新建时留空则由后端使用客户或供应商默认值。

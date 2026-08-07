@@ -45,7 +45,7 @@ func (*handlerServiceStub) Save(context.Context, string, SaveInput, string, stri
 func (*handlerServiceStub) Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Uncheck(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Uncheck(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {

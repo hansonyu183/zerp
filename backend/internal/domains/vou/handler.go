@@ -26,7 +26,7 @@ type applicationService interface {
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
-	Uncheck(context.Context, string, ReverseInput, string, string) (MutationResult, error)
+	Uncheck(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
 	Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
 	Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
@@ -252,7 +252,7 @@ func (h *Handler) check(c *gin.Context, entity string) {
 }
 
 func (h *Handler) uncheck(c *gin.Context, entity string) {
-	var input ReverseInput
+	var input DocumentRevisionInput
 	if h.bind(c, &input) {
 		result, err := h.service.Uncheck(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)

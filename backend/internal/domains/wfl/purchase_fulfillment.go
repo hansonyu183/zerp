@@ -21,7 +21,7 @@ type purchaseVoucherService interface {
 	SavePurchaseInbound(context.Context, voudomain.SaveInput, string, string) (voudomain.MutationResult, error)
 	DeletePurchaseInbound(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	Check(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
-	Uncheck(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	Uncheck(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	PurchaseShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
@@ -274,8 +274,8 @@ func (s *Service) PurchaseAction(
 			DocumentID: documentID, Revision: input.DocumentRevision,
 		}, actorID, requestID)
 	case "uncheck":
-		result, err = s.purchase.Uncheck(ctx, entity, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		result, err = s.purchase.Uncheck(ctx, entity, voudomain.DocumentRevisionInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
 		}, actorID, requestID)
 	case "approve":
 		result, err = s.purchase.Approve(ctx, entity, voudomain.DocumentRevisionInput{

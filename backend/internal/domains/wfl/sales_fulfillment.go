@@ -18,7 +18,7 @@ type salesVoucherService interface {
 	CreateManagedSalesOrder(context.Context, voudomain.CreateInput, string, string) (voudomain.MutationResult, error)
 	Save(context.Context, string, voudomain.SaveInput, string, string) (voudomain.MutationResult, error)
 	Check(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
-	Uncheck(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
+	Uncheck(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	ShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
@@ -281,8 +281,8 @@ func (s *Service) SalesAction(
 			DocumentID: documentID, Revision: input.DocumentRevision,
 		}, actorID, requestID)
 	case "uncheck":
-		result, err = s.sales.Uncheck(ctx, entity, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
+		result, err = s.sales.Uncheck(ctx, entity, voudomain.DocumentRevisionInput{
+			DocumentID: documentID, Revision: input.DocumentRevision,
 		}, actorID, requestID)
 	case "approve":
 		result, err = s.sales.Approve(ctx, entity, voudomain.DocumentRevisionInput{

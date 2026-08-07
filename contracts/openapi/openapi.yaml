@@ -1992,7 +1992,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                            {
+                              '$ref': './schemas/vou.yaml#/VouDocumentRevisionRequest',
+                            },
                         },
                     },
                 },

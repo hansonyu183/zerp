@@ -225,9 +225,9 @@ func (s *Service) postBillIssue(ctx context.Context, tx pgx.Tx, q *dbsqlc.Querie
 		return s.writeError("post bill issue supplier", err)
 	}
 	if detail.InterestMode == "THIRD_PARTY_PAYABLE" && interestTotal > 0 {
-		if err = q.InsertLedPartyEntry(ctx, partyParams(
+		if err = q.InsertLedOtherEntry(ctx, otherPartyParams(
 			p, doc, "interest", doc.BusinessDate, deref(detail.InterestPartyObjectID), deref(detail.InterestPartyVersionID),
-			deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal,
+			deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal, nil,
 		)); err != nil {
 			return s.writeError("post bill issue interest payable", err)
 		}
@@ -295,7 +295,9 @@ func (s *Service) postBillDiscount(ctx context.Context, tx pgx.Tx, q *dbsqlc.Que
 		}
 	}
 	if detail.InterestMode == "THIRD_PARTY_PAYABLE" && interestTotal > 0 {
-		if err = q.InsertLedPartyEntry(ctx, partyParams(p, doc, "interest", doc.BusinessDate, deref(detail.InterestPartyObjectID), deref(detail.InterestPartyVersionID), deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal)); err != nil {
+		if err = q.InsertLedOtherEntry(ctx, otherPartyParams(p, doc, "interest", doc.BusinessDate,
+			deref(detail.InterestPartyObjectID), deref(detail.InterestPartyVersionID),
+			deref(detail.InterestPartyCode), deref(detail.InterestPartyName), "other-party", -interestTotal, nil)); err != nil {
 			return s.writeError("post bill discount interest payable", err)
 		}
 	}

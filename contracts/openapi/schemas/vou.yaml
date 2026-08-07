@@ -17,11 +17,11 @@
           'order-production',
           'self-production',
           'inventory-count',
-          'customer-receipt',
-          'supplier-receipt',
+          'sales-receipt',
+          'purchase-refund',
           'other-receipt',
-          'customer-payment',
-          'supplier-payment',
+          'sales-refund',
+          'purchase-payment',
           'other-payment',
           'employee-loan',
           'employee-repayment',
@@ -56,11 +56,11 @@
           'order-production',
           'self-production',
           'inventory-count',
-          'customer-receipt',
-          'supplier-receipt',
+          'sales-receipt',
+          'purchase-refund',
           'other-receipt',
-          'customer-payment',
-          'supplier-payment',
+          'sales-refund',
+          'purchase-payment',
           'other-payment',
           'employee-loan',
           'employee-repayment',
@@ -1166,6 +1166,11 @@
                         },
                     },
                   'counterpartyType': { 'type': 'string' },
+                  'otherCategory':
+                    {
+                      'type': 'string',
+                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                    },
                   'counterparty':
                     {
                       'type': 'object',
@@ -1535,6 +1540,11 @@
                         },
                     },
                   'counterpartyType': { 'type': 'string' },
+                  'otherCategory':
+                    {
+                      'type': 'string',
+                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                    },
                   'counterparty':
                     {
                       'type': 'object',

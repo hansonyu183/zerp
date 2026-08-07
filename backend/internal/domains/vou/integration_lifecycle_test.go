@@ -20,11 +20,11 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO vou_number_counters(entity, business_date, last_value)
 		VALUES ($1, DATE '2026-07-24', 9999)
-	`, EntityReceipt); err != nil {
+	`, EntitySalesReceipt); err != nil {
 		t.Fatalf("exhaust document counter: %v", err)
 	}
 
-	_, err := newIntegrationService(t, pool).Create(t.Context(), EntityReceipt, CreateInput{
+	_, err := newIntegrationService(t, pool).Create(t.Context(), EntitySalesReceipt, CreateInput{
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
@@ -59,12 +59,12 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 			Warehouse: &refs.warehouse, ProductLines: productLine,
 		}},
-		{EntityReceipt, DraftInput{
+		{EntitySalesReceipt, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "100.00",
 		}},
-		{EntityPayment, DraftInput{
+		{EntityPurchasePayment, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "80.00",
@@ -142,7 +142,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					view.Data.ProductLines[0].Remark != "商品明细备注" {
 					t.Fatalf("sale attribute snapshots = %+v", view.Data)
 				}
-			case EntityReceipt, EntityPayment, EntityOtherIncome:
+			case EntitySalesReceipt, EntityPurchasePayment, EntityOtherIncome:
 				if view.Data.Handler == nil {
 					t.Fatalf("handler snapshot = %+v", view.Data)
 				}
@@ -210,7 +210,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	parent, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	parent, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
@@ -218,8 +218,8 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := service.Create(t.Context(), EntityPayment, CreateInput{
-		ParentEntity: EntityReceipt, ParentDocumentID: parent.DocumentID,
+	child, err := service.Create(t.Context(), EntityPurchasePayment, CreateInput{
+		ParentEntity: EntitySalesReceipt, ParentDocumentID: parent.DocumentID,
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
@@ -229,13 +229,13 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.Get(t.Context(), EntityPayment, GetInput{DocumentID: child.DocumentID})
-	if err != nil || view.ParentEntity != EntityReceipt ||
+	view, err := service.Get(t.Context(), EntityPurchasePayment, GetInput{DocumentID: child.DocumentID})
+	if err != nil || view.ParentEntity != EntitySalesReceipt ||
 		view.ParentDocumentID != parent.DocumentID ||
 		view.ParentDocumentNo != parent.DocumentNo {
 		t.Fatalf("parent view=%+v err=%v", view, err)
 	}
-	if _, err = service.Create(t.Context(), EntityPayment, CreateInput{
+	if _, err = service.Create(t.Context(), EntityPurchasePayment, CreateInput{
 		ParentEntity: EntitySaleOrder, ParentDocumentID: parent.DocumentID,
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
@@ -265,7 +265,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			result, err := service.Create(context.Background(), EntityReceipt, CreateInput{Data: DraftInput{
+			result, err := service.Create(context.Background(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 				Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 				Handler: &refs.employee, Amount: "1.00",
@@ -285,7 +285,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for number := range numbers {
-		if len(number) != 17 || !strings.HasPrefix(number, "REC-20260724-") {
+		if len(number) != 17 || !strings.HasPrefix(number, "SRC-20260724-") {
 			t.Fatalf("unexpected document number %s", number)
 		}
 		if seen[number] {

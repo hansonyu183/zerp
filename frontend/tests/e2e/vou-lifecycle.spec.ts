@@ -196,7 +196,7 @@ test(
     if (test.info().project.name !== 'mobile-chromium') {
       await verifyEmployeeLoanLifecycle(page, fixture)
     }
-    await page.goto('/vou/customer-receipt')
+    await page.goto('/vou/sales-receipt')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const workspace = page.locator('.voucher-workspace')
     await expect(workspace.getByText('币种', { exact: true })).toHaveCount(0)
@@ -209,11 +209,11 @@ test(
     await selectReference(page, '资金账户', fixture.fundAccount, workspace)
     await page.getByLabel('金额').fill('100.00')
     await workspace.getByRole('button', { name: '保存', exact: true }).click()
-    await expectDraftCreated(workspace, /^REC-\d{8}-\d{4}$/)
+    await expectDraftCreated(workspace, /^SRC-\d{8}-\d{4}$/)
     const documentNo = (
       await workspace.locator('.voucher-document-header__number').textContent()
     )?.trim()
-    expect(documentNo).toMatch(/^REC-\d{8}-\d{4}$/)
+    expect(documentNo).toMatch(/^SRC-\d{8}-\d{4}$/)
 
     await page.getByRole('tab', { name: '附件' }).click()
     await page.locator('input[type=file]').setInputFiles({
@@ -241,7 +241,7 @@ test(
     await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
     await expect(workbenchRow).toHaveCount(0)
 
-    await page.goto('/vou/customer-receipt')
+    await page.goto('/vou/sales-receipt')
     await page
       .getByRole('textbox', { name: '单号或往来方关键字' })
       .fill(documentNo!)

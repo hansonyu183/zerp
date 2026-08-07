@@ -246,7 +246,7 @@ describe('feedback view model', () => {
     vm.title = '客户页面建议'
     vm.content = '希望增加批量操作'
     vm.closeDialog()
-    await router.push('/vou/customer-receipt')
+    await router.push('/vou/sales-receipt')
     vm.openDialog()
 
     expect(vm.title).toBe('客户页面建议')

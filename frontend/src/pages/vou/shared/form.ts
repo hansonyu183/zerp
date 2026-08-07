@@ -20,6 +20,7 @@ export interface DraftPayload {
   supplier?: VoucherReferenceInput
   counterpartyType?: string
   counterparty?: VoucherReferenceInput
+  otherCategory?: VoucherDraftForm['otherCategory']
   employee?: VoucherReferenceInput
   salesperson?: VoucherReferenceInput
   purchaser?: VoucherReferenceInput
@@ -130,6 +131,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         ? (config.fixedCounterpartyType ?? 'customer')
         : '',
     counterparty: null,
+    otherCategory: '',
     employee: null,
     salesperson: null,
     purchaser: null,
@@ -274,6 +276,7 @@ export function formFromDocument(
     supplier: formReference(data.supplier),
     counterpartyType: formCounterpartyType(data.counterparty),
     counterparty: formReference(data.counterparty),
+    otherCategory: data.otherCategory ?? '',
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),
     purchaser: formReference(data.purchaser),

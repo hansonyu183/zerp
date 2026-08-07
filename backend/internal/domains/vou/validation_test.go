@@ -40,12 +40,11 @@ func TestValidateDraftByEntity(t *testing.T) {
 	}
 }
 
-func TestSplitCashEntitiesFixCounterpartyType(t *testing.T) {
+func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct{ entity, want string }{
-		{EntityCustomerReceipt, "customer"}, {EntitySupplierReceipt, "supplier"},
-		{EntityOtherReceipt, "other-party"}, {EntityCustomerPayment, "customer"},
-		{EntitySupplierPayment, "supplier"}, {EntityOtherPayment, "other-party"},
+		{EntitySalesReceipt, "customer"}, {EntityPurchaseRefund, "supplier"},
+		{EntitySalesRefund, "customer"}, {EntityPurchasePayment, "supplier"},
 		{EntityEmployeeLoan, "employee"}, {EntityEmployeeRepayment, "employee"},
 	} {
 		draft, err := validateDraft(test.entity, DraftInput{
@@ -56,11 +55,39 @@ func TestSplitCashEntitiesFixCounterpartyType(t *testing.T) {
 			t.Fatalf("%s type=%q err=%v", test.entity, draft.CounterpartyType, err)
 		}
 	}
-	if _, err := validateDraft(EntityCustomerReceipt, DraftInput{
+	if _, err := validateDraft(EntitySalesReceipt, DraftInput{
 		BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: "supplier",
 		Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
 	}); err == nil {
 		t.Fatal("customer receipt accepted supplier counterparty type")
+	}
+	for _, entity := range []string{EntityOtherReceipt, EntityOtherPayment} {
+		for _, counterpartyType := range []string{"customer", "supplier", "other-party", "employee"} {
+			draft, err := validateDraft(entity, DraftInput{
+				BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: counterpartyType,
+				Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
+				OtherCategory: "commission",
+			})
+			if err != nil || draft.CounterpartyType != counterpartyType || draft.OtherCategory != "COMMISSION" {
+				t.Fatalf("%s type=%q category=%q err=%v", entity, draft.CounterpartyType, draft.OtherCategory, err)
+			}
+		}
+	}
+	if _, err := validateDraft(EntitySalesReceipt, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
+		FundAccount: refInput(), Handler: refInput(), Amount: "10.00", OtherCategory: "REBATE",
+	}); err == nil {
+		t.Fatal("trade receipt accepted an other transaction category")
+	}
+	if _, err := validateDraft(EntitySaleOrder, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "REBATE",
+	}); err == nil || !strings.Contains(err.Error(), "otherCategory") {
+		t.Fatalf("sale order otherCategory error = %v", err)
+	}
+	if _, err := validateDraft(EntityBillReceipt, DraftInput{
+		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "REBATE",
+	}); err == nil || !strings.Contains(err.Error(), "otherCategory") {
+		t.Fatalf("bill receipt otherCategory error = %v", err)
 	}
 }
 

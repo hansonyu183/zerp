@@ -11,63 +11,73 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countLedOtherPayableBalances = `-- name: CountLedOtherPayableBalances :one
+const countLedOtherBalances = `-- name: CountLedOtherBalances :one
 SELECT count(*) FROM (
-  SELECT payable_category,counterparty_entity,counterparty_object_id,currency
+  SELECT counterparty_entity,counterparty_object_id,currency
   FROM led_party_entries
-  WHERE generation_id=$1 AND account_type='OTHER_PAYABLE'
+  WHERE generation_id=$1 AND account_type='OTHER'
     AND effective_date<=$2
     AND ($3::text='' OR counterparty_object_id=$3)
-  GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
+    AND ($4::text='' OR counterparty_entity=$4)
+  GROUP BY counterparty_entity,counterparty_object_id,currency
   HAVING sum(amount_delta_cents)<>0
 ) balances
 `
 
-type CountLedOtherPayableBalancesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
+type CountLedOtherBalancesParams struct {
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	AsOfDate           pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
 }
 
-func (q *Queries) CountLedOtherPayableBalances(ctx context.Context, arg CountLedOtherPayableBalancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countLedOtherPayableBalances, arg.GenerationID, arg.AsOfDate, arg.ObjectID)
+func (q *Queries) CountLedOtherBalances(ctx context.Context, arg CountLedOtherBalancesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedOtherBalances,
+		arg.GenerationID,
+		arg.AsOfDate,
+		arg.ObjectID,
+		arg.CounterpartyEntity,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const countLedOtherPayableEntries = `-- name: CountLedOtherPayableEntries :one
+const countLedOtherEntries = `-- name: CountLedOtherEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id=$1 AND account_type='OTHER_PAYABLE'
+WHERE generation_id=$1 AND account_type='OTHER'
   AND effective_date BETWEEN $2 AND $3
   AND ($4::text='' OR counterparty_object_id=$4)
   AND ($5::text='' OR source_entity=$5)
   AND ($6::text='' OR source_document_no ILIKE '%'||$6||'%')
-  AND ($7::text='' OR payable_category=$7)
-  AND (COALESCE(cardinality($8::text[]),0)=0
-       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY($8::text[]))
+  AND ($7::text='' OR counterparty_entity=$7)
+  AND ($8::text='' OR other_category=$8)
+  AND (COALESCE(cardinality($9::text[]),0)=0
+       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY($9::text[]))
 `
 
-type CountLedOtherPayableEntriesParams struct {
-	GenerationID    string      `db:"generation_id" json:"generation_id"`
-	DateFrom        pgtype.Date `db:"date_from" json:"date_from"`
-	DateTo          pgtype.Date `db:"date_to" json:"date_to"`
-	ObjectID        string      `db:"object_id" json:"object_id"`
-	SourceEntity    string      `db:"source_entity" json:"source_entity"`
-	DocumentNo      string      `db:"document_no" json:"document_no"`
-	PayableCategory string      `db:"payable_category" json:"payable_category"`
-	Directions      []string    `db:"directions" json:"directions"`
+type CountLedOtherEntriesParams struct {
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	DateFrom           pgtype.Date `db:"date_from" json:"date_from"`
+	DateTo             pgtype.Date `db:"date_to" json:"date_to"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	SourceEntity       string      `db:"source_entity" json:"source_entity"`
+	DocumentNo         string      `db:"document_no" json:"document_no"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	OtherCategory      string      `db:"other_category" json:"other_category"`
+	Directions         []string    `db:"directions" json:"directions"`
 }
 
-func (q *Queries) CountLedOtherPayableEntries(ctx context.Context, arg CountLedOtherPayableEntriesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countLedOtherPayableEntries,
+func (q *Queries) CountLedOtherEntries(ctx context.Context, arg CountLedOtherEntriesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedOtherEntries,
 		arg.GenerationID,
 		arg.DateFrom,
 		arg.DateTo,
 		arg.ObjectID,
 		arg.SourceEntity,
 		arg.DocumentNo,
-		arg.PayableCategory,
+		arg.CounterpartyEntity,
+		arg.OtherCategory,
 		arg.Directions,
 	)
 	var count int64
@@ -184,36 +194,12 @@ func (q *Queries) HasIntermediaryCalculationDependents(ctx context.Context, docu
 	return exists, err
 }
 
-const hasLedOtherPayableBalanceBeforeCutover = `-- name: HasLedOtherPayableBalanceBeforeCutover :one
-SELECT EXISTS (
-    SELECT 1
-    FROM led_party_entries
-    WHERE generation_id=$1
-      AND account_type='OTHER_PAYABLE'
-      AND effective_date < $2
-    GROUP BY counterparty_entity,counterparty_object_id,currency,payable_category
-    HAVING sum(amount_delta_cents)<>0
-)::boolean
-`
-
-type HasLedOtherPayableBalanceBeforeCutoverParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	CutoverDate  pgtype.Date `db:"cutover_date" json:"cutover_date"`
-}
-
-func (q *Queries) HasLedOtherPayableBalanceBeforeCutover(ctx context.Context, arg HasLedOtherPayableBalanceBeforeCutoverParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasLedOtherPayableBalanceBeforeCutover, arg.GenerationID, arg.CutoverDate)
-	var column_1 bool
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const insertLedOtherPayableEntry = `-- name: InsertLedOtherPayableEntry :exec
+const insertLedOtherEntry = `-- name: InsertLedOtherEntry :exec
 INSERT INTO led_party_entries(
     id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
     source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,remark,
     counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,
-    counterparty_name,currency,amount_delta_cents,account_type,payable_category
+    counterparty_name,currency,amount_delta_cents,account_type,other_category
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7,
@@ -222,11 +208,11 @@ INSERT INTO led_party_entries(
     $14,$15,
     $16,$17,
     $18,$19,$20,
-    'OTHER_PAYABLE',$21
+    'OTHER',$21
 ) ON CONFLICT DO NOTHING
 `
 
-type InsertLedOtherPayableEntryParams struct {
+type InsertLedOtherEntryParams struct {
 	ID                    string             `db:"id" json:"id"`
 	GenerationID          string             `db:"generation_id" json:"generation_id"`
 	EntryType             string             `db:"entry_type" json:"entry_type"`
@@ -247,11 +233,11 @@ type InsertLedOtherPayableEntryParams struct {
 	CounterpartyName      string             `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string             `db:"currency" json:"currency"`
 	AmountDeltaCents      int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
-	PayableCategory       *string            `db:"payable_category" json:"payable_category"`
+	OtherCategory         *string            `db:"other_category" json:"other_category"`
 }
 
-func (q *Queries) InsertLedOtherPayableEntry(ctx context.Context, arg InsertLedOtherPayableEntryParams) error {
-	_, err := q.db.Exec(ctx, insertLedOtherPayableEntry,
+func (q *Queries) InsertLedOtherEntry(ctx context.Context, arg InsertLedOtherEntryParams) error {
+	_, err := q.db.Exec(ctx, insertLedOtherEntry,
 		arg.ID,
 		arg.GenerationID,
 		arg.EntryType,
@@ -272,7 +258,7 @@ func (q *Queries) InsertLedOtherPayableEntry(ctx context.Context, arg InsertLedO
 		arg.CounterpartyName,
 		arg.Currency,
 		arg.AmountDeltaCents,
-		arg.PayableCategory,
+		arg.OtherCategory,
 	)
 	return err
 }
@@ -532,7 +518,7 @@ func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIn
 
 const listIntermediaryCustomerTradeEvents = `-- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
-    SELECT entry.id, entry.generation_id, entry.entry_type, entry.source_entity, entry.source_document_id, entry.source_document_no, entry.source_line_id, entry.source_revision, entry.effective_date, entry.occurred_at, entry.actor_id, entry.request_id, entry.remark, entry.counterparty_entity, entry.counterparty_object_id, entry.counterparty_version_id, entry.counterparty_code, entry.counterparty_name, entry.currency, entry.amount_delta_cents, entry.account_type, entry.payable_category
+    SELECT entry.id, entry.generation_id, entry.entry_type, entry.source_entity, entry.source_document_id, entry.source_document_no, entry.source_line_id, entry.source_revision, entry.effective_date, entry.occurred_at, entry.actor_id, entry.request_id, entry.remark, entry.counterparty_entity, entry.counterparty_object_id, entry.counterparty_version_id, entry.counterparty_code, entry.counterparty_name, entry.currency, entry.amount_delta_cents, entry.account_type, entry.other_category
     FROM led_party_entries entry
     WHERE entry.generation_id=$2
       AND entry.account_type='TRADE'
@@ -1062,46 +1048,48 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 	return items, nil
 }
 
-const listLedOtherPayableBalances = `-- name: ListLedOtherPayableBalances :many
-SELECT payable_category,counterparty_entity,counterparty_object_id,
+const listLedOtherBalances = `-- name: ListLedOtherBalances :many
+SELECT counterparty_entity,counterparty_object_id,
        (array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS counterparty_version_id,
        max(counterparty_code)::varchar(64) AS counterparty_code,
        (array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS counterparty_name,
        currency,sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id=$1 AND account_type='OTHER_PAYABLE'
+WHERE generation_id=$1 AND account_type='OTHER'
   AND effective_date<=$2
   AND ($3::text='' OR counterparty_object_id=$3)
-GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
+  AND ($4::text='' OR counterparty_entity=$4)
+GROUP BY counterparty_entity,counterparty_object_id,currency
 HAVING sum(amount_delta_cents)<>0
-ORDER BY counterparty_entity,counterparty_code,payable_category,currency
-LIMIT $5 OFFSET $4
+ORDER BY counterparty_entity,counterparty_code,currency
+LIMIT $6 OFFSET $5
 `
 
-type ListLedOtherPayableBalancesParams struct {
-	GenerationID string      `db:"generation_id" json:"generation_id"`
-	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
-	ObjectID     string      `db:"object_id" json:"object_id"`
-	PageOffset   int32       `db:"page_offset" json:"page_offset"`
-	PageSize     int32       `db:"page_size" json:"page_size"`
+type ListLedOtherBalancesParams struct {
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	AsOfDate           pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	PageOffset         int32       `db:"page_offset" json:"page_offset"`
+	PageSize           int32       `db:"page_size" json:"page_size"`
 }
 
-type ListLedOtherPayableBalancesRow struct {
-	PayableCategory       *string `db:"payable_category" json:"payable_category"`
-	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string  `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string  `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string  `db:"currency" json:"currency"`
-	BalanceCents          int64   `db:"balance_cents" json:"balance_cents"`
+type ListLedOtherBalancesRow struct {
+	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
+	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	Currency              string `db:"currency" json:"currency"`
+	BalanceCents          int64  `db:"balance_cents" json:"balance_cents"`
 }
 
-func (q *Queries) ListLedOtherPayableBalances(ctx context.Context, arg ListLedOtherPayableBalancesParams) ([]ListLedOtherPayableBalancesRow, error) {
-	rows, err := q.db.Query(ctx, listLedOtherPayableBalances,
+func (q *Queries) ListLedOtherBalances(ctx context.Context, arg ListLedOtherBalancesParams) ([]ListLedOtherBalancesRow, error) {
+	rows, err := q.db.Query(ctx, listLedOtherBalances,
 		arg.GenerationID,
 		arg.AsOfDate,
 		arg.ObjectID,
+		arg.CounterpartyEntity,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -1109,11 +1097,10 @@ func (q *Queries) ListLedOtherPayableBalances(ctx context.Context, arg ListLedOt
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListLedOtherPayableBalancesRow{}
+	items := []ListLedOtherBalancesRow{}
 	for rows.Next() {
-		var i ListLedOtherPayableBalancesRow
+		var i ListLedOtherBalancesRow
 		if err := rows.Scan(
-			&i.PayableCategory,
 			&i.CounterpartyEntity,
 			&i.CounterpartyObjectID,
 			&i.CounterpartyVersionID,
@@ -1132,53 +1119,56 @@ func (q *Queries) ListLedOtherPayableBalances(ctx context.Context, arg ListLedOt
 	return items, nil
 }
 
-const listLedOtherPayableEntries = `-- name: ListLedOtherPayableEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, payable_category FROM led_party_entries
-WHERE generation_id=$1 AND account_type='OTHER_PAYABLE'
+const listLedOtherEntries = `-- name: ListLedOtherEntries :many
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, other_category FROM led_party_entries
+WHERE generation_id=$1 AND account_type='OTHER'
   AND effective_date BETWEEN $2 AND $3
   AND ($4::text='' OR counterparty_object_id=$4)
   AND ($5::text='' OR source_entity=$5)
   AND ($6::text='' OR source_document_no ILIKE '%'||$6||'%')
-  AND ($7::text='' OR payable_category=$7)
-  AND (COALESCE(cardinality($8::text[]),0)=0
-       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY($8::text[]))
+  AND ($7::text='' OR counterparty_entity=$7)
+  AND ($8::text='' OR other_category=$8)
+  AND (COALESCE(cardinality($9::text[]),0)=0
+       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY($9::text[]))
 ORDER BY
-  CASE WHEN $9::text='effectiveDate' AND $10::text='asc' THEN effective_date END ASC,
-  CASE WHEN $9::text='effectiveDate' AND $10::text='desc' THEN effective_date END DESC,
-  CASE WHEN $9::text='occurredAt' AND $10::text='asc' THEN occurred_at END ASC,
-  CASE WHEN $9::text='occurredAt' AND $10::text='desc' THEN occurred_at END DESC,
-  CASE WHEN $9::text='documentNo' AND $10::text='asc' THEN source_document_no END ASC,
-  CASE WHEN $9::text='documentNo' AND $10::text='desc' THEN source_document_no END DESC,
-  CASE WHEN $9::text='amount' AND $10::text='asc' THEN abs(amount_delta_cents) END ASC,
-  CASE WHEN $9::text='amount' AND $10::text='desc' THEN abs(amount_delta_cents) END DESC,
+  CASE WHEN $10::text='effectiveDate' AND $11::text='asc' THEN effective_date END ASC,
+  CASE WHEN $10::text='effectiveDate' AND $11::text='desc' THEN effective_date END DESC,
+  CASE WHEN $10::text='occurredAt' AND $11::text='asc' THEN occurred_at END ASC,
+  CASE WHEN $10::text='occurredAt' AND $11::text='desc' THEN occurred_at END DESC,
+  CASE WHEN $10::text='documentNo' AND $11::text='asc' THEN source_document_no END ASC,
+  CASE WHEN $10::text='documentNo' AND $11::text='desc' THEN source_document_no END DESC,
+  CASE WHEN $10::text='amount' AND $11::text='asc' THEN abs(amount_delta_cents) END ASC,
+  CASE WHEN $10::text='amount' AND $11::text='desc' THEN abs(amount_delta_cents) END DESC,
   effective_date DESC,occurred_at DESC,id DESC
-LIMIT $12 OFFSET $11
+LIMIT $13 OFFSET $12
 `
 
-type ListLedOtherPayableEntriesParams struct {
-	GenerationID    string      `db:"generation_id" json:"generation_id"`
-	DateFrom        pgtype.Date `db:"date_from" json:"date_from"`
-	DateTo          pgtype.Date `db:"date_to" json:"date_to"`
-	ObjectID        string      `db:"object_id" json:"object_id"`
-	SourceEntity    string      `db:"source_entity" json:"source_entity"`
-	DocumentNo      string      `db:"document_no" json:"document_no"`
-	PayableCategory string      `db:"payable_category" json:"payable_category"`
-	Directions      []string    `db:"directions" json:"directions"`
-	SortField       string      `db:"sort_field" json:"sort_field"`
-	SortOrder       string      `db:"sort_order" json:"sort_order"`
-	PageOffset      int32       `db:"page_offset" json:"page_offset"`
-	PageSize        int32       `db:"page_size" json:"page_size"`
+type ListLedOtherEntriesParams struct {
+	GenerationID       string      `db:"generation_id" json:"generation_id"`
+	DateFrom           pgtype.Date `db:"date_from" json:"date_from"`
+	DateTo             pgtype.Date `db:"date_to" json:"date_to"`
+	ObjectID           string      `db:"object_id" json:"object_id"`
+	SourceEntity       string      `db:"source_entity" json:"source_entity"`
+	DocumentNo         string      `db:"document_no" json:"document_no"`
+	CounterpartyEntity string      `db:"counterparty_entity" json:"counterparty_entity"`
+	OtherCategory      string      `db:"other_category" json:"other_category"`
+	Directions         []string    `db:"directions" json:"directions"`
+	SortField          string      `db:"sort_field" json:"sort_field"`
+	SortOrder          string      `db:"sort_order" json:"sort_order"`
+	PageOffset         int32       `db:"page_offset" json:"page_offset"`
+	PageSize           int32       `db:"page_size" json:"page_size"`
 }
 
-func (q *Queries) ListLedOtherPayableEntries(ctx context.Context, arg ListLedOtherPayableEntriesParams) ([]LedPartyEntry, error) {
-	rows, err := q.db.Query(ctx, listLedOtherPayableEntries,
+func (q *Queries) ListLedOtherEntries(ctx context.Context, arg ListLedOtherEntriesParams) ([]LedPartyEntry, error) {
+	rows, err := q.db.Query(ctx, listLedOtherEntries,
 		arg.GenerationID,
 		arg.DateFrom,
 		arg.DateTo,
 		arg.ObjectID,
 		arg.SourceEntity,
 		arg.DocumentNo,
-		arg.PayableCategory,
+		arg.CounterpartyEntity,
+		arg.OtherCategory,
 		arg.Directions,
 		arg.SortField,
 		arg.SortOrder,
@@ -1214,7 +1204,7 @@ func (q *Queries) ListLedOtherPayableEntries(ctx context.Context, arg ListLedOth
 			&i.Currency,
 			&i.AmountDeltaCents,
 			&i.AccountType,
-			&i.PayableCategory,
+			&i.OtherCategory,
 		); err != nil {
 			return nil, err
 		}

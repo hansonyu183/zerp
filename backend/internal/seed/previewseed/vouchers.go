@@ -679,7 +679,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 	}
 	samples := []financialSample{
 		{
-			"receipt-finalized", voudomain.EntityCustomerReceipt, voudomain.StatusFinalized,
+			"receipt-finalized", voudomain.EntitySalesReceipt, voudomain.StatusFinalized,
 			voudomain.DraftInput{
 				BusinessDate: "2026-07-11", Currency: "CNY",
 				CounterpartyType: "customer", Counterparty: &customer,
@@ -688,7 +688,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			},
 		},
 		{
-			"receipt-draft", voudomain.EntityCustomerReceipt, voudomain.StatusDraft,
+			"receipt-draft", voudomain.EntitySalesReceipt, voudomain.StatusDraft,
 			voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY",
 				CounterpartyType: "customer", Counterparty: &customer,
@@ -697,7 +697,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			},
 		},
 		{
-			"payment-finalized", voudomain.EntitySupplierPayment, voudomain.StatusFinalized,
+			"payment-finalized", voudomain.EntityPurchasePayment, voudomain.StatusFinalized,
 			voudomain.DraftInput{
 				BusinessDate: "2026-07-11", Currency: "CNY",
 				CounterpartyType: "supplier", Counterparty: &supplier,
@@ -706,7 +706,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			},
 		},
 		{
-			"payment-draft", voudomain.EntitySupplierPayment, voudomain.StatusDraft,
+			"payment-draft", voudomain.EntityPurchasePayment, voudomain.StatusDraft,
 			voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY",
 				CounterpartyType: "supplier", Counterparty: &supplier,

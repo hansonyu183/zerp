@@ -41,7 +41,7 @@ const attachment: VoucherAttachment = {
 function documentView(): VoucherDocumentView {
   return {
     documentId: 'DOCUMENT-1',
-    entity: 'customer-receipt',
+    entity: 'sales-receipt',
     documentNo: 'REC-1',
     status: 'DRAFT',
     revision: 1,
@@ -148,7 +148,7 @@ describe('VOU attachment and audit artifacts', () => {
     const blob = new Blob(['pdf'])
     mockedFetch.mockResolvedValue(blob)
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       loadDocument,
@@ -166,7 +166,7 @@ describe('VOU attachment and audit artifacts', () => {
     } as unknown as File
     await artifacts.uploadAttachments([file])
     expect(mockedPost).toHaveBeenCalledWith(
-      'vou/customer-receipt/attachment-initiate',
+      'vou/sales-receipt/attachment-initiate',
       expect.objectContaining({
         documentId: 'DOCUMENT-1',
         revision: 1,
@@ -189,7 +189,7 @@ describe('VOU attachment and audit artifacts', () => {
 
     await artifacts.removeAttachment(attachment)
     expect(mockedPost).toHaveBeenCalledWith(
-      'vou/customer-receipt/attachment-remove',
+      'vou/sales-receipt/attachment-remove',
       {
         documentId: 'DOCUMENT-1',
         revision: 2,
@@ -205,7 +205,7 @@ describe('VOU attachment and audit artifacts', () => {
     const availability = computed(() => allowed)
     const loadDocument = vi.fn().mockResolvedValue(undefined)
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       loadDocument,
@@ -254,7 +254,7 @@ describe('VOU attachment and audit artifacts', () => {
         ) as unknown as VoucherActionAvailability,
     )
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       vi.fn(),
@@ -271,7 +271,7 @@ describe('VOU attachment and audit artifacts', () => {
     const current = ref<VoucherDocumentView | null>(documentView())
     const availability = computed(() => allowed)
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       vi.fn(),

@@ -1908,74 +1908,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/led/employee/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询员工往来流水 */
-        post: operations["ledemployeequery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/employee/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询员工往来余额 */
-        post: operations["ledemployeebalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/other-payable/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询分类其它应付流水 */
-        post: operations["ledOtherPayableQuery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/other-payable/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询分类其它应付余额 */
-        post: operations["ledOtherPayableBalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/led/container/query": {
         parameters: {
             query?: never;
@@ -2185,7 +2117,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2921,7 +2853,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         VouIntermediaryResultLine: {
             sourceSignoffLineId: string;
             premiumUnitPrice: string;
@@ -3144,6 +3076,8 @@ export interface components {
                     versionId: string;
                 };
                 counterpartyType?: string;
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
                 counterparty?: {
                     objectId: string;
                     versionId: string;
@@ -3274,6 +3208,8 @@ export interface components {
                     versionId: string;
                 };
                 counterpartyType?: string;
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
                 counterparty?: {
                     objectId: string;
                     versionId: string;
@@ -3568,8 +3504,6 @@ export interface components {
                 sourceEntity?: string;
                 documentNo?: string;
                 direction?: string[];
-                /** @enum {string} */
-                payableCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
             };
             sort: {
                 field: string;
@@ -3657,6 +3591,40 @@ export interface components {
                 /** Format: date */
                 asOfDate: string;
                 objectId?: string;
+            };
+        };
+        LedOtherQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** Format: date */
+                dateFrom: string;
+                /** Format: date */
+                dateTo: string;
+                objectId?: string;
+                sourceEntity?: string;
+                documentNo?: string;
+                direction?: string[];
+                /** @enum {string} */
+                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
+            };
+            sort: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        LedOtherBalanceRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** Format: date */
+                asOfDate: string;
+                objectId?: string;
+                /** @enum {string} */
+                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
             };
         };
         LedAssetQueryRequest: {
@@ -5728,7 +5696,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
+                "application/json": components["schemas"]["LedOtherQueryRequest"];
             };
         };
         responses: {
@@ -5744,71 +5712,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledemployeequery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledemployeebalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledOtherPayableQuery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledOtherPayableBalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
+                "application/json": components["schemas"]["LedOtherBalanceRequest"];
             };
         };
         responses: {

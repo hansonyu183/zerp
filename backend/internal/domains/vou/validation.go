@@ -76,6 +76,7 @@ type validatedDraft struct {
 	Customer, Supplier, Counterparty, Employee, FundAccount *ReferenceInput
 	Salesperson, Purchaser, Handler, Warehouse              *ReferenceInput
 	CounterpartyType                                        string
+	OtherCategory                                           string
 	SourceName                                              string
 	ProductLines                                            []fixedProductLine
 	PriceLines                                              []fixedPriceLine
@@ -99,9 +100,6 @@ type validatedQuery struct {
 }
 
 func validEntity(entity string) bool {
-	if entity == EntityReceipt || entity == EntityPayment {
-		return true
-	}
 	for _, candidate := range entities {
 		if candidate == entity {
 			return true
@@ -111,23 +109,21 @@ func validEntity(entity string) bool {
 }
 
 func receiptEntity(entity string) bool {
-	return entity == EntityReceipt || entity == EntityCustomerReceipt ||
-		entity == EntitySupplierReceipt || entity == EntityOtherReceipt || entity == EntityEmployeeRepayment
+	return entity == EntitySalesReceipt || entity == EntityPurchaseRefund ||
+		entity == EntityOtherReceipt || entity == EntityEmployeeRepayment
 }
 
 func paymentEntity(entity string) bool {
-	return entity == EntityPayment || entity == EntityCustomerPayment ||
-		entity == EntitySupplierPayment || entity == EntityOtherPayment || entity == EntityEmployeeLoan
+	return entity == EntitySalesRefund || entity == EntityPurchasePayment ||
+		entity == EntityOtherPayment || entity == EntityEmployeeLoan
 }
 
 func fixedCounterpartyType(entity string) string {
 	switch entity {
-	case EntityCustomerReceipt, EntityCustomerPayment:
+	case EntitySalesReceipt, EntitySalesRefund:
 		return "customer"
-	case EntitySupplierReceipt, EntitySupplierPayment:
+	case EntityPurchaseRefund, EntityPurchasePayment:
 		return "supplier"
-	case EntityOtherReceipt, EntityOtherPayment:
-		return "other-party"
 	case EntityEmployeeLoan, EntityEmployeeRepayment:
 		return "employee"
 	default:
@@ -185,6 +181,10 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
 		SourceName:       strings.TrimSpace(input.SourceName),
 		SpecialApproval:  input.SpecialApproval,
+	}
+	otherCategory := strings.ToUpper(strings.TrimSpace(input.OtherCategory))
+	if otherCategory != "" && entity != EntityOtherReceipt && entity != EntityOtherPayment {
+		return validatedDraft{}, domainError(ErrorValidation, "otherCategory only applies to other transactions", nil, nil)
 	}
 	if entity == EntityBillReceipt {
 		return validateBillReceiptDraft(input, result)
@@ -266,8 +266,8 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
 		}
 		result.InventoryCountLines, err = validateInventoryCountLines(input.InventoryCountLines)
-	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
 		}
@@ -290,6 +290,11 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.TotalAmount, err = moneyCents(input.Amount)
+		result.OtherCategory = otherCategory
+		if result.OtherCategory != "" && result.OtherCategory != "COMMISSION" &&
+			result.OtherCategory != "INTERMEDIARY" && result.OtherCategory != "REBATE" {
+			return validatedDraft{}, domainError(ErrorValidation, "invalid otherCategory", nil, nil)
+		}
 	case EntityEmployeeLoanWriteoff:
 		if err = requireOnlyDraftRefs(input, false, false, false, true, false, false, false, false, false, false); err != nil {
 			return validatedDraft{}, err

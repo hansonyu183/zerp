@@ -10,19 +10,17 @@ const (
 	StatusActive    = "ACTIVE"
 	StatusReopening = "REOPENING"
 
-	EntityOpening      = "opening"
-	EntityClosing      = "closing"
-	EntityInventory    = "inventory"
-	EntityFund         = "fund"
-	EntityParty        = "party"
-	EntityCustomer     = "customer"
-	EntitySupplier     = "supplier"
-	EntityOther        = "other"
-	EntityEmployee     = "employee"
-	EntityContainer    = "container"
-	EntityAsset        = "asset"
-	EntityBill         = "bill"
-	EntityOtherPayable = "other-payable"
+	EntityOpening   = "opening"
+	EntityClosing   = "closing"
+	EntityInventory = "inventory"
+	EntityFund      = "fund"
+	EntityParty     = "party"
+	EntityCustomer  = "customer"
+	EntitySupplier  = "supplier"
+	EntityOther     = "other"
+	EntityContainer = "container"
+	EntityAsset     = "asset"
+	EntityBill      = "bill"
 )
 
 type ReferenceInput struct {
@@ -55,6 +53,7 @@ type FundOpeningInput struct {
 }
 
 type PartyOpeningInput struct {
+	AccountType      string         `json:"accountType"`
 	CounterpartyType string         `json:"counterpartyType"`
 	Counterparty     ReferenceInput `json:"counterparty"`
 	Currency         string         `json:"currency"`
@@ -106,6 +105,7 @@ type FundOpeningView struct {
 
 type PartyOpeningView struct {
 	ID               string        `json:"id"`
+	AccountType      string        `json:"accountType"`
 	CounterpartyType string        `json:"counterpartyType"`
 	Counterparty     ReferenceView `json:"counterparty"`
 	Currency         string        `json:"currency"`
@@ -179,13 +179,14 @@ type ClosingHistoryView struct {
 }
 
 type QueryFilters struct {
-	DateFrom        string   `json:"dateFrom"`
-	DateTo          string   `json:"dateTo"`
-	ObjectID        string   `json:"objectId,omitempty"`
-	SourceEntity    string   `json:"sourceEntity,omitempty"`
-	DocumentNo      string   `json:"documentNo,omitempty"`
-	Direction       []string `json:"direction,omitempty"`
-	PayableCategory string   `json:"payableCategory,omitempty"`
+	DateFrom         string   `json:"dateFrom"`
+	DateTo           string   `json:"dateTo"`
+	ObjectID         string   `json:"objectId,omitempty"`
+	SourceEntity     string   `json:"sourceEntity,omitempty"`
+	DocumentNo       string   `json:"documentNo,omitempty"`
+	Direction        []string `json:"direction,omitempty"`
+	CounterpartyType string   `json:"counterpartyType,omitempty"`
+	OtherCategory    string   `json:"otherCategory,omitempty"`
 }
 
 type SortInput struct {
@@ -257,6 +258,18 @@ type BalanceInput struct {
 	Page     int            `json:"page"`
 	PageSize int            `json:"pageSize"`
 	Filters  BalanceFilters `json:"filters"`
+}
+
+type OtherBalanceFilters struct {
+	AsOfDate         string `json:"asOfDate"`
+	ObjectID         string `json:"objectId,omitempty"`
+	CounterpartyType string `json:"counterpartyType,omitempty"`
+}
+
+type OtherBalanceInput struct {
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"pageSize"`
+	Filters  OtherBalanceFilters `json:"filters"`
 }
 
 type Page[T any] struct {
@@ -375,7 +388,7 @@ type PartyEntryView struct {
 	Counterparty     ReferenceView `json:"counterparty"`
 	Currency         string        `json:"currency"`
 	Remark           string        `json:"remark,omitempty"`
-	PayableCategory  string        `json:"payableCategory,omitempty"`
+	OtherCategory    string        `json:"otherCategory,omitempty"`
 }
 
 type ContainerEntryView struct {
@@ -414,7 +427,6 @@ type PartyBalanceView struct {
 	Currency         string        `json:"currency"`
 	BalanceType      string        `json:"balanceType"`
 	Amount           string        `json:"amount"`
-	PayableCategory  string        `json:"payableCategory,omitempty"`
 }
 
 type ContainerBalanceView struct {

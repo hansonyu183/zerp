@@ -12,8 +12,6 @@ import (
 func (s *Service) preflightActivation(
 	ctx context.Context,
 	q *dbsqlc.Queries,
-	cutoverDate time.Time,
-	previousGenerationID *string,
 ) error {
 	incompletePricing, err := q.HasIncompleteLedDraftInventoryPricing(ctx)
 	if err != nil {
@@ -26,25 +24,6 @@ func (s *Service) preflightActivation(
 			nil,
 			nil,
 		)
-	}
-	if previousGenerationID != nil {
-		hasOtherPayable, queryErr := q.HasLedOtherPayableBalanceBeforeCutover(
-			ctx, dbsqlc.HasLedOtherPayableBalanceBeforeCutoverParams{
-				GenerationID: *previousGenerationID,
-				CutoverDate:  pgtype.Date{Time: cutoverDate, Valid: true},
-			},
-		)
-		if queryErr != nil {
-			return s.internal("validate other payable cutover", queryErr)
-		}
-		if hasOtherPayable {
-			return domainError(
-				ErrorConflict,
-				"other payable balances exist before the new ledger cutover",
-				nil,
-				nil,
-			)
-		}
 	}
 	return nil
 }

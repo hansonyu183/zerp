@@ -2,6 +2,8 @@
 import VoucherEntityPage from '../shared/VoucherEntityPage.vue'
 import { useVoucherEntityViewModel } from '../shared/vm'
 import { voucherEntityConfigs } from '../shared/config'
-const vm = useVoucherEntityViewModel(voucherEntityConfigs['customer-payment'])
+
+const vm = useVoucherEntityViewModel(voucherEntityConfigs['sales-receipt'])
 </script>
+
 <template><VoucherEntityPage :model="vm" /></template>

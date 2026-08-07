@@ -42,11 +42,13 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
     sourceEntity: '',
     documentNo: '',
     direction: [],
-    payableCategory: '',
+    counterpartyType: '',
+    otherCategory: '',
   })
   const balanceFilters = reactive<LedgerBalanceFilters>({
     asOfDate: today,
     object: null,
+    counterpartyType: '',
   })
   const references = createLedgerReferenceSearch(
     config.referenceSources,
@@ -99,6 +101,14 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
                 ...(queryFilters.object
                   ? { objectId: queryFilters.object.objectId }
                   : {}),
+                ...(config.counterpartyTypes?.length &&
+                (queryFilters.counterpartyType || queryFilters.object?.entity)
+                  ? {
+                      counterpartyType:
+                        queryFilters.counterpartyType ||
+                        queryFilters.object?.entity,
+                    }
+                  : {}),
                 ...(queryFilters.sourceEntity
                   ? { sourceEntity: queryFilters.sourceEntity }
                   : {}),
@@ -106,8 +116,8 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
                   ? { documentNo: queryFilters.documentNo.trim() }
                   : {}),
                 direction: [...queryFilters.direction],
-                ...(queryFilters.payableCategory
-                  ? { payableCategory: queryFilters.payableCategory }
+                ...(queryFilters.otherCategory
+                  ? { otherCategory: queryFilters.otherCategory }
                   : {}),
               },
               sort: [{ ...sort }],
@@ -119,6 +129,15 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
                 asOfDate: balanceFilters.asOfDate,
                 ...(balanceFilters.object
                   ? { objectId: balanceFilters.object.objectId }
+                  : {}),
+                ...(config.counterpartyTypes?.length &&
+                (balanceFilters.counterpartyType ||
+                  balanceFilters.object?.entity)
+                  ? {
+                      counterpartyType:
+                        balanceFilters.counterpartyType ||
+                        balanceFilters.object?.entity,
+                    }
                   : {}),
               },
             }
@@ -178,12 +197,14 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
       queryFilters.sourceEntity = ''
       queryFilters.documentNo = ''
       queryFilters.direction = []
-      queryFilters.payableCategory = ''
+      queryFilters.counterpartyType = ''
+      queryFilters.otherCategory = ''
       sort.field = 'effectiveDate'
       sort.order = 'desc'
     } else {
       balanceFilters.asOfDate = today
       balanceFilters.object = null
+      balanceFilters.counterpartyType = ''
     }
     search()
   }

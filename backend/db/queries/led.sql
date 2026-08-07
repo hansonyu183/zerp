@@ -76,11 +76,11 @@ INSERT INTO led_draft_fund (
 -- name: InsertLedDraftParty :exec
 INSERT INTO led_draft_party (
     id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 ) VALUES (
     sqlc.arg(id), sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code),
-    sqlc.arg(counterparty_name), sqlc.arg(currency), sqlc.arg(amount_cents)
+    sqlc.arg(counterparty_name),sqlc.arg(currency),sqlc.arg(amount_cents),sqlc.arg(account_type)
 );
 
 -- name: InsertLedDraftContainer :exec
@@ -107,7 +107,7 @@ SELECT EXISTS (
 SELECT * FROM led_draft_fund ORDER BY fund_account_code, id;
 
 -- name: ListLedDraftParty :many
-SELECT * FROM led_draft_party ORDER BY counterparty_entity, counterparty_code, currency, id;
+SELECT * FROM led_draft_party ORDER BY account_type,counterparty_entity,counterparty_code,currency,id;
 
 -- name: ListLedDraftContainer :many
 SELECT * FROM led_draft_container ORDER BY customer_code, container_type, id;
@@ -125,7 +125,7 @@ ORDER BY fund_account_code, id;
 -- name: ListLedOpeningParty :many
 SELECT * FROM led_opening_party
 WHERE generation_id = sqlc.arg(generation_id)
-ORDER BY counterparty_entity, counterparty_code, currency, id;
+ORDER BY account_type,counterparty_entity,counterparty_code,currency,id;
 
 -- name: ListLedOpeningContainer :many
 SELECT * FROM led_opening_container
@@ -146,9 +146,12 @@ SELECT id, fund_account_object_id, fund_account_version_id, fund_account_code,
 FROM led_opening_fund WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: CopyLedOpeningToDraftParty :exec
-INSERT INTO led_draft_party
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+INSERT INTO led_draft_party(
+    id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
+)
+SELECT id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_opening_party WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: CopyLedOpeningToDraftContainer :exec
@@ -188,10 +191,10 @@ FROM led_draft_fund;
 -- name: InsertLedOpeningPartyFromDraft :exec
 INSERT INTO led_opening_party (
     id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 )
 SELECT id, sqlc.arg(generation_id), counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party;
 
 -- name: InsertLedOpeningContainerFromDraft :exec
@@ -234,12 +237,12 @@ FROM led_draft_fund WHERE amount_cents <> 0;
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, counterparty_entity, counterparty_object_id,
-    counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents
+    counterparty_version_id,counterparty_code,counterparty_name,currency,amount_delta_cents,account_type
 )
 SELECT id, sqlc.arg(generation_id), 'OPENING', 'opening', id, sqlc.arg(cutover_date),
        sqlc.arg(occurred_at), sqlc.arg(actor_id), sqlc.arg(request_id),
        counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party WHERE amount_cents <> 0;
 
 -- name: InsertLedOpeningContainerEntries :exec
@@ -261,9 +264,8 @@ WHERE status IN ('APPROVED', 'FINALIZED')
     'sale-outbound', 'sale-signoff', 'sale-return',
     'purchase-inbound', 'purchase-return',
     'order-production', 'self-production', 'inventory-count',
-    'receipt', 'payment',
-    'customer-receipt', 'supplier-receipt', 'other-receipt',
-    'customer-payment', 'supplier-payment', 'other-payment',
+    'sales-receipt','sales-refund','purchase-payment','purchase-refund',
+    'other-receipt','other-payment',
     'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
     'expense-reimbursement', 'expense-payment', 'other-income',
     'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
@@ -644,17 +646,26 @@ WHERE generation_id=sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND currency=sqlc.arg(currency)
   AND effective_date<=sqlc.arg(as_of_date);
 
+-- name: GetLedOtherBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents),0)::bigint
+FROM led_party_entries
+WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
+  AND counterparty_entity=sqlc.arg(counterparty_entity)
+  AND counterparty_object_id=sqlc.arg(counterparty_object_id)
+  AND currency=sqlc.arg(currency)
+  AND effective_date<=sqlc.arg(as_of_date);
+
 -- name: HasInvalidEmployeeWriteoffTimeline :one
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=sqlc.arg(generation_id) AND writeoff.account_type = 'TRADE'
+    WHERE writeoff.generation_id=sqlc.arg(generation_id) AND writeoff.account_type='OTHER'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type = 'TRADE'
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type='OTHER'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency

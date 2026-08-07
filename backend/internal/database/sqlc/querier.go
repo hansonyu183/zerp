@@ -68,8 +68,8 @@ type Querier interface {
 	CountLedFundEntries(ctx context.Context, arg CountLedFundEntriesParams) (int64, error)
 	CountLedInventoryBalances(ctx context.Context, arg CountLedInventoryBalancesParams) (int64, error)
 	CountLedInventoryEntries(ctx context.Context, arg CountLedInventoryEntriesParams) (int64, error)
-	CountLedOtherPayableBalances(ctx context.Context, arg CountLedOtherPayableBalancesParams) (int64, error)
-	CountLedOtherPayableEntries(ctx context.Context, arg CountLedOtherPayableEntriesParams) (int64, error)
+	CountLedOtherBalances(ctx context.Context, arg CountLedOtherBalancesParams) (int64, error)
+	CountLedOtherEntries(ctx context.Context, arg CountLedOtherEntriesParams) (int64, error)
 	CountLedPartyBalances(ctx context.Context, arg CountLedPartyBalancesParams) (int64, error)
 	CountLedPartyEntries(ctx context.Context, arg CountLedPartyEntriesParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
@@ -170,6 +170,7 @@ type Querier interface {
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
 	GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error)
 	GetLedControl(ctx context.Context) (LedControl, error)
+	GetLedOtherBalanceAtDate(ctx context.Context, arg GetLedOtherBalanceAtDateParams) (int64, error)
 	GetLedPartyBalanceAtDate(ctx context.Context, arg GetLedPartyBalanceAtDateParams) (int64, error)
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
 	GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error)
@@ -201,7 +202,6 @@ type Querier interface {
 	HasInvalidEmployeeWriteoffTimeline(ctx context.Context, generationID string) (bool, error)
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
-	HasLedOtherPayableBalanceBeforeCutover(ctx context.Context, arg HasLedOtherPayableBalanceBeforeCutoverParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
@@ -249,7 +249,7 @@ type Querier interface {
 	InsertLedOpeningInventoryFromDraft(ctx context.Context, generationID string) error
 	InsertLedOpeningPartyEntries(ctx context.Context, arg InsertLedOpeningPartyEntriesParams) error
 	InsertLedOpeningPartyFromDraft(ctx context.Context, generationID string) error
-	InsertLedOtherPayableEntry(ctx context.Context, arg InsertLedOtherPayableEntryParams) error
+	InsertLedOtherEntry(ctx context.Context, arg InsertLedOtherEntryParams) error
 	InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEntryParams) error
 	InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error
 	InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error
@@ -333,8 +333,8 @@ type Querier interface {
 	ListLedOpeningFund(ctx context.Context, generationID string) ([]LedOpeningFund, error)
 	ListLedOpeningInventory(ctx context.Context, generationID string) ([]LedOpeningInventory, error)
 	ListLedOpeningParty(ctx context.Context, generationID string) ([]LedOpeningParty, error)
-	ListLedOtherPayableBalances(ctx context.Context, arg ListLedOtherPayableBalancesParams) ([]ListLedOtherPayableBalancesRow, error)
-	ListLedOtherPayableEntries(ctx context.Context, arg ListLedOtherPayableEntriesParams) ([]LedPartyEntry, error)
+	ListLedOtherBalances(ctx context.Context, arg ListLedOtherBalancesParams) ([]ListLedOtherBalancesRow, error)
+	ListLedOtherEntries(ctx context.Context, arg ListLedOtherEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyBalances(ctx context.Context, arg ListLedPartyBalancesParams) ([]ListLedPartyBalancesRow, error)
 	ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntriesParams) ([]LedPartyEntry, error)
 	ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPartyEntriesBySourceParams) ([]LedPartyEntry, error)

@@ -95,12 +95,11 @@ test.describe('LED 真实后端只读流程', () => {
     )
   }
 
-  test('四类往来台账分别查询流水和余额', async ({ page }, testInfo) => {
+  test('三类往来台账分别查询流水和余额', async ({ page }, testInfo) => {
     for (const ledger of [
       { entity: 'customer', title: '往来台账-客户' },
       { entity: 'supplier', title: '往来台账-供应商' },
-      { entity: 'other', title: '往来台账-其他' },
-      { entity: 'employee', title: '往来台账-员工' },
+      { entity: 'other', title: '其他往来' },
     ]) {
       await verifyLedger(page, testInfo, ledger)
     }

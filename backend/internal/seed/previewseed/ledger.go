@@ -68,7 +68,7 @@ func (s *Seeder) seedLedgerBaseline(ctx context.Context, counts *Counts) error {
 				FundAccount: ledReference(fund), BalanceType: "POSITIVE", Amount: "100000.00",
 			}},
 			Party: []leddomain.PartyOpeningInput{{
-				CounterpartyType: "customer", Counterparty: ledReference(customer),
+				AccountType: "TRADE", CounterpartyType: "customer", Counterparty: ledReference(customer),
 				Currency: "CNY", BalanceType: "RECEIVABLE", Amount: "5000.00",
 			}},
 			Container: []leddomain.ContainerOpeningInput{{

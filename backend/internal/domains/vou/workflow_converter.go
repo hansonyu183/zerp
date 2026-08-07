@@ -42,9 +42,9 @@ func (s *Service) CreateWorkflowChild(
 	case "purchase-order-to-inbound":
 		targetEntity = EntityPurchaseInbound
 	case "sale-signoff-to-receipt":
-		targetEntity = EntityCustomerReceipt
+		targetEntity = EntitySalesReceipt
 	case "purchase-inbound-to-payment":
-		targetEntity = EntitySupplierPayment
+		targetEntity = EntityPurchasePayment
 	case "expense-reimbursement-to-payment":
 		targetEntity = EntityExpensePayment
 	default:
@@ -240,14 +240,14 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 }
 
 func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, converterKey, sourceID string, defaults workflowDefaults, requestID string) (MutationResult, error) {
-	entity := EntityCustomerReceipt
+	entity := EntitySalesReceipt
 	partyEntity := "customer"
 	var partyObjectID, partyVersionID, partyCode, partyName string
 	var termCode, settlementName, ruleType string
 	var monthOffset, dayOffset int32
 	var source dbsqlc.VouDocument
 	if converterKey == "purchase-inbound-to-payment" {
-		entity = EntitySupplierPayment
+		entity = EntityPurchasePayment
 		partyEntity = "supplier"
 		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.due_date,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name,o.settlement_term_code,COALESCE(o.settlement_method_name,''),COALESCE(o.settlement_rule_type,''),COALESCE(o.settlement_month_offset,0),COALESCE(o.settlement_day_offset,0) FROM vou_documents d JOIN vou_purchase_inbound_details x ON x.document_id=d.id JOIN vou_purchase_order_details o ON o.document_id=x.source_order_id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.DueDate, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName, &termCode, &settlementName, &ruleType, &monthOffset, &dayOffset)
 		if err != nil {

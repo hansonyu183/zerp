@@ -139,9 +139,12 @@ func (q *Queries) CopyLedOpeningToDraftInventory(ctx context.Context, generation
 }
 
 const copyLedOpeningToDraftParty = `-- name: CopyLedOpeningToDraftParty :exec
-INSERT INTO led_draft_party
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+INSERT INTO led_draft_party(
+    id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
+)
+SELECT id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_opening_party WHERE generation_id = $1
 `
 
@@ -764,6 +767,37 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 	return i, err
 }
 
+const getLedOtherBalanceAtDate = `-- name: GetLedOtherBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents),0)::bigint
+FROM led_party_entries
+WHERE generation_id=$1 AND account_type='OTHER'
+  AND counterparty_entity=$2
+  AND counterparty_object_id=$3
+  AND currency=$4
+  AND effective_date<=$5
+`
+
+type GetLedOtherBalanceAtDateParams struct {
+	GenerationID         string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity   string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	Currency             string      `db:"currency" json:"currency"`
+	AsOfDate             pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) GetLedOtherBalanceAtDate(ctx context.Context, arg GetLedOtherBalanceAtDateParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLedOtherBalanceAtDate,
+		arg.GenerationID,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.Currency,
+		arg.AsOfDate,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getLedPartyBalanceAtDate = `-- name: GetLedPartyBalanceAtDate :one
 SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
 FROM led_party_entries
@@ -814,13 +848,13 @@ const hasInvalidEmployeeWriteoffTimeline = `-- name: HasInvalidEmployeeWriteoffT
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=$1 AND writeoff.account_type = 'TRADE'
+    WHERE writeoff.generation_id=$1 AND writeoff.account_type='OTHER'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type = 'TRADE'
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type='OTHER'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency
@@ -1257,11 +1291,11 @@ func (q *Queries) InsertLedDraftInventory(ctx context.Context, arg InsertLedDraf
 const insertLedDraftParty = `-- name: InsertLedDraftParty :exec
 INSERT INTO led_draft_party (
     id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 ) VALUES (
     $1, $2, $3,
     $4, $5,
-    $6, $7, $8
+    $6,$7,$8,$9
 )
 `
 
@@ -1274,6 +1308,7 @@ type InsertLedDraftPartyParams struct {
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string `db:"currency" json:"currency"`
 	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+	AccountType           string `db:"account_type" json:"account_type"`
 }
 
 func (q *Queries) InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPartyParams) error {
@@ -1286,6 +1321,7 @@ func (q *Queries) InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPar
 		arg.CounterpartyName,
 		arg.Currency,
 		arg.AmountCents,
+		arg.AccountType,
 	)
 	return err
 }
@@ -1607,12 +1643,12 @@ const insertLedOpeningPartyEntries = `-- name: InsertLedOpeningPartyEntries :exe
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, counterparty_entity, counterparty_object_id,
-    counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents
+    counterparty_version_id,counterparty_code,counterparty_name,currency,amount_delta_cents,account_type
 )
 SELECT id, $1, 'OPENING', 'opening', id, $2,
        $3, $4, $5,
        counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party WHERE amount_cents <> 0
 `
 
@@ -1638,10 +1674,10 @@ func (q *Queries) InsertLedOpeningPartyEntries(ctx context.Context, arg InsertLe
 const insertLedOpeningPartyFromDraft = `-- name: InsertLedOpeningPartyFromDraft :exec
 INSERT INTO led_opening_party (
     id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 )
 SELECT id, $1, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party
 `
 
@@ -2155,7 +2191,7 @@ func (q *Queries) ListLedDraftInventory(ctx context.Context) ([]LedDraftInventor
 }
 
 const listLedDraftParty = `-- name: ListLedDraftParty :many
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents FROM led_draft_party ORDER BY counterparty_entity, counterparty_code, currency, id
+SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents, account_type FROM led_draft_party ORDER BY account_type,counterparty_entity,counterparty_code,currency,id
 `
 
 func (q *Queries) ListLedDraftParty(ctx context.Context) ([]LedDraftParty, error) {
@@ -2176,6 +2212,7 @@ func (q *Queries) ListLedDraftParty(ctx context.Context) ([]LedDraftParty, error
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountCents,
+			&i.AccountType,
 		); err != nil {
 			return nil, err
 		}
@@ -2733,9 +2770,9 @@ func (q *Queries) ListLedOpeningInventory(ctx context.Context, generationID stri
 }
 
 const listLedOpeningParty = `-- name: ListLedOpeningParty :many
-SELECT id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents FROM led_opening_party
+SELECT id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents, account_type FROM led_opening_party
 WHERE generation_id = $1
-ORDER BY counterparty_entity, counterparty_code, currency, id
+ORDER BY account_type,counterparty_entity,counterparty_code,currency,id
 `
 
 func (q *Queries) ListLedOpeningParty(ctx context.Context, generationID string) ([]LedOpeningParty, error) {
@@ -2757,6 +2794,7 @@ func (q *Queries) ListLedOpeningParty(ctx context.Context, generationID string) 
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountCents,
+			&i.AccountType,
 		); err != nil {
 			return nil, err
 		}
@@ -2839,7 +2877,7 @@ func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBala
 }
 
 const listLedPartyEntries = `-- name: ListLedPartyEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, payable_category FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, other_category FROM led_party_entries
 WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date >= $3 AND effective_date <= $4
@@ -2918,7 +2956,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 			&i.Currency,
 			&i.AmountDeltaCents,
 			&i.AccountType,
-			&i.PayableCategory,
+			&i.OtherCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2931,7 +2969,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 }
 
 const listLedPartyEntriesBySource = `-- name: ListLedPartyEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, payable_category FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, other_category FROM led_party_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -2974,7 +3012,7 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 			&i.Currency,
 			&i.AmountDeltaCents,
 			&i.AccountType,
-			&i.PayableCategory,
+			&i.OtherCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2993,9 +3031,8 @@ WHERE status IN ('APPROVED', 'FINALIZED')
     'sale-outbound', 'sale-signoff', 'sale-return',
     'purchase-inbound', 'purchase-return',
     'order-production', 'self-production', 'inventory-count',
-    'receipt', 'payment',
-    'customer-receipt', 'supplier-receipt', 'other-receipt',
-    'customer-payment', 'supplier-payment', 'other-payment',
+    'sales-receipt','sales-refund','purchase-payment','purchase-refund',
+    'other-receipt','other-payment',
     'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
     'expense-reimbursement', 'expense-payment', 'other-income',
     'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',

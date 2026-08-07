@@ -2,10 +2,14 @@ package led
 
 import (
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 )
 
 func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
@@ -25,7 +29,6 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		"/led/customer/query", "/led/customer/balance",
 		"/led/supplier/query", "/led/supplier/balance",
 		"/led/other/query", "/led/other/balance",
-		"/led/employee/query", "/led/employee/balance",
 		"/led/container/query", "/led/container/balance",
 		"/led/bill/query",
 	}
@@ -33,5 +36,29 @@ func TestHandlerRegistersAllLEDRoutes(t *testing.T) {
 		if !got["POST "+path] {
 			t.Fatalf("route %s is not registered", path)
 		}
+	}
+}
+
+func TestCounterpartyTypeOnlyAcceptedByOtherBalance(t *testing.T) {
+	t.Parallel()
+	const body = `{"page":1,"pageSize":20,"filters":{"asOfDate":"2059-01-31","counterpartyType":"employee"}}`
+
+	decode := func(target any) error {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		context.Request.Header.Set("Content-Type", "application/json")
+		return requestbody.DecodeJSON(context, target)
+	}
+
+	if err := decode(&BalanceInput{}); err == nil {
+		t.Fatal("shared balance request accepted counterpartyType")
+	}
+	var input OtherBalanceInput
+	if err := decode(&input); err != nil {
+		t.Fatalf("other balance request rejected counterpartyType: %v", err)
+	}
+	if input.Filters.CounterpartyType != "employee" {
+		t.Fatalf("counterpartyType = %q, want employee", input.Filters.CounterpartyType)
 	}
 }

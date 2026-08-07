@@ -80,7 +80,7 @@ func truncateLedgerAndVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE led_bill_entries,led_bills,
 			led_asset_entries,led_assets,led_asset_number_assignments,led_asset_number_counters,
-			led_inventory_cost_allocations,led_closing_container,led_closing_other_payable,led_closing_party,
+			led_inventory_cost_allocations,led_closing_container,led_closing_party,
 			led_closing_fund,led_closing_inventory,led_closings,
 			led_audit_events, led_container_entries, led_party_entries, led_fund_entries, led_inventory_entries,
 			led_opening_container, led_draft_container,
@@ -597,6 +597,82 @@ func TestFixedAssetLifecycleIntegration(t *testing.T) {
 	}
 }
 
+func TestLegacyAssetSettlementStaysTradeAfterRebuildIntegration(t *testing.T) {
+	pool := ledIntegrationPool(t)
+	truncateLedgerAndVOU(t, pool)
+	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
+	refs := prepareLEDReferences(t, pool)
+	category := createAuxReference(t, pool, auxdomain.EntityAssetCategory, map[string]any{
+		"name": "历史设备", "defaultUsefulLifeMonths": 12, "defaultResidualRate": "10.00", "description": "集成测试",
+	})
+	department := createAuxReference(t, pool, auxdomain.EntityDepartment, map[string]any{
+		"name": "历史部门", "description": "集成测试",
+	})
+	ledger, vouchers := newIntegratedServices(t, pool)
+	activateEmptyLedger(t, ledger)
+
+	acquisition, _ := advanceToApproved(t, vouchers, voudomain.EntityAssetAcquisition, voudomain.DraftInput{
+		BusinessDate: "2026-02-15", Currency: "CNY", Supplier: &refs.supplier,
+		AssetAcquisitionLines: []voudomain.AssetAcquisitionLineInput{{
+			AssetName: "迁移前设备", Category: category, Department: department,
+			OriginalValue: "100.00", UsefulLifeMonths: 12, ResidualRate: "10.00",
+		}},
+	})
+	if _, err := vouchers.AssertFinalized(t.Context(), voudomain.EntityAssetAcquisition, voudomain.DocumentRevisionInput{
+		DocumentID: acquisition.DocumentID, Revision: acquisition.Revision,
+	}, integrationActorOne, "legacy-asset-acquisition-finalize"); err != nil {
+		t.Fatalf("finalize acquisition: %v", err)
+	}
+	var newAccountType string
+	if err := pool.QueryRow(t.Context(), `SELECT party_account_type FROM vou_asset_acquisition_details WHERE document_id=$1`, acquisition.DocumentID).Scan(&newAccountType); err != nil || newAccountType != "OTHER" {
+		t.Fatalf("new asset account type = %q, err=%v", newAccountType, err)
+	}
+
+	// Simulate the migration snapshot for a document approved before unified other transactions.
+	if _, err := pool.Exec(t.Context(), `UPDATE vou_asset_acquisition_details SET party_account_type='TRADE' WHERE document_id=$1`, acquisition.DocumentID); err != nil {
+		t.Fatalf("mark legacy acquisition detail as trade: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE led_party_entries SET account_type='TRADE' WHERE source_document_id=$1`, acquisition.DocumentID); err != nil {
+		t.Fatalf("mark legacy acquisition as trade: %v", err)
+	}
+	payment, _ := advanceToApproved(t, vouchers, voudomain.EntityPurchasePayment, voudomain.DraftInput{
+		BusinessDate: "2026-02-15", Currency: "CNY", Counterparty: &refs.supplier,
+		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
+	})
+	if _, err := vouchers.AssertFinalized(t.Context(), voudomain.EntityPurchasePayment, voudomain.DocumentRevisionInput{
+		DocumentID: payment.DocumentID, Revision: payment.Revision,
+	}, integrationActorOne, "legacy-asset-payment-finalize"); err != nil {
+		t.Fatalf("finalize payment: %v", err)
+	}
+
+	assertSettled := func(stage string) {
+		t.Helper()
+		trade, err := ledger.PartyBalance(t.Context(), BalanceInput{
+			Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-02-15", ObjectID: refs.supplier.ObjectID},
+		}, "supplier")
+		if err != nil || len(trade.Items) != 1 || trade.Items[0].BalanceType != "ZERO" || trade.Items[0].Amount != "0.00" {
+			t.Fatalf("%s trade balance = %+v, err=%v", stage, trade, err)
+		}
+		other, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+			Page: 1, PageSize: 20, Filters: OtherBalanceFilters{
+				AsOfDate: "2026-02-15", ObjectID: refs.supplier.ObjectID, CounterpartyType: "supplier",
+			},
+		})
+		if err != nil || len(other.Items) != 0 {
+			t.Fatalf("%s other balance = %+v, err=%v", stage, other, err)
+		}
+	}
+	assertSettled("before rebuild")
+
+	if _, err := pool.Exec(t.Context(), `UPDATE led_control SET rebuild_required=true WHERE singleton=true`); err != nil {
+		t.Fatal(err)
+	}
+	if err := ledger.EnsureReady(t.Context()); err != nil {
+		t.Fatalf("rebuild legacy asset settlement: %v", err)
+	}
+	assertSettled("after rebuild")
+}
+
 func TestLEDInventoryPostingStrictBalanceAndDeletionIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
@@ -1084,21 +1160,21 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	ledger, vouchers := newIntegratedServices(t, pool)
 	activated := activateEmptyLedger(t, ledger)
 
-	receiptApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+	receiptApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
 	})
-	receiptExecuted, err := vouchers.AssertFinalized(t.Context(), voudomain.EntityCustomerReceipt, voudomain.DocumentRevisionInput{
+	receiptExecuted, err := vouchers.AssertFinalized(t.Context(), voudomain.EntitySalesReceipt, voudomain.DocumentRevisionInput{
 		DocumentID: receiptApproved.DocumentID, Revision: receiptApproved.Revision,
 	}, integrationActorOne, "receipt-execute")
 	if err != nil {
 		t.Fatalf("execute receipt: %v", err)
 	}
-	paymentApproved, _ := advanceToApproved(t, vouchers, voudomain.EntitySupplierPayment, voudomain.DraftInput{
+	paymentApproved, _ := advanceToApproved(t, vouchers, voudomain.EntityPurchasePayment, voudomain.DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 		Counterparty: &refs.supplier, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "30.00",
 	})
-	if _, err := vouchers.AssertFinalized(t.Context(), voudomain.EntitySupplierPayment, voudomain.DocumentRevisionInput{
+	if _, err := vouchers.AssertFinalized(t.Context(), voudomain.EntityPurchasePayment, voudomain.DocumentRevisionInput{
 		DocumentID: paymentApproved.DocumentID, Revision: paymentApproved.Revision,
 	}, integrationActorOne, "payment-execute"); err != nil {
 		t.Fatalf("execute payment: %v", err)
@@ -1143,7 +1219,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	}
 	receiptCheckedAgain, err := vouchers.Unapprove(
 		t.Context(),
-		voudomain.EntityCustomerReceipt,
+		voudomain.EntitySalesReceipt,
 		voudomain.ReverseInput{
 			DocumentID: receiptExecuted.DocumentID,
 			Revision:   receiptExecuted.Revision,
@@ -1167,7 +1243,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	}
 	receiptExecuted, err = vouchers.Approve(
 		t.Context(),
-		voudomain.EntityCustomerReceipt,
+		voudomain.EntitySalesReceipt,
 		voudomain.DocumentRevisionInput{
 			DocumentID: receiptCheckedAgain.DocumentID,
 			Revision:   receiptCheckedAgain.Revision,
@@ -1210,7 +1286,7 @@ func TestLEDFundPartyAndReopenIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen ledger again: %v", err)
 	}
-	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityCustomerReceipt, voudomain.ReverseInput{
+	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntitySalesReceipt, voudomain.ReverseInput{
 		DocumentID: receiptExecuted.DocumentID, Revision: receiptExecuted.Revision, Reason: "维护模式验证",
 	}, integrationActorOne, "receipt-unexecute-maintenance"); err == nil {
 		t.Fatal("maintenance mode allowed VOU unexecute")
@@ -1298,9 +1374,10 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 	if err != nil || len(fund.Items) != 1 || fund.Items[0].BalanceType != "OVERDRAFT" || fund.Items[0].Amount != "70.00" {
 		t.Fatalf("employee fund balance = %+v, err=%v", fund, err)
 	}
-	party, err := ledger.PartyBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
-	}, EntityEmployee)
+	party, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-07-24", CounterpartyType: "employee"},
+	})
 	if err != nil || len(party.Items) != 1 || party.Items[0].BalanceType != "RECEIVABLE" || party.Items[0].Amount != "20.00" {
 		t.Fatalf("employee party balance = %+v, err=%v", party, err)
 	}
@@ -1319,9 +1396,10 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 	}, integrationActorOne, "employee-loan-unfinalize-with-writeoff"); err == nil {
 		t.Fatal("employee loan reversal invalidated a later writeoff")
 	}
-	party, err = ledger.PartyBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
-	}, EntityEmployee)
+	party, err = ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-07-24", CounterpartyType: "employee"},
+	})
 	if err != nil || len(party.Items) != 1 || party.Items[0].Amount != "20.00" {
 		t.Fatalf("employee balance after rejected loan reversal = %+v, err=%v", party, err)
 	}
@@ -1331,9 +1409,10 @@ func TestEmployeeLoanRepaymentAndWriteoffIntegration(t *testing.T) {
 	}, integrationActorOne, "employee-writeoff-unfinalize"); err != nil {
 		t.Fatalf("unfinalize employee loan writeoff: %v", err)
 	}
-	party, err = ledger.PartyBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-07-24"},
-	}, EntityEmployee)
+	party, err = ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-07-24", CounterpartyType: "employee"},
+	})
 	if err != nil || len(party.Items) != 1 || party.Items[0].Amount != "70.00" {
 		t.Fatalf("employee balance after writeoff reversal = %+v, err=%v", party, err)
 	}
@@ -1745,9 +1824,10 @@ func TestBillIssuePostsLiabilitySupplierInterestAndActualCashIntegration(t *test
 	if err != nil || len(supplier.Items) != 1 || supplier.Items[0].BalanceType != "RECEIVABLE" || supplier.Items[0].Amount != "100.00" {
 		t.Fatalf("supplier balance after bill issue = %+v, err=%v", supplier, err)
 	}
-	interest, err := ledger.PartyBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: other.ObjectID},
-	}, bobdomain.EntityOtherParty)
+	interest, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-08-01", ObjectID: other.ObjectID, CounterpartyType: bobdomain.EntityOtherParty},
+	})
 	if err != nil || len(interest.Items) != 1 || interest.Items[0].BalanceType != "PAYABLE" || interest.Items[0].Amount != "3.65" {
 		t.Fatalf("interest party balance after bill issue = %+v, err=%v", interest, err)
 	}
@@ -1813,9 +1893,10 @@ func TestBillDiscountPostsActualCashAndThirdPartyInterestIntegration(t *testing.
 	if err != nil || len(fund.Items) != 1 || fund.Items[0].Amount != "96.35" {
 		t.Fatalf("discount fund balance = %+v, err=%v", fund, err)
 	}
-	interest, err := ledger.PartyBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-02", ObjectID: other.ObjectID},
-	}, bobdomain.EntityOtherParty)
+	interest, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-08-02", ObjectID: other.ObjectID, CounterpartyType: bobdomain.EntityOtherParty},
+	})
 	if err != nil || len(interest.Items) != 1 || interest.Items[0].BalanceType != "PAYABLE" || interest.Items[0].Amount != "3.64" {
 		t.Fatalf("discount interest balance = %+v, err=%v", interest, err)
 	}
@@ -2103,7 +2184,7 @@ func TestIntermediaryCalculationPostingRespectsLedgerCutoverIntegration(t *testi
 	}
 }
 
-func TestLedgerRecutoverRejectsDroppedOtherPayableBalanceIntegration(t *testing.T) {
+func TestLedgerRecutoverCarriesOtherBalanceAsOpeningIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
@@ -2111,46 +2192,57 @@ func TestLedgerRecutoverRejectsDroppedOtherPayableBalanceIntegration(t *testing.
 	ledger, _ := newIntegratedServices(t, pool)
 	activateEmptyLedger(t, ledger)
 	if err := ledger.EnsureReady(t.Context()); err != nil {
-		t.Fatalf("prepare ledger for other payable recutover: %v", err)
+		t.Fatalf("prepare ledger for other recutover: %v", err)
 	}
 	opening, err := ledger.GetOpening(t.Context())
 	if err != nil {
-		t.Fatalf("get ledger before other payable recutover: %v", err)
+		t.Fatalf("get ledger before other recutover: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
 		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
 		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
 		counterparty_entity,counterparty_object_id,counterparty_version_id,
 		counterparty_code,counterparty_name,currency,amount_delta_cents,
-		account_type,payable_category
+		account_type,other_category
 	) VALUES($1,$2,'POSTING','intermediary-calculation',$3,'ICL-20260131-0001',$4,1,
-		'2026-01-31',now(),$5,'other-payable-recutover','employee',$6,$7,'EMP-RECUTOVER',
-		'待结提成员工','CNY',-100,'OTHER_PAYABLE','COMMISSION')`,
+		'2026-01-31',now(),$5,'other-recutover','employee',$6,$7,'EMP-RECUTOVER',
+		'待结提成员工','CNY',-100,'OTHER','COMMISSION')`,
 		newID(), opening.ActiveGenerationID, newID(), newID(), integrationActorOne,
 		refs.employee.ObjectID, refs.employee.VersionID); err != nil {
-		t.Fatalf("insert other payable before recutover: %v", err)
+		t.Fatalf("insert other balance before recutover: %v", err)
 	}
 	reopened, err := ledger.Reopen(t.Context(), ReopenInput{
-		Revision: opening.Revision, Reason: "测试其它应付切点保护",
-	}, integrationActorOne, "reopen-with-other-payable")
+		Revision: opening.Revision, Reason: "测试其他往来期初结转",
+	}, integrationActorOne, "reopen-with-other")
 	if err != nil {
-		t.Fatalf("reopen ledger with other payable: %v", err)
+		t.Fatalf("reopen ledger with other balance: %v", err)
 	}
 	saved, err := ledger.SaveOpening(t.Context(), OpeningSaveInput{
 		Revision: reopened.Revision, CutoverDate: "2026-02-01",
-		Inventory: []InventoryOpeningInput{}, Fund: []FundOpeningInput{}, Party: []PartyOpeningInput{},
-	}, integrationActorOne, "save-recutover-with-other-payable")
+		Inventory: []InventoryOpeningInput{}, Fund: []FundOpeningInput{},
+		Party: []PartyOpeningInput{{
+			AccountType: "OTHER", CounterpartyType: "employee",
+			Counterparty: ReferenceInput{ObjectID: refs.employee.ObjectID, VersionID: refs.employee.VersionID},
+			Currency:     "CNY", BalanceType: "PAYABLE", Amount: "1.00",
+		}},
+	}, integrationActorOne, "save-recutover-with-other")
 	if err != nil {
-		t.Fatalf("save recutover with other payable: %v", err)
+		t.Fatalf("save recutover with other balance: %v", err)
 	}
 	if _, err = ledger.Activate(t.Context(), RevisionInput{Revision: saved.Revision},
-		integrationActorOne, "activate-recutover-with-other-payable"); err == nil ||
-		!strings.Contains(err.Error(), "other payable balances exist") {
-		t.Fatalf("other payable recutover activation error = %v", err)
+		integrationActorOne, "activate-recutover-with-other"); err != nil {
+		t.Fatalf("activate recutover with other opening: %v", err)
+	}
+	balances, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-02-01", ObjectID: refs.employee.ObjectID, CounterpartyType: "employee"},
+	})
+	if err != nil || balances.Total != 1 || balances.Items[0].BalanceType != "PAYABLE" || balances.Items[0].Amount != "1.00" {
+		t.Fatalf("recutover other opening balance = %+v, err=%v", balances, err)
 	}
 }
 
-func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *testing.T) {
+func TestIntermediaryCalculationCheckCollectionAndOtherBalanceIntegration(t *testing.T) {
 	pool := ledIntegrationPool(t)
 	truncateLedgerAndVOU(t, pool)
 	t.Cleanup(func() { truncateLedgerAndVOU(t, pool) })
@@ -2405,28 +2497,65 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 			julyAfterAugustAllocation.Source.Bills, err)
 	}
 
-	entries, err := ledger.QueryOtherPayable(t.Context(), QueryInput{
+	entries, err := ledger.QueryOther(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,
 		Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-08-31", SourceEntity: voudomain.EntityIntermediaryCalculation},
 	})
 	if err != nil || entries.Total != 3 || len(entries.Items) != 3 {
-		t.Fatalf("other payable entries = %+v, err=%v", entries, err)
+		t.Fatalf("other entries = %+v, err=%v", entries, err)
 	}
 	amounts := make(map[string]string, len(entries.Items))
 	for _, item := range entries.Items {
 		if item.Direction != "CREDIT" || item.SourceDocumentID != calculationView.DocumentID {
-			t.Fatalf("other payable entry = %+v", item)
+			t.Fatalf("other entry = %+v", item)
 		}
-		amounts[item.PayableCategory] = item.Amount
+		amounts[item.OtherCategory] = item.Amount
 	}
 	if amounts["COMMISSION"] != "10.00" || amounts["INTERMEDIARY"] != "5.00" || amounts["REBATE"] != "2.00" {
-		t.Fatalf("other payable amounts = %+v", amounts)
+		t.Fatalf("other amounts = %+v", amounts)
 	}
-	balances, err := ledger.OtherPayableBalance(t.Context(), BalanceInput{
-		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-31"},
+	commissionEntries, err := ledger.QueryOther(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{
+			DateFrom: "2026-08-01", DateTo: "2026-08-31",
+			CounterpartyType: "employee", OtherCategory: "COMMISSION",
+		},
+	})
+	if err != nil || commissionEntries.Total != 1 || len(commissionEntries.Items) != 1 ||
+		commissionEntries.Items[0].Counterparty.ObjectID != refs.employee.ObjectID {
+		t.Fatalf("filtered commission entries = %+v, err=%v", commissionEntries, err)
+	}
+	balances, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20, Filters: OtherBalanceFilters{AsOfDate: "2026-08-31"},
 	})
 	if err != nil || balances.Total != 3 || len(balances.Items) != 3 {
-		t.Fatalf("other payable balances = %+v, err=%v", balances, err)
+		t.Fatalf("other balances = %+v, err=%v", balances, err)
+	}
+	otherPayment, _ := advanceToApproved(t, vouchers, voudomain.EntityOtherPayment, voudomain.DraftInput{
+		BusinessDate: "2026-08-31", Currency: "CNY", Amount: "4.00",
+		CounterpartyType: "employee", Counterparty: &refs.employee,
+		FundAccount: &refs.fundAccount, Handler: &billHandler,
+	})
+	paymentEntries, err := ledger.QueryOther(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{
+			DateFrom: "2026-08-01", DateTo: "2026-08-31",
+			SourceEntity: voudomain.EntityOtherPayment, ObjectID: refs.employee.ObjectID,
+		},
+	})
+	if err != nil || paymentEntries.Total != 1 || len(paymentEntries.Items) != 1 ||
+		paymentEntries.Items[0].SourceDocumentID != otherPayment.DocumentID ||
+		paymentEntries.Items[0].Direction != "DEBIT" || paymentEntries.Items[0].Amount != "4.00" ||
+		paymentEntries.Items[0].OtherCategory != "" {
+		t.Fatalf("other payment entry = %+v, err=%v", paymentEntries, err)
+	}
+	employeeBalance, err := ledger.OtherBalance(t.Context(), OtherBalanceInput{
+		Page: 1, PageSize: 20,
+		Filters: OtherBalanceFilters{AsOfDate: "2026-08-31", CounterpartyType: "employee", ObjectID: refs.employee.ObjectID},
+	})
+	if err != nil || employeeBalance.Total != 1 || len(employeeBalance.Items) != 1 ||
+		employeeBalance.Items[0].BalanceType != "PAYABLE" || employeeBalance.Items[0].Amount != "6.00" {
+		t.Fatalf("employee commission balance after other payment = %+v, err=%v", employeeBalance, err)
 	}
 	tradeBalance, err := ledger.PartyBalance(t.Context(), BalanceInput{
 		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-31", ObjectID: refs.customer.ObjectID},
@@ -2440,7 +2569,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}
 	if err != nil || cnyTradeBalance == nil ||
 		cnyTradeBalance.BalanceType != "PAYABLE" || cnyTradeBalance.Amount != "1.00" {
-		t.Fatalf("customer trade balance must stay separate from other payable: %+v, err=%v", tradeBalance, err)
+		t.Fatalf("customer trade balance must stay separate from other balance: %+v, err=%v", tradeBalance, err)
 	}
 
 	septemberCarrySource, err := vouchers.IntermediarySource(t.Context(), voudomain.IntermediarySourceInput{
@@ -2519,7 +2648,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	if septemberCalculationView.Amount != "-8.50" {
 		t.Fatalf("September return adjustment calculation = %+v", septemberCalculationView)
 	}
-	septemberEntries, err := ledger.QueryOtherPayable(t.Context(), QueryInput{
+	septemberEntries, err := ledger.QueryOther(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,
 		Filters: QueryFilters{DateFrom: "2026-09-01", DateTo: "2026-09-30", SourceEntity: voudomain.EntityIntermediaryCalculation},
 	})
@@ -2531,7 +2660,7 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		if item.Direction != "DEBIT" || item.SourceDocumentID != septemberCalculation.DocumentID {
 			t.Fatalf("September return adjustment entry = %+v", item)
 		}
-		septemberAmounts[item.PayableCategory] = item.Amount
+		septemberAmounts[item.OtherCategory] = item.Amount
 	}
 	if septemberAmounts["COMMISSION"] != "5.00" ||
 		septemberAmounts["INTERMEDIARY"] != "2.50" || septemberAmounts["REBATE"] != "1.00" {
@@ -2554,13 +2683,13 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		{name: "occurred at descending", sort: SortInput{Field: "occurredAt", Order: "desc"}, first: septemberCalculationView.DocumentNo},
 	} {
 		t.Run(sortCase.name, func(t *testing.T) {
-			sorted, sortErr := ledger.QueryOtherPayable(t.Context(), QueryInput{
+			sorted, sortErr := ledger.QueryOther(t.Context(), QueryInput{
 				Page: 1, PageSize: 20,
 				Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-09-30", SourceEntity: voudomain.EntityIntermediaryCalculation},
 				Sort:    []SortInput{sortCase.sort},
 			})
 			if sortErr != nil || len(sorted.Items) != 6 || sorted.Items[0].SourceDocumentNo != sortCase.first {
-				t.Fatalf("sorted other payable entries = %+v, err=%v", sorted, sortErr)
+				t.Fatalf("sorted other entries = %+v, err=%v", sorted, sortErr)
 			}
 		})
 	}
@@ -2611,12 +2740,12 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}, integrationActorTwo, "intermediary-calculation-delete-after-dependent"); err != nil {
 		t.Fatalf("delete original intermediary calculation after dependent: %v", err)
 	}
-	entries, err = ledger.QueryOtherPayable(t.Context(), QueryInput{
+	entries, err = ledger.QueryOther(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,
 		Filters: QueryFilters{DateFrom: "2026-08-01", DateTo: "2026-08-31", SourceEntity: voudomain.EntityIntermediaryCalculation},
 	})
 	if err != nil || entries.Total != 0 || len(entries.Items) != 0 {
-		t.Fatalf("other payable entries after reversal = %+v, err=%v", entries, err)
+		t.Fatalf("other entries after reversal = %+v, err=%v", entries, err)
 	}
 }
 
@@ -2660,7 +2789,7 @@ func TestIntermediarySourceKeepsReturnedLaterSignoffInFIFOIntegration(t *testing
 		t.Fatalf("return of a later signoff collected an earlier unpaid signoff: %+v, err=%v",
 			unpaidSeptemberSource.Source, err)
 	}
-	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+	advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-08-05", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
 	})
@@ -2708,7 +2837,7 @@ func TestIntermediarySourceDoesNotReuseReturnedCollectedSignoffCapacityIntegrati
 	}
 	firstSignoff, firstView := createSignoff("2026-07-25")
 	secondSignoff, _ := createSignoff("2026-07-26")
-	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+	advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-08-05", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
 	})
@@ -2768,7 +2897,7 @@ func TestIntermediarySourceReleasesUncoveredReturnBeforeCollectionIntegration(t 
 			SourceLineID: firstView.Data.SignoffLines[0].LineID, Quantity: "1",
 		}},
 	})
-	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+	advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-09-05", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "12.00",
 	})
@@ -2810,7 +2939,7 @@ func TestIntermediarySourceSplitsPartiallyCoveredReturnCapacityIntegration(t *te
 	secondSignoff, _ := createSignoff("2026-07-26")
 	createReceipt := func(businessDate, amount string) {
 		t.Helper()
-		advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+		advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 			BusinessDate: businessDate, Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: amount,
 		})
@@ -3068,7 +3197,7 @@ func TestIntermediarySourceUsesPostedBaselineAndRoundsPreCutoverSourceReturnsInt
 		t.Fatalf("independently rounded pre-cutover returns created collection capacity: %+v, err=%v",
 			beforeReceipt.Source, err)
 	}
-	advanceToApproved(t, vouchers, voudomain.EntityCustomerReceipt, voudomain.DraftInput{
+	advanceToApproved(t, vouchers, voudomain.EntitySalesReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-08-07", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "0.01",
 	})
@@ -3089,8 +3218,8 @@ func TestLEDPermissionCatalogIntegration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions WHERE domain = 'led'`).Scan(&count); err != nil {
 		t.Fatalf("count LED permissions: %v", err)
 	}
-	if count != 23 {
-		t.Fatalf("LED permission count = %d, want 23", count)
+	if count != 19 {
+		t.Fatalf("LED permission count = %d, want 19", count)
 	}
 }
 
@@ -3182,7 +3311,7 @@ func TestApprovedPostingRebuildPreservesActiveOpeningIntegration(t *testing.T) {
 			FundAccount: fundAccount, BalanceType: "POSITIVE", Amount: "100.00",
 		}},
 		Party: []PartyOpeningInput{{
-			CounterpartyType: "customer", Counterparty: customer,
+			AccountType: "TRADE", CounterpartyType: "customer", Counterparty: customer,
 			Currency: "CNY", BalanceType: "RECEIVABLE", Amount: "50.00",
 		}},
 		Container: []ContainerOpeningInput{{

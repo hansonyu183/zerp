@@ -168,7 +168,7 @@ func (s *Service) rebuildClosingSnapshots(
 	for _, closing := range closings {
 		for _, table := range []string{
 			"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-			"led_closing_party", "led_closing_other_payable", "led_closing_container",
+			"led_closing_party", "led_closing_container",
 		} {
 			if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", closing.id); err != nil {
 				return s.writeError("clear closing snapshot for ledger rebuild", err)
@@ -445,7 +445,7 @@ func (s *Service) Unclose(
 	}
 	for _, table := range []string{
 		"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
-		"led_closing_party", "led_closing_other_payable", "led_closing_container",
+		"led_closing_party", "led_closing_container",
 	} {
 		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", *closingID); err != nil {
 			return ClosingMutationResult{}, s.writeError("clear reversed closing snapshot", err)
@@ -1010,28 +1010,16 @@ func (s *Service) snapshotNonInventoryBalances(
 		FROM led_fund_entries WHERE generation_id=$2 AND effective_date <= $3
 		GROUP BY fund_account_object_id,currency HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_party(
-			closing_id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+			closing_id,account_type,counterparty_entity,counterparty_object_id,counterparty_version_id,
 			counterparty_code,counterparty_name,currency,amount_cents
 		)
-		SELECT $1,counterparty_entity,counterparty_object_id,
+		SELECT $1,account_type,counterparty_entity,counterparty_object_id,
 			(array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			max(counterparty_code),
 			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			currency,sum(amount_delta_cents)
-		FROM led_party_entries WHERE generation_id=$2 AND account_type='TRADE' AND effective_date <= $3
-		GROUP BY counterparty_entity,counterparty_object_id,currency
-		HAVING sum(amount_delta_cents) <> 0`,
-		`INSERT INTO led_closing_other_payable(
-			closing_id,payable_category,counterparty_entity,counterparty_object_id,
-			counterparty_version_id,counterparty_code,counterparty_name,currency,amount_cents
-		)
-		SELECT $1,payable_category,counterparty_entity,counterparty_object_id,
-			(array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
-			max(counterparty_code),
-			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
-			currency,sum(amount_delta_cents)
-		FROM led_party_entries WHERE generation_id=$2 AND account_type='OTHER_PAYABLE' AND effective_date <= $3
-		GROUP BY payable_category,counterparty_entity,counterparty_object_id,currency
+		FROM led_party_entries WHERE generation_id=$2 AND effective_date <= $3
+		GROUP BY account_type,counterparty_entity,counterparty_object_id,currency
 		HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_container(
 			closing_id,customer_object_id,customer_version_id,customer_code,
@@ -1105,25 +1093,30 @@ func (s *Service) loadClosingFund(ctx context.Context, closingID string, view *C
 }
 
 func (s *Service) loadClosingParty(ctx context.Context, closingID string, view *ClosingView) error {
-	rows, err := s.pool.Query(ctx, `SELECT counterparty_entity,counterparty_object_id,
+	rows, err := s.pool.Query(ctx, `SELECT account_type,counterparty_entity,counterparty_object_id,
 		counterparty_version_id,counterparty_code,counterparty_name,currency,amount_cents
 		FROM led_closing_party WHERE closing_id=$1
-		ORDER BY counterparty_entity,counterparty_code,currency`, closingID)
+		ORDER BY account_type,counterparty_entity,counterparty_code,currency`, closingID)
 	if err != nil {
 		return s.internal("list closing party", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var entity, id, version, code, name, currency string
+		var accountType, entity, id, version, code, name, currency string
 		var amount int64
-		if err = rows.Scan(&entity, &id, &version, &code, &name, &currency, &amount); err != nil {
+		if err = rows.Scan(&accountType, &entity, &id, &version, &code, &name, &currency, &amount); err != nil {
 			return s.internal("scan closing party", err)
 		}
 		view.Party = append(
-			view.Party, openingPartyView(id, entity, id, version, code, name, currency, amount),
+			view.Party, openingPartyView(closingPartyRowID(accountType, entity, id, currency),
+				accountType, entity, id, version, code, name, currency, amount),
 		)
 	}
 	return rows.Err()
+}
+
+func closingPartyRowID(accountType, entity, objectID, currency string) string {
+	return accountType + "/" + entity + "/" + objectID + "/" + currency
 }
 
 func (s *Service) loadClosingContainer(ctx context.Context, closingID string, view *ClosingView) error {

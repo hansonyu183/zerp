@@ -87,7 +87,7 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 				row.FundAccountCode, row.FundAccountName, row.Currency, row.AmountCents))
 		}
 		for _, row := range party {
-			view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
+			view.Party = append(view.Party, openingPartyView(row.ID, row.AccountType, row.CounterpartyEntity, row.CounterpartyObjectID,
 				row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
 		}
 		for _, row := range containers {
@@ -123,7 +123,7 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 			row.FundAccountCode, row.FundAccountName, row.Currency, row.AmountCents))
 	}
 	for _, row := range party {
-		view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
+		view.Party = append(view.Party, openingPartyView(row.ID, row.AccountType, row.CounterpartyEntity, row.CounterpartyObjectID,
 			row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
 	}
 	for _, row := range containers {
@@ -393,13 +393,13 @@ func containerOpeningView(
 	}
 }
 
-func openingPartyView(id, entity, objectID, versionID, code, name, currency string, amount int64) PartyOpeningView {
+func openingPartyView(id, accountType, entity, objectID, versionID, code, name, currency string, amount int64) PartyOpeningView {
 	balanceType := "RECEIVABLE"
 	if amount < 0 {
 		balanceType = "PAYABLE"
 	}
 	return PartyOpeningView{
-		ID: id, CounterpartyType: entity,
+		ID: id, AccountType: accountType, CounterpartyType: entity,
 		Counterparty: ReferenceView{ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Name: name},
 		Currency:     currency, BalanceType: balanceType, Amount: formatAbsoluteMoney(amount),
 	}

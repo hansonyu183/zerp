@@ -18,7 +18,7 @@ type validatedQuery struct {
 	DateFrom, DateTo                                     time.Time
 	ObjectID, SourceEntity, DocumentNo, SortField, Order string
 	Directions                                           []string
-	PayableCategory                                      string
+	CounterpartyType, OtherCategory                      string
 }
 
 func validID(value string) bool {
@@ -102,8 +102,15 @@ func validateSave(input OpeningSaveInput) (time.Time, error) {
 	}
 	partyKeys := make(map[string]struct{}, len(input.Party))
 	for _, item := range input.Party {
-		if item.CounterpartyType != "customer" && item.CounterpartyType != "supplier" && item.CounterpartyType != "other-party" {
+		if item.AccountType != "TRADE" && item.AccountType != "OTHER" {
+			return time.Time{}, domainError(ErrorValidation, "invalid accountType", nil, nil)
+		}
+		if item.CounterpartyType != "customer" && item.CounterpartyType != "supplier" &&
+			item.CounterpartyType != "other-party" && item.CounterpartyType != "employee" {
 			return time.Time{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
+		}
+		if item.AccountType == "TRADE" && item.CounterpartyType != "customer" && item.CounterpartyType != "supplier" {
+			return time.Time{}, domainError(ErrorValidation, "trade opening requires customer or supplier", nil, nil)
 		}
 		if err = validateReference(item.Counterparty); err != nil {
 			return time.Time{}, err
@@ -118,7 +125,7 @@ func validateSave(input OpeningSaveInput) (time.Time, error) {
 		if _, err = parsePositiveFixed(item.Amount, 2, true); err != nil {
 			return time.Time{}, domainError(ErrorValidation, "invalid party opening amount", nil, err)
 		}
-		key := item.CounterpartyType + "/" + item.Counterparty.ObjectID + "/" + currency
+		key := item.AccountType + "/" + item.CounterpartyType + "/" + item.Counterparty.ObjectID + "/" + currency
 		if _, exists := partyKeys[key]; exists {
 			return time.Time{}, domainError(ErrorValidation, "duplicate party opening dimension", nil, nil)
 		}
@@ -170,20 +177,26 @@ func validateQuery(entity string, input QueryInput) (validatedQuery, error) {
 		SourceEntity: sourceEntity,
 		DocumentNo:   strings.TrimSpace(input.Filters.DocumentNo),
 		SortField:    "effectiveDate", Order: "desc",
-		PayableCategory: strings.ToUpper(strings.TrimSpace(input.Filters.PayableCategory)),
+		CounterpartyType: strings.TrimSpace(input.Filters.CounterpartyType),
+		OtherCategory:    strings.ToUpper(strings.TrimSpace(input.Filters.OtherCategory)),
 	}
-	if result.PayableCategory != "" && result.PayableCategory != "COMMISSION" &&
-		result.PayableCategory != "INTERMEDIARY" && result.PayableCategory != "REBATE" {
-		return validatedQuery{}, domainError(ErrorValidation, "invalid payableCategory", nil, nil)
+	if result.CounterpartyType != "" && result.CounterpartyType != "customer" &&
+		result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" &&
+		result.CounterpartyType != "employee" {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 	}
-	if result.PayableCategory != "" && entity != EntityOtherPayable {
-		return validatedQuery{}, domainError(ErrorValidation, "payableCategory only applies to other payable", nil, nil)
+	if result.OtherCategory != "" && result.OtherCategory != "COMMISSION" &&
+		result.OtherCategory != "INTERMEDIARY" && result.OtherCategory != "REBATE" {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid otherCategory", nil, nil)
+	}
+	if (result.CounterpartyType != "" || result.OtherCategory != "") && entity != EntityOther {
+		return validatedQuery{}, domainError(ErrorValidation, "other transaction filters only apply to other ledger", nil, nil)
 	}
 	allowedDirections := map[string]bool{
 		"IN":     entity == EntityInventory || entity == EntityFund,
 		"OUT":    entity == EntityInventory || entity == EntityFund,
-		"DEBIT":  entity == EntityParty || entity == EntityOtherPayable,
-		"CREDIT": entity == EntityParty || entity == EntityOtherPayable,
+		"DEBIT":  entity == EntityParty || entity == EntityOther,
+		"CREDIT": entity == EntityParty || entity == EntityOther,
 	}
 	seen := map[string]bool{}
 	for _, raw := range input.Filters.Direction {
@@ -216,6 +229,22 @@ func validateBalance(input BalanceInput) (time.Time, error) {
 	}
 	if input.Filters.ObjectID != "" && !validID(input.Filters.ObjectID) {
 		return time.Time{}, domainError(ErrorValidation, "invalid objectId", nil, nil)
+	}
+	return date, nil
+}
+
+func validateOtherBalance(input OtherBalanceInput) (time.Time, error) {
+	date, err := validateBalance(BalanceInput{
+		Page: input.Page, PageSize: input.PageSize,
+		Filters: BalanceFilters{AsOfDate: input.Filters.AsOfDate, ObjectID: input.Filters.ObjectID},
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if input.Filters.CounterpartyType != "" && input.Filters.CounterpartyType != "customer" &&
+		input.Filters.CounterpartyType != "supplier" && input.Filters.CounterpartyType != "other-party" &&
+		input.Filters.CounterpartyType != "employee" {
+		return time.Time{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 	}
 	return date, nil
 }

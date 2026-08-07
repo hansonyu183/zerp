@@ -130,8 +130,8 @@ func entityPrefix(entity string) string {
 		EntityOrderProduction: "MTO",
 		EntitySelfProduction:  "MTS",
 		EntityInventoryCount:  "IVC",
-		EntityReceipt:         "REC", EntityCustomerReceipt: "REC", EntitySupplierReceipt: "REC", EntityOtherReceipt: "REC",
-		EntityPayment: "PAY", EntityCustomerPayment: "PAY", EntitySupplierPayment: "PAY", EntityOtherPayment: "PAY",
+		EntitySalesReceipt:    "SRC", EntityPurchaseRefund: "PRF", EntityOtherReceipt: "ORC",
+		EntitySalesRefund: "SRF", EntityPurchasePayment: "PPY", EntityOtherPayment: "OPY",
 		EntityEmployeeLoan: "ELN", EntityEmployeeRepayment: "ERP", EntityEmployeeLoanWriteoff: "ELW",
 		EntityExpenseReimbursement: "EXR",
 		EntityExpensePayment:       "EXP", EntityOtherIncome: "OIN",
@@ -145,15 +145,6 @@ func entityPrefix(entity string) string {
 }
 
 func numberingEntity(entity string) string {
-	if entity == EntityEmployeeLoan || entity == EntityEmployeeRepayment {
-		return entity
-	}
-	if receiptEntity(entity) {
-		return EntityReceipt
-	}
-	if paymentEntity(entity) {
-		return EntityPayment
-	}
 	return entity
 }
 

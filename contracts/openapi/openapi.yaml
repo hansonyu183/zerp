@@ -3114,7 +3114,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
+                            {
+                              '$ref': './schemas/led.yaml#/LedOtherQueryRequest',
+                            },
                         },
                     },
                 },
@@ -3138,103 +3140,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/employee/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询员工往来流水',
-              'operationId': 'ledemployeequery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/employee/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询员工往来余额',
-              'operationId': 'ledemployeebalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other-payable/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询分类其它应付流水',
-              'operationId': 'ledOtherPayableQuery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other-payable/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询分类其它应付余额',
-              'operationId': 'ledOtherPayableBalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
+                            {
+                              '$ref': './schemas/led.yaml#/LedOtherBalanceRequest',
+                            },
                         },
                     },
                 },

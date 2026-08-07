@@ -283,7 +283,55 @@
                   'documentNo': { 'type': 'string' },
                   'direction':
                     { 'type': 'array', 'items': { 'type': 'string' } },
-                  'payableCategory':
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string' },
+                      'order': { 'type': 'string', 'enum': ['asc', 'desc'] },
+                    },
+                },
+            },
+        },
+    },
+  'LedOtherQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'filters', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'required': ['dateFrom', 'dateTo'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'dateFrom': { 'type': 'string', 'format': 'date' },
+                  'dateTo': { 'type': 'string', 'format': 'date' },
+                  'objectId': { 'type': 'string' },
+                  'sourceEntity': { 'type': 'string' },
+                  'documentNo': { 'type': 'string' },
+                  'direction':
+                    { 'type': 'array', 'items': { 'type': 'string' } },
+                  'counterpartyType':
+                    {
+                      'type': 'string',
+                      'enum':
+                        ['customer', 'supplier', 'other-party', 'employee'],
+                    },
+                  'otherCategory':
                     {
                       'type': 'string',
                       'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
@@ -325,6 +373,34 @@
                 {
                   'asOfDate': { 'type': 'string', 'format': 'date' },
                   'objectId': { 'type': 'string' },
+                },
+            },
+        },
+    },
+  'LedOtherBalanceRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'filters'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'required': ['asOfDate'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'asOfDate': { 'type': 'string', 'format': 'date' },
+                  'objectId': { 'type': 'string' },
+                  'counterpartyType':
+                    {
+                      'type': 'string',
+                      'enum':
+                        ['customer', 'supplier', 'other-party', 'employee'],
+                    },
                 },
             },
         },

@@ -4,11 +4,14 @@ WITH current_revision AS (
     SELECT COALESCE(max(revision), 1)::bigint AS revision
     FROM app_business_menu_items
 )
-UPDATE app_business_menu_items AS item
-SET revision = current_revision.revision,
-    updated_at = now()
-FROM current_revision
-WHERE item.revision <> current_revision.revision;
+DELETE FROM app_business_menu_items AS item
+USING current_revision
+WHERE current_revision.revision > 1
+  AND item.revision <> current_revision.revision
+  AND item.id IN (
+      'menu-route-intermediary-calculation',
+      'menu-route-other-payable'
+  );
 
 -- +goose Down
 -- +goose StatementBegin

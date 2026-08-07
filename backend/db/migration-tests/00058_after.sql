@@ -18,8 +18,8 @@ BEGIN
         WHERE id IN (
             'menu-route-intermediary-calculation',
             'menu-route-other-payable'
-        ) AND revision <> 3
+        )
     ) THEN
-        RAISE EXCEPTION 'new menu routes did not inherit the current revision';
+        RAISE EXCEPTION 'new catalog routes were persisted in the customized menu snapshot';
     END IF;
 END $$;

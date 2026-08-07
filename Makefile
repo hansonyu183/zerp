@@ -78,7 +78,7 @@ check-runtime:
 check-shell:
 	@for script in scripts/*.sh backend/scripts/*.sh; do \
 		case "$$(sed -n '1p' "$$script")" in \
-			*'/bash') bash -n "$$script" ;; \
+			*bash) bash -n "$$script" ;; \
 			*) sh -n "$$script" ;; \
 		esac; \
 	done

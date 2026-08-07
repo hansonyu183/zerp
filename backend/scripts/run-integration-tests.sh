@@ -100,7 +100,7 @@ wait_for_packages() {
 	return "$failed"
 }
 
-# shellcheck disable=SC2329 # Invoked by the EXIT and signal traps below.
+# shellcheck disable=SC2317,SC2329 # Invoked by the EXIT and signal traps below.
 cleanup() {
 	local status="$?"
 	local cleanup_status=0

@@ -76,7 +76,12 @@ check-runtime:
 	$(MAKE) check-release
 
 check-shell:
-	@for script in scripts/*.sh backend/scripts/*.sh; do sh -n "$$script"; done
+	@for script in scripts/*.sh backend/scripts/*.sh; do \
+		case "$$(sed -n '1p' "$$script")" in \
+			*'/bash') bash -n "$$script" ;; \
+			*) sh -n "$$script" ;; \
+		esac; \
+	done
 	shellcheck -x scripts/*.sh backend/scripts/*.sh
 
 release-check:

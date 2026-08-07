@@ -15,11 +15,17 @@ set +a
 
 test "${APP_ENV:-}" = "test" || { echo "E2E APP_ENV must be test" >&2; exit 1; }
 test "${POSTGRES_DB:-}" = "zerp_e2e" || { echo "E2E POSTGRES_DB must be zerp_e2e" >&2; exit 1; }
+test "${POSTGRES_USER:-}" = "zerp_e2e" || { echo "E2E POSTGRES_USER must be zerp_e2e" >&2; exit 1; }
 test "${POSTGRES_PORT:-}" = "55435" || { echo "E2E POSTGRES_PORT must be 55435" >&2; exit 1; }
 test "${API_PORT:-}" = "18081" || { echo "E2E API_PORT must be 18081" >&2; exit 1; }
 test "${WEB_PORT:-}" = "15174" || { echo "E2E WEB_PORT must be 15174" >&2; exit 1; }
 test "${APP_SESSION_COOKIE_NAME:-}" = "zerp_e2e_session" || { echo "E2E cookie name must be zerp_e2e_session" >&2; exit 1; }
 test "${FEEDBACK_GITHUB_ENABLED:-}" = "false" || { echo "E2E feedback publishing must be disabled" >&2; exit 1; }
+expected_database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+test "${DATABASE_URL:-}" = "${expected_database_url}" || {
+  echo "E2E DATABASE_URL must target the validated disposable PostgreSQL instance" >&2
+  exit 1
+}
 
 runtime_dir=$(mktemp -d "${TMPDIR:-/tmp}/zerp-e2e.XXXXXX")
 api_pid=
@@ -37,10 +43,6 @@ cleanup() {
   if [ -n "${web_pid}" ]; then wait "${web_pid}" 2>/dev/null || true; fi
   if [ -n "${api_pid}" ]; then wait "${api_pid}" 2>/dev/null || true; fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  if [ "${cleanup_status}" -ne 0 ]; then
-    test ! -f "${runtime_dir}/api.log" || tail -n 200 "${runtime_dir}/api.log" >&2
-    test ! -f "${runtime_dir}/web.log" || tail -n 100 "${runtime_dir}/web.log" >&2
-  fi
   case "${runtime_dir}" in
     "${TMPDIR:-/tmp}"/zerp-e2e.*) rm -rf "${runtime_dir}" ;;
     *) echo "refusing to remove unexpected E2E runtime directory: ${runtime_dir}" >&2 ;;

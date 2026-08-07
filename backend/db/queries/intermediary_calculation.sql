@@ -45,13 +45,31 @@ WHERE document_id=sqlc.arg(document_id);
 
 -- name: InsertVouIntermediaryCalculationLine :exec
 INSERT INTO vou_intermediary_calculation_lines(
-    id,document_id,line_no,source_signoff_line_id,result,
+    id,document_id,line_no,source_signoff_line_id,source_calculation_document_id,result,
     employee_amount_cents,intermediary_amount_cents,rebate_amount_cents
 ) VALUES (
     sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),
-    sqlc.arg(source_signoff_line_id),sqlc.arg(result),
+    sqlc.arg(source_signoff_line_id),sqlc.narg(source_calculation_document_id),sqlc.arg(result),
     sqlc.arg(employee_amount_cents),sqlc.arg(intermediary_amount_cents),
     sqlc.arg(rebate_amount_cents)
+);
+
+-- name: HasApprovedIntermediaryCalculationDependents :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_intermediary_calculation_lines dependent_line
+    JOIN vou_documents dependent_document
+      ON dependent_document.id=dependent_line.document_id
+     AND dependent_document.entity='intermediary-calculation'
+     AND dependent_document.status IN ('APPROVED','FINALIZED')
+    WHERE dependent_line.source_calculation_document_id=sqlc.arg(document_id)
+);
+
+-- name: HasIntermediaryCalculationDependents :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_intermediary_calculation_lines dependent_line
+    WHERE dependent_line.source_calculation_document_id=sqlc.arg(document_id)
 );
 
 -- name: ListVouIntermediaryCalculationLines :many

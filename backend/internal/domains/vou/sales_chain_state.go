@@ -402,6 +402,12 @@ func (s *Service) Delete(
 			return MutationResult{}, domainError(ErrorConflict, "automatic refusal return cannot be deleted", nil, nil)
 		}
 	}
+	if entity == EntityIntermediaryCalculation {
+		q := s.queries.WithTx(tx)
+		if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	var attachments, children int64
 	if err = tx.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM vou_document_attachments WHERE document_id=$1),

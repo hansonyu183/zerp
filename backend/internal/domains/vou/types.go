@@ -337,6 +337,7 @@ type IntermediaryReference struct {
 }
 
 type IntermediarySourceLine struct {
+	sourceCalculationDocumentID  string
 	SourceSignoffLineID          string                 `json:"sourceSignoffLineId"`
 	SourceKind                   string                 `json:"sourceKind"`
 	SignoffDocumentID            string                 `json:"signoffDocumentId"`

@@ -72,13 +72,20 @@ CREATE TABLE vou_intermediary_calculation_lines (
     line_no integer NOT NULL CHECK (line_no > 0),
     source_signoff_line_id varchar(26) NOT NULL
         REFERENCES vou_sale_signoff_lines(id) ON DELETE RESTRICT,
+    source_calculation_document_id varchar(26)
+        REFERENCES vou_intermediary_calculation_details(document_id) ON DELETE RESTRICT,
     result jsonb NOT NULL CHECK (jsonb_typeof(result) = 'object'),
     employee_amount_cents bigint NOT NULL,
     intermediary_amount_cents bigint NOT NULL,
     rebate_amount_cents bigint NOT NULL,
+    CHECK (source_calculation_document_id IS NULL OR source_calculation_document_id <> document_id),
     UNIQUE (document_id, line_no),
     UNIQUE (document_id, source_signoff_line_id)
 );
+
+CREATE INDEX vou_intermediary_calculation_line_source_calculation_idx
+    ON vou_intermediary_calculation_lines(source_calculation_document_id)
+    WHERE source_calculation_document_id IS NOT NULL;
 
 CREATE TABLE vou_intermediary_calculation_summaries (
     id varchar(26) PRIMARY KEY,

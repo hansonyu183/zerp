@@ -1513,14 +1513,15 @@ type VouIntermediaryCalculationDetail struct {
 }
 
 type VouIntermediaryCalculationLine struct {
-	ID                      string `db:"id" json:"id"`
-	DocumentID              string `db:"document_id" json:"document_id"`
-	LineNo                  int32  `db:"line_no" json:"line_no"`
-	SourceSignoffLineID     string `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	Result                  []byte `db:"result" json:"result"`
-	EmployeeAmountCents     int64  `db:"employee_amount_cents" json:"employee_amount_cents"`
-	IntermediaryAmountCents int64  `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
-	RebateAmountCents       int64  `db:"rebate_amount_cents" json:"rebate_amount_cents"`
+	ID                          string  `db:"id" json:"id"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	LineNo                      int32   `db:"line_no" json:"line_no"`
+	SourceSignoffLineID         string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceCalculationDocumentID *string `db:"source_calculation_document_id" json:"source_calculation_document_id"`
+	Result                      []byte  `db:"result" json:"result"`
+	EmployeeAmountCents         int64   `db:"employee_amount_cents" json:"employee_amount_cents"`
+	IntermediaryAmountCents     int64   `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
+	RebateAmountCents           int64   `db:"rebate_amount_cents" json:"rebate_amount_cents"`
 }
 
 type VouIntermediaryCalculationSummary struct {

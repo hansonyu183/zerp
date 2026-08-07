@@ -292,6 +292,10 @@ const exactMessages: Readonly<Record<string, string>> = {
     '计算来源已变化，请重新计算后保存。',
   'calculation source changed; recalculate before approval':
     '计算来源已变化，请退回复核并重新计算后再批准。',
+  'later intermediary calculations must be reversed first':
+    '该居间计算单已被后续退货冲回使用，请先反批准后续居间计算单。',
+  'later intermediary calculations must be deleted first':
+    '该居间计算单仍被后续退货冲回引用，请先将后续居间计算单退回草稿并删除。',
   'intermediary calculation source changed; recalculate before closing':
     '居间计算来源已变化，请重新计算后再结账。',
   'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
@@ -308,6 +312,10 @@ const exactMessages: Readonly<Record<string, string>> = {
     '跨月退货冲回金额方向不正确，请重新计算。',
   'return adjustment source amount is invalid':
     '跨月退货冲回来源金额无效，请检查原居间计算单。',
+  'return adjustment source calculation is missing':
+    '跨月退货冲回缺少原居间计算单，请重新生成计算稿。',
+  'return adjustment source calculation changed':
+    '跨月退货冲回引用的原居间计算单已变化，请重新生成计算稿。',
   'return adjustment result amounts do not match its source':
     '跨月退货冲回金额必须与来源金额一致，请重新计算。',
   'original intermediary calculation source is incomplete':

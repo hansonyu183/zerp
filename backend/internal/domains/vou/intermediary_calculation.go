@@ -33,6 +33,7 @@ type preparedIntermediaryCalculation struct {
 	lineEmployee, lineIntermediary []int64
 	lineRebate                     []int64
 	lineBillIDs                    [][]string
+	lineSourceCalculations         []*string
 	summaryAmounts                 []int64
 	total                          int64
 }
@@ -469,8 +470,12 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 				source: *originalLine, originalResult: originalResult, originalQuantity: originalQuantity,
 				returnDocumentSet: make(map[string]bool),
 			}
+			group.source.sourceCalculationDocumentID = row.CalculationDocumentID
 			groups[row.SourceSignoffLineID] = group
 			ordered = append(ordered, group)
+		} else if group.source.sourceCalculationDocumentID != row.CalculationDocumentID {
+			return domainError(ErrorConflict, "return adjustment source calculation changed",
+				map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 		}
 		if row.ReturnDate.Time.Before(periodStart) {
 			group.returnedBefore += row.QuantityMicros
@@ -615,6 +620,10 @@ func (s *Service) prepareIntermediaryCalculation(
 	for _, line := range calculation.Source.Lines {
 		lineSources[line.SourceSignoffLineID] = line
 	}
+	currentLineSources := make(map[string]IntermediarySourceLine, len(currentSource.Source.Lines))
+	for _, line := range currentSource.Source.Lines {
+		currentLineSources[line.SourceSignoffLineID] = line
+	}
 	if len(calculation.Result.Lines) != len(lineSources) {
 		return prepared, domainError(ErrorValidation, "calculation result must contain one row per source line", nil, nil)
 	}
@@ -643,6 +652,10 @@ func (s *Service) prepareIntermediaryCalculation(
 		if !ok || seenLines[line.SourceSignoffLineID] {
 			return prepared, domainError(ErrorValidation, "calculation result line does not match its source", nil, nil)
 		}
+		currentSourceLine, currentSourceExists := currentLineSources[line.SourceSignoffLineID]
+		if !currentSourceExists {
+			return prepared, domainError(ErrorConflict, "calculation source changed; recalculate before saving", nil, nil)
+		}
 		seenLines[line.SourceSignoffLineID] = true
 		amountFields := []string{line.BaseCommission, line.PremiumCommission, line.LowPriceCommission,
 			line.MarketMaintenanceSubsidy, line.MarketDevelopmentSubsidy, line.BillCost,
@@ -665,6 +678,9 @@ func (s *Service) prepareIntermediaryCalculation(
 			return prepared, domainError(ErrorValidation, "calculation source kind is invalid", nil, nil)
 		}
 		if sourceLine.SourceKind == intermediarySourceReturnAdjustment {
+			if currentSourceLine.sourceCalculationDocumentID == "" {
+				return prepared, domainError(ErrorConflict, "return adjustment source calculation is missing", nil, nil)
+			}
 			for index, amount := range parsedAmounts {
 				if (index < 6 && amount != 0) || (index >= 6 && amount > 0) {
 					return prepared, domainError(ErrorValidation, "return adjustment result has an invalid direction", nil, nil)
@@ -732,6 +748,11 @@ func (s *Service) prepareIntermediaryCalculation(
 		prepared.lineEmployee = append(prepared.lineEmployee, employeeAmount)
 		prepared.lineIntermediary = append(prepared.lineIntermediary, intermediaryAmount)
 		prepared.lineRebate = append(prepared.lineRebate, rebateAmount)
+		var sourceCalculationDocumentID *string
+		if currentSourceLine.sourceCalculationDocumentID != "" {
+			sourceCalculationDocumentID = stringPtr(currentSourceLine.sourceCalculationDocumentID)
+		}
+		prepared.lineSourceCalculations = append(prepared.lineSourceCalculations, sourceCalculationDocumentID)
 		for _, billLineID := range line.BillLineIDs {
 			bill, exists := billSources[billLineID]
 			if !exists || allocatedBills[billLineID] || sourceLine.SourceKind != intermediarySourceSale ||
@@ -827,6 +848,23 @@ func (s *Service) validateStoredIntermediaryCalculation(
 		!bytes.Equal(storedJSON, currentJSON) {
 		return domainError(ErrorConflict, "calculation source changed; recalculate before approval", nil, nil)
 	}
+	storedLines, err := q.ListVouIntermediaryCalculationLines(ctx, documentID)
+	if err != nil {
+		return s.internal("read intermediary calculation lines", err)
+	}
+	currentLines := make(map[string]IntermediarySourceLine, len(current.Source.Lines))
+	for _, line := range current.Source.Lines {
+		currentLines[line.SourceSignoffLineID] = line
+	}
+	if len(storedLines) != len(currentLines) {
+		return domainError(ErrorConflict, "calculation source changed; recalculate before approval", nil, nil)
+	}
+	for _, line := range storedLines {
+		currentLine, exists := currentLines[line.SourceSignoffLineID]
+		if !exists || deref(line.SourceCalculationDocumentID) != currentLine.sourceCalculationDocumentID {
+			return domainError(ErrorConflict, "calculation source changed; recalculate before approval", nil, nil)
+		}
+	}
 	return nil
 }
 
@@ -875,7 +913,8 @@ func (s *Service) writeIntermediaryCalculation(
 	for index, line := range calculation.Result.Lines {
 		if err := q.InsertVouIntermediaryCalculationLine(ctx, dbsqlc.InsertVouIntermediaryCalculationLineParams{
 			ID: newID(), DocumentID: documentID, LineNo: int32(index + 1), SourceSignoffLineID: line.SourceSignoffLineID,
-			Result: prepared.lineJSON[index], EmployeeAmountCents: prepared.lineEmployee[index],
+			SourceCalculationDocumentID: prepared.lineSourceCalculations[index],
+			Result:                      prepared.lineJSON[index], EmployeeAmountCents: prepared.lineEmployee[index],
 			IntermediaryAmountCents: prepared.lineIntermediary[index], RebateAmountCents: prepared.lineRebate[index],
 		}); err != nil {
 			return err
@@ -972,6 +1011,9 @@ func (s *Service) SaveIntermediaryCalculation(
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
+		return MutationResult{}, err
+	}
 	prepared, err := s.prepareIntermediaryCalculation(ctx, q, input.Data)
 	if err != nil {
 		return MutationResult{}, err
@@ -1004,4 +1046,20 @@ func (s *Service) SaveIntermediaryCalculation(
 		return MutationResult{}, s.writeError("commit intermediary calculation save", err)
 	}
 	return MutationResult{DocumentID: document.ID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision}, nil
+}
+
+func (s *Service) requireNoIntermediaryCalculationDependents(
+	ctx context.Context, q *dbsqlc.Queries, documentID string,
+) error {
+	if _, err := q.LockLedControl(ctx); err != nil {
+		return s.internal("lock ledger control for intermediary calculation mutation", err)
+	}
+	hasDependents, err := q.HasIntermediaryCalculationDependents(ctx, stringPtr(documentID))
+	if err != nil {
+		return s.internal("read intermediary calculation mutation dependents", err)
+	}
+	if hasDependents {
+		return domainError(ErrorConflict, "later intermediary calculations must be deleted first", nil, nil)
+	}
+	return nil
 }

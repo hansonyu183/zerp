@@ -150,6 +150,40 @@ func (q *Queries) GetVouIntermediaryScript(ctx context.Context) (VouIntermediary
 	return i, err
 }
 
+const hasApprovedIntermediaryCalculationDependents = `-- name: HasApprovedIntermediaryCalculationDependents :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_intermediary_calculation_lines dependent_line
+    JOIN vou_documents dependent_document
+      ON dependent_document.id=dependent_line.document_id
+     AND dependent_document.entity='intermediary-calculation'
+     AND dependent_document.status IN ('APPROVED','FINALIZED')
+    WHERE dependent_line.source_calculation_document_id=$1
+)
+`
+
+func (q *Queries) HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasApprovedIntermediaryCalculationDependents, documentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasIntermediaryCalculationDependents = `-- name: HasIntermediaryCalculationDependents :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_intermediary_calculation_lines dependent_line
+    WHERE dependent_line.source_calculation_document_id=$1
+)
+`
+
+func (q *Queries) HasIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasIntermediaryCalculationDependents, documentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const hasLedOtherPayableBalanceBeforeCutover = `-- name: HasLedOtherPayableBalanceBeforeCutover :one
 SELECT EXISTS (
     SELECT 1
@@ -307,25 +341,26 @@ func (q *Queries) InsertVouIntermediaryCalculationDetail(ctx context.Context, ar
 
 const insertVouIntermediaryCalculationLine = `-- name: InsertVouIntermediaryCalculationLine :exec
 INSERT INTO vou_intermediary_calculation_lines(
-    id,document_id,line_no,source_signoff_line_id,result,
+    id,document_id,line_no,source_signoff_line_id,source_calculation_document_id,result,
     employee_amount_cents,intermediary_amount_cents,rebate_amount_cents
 ) VALUES (
     $1,$2,$3,
-    $4,$5,
-    $6,$7,
-    $8
+    $4,$5,$6,
+    $7,$8,
+    $9
 )
 `
 
 type InsertVouIntermediaryCalculationLineParams struct {
-	ID                      string `db:"id" json:"id"`
-	DocumentID              string `db:"document_id" json:"document_id"`
-	LineNo                  int32  `db:"line_no" json:"line_no"`
-	SourceSignoffLineID     string `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	Result                  []byte `db:"result" json:"result"`
-	EmployeeAmountCents     int64  `db:"employee_amount_cents" json:"employee_amount_cents"`
-	IntermediaryAmountCents int64  `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
-	RebateAmountCents       int64  `db:"rebate_amount_cents" json:"rebate_amount_cents"`
+	ID                          string  `db:"id" json:"id"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	LineNo                      int32   `db:"line_no" json:"line_no"`
+	SourceSignoffLineID         string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceCalculationDocumentID *string `db:"source_calculation_document_id" json:"source_calculation_document_id"`
+	Result                      []byte  `db:"result" json:"result"`
+	EmployeeAmountCents         int64   `db:"employee_amount_cents" json:"employee_amount_cents"`
+	IntermediaryAmountCents     int64   `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
+	RebateAmountCents           int64   `db:"rebate_amount_cents" json:"rebate_amount_cents"`
 }
 
 func (q *Queries) InsertVouIntermediaryCalculationLine(ctx context.Context, arg InsertVouIntermediaryCalculationLineParams) error {
@@ -334,6 +369,7 @@ func (q *Queries) InsertVouIntermediaryCalculationLine(ctx context.Context, arg 
 		arg.DocumentID,
 		arg.LineNo,
 		arg.SourceSignoffLineID,
+		arg.SourceCalculationDocumentID,
 		arg.Result,
 		arg.EmployeeAmountCents,
 		arg.IntermediaryAmountCents,
@@ -1191,7 +1227,7 @@ func (q *Queries) ListLedOtherPayableEntries(ctx context.Context, arg ListLedOth
 }
 
 const listVouIntermediaryCalculationLines = `-- name: ListVouIntermediaryCalculationLines :many
-SELECT id, document_id, line_no, source_signoff_line_id, result, employee_amount_cents, intermediary_amount_cents, rebate_amount_cents FROM vou_intermediary_calculation_lines
+SELECT id, document_id, line_no, source_signoff_line_id, source_calculation_document_id, result, employee_amount_cents, intermediary_amount_cents, rebate_amount_cents FROM vou_intermediary_calculation_lines
 WHERE document_id=$1 ORDER BY line_no
 `
 
@@ -1209,6 +1245,7 @@ func (q *Queries) ListVouIntermediaryCalculationLines(ctx context.Context, docum
 			&i.DocumentID,
 			&i.LineNo,
 			&i.SourceSignoffLineID,
+			&i.SourceCalculationDocumentID,
 			&i.Result,
 			&i.EmployeeAmountCents,
 			&i.IntermediaryAmountCents,

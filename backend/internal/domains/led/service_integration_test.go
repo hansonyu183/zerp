@@ -2537,6 +2537,12 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 		septemberAmounts["INTERMEDIARY"] != "2.50" || septemberAmounts["REBATE"] != "1.00" {
 		t.Fatalf("September return adjustment amounts = %+v", septemberAmounts)
 	}
+	if _, dependencyErr := vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: calculationView.DocumentID, Revision: calculationView.Revision, Reason: "不应越过后续退货冲回",
+	}, integrationActorTwo, "intermediary-calculation-dependent-unapprove"); dependencyErr == nil ||
+		!strings.Contains(dependencyErr.Error(), "later intermediary calculations must be reversed first") {
+		t.Fatalf("unapprove calculation used by later adjustment error = %v", dependencyErr)
+	}
 	for _, sortCase := range []struct {
 		name  string
 		sort  SortInput
@@ -2558,9 +2564,10 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 			}
 		})
 	}
-	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+	reversedSeptember, err := vouchers.Unapprove(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
 		DocumentID: septemberCalculation.DocumentID, Revision: septemberCalculation.Revision, Reason: "撤回跨月退货冲回",
-	}, integrationActorTwo, "return-adjustment-intermediary-unapprove"); err != nil {
+	}, integrationActorTwo, "return-adjustment-intermediary-unapprove")
+	if err != nil {
 		t.Fatalf("unapprove September return adjustment calculation: %v", err)
 	}
 
@@ -2569,6 +2576,40 @@ func TestIntermediaryCalculationCheckCollectionAndOtherPayableIntegration(t *tes
 	}, integrationActorTwo, "intermediary-calculation-unapprove")
 	if err != nil || reversed.Status != voudomain.StatusChecked {
 		t.Fatalf("unapprove intermediary calculation = %+v, err=%v", reversed, err)
+	}
+	draftOriginal, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: reversed.DocumentID, Revision: reversed.Revision, Reason: "验证后续草稿依赖",
+	}, integrationActorTwo, "intermediary-calculation-dependent-delete-uncheck")
+	if err != nil {
+		t.Fatalf("uncheck original intermediary calculation: %v", err)
+	}
+	if _, dependencyErr := vouchers.Delete(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DeleteInput{
+		DocumentID: draftOriginal.DocumentID, Revision: draftOriginal.Revision, Reason: "不应越过后续草稿",
+	}, integrationActorTwo, "intermediary-calculation-dependent-delete"); dependencyErr == nil ||
+		!strings.Contains(dependencyErr.Error(), "later intermediary calculations must be deleted first") {
+		t.Fatalf("delete calculation used by later draft error = %v", dependencyErr)
+	}
+	if _, dependencyErr := vouchers.Save(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.SaveInput{
+		DocumentID: draftOriginal.DocumentID, Revision: draftOriginal.Revision, Data: calculationDraft,
+	}, integrationActorTwo, "intermediary-calculation-dependent-save"); dependencyErr == nil ||
+		!strings.Contains(dependencyErr.Error(), "later intermediary calculations must be deleted first") {
+		t.Fatalf("save calculation used by later draft error = %v", dependencyErr)
+	}
+	draftSeptember, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
+		DocumentID: reversedSeptember.DocumentID, Revision: reversedSeptember.Revision, Reason: "先删除后续草稿",
+	}, integrationActorTwo, "return-adjustment-intermediary-delete-uncheck")
+	if err != nil {
+		t.Fatalf("uncheck September return adjustment calculation: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DeleteInput{
+		DocumentID: draftSeptember.DocumentID, Revision: draftSeptember.Revision, Reason: "删除后续草稿",
+	}, integrationActorTwo, "return-adjustment-intermediary-delete"); err != nil {
+		t.Fatalf("delete September return adjustment calculation: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DeleteInput{
+		DocumentID: draftOriginal.DocumentID, Revision: draftOriginal.Revision, Reason: "删除原居间计算草稿",
+	}, integrationActorTwo, "intermediary-calculation-delete-after-dependent"); err != nil {
+		t.Fatalf("delete original intermediary calculation after dependent: %v", err)
 	}
 	entries, err = ledger.QueryOtherPayable(t.Context(), QueryInput{
 		Page: 1, PageSize: 20,

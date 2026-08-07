@@ -1108,10 +1108,15 @@ func (s *Service) loadClosingParty(ctx context.Context, closingID string, view *
 			return s.internal("scan closing party", err)
 		}
 		view.Party = append(
-			view.Party, openingPartyView(id, accountType, entity, id, version, code, name, currency, amount),
+			view.Party, openingPartyView(closingPartyRowID(accountType, entity, id, currency),
+				accountType, entity, id, version, code, name, currency, amount),
 		)
 	}
 	return rows.Err()
+}
+
+func closingPartyRowID(accountType, entity, objectID, currency string) string {
+	return accountType + "/" + entity + "/" + objectID + "/" + currency
 }
 
 func (s *Service) loadClosingContainer(ctx context.Context, closingID string, view *ClosingView) error {

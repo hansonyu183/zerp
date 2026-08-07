@@ -307,8 +307,7 @@ jobs:
     name: backend-static
     if: >-
       github.event_name != 'push' &&
-      needs.merge_evidence.outputs.backend == '1' &&
-      needs.merge_evidence.outputs.full_validation == '1'
+      needs.merge_evidence.outputs.backend == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -355,15 +354,14 @@ jobs:
           test "$EVIDENCE_RESULT" = "success"
           if [ "$EVENT_NAME" != "push" ] && [ "$BACKEND_REQUIRED" = "1" ]; then
             test "$TEST_RESULT" = "success"
+            test "$STATIC_RESULT" = "success"
             if [ "$FULL_VALIDATION" = "1" ]; then
-              test "$STATIC_RESULT" = "success"
               if [ "$BACKEND_FULL" = "1" ]; then
                 test "$RACE_RESULT" = "success"
               else
                 test "$RACE_RESULT" = "skipped"
               fi
             else
-              test "$STATIC_RESULT" = "skipped"
               test "$RACE_RESULT" = "skipped"
             fi
           fi

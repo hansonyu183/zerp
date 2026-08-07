@@ -181,6 +181,9 @@ INSERT INTO led_closings(
     '00000000000000000000005930','2059-01-31','2059-02-01','ACTIVE',1,
     '01JAPPSYST3MACTR0000000000','migration-00059-closing'
 );
+UPDATE led_control
+SET last_closing_id='00000000000000000000005930'
+WHERE singleton=true;
 INSERT INTO led_closing_other_payable(
     closing_id,payable_category,counterparty_entity,counterparty_object_id,
     counterparty_version_id,counterparty_code,counterparty_name,currency,

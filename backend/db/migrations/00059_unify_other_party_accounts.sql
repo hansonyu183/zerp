@@ -2,6 +2,7 @@
 
 ALTER TABLE vou_documents DROP CONSTRAINT vou_documents_entity_check;
 ALTER TABLE vou_documents DISABLE TRIGGER vou_parent_ck;
+ALTER TABLE vou_documents DISABLE TRIGGER vou_documents_closing_guard;
 ALTER TABLE vou_audit_events DROP CONSTRAINT vou_audit_events_document_id_entity_fkey;
 ALTER TABLE vou_receipt_details
     DROP CONSTRAINT vou_receipt_details_document_id_entity_fkey,
@@ -68,6 +69,7 @@ DELETE FROM vou_number_counters WHERE entity IN (
 
 SET CONSTRAINTS ALL IMMEDIATE;
 ALTER TABLE vou_documents ENABLE TRIGGER vou_parent_ck;
+ALTER TABLE vou_documents ENABLE TRIGGER vou_documents_closing_guard;
 
 ALTER TABLE vou_documents
     ADD CONSTRAINT vou_documents_entity_check CHECK (entity IN (

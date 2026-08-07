@@ -51,6 +51,11 @@ BEGIN
         WHERE tgrelid='vou_documents'::regclass AND tgname='vou_parent_ck') <> 'O' THEN
         RAISE EXCEPTION 'parent immutability trigger was not restored';
     END IF;
+    IF (SELECT tgenabled FROM pg_trigger
+        WHERE tgrelid='vou_documents'::regclass
+          AND tgname='vou_documents_closing_guard') <> 'O' THEN
+        RAISE EXCEPTION 'document closing guard was not restored';
+    END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM led_party_entries

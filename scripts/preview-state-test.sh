@@ -39,6 +39,7 @@ cat >"${root}/bin/gh" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"${MOCK_GH_LOG}"
 case "$*" in
+  *"api user --jq .login"*) printf 'alice\n' ;;
   *"repos/example/zerp/pulls/1"*)
     printf '{"state":"open","draft":false,"base":{"ref":"main"},"head":{"sha":"%s"}}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
@@ -102,6 +103,11 @@ state=${repo_root}/scripts/preview-state.sh
 if MOCK_DRAFT_ONLY=1 PREVIEW_ACTOR=alice \
   "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
   echo 'Draft-only evidence was accepted for preview' >&2
+  exit 1
+fi
+if PREVIEW_ACTOR=bob \
+  "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
+  echo 'Claimed preview actor did not match authenticated GitHub actor' >&2
   exit 1
 fi
 

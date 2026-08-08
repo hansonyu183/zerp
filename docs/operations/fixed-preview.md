@@ -22,7 +22,7 @@ https://zerp-preview.bytesucceed.com
 make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>
 make preview-status
 make preview-touch PREVIEW_PR=<number>
-make preview-accept PREVIEW_PR=<number> PREVIEW_ACTOR=<github-login>
+make preview-accept PREVIEW_PR=<number>
 make preview-close PREVIEW_PR=<number>
 make preview-reap
 make preview-promote PREVIEW_PR=<number> PREVIEW_MERGE=<main-merge-full-sha>
@@ -31,7 +31,7 @@ make preview-gc
 
 所有命令都从无跟踪修改且 `HEAD == origin/main` 的受信任控制 checkout 运行，只把 PR 编号和 head SHA 当输入；禁止在 PR worktree 中执行 `make preview-deploy`。`preview-deploy` 会为 exact PR SHA 创建隔离 worktree，并在首次接管时缓存受信任的 `main` 基线 release，保证任何关闭或失效恢复都能同时切回基线代码和数据。控制器、状态机和旧环境导入只执行受信任控制 checkout 中的脚本与 Compose 配置，PR worktree 仅作为编译输入；所有 Go、pnpm 安装和前端构建都在 macOS sandbox 内运行。对用户数据，构建进程只能读取一次性源码 worktree，只能写入该 worktree、release 输出和当前 SHA 的专用临时缓存；sandbox 明确禁止读取用户主目录中的其他文件、受信任 checkout、`.env.preview.local` 和系统钥匙串，也禁止写入上述三个构建目录之外的位置。成功产出 release 后立即删除当前 SHA 的构建缓存，避免后续 PR 复用不受信任内容；进程环境同时使用 `env -i` 和最小白名单，不继承数据库密码、管理员密码、Token 或当前 shell 的其他秘密。完成第二次 PR head 校验后，运行阶段才读取环境文件，停止当前 API/Web、克隆状态、执行迁移/seed 并原子切换。失败会恢复之前的状态和服务，不执行 down migration。
 
-`preview-accept` 是人工验收动作，会再次验证 PR、自动门禁、用户权限和 SHA，再写 GitHub Preview Deployment 与 `full-validation`。Bot 不能验收。`preview-promote` 只在 PR 已合并、merge tree 等于验收 head tree且合并证据完整时成功；晋升复用已验收的 exact-tree 构建产物，但会把运行标记、current release、数据库和附件一起原子切换到 merge SHA。关闭、失效和超时恢复也会同步切回基线 release，不允许状态与运行版本分离。
+`preview-accept` 是人工验收动作，会从当前 `gh` 登录态读取验收人，拒绝调用方冒用其他协作者身份，并再次验证 PR、自动门禁、用户权限和 SHA，再写 GitHub Preview Deployment 与 `full-validation`。Bot 不能验收。`preview-promote` 只在 PR 已合并、merge tree 等于验收 head tree且合并证据完整时成功；晋升复用已验收的 exact-tree 构建产物，但会把运行标记、current release、数据库和附件一起原子切换到 merge SHA。关闭、失效和超时恢复也会同步切回基线 release，不允许状态与运行版本分离。
 
 兼容的维护命令仍包括 `preview-up`、`preview-down`、`preview-rollback`、`preview-password` 和显式破坏性的 `preview-reset`。日常 PR 流程不得用 `preview-reset` 解决构建、Tunnel 或状态锁问题。
 

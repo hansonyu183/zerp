@@ -222,11 +222,10 @@ jobs:
           needs.merge_evidence.outputs.frontend == '1'
         env:
           READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
-          FRONTEND_FULL: ${{ needs.merge_evidence.outputs.frontend_full }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ "$READY_VALIDATION" = "1" ] && [ "$FRONTEND_FULL" = "1" ]; then
+          if [ "$READY_VALIDATION" = "1" ]; then
             pnpm --filter @zerp/frontend check:core
           else
             pnpm --filter @zerp/frontend lint

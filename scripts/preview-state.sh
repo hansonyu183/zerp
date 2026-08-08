@@ -148,7 +148,15 @@ accept_state(){
   [ "$(cat "$active_file" 2>/dev/null || true)" = "$pr" ] || { echo "PR is not active" >&2; return 1; }
   rec="$pr_root/${pr}.state"; head=$(read_field sha "$rec"); generation=$(read_field generation "$rec")
   command -v "$gh_bin" >/dev/null 2>&1 || { echo 'gh is required' >&2; return 1; }
-  if [ -z "$actor" ]; then actor=$($gh_bin api user --jq .login); fi
+  authenticated_actor=$($gh_bin api user --jq .login)
+  [ -n "$authenticated_actor" ] || { echo 'authenticated GitHub actor is required' >&2; return 1; }
+  if [ -n "$actor" ] &&
+    [ "$(printf '%s' "$actor" | tr '[:upper:]' '[:lower:]')" != \
+      "$(printf '%s' "$authenticated_actor" | tr '[:upper:]' '[:lower:]')" ]; then
+    echo "actor $actor does not match authenticated GitHub actor $authenticated_actor" >&2
+    return 1
+  fi
+  actor=$authenticated_actor
   PREVIEW_ACTOR="$actor" "${repo_root}/scripts/verify-preview-pr.sh" "$pr" "$head" >/dev/null
   verify_active_release "$head"
   if [ "$(read_field sha "$current_file")" != "$head" ] || \

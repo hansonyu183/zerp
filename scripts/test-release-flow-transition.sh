@@ -52,6 +52,7 @@ grep -Fq 'workflow_dispatch:' .github/workflows/quality.yml
 grep -Fq 'preview=1' .github/workflows/quality.yml
 grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 grep -Fq "github.event.action == 'ready_for_review'" .github/workflows/quality.yml
+grep -Fq "if [ \"\$READY_VALIDATION\" = \"1\" ]; then" .github/workflows/quality.yml
 grep -Fq 'needs.merge_evidence.outputs.reuse_contracts' .github/workflows/quality.yml
 checkout_count=$(grep -c 'uses: actions/checkout@v6' .github/workflows/quality.yml)
 exact_ref_count=$(grep -c 'ref:.*github.event.pull_request.head.sha.*github.sha' .github/workflows/quality.yml)

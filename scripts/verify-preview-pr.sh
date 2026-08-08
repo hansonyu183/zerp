@@ -84,10 +84,18 @@ test "${validation_state}" = completed:success || {
   exit 1
 }
 
-test -n "${actor}" || {
-  echo "acceptance actor is required" >&2
+authenticated_actor=$("${gh_bin}" api user --jq .login 2>/dev/null || true)
+test -n "${authenticated_actor}" || {
+  echo "authenticated GitHub actor is required" >&2
   exit 1
 }
+if [ -n "${actor}" ] &&
+  [ "$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')" != \
+    "$(printf '%s' "${authenticated_actor}" | tr '[:upper:]' '[:lower:]')" ]; then
+  echo "actor ${actor} does not match authenticated GitHub actor ${authenticated_actor}" >&2
+  exit 1
+fi
+actor=${authenticated_actor}
 case "${actor}" in
   *'[bot]' | *-bot | bot)
     echo "bot actors cannot accept preview" >&2

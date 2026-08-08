@@ -1089,6 +1089,12 @@ FOR UPDATE;
 -- name: ListAllVouStorageKeys :many
 SELECT storage_key FROM vou_files;
 
+-- name: ListVouApprovedCutoverDocuments :many
+SELECT entity, document_no, business_date::text AS business_date, status
+FROM vou_documents
+WHERE status = 'APPROVED'
+ORDER BY entity, business_date, document_no, id;
+
 -- name: InsertVouBillDetail :exec
 INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,handler_object_id,handler_version_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_version_id,interest_party_code,interest_party_name,with_recourse)
 VALUES(sqlc.arg(document_id),sqlc.arg(entity),sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_version_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),sqlc.narg(handler_object_id),sqlc.narg(handler_version_id),sqlc.narg(handler_code),sqlc.narg(handler_name),sqlc.arg(internal_cost_rate_bps),sqlc.arg(maturity_type),sqlc.arg(interest_mode),sqlc.narg(interest_party_entity),sqlc.narg(interest_party_object_id),sqlc.narg(interest_party_version_id),sqlc.narg(interest_party_code),sqlc.narg(interest_party_name),sqlc.arg(with_recourse));

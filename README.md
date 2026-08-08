@@ -58,6 +58,7 @@ make dev-down
 | `make build`                   | 构建前端、后端及容器镜像               |
 | `make compose-up`              | 启动生产形态 Compose                   |
 | `make compose-down`            | 停止生产形态 Compose                   |
+| `make vou-cutover-check`       | 检查开发环境遗留的 `APPROVED` VOU      |
 | `make preview-up`              | 以本机进程构建并启动固定开发预览       |
 | `make preview-deploy`          | 从指定 commit 构建本机固定预览         |
 | `make preview-down`            | 停止预览并保留人工测试数据             |
@@ -65,9 +66,11 @@ make dev-down
 | `make preview-rollback`        | 回退到上一版固定预览                   |
 | `make preview-status`          | 检查预览进程、本机和公网版本           |
 | `make preview-password`        | 仅把预览管理员密码复制到剪贴板         |
+| `make preview-vou-cutover-check` | 检查固定预览遗留的 `APPROVED` VOU    |
 | `make preview-uninstall-agent` | 卸载旧版 `dev` 预览轮询代理            |
 | `make production-status`       | 检查正式环境版本及本地/公网健康状态    |
 | `make production-retry`        | 修复发布阻塞后重试被熔断的正式发布     |
+| `make production-vou-cutover-check` | 检查生产遗留的 `APPROVED` VOU      |
 
 ## 契约工作流
 

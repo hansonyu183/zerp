@@ -33,7 +33,7 @@ launch_domain="gui/$(id -u)"
 build_temp=
 
 usage() {
-  echo "usage: $0 {up|build|prepare-db|activate|stop-app|restart-app|down|reset|rollback|status|password|reap|close|accept|promote|gc}" >&2
+  echo "usage: $0 {up|build|prepare-db|activate|stop-app|restart-app|down|reset|rollback|status|password|vou-cutover-check|reap|close|accept|promote|gc}" >&2
   exit 2
 }
 
@@ -276,6 +276,7 @@ build_release() {
   if [ -x "${release_dir}/bin/zerp-server" ] && \
     [ -x "${release_dir}/bin/zerp-preview-web" ] && \
     [ -x "${release_dir}/bin/zerp-seed-preview" ] && \
+    [ -x "${release_dir}/bin/zerp-vou-cutover-check" ] && \
     [ -x "${release_dir}/bin/goose" ] && \
     [ -f "${release_dir}/release-sha" ] && \
     [ -d "${release_dir}/migrations" ] && \
@@ -314,6 +315,9 @@ build_release() {
   sandbox_build_in "${source_root}/backend" \
     go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-seed-preview" ./cmd/seed-preview
+  sandbox_build_in "${source_root}/backend" \
+    go build -buildvcs=false -trimpath \
+    -o "${build_temp}/bin/zerp-vou-cutover-check" ./cmd/vou-cutover-check
   sandbox_build_in "${source_root}/backend/tools" \
     go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/goose" github.com/pressly/goose/v3/cmd/goose
@@ -1237,6 +1241,16 @@ password() {
   echo "Preview administrator password copied to the clipboard"
 }
 
+vou_cutover_check() {
+  guard
+  test -x "${current_link}/bin/zerp-vou-cutover-check" || {
+    echo "Preview cutover checker is missing; deploy a release containing it first" >&2
+    return 1
+  }
+  /usr/bin/env APP_ENV=development DATABASE_URL="${database_url}" \
+    "${current_link}/bin/zerp-vou-cutover-check"
+}
+
 case "${1:-}" in
   up)
     [ "$#" -eq 1 ] || usage
@@ -1283,6 +1297,10 @@ case "${1:-}" in
   password)
     [ "$#" -eq 1 ] || usage
     password
+    ;;
+  vou-cutover-check)
+    [ "$#" -eq 1 ] || usage
+    vou_cutover_check
     ;;
   reap)
     [ "$#" -eq 1 ] || usage

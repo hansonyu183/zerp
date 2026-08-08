@@ -11,7 +11,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down vou-cutover-check pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-vou-cutover-check preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent production-status production-retry production-rollback production-vou-cutover-check
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -114,6 +114,9 @@ compose-up:
 compose-down:
 	$(COMPOSE) down
 
+vou-cutover-check:
+	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) vou-cutover-check
+
 pre-push:
 	@./scripts/pre-push.sh
 
@@ -141,6 +144,9 @@ preview-status:
 
 preview-password:
 	@./scripts/preview.sh password
+
+preview-vou-cutover-check:
+	@./scripts/preview.sh vou-cutover-check
 
 preview-touch:
 	@PREVIEW_PR="$(PREVIEW_PR)" ./scripts/preview-state.sh touch

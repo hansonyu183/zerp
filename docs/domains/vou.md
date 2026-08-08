@@ -107,6 +107,20 @@ DRAFT ⇄ CHECKED ⇄ APPROVED ⇄ FINALIZED
 - 不比较动作操作者身份，只校验精确 APP 路径权限。
 - 所有写动作携带文档 `revision`，使用乐观并发控制。
 
+### 2.3 审批入账语义切换
+
+在将入账语义从 `FINALIZED` 切换到 `APPROVED` 前，发布人员必须运行当前环境的只读检查器：
+
+```bash
+make vou-cutover-check
+make preview-vou-cutover-check
+make production-vou-cutover-check
+```
+
+检查器只查询 `status=APPROVED` 的 VOU，输出总数、按实体汇总以及每张单据的实体、单号、业务日期和状态；不输出正文、附件或凭证。无遗留时退出 `0`；发现遗留或查询失败时明确非 `0`。检查器绝不修改 VOU、LED 或审计记录，也不会自动修复。
+
+发现旧语义遗留时，人工逐张决定：应完成入账的单据推进到 `FINALIZED`；需要继续处理或更正的单据退回到 `CHECKED` 或 `DRAFT`。再次运行检查器，确认无 `APPROVED` 遗留后再执行切换。
+
 VOU 路由动作集合如下；各实体实际开放的动作按后文创建例外和精确权限确定：
 
 ```text
@@ -122,7 +136,7 @@ attachment-initiate attachment-download attachment-remove
 `formula-default` 用于销售订单和生产自制品单解析默认配方。
 `price-reference` 用于销售订单和采购订单批量解析产品参考价。
 
-### 2.3 通用写入语义
+### 2.4 通用写入语义
 
 BOB 引用结构固定为：
 

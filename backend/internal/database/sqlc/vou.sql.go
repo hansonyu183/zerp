@@ -2925,6 +2925,45 @@ func (q *Queries) ListOpenPeriodFinalizedVouDocumentsForCompletion(ctx context.C
 	return items, nil
 }
 
+const listVouApprovedCutoverDocuments = `-- name: ListVouApprovedCutoverDocuments :many
+SELECT entity, document_no, business_date::text AS business_date, status
+FROM vou_documents
+WHERE status = 'APPROVED'
+ORDER BY entity, business_date, document_no, id
+`
+
+type ListVouApprovedCutoverDocumentsRow struct {
+	Entity       string `db:"entity" json:"entity"`
+	DocumentNo   string `db:"document_no" json:"document_no"`
+	BusinessDate string `db:"business_date" json:"business_date"`
+	Status       string `db:"status" json:"status"`
+}
+
+func (q *Queries) ListVouApprovedCutoverDocuments(ctx context.Context) ([]ListVouApprovedCutoverDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listVouApprovedCutoverDocuments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouApprovedCutoverDocumentsRow{}
+	for rows.Next() {
+		var i ListVouApprovedCutoverDocumentsRow
+		if err := rows.Scan(
+			&i.Entity,
+			&i.DocumentNo,
+			&i.BusinessDate,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVouAssetAcquisitionLines = `-- name: ListVouAssetAcquisitionLines :many
 SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_version_id, category_code, category_name, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_version_id, department_code, department_name, custodian_object_id, custodian_version_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
 `

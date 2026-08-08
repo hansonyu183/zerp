@@ -22,10 +22,10 @@ fi
 pr=${1:-${PREVIEW_PR:-}}
 head=${2:-${PREVIEW_REF:-}}
 actor=${PREVIEW_ACTOR:-${GITHUB_ACTOR:-}}
-test -n "${pr}" && test -n "${head}" || {
+if [ -z "${pr}" ] || [ -z "${head}" ]; then
   echo "usage: preview-deploy.sh <pr-number> <head-sha>" >&2
   exit 2
-}
+fi
 if [ -z "${actor}" ]; then
   actor=$(gh api user --jq .login)
 fi

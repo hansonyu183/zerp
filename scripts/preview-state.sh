@@ -28,7 +28,7 @@ clone_db(){ base=$1; target=$2; db_exists "$target" && return 0; "$createdb_bin"
 copy_attachments(){ src=$1; dst=$2; mkdir -p "$dst"; chmod 700 "$dst"; if [ -d "$src" ] && [ "$src" != "$dst" ]; then cp -Rp "$src/." "$dst/"; fi; }
 baseline_sha(){ if [ -f "$current_file" ] && [ "$(read_field kind "$current_file")" = baseline ]; then read_field sha "$current_file"; else printf '%s\n' "${ZERP_BASELINE_SHA:-$(git -C "$repo_root" rev-parse origin/main 2>/dev/null || printf unknown)}"; fi; }
 init_state(){ mkdir_state; [ -f "$current_file" ] && return; sha=$(baseline_sha); safe_sha "$sha" || sha=legacy; db=${POSTGRES_DB:-zerp_preview}; att=${ZERP_PREVIEW_ATTACHMENT_ROOT:-${runtime_root}/attachments}; mkdir -p "$att"; chmod 700 "$att"; rec="$baseline_root/${sha}.state"; write_record "$rec" kind baseline id "$sha" sha "$sha" db "$db" attachments "$att" generation 0 status accepted accepted_at "$now"; atomic_current baseline "$sha" "$sha" "$db" "$att" 0; }
-lock_owner(){ [ -f "$lock_root/owner" ] && cat "$lock_root/owner" || true; }
+lock_owner(){ if [ -f "$lock_root/owner" ]; then cat "$lock_root/owner"; fi; }
 release_lock(){ rm -rf "$lock_root"; }
 acquire_lock(){ pr=$1; head=$2; actor=$3; if mkdir "$lock_root" 2>/dev/null; then chmod 700 "$lock_root"; printf '%s\n' "$pr" >"$lock_root/owner"; printf '%s\n' "$head" >"$lock_root/head"; printf '%s\n' "$actor" >"$lock_root/actor"; printf '%s\n' "$now" >"$lock_root/last_activity"; printf '%s\n' "$$" >"$lock_root/pid"; chmod 600 "$lock_root"/*; return; fi; owner=$(lock_owner); last=$(cat "$lock_root/last_activity" 2>/dev/null || printf 0); if [ "$owner" != "$pr" ] && [ $((now-last)) -lt 86400 ]; then echo "preview slot is held by PR #${owner}" >&2; return 1; fi; if [ "$owner" != "$pr" ]; then release_lock; acquire_lock "$pr" "$head" "$actor"; fi; }
 claim() (
@@ -48,7 +48,7 @@ claim() (
   if [ -f "$pr_record" ]; then pr_existed=1; cp -p "$pr_record" "$transaction/pr"; fi
   [ ! -d "$lock_root" ] || cp -Rp "$lock_root" "$transaction/lock"
 
-  # shellcheck disable=SC2329 # invoked by the trap below
+  # shellcheck disable=SC2317,SC2329 # invoked indirectly by the trap below
   rollback_claim() {
     result=$?
     trap - EXIT HUP INT TERM
@@ -96,7 +96,30 @@ claim() (
 touch_state(){ pr=${PREVIEW_PR:?PREVIEW_PR is required}; [ "$(cat "$active_file" 2>/dev/null || true)" = "$pr" ] || { echo "PR is not active" >&2; return 1; }; printf '%s\n' "$now" >"$lock_root/last_activity"; sed "s/^last_activity=.*/last_activity=$now/" "$pr_root/${pr}.state" >"$pr_root/${pr}.state.new"; mv -f "$pr_root/${pr}.state.new" "$pr_root/${pr}.state"; }
 restore_baseline(){ pr=$(cat "$active_file" 2>/dev/null || true); if [ -n "$pr" ] && [ -f "$pr_root/${pr}.state" ]; then sha=$(read_field baseline "$pr_root/${pr}.state"); else sha=$(baseline_sha); fi; rec="$baseline_root/${sha}.state"; [ -f "$rec" ] || { echo "preview baseline ${sha} is missing" >&2; return 1; }; atomic_current baseline "$sha" "$sha" "$(read_field db "$rec")" "$(read_field attachments "$rec")" "$(read_field generation "$rec")"; }
 deactivate(){ status=$1; pr=$(cat "$active_file" 2>/dev/null || true); if [ -n "$pr" ] && [ -f "$pr_root/${pr}.state" ]; then (sed "s/^status=.*/status=$status/" "$pr_root/${pr}.state"; printf "closed_at=%s\n" "$now") >"$pr_root/${pr}.state.new"; mv -f "$pr_root/${pr}.state.new" "$pr_root/${pr}.state"; fi; restore_baseline; rm -f "$active_file"; release_lock; }
-reap()( [ -f "$lock_root/last_activity" ] || return 0; pr=$(cat "$active_file" 2>/dev/null || true); if [ -n "$pr" ] && command -v "$gh_bin" >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then pr_json=$($gh_bin api "repos/${repo}/pulls/${pr}" 2>/dev/null || true); if [ -n "$pr_json" ] && printf '%s' "$pr_json" | jq -e '.number != null' >/dev/null 2>&1; then merged=$(printf '%s' "$pr_json" | jq -r '.merged // false'); merge_sha=$(printf '%s' "$pr_json" | jq -r '.merge_commit_sha // ""'); state=$(printf '%s' "$pr_json" | jq -r '.state'); draft=$(printf '%s' "$pr_json" | jq -r '.draft // false'); remote_head=$(printf '%s' "$pr_json" | jq -r '.head.sha // ""'); local_head=$(read_field sha "$pr_root/${pr}.state"); if [ "$merged" = true ] && [ -n "$merge_sha" ] && [ "$(read_field status "$pr_root/${pr}.state")" = accepted ]; then PREVIEW_PR="$pr" PREVIEW_MERGE_SHA="$merge_sha" promote && return 0 || true; elif [ "$state" != open ]; then deactivate closed; return 0; elif [ "$draft" = true ] || [ "$remote_head" != "$local_head" ]; then deactivate invalidated; return 0; fi; fi; fi; last=$(cat "$lock_root/last_activity"); if [ $((now-last)) -ge 86400 ]; then deactivate expired; fi; )
+reap()(
+  [ -f "$lock_root/last_activity" ] || return 0
+  pr=$(cat "$active_file" 2>/dev/null || true)
+  if [ -n "$pr" ] && command -v "$gh_bin" >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    pr_json=$($gh_bin api "repos/${repo}/pulls/${pr}" 2>/dev/null || true)
+    if [ -n "$pr_json" ] && printf '%s' "$pr_json" | jq -e '.number != null' >/dev/null 2>&1; then
+      merged=$(printf '%s' "$pr_json" | jq -r '.merged // false')
+      merge_sha=$(printf '%s' "$pr_json" | jq -r '.merge_commit_sha // ""')
+      state=$(printf '%s' "$pr_json" | jq -r '.state')
+      draft=$(printf '%s' "$pr_json" | jq -r '.draft // false')
+      remote_head=$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')
+      local_head=$(read_field sha "$pr_root/${pr}.state")
+      if [ "$merged" = true ] && [ -n "$merge_sha" ] && [ "$(read_field status "$pr_root/${pr}.state")" = accepted ]; then
+        if PREVIEW_PR="$pr" PREVIEW_MERGE_SHA="$merge_sha" promote; then return 0; fi
+      elif [ "$state" != open ]; then
+        deactivate closed; return 0
+      elif [ "$draft" = true ] || [ "$remote_head" != "$local_head" ]; then
+        deactivate invalidated; return 0
+      fi
+    fi
+  fi
+  last=$(cat "$lock_root/last_activity")
+  if [ $((now-last)) -ge 86400 ]; then deactivate expired; fi
+)
 close_state(){ pr=${PREVIEW_PR:?PREVIEW_PR is required}; [ "$(cat "$active_file" 2>/dev/null || true)" = "$pr" ] || { echo "PR is not active" >&2; return 1; }; deactivate closed; }
 accept_state(){
   pr=${PREVIEW_PR:?PREVIEW_PR is required}; actor=${PREVIEW_ACTOR:-${GITHUB_ACTOR:-}}

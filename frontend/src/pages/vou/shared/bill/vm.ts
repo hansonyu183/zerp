@@ -724,7 +724,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         signal: requestController.signal,
       })
       if (current !== heldSequence) return
-      heldBillOptions.value = result.data.items.map((row) => ({
+      const refreshed: BillLineDraft[] = result.data.items.map((row) => ({
         key: row.billId,
         billId: row.billId,
         positionType: row.positionType,
@@ -747,6 +747,19 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         customerCostAmount: row.customerCostAmount,
         remark: '',
       }))
+      const selected = new Set(heldSelection.value)
+      const preserved = heldBillOptions.value.filter(
+        (line) => line.billId && selected.has(line.billId),
+      )
+      const refreshedIDs = new Set(
+        refreshed.map((line) => line.billId).filter(Boolean),
+      )
+      heldBillOptions.value = [
+        ...preserved.filter(
+          (line) => !line.billId || !refreshedIDs.has(line.billId),
+        ),
+        ...refreshed,
+      ]
     } catch (error) {
       if (current === heldSequence && !requestController.signal.aborted)
         errorMessage.value = getErrorMessage(error)

@@ -58,3 +58,21 @@ verify_actions_check_run() (
       $job.workflow_name == "Full-stack quality" and $job.run_url == $run_url
     ' >/dev/null
 )
+
+verify_cloudflare_pages_check_run() (
+  check_json=$1
+  expected_sha=$2
+
+  printf '%s' "${check_json}" | jq -e --arg head_sha "${expected_sha}" '
+    .name == "Cloudflare Pages" and
+    .status == "completed" and .conclusion == "success" and
+    .head_sha == $head_sha and
+    .app.id == 85455 and
+    .app.slug == "cloudflare-workers-and-pages" and
+    .app.name == "Cloudflare Workers and Pages" and
+    .app.owner.login == "cloudflare" and
+    (.external_id | type == "string" and length > 0) and
+    (.details_url | type == "string" and
+      startswith("https://dash.cloudflare.com/?to=/"))
+  ' >/dev/null
+)

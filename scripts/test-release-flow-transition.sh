@@ -56,6 +56,7 @@ grep -Fq 'preview=1' .github/workflows/quality.yml
 grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
+grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016
@@ -247,6 +248,18 @@ if PATH="${tmp}/bin:${PATH}" MOCK_SCENARIO=push-success \
   verify_actions_check_run example/zerp "${untrusted_push_check}" full-validation \
     2222222222222222222222222222222222222222 push '' gh; then
   fail 'untrusted production full-validation provenance was accepted'
+fi
+
+trusted_cloudflare_check='{"name":"Cloudflare Pages","status":"completed","conclusion":"success","head_sha":"2222222222222222222222222222222222222222","details_url":"https://dash.cloudflare.com/?to=/account/pages/view/zerp/deployment","external_id":"deployment","app":{"id":85455,"slug":"cloudflare-workers-and-pages","name":"Cloudflare Workers and Pages","owner":{"login":"cloudflare"}}}'
+if ! verify_cloudflare_pages_check_run "${trusted_cloudflare_check}" \
+  2222222222222222222222222222222222222222; then
+  fail 'trusted Cloudflare Pages provenance was rejected'
+fi
+untrusted_cloudflare_check=$(printf '%s' "${trusted_cloudflare_check}" |
+  jq '.app.id = 1 | .app.slug = "untrusted-app"')
+if verify_cloudflare_pages_check_run "${untrusted_cloudflare_check}" \
+  2222222222222222222222222222222222222222; then
+  fail 'untrusted Cloudflare Pages provenance was accepted'
 fi
 
 # Component evidence is reusable only from the same PR exact-head fingerprint.

@@ -3,7 +3,7 @@ import type { components } from '@/api/generated/schema'
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
-import { localDate } from '@/utils/date'
+import { shanghaiBusinessDate } from '@/utils/date'
 
 type Request = components['schemas']['LedBillQueryRequest']
 type Row = components['schemas']['LedBillListItem']
@@ -125,14 +125,16 @@ export function useBillLedgerViewModel() {
     void load()
   }
   function maturityShortcut(kind: '30d' | '7d' | 'today' | 'overdue') {
-    const today = new Date()
-    const end = new Date(today)
-    end.setDate(end.getDate() + (kind === '30d' ? 30 : kind === '7d' ? 7 : 0))
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    filters.maturityDateFrom = kind === 'overdue' ? undefined : localDate(today)
+    const today = shanghaiBusinessDate()
+    const shiftDate = (days: number) => {
+      const value = new Date(`${today}T00:00:00Z`)
+      value.setUTCDate(value.getUTCDate() + days)
+      return value.toISOString().slice(0, 10)
+    }
+    const end = shiftDate(kind === '30d' ? 30 : kind === '7d' ? 7 : 0)
+    filters.maturityDateFrom = kind === 'overdue' ? undefined : today
     filters.maturityDateTo =
-      kind === 'overdue' ? localDate(yesterday) : localDate(end)
+      kind === 'overdue' ? shiftDate(-1) : end
     filters.availability = kind === 'overdue' ? 'MATURED' : undefined
     search()
   }

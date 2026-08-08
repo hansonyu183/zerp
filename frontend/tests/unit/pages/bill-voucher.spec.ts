@@ -302,6 +302,65 @@ describe('bill receipt payload', () => {
     scope.stop()
   })
 
+  it('keeps selected held-bill options across searches before applying', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-payment/create',
+        '/led/bill/query',
+        '/bob/supplier/query',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+    vm.openCreate()
+    vm.heldBillOptions.value = [
+      {
+        ...form().billLines[0]!,
+        key: 'bill-a',
+        billId: 'bill-a',
+        billNo: 'A',
+      },
+    ]
+    vm.heldSelection.value = ['bill-a']
+    mockedPostContract.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            billId: 'bill-b',
+            positionType: 'ASSET',
+            billType: 'BANK_ACCEPTANCE',
+            billNo: 'B',
+            medium: 'ELECTRONIC',
+            currency: 'CNY',
+            faceAmount: '20.00',
+            issueDate: '2026-01-01',
+            maturityDate: '2026-09-01',
+            drawer: 'D',
+            acceptor: 'A',
+            payee: 'P',
+            annualRateBps: 0,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    } as never)
+
+    await vm.searchHeldBills('B')
+    vm.heldSelection.value.push('bill-b')
+    vm.applyHeldSelection()
+
+    expect(vm.form.billLines.map((line) => line.billId)).toEqual([
+      'bill-a',
+      'bill-b',
+    ])
+    scope.stop()
+  })
+
   it('clears selected bills when the maturity direction changes', () => {
     const scope = effectScope()
     const vm = scope.run(() =>
@@ -958,20 +1017,20 @@ describe('bill ledger view model behavior', () => {
     scope.stop()
   })
 
-  it('builds maturity shortcuts from the local calendar date', () => {
+  it('builds maturity shortcuts from the Asia/Shanghai business date', () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 7, 8, 0, 30))
+    vi.setSystemTime(new Date('2026-08-08T16:30:00Z'))
     const session = useSessionStore()
     session.$patch({ permissions: ['/led/bill/query'] })
     const scope = effectScope()
     const vm = scope.run(() => useBillLedgerViewModel())!
 
     vm.maturityShortcut('today')
-    expect(vm.filters.maturityDateFrom).toBe('2026-08-08')
-    expect(vm.filters.maturityDateTo).toBe('2026-08-08')
+    expect(vm.filters.maturityDateFrom).toBe('2026-08-09')
+    expect(vm.filters.maturityDateTo).toBe('2026-08-09')
     vm.maturityShortcut('overdue')
     expect(vm.filters.maturityDateFrom).toBeUndefined()
-    expect(vm.filters.maturityDateTo).toBe('2026-08-07')
+    expect(vm.filters.maturityDateTo).toBe('2026-08-08')
 
     scope.stop()
     vi.useRealTimers()

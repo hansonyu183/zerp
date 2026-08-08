@@ -8,6 +8,22 @@ export function localDate(value = new Date()): string {
   return new Date(value.getTime() - offset).toISOString().slice(0, 10)
 }
 
+const shanghaiDateFormatter = new Intl.DateTimeFormat('en', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export function shanghaiBusinessDate(value = new Date()): string {
+  const parts = Object.fromEntries(
+    shanghaiDateFormatter
+      .formatToParts(value)
+      .map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
 export function formatLocalDateTime(
   value?: string | null,
   emptyValue = '—',

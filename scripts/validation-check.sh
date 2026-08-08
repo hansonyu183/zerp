@@ -14,7 +14,13 @@ grep -Fq 'types: [opened, synchronize, reopened, ready_for_review, converted_to_
   .github/workflows/quality.yml
 grep -Fq 'name: validation' .github/workflows/quality.yml
 grep -Fq "'preview-required' || 'full-validation'" .github/workflows/quality.yml
-if sed -n '/^  full_validation:/,/^$/p' .github/workflows/quality.yml |
+full_validation_block=$(sed -n '/^  full_validation:/,/^$/p' .github/workflows/quality.yml)
+printf '%s\n' "${full_validation_block}" |
+  grep -Fq "github.event_name != 'push' &&" || {
+  echo "main push must preserve the full-validation check name" >&2
+  exit 1
+}
+if printf '%s\n' "${full_validation_block}" |
   grep -Fq "github.event_name == 'pull_request' &&"; then
   echo "full-validation must never bypass preview acceptance by event type" >&2
   exit 1

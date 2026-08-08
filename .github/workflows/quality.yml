@@ -410,6 +410,7 @@ jobs:
   full_validation:
     name: >-
       ${{
+        github.event_name != 'push' &&
         needs.merge_evidence.outputs.preview == '1' &&
         'preview-required' || 'full-validation'
       }}

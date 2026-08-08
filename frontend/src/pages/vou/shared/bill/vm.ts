@@ -49,6 +49,7 @@ export interface BillLineDraft {
   drawer: string
   acceptor: string
   payee: string
+  originatingParty?: BillReference
   annualRateBps: number
   interestDays?: number
   interestAmount?: string
@@ -682,6 +683,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         drawer: row.drawer,
         acceptor: row.acceptor,
         payee: row.payee,
+        originatingParty: row.customer,
         annualRateBps: row.annualRateBps ?? 0,
         interestDays: row.interestDays,
         interestAmount: row.interestAmount,

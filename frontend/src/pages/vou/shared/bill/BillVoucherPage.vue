@@ -10,6 +10,7 @@ import {
   VoucherWorkspace,
 } from '@/components/voucher'
 import { formatVoucherStatus } from '@/components/voucher/status'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import VoucherReasonDialog from '../VoucherReasonDialog.vue'
 import { billVoucherConfigs, type BillVoucherConfig } from './config'
 import { useBillVoucherViewModel } from './vm'
@@ -282,7 +283,7 @@ onMounted(() => void vm.query())
           <div class="d-flex align-center justify-space-between mb-3"><h3>贴现票据</h3><v-btn color="primary" :disabled="!vm.editing.value || vm.form.billLines.length >= vm.config.maxBillLines" @click="vm.openHeldDialog">选择持有票据</v-btn></div>
           <v-alert v-if="vm.form.billLines.length === 0" type="info" variant="tonal">请选择当前可用的资产类持有票据。</v-alert>
           <v-table v-else class="responsive-table"><thead><tr><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>年利率(bps)</th><th>贴现天数</th><th>预计利息</th><th>到期日</th><th>出票人</th><th>承兑人</th><th>收款人</th></tr></thead><tbody>
-            <tr v-for="line in vm.form.billLines" :key="line.key"><td>{{ line.billNo }}</td><td>{{ line.billType }}</td><td>{{ line.currency }}</td><td>{{ line.faceAmount }}</td><td><v-text-field v-model.number="line.annualRateBps" :disabled="!vm.editing.value" type="number" min="0" max="100000" density="compact" hide-details /></td><td>{{ discountDays(line.maturityDate) }}</td><td>{{ discountInterest(line) }}</td><td>{{ line.maturityDate }}</td><td>{{ line.drawer }}</td><td>{{ line.acceptor }}</td><td>{{ line.payee }}</td></tr>
+            <tr v-for="line in vm.form.billLines" :key="line.key"><td data-label="票据号码">{{ line.billNo }}</td><td data-label="类型">{{ line.billType }}</td><td data-label="币种">{{ line.currency }}</td><td data-label="票面金额">{{ line.faceAmount }}</td><td data-label="年利率（基点）"><v-text-field v-model.number="line.annualRateBps" :disabled="!vm.editing.value" type="number" min="0" max="100000" density="compact" hide-details /></td><td data-label="贴现天数">{{ discountDays(line.maturityDate) }}</td><td data-label="贴现利息">{{ discountInterest(line) }}</td><td data-label="到期日">{{ line.maturityDate }}</td><td data-label="出票人">{{ line.drawer }}</td><td data-label="承兑人">{{ line.acceptor }}</td><td data-label="收款人">{{ line.payee }}</td></tr>
           </tbody></v-table>
         </section>
         <section v-else class="bill-payment-lines">
@@ -365,8 +366,8 @@ onMounted(() => void vm.query())
     <v-dialog v-if="vm.config.mode === 'payment' || vm.config.mode === 'discount' || vm.config.mode === 'maturity'" v-model="vm.heldDialogOpen.value" max-width="1100">
       <v-card><v-card-title>选择可用持有票据</v-card-title><v-card-text>
         <v-text-field label="票据号码" variant="outlined" @update:model-value="vm.searchHeldBills" />
-        <v-table class="responsive-table"><thead><tr><th>选择</th><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>客户</th></tr></thead><tbody>
-          <tr v-for="line in vm.heldBillOptions.value" :key="line.billId"><td><v-checkbox v-model="vm.heldSelection.value" :value="line.billId" hide-details /></td><td>{{ line.billNo }}</td><td>{{ line.billType }}</td><td>{{ line.currency }}</td><td>{{ line.faceAmount }}</td><td>{{ line.maturityDate }}</td><td>{{ line.payee }}</td></tr>
+        <v-table class="responsive-table"><thead><tr><th>选择</th><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>往来方</th></tr></thead><tbody>
+          <tr v-for="line in vm.heldBillOptions.value" :key="line.billId"><td data-label="选择"><v-checkbox v-model="vm.heldSelection.value" :value="line.billId" hide-details /></td><td data-label="票据号码">{{ line.billNo }}</td><td data-label="类型">{{ line.billType }}</td><td data-label="币种">{{ line.currency }}</td><td data-label="票面金额">{{ line.faceAmount }}</td><td data-label="到期日">{{ line.maturityDate }}</td><td data-label="往来方">{{ line.originatingParty ? formatReferenceLabel(line.originatingParty) : '—' }}</td></tr>
         </tbody></v-table>
       </v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="vm.heldDialogOpen.value = false">取消</v-btn><v-btn color="primary" @click="vm.applyHeldSelection">确定（最多20张）</v-btn></v-card-actions></v-card>
     </v-dialog>

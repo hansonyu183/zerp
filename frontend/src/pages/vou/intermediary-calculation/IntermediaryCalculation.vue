@@ -12,6 +12,7 @@ import {
   type VoucherLifecycleAction,
   type VoucherListItem,
 } from '@/components/voucher'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import VoucherReasonDialog from '../shared/VoucherReasonDialog.vue'
 import VoucherWorkspaceActions from '../shared/VoucherWorkspaceActions.vue'
 import { lifecycleLabels } from '../shared/config'
@@ -460,12 +461,12 @@ async function confirmDelete(): Promise<void> {
                 <td data-label="特批">
                   {{ source.specialApproval ? '是' : '否' }}
                 </td>
-                <td data-label="客户">{{ source.customer.name }}</td>
-                <td data-label="业务员">{{ source.salesperson.name }}</td>
+                <td data-label="客户">{{ formatReferenceLabel(source.customer) }}</td>
+                <td data-label="业务员">{{ formatReferenceLabel(source.salesperson) }}</td>
                 <td data-label="居间商">
-                  {{ source.intermediary?.name ?? '—' }}
+                  {{ source.intermediary ? formatReferenceLabel(source.intermediary) : '—' }}
                 </td>
-                <td data-label="产品">{{ source.product.name }}</td>
+                <td data-label="产品">{{ formatReferenceLabel(source.product) }}</td>
                 <td class="text-end" data-label="定价数量">
                   {{ source.pricingQuantity }}
                 </td>
@@ -568,8 +569,8 @@ async function confirmDelete(): Promise<void> {
               >
                 <td data-label="票据收入单">{{ bill.receiptDocumentNo }}</td>
                 <td data-label="类型">{{ bill.billType }}</td>
-                <td data-label="客户">{{ bill.customer.name }}</td>
-                <td data-label="业务员">{{ bill.salesperson.name }}</td>
+                <td data-label="客户">{{ formatReferenceLabel(bill.customer) }}</td>
+                <td data-label="业务员">{{ formatReferenceLabel(bill.salesperson) }}</td>
                 <td class="text-end" data-label="票面金额">
                   {{ bill.faceAmount }}
                 </td>

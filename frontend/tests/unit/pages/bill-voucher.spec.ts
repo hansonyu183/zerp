@@ -156,6 +156,12 @@ beforeEach(() => {
           drawer: 'D',
           acceptor: 'A',
           payee: 'P',
+          customer: {
+            objectId: 'customer-1',
+            versionId: 'customer-v1',
+            code: 'CUS-001',
+            name: '客户一',
+          },
           annualRateBps: 100,
         },
       ],
@@ -545,6 +551,12 @@ describe('bill voucher view model behavior', () => {
       }),
       expect.anything(),
     )
+    expect(vm.heldBillOptions.value[0]?.originatingParty).toEqual({
+      objectId: 'customer-1',
+      versionId: 'customer-v1',
+      code: 'CUS-001',
+      name: '客户一',
+    })
     vm.heldSelection.value = ['bill-1']
     vm.applyHeldSelection()
     vm.form.billLines = [

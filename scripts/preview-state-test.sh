@@ -215,6 +215,10 @@ grep -Fq '(literal (param "SECRET_FILE"))' \
   "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
+# shellcheck disable=SC2016 # intentional literal source assertions
+grep -Fq 'build-cache/${release_name}' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016
+grep -Fq 'chmod -R u+w "${build_cache}"' "${repo_root}/scripts/preview.sh"
 # shellcheck disable=SC2016 # these are intentional literal source assertions
 if grep -q '"${build_root}/scripts/preview.sh"' "${repo_root}/scripts/preview-deploy.sh"; then
   echo 'preview deploy executes an untrusted PR controller' >&2

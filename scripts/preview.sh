@@ -252,6 +252,13 @@ release_identity() {
 }
 
 build_release() {
+  build_cache="${runtime_root}/build-cache/${release_name}"
+  remove_build_cache() {
+    [ ! -e "${build_cache}" ] || {
+      chmod -R u+w "${build_cache}"
+      rm -rf "${build_cache}"
+    }
+  }
   if [ -x "${release_dir}/bin/zerp-server" ] && \
     [ -x "${release_dir}/bin/zerp-preview-web" ] && \
     [ -x "${release_dir}/bin/zerp-bootstrap-admin" ] && \
@@ -260,6 +267,7 @@ build_release() {
     [ -f "${release_dir}/release-sha" ] && \
     [ -d "${release_dir}/migrations" ] && \
     [ -f "${release_dir}/web/index.html" ]; then
+    remove_build_cache
     echo "Reusing native preview release ${release_name}"
     return
   fi
@@ -272,7 +280,6 @@ build_release() {
 
   build_temp=$(mktemp -d "${runtime_root}/release.${release_name}.XXXXXX")
   mkdir -p "${build_temp}/bin" "${build_temp}/web" "${build_temp}/migrations"
-  build_cache="${runtime_root}/build-cache/${release_name}"
   sandbox_build() {
     "${repo_root}/scripts/preview-build-sandbox.sh" \
       "${primary_root}" "${source_root}" "${build_temp}" "${build_cache}" \
@@ -317,7 +324,7 @@ build_release() {
   chmod -R a+rX "${build_temp}"
   mv "${build_temp}" "${release_dir}"
   build_temp=
-  rm -rf "${build_cache}"
+  remove_build_cache
 }
 
 xml_escape() {

@@ -37,6 +37,7 @@ export function createRoleManagementViewModel() {
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
   let querySequence = 0
+  let editorLoadSequence = 0
   const editorOpen = ref(false)
   const editing = ref<AdminRole | null>(null)
   const form = reactive({
@@ -199,6 +200,8 @@ export function createRoleManagementViewModel() {
   }
 
   async function openCreate(): Promise<void> {
+    editorLoadSequence += 1
+    loading.value = false
     editing.value = null
     resetForm()
     editorOpen.value = true
@@ -216,6 +219,7 @@ export function createRoleManagementViewModel() {
         : '没有权限编辑角色。'
       return
     }
+    const sequence = ++editorLoadSequence
     loading.value = true
     errorMessage.value = null
     try {
@@ -223,6 +227,7 @@ export function createRoleManagementViewModel() {
         getAdminRole(row.id),
         loadPermissions(),
       ])
+      if (sequence !== editorLoadSequence) return
       editing.value = detail.data
       form.code = detail.data.code
       form.name = detail.data.name
@@ -230,13 +235,16 @@ export function createRoleManagementViewModel() {
       form.permissionIds = [...(detail.data.permissionIds ?? [])]
       editorOpen.value = true
     } catch (error) {
+      if (sequence !== editorLoadSequence) return
       errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (sequence === editorLoadSequence) loading.value = false
     }
   }
 
   function closeEditor(): void {
+    editorLoadSequence += 1
+    loading.value = false
     editorOpen.value = false
     editing.value = null
     resetForm()

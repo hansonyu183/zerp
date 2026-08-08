@@ -165,6 +165,36 @@ describe('user management view model', () => {
     expect(vm.loading.value).toBe(false)
   })
 
+  it('忽略乱序的旧用户编辑详情响应', async () => {
+    const first = deferred<{ data: typeof user }>()
+    const second = deferred<{ data: typeof user }>()
+    const otherUser = {
+      ...user,
+      id: 'USER-2',
+      username: 'reviewer',
+      displayName: '审核员',
+      revision: 4,
+      roleIds: ['ROLE-2'],
+    }
+    vi.mocked(getAdminUser)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const vm = createUserManagementViewModel()
+
+    const firstLoad = vm.openEdit(user)
+    const secondLoad = vm.openEdit(otherUser)
+    second.resolve({ data: otherUser })
+    await secondLoad
+    expect(vm.editing.value).toEqual(otherUser)
+    expect(vm.form.displayName).toBe('审核员')
+
+    first.resolve({ data: user })
+    await firstLoad
+    expect(vm.editing.value).toEqual(otherUser)
+    expect(vm.form.displayName).toBe('审核员')
+    expect(vm.loading.value).toBe(false)
+  })
+
   it('创建用户时提交角色并保留密码只在创建请求中', async () => {
     const vm = createUserManagementViewModel()
     await vm.openCreate()

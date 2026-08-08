@@ -27,6 +27,7 @@ export function createUserManagementViewModel() {
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
   let querySequence = 0
+  let editorLoadSequence = 0
   const editorOpen = ref(false)
   const editing = ref<AdminUser | null>(null)
   const form = reactive({
@@ -174,6 +175,8 @@ export function createUserManagementViewModel() {
   }
 
   async function openCreate(): Promise<void> {
+    editorLoadSequence += 1
+    loading.value = false
     editing.value = null
     resetForm()
     editorOpen.value = true
@@ -187,10 +190,12 @@ export function createUserManagementViewModel() {
         : '没有权限编辑用户。'
       return
     }
+    const sequence = ++editorLoadSequence
     loading.value = true
     errorMessage.value = null
     try {
       const [detail] = await Promise.all([getAdminUser(row.id), loadRoles()])
+      if (sequence !== editorLoadSequence) return
       editing.value = detail.data
       form.username = detail.data.username
       form.displayName = detail.data.displayName
@@ -198,13 +203,16 @@ export function createUserManagementViewModel() {
       form.roleIds = [...(detail.data.roleIds ?? [])]
       editorOpen.value = true
     } catch (error) {
+      if (sequence !== editorLoadSequence) return
       errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (sequence === editorLoadSequence) loading.value = false
     }
   }
 
   function closeEditor(): void {
+    editorLoadSequence += 1
+    loading.value = false
     editorOpen.value = false
     editing.value = null
     resetForm()

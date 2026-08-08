@@ -178,6 +178,35 @@ describe('role and permission management view models', () => {
     expect(vm.loading.value).toBe(false)
   })
 
+  it('忽略乱序的旧角色编辑详情响应', async () => {
+    const first = deferred<{ data: typeof role }>()
+    const second = deferred<{ data: typeof role }>()
+    const otherRole = {
+      ...role,
+      id: 'ROLE-2',
+      code: 'reviewer',
+      name: '审核员',
+      revision: 5,
+    }
+    vi.mocked(getAdminRole)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const vm = createRoleManagementViewModel()
+
+    const firstLoad = vm.openEdit(role)
+    const secondLoad = vm.openEdit(otherRole)
+    second.resolve({ data: otherRole })
+    await secondLoad
+    expect(vm.editing.value).toEqual(otherRole)
+    expect(vm.form.name).toBe('审核员')
+
+    first.resolve({ data: role })
+    await firstLoad
+    expect(vm.editing.value).toEqual(otherRole)
+    expect(vm.form.name).toBe('审核员')
+    expect(vm.loading.value).toBe(false)
+  })
+
   it('角色保存使用完整权限集合并刷新当前会话', async () => {
     const session = useSessionStore()
     const vm = createRoleManagementViewModel()

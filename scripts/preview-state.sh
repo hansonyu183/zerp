@@ -75,7 +75,8 @@ claim() (
 
   acquire_lock "$pr" "$head" "$actor"
   lock_acquired=1
-  base_sha=$(baseline_sha); base_record="$baseline_root/${base_sha}.state"
+  if [ "$pr_existed" = 1 ]; then base_sha=$(read_field baseline "$pr_record"); else base_sha=$(baseline_sha); fi
+  base_record="$baseline_root/${base_sha}.state"
   [ -f "$base_record" ] || { echo "preview baseline ${base_sha} is missing" >&2; return 1; }
   base_db=$(read_field db "$base_record"); base_att=$(read_field attachments "$base_record")
   if [ "$pr_existed" = 0 ]; then

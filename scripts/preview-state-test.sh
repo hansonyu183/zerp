@@ -129,6 +129,11 @@ test "$(grep '^sha=' "${root}/state/current")" = "sha=${merge_sha}"
 ZERP_PREVIEW_NOW=90002 PREVIEW_PR=4 \
   PREVIEW_REF=4444444444444444444444444444444444444444 \
   PREVIEW_VERIFIED=1 "${state}" claim
+# A later generation of the same active PR must retain its original baseline.
+ZERP_PREVIEW_NOW=90003 PREVIEW_PR=4 \
+  PREVIEW_REF=4444444444444444444444444444444444444445 \
+  PREVIEW_VERIFIED=1 "${state}" claim
+test "$(grep '^baseline=' "${root}/state/prs/4.state")" = "baseline=${merge_sha}"
 touch -t 202608080100 "${root}/state/baselines/${merge_sha}.state"
 for suffix in 5 6 7 8; do
   sha="${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}"
@@ -136,9 +141,9 @@ for suffix in 5 6 7 8; do
     "${root}/state/baselines/${merge_sha}.state" >"${root}/state/baselines/${sha}.state"
   touch -t "20260808010${suffix}" "${root}/state/baselines/${sha}.state"
 done
-ZERP_PREVIEW_NOW=90003 "${state}" gc
+ZERP_PREVIEW_NOW=90004 "${state}" gc
 test -e "${root}/state/baselines/${merge_sha}.state"
-PREVIEW_PR=4 ZERP_PREVIEW_NOW=90004 "${state}" close
+PREVIEW_PR=4 ZERP_PREVIEW_NOW=90005 "${state}" close
 test "$(grep '^sha=' "${root}/state/current")" = "sha=${merge_sha}"
 
 # Failed deployment restores the baseline and leaves a seven-day record.

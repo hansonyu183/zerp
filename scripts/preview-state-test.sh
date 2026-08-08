@@ -202,6 +202,18 @@ if [ "$(uname -s)" = Darwin ]; then
     echo 'preview runtime reached the system pasteboard' >&2
     exit 1
   fi
+  if "${runtime_sandbox}" api "${runtime_primary}" "${runtime_root}" \
+    "${runtime_release}" "${runtime_attachments}" \
+    /usr/bin/open -Ra Finder >/dev/null 2>&1; then
+    echo 'preview runtime reached LaunchServices through open' >&2
+    exit 1
+  fi
+  if "${runtime_sandbox}" api "${runtime_primary}" "${runtime_root}" \
+    "${runtime_release}" "${runtime_attachments}" \
+    /usr/bin/osascript -e 'return 1' >/dev/null 2>&1; then
+    echo 'preview runtime executed osascript' >&2
+    exit 1
+  fi
 fi
 
 mkdir -p "${root}/runtime/releases/${accept_head}/web"
@@ -348,6 +360,12 @@ grep -Fq 'localhost:55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq '/usr/bin/pbpaste' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '(deny appleevent-send)' \
+  "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq 'com.apple.coreservices.launchservicesd' \
+  "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '/usr/bin/open' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '/usr/bin/osascript' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'db_admin_user=zerp_preview_admin' "${repo_root}/scripts/preview.sh"
 grep -Fq 'db_migration_user=zerp_preview_migrator' "${repo_root}/scripts/preview.sh"
 grep -Fq 'restrict_preview_database_connections' "${repo_root}/scripts/preview.sh"

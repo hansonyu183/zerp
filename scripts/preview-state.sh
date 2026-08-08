@@ -18,10 +18,10 @@ verify_active_release(){
   expected=$1
   state_sha=$(read_field sha "$current_file")
   release_sha=$(cat "$runtime_root/current/release-sha" 2>/dev/null || true)
-  [ "$state_sha" = "$expected" ] && [ "$release_sha" = "$expected" ] || {
+  if [ "$state_sha" != "$expected" ] || [ "$release_sha" != "$expected" ]; then
     echo "Preview state/runtime is ${state_sha:-missing}/${release_sha:-missing}; expected $expected" >&2
     return 1
-  }
+  fi
   curl --silent --show-error --fail --output /dev/null \
     "http://127.0.0.1:${WEB_PORT:-15176}/healthz"
   curl --silent --show-error --fail --output /dev/null \
@@ -30,10 +30,10 @@ verify_active_release(){
     "http://127.0.0.1:${WEB_PORT:-15176}/_zerp-release?preview-release=$expected")
   public_marker=$(curl --silent --show-error --fail \
     "${ZERP_PREVIEW_URL:-https://zerp-preview.bytesucceed.com}/_zerp-release?preview-release=$expected")
-  [ "$local_marker" = "$expected" ] && [ "$public_marker" = "$expected" ] || {
+  if [ "$local_marker" != "$expected" ] || [ "$public_marker" != "$expected" ]; then
     echo "Preview local/public marker is ${local_marker:-missing}/${public_marker:-missing}; expected $expected" >&2
     return 1
-  }
+  fi
 }
 atomic_current(){ tmp="${current_file}.new.$$"; cat >"$tmp" <<EOT
 kind=$1
@@ -150,11 +150,11 @@ accept_state(){
   if [ -z "$actor" ]; then actor=$($gh_bin api user --jq .login); fi
   PREVIEW_ACTOR="$actor" "${repo_root}/scripts/verify-preview-pr.sh" "$pr" "$head" >/dev/null
   verify_active_release "$head"
-  [ "$(read_field sha "$current_file")" = "$head" ] && \
-    [ "$(cat "$runtime_root/current/release-sha" 2>/dev/null || true)" = "$head" ] || {
+  if [ "$(read_field sha "$current_file")" != "$head" ] || \
+    [ "$(cat "$runtime_root/current/release-sha" 2>/dev/null || true)" != "$head" ]; then
       echo "Preview changed during acceptance verification" >&2
       return 1
-    }
+  fi
   description="preview PR #$pr generation $generation actor $actor"
   deployment=$($gh_bin api "repos/${repo}/deployments?sha=${head}&environment=preview&per_page=100" --jq ".[] | select(.description == \"$description\") | .id" | sed -n '1p')
   if [ -z "$deployment" ]; then

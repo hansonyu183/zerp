@@ -32,6 +32,15 @@ const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
   ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove'>>('uncheck')
 const listLifecycleReason = ref('')
+const payeeEntityLabels: Readonly<Record<string, string>> = {
+  customer: '客户',
+  employee: '员工',
+  'other-party': '居间商',
+}
+
+function payeeEntityLabel(entity: string): string {
+  return payeeEntityLabels[entity] ?? entity
+}
 
 void vm.query()
 
@@ -317,7 +326,9 @@ async function confirmDelete(): Promise<void> {
                     v-for="item in vm.calculation.result.summaries"
                     :key="`${item.category}:${item.payee.entity}:${item.payee.objectId}`"
                   >
-                    <td data-label="对象类型">{{ item.payee.entity }}</td>
+                    <td data-label="对象类型">
+                      {{ payeeEntityLabel(item.payee.entity) }}
+                    </td>
                     <td data-label="编码">{{ item.payee.code }}</td>
                     <td data-label="员工/居间商/客户">{{ item.payee.name }}</td>
                     <td data-label="应付类别">

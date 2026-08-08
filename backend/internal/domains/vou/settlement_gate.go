@@ -3,6 +3,7 @@ package vou
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5"
@@ -95,22 +96,13 @@ func (s *Service) reserveOrderSettlementAmount(
 			}, nil)
 		}
 	} else {
-		fulfilledAmount, returnedAmount, fulfillmentErr := loadOrderFulfillmentTotals(
-			ctx, tx, gate.OrderEntity, gate.OrderID,
+		ownTradeBalance, tradeBalanceErr := loadOrderTradeBalance(
+			ctx, tx, activeGenerationID, gate, businessdate.Today(),
 		)
-		if fulfillmentErr != nil {
-			return s.internal("read order fulfillment balance", fulfillmentErr)
+		if tradeBalanceErr != nil {
+			return s.internal("read order trade balance", tradeBalanceErr)
 		}
-		ownFulfillmentBalance := fulfilledAmount - returnedAmount
-		if ownFulfillmentBalance < 0 {
-			ownFulfillmentBalance = 0
-		}
-		externalBalance := balance
-		if gate.CounterpartyEntity == "customer" {
-			externalBalance -= ownFulfillmentBalance
-		} else {
-			externalBalance += ownFulfillmentBalance
-		}
+		externalBalance := balance - ownTradeBalance
 		outstandingDebt := (gate.CounterpartyEntity == "customer" && externalBalance > 0) ||
 			(gate.CounterpartyEntity == "supplier" && externalBalance < 0)
 		if outstandingDebt {
@@ -152,6 +144,44 @@ func (s *Service) reserveOrderSettlementAmount(
 		return s.writeError("reserve settlement funds", err)
 	}
 	return nil
+}
+
+func loadOrderTradeBalance(
+	ctx context.Context,
+	tx pgx.Tx,
+	generationID string,
+	gate orderSettlementGate,
+	effectiveDate time.Time,
+) (int64, error) {
+	var seedQuery string
+	switch gate.OrderEntity {
+	case EntitySaleOrder:
+		seedQuery = `SELECT document_id FROM vou_sale_signoff_details WHERE source_order_id=$1
+			UNION SELECT document_id FROM vou_sale_return_details WHERE source_order_id=$1`
+	case EntityPurchaseOrder:
+		seedQuery = `SELECT document_id FROM vou_purchase_inbound_details WHERE source_order_id=$1
+			UNION SELECT document_id FROM vou_purchase_return_details WHERE source_order_id=$1`
+	default:
+		return 0, domainError(ErrorValidation, "invalid settlement order", nil, nil)
+	}
+	query := `WITH RECURSIVE order_documents(document_id) AS (
+		SELECT document_id FROM (` + seedQuery + `) seed_documents
+		UNION
+		SELECT child.id
+		FROM vou_documents child
+		JOIN order_documents parent ON child.parent_document_id=parent.document_id
+	)
+	SELECT COALESCE(sum(entry.amount_delta_cents),0)::bigint
+	FROM led_party_entries entry
+	WHERE entry.generation_id=$2
+	  AND entry.account_type='TRADE'
+	  AND entry.counterparty_entity=$3 AND entry.counterparty_object_id=$4
+	  AND entry.currency=$5 AND entry.effective_date<=$6::date
+	  AND entry.source_document_id IN (SELECT document_id FROM order_documents)`
+	var balance int64
+	err := tx.QueryRow(ctx, query, gate.OrderID, generationID, gate.CounterpartyEntity,
+		gate.CounterpartyObjectID, gate.Currency, effectiveDate).Scan(&balance)
+	return balance, err
 }
 
 func (s *Service) reopenOrderSettlement(

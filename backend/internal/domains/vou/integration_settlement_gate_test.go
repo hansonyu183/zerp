@@ -374,3 +374,92 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 		t.Fatalf("COD debt error = %v", err)
 	}
 }
+
+func TestCashOnDeliveryReopenExcludesOnlyOrderAttributedTradeBalanceIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	customer := createSettlementCustomer(
+		t, pool, refs.employee, bobdomain.SettlementTermCashOnDelivery, "现结归因客户",
+	)
+	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
+	order := createCheckedSettlementSale(t, service, refs, customer, "cod-attributed")
+	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Revision,
+	}, integrationActorTwo, "cod-attributed-approve")
+	if err != nil {
+		t.Fatalf("approve attributed COD order: %v", err)
+	}
+	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
+	if err != nil {
+		t.Fatalf("get attributed COD order: %v", err)
+	}
+	outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: approved.DocumentID,
+		Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}, true)
+	delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	}, true)
+	signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []SaleSignoffLineInput{{
+			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+			SignedQuantity: "1", RejectedQuantity: "0",
+		}},
+	}, true)
+
+	var attributedBalance int64
+	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(amount_delta_cents),0)::bigint
+		FROM led_party_entries
+		WHERE generation_id=(SELECT active_generation_id FROM led_control WHERE singleton)
+		  AND counterparty_entity='customer' AND counterparty_object_id=$1
+		  AND source_document_id=$2 AND account_type='TRADE'`,
+		customer.ObjectID, signoff.DocumentID).Scan(&attributedBalance); err != nil {
+		t.Fatalf("read attributed COD balance: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
+		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+		counterparty_entity,counterparty_object_id,counterparty_version_id,
+		counterparty_code,counterparty_name,currency,amount_delta_cents
+	) SELECT $1,active_generation_id,'POSTING','sale-signoff',$2,'ATTRIBUTED',$3,99,
+		CURRENT_DATE,now(),$4,'cod-attributed-credit','customer',$5,$6,'CUSTOMER',
+		'COD customer','CNY',$7
+		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), signoff.DocumentID,
+		newID(), integrationActorOne, customer.ObjectID, customer.VersionID,
+		-200-attributedBalance); err != nil {
+		t.Fatalf("insert attributed COD credit: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
+		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+		counterparty_entity,counterparty_object_id,counterparty_version_id,
+		counterparty_code,counterparty_name,currency,amount_delta_cents
+	) SELECT $1,active_generation_id,'POSTING','receipt',$2,'UNRELATED',$3,1,
+		CURRENT_DATE,now(),$4,'cod-unrelated-debt','customer',$5,$6,'CUSTOMER',
+		'COD customer','CNY',500
+		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(), newID(),
+		integrationActorOne, customer.ObjectID, customer.VersionID); err != nil {
+		t.Fatalf("insert unrelated COD debt: %v", err)
+	}
+
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin attributed COD reopen transaction: %v", err)
+	}
+	if err = service.reserveOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err == nil ||
+		!strings.Contains(err.Error(), "outstanding debt") {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("attributed COD credit hid unrelated debt: %v", err)
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback attributed COD reopen transaction: %v", err)
+	}
+}

@@ -648,7 +648,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   async function searchHeldBills(value: string) {
     const current = ++heldSequence
     heldController?.abort()
-    heldController = new AbortController()
+    const requestController = new AbortController()
+    heldController = requestController
     const request: LedBillQueryRequest = {
       page: 1,
       pageSize: 20,
@@ -664,7 +665,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
     try {
       const result = await apiClient.postContract('led/bill/query', request, {
-        signal: heldController.signal,
+        signal: requestController.signal,
       })
       if (current !== heldSequence) return
       heldBillOptions.value = result.data.items.map((row) => ({
@@ -691,7 +692,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         remark: '',
       }))
     } catch (error) {
-      if (!heldController.signal.aborted)
+      if (current === heldSequence && !requestController.signal.aborted)
         errorMessage.value = getErrorMessage(error)
     }
   }

@@ -664,6 +664,36 @@ describe('bill voucher view model behavior', () => {
     await pending
     expect(vm.supplierOptions.value).toEqual([])
   })
+
+  it('ignores an aborted held-bill search after a newer request starts', async () => {
+    let resolveLatest!: (value: unknown) => void
+    mockedPostContract
+      .mockImplementationOnce(
+        (_path, _body, options) =>
+          new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => {
+              reject(new Error('stale request aborted'))
+            })
+          }) as never,
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLatest = resolve }) as never,
+      )
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+
+    const stale = vm.searchHeldBills('旧票据')
+    const latest = vm.searchHeldBills('新票据')
+    await stale
+
+    expect(vm.errorMessage.value).toBeNull()
+    resolveLatest({ data: { items: [], total: 0, page: 1, pageSize: 20 } })
+    await latest
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
 })
 
 describe('bill ledger view model behavior', () => {

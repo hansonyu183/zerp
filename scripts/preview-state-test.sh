@@ -286,6 +286,13 @@ grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'db_admin_user=zerp_preview_admin' "${repo_root}/scripts/preview.sh"
 grep -Fq 'db_migration_user=zerp_preview_migrator' "${repo_root}/scripts/preview.sh"
+grep -Fq 'restrict_preview_database_connections' "${repo_root}/scripts/preview.sh"
+grep -Fq 'park_database_ownership' "${repo_root}/scripts/preview.sh"
+grep -Fq "r.rolname ~ '^zerp_preview(_pr_[0-9]+)?_owner$'" "${repo_root}/scripts/preview.sh"
+grep -Fq 'local all %s reject' "${repo_root}/scripts/preview.sh"
+grep -Fq 'host all %s 127.0.0.1/32 reject' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016 # intentional literal source assertion
+grep -Fq 'REVOKE CONNECT ON DATABASE ${database} FROM PUBLIC' "${repo_root}/scripts/preview.sh"
 # shellcheck disable=SC2016 # intentional literal source assertions
 grep -Fq 'ALTER ROLE ${POSTGRES_USER} LOGIN NOSUPERUSER' "${repo_root}/scripts/preview.sh"
 grep -Fq -- '--auth-local=scram-sha-256' "${repo_root}/scripts/preview.sh"

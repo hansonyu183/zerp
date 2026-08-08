@@ -614,11 +614,11 @@ EOF
 
 grant_runtime_database_access() {
   database=$1
+  database_owner=$(database_owner_role "${database}") || return 1
   admin_password=$(database_admin_password)
   PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
     -d "${database}" -v ON_ERROR_STOP=1 <<EOF
-GRANT CONNECT ON DATABASE ${database} TO ${POSTGRES_USER};
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO ${POSTGRES_USER};
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${POSTGRES_USER};
@@ -630,6 +630,176 @@ ALTER DEFAULT PRIVILEGES FOR ROLE ${db_migration_user} IN SCHEMA public
   GRANT USAGE,SELECT,UPDATE ON SEQUENCES TO ${POSTGRES_USER};
 ALTER DEFAULT PRIVILEGES FOR ROLE ${db_migration_user} IN SCHEMA public
   GRANT EXECUTE ON FUNCTIONS TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${database_owner} IN SCHEMA public
+  GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${database_owner} IN SCHEMA public
+  GRANT USAGE,SELECT,UPDATE ON SEQUENCES TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${database_owner} IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO ${POSTGRES_USER};
+EOF
+}
+
+database_owner_role() {
+  database=$1
+  case "${database}" in
+    "${POSTGRES_DB}") printf '%s\n' zerp_preview_owner ;;
+    zerp_preview_pr_*)
+      pr_suffix=${database#zerp_preview_pr_}
+      case "${pr_suffix}" in '' | *[!0-9]*)
+        echo "Refusing invalid preview database name: ${database}" >&2
+        return 1
+      esac
+      printf 'zerp_preview_pr_%s_owner\n' "${pr_suffix}"
+      ;;
+    *)
+      echo "Refusing unmanaged preview database: ${database}" >&2
+      return 1
+      ;;
+  esac
+}
+
+ensure_database_owner_role() {
+  database=$1
+  database_owner=$(database_owner_role "${database}") || return 1
+  admin_password=$(database_admin_password)
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 <<EOF >/dev/null || return 1
+SELECT format('CREATE ROLE %I NOLOGIN', '${database_owner}')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${database_owner}') \gexec
+ALTER ROLE ${database_owner} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+EOF
+}
+
+transfer_database_ownership() {
+  database=$1
+  target_owner=$2
+  admin_password=$(database_admin_password)
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d "${database}" -v ON_ERROR_STOP=1 <<EOF || return 1
+DO \$ownership\$
+DECLARE object record;
+BEGIN
+  FOR object IN
+    SELECT n.nspname AS schema_name,c.relname AS object_name,c.relkind
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    JOIN pg_roles r ON r.oid=c.relowner
+    WHERE r.rolname<>'${target_owner}'
+      AND (r.rolname IN ('zerp_preview_bootstrap','${db_migration_user}')
+        OR r.rolname ~ '^zerp_preview(_pr_[0-9]+)?_owner$')
+      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
+      AND c.relkind IN ('r','p','v','m','f','S')
+      AND (c.relkind<>'S' OR NOT EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype IN ('a','i')
+      ))
+  LOOP
+    IF object.relkind='S' THEN
+      EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO ${target_owner}', object.schema_name, object.object_name);
+    ELSE
+      EXECUTE format('ALTER TABLE %I.%I OWNER TO ${target_owner}', object.schema_name, object.object_name);
+    END IF;
+  END LOOP;
+  FOR object IN
+    SELECT p.oid::regprocedure AS object_identity,p.prokind
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    JOIN pg_roles r ON r.oid=p.proowner
+    WHERE r.rolname<>'${target_owner}'
+      AND (r.rolname IN ('zerp_preview_bootstrap','${db_migration_user}')
+        OR r.rolname ~ '^zerp_preview(_pr_[0-9]+)?_owner$')
+      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
+  LOOP
+    IF object.prokind='p' THEN
+      EXECUTE format('ALTER PROCEDURE %s OWNER TO ${target_owner}', object.object_identity);
+    ELSE
+      EXECUTE format('ALTER FUNCTION %s OWNER TO ${target_owner}', object.object_identity);
+    END IF;
+  END LOOP;
+END
+\$ownership\$;
+ALTER SCHEMA public OWNER TO ${target_owner};
+EOF
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 -c \
+    "ALTER DATABASE ${database} OWNER TO ${target_owner}" >/dev/null || return 1
+}
+
+park_database_ownership() {
+  database=$1
+  database_owner=$(database_owner_role "${database}") || return 1
+  ensure_database_owner_role "${database}" || return 1
+  transfer_database_ownership "${database}" "${database_owner}" || return 1
+  admin_password=$(database_admin_password)
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 -c \
+    "REVOKE ALL PRIVILEGES ON DATABASE ${database} FROM ${db_migration_user}" >/dev/null || return 1
+}
+
+prepare_migration_ownership() {
+  database=$1
+  transfer_database_ownership "${database}" "${db_migration_user}" || return 1
+}
+
+restrict_preview_database_connections() {
+  case "${preview_db}" in
+    "${POSTGRES_DB}") ;;
+    zerp_preview_pr_*)
+      pr_suffix=${preview_db#zerp_preview_pr_}
+      case "${pr_suffix}" in '' | *[!0-9]*)
+        echo "Refusing invalid preview database name: ${preview_db}" >&2
+        return 1
+      esac
+      ;;
+    *)
+      echo "Refusing unmanaged preview database: ${preview_db}" >&2
+      return 1
+      ;;
+  esac
+
+  admin_password=$(database_admin_password)
+  managed_databases=$(PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -Atqc "SELECT datname FROM pg_database WHERE datname='${POSTGRES_DB}' OR datname LIKE 'zerp_preview_pr_%'") || return 1
+  for database in ${managed_databases}; do
+    PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+      -d postgres -v ON_ERROR_STOP=1 -c \
+      "REVOKE CONNECT ON DATABASE ${database} FROM PUBLIC; REVOKE CONNECT ON DATABASE ${database} FROM ${POSTGRES_USER}; REVOKE CONNECT ON DATABASE ${database} FROM ${db_migration_user}" >/dev/null || return 1
+  done
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 -c \
+    "GRANT CONNECT ON DATABASE ${preview_db} TO ${POSTGRES_USER}; GRANT CONNECT ON DATABASE ${preview_db} TO ${db_migration_user}" >/dev/null || return 1
+
+  hba_file="${postgres_data}/pg_hba.conf"
+  hba_new="${hba_file}.new.$$"
+  {
+    echo '# BEGIN ZERP PREVIEW DATABASE ISOLATION'
+    printf 'local %s %s scram-sha-256\n' "${preview_db}" "${POSTGRES_USER}"
+    printf 'local all %s reject\n' "${POSTGRES_USER}"
+    printf 'local %s %s scram-sha-256\n' "${preview_db}" "${db_migration_user}"
+    printf 'local all %s reject\n' "${db_migration_user}"
+    printf 'host %s %s 127.0.0.1/32 scram-sha-256\n' "${preview_db}" "${POSTGRES_USER}"
+    printf 'host all %s 127.0.0.1/32 reject\n' "${POSTGRES_USER}"
+    printf 'host %s %s 127.0.0.1/32 scram-sha-256\n' "${preview_db}" "${db_migration_user}"
+    printf 'host all %s 127.0.0.1/32 reject\n' "${db_migration_user}"
+    echo '# END ZERP PREVIEW DATABASE ISOLATION'
+    sed '/^# BEGIN ZERP PREVIEW DATABASE ISOLATION$/,/^# END ZERP PREVIEW DATABASE ISOLATION$/d' "${hba_file}"
+  } >"${hba_new}"
+  chmod 600 "${hba_new}"
+  mv -f "${hba_new}" "${hba_file}"
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 <<EOF >/dev/null || return 1
+SELECT pg_reload_conf();
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE usename IN ('${POSTGRES_USER}', '${db_migration_user}')
+  AND datname <> '${preview_db}'
+  AND pid <> pg_backend_pid();
 EOF
 }
 
@@ -648,53 +818,11 @@ ensure_database_exists() {
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
     -d postgres -Atqc "SELECT datname FROM pg_database WHERE datname='${POSTGRES_DB}' OR datname LIKE 'zerp_preview_pr_%'") || return 1
   for database in ${managed_databases}; do
-    PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
-      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
-      -d "${database}" -v ON_ERROR_STOP=1 <<EOF || return 1
-DO \$ownership\$
-DECLARE object record;
-BEGIN
-  FOR object IN
-    SELECT n.nspname AS schema_name,c.relname AS object_name,c.relkind
-    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-    JOIN pg_roles r ON r.oid=c.relowner
-    WHERE r.rolname='zerp_preview_bootstrap'
-      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
-      AND c.relkind IN ('r','p','v','m','f','S')
-      AND (c.relkind<>'S' OR NOT EXISTS (
-        SELECT 1 FROM pg_depend d
-        WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype IN ('a','i')
-      ))
-  LOOP
-    IF object.relkind='S' THEN
-      EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO ${db_migration_user}', object.schema_name, object.object_name);
-    ELSE
-      EXECUTE format('ALTER TABLE %I.%I OWNER TO ${db_migration_user}', object.schema_name, object.object_name);
-    END IF;
-  END LOOP;
-  FOR object IN
-    SELECT n.nspname AS schema_name,p.oid::regprocedure AS object_identity,p.prokind
-    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-    JOIN pg_roles r ON r.oid=p.proowner
-    WHERE r.rolname='zerp_preview_bootstrap'
-      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
-  LOOP
-    IF object.prokind='p' THEN
-      EXECUTE format('ALTER PROCEDURE %s OWNER TO ${db_migration_user}', object.object_identity);
-    ELSE
-      EXECUTE format('ALTER FUNCTION %s OWNER TO ${db_migration_user}', object.object_identity);
-    END IF;
-  END LOOP;
-END
-\$ownership\$;
-ALTER SCHEMA public OWNER TO ${db_migration_user};
-EOF
-    PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
-      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
-      -d postgres -v ON_ERROR_STOP=1 -c \
-      "ALTER DATABASE ${database} OWNER TO ${db_migration_user}" || return 1
+    park_database_ownership "${database}" || return 1
     grant_runtime_database_access "${database}" || return 1
   done
+  prepare_migration_ownership "${preview_db}" || return 1
+  restrict_preview_database_connections
 }
 
 legacy_container_exists() {
@@ -742,6 +870,8 @@ import_legacy_preview() {
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_migration_user}" \
     -d "${POSTGRES_DB}" --no-owner --no-privileges \
     "${backup_dir}/database.dump" || return 1
+  park_database_ownership "${POSTGRES_DB}" || return 1
+  grant_runtime_database_access "${POSTGRES_DB}" || return 1
   if [ -e "${attachment_root}" ]; then
     mv "${attachment_root}" "${backup_dir}/replaced-native-attachments"
   fi
@@ -787,6 +917,7 @@ run_release_setup() {
   sandbox_setup /usr/bin/env DATABASE_URL="${migration_database_url}" \
     "${release}/bin/goose" \
     -dir "${release}/migrations" postgres "${migration_database_url}" up || return 1
+  park_database_ownership "${preview_db}" || return 1
   grant_runtime_database_access "${preview_db}" || return 1
   user_count=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
@@ -970,6 +1101,7 @@ stop_apps() {
 restart_apps() {
   guard
   write_runtime_files
+  restrict_preview_database_connections
   restart_job "${api_label}"
   restart_job "${web_label}"
   wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz"

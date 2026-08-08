@@ -525,6 +525,83 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('keeps obsolete bill loads out of newer, created, and closed workspaces', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-payment/create',
+        '/vou/bill-payment/get',
+        '/led/bill/query',
+      ],
+    })
+    const document = (documentId: string, documentNo: string) => ({
+      documentId,
+      documentNo,
+      revision: 1,
+      status: 'DRAFT',
+      entity: 'bill-payment',
+      amount: '10.00',
+      data: {
+        businessDate: '2026-08-05',
+        currency: 'CNY',
+        billLines: [],
+        billCashLines: [],
+      },
+      attachments: [],
+      createdAt: '2026-08-05T00:00:00Z',
+      createdBy: 'USER-1',
+      updatedAt: '2026-08-05T00:00:00Z',
+      updatedBy: 'USER-1',
+    })
+    let resolveFirst!: (value: { data: ReturnType<typeof document> }) => void
+    let resolveSecond!: (value: { data: ReturnType<typeof document> }) => void
+    mockedPost
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveFirst = resolve)),
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveSecond = resolve)),
+      )
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+    const first = document('DOC-1', 'V-1')
+    const second = document('DOC-2', 'V-2')
+
+    const firstLoad = vm.openDocument({ documentId: first.documentId })
+    const secondLoad = vm.openDocument({ documentId: second.documentId })
+    resolveSecond({ data: second })
+    await secondLoad
+    resolveFirst({ data: first })
+    await firstLoad
+    expect(vm.documentId.value).toBe(second.documentId)
+    expect(vm.documentNo.value).toBe(second.documentNo)
+
+    let resolveCreated!: (value: { data: ReturnType<typeof document> }) => void
+    mockedPost.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCreated = resolve)),
+    )
+    const createdLoad = vm.openDocument({ documentId: first.documentId })
+    vm.openCreate()
+    resolveCreated({ data: first })
+    await createdLoad
+    expect(vm.documentId.value).toBeNull()
+    expect(vm.editing.value).toBe(true)
+
+    let resolveClosed!: (value: { data: ReturnType<typeof document> }) => void
+    mockedPost.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveClosed = resolve)),
+    )
+    const closedLoad = vm.openDocument({ documentId: first.documentId })
+    vm.closeWorkspace()
+    resolveClosed({ data: first })
+    await closedLoad
+    expect(vm.workspaceOpen.value).toBe(false)
+    expect(vm.documentView.value).toBeNull()
+    scope.stop()
+  })
+
   it('requires bill-ledger access for held-bill create and edit actions', async () => {
     const session = useSessionStore()
     session.$patch({

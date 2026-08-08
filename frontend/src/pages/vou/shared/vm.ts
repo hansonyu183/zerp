@@ -69,6 +69,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const workspaceError = ref<string | null>(null)
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = ref<VoucherDraftForm>(emptyForm(config))
+  let documentLoadSequence = 0
+  let documentLoadController: AbortController | null = null
   const {
     changeLineProduct: changeFormulaLineProduct,
     resolveLineFormula,
@@ -267,6 +269,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function openCreate(): void {
     if (!canCreate.value) return
+    invalidateDocumentLoad()
     documentView.value = null
     form.value = emptyForm(config)
     initialForm.value = snapshot(form.value)
@@ -287,25 +290,57 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     workspaceOpen.value = true
     workspaceLoading.value = true
     workspaceError.value = null
+    const request = beginDocumentLoad()
     try {
-      await loadDocument(row.documentId)
+      if (!(await applyDocument(row.documentId, request))) return
       const editable = documentView.value?.status === 'DRAFT'
       editing.value = edit && editable && session.can(permission('save'))
       if (actionAvailability.value.audit) void loadAudit(1)
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      if (isCurrentDocumentLoad(request) && !request.controller.signal.aborted)
+        workspaceError.value = getErrorMessage(error)
     } finally {
-      workspaceLoading.value = false
+      if (isCurrentDocumentLoad(request)) workspaceLoading.value = false
     }
   }
 
-  async function loadDocument(documentId?: string): Promise<void> {
-    const id = documentId ?? documentView.value?.documentId
-    if (!id) return
+  type DocumentLoadRequest = {
+    sequence: number
+    controller: AbortController
+  }
+
+  function beginDocumentLoad(): DocumentLoadRequest {
+    documentLoadController?.abort()
+    const controller = new AbortController()
+    documentLoadController = controller
+    return { sequence: ++documentLoadSequence, controller }
+  }
+
+  function isCurrentDocumentLoad(request: DocumentLoadRequest): boolean {
+    return request.sequence === documentLoadSequence
+  }
+
+  function invalidateDocumentLoad(): void {
+    documentLoadSequence += 1
+    documentLoadController?.abort()
+    documentLoadController = null
+    workspaceLoading.value = false
+  }
+
+  async function applyDocument(
+    documentId: string,
+    request: DocumentLoadRequest,
+  ): Promise<boolean> {
     const { data } = await apiClient.post<
       VoucherDocumentView,
       { documentId: string }
-    >(`vou/${config.entity}/get`, { documentId: id })
+    >(
+      `vou/${config.entity}/get`,
+      { documentId },
+      { signal: request.controller.signal },
+    )
+    if (!isCurrentDocumentLoad(request) || request.controller.signal.aborted)
+      return false
     documentView.value = data
     form.value = formFromDocument(data)
     if (data.parentDocumentId && data.parentDocumentNo) {
@@ -328,18 +363,29 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     }
     initialForm.value = snapshot(form.value)
     personnelDirty.clear()
+    if (documentLoadController === request.controller)
+      documentLoadController = null
+    return true
+  }
+
+  async function loadDocument(documentId?: string): Promise<void> {
+    const id = documentId ?? documentView.value?.documentId
+    if (!id) return
+    await applyDocument(id, beginDocumentLoad())
   }
 
   async function reloadDocument(): Promise<void> {
     if (!documentView.value) return
     workspaceLoading.value = true
     workspaceError.value = null
+    const request = beginDocumentLoad()
     try {
-      await loadDocument()
+      await applyDocument(documentView.value.documentId, request)
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      if (isCurrentDocumentLoad(request) && !request.controller.signal.aborted)
+        workspaceError.value = getErrorMessage(error)
     } finally {
-      workspaceLoading.value = false
+      if (isCurrentDocumentLoad(request)) workspaceLoading.value = false
     }
   }
 
@@ -361,6 +407,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   function closeWorkspace(): void {
+    invalidateDocumentLoad()
     workspaceOpen.value = false
     documentView.value = null
     editing.value = false
@@ -522,6 +569,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     onScopeDispose(() => {
       querySequence += 1
       queryController?.abort()
+      invalidateDocumentLoad()
     })
   }
 

@@ -130,7 +130,7 @@ onMounted(() => void vm.query())
       :error-message="vm.errorMessage.value"
       :can-reload="Boolean(vm.documentView.value)"
       @reload="vm.openDocument({ documentId: vm.documentId.value ?? '' })"
-      @close="vm.workspaceOpen.value = false"
+      @close="vm.closeWorkspace"
     >
       <template #actions>
         <v-btn

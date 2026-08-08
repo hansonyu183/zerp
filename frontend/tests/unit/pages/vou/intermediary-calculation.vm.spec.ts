@@ -59,6 +59,27 @@ function grantPermissions(): void {
   ]
 }
 
+function calculationDocument(
+  documentId: string,
+  documentNo: string,
+  businessDate: string,
+): VoucherDocumentView {
+  return {
+    documentId,
+    entity: 'intermediary-calculation',
+    documentNo,
+    status: 'DRAFT',
+    revision: 1,
+    amount: '0.00',
+    data: { businessDate, currency: 'CNY' },
+    attachments: [],
+    createdAt: '2026-08-01T00:00:00Z',
+    createdBy: 'USER-1',
+    updatedAt: '2026-08-01T00:00:00Z',
+    updatedBy: 'USER-1',
+  }
+}
+
 describe('intermediary calculation view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -198,6 +219,54 @@ describe('intermediary calculation view model', () => {
     expect(vm.editing.value).toBe(false)
     expect(vm.calculating.value).toBe(false)
     expect(vm.successMessage.value).toBeNull()
+  })
+
+  it('keeps obsolete document loads out of newer, created, and closed workspaces', async () => {
+    grantPermissions()
+    const first = calculationDocument('CALCULATION-1', 'ICL-1', '2026-07-31')
+    const second = calculationDocument('CALCULATION-2', 'ICL-2', '2026-08-31')
+    let resolveFirst!: (value: { data: VoucherDocumentView }) => void
+    let resolveSecond!: (value: { data: VoucherDocumentView }) => void
+    mockedPost
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveFirst = resolve)),
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveSecond = resolve)),
+      )
+    const vm = useIntermediaryCalculationViewModel()
+
+    const firstLoad = vm.openDocument({ documentId: first.documentId })
+    const secondLoad = vm.openDocument({ documentId: second.documentId })
+    resolveSecond({ data: second })
+    await secondLoad
+    resolveFirst({ data: first })
+    await firstLoad
+
+    expect(vm.documentView.value?.documentId).toBe(second.documentId)
+    expect(vm.form.value.businessDate).toBe('2026-08-31')
+
+    let resolveCreated!: (value: { data: VoucherDocumentView }) => void
+    mockedPost.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCreated = resolve)),
+    )
+    const createdLoad = vm.openDocument({ documentId: first.documentId })
+    vm.openCreate()
+    resolveCreated({ data: first })
+    await createdLoad
+    expect(vm.documentView.value).toBeNull()
+    expect(vm.editing.value).toBe(true)
+
+    let resolveClosed!: (value: { data: VoucherDocumentView }) => void
+    mockedPost.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveClosed = resolve)),
+    )
+    const closedLoad = vm.openDocument({ documentId: first.documentId })
+    vm.closeWorkspace()
+    resolveClosed({ data: first })
+    await closedLoad
+    expect(vm.workspaceOpen.value).toBe(false)
+    expect(vm.documentView.value).toBeNull()
   })
 
   it('requires a successful test of the current text before saving a script', async () => {

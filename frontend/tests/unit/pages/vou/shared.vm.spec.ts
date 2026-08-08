@@ -362,9 +362,11 @@ describe('shared VOU entity view model', () => {
 
     await vm.openDocument({ documentId: 'DOCUMENT-1' }, true)
 
-    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/get', {
-      documentId: 'DOCUMENT-1',
-    })
+    expect(mockedPost).toHaveBeenCalledWith(
+      'vou/sale-order/get',
+      { documentId: 'DOCUMENT-1' },
+      { signal: expect.any(AbortSignal) },
+    )
     expect(vm.workspaceOpen.value).toBe(true)
     expect(vm.editing.value).toBe(true)
   })

@@ -223,6 +223,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const revision = ref(0)
   const documentStatus = ref<VoucherStatus>('DRAFT')
   const documentView = ref<VoucherDocumentView | null>(null)
+  let documentLoadSequence = 0
+  let documentLoadController: AbortController | undefined
   const form = reactive<BillVoucherForm>(emptyForm())
   const customerOptions = ref<BillReference[]>([])
   const supplierOptions = ref<BillReference[]>([])
@@ -307,6 +309,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   }
   function openCreate() {
     if (!canCreate.value) return
+    invalidateDocumentLoad()
     Object.assign(form, emptyForm())
     if (config.mode === 'payment') form.billLines = []
     if (config.mode === 'discount') {
@@ -337,12 +340,19 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (!session.can(permission('get'))) return
     workspaceOpen.value = true
     loading.value = true
+    documentLoadController?.abort()
+    const requestController = new AbortController()
+    documentLoadController = requestController
+    const current = ++documentLoadSequence
     try {
       const request: VouGetRequest = { documentId: row.documentId }
       const result = await apiClient.post<BillDocumentResponse, VouGetRequest>(
         `vou/${config.entity}/get` as ApiPostPath,
         request,
+        { signal: requestController.signal },
       )
+      if (current !== documentLoadSequence || requestController.signal.aborted)
+        return
       const data = result.data
       const billData = data.data
       documentId.value = data.documentId
@@ -377,10 +387,25 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       editing.value =
         edit && data.status === 'DRAFT' && actionAvailability.value.save
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (current === documentLoadSequence && !requestController.signal.aborted)
+        errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (current === documentLoadSequence) loading.value = false
+      if (documentLoadController === requestController)
+        documentLoadController = undefined
     }
+  }
+  function invalidateDocumentLoad() {
+    documentLoadSequence += 1
+    documentLoadController?.abort()
+    documentLoadController = undefined
+    loading.value = false
+  }
+  function closeWorkspace() {
+    invalidateDocumentLoad()
+    workspaceOpen.value = false
+    documentView.value = null
+    editing.value = false
   }
   async function save(): Promise<boolean> {
     const validation = validateBillVoucherForm(
@@ -775,6 +800,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   }
   onScopeDispose(() => {
     controller?.abort()
+    invalidateDocumentLoad()
     customerController?.abort()
     supplierController?.abort()
     handlerController?.abort()
@@ -818,6 +844,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     changePage,
     openCreate,
     openDocument,
+    closeWorkspace,
     save,
     lifecycle,
     deleteDraft,

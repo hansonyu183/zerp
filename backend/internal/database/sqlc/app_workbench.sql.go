@@ -52,11 +52,10 @@ FROM vou_documents document
 WHERE (
     (document.status = 'DRAFT' AND document.entity = ANY($1::text[]))
     OR (document.status = 'CHECKED' AND document.entity = ANY($2::text[]))
-    OR (document.status = 'APPROVED' AND document.entity = ANY($3::text[]))
   )
   AND (
-    $4::text = ''
-    OR document.document_no ILIKE '%' || $4 || '%'
+    $3::text = ''
+    OR document.document_no ILIKE '%' || $3 || '%'
     OR EXISTS (
       SELECT 1
       FROM (
@@ -75,25 +74,19 @@ WHERE (
         UNION ALL SELECT employee_name FROM vou_employee_loan_writeoff_details WHERE document_id = document.id
         UNION ALL SELECT COALESCE(NULLIF(counterparty_name, ''), source_name) FROM vou_other_income_details WHERE document_id = document.id
       ) parties
-      WHERE parties.party_name ILIKE '%' || $4 || '%'
+      WHERE parties.party_name ILIKE '%' || $3 || '%'
     )
   )
 `
 
 type CountWorkbenchVouItemsParams struct {
-	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
-	CheckedEntities  []string `db:"checked_entities" json:"checked_entities"`
-	ApprovedEntities []string `db:"approved_entities" json:"approved_entities"`
-	Keyword          string   `db:"keyword" json:"keyword"`
+	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
+	CheckedEntities []string `db:"checked_entities" json:"checked_entities"`
+	Keyword         string   `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkbenchVouItems,
-		arg.DraftEntities,
-		arg.CheckedEntities,
-		arg.ApprovedEntities,
-		arg.Keyword,
-	)
+	row := q.db.QueryRow(ctx, countWorkbenchVouItems, arg.DraftEntities, arg.CheckedEntities, arg.Keyword)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -203,28 +196,26 @@ LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
     (document.status = 'DRAFT' AND document.entity = ANY($1::text[]))
     OR (document.status = 'CHECKED' AND document.entity = ANY($2::text[]))
-    OR (document.status = 'APPROVED' AND document.entity = ANY($3::text[]))
   )
   AND (
-    $4::text = ''
-    OR document.document_no ILIKE '%' || $4 || '%'
+    $3::text = ''
+    OR document.document_no ILIKE '%' || $3 || '%'
     OR COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '')
-       ILIKE '%' || $4 || '%'
+       ILIKE '%' || $3 || '%'
   )
 ORDER BY document.updated_at DESC, document.id ASC
-LIMIT $6 OFFSET $5
+LIMIT $5 OFFSET $4
 `
 
 type ListWorkbenchVouItemsParams struct {
-	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
-	CheckedEntities  []string `db:"checked_entities" json:"checked_entities"`
-	ApprovedEntities []string `db:"approved_entities" json:"approved_entities"`
-	Keyword          string   `db:"keyword" json:"keyword"`
-	PageOffset       int32    `db:"page_offset" json:"page_offset"`
-	PageSize         int32    `db:"page_size" json:"page_size"`
+	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
+	CheckedEntities []string `db:"checked_entities" json:"checked_entities"`
+	Keyword         string   `db:"keyword" json:"keyword"`
+	PageOffset      int32    `db:"page_offset" json:"page_offset"`
+	PageSize        int32    `db:"page_size" json:"page_size"`
 }
 
 type ListWorkbenchVouItemsRow struct {
@@ -244,7 +235,6 @@ func (q *Queries) ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVo
 	rows, err := q.db.Query(ctx, listWorkbenchVouItems,
 		arg.DraftEntities,
 		arg.CheckedEntities,
-		arg.ApprovedEntities,
 		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,

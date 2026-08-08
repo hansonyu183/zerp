@@ -30,6 +30,17 @@ const (
 	SettlementRuleRelativeDays    = "RELATIVE_DAYS"
 	SettlementRuleMonthEnd        = "MONTH_END"
 	SettlementRuleFixedDay        = "FIXED_DAY"
+	SettlementTermPrepaid         = "PREPAID"
+	SettlementTermCashOnDelivery  = "CASH_ON_DELIVERY"
+	SettlementTermArrival3        = "ARRIVAL_3"
+	SettlementTermArrival5        = "ARRIVAL_5"
+	SettlementTermArrival7        = "ARRIVAL_7"
+	SettlementTermArrival15       = "ARRIVAL_15"
+	SettlementTermArrival30       = "ARRIVAL_30"
+	SettlementTermMonthlyCurrent  = "MONTHLY_CURRENT"
+	SettlementTermMonthly30       = "MONTHLY_30"
+	SettlementTermMonthly60       = "MONTHLY_60"
+	SettlementTermMonthly90       = "MONTHLY_90"
 	ContainerTypeNone             = "NONE"
 	ContainerTypeSolvent          = "SOLVENT"
 	ContainerTypeResin            = "RESIN"
@@ -54,10 +65,10 @@ var entities = [...]string{
 	EntityWarehouse,
 	EntityVehicle,
 	EntityFundAccount,
+	EntitySettlementMethod,
 	EntityCategory,
 	EntityDepartment,
 	EntityPosition,
-	EntitySettlementMethod,
 }
 
 var publicEntities = [...]string{
@@ -70,6 +81,7 @@ var publicEntities = [...]string{
 	EntityWarehouse,
 	EntityVehicle,
 	EntityFundAccount,
+	EntitySettlementMethod,
 }
 
 type ErrorKind int
@@ -130,7 +142,10 @@ type DetailInput struct {
 	AccountNumber                   OptionalString        `json:"accountNumber,omitempty"`
 	ParentID                        OptionalString        `json:"parentId,omitempty"`
 	SettlementMethodID              OptionalString        `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               *int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           OptionalString        `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 *string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        OptionalString        `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string                `json:"ruleType,omitempty"`
 	MonthOffset                     int32                 `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32                `json:"dayOfMonth,omitempty"`
@@ -144,6 +159,7 @@ type DetailInput struct {
 	Returnable                      *bool                 `json:"returnable,omitempty"`
 	PackagingSpecs                  *[]PackagingSpecInput `json:"packagingSpecs,omitempty"`
 	Formula                         *ProductFormula       `json:"formula,omitempty"`
+	DefaultSalesSurcharge           *string               `json:"defaultSalesSurcharge,omitempty"`
 }
 
 type CreateDetailInput struct {
@@ -185,7 +201,10 @@ type CreateDetailInput struct {
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32               `json:"dayOfMonth,omitempty"`
@@ -199,6 +218,8 @@ type CreateDetailInput struct {
 	Returnable                      bool                 `json:"returnable,omitempty"`
 	PackagingSpecs                  []PackagingSpecInput `json:"packagingSpecs,omitempty"`
 	Formula                         *ProductFormula      `json:"formula,omitempty"`
+	TermCode                        string               `json:"termCode,omitempty"`
+	DefaultSalesSurcharge           string               `json:"defaultSalesSurcharge,omitempty"`
 }
 
 type PackagingSpecInput struct {
@@ -399,7 +420,10 @@ type DetailView struct {
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
+	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
+	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
@@ -408,6 +432,7 @@ type DetailView struct {
 	DueDays                         int32                `json:"dueDays,omitempty"`
 	CutoffDay                       int32                `json:"cutoffDay,omitempty"`
 	DefaultSalesSurcharge           string               `json:"defaultSalesSurcharge,omitempty"`
+	TermCode                        string               `json:"termCode,omitempty"`
 	ContainerType                   string               `json:"containerType,omitempty"`
 	QuantityPerContainer            string               `json:"quantityPerContainer,omitempty"`
 	ProductKind                     string               `json:"productKind,omitempty"`
@@ -459,11 +484,12 @@ type ObjectView struct {
 }
 
 type VersionSummary struct {
-	VersionID string     `json:"versionId"`
-	Version   int32      `json:"version"`
-	Status    string     `json:"status"`
-	Revision  int64      `json:"revision"`
-	Summary   DetailView `json:"summary"`
+	VersionID   string     `json:"versionId"`
+	Version     int32      `json:"version"`
+	Status      string     `json:"status"`
+	Revision    int64      `json:"revision"`
+	SubmittedBy *string    `json:"submittedBy"`
+	Summary     DetailView `json:"summary"`
 }
 
 type VersionHistoryItem struct {

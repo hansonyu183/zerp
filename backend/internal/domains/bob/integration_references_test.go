@@ -23,12 +23,17 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		Code: "SP" + newID(), Name: "客户业务员", DepartmentID: department.ObjectID,
 		PositionID: position.ObjectID,
 	}, "common-salesperson")
-	settlementMethod, _ := createApprovedIntegration(t, service, EntitySettlementMethod, CreateDetailInput{
-		Name: "月结 30 天", RuleType: SettlementRuleRelativeDays,
-		DayOffset: 30,
-	}, "common-settlement-method")
+	var settlementObjectID string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT object.id
+		FROM bob_objects object
+		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+		WHERE object.entity='settlement-method' AND method.term_code='MONTHLY_30'
+	`).Scan(&settlementObjectID); err != nil {
+		t.Fatalf("find fixed settlement method: %v", err)
+	}
 	settlementView, err := service.Get(t.Context(), EntitySettlementMethod, GetInput{
-		ObjectID: settlementMethod.ObjectID,
+		ObjectID: settlementObjectID,
 	})
 	if err != nil {
 		t.Fatalf("get settlement method: %v", err)
@@ -47,7 +52,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		t.Fatalf("wrong settlement target error = %v", err)
 	}
 	if _, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
-		Code: "WE" + newID(), Name: "错误业务员客户", SalespersonEmployeeID: settlementMethod.ObjectID,
+		Code: "WE" + newID(), Name: "错误业务员客户", SalespersonEmployeeID: settlementObjectID,
 	}}, integrationActorOne, "wrong-salesperson-target"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("wrong salesperson target error = %v", err)
 	}
@@ -62,14 +67,25 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}}, integrationActorOne, "inactive-salesperson-target"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("inactive salesperson target error = %v", err)
 	}
+	intermediary, _ := createApprovedIntegration(t, service, EntityOtherParty, CreateDetailInput{
+		Code: "IM" + newID(), Name: "客户居间商", SalespersonEmployeeID: salesperson.ObjectID,
+	}, "customer-intermediary")
+	if _, err = service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+		Code: "WI" + newID(), Name: "错误居间商客户", SalespersonEmployeeID: salesperson.ObjectID,
+		IntermediaryOtherPartyID: position.ObjectID,
+	}}, integrationActorOne, "wrong-intermediary-target"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("wrong intermediary target error = %v", err)
+	}
 	taxNumber := "TAX" + newID()
 	customer, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
 		Code: "CA" + newID(), Name: "属性客户", CustomerType: stringIntegrationPointer(CustomerTypeDealer),
 		ShortName: "属性客户简称", TaxNumber: taxNumber,
 		ContactName: "联系人", ContactPhone: "+86 13800000000",
 		Email: "CONTACT@EXAMPLE.COM", Address: "上海市示例路", Remark: "新增属性",
-		SettlementMethodID:    settlementMethod.ObjectID,
-		SalespersonEmployeeID: salesperson.ObjectID,
+		SettlementMethodID:       settlementObjectID,
+		SalespersonEmployeeID:    salesperson.ObjectID,
+		RebateUnitPrice:          "0.35",
+		IntermediaryOtherPartyID: intermediary.ObjectID,
 	}}, integrationActorOne, "common-customer-create")
 	if err != nil {
 		t.Fatalf("create customer attributes: %v", err)
@@ -84,8 +100,10 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	view, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: customer.ObjectID})
 	if err != nil || view.Data.ShortName != "属性客户简称" || view.Data.TaxNumber != taxNumber ||
 		view.Data.Email != "contact@example.com" ||
-		view.Data.SettlementMethodID != settlementMethod.ObjectID ||
-		view.Data.SalespersonEmployeeID != salesperson.ObjectID {
+		view.Data.SettlementMethodID != settlementObjectID ||
+		view.Data.SalespersonEmployeeID != salesperson.ObjectID ||
+		view.Data.RebateUnitPrice != "0.35" ||
+		view.Data.IntermediaryOtherPartyID != intermediary.ObjectID {
 		t.Fatalf("preserved customer view=%+v err=%v", view, err)
 	}
 	page, err := service.Query(t.Context(), EntityCustomer, QueryInput{
@@ -96,13 +114,15 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		},
 	})
 	if err != nil || page.Total != 1 || len(page.Items) != 1 ||
-		page.Items[0].CurrentVersion.Summary.SettlementMethodID != settlementMethod.ObjectID ||
-		page.Items[0].CurrentVersion.Summary.SalespersonEmployeeID != salesperson.ObjectID {
+		page.Items[0].CurrentVersion.Summary.SettlementMethodID != settlementObjectID ||
+		page.Items[0].CurrentVersion.Summary.SalespersonEmployeeID != salesperson.ObjectID ||
+		page.Items[0].CurrentVersion.Summary.RebateUnitPrice != "0.35" ||
+		page.Items[0].CurrentVersion.Summary.IntermediaryOtherPartyID != intermediary.ObjectID {
 		t.Fatalf("query common attributes page=%+v err=%v", page, err)
 	}
 	supplier, err := service.Create(t.Context(), EntitySupplier, CreateInput{Data: CreateDetailInput{
 		Code: "SA" + newID(), Name: "属性供应商",
-		SettlementMethodID:    settlementMethod.ObjectID,
+		SettlementMethodID:    settlementObjectID,
 		SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "common-supplier-create")
 	if err != nil {
@@ -134,7 +154,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}
 	clearable, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
 		Code: "CL" + newID(), Name: "清空默认值客户",
-		SettlementMethodID:    settlementMethod.ObjectID,
+		SettlementMethodID:    settlementObjectID,
 		SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "common-customer-clear-create")
 	if err != nil {
@@ -150,7 +170,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		t.Fatalf("clear required salesperson error = %v", err)
 	}
 	clearedView, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: clearable.ObjectID})
-	if err != nil || clearedView.Data.SettlementMethodID != settlementMethod.ObjectID ||
+	if err != nil || clearedView.Data.SettlementMethodID != settlementObjectID ||
 		clearedView.Data.SalespersonEmployeeID != salesperson.ObjectID {
 		t.Fatalf("rejected clear changed customer view=%+v err=%v", clearedView, err)
 	}

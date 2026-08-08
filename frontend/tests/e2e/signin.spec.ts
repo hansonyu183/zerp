@@ -1,7 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type WflWorkerState } from './fixtures'
 
-const username = process.env.E2E_USERNAME!
-const password = process.env.E2E_PASSWORD!
+test.use({ storageState: { cookies: [], origins: [] } })
 const bobPages = [
   { entity: 'customer', title: '客户' },
   { entity: 'supplier', title: '供应商' },
@@ -13,13 +12,13 @@ const bobPages = [
   { entity: 'fund-account', title: '资金账户' },
 ] as const
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
   await page.goto('/signin')
-  await page.getByLabel('用户名').fill(username)
-  await page.getByLabel('密码').fill(password)
+  await page.getByLabel('用户名').fill(workerState.operator.username)
+  await page.getByLabel('密码').fill(workerState.operator.password)
   await page.getByRole('button', { name: '登录' }).click()
 
-  await expect(page).not.toHaveURL(/\/signin/)
+  await expect(page).toHaveURL(/\/home\/dashboard$/)
   await expect(page.locator('.account-button')).toBeVisible()
 }
 
@@ -46,43 +45,44 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await expect(page).toHaveURL(/\/bob\/customer/)
 }
 
-test('登录后逐项加载八类业务对象中文菜单与真实组件', async ({
-  page,
-  isMobile,
-}) => {
-  await signIn(page)
-  await page.goto('/home/dashboard')
+test(
+  '登录后逐项加载八类业务对象中文菜单与真实组件',
+  { tag: '@mobile' },
+  async ({ page, isMobile, workerState }) => {
+    await signIn(page, workerState)
+    await page.goto('/home/dashboard')
 
-  for (const item of bobPages) {
-    if (isMobile) await page.getByLabel('切换导航').click()
+    for (const item of bobPages) {
+      if (isMobile) await page.getByLabel('切换导航').click()
 
-    const link = page.getByRole('link', {
-      name: item.title,
-      exact: true,
-    })
-    if (!(await link.isVisible())) {
-      await page.getByText('业务对象', { exact: true }).click()
-    }
-
-    await expect(link).toBeVisible()
-    await link.click()
-    await expect(page).toHaveURL(new RegExp(`/bob/${item.entity}$`))
-    await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
-      `ZERP / ${item.title}`,
-    )
-    await expect(
-      page.getByRole('textbox', {
-        name: `${item.title}关键字`,
+      const link = page.getByRole('link', {
+        name: item.title,
         exact: true,
-      }),
-    ).toBeVisible()
-    await expect(page.getByText('开发中...', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('页面不存在', { exact: true })).toHaveCount(0)
-  }
-})
+      })
+      if (!(await link.isVisible())) {
+        await page.getByText('业务对象', { exact: true }).click()
+      }
 
-test('使用真实后端读取、保存并恢复个人资料', async ({ page }) => {
-  await signIn(page)
+      await expect(link).toBeVisible()
+      await link.click()
+      await expect(page).toHaveURL(new RegExp(`/bob/${item.entity}$`))
+      await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
+        `ZERP / ${item.title}`,
+      )
+      await expect(
+        page.getByRole('textbox', {
+          name: `${item.title}关键字`,
+          exact: true,
+        }),
+      ).toBeVisible()
+      await expect(page.getByText('开发中...', { exact: true })).toHaveCount(0)
+      await expect(page.getByText('页面不存在', { exact: true })).toHaveCount(0)
+    }
+  },
+)
+
+test('使用真实后端读取、保存并恢复个人资料', async ({ page, workerState }) => {
+  await signIn(page, workerState)
   let originalDisplayName = ''
   let originalAvatarUrl = ''
 
@@ -121,8 +121,9 @@ test('使用真实后端读取、保存并恢复个人资料', async ({ page }) 
 test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({
   page,
   isMobile,
+  workerState,
 }) => {
-  await signIn(page)
+  await signIn(page, workerState)
   await openCustomer(page, isMobile)
   await expect(page.getByRole('button', { name: '查询' })).toBeVisible()
 
@@ -138,8 +139,12 @@ test('登录后进入客户业务页面并在退出后退时保护旧页面', as
   await expect(page.getByLabel('客户关键字')).not.toBeVisible()
 })
 
-test('辅助对象菜单使用中文并导航到真实页面', async ({ page, isMobile }) => {
-  await signIn(page)
+test('辅助对象菜单使用中文并导航到真实页面', async ({
+  page,
+  isMobile,
+  workerState,
+}) => {
+  await signIn(page, workerState)
   await page.goto('/home/dashboard')
   if (isMobile) await page.getByLabel('切换导航').click()
 
@@ -182,8 +187,11 @@ test('辅助对象菜单使用中文并导航到真实页面', async ({ page, is
   )
 })
 
-test('五个业务域只显示面包屑而不显示页面大标题', async ({ page }) => {
-  await signIn(page)
+test('五个业务域只显示面包屑而不显示页面大标题', async ({
+  page,
+  workerState,
+}) => {
+  await signIn(page, workerState)
 
   const pages = [
     ['/bob/customer', '客户'],
@@ -207,26 +215,30 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({ pa
   }
 })
 
-test('移动端首次进入工作台时导航抽屉默认关闭', async ({ page, isMobile }) => {
-  test.skip(!isMobile, '仅在移动端项目验证抽屉初始状态。')
+test(
+  '移动端首次进入工作台时导航抽屉默认关闭',
+  { tag: '@mobile' },
+  async ({ page, isMobile, workerState }) => {
+    test.skip(!isMobile, '仅在移动端项目验证抽屉初始状态。')
 
-  await signIn(page)
-  await page.goto('/home/dashboard')
+    await signIn(page, workerState)
+    await page.goto('/home/dashboard')
 
-  await expect(page.getByRole('tab', { name: '待处理资料' })).toBeVisible()
-  const closedBox = await page.locator('.sidebar').boundingBox()
-  expect(closedBox).not.toBeNull()
-  expect(closedBox!.x + closedBox!.width).toBeLessThanOrEqual(1)
+    await expect(page.getByRole('tab', { name: '待办单据' })).toBeVisible()
+    const closedBox = await page.locator('.sidebar').boundingBox()
+    expect(closedBox).not.toBeNull()
+    expect(closedBox!.x + closedBox!.width).toBeLessThanOrEqual(1)
 
-  await page.getByLabel('切换导航').click()
-  await expect
-    .poll(async () => {
-      const openBox = await page.locator('.sidebar').boundingBox()
-      return openBox?.x ?? -999
-    })
-    .toBeGreaterThanOrEqual(0)
-  await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
-  await page.getByText('业务对象', { exact: true }).click()
-  await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()
-  await expect(page.getByText('系统能力')).toHaveCount(0)
-})
+    await page.getByLabel('切换导航').click()
+    await expect
+      .poll(async () => {
+        const openBox = await page.locator('.sidebar').boundingBox()
+        return openBox?.x ?? -999
+      })
+      .toBeGreaterThanOrEqual(0)
+    await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
+    await page.getByText('业务对象', { exact: true }).click()
+    await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()
+    await expect(page.getByText('系统能力')).toHaveCount(0)
+  },
+)

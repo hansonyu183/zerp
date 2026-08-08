@@ -97,11 +97,11 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		INSERT INTO vou_documents (
 			id, entity, document_no, status, revision, business_date, currency,
 			total_amount_cents, created_by, updated_by, reviewed_at, reviewed_by,
-			approved_at, approved_by, updated_at
+			approved_at, approved_by, posted_at, posted_by, updated_at
 		) VALUES
-			($1, 'other-income', $2, 'DRAFT', 1, '2099-12-31', 'CNY', 12345, $7, $7, NULL, NULL, NULL, NULL, now() - interval '2 seconds'),
-			($3, 'other-income', $4, 'CHECKED', 2, '2099-12-31', 'CNY', 23456, $7, $7, now(), $7, NULL, NULL, now() - interval '1 second'),
-			($5, 'other-income', $6, 'APPROVED', 3, '2099-12-31', 'CNY', 34567, $7, $7, now(), $7, now(), $7, now())
+			($1, 'other-income', $2, 'DRAFT', 1, '2099-12-31', 'CNY', 12345, $7, $7, NULL, NULL, NULL, NULL, NULL, NULL, now() - interval '2 seconds'),
+			($3, 'other-income', $4, 'CHECKED', 2, '2099-12-31', 'CNY', 23456, $7, $7, now(), $7, NULL, NULL, NULL, NULL, now() - interval '1 second'),
+			($5, 'other-income', $6, 'APPROVED', 3, '2099-12-31', 'CNY', 34567, $7, $7, now(), $7, now(), $7, now(), $7, now())
 	`, documentIDs[0], documentNos[0], documentIDs[1], documentNos[1], documentIDs[2], documentNos[2], admin.ID); err != nil {
 		t.Fatalf("insert workbench vouchers: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 
 	vouPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/get", "/vou/other-income/save",
-		"/vou/other-income/check", "/vou/other-income/approve", "/vou/other-income/finalize",
+		"/vou/other-income/check", "/vou/other-income/approve",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: "OIN-20991231", Page: 1, PageSize: 200})
 	if err != nil {
 		t.Fatalf("query VOU workbench: %v", err)
@@ -179,9 +179,11 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouByID[item.DocumentID] = item
 	}
 	if vouByID[documentIDs[0]].PendingStage != "CHECK" || vouByID[documentIDs[0]].Amount != "123.45" ||
-		vouByID[documentIDs[1]].PendingStage != "APPROVE" ||
-		vouByID[documentIDs[2]].PendingStage != "FINALIZE" {
+		vouByID[documentIDs[1]].PendingStage != "APPROVE" {
 		t.Fatalf("unexpected VOU workbench items: %+v", vouByID)
+	}
+	if _, exists := vouByID[documentIDs[2]]; exists {
+		t.Fatalf("approved document unexpectedly appears in workbench: %+v", vouByID[documentIDs[2]])
 	}
 	if !slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
 		!slices.Contains(vouByID[documentIDs[0]].AvailableActions, "edit") {

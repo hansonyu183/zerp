@@ -187,23 +187,29 @@ func (s *Service) executeOutgoingEdges(
 				return createErr
 			}
 			if child.DocumentID == "" {
-				return txevent.Reject("workflow converter did not create a child document", map[string]any{"edgeId": edge.id})
+				if child.Status == "SKIPPED" {
+					matched = false
+				} else {
+					return txevent.Reject("workflow converter did not create a child document", map[string]any{"edgeId": edge.id})
+				}
 			}
-			targetID := newID()
-			err = tx.QueryRow(ctx, `INSERT INTO wfl_node_instances(
+			if matched {
+				targetID := newID()
+				err = tx.QueryRow(ctx, `INSERT INTO wfl_node_instances(
 				id,process_id,definition_node_id,parent_node_instance_id,document_id,node_key,node_name,document_entity
 			) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 			ON CONFLICT(process_id,definition_node_id,document_id) DO UPDATE SET parent_node_instance_id=excluded.parent_node_instance_id
 			RETURNING id`, targetID, source.processID, edge.targetID, source.id, child.DocumentID, edge.key, edge.name, edge.entity).Scan(&targetID)
-			if err != nil {
-				return err
-			}
-			targetNodeID = &targetID
-			if err = insertRuntimeAudit(ctx, tx, source.processID, "CHILD_CREATED", targetID, voudomain.DocumentChangedEvent{
-				Entity: edge.entity, DocumentID: child.DocumentID, DocumentNo: child.DocumentNo,
-				ActorID: systemidentity.UserID, RequestID: event.RequestID,
-			}, map[string]any{"sourceDocumentId": event.DocumentID, "edgeId": edge.id}); err != nil {
-				return err
+				if err != nil {
+					return err
+				}
+				targetNodeID = &targetID
+				if err = insertRuntimeAudit(ctx, tx, source.processID, "CHILD_CREATED", targetID, voudomain.DocumentChangedEvent{
+					Entity: edge.entity, DocumentID: child.DocumentID, DocumentNo: child.DocumentNo,
+					ActorID: systemidentity.UserID, RequestID: event.RequestID,
+				}, map[string]any{"sourceDocumentId": event.DocumentID, "edgeId": edge.id}); err != nil {
+					return err
+				}
 			}
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO wfl_edge_executions(

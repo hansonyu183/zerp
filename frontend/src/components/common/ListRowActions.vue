@@ -10,6 +10,7 @@ withDefaults(
     loading?: boolean
     label?: string
     moreLabel?: string
+    loadingReason?: string
   }>(),
   {
     primary: () => [],
@@ -17,27 +18,46 @@ withDefaults(
     loading: false,
     label: '行操作',
     moreLabel: '更多操作',
+    loadingReason: '正在处理上一项操作，请稍候。',
   },
 )
 
 const emit = defineEmits<{ select: [key: string] }>()
+
+function selectAction(event: Event | undefined, key: string): void {
+  event?.stopPropagation()
+  emit('select', key)
+}
+
+function stopEvent(event?: Event): void {
+  event?.stopPropagation()
+}
 </script>
 
 <template>
   <div class="list-row-actions" :aria-label="label">
-    <v-btn
+    <span
       v-for="action in primary"
       :key="action.key"
-      :aria-label="action.label"
-      :color="action.color"
-      density="comfortable"
-      :disabled="loading || action.disabled"
-      variant="text"
-      @click="emit('select', action.key)"
+      class="list-row-actions__primary"
+      :title="loading ? loadingReason : action.disabledReason"
     >
-      <v-icon :icon="action.icon" />
-      <span class="list-row-actions__label">{{ action.label }}</span>
-    </v-btn>
+      <v-btn
+        :aria-label="
+          loading || action.disabledReason
+            ? `${action.label}：${loading ? loadingReason : action.disabledReason}`
+            : action.label
+        "
+        :color="action.color"
+        density="comfortable"
+        :disabled="loading || action.disabled"
+        variant="text"
+        @click="selectAction($event, action.key)"
+      >
+        <v-icon :icon="action.icon" />
+        <span class="list-row-actions__label">{{ action.label }}</span>
+      </v-btn>
+    </span>
     <v-menu v-if="more.length">
       <template #activator="{ props: activatorProps }">
         <v-btn
@@ -46,7 +66,9 @@ const emit = defineEmits<{ select: [key: string] }>()
           density="comfortable"
           :disabled="loading"
           icon="mdi-dots-vertical"
+          :title="loading ? loadingReason : moreLabel"
           variant="text"
+          @click="stopEvent"
         />
       </template>
       <v-list density="comfortable">
@@ -57,7 +79,8 @@ const emit = defineEmits<{ select: [key: string] }>()
           :disabled="loading || action.disabled"
           :prepend-icon="action.icon"
           :title="action.label"
-          @click="emit('select', action.key)"
+          :subtitle="action.disabledReason"
+          @click="selectAction($event, action.key)"
         />
       </v-list>
     </v-menu>
@@ -77,6 +100,10 @@ const emit = defineEmits<{ select: [key: string] }>()
   margin-inline-start: 6px;
 }
 
+.list-row-actions__primary {
+  display: inline-flex;
+}
+
 @media (max-width: 700px) {
   .list-row-actions {
     flex-wrap: wrap;
@@ -84,6 +111,5 @@ const emit = defineEmits<{ select: [key: string] }>()
     justify-content: flex-end;
     width: 100%;
   }
-
 }
 </style>

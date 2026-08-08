@@ -99,10 +99,10 @@ func TestAuxiliaryLifecycleReferencesAndValidationIntegration(t *testing.T) {
 
 	if _, err = service.Create(t.Context(), EntitySettlementMethod, CreateInput{Data: CreateData{
 		Data: map[string]any{
-			"name": "无效月结", "ruleType": "MONTH_END", "cutoffDay": 32,
-			"monthOffset": 1, "defaultSalesSurcharge": "1.00",
+			"name": "无效月结", "ruleType": "MONTH_END", "monthOffset": 1,
+			"defaultSalesSurcharge": "1.00",
 		},
-	}}, integrationActor, "aux-invalid-settlement"); !errorKind(err, ErrorValidation) {
+	}}, integrationActor, "aux-removed-settlement-field"); !errorKind(err, ErrorValidation) {
 		t.Fatalf("invalid settlement error = %v", err)
 	}
 }

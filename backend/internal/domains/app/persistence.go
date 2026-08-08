@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"time"
 
@@ -11,6 +12,13 @@ import (
 )
 
 func newID() string { return ulid.Make().String() }
+
+func feedbackIDForSubmission(actorID, submissionKey string) string {
+	digest := sha256.Sum256([]byte(actorID + "\x00" + submissionKey))
+	var id ulid.ULID
+	copy(id[:], digest[:len(id)])
+	return id.String()
+}
 
 func (s *Service) auditAuthorizationDenied(ctx context.Context, principal Principal, path, requestID, reason string) {
 	_ = s.audit(ctx, s.queries, "AUTHORIZATION_DENIED", &principal.User.ID, "api", nil, "FAILURE", requestID, map[string]any{

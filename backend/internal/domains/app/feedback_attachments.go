@@ -22,9 +22,6 @@ func (s *Service) InitiateFeedbackAttachment(
 	input FeedbackAttachmentInitiateInput,
 	actorID string,
 ) (FeedbackAttachmentInitiateResult, error) {
-	if !s.cfg.FeedbackGitHubEnabled {
-		return FeedbackAttachmentInitiateResult{}, domainError(ErrorInternal, "feedback service unavailable", nil)
-	}
 	fileName, err := validateFeedbackAttachmentInitiate(input)
 	if err != nil {
 		return FeedbackAttachmentInitiateResult{}, err

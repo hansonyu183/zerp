@@ -55,13 +55,18 @@ func vouIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
+		TRUNCATE led_bill_entries, led_bills,
+			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
+			vou_settlement_reservations,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
 			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
+			vou_intermediary_calculation_bill_allocations,
+			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,
+			vou_intermediary_calculation_lines,vou_intermediary_calculation_summaries,vou_intermediary_calculation_details,
 			vou_price_lines, vou_purchase_inquiry_details, vou_sale_pricing_details,
 			vou_inventory_count_lines, vou_inventory_count_details,
 			vou_sale_return_lines, vou_sale_return_details,
@@ -129,7 +134,19 @@ func reverseApprovedBOBToDraft(
 	return draft
 }
 
-func int32IntegrationPointer(value int32) *int32 { return &value }
+func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string) ReferenceInput {
+	t.Helper()
+	var result ReferenceInput
+	if err := pool.QueryRow(t.Context(), `
+		SELECT object.id,object.effective_version_id
+		FROM bob_objects object
+		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+		WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1
+	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
+		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
+	}
+	return result
+}
 
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	t.Helper()
@@ -137,11 +154,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	suffix := newID()
 	general := bobdomain.SupplierTypeGeneral
 	logistics := bobdomain.SupplierTypeLogisticsPlatform
-	settlement := createApprovedBOB(t, service, bobdomain.EntitySettlementMethod, bobdomain.CreateDetailInput{
-		Code: "VSM" + suffix, Name: "次月十五日", RuleType: bobdomain.SettlementRuleFixedDay,
-		MonthOffset: 1, DayOfMonth: int32IntegrationPointer(15), DayOffset: 0,
-		Description: "按自然日计算",
-	})
+	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermMonthly30)
 	employee := createApprovedBOB(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "VE" + suffix, Name: "VOU 员工",
 	})
@@ -182,10 +195,18 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 
 func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 	t.Helper()
-	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), txevent.NewBus(), AttachmentOptions{Root: t.TempDir()},
+	return newIntegrationServiceWithBus(t, pool, txevent.NewBus())
+}
+
+func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
+	t.Helper()
+	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
+	}
+	if err = service.RegisterCompletionSubscriptions(bus); err != nil {
+		t.Fatalf("register VOU completion subscriptions: %v", err)
 	}
 	return service
 }

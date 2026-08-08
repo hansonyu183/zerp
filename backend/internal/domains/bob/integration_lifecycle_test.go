@@ -189,9 +189,6 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 		{EntityCategory, CreateDetailInput{Name: "Product Category", TargetEntity: EntityProduct}},
 		{EntityDepartment, CreateDetailInput{Name: "Operations"}},
 		{EntityPosition, CreateDetailInput{Name: "Operator"}},
-		{EntitySettlementMethod, CreateDetailInput{
-			Name: "Month End", RuleType: SettlementRuleMonthEnd, MonthOffset: 1,
-		}},
 	}
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {

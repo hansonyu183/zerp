@@ -8,32 +8,33 @@ import type {
 
 defineOptions({ name: 'VoucherLifecycleActions' })
 
-const props = withDefaults(defineProps<{
-  status: VoucherStatus
-  availability: VoucherActionAvailability
-  loadingAction?: string | null
-  disabled?: boolean
-  labels: VoucherLifecycleLabels
-}>(), {
-  loadingAction: null,
-  disabled: false,
-})
+const props = withDefaults(
+  defineProps<{
+    status: VoucherStatus
+    availability: VoucherActionAvailability
+    loadingAction?: string | null
+    disabled?: boolean
+    disabledReason?: string
+    labels: VoucherLifecycleLabels
+  }>(),
+  {
+    loadingAction: null,
+    disabled: false,
+    disabledReason: '当前操作暂不可用。',
+  },
+)
 
 const emit = defineEmits<{
-  action: [
-    action: 'check' | 'approve' | 'finalize' |
-      'uncheck' | 'unapprove' | 'unfinalize',
-    reason?: string,
-  ]
+  action: [action: 'check' | 'approve' | 'uncheck' | 'unapprove', reason?: string]
 }>()
 
 const reverseOpen = ref(false)
-const reverseAction = ref<'uncheck' | 'unapprove' | 'unfinalize'>('uncheck')
+const reverseAction = ref<'uncheck' | 'unapprove'>('uncheck')
 const reason = ref('')
 const reverseTitle = ref('')
 
 function openReverse(
-  action: 'uncheck' | 'unapprove' | 'unfinalize',
+  action: 'uncheck' | 'unapprove',
   title: string,
 ): void {
   reverseAction.value = action
@@ -57,6 +58,7 @@ function confirmReverse(): void {
       color="primary"
       :disabled="disabled"
       :loading="loadingAction === 'check'"
+      :title="disabled ? disabledReason : undefined"
       prepend-icon="mdi-account-check-outline"
       @click="emit('action', 'check')"
     >
@@ -67,6 +69,7 @@ function confirmReverse(): void {
         v-if="availability.uncheck"
         :disabled="disabled"
         :loading="loadingAction === 'uncheck'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
         @click="openReverse('uncheck', labels.uncheck)"
@@ -78,45 +81,26 @@ function confirmReverse(): void {
         color="primary"
         :disabled="disabled"
         :loading="loadingAction === 'approve'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-check-decagram-outline"
         @click="emit('action', 'approve')"
       >
         {{ labels.approve }}
       </v-btn>
     </template>
-    <template v-if="status === 'APPROVED'">
+    <template v-if="status === 'APPROVED' || status === 'FINALIZED'">
       <v-btn
         v-if="availability.unapprove"
         :disabled="disabled"
         :loading="loadingAction === 'unapprove'"
+        :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
         @click="openReverse('unapprove', labels.unapprove)"
       >
         {{ labels.unapprove }}
       </v-btn>
-      <v-btn
-        v-if="availability.finalize"
-        color="primary"
-        :disabled="disabled"
-        :loading="loadingAction === 'finalize'"
-        prepend-icon="mdi-play-circle-outline"
-        @click="emit('action', 'finalize')"
-      >
-        {{ labels.finalize }}
-      </v-btn>
     </template>
-    <v-btn
-      v-if="status === 'FINALIZED' && availability.unfinalize"
-      color="warning"
-      :disabled="disabled"
-      :loading="loadingAction === 'unfinalize'"
-      prepend-icon="mdi-backup-restore"
-      variant="tonal"
-      @click="openReverse('unfinalize', labels.unfinalize)"
-    >
-      {{ labels.unfinalize }}
-    </v-btn>
   </div>
 
   <v-dialog v-model="reverseOpen" max-width="560">
@@ -129,7 +113,9 @@ function confirmReverse(): void {
           label="原因"
           :rules="[
             (value: string) => Boolean(value?.trim()) || '请输入原因。',
-            (value: string) => Array.from(value ?? '').length <= 1000 || '原因不能超过 1000 字。',
+            (value: string) =>
+              Array.from(value ?? '').length <= 1000 ||
+              '原因不能超过 1000 字。',
           ]"
           variant="outlined"
         />

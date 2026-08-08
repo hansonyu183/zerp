@@ -74,10 +74,8 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 	if err != nil {
 		t.Fatalf("approve source sale order: %v", err)
 	}
-	if _, err = service.Finalize(t.Context(), EntitySaleOrder, FinalizeInput{
-		DocumentID: order.DocumentID, Revision: approved.Revision,
-	}, integrationActorOne, "production-order-finalize"); err != nil {
-		t.Fatalf("finalize source sale order: %v", err)
+	if approved.Status != StatusApproved {
+		t.Fatalf("source sale order status = %s", approved.Status)
 	}
 	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
 	if err != nil {

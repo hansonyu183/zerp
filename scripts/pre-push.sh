@@ -25,13 +25,27 @@ case "${PRE_PUSH_FULL:-0}" in
     ;;
 esac
 
+base_ref=${PRE_PUSH_BASE_REF:-origin/main}
+test "${base_ref}" = origin/main || {
+  echo "pre-push must compare directly with origin/main" >&2
+  exit 2
+}
+git fetch origin main --prune
+
 if [ -n "$(git status --porcelain)" ]; then
   echo "pre-push requires a clean worktree; commit or isolate all changes first" >&2
   exit 1
 fi
 
-base_ref=${PRE_PUSH_BASE_REF:-origin/main}
 git rev-parse --verify "${base_ref}^{commit}" >/dev/null
+git merge-base --is-ancestor "${base_ref}" HEAD || {
+  echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
+  exit 1
+}
+if git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
+  echo "Feature branches must be rebased onto origin/main, not merged with it" >&2
+  exit 1
+fi
 diff_range="${base_ref}...HEAD"
 
 changed_files=$(git diff --name-only "${diff_range}")
@@ -48,8 +62,13 @@ if [ "${PRE_PUSH_FULL:-0}" = "1" ]; then
   contracts=1
   frontend=1
   frontend_audit=1
+  frontend_full=1
   backend=1
+  backend_full=1
+  backend_deps=1
   containers=1
+  api_image=1
+  web_image=1
   e2e=1
   local_e2e=1
   preview=1
@@ -62,8 +81,13 @@ print_plan() {
     printf '  contracts: %s\n' "${contracts}"
     printf '  frontend: %s\n' "${frontend}"
     printf '  frontend dependency audit: %s\n' "${frontend_audit}"
+    printf '  frontend full gate: %s\n' "${frontend_full}"
     printf '  backend: %s\n' "${backend}"
+    printf '  backend full integration/race: %s\n' "${backend_full}"
+    printf '  backend dependency integrity: %s\n' "${backend_deps}"
     printf '  containers: %s\n' "${containers}"
+    printf '  API image: %s\n' "${api_image}"
+    printf '  Web image: %s\n' "${web_image}"
     printf '  PR E2E: %s\n' "${e2e}"
     printf '  local E2E: %s\n' "${local_e2e}"
     printf '  fixed preview after green CI: %s\n' "${preview}"
@@ -97,13 +121,17 @@ check_docs() {
 check_validation() {
   pnpm format:check
   pnpm docs:check
-  scripts/validation-check.sh
+  scripts/test-release-flow-transition.sh
 }
 
 check_backend() {
-  make check-backend \
-    BACKEND_SKIP_GENERATED="${contracts}" \
-    BACKEND_SKIP_IMAGE="${local_e2e}"
+  if [ "${backend_full}" = "1" ]; then
+    make check-backend \
+      BACKEND_SKIP_GENERATED="${contracts}" \
+      BACKEND_SKIP_IMAGE=1
+  else
+    make check-backend-fast
+  fi
 }
 
 print_plan

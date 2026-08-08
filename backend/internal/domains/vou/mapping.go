@@ -2,6 +2,7 @@ package vou
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -19,6 +20,28 @@ func (s *Service) loadData(
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntityIntermediaryCalculation:
+		detail, err := q.GetVouIntermediaryCalculationDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		var source IntermediaryCalculationSource
+		var result IntermediaryCalculationResult
+		if err = json.Unmarshal(detail.SourceSnapshot, &source); err != nil {
+			return data, err
+		}
+		if err = json.Unmarshal(detail.ResultSnapshot, &result); err != nil {
+			return data, err
+		}
+		data.IntermediaryCalculation = &IntermediaryCalculationInput{
+			Source: source, SourceHash: detail.SourceHash,
+			Script: IntermediaryScriptSnapshot{ScriptID: detail.ScriptID, Revision: detail.ScriptRevision,
+				Name: detail.ScriptName, Source: detail.ScriptSource, Hash: detail.ScriptHash},
+			Result: result,
+		}
+		return data, nil
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		return s.loadBillData(ctx, q, document, data)
 	case EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
 		return s.loadAssetData(ctx, q, document, data)
 	case EntitySalePricing:
@@ -66,6 +89,7 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.FulfillmentStatus = detail.FulfillmentStatus
+		data.SpecialApproval = detail.SpecialApproval
 		data.ShortCloseRequestedBy = deref(detail.ShortCloseRequestedBy)
 		data.ShortCloseReason = deref(detail.ShortCloseReason)
 		if err = s.setSaleOrderBalances(ctx, document.ID, &data); err != nil {
@@ -181,7 +205,7 @@ func (s *Service) loadData(
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
 		return data, nil
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -194,7 +218,8 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+		data.OtherCategory = deref(detail.OtherCategory)
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
@@ -207,6 +232,7 @@ func (s *Service) loadData(
 			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
+		data.OtherCategory = deref(detail.OtherCategory)
 	case EntityExpenseReimbursement:
 		detail, err := q.GetVouExpenseReimbursementDetail(ctx, document.ID)
 		if err != nil {
@@ -417,7 +443,7 @@ func derefInt32(value *int32) int32 {
 func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachments []AttachmentView) DocumentView {
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
-		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: formatMoney(document.TotalAmountCents),
+		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: documentAmount(document.Entity, document.TotalAmountCents),
 		Data: data, Attachments: attachments,
 		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,

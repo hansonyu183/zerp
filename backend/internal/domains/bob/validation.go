@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,6 +22,7 @@ var (
 	vinPattern           = regexp.MustCompile(`^[A-HJ-NPR-Z0-9]{17}$`)
 	accountNumberPattern = regexp.MustCompile(`^[A-Z0-9]{1,64}$`)
 	loadCapacityPattern  = regexp.MustCompile(`^([0-9]{1,9})(?:\.([0-9]{1,3}))?$`)
+	moneyPattern         = regexp.MustCompile(`^(0|[0-9]{1,12})(?:\.([0-9]{1,2}))?$`)
 )
 
 func validateCreate(entity string, input CreateDetailInput) (DetailView, string, error) {
@@ -33,6 +35,14 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 	if (entity == EntityCustomer || entity == EntityOtherParty) && customerType == nil {
 		value := CustomerTypeEndUser
 		customerType = &value
+	}
+	monthlyClosingDay := input.MonthlyClosingDay
+	if entity == EntityCustomer && monthlyClosingDay == 0 {
+		monthlyClosingDay = 31
+	}
+	rebateUnitPrice := input.RebateUnitPrice
+	if entity == EntityCustomer && rebateUnitPrice == "" {
+		rebateUnitPrice = "0"
 	}
 	data := DetailView{
 		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
@@ -48,15 +58,19 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		VIN: input.VIN, EngineNumber: input.EngineNumber, LoadCapacityKG: input.LoadCapacityKG,
 		AccountName: input.AccountName, BankName: input.BankName, BankBranch: input.BankBranch,
 		AccountNumber: input.AccountNumber, ParentID: input.ParentID,
-		SettlementMethodID: input.SettlementMethodID, SalespersonEmployeeID: input.SalespersonEmployeeID,
-		RuleType:    input.RuleType,
-		MonthOffset: input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
+		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
+		SalespersonEmployeeID:    input.SalespersonEmployeeID,
+		RebateUnitPrice:          rebateUnitPrice,
+		IntermediaryOtherPartyID: input.IntermediaryOtherPartyID,
+		RuleType:                 input.RuleType,
+		MonthOffset:              input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
 		ProductKind: input.ProductKind, InventoryUnitID: input.InventoryUnitID,
 		PricingUnitID:                   input.PricingUnitID,
 		PricingQuantityPerInventoryUnit: input.PricingQuantityPerInventoryUnit,
 		Returnable:                      input.Returnable, PackagingSpecs: input.PackagingSpecs,
-		Formula: cloneProductFormula(input.Formula),
+		Formula: cloneProductFormula(input.Formula), TermCode: input.TermCode,
+		DefaultSalesSurcharge: input.DefaultSalesSurcharge,
 	}
 	if entity == EntityProduct && data.ContainerType == "" {
 		data.ContainerType = ContainerTypeNone
@@ -156,7 +170,17 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	mergeOptional(input.AccountNumber, &result.AccountNumber)
 	mergeOptional(input.ParentID, &result.ParentID)
 	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
+	if input.MonthlyClosingDay != nil {
+		result.MonthlyClosingDay = *input.MonthlyClosingDay
+	}
+	if input.RebateUnitPrice != nil {
+		result.RebateUnitPrice = *input.RebateUnitPrice
+	}
+	if input.DefaultSalesSurcharge != nil {
+		result.DefaultSalesSurcharge = *input.DefaultSalesSurcharge
+	}
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
+	mergeOptional(input.IntermediaryOtherPartyID, &result.IntermediaryOtherPartyID)
 	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
 	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
 	mergeOptional(input.PricingUnitID, &result.PricingUnitID)
@@ -176,6 +200,10 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	}
 	if entity == EntityCustomer || entity == EntityOtherParty {
 		current.CustomerType = CustomerTypeEndUser
+		current.MonthlyClosingDay = 31
+	}
+	if entity == EntityCustomer {
+		current.RebateUnitPrice = "0"
 	}
 	if entity == EntityProduct {
 		current.ContainerType = ContainerTypeNone
@@ -194,7 +222,9 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice", "intermediaryOtherPartyId")
+	case EntityOtherParty:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntitySupplier:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
@@ -219,7 +249,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityPosition:
 		allow("categoryId", "description")
 	case EntitySettlementMethod:
-		allow("description")
+		allow("defaultSalesSurcharge")
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -237,6 +267,10 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"accountName": input.AccountName.Set, "bankName": input.BankName.Set,
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
+		"monthlyClosingDay":               input.MonthlyClosingDay != nil,
+		"rebateUnitPrice":                 input.RebateUnitPrice != nil,
+		"intermediaryOtherPartyId":        input.IntermediaryOtherPartyID.Set,
+		"defaultSalesSurcharge":           input.DefaultSalesSurcharge != nil,
 		"salespersonEmployeeId":           input.SalespersonEmployeeID.Set,
 		"quantityPerContainer":            input.QuantityPerContainer.Set,
 		"inventoryUnitId":                 input.InventoryUnitID.Set,
@@ -281,12 +315,13 @@ func normalizeDetail(input *DetailView) {
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
 		&input.VehicleType,
 		&input.QuantityPerContainer, &input.PricingQuantityPerInventoryUnit,
+		&input.DefaultSalesSurcharge, &input.RebateUnitPrice,
 	} {
 		trim(value)
 	}
 	for _, value := range []*string{
 		&input.Currency, &input.SupplierType, &input.CustomerType, &input.PlateNumber, &input.VehicleType,
-		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType,
+		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType, &input.TermCode,
 		&input.ContainerType, &input.ProductKind,
 	} {
 		*value = strings.ToUpper(strings.TrimSpace(*value))
@@ -294,6 +329,7 @@ func normalizeDetail(input *DetailView) {
 	for _, value := range []*string{
 		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
 		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
+		&input.IntermediaryOtherPartyID,
 		&input.InventoryUnitID, &input.PricingUnitID,
 	} {
 		trim(value)
@@ -381,7 +417,21 @@ func validateEntityFields(entity string, input DetailView) error {
 		}
 	}
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
+		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice", "intermediaryOtherPartyId")
+		if !objectCodePattern.MatchString(input.CustomerType) {
+			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
+		}
+		if input.MonthlyClosingDay < 1 || input.MonthlyClosingDay > 31 {
+			return domainError(ErrorValidation, "monthly closing day must be 1-31", nil, nil)
+		}
+		if input.SalespersonEmployeeID == "" {
+			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
+		}
+		if _, err := moneyCents(input.RebateUnitPrice); err != nil {
+			return domainError(ErrorValidation, "invalid rebate unit price", nil, nil)
+		}
+	case EntityOtherParty:
 		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
@@ -443,9 +493,15 @@ func validateEntityFields(entity string, input DetailView) error {
 	case EntityPosition:
 		allow("categoryId", "description")
 	case EntitySettlementMethod:
-		allow("ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description")
+		allow("termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description", "defaultSalesSurcharge")
+		if !validSettlementTerm(input.TermCode) {
+			return domainError(ErrorValidation, "invalid settlement term", nil, nil)
+		}
 		if err := validateSettlementRule(input); err != nil {
 			return err
+		}
+		if _, err := moneyCents(input.DefaultSalesSurcharge); err != nil {
+			return domainError(ErrorValidation, "invalid default sales surcharge", nil, nil)
 		}
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -459,6 +515,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	for _, id := range []string{
 		input.CategoryID, input.DepartmentID, input.PositionID, input.ManagerEmployeeID,
 		input.ParentID, input.SettlementMethodID, input.SalespersonEmployeeID,
+		input.IntermediaryOtherPartyID,
 		input.InventoryUnitID, input.PricingUnitID,
 	} {
 		if id != "" && !validID(id) {
@@ -483,10 +540,15 @@ func detailFieldValues(input DetailView) map[string]string {
 		"engineNumber": input.EngineNumber, "loadCapacityKg": input.LoadCapacityKG,
 		"accountName": input.AccountName, "bankName": input.BankName, "bankBranch": input.BankBranch,
 		"accountNumber": input.AccountNumber, "parentId": input.ParentID,
-		"settlementMethodId":    input.SettlementMethodID,
-		"salespersonEmployeeId": input.SalespersonEmployeeID,
-		"ruleType":              input.RuleType,
-		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
+		"settlementMethodId":       input.SettlementMethodID,
+		"monthlyClosingDay":        numericField(input.MonthlyClosingDay),
+		"salespersonEmployeeId":    input.SalespersonEmployeeID,
+		"rebateUnitPrice":          input.RebateUnitPrice,
+		"intermediaryOtherPartyId": input.IntermediaryOtherPartyID,
+		"ruleType":                 input.RuleType,
+		"termCode":                 input.TermCode,
+		"defaultSalesSurcharge":    input.DefaultSalesSurcharge,
+		"monthOffset":              numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
 		"dayOffset":     numericField(input.DayOffset),
 		"containerType": input.ContainerType, "quantityPerContainer": input.QuantityPerContainer,
 		"productKind": input.ProductKind, "inventoryUnitId": input.InventoryUnitID,
@@ -632,27 +694,69 @@ func legacyUnitID(unit string) string {
 }
 
 func validateSettlementRule(input DetailView) error {
-	if !slices.Contains([]string{
-		SettlementRuleRelativeDays, SettlementRuleMonthEnd, SettlementRuleFixedDay,
-	}, input.RuleType) || input.MonthOffset < 0 || input.MonthOffset > 120 ||
-		input.DayOffset < -3650 || input.DayOffset > 3650 {
-		return domainError(ErrorValidation, "invalid settlement rule", nil, nil)
+	type rule struct {
+		ruleType               string
+		monthOffset, dayOffset int32
 	}
-	switch input.RuleType {
-	case SettlementRuleRelativeDays:
-		if input.MonthOffset != 0 || input.DayOfMonth != nil {
-			return domainError(ErrorValidation, "invalid relative settlement rule", nil, nil)
-		}
-	case SettlementRuleMonthEnd:
-		if input.DayOfMonth != nil {
-			return domainError(ErrorValidation, "invalid month-end settlement rule", nil, nil)
-		}
-	case SettlementRuleFixedDay:
-		if input.DayOfMonth == nil || *input.DayOfMonth < 1 || *input.DayOfMonth > 31 {
-			return domainError(ErrorValidation, "invalid fixed-day settlement rule", nil, nil)
-		}
+	expected := map[string]rule{
+		SettlementTermPrepaid:        {SettlementRuleRelativeDays, 0, 0},
+		SettlementTermCashOnDelivery: {SettlementRuleRelativeDays, 0, 0},
+		SettlementTermArrival3:       {SettlementRuleRelativeDays, 0, 3},
+		SettlementTermArrival5:       {SettlementRuleRelativeDays, 0, 5},
+		SettlementTermArrival7:       {SettlementRuleRelativeDays, 0, 7},
+		SettlementTermArrival15:      {SettlementRuleRelativeDays, 0, 15},
+		SettlementTermArrival30:      {SettlementRuleRelativeDays, 0, 30},
+		SettlementTermMonthlyCurrent: {SettlementRuleMonthEnd, 0, 0},
+		SettlementTermMonthly30:      {SettlementRuleMonthEnd, 1, 0},
+		SettlementTermMonthly60:      {SettlementRuleMonthEnd, 2, 0},
+		SettlementTermMonthly90:      {SettlementRuleMonthEnd, 3, 0},
+	}
+	want, ok := expected[input.TermCode]
+	if !ok || input.RuleType != want.ruleType || input.MonthOffset != want.monthOffset ||
+		input.DayOffset != want.dayOffset || input.DayOfMonth != nil {
+		return domainError(ErrorValidation, "settlement rule does not match fixed term", nil, nil)
 	}
 	return nil
+}
+
+func validSettlementTerm(value string) bool {
+	return slices.Contains([]string{
+		SettlementTermPrepaid,
+		SettlementTermCashOnDelivery,
+		SettlementTermArrival3,
+		SettlementTermArrival5,
+		SettlementTermArrival7,
+		SettlementTermArrival15,
+		SettlementTermArrival30,
+		SettlementTermMonthlyCurrent,
+		SettlementTermMonthly30,
+		SettlementTermMonthly60,
+		SettlementTermMonthly90,
+	}, value)
+}
+
+func moneyCents(value string) (int64, error) {
+	if !moneyPattern.MatchString(value) {
+		return 0, domainError(ErrorValidation, "invalid amount", nil, nil)
+	}
+	parts := strings.SplitN(value, ".", 2)
+	whole, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
+	}
+	fraction := "00"
+	if len(parts) == 2 {
+		fraction = parts[1] + strings.Repeat("0", 2-len(parts[1]))
+	}
+	cents, err := strconv.ParseInt(fraction, 10, 64)
+	if err != nil {
+		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
+	}
+	return whole*100 + cents, nil
+}
+
+func formatMoneyCents(value int64) string {
+	return fmt.Sprintf("%d.%02d", value/100, value%100)
 }
 
 func numericField(value int32) string {

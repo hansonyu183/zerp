@@ -54,12 +54,6 @@ func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInpu
 func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Finalize(context.Context, string, FinalizeInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerServiceStub) Unfinalize(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
 func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
@@ -96,6 +90,15 @@ func (*handlerServiceStub) Upload(context.Context, string, io.Reader, int64, str
 func (*handlerServiceStub) OpenDownload(context.Context, string) (DownloadFile, error) {
 	return DownloadFile{}, domainError(ErrorValidation, "invalid token", nil, nil)
 }
+func (*handlerServiceStub) IntermediarySource(context.Context, IntermediarySourceInput) (IntermediarySourceView, error) {
+	return IntermediarySourceView{}, nil
+}
+func (*handlerServiceStub) GetIntermediaryScript(context.Context) (IntermediaryScriptSnapshot, error) {
+	return IntermediaryScriptSnapshot{}, nil
+}
+func (*handlerServiceStub) SaveIntermediaryScript(context.Context, IntermediaryScriptSaveInput, string) (IntermediaryScriptSnapshot, error) {
+	return IntermediaryScriptSnapshot{}, nil
+}
 
 func newVOUTestRouter(service applicationService, authorizer authorization.Authorizer) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -119,6 +122,10 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 				continue
 			}
 			if route.action == "price-reference" && entity != EntitySaleOrder && entity != EntityPurchaseOrder {
+				continue
+			}
+			if (route.action == "source" || route.action == "script-get" || route.action == "script-save") &&
+				entity != EntityIntermediaryCalculation {
 				continue
 			}
 			if route.action == "book-balance" && entity != EntityInventoryCount {

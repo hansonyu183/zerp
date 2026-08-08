@@ -151,7 +151,7 @@ func (s *Service) replacePartyOpening(
 ) error {
 	oldByKey := make(map[string]dbsqlc.LedDraftParty, len(oldParty))
 	for _, row := range oldParty {
-		oldByKey[row.CounterpartyEntity+"/"+row.CounterpartyObjectID+"/"+row.CounterpartyVersionID+"/"+row.Currency] = row
+		oldByKey[row.AccountType+"/"+row.CounterpartyEntity+"/"+row.CounterpartyObjectID+"/"+row.CounterpartyVersionID+"/"+row.Currency] = row
 	}
 	for _, item := range parties {
 		currency := strings.ToUpper(strings.TrimSpace(item.Currency))
@@ -159,9 +159,10 @@ func (s *Service) replacePartyOpening(
 		if item.BalanceType == "PAYABLE" {
 			amount = -amount
 		}
-		key := item.CounterpartyType + "/" + item.Counterparty.ObjectID + "/" + item.Counterparty.VersionID + "/" + currency
+		key := item.AccountType + "/" + item.CounterpartyType + "/" + item.Counterparty.ObjectID + "/" + item.Counterparty.VersionID + "/" + currency
 		params := dbsqlc.InsertLedDraftPartyParams{
-			ID: newID(), CounterpartyEntity: item.CounterpartyType, Currency: currency, AmountCents: amount,
+			ID: newID(), AccountType: item.AccountType, CounterpartyEntity: item.CounterpartyType,
+			Currency: currency, AmountCents: amount,
 		}
 		if old, ok := oldByKey[key]; ok {
 			params.ID = old.ID

@@ -52,13 +52,6 @@ func New(
 	bobService := bobdomain.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
 	events := txevent.NewBus()
-	ledger, err := leddomain.NewService(pool, bobService)
-	if err != nil {
-		return nil, err
-	}
-	if err = ledger.RegisterSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register LED subscriptions: %w", err)
-	}
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -70,8 +63,18 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
 	}
+	ledger, err := leddomain.NewService(pool, bobService, vouchers)
+	if err != nil {
+		return nil, err
+	}
+	if err = ledger.RegisterSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register LED subscriptions: %w", err)
+	}
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)
+	}
+	if err = vouchers.RegisterCompletionSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register VOU completion subscriptions: %w", err)
 	}
 	return &Seeder{pool: pool, bob: bobService, ledger: ledger, vouchers: vouchers}, nil
 }
@@ -257,7 +260,7 @@ func (s *Seeder) seedSaleOrder(ctx context.Context, refs references) (seedOutcom
 				},
 			}}, actorID, requestID("sale-order-create"))
 		},
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("seed production sale order: %w", err)
@@ -480,10 +483,6 @@ func (s *Seeder) advanceDocument(
 			current, err = s.vouchers.Approve(ctx, entity, voudomain.DocumentRevisionInput{
 				DocumentID: current.DocumentID, Revision: current.Revision,
 			}, actorID, requestID(key+"-approve"))
-		case voudomain.StatusApproved:
-			current, err = s.vouchers.Finalize(ctx, entity, voudomain.FinalizeInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key+"-finalize"))
 		default:
 			return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
 		}

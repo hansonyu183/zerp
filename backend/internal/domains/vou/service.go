@@ -48,6 +48,12 @@ type AttachmentOptions struct {
 	DownloadTTL time.Duration
 }
 
+type auditInput struct {
+	DocumentID, Entity, Event, To, ActorID, RequestID string
+	From, Reason                                      *string
+	Summary                                           map[string]any
+}
+
 func NewService(
 	pool *pgxpool.Pool,
 	resolver effectiveReferenceResolver,
@@ -124,26 +130,21 @@ func entityPrefix(entity string) string {
 		EntityOrderProduction: "MTO",
 		EntitySelfProduction:  "MTS",
 		EntityInventoryCount:  "IVC",
-		EntityReceipt:         "REC", EntityCustomerReceipt: "REC", EntitySupplierReceipt: "REC", EntityOtherReceipt: "REC",
-		EntityPayment: "PAY", EntityCustomerPayment: "PAY", EntitySupplierPayment: "PAY", EntityOtherPayment: "PAY",
+		EntitySalesReceipt:    "SRC", EntityPurchaseRefund: "PRF", EntityOtherReceipt: "ORC",
+		EntitySalesRefund: "SRF", EntityPurchasePayment: "PPY", EntityOtherPayment: "OPY",
 		EntityEmployeeLoan: "ELN", EntityEmployeeRepayment: "ERP", EntityEmployeeLoanWriteoff: "ELW",
 		EntityExpenseReimbursement: "EXR",
 		EntityExpensePayment:       "EXP", EntityOtherIncome: "OIN",
 		EntityAssetAcquisition: "ACQ", EntityAssetDepreciation: "DEP",
 		EntityAssetSale: "DSL", EntityAssetLiquidation: "LIQ",
+		EntityBillReceipt: "BRE", EntityBillPayment: "BLP", EntityBillIssue: "BLI",
+		EntityBillDiscount:            "BLD",
+		EntityBillMaturity:            "BLM",
+		EntityIntermediaryCalculation: "ICL",
 	}[entity]
 }
 
 func numberingEntity(entity string) string {
-	if entity == EntityEmployeeLoan || entity == EntityEmployeeRepayment {
-		return entity
-	}
-	if receiptEntity(entity) {
-		return EntityReceipt
-	}
-	if paymentEntity(entity) {
-		return EntityPayment
-	}
 	return entity
 }
 
@@ -168,12 +169,15 @@ func formatDate(value pgtype.Date) string {
 func stringPtr(value string) *string { return &value }
 
 type settlementSnapshotFields struct {
-	ObjectID, VersionID, Code, Name, RuleType, Description *string
-	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay *int32
-	DefaultSalesSurchargeCents                             int64
+	ObjectID, VersionID, Code, Name, TermCode, RuleType, Description *string
+	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay           *int32
+	DefaultSalesSurchargeCents                                       int64
 }
 
-func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnapshotFields {
+func settlementSnapshot(
+	reference *bobdomain.EffectiveReference,
+	monthlyClosingDay int32,
+) settlementSnapshotFields {
 	if reference == nil {
 		return settlementSnapshotFields{}
 	}
@@ -181,6 +185,7 @@ func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnaps
 	result := settlementSnapshotFields{
 		ObjectID: stringPtr(reference.ObjectID), VersionID: stringPtr(reference.VersionID),
 		Code: stringPtr(reference.Code), Name: stringPtr(reference.Data.Name),
+		TermCode:                   stringPtr(reference.Data.TermCode),
 		RuleType:                   stringPtr(reference.Data.RuleType),
 		MonthOffset:                int32Ptr(reference.Data.MonthOffset),
 		DayOfMonth:                 reference.Data.DayOfMonth,
@@ -188,11 +193,14 @@ func settlementSnapshot(reference *bobdomain.EffectiveReference) settlementSnaps
 		DefaultSalesSurchargeCents: surcharge,
 		Description:                optionalText(reference.Data.Description),
 	}
-	if reference.Data.RuleType == "DUE_DAYS" {
-		result.DueDays = int32Ptr(reference.Data.DueDays)
+	if reference.Data.RuleType == bobdomain.SettlementRuleRelativeDays {
+		result.DueDays = int32Ptr(reference.Data.DayOffset)
 	}
-	if reference.Data.RuleType == "MONTH_END" {
-		result.CutoffDay = int32Ptr(reference.Data.CutoffDay)
+	if reference.Data.RuleType == bobdomain.SettlementRuleMonthEnd {
+		if monthlyClosingDay < 1 || monthlyClosingDay > 31 {
+			monthlyClosingDay = 31
+		}
+		result.CutoffDay = int32Ptr(monthlyClosingDay)
 	}
 	return result
 }

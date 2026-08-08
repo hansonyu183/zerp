@@ -23,13 +23,17 @@ INSERT INTO bob_versions (
 -- name: InsertBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
     version_id, entity, name, customer_type, short_name, category_id, tax_number,
-    contact_name, contact_phone, email, address, remark, settlement_method_id, salesperson_employee_id
+    contact_name, contact_phone, email, address, remark, settlement_method_id,
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 ) VALUES (
     sqlc.arg(version_id), sqlc.arg(entity), sqlc.arg(name), sqlc.arg(customer_type),
     sqlc.narg(short_name), sqlc.narg(category_id), sqlc.narg(tax_number),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(email),
     sqlc.narg(address), sqlc.narg(remark), sqlc.narg(settlement_method_id),
-    sqlc.arg(salesperson_employee_id)
+    sqlc.arg(monthly_closing_day),
+    sqlc.arg(salesperson_employee_id), sqlc.arg(rebate_unit_price_cents),
+    sqlc.narg(intermediary_other_party_id)
 );
 
 -- name: InsertBobSupplierDetail :exec
@@ -126,20 +130,24 @@ VALUES (
 
 -- name: InsertBobSettlementMethodDetail :exec
 INSERT INTO bob_settlement_method_versions (
-    version_id, name, rule_type, month_offset, day_of_month, day_offset, description
+    version_id, name, term_code, rule_type, month_offset, day_of_month, day_offset,
+    default_sales_surcharge_cents, description
 ) VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(rule_type), sqlc.arg(month_offset),
-    sqlc.narg(day_of_month), sqlc.arg(day_offset), sqlc.narg(description)
+    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(term_code), sqlc.arg(rule_type), sqlc.arg(month_offset),
+    sqlc.narg(day_of_month), sqlc.arg(day_offset), sqlc.arg(default_sales_surcharge_cents), sqlc.narg(description)
 );
 
 -- name: CopyBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
     version_id, name, customer_type, short_name, category_id, tax_number,
-    contact_name, contact_phone, email, address, remark, settlement_method_id, salesperson_employee_id
+    contact_name, contact_phone, email, address, remark, settlement_method_id,
+    monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
+    intermediary_other_party_id
 )
 SELECT sqlc.arg(new_version_id), d.name, d.customer_type, d.short_name, d.category_id,
        d.tax_number, d.contact_name, d.contact_phone, d.email, d.address, d.remark,
-       d.settlement_method_id, d.salesperson_employee_id
+       d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id,
+       d.rebate_unit_price_cents, d.intermediary_other_party_id
 FROM bob_customer_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobSupplierDetail :exec
@@ -221,10 +229,11 @@ FROM bob_position_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobSettlementMethodDetail :exec
 INSERT INTO bob_settlement_method_versions (
-    version_id, name, rule_type, month_offset, day_of_month, day_offset, description
+    version_id, name, term_code, rule_type, month_offset, day_of_month, day_offset,
+    default_sales_surcharge_cents, description
 )
-SELECT sqlc.arg(new_version_id), d.name, d.rule_type, d.month_offset,
-       d.day_of_month, d.day_offset, d.description
+SELECT sqlc.arg(new_version_id), d.name, d.term_code, d.rule_type, d.month_offset,
+       d.day_of_month, d.day_offset, d.default_sales_surcharge_cents, d.description
 FROM bob_settlement_method_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: UpdateBobCustomerDetail :execrows
@@ -235,7 +244,10 @@ SET name = sqlc.arg(name), customer_type = sqlc.arg(customer_type),
     contact_phone = sqlc.narg(contact_phone), email = sqlc.narg(email),
     address = sqlc.narg(address), remark = sqlc.narg(remark),
     settlement_method_id = sqlc.narg(settlement_method_id),
-    salesperson_employee_id = sqlc.arg(salesperson_employee_id)
+    monthly_closing_day = sqlc.arg(monthly_closing_day),
+    salesperson_employee_id = sqlc.arg(salesperson_employee_id),
+    rebate_unit_price_cents = sqlc.arg(rebate_unit_price_cents),
+    intermediary_other_party_id = sqlc.narg(intermediary_other_party_id)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobSupplierDetail :execrows
@@ -322,9 +334,11 @@ WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobSettlementMethodDetail :execrows
 UPDATE bob_settlement_method_versions
-SET name = sqlc.arg(name), rule_type = sqlc.arg(rule_type),
+SET name = sqlc.arg(name), term_code = sqlc.arg(term_code), rule_type = sqlc.arg(rule_type),
     month_offset = sqlc.arg(month_offset), day_of_month = sqlc.narg(day_of_month),
-    day_offset = sqlc.arg(day_offset), description = sqlc.narg(description)
+    day_offset = sqlc.arg(day_offset),
+    default_sales_surcharge_cents = sqlc.arg(default_sales_surcharge_cents),
+    description = sqlc.narg(description)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: DeleteBobProductPackagingSpecs :exec
@@ -443,6 +457,13 @@ FROM (
     WHERE history.domain = 'bob'
       AND history.entity = sqlc.arg(entity)
       AND history.old_code = sqlc.arg(seed_code)
+    UNION ALL
+    SELECT object.id, 0 AS priority, object.created_at
+    FROM bob_objects object
+    JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+    WHERE sqlc.arg(entity)::text = 'settlement-method'
+      AND object.entity = 'settlement-method'
+      AND method.term_code = sqlc.arg(seed_code)
 ) candidate
 ORDER BY candidate.priority, candidate.created_at, candidate.id
 LIMIT 1;
@@ -476,6 +497,7 @@ SELECT EXISTS (
     WHERE category_id = sqlc.arg(target_object_id)
        OR settlement_method_id = sqlc.arg(target_object_id)
        OR salesperson_employee_id = sqlc.arg(target_object_id)
+       OR intermediary_other_party_id = sqlc.arg(target_object_id)
 
     UNION ALL
 
@@ -885,6 +907,7 @@ WHERE object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
 SELECT count(*)
 FROM bob_version_views view
 WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
+  AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
   AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
   AND (
     sqlc.arg(enabled_filter)::integer = -1
@@ -931,6 +954,7 @@ WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_
 SELECT view.*
 FROM bob_version_views view
 WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
+  AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
   AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
   AND (
     sqlc.arg(enabled_filter)::integer = -1

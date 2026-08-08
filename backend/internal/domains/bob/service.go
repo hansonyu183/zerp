@@ -152,6 +152,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
+	if entity == EntitySettlementMethod {
+		return MutationResult{}, domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
+	}
 	data, _, err := validateCreate(entity, input.Data)
 	if err != nil || !validActorAndRequest(actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
@@ -240,7 +243,14 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 			return MutationResult{}, s.internal("read current product formula", readErr)
 		}
 	}
-	data, err := validateDetailData(entity, mergeDetailInput(current, input.Data))
+	merged := mergeDetailInput(current, input.Data)
+	if entity == EntitySettlementMethod {
+		merged = current
+		if input.Data.DefaultSalesSurcharge != nil {
+			merged.DefaultSalesSurcharge = *input.Data.DefaultSalesSurcharge
+		}
+	}
+	data, err := validateDetailData(entity, merged)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
 	}
@@ -287,6 +297,9 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 }
 
 func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) error {
+	if entity == EntitySettlementMethod {
+		return domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
+	}
 	if !validDeleteInput(entity, input) {
 		return domainError(ErrorValidation, "invalid delete request", nil, nil)
 	}
@@ -1030,6 +1043,7 @@ func (s *Service) validateDetailReferences(
 	add(EntityEmployee, data.ManagerEmployeeID)
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
+	add(EntityOtherParty, data.IntermediaryOtherPartyID)
 	if entity == EntityDepartment {
 		add(EntityDepartment, data.ParentID)
 	}
@@ -1063,7 +1077,7 @@ func (s *Service) validateDetailReferences(
 }
 
 func auxiliaryEntity(entity string) bool {
-	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod}, entity)
+	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition}, entity)
 }
 
 func auxiliaryEntityName(entity string) string {

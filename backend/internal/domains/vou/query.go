@@ -39,7 +39,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		items = append(items, ListItem{
 			DocumentID: row.ID, Entity: row.Entity, DocumentNo: row.DocumentNo,
 			Status: documentStatus(entity, row.Status), Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
-			PartyName: row.PartyName, Currency: deref(row.Currency), Amount: formatMoney(row.TotalAmountCents),
+			PartyName: row.PartyName, Currency: deref(row.Currency), Amount: documentAmount(row.Entity, row.TotalAmountCents),
 			UpdatedAt: row.UpdatedAt.Time,
 		})
 	}

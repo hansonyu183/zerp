@@ -15,7 +15,9 @@ func (s *Service) writeSaleDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.CustomerSettlement)
+	settlement := settlementSnapshot(
+		refs.CustomerSettlement, refs.Customer.Data.MonthlyClosingDay,
+	)
 	params := dbsqlc.InsertVouSaleOrderDetailParams{
 		DocumentID: documentID, CustomerObjectID: refs.Customer.ObjectID,
 		CustomerVersionID: refs.Customer.VersionID, CustomerCode: refs.Customer.Code, CustomerName: refs.Customer.Data.Name,
@@ -31,10 +33,12 @@ func (s *Service) writeSaleDetail(
 		SettlementMethodObjectID: settlement.ObjectID, SettlementMethodVersionID: settlement.VersionID,
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
+		SettlementTermCode:   deref(settlement.TermCode),
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
 		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
 		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
 		SettlementDescription:                settlement.Description,
+		SpecialApproval:                      draft.SpecialApproval,
 	}
 	if update {
 		rows, err := q.UpdateVouSaleOrderDetail(ctx, dbsqlc.UpdateVouSaleOrderDetailParams{
@@ -50,10 +54,12 @@ func (s *Service) writeSaleDetail(
 			SettlementMethodVersionID: params.SettlementMethodVersionID,
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
+			SettlementTermCode:   params.SettlementTermCode,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
 			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
 			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
 			SettlementDescription:                params.SettlementDescription, DocumentID: documentID,
+			SpecialApproval: params.SpecialApproval,
 		})
 		return oneRow(rows, err)
 	}
@@ -69,7 +75,8 @@ func (s *Service) writePurchaseDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	settlement := settlementSnapshot(refs.SupplierSettlement)
+	settlement := settlementSnapshot(refs.SupplierSettlement, 31)
+	settlement.DefaultSalesSurchargeCents = 0
 	params := dbsqlc.InsertVouPurchaseOrderDetailParams{
 		DocumentID: documentID, SupplierObjectID: refs.Supplier.ObjectID,
 		SupplierVersionID: refs.Supplier.VersionID, SupplierCode: refs.Supplier.Code, SupplierName: refs.Supplier.Data.Name,
@@ -84,6 +91,7 @@ func (s *Service) writePurchaseDetail(
 		SettlementMethodObjectID: settlement.ObjectID, SettlementMethodVersionID: settlement.VersionID,
 		SettlementMethodCode: settlement.Code, SettlementMethodName: settlement.Name,
 		SettlementRuleType: settlement.RuleType, SettlementMonthOffset: settlement.MonthOffset,
+		SettlementTermCode:   deref(settlement.TermCode),
 		SettlementDayOfMonth: settlement.DayOfMonth, SettlementDayOffset: settlement.DayOffset,
 		SettlementDueDays: settlement.DueDays, SettlementCutoffDay: settlement.CutoffDay,
 		SettlementDefaultSalesSurchargeCents: settlement.DefaultSalesSurchargeCents,
@@ -102,6 +110,7 @@ func (s *Service) writePurchaseDetail(
 			SettlementMethodVersionID: params.SettlementMethodVersionID,
 			SettlementMethodCode:      params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName,
 			SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset,
+			SettlementTermCode:   params.SettlementTermCode,
 			SettlementDayOfMonth: params.SettlementDayOfMonth, SettlementDayOffset: params.SettlementDayOffset,
 			SettlementDueDays: params.SettlementDueDays, SettlementCutoffDay: params.SettlementCutoffDay,
 			SettlementDefaultSalesSurchargeCents: params.SettlementDefaultSalesSurchargeCents,
@@ -122,6 +131,10 @@ func (s *Service) writeCashDetail(
 	update bool,
 ) error {
 	counterparty := refs.Counterparty
+	var otherCategory *string
+	if draft.OtherCategory != "" {
+		otherCategory = &draft.OtherCategory
+	}
 	if receiptEntity(entity) {
 		params := dbsqlc.InsertVouReceiptDetailParams{
 			DocumentID: documentID, Entity: entity, CounterpartyEntity: draft.CounterpartyType,
@@ -129,6 +142,7 @@ func (s *Service) writeCashDetail(
 			CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 			FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,
 			FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
+			OtherCategory:   otherCategory,
 			HandlerObjectID: stringPtr(refs.Handler.ObjectID), HandlerVersionID: stringPtr(refs.Handler.VersionID),
 			HandlerCode: stringPtr(refs.Handler.Code), HandlerName: stringPtr(refs.Handler.Data.Name),
 		}
@@ -139,6 +153,7 @@ func (s *Service) writeCashDetail(
 				CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 				FundAccountVersionID: params.FundAccountVersionID, FundAccountCode: params.FundAccountCode,
 				FundAccountName: params.FundAccountName,
+				OtherCategory:   params.OtherCategory,
 				HandlerObjectID: params.HandlerObjectID, HandlerVersionID: params.HandlerVersionID,
 				HandlerCode: params.HandlerCode, HandlerName: params.HandlerName, DocumentID: documentID,
 			})
@@ -152,6 +167,7 @@ func (s *Service) writeCashDetail(
 		CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
 		FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountVersionID: refs.FundAccount.VersionID,
 		FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
+		OtherCategory:   otherCategory,
 		HandlerObjectID: stringPtr(refs.Handler.ObjectID), HandlerVersionID: stringPtr(refs.Handler.VersionID),
 		HandlerCode: stringPtr(refs.Handler.Code), HandlerName: stringPtr(refs.Handler.Data.Name),
 	}
@@ -162,6 +178,7 @@ func (s *Service) writeCashDetail(
 			CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 			FundAccountVersionID: params.FundAccountVersionID, FundAccountCode: params.FundAccountCode,
 			FundAccountName: params.FundAccountName,
+			OtherCategory:   params.OtherCategory,
 			HandlerObjectID: params.HandlerObjectID, HandlerVersionID: params.HandlerVersionID,
 			HandlerCode: params.HandlerCode, HandlerName: params.HandlerName, DocumentID: documentID,
 		})

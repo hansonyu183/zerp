@@ -1,14 +1,15 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 
 const MAX_ATTACHMENTS = 3
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg'])
 
 export type FeedbackCategory = 'BUG' | 'SUGGESTION' | 'OTHER'
-export type FeedbackAttachmentStatus = 'pending' | 'uploading' | 'ready' | 'error'
+export type FeedbackAttachmentStatus =
+  'pending' | 'uploading' | 'ready' | 'error'
 
 export interface FeedbackAttachmentDraft {
   key: string
@@ -63,6 +64,7 @@ export function useFeedbackViewModel() {
   const errorMessage = ref('')
   const attachmentError = ref('')
   const created = ref<FeedbackCreated | null>(null)
+  const submissionKey = ref(crypto.randomUUID())
 
   const titleLength = computed(() => characterCount(title.value.trim()))
   const contentLength = computed(() => characterCount(content.value.trim()))
@@ -78,7 +80,9 @@ export function useFeedbackViewModel() {
       contentLength.value >= 1 &&
       contentLength.value <= 4000 &&
       requestIdValid.value &&
-      attachments.value.every((attachment) => attachment.status !== 'uploading'),
+      attachments.value.every(
+        (attachment) => attachment.status !== 'uploading',
+      ),
   )
 
   function hasDraft(): boolean {
@@ -128,7 +132,10 @@ export function useFeedbackViewModel() {
     const selectedFingerprints = new Set<string>()
     for (const file of files) {
       const fingerprint = fileFingerprint(file)
-      if (fingerprints.has(fingerprint) || selectedFingerprints.has(fingerprint)) {
+      if (
+        fingerprints.has(fingerprint) ||
+        selectedFingerprints.has(fingerprint)
+      ) {
         attachmentError.value = '同一张截图不能重复添加。'
         return
       }
@@ -152,14 +159,18 @@ export function useFeedbackViewModel() {
     )
   }
 
-  async function removeAttachment(attachment: FeedbackAttachmentDraft): Promise<void> {
+  async function removeAttachment(
+    attachment: FeedbackAttachmentDraft,
+  ): Promise<void> {
     if (submitting.value || attachment.status === 'uploading') return
 
     attachment.errorMessage = undefined
     try {
       if (attachment.fileId) await removeServerAttachment(attachment.fileId)
       URL.revokeObjectURL(attachment.previewUrl)
-      attachments.value = attachments.value.filter((item) => item.key !== attachment.key)
+      attachments.value = attachments.value.filter(
+        (item) => item.key !== attachment.key,
+      )
     } catch (error) {
       attachment.status = 'error'
       attachment.errorMessage = getErrorMessage(error)
@@ -167,13 +178,18 @@ export function useFeedbackViewModel() {
   }
 
   async function sha256(file: File): Promise<string> {
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      await file.arrayBuffer(),
+    )
     return [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')
   }
 
-  async function uploadAttachment(attachment: FeedbackAttachmentDraft): Promise<void> {
+  async function uploadAttachment(
+    attachment: FeedbackAttachmentDraft,
+  ): Promise<void> {
     attachment.status = 'uploading'
     attachment.errorMessage = undefined
     try {
@@ -217,6 +233,7 @@ export function useFeedbackViewModel() {
     pagePath.value = ''
     attachments.value = []
     attachmentError.value = ''
+    submissionKey.value = crypto.randomUUID()
   }
 
   async function submit(): Promise<void> {
@@ -232,6 +249,7 @@ export function useFeedbackViewModel() {
       const { data } = await apiClient.post<
         FeedbackCreated,
         {
+          submissionKey: string
           category: FeedbackCategory
           title: string
           content: string
@@ -241,6 +259,7 @@ export function useFeedbackViewModel() {
           attachmentIds: string[]
         }
       >('app/feedback/create', {
+        submissionKey: submissionKey.value,
         category: category.value,
         title: title.value.trim(),
         content: content.value.trim(),
@@ -254,7 +273,7 @@ export function useFeedbackViewModel() {
       created.value = data
       clearDraft()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       submitting.value = false
     }

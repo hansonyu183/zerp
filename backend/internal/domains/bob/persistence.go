@@ -13,14 +13,29 @@ import (
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
+		monthlyClosingDay := data.MonthlyClosingDay
+		if monthlyClosingDay == 0 {
+			monthlyClosingDay = 31
+		}
+		var rebateUnitPrice int64
+		if entity == EntityCustomer {
+			var err error
+			rebateUnitPrice, err = moneyCents(data.RebateUnitPrice)
+			if err != nil {
+				return err
+			}
+		}
 		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
 			VersionID: versionID, Entity: entity, Name: data.Name, CustomerType: data.CustomerType,
 			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:    nilIfEmpty(data.SettlementMethodID),
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
+			SettlementMethodID:       nilIfEmpty(data.SettlementMethodID),
+			MonthlyClosingDay:        monthlyClosingDay,
+			SalespersonEmployeeID:    data.SalespersonEmployeeID,
+			RebateUnitPriceCents:     rebateUnitPrice,
+			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
 		})
 	case EntitySupplier:
 		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
@@ -107,10 +122,15 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Description: nilIfEmpty(data.Description),
 		})
 	case EntitySettlementMethod:
+		surcharge, err := moneyCents(data.DefaultSalesSurcharge)
+		if err != nil {
+			return err
+		}
 		return q.InsertBobSettlementMethodDetail(ctx, dbsqlc.InsertBobSettlementMethodDetailParams{
-			VersionID: versionID, Name: data.Name, RuleType: data.RuleType,
+			VersionID: versionID, Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType,
 			MonthOffset: data.MonthOffset, DayOfMonth: data.DayOfMonth,
-			DayOffset: data.DayOffset, Description: nilIfEmpty(data.Description),
+			DayOffset: data.DayOffset, DefaultSalesSurchargeCents: surcharge,
+			Description: nilIfEmpty(data.Description),
 		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -122,14 +142,29 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	var err error
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
+		monthlyClosingDay := data.MonthlyClosingDay
+		if monthlyClosingDay == 0 {
+			monthlyClosingDay = 31
+		}
+		var rebateUnitPrice int64
+		if entity == EntityCustomer {
+			var parseErr error
+			rebateUnitPrice, parseErr = moneyCents(data.RebateUnitPrice)
+			if parseErr != nil {
+				return parseErr
+			}
+		}
 		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
 			Name: data.Name, CustomerType: data.CustomerType, ShortName: nilIfEmpty(data.ShortName),
 			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
-			VersionID:             versionID,
+			MonthlyClosingDay:        monthlyClosingDay,
+			SalespersonEmployeeID:    data.SalespersonEmployeeID,
+			RebateUnitPriceCents:     rebateUnitPrice,
+			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
+			VersionID:                versionID,
 		})
 	case EntitySupplier:
 		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{
@@ -221,10 +256,15 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Description: nilIfEmpty(data.Description), VersionID: versionID,
 		})
 	case EntitySettlementMethod:
+		surcharge, parseErr := moneyCents(data.DefaultSalesSurcharge)
+		if parseErr != nil {
+			return parseErr
+		}
 		rows, err = q.UpdateBobSettlementMethodDetail(ctx, dbsqlc.UpdateBobSettlementMethodDetailParams{
-			Name: data.Name, RuleType: data.RuleType, MonthOffset: data.MonthOffset,
+			Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType, MonthOffset: data.MonthOffset,
 			DayOfMonth: data.DayOfMonth, DayOffset: data.DayOffset,
-			Description: nilIfEmpty(data.Description), VersionID: versionID,
+			DefaultSalesSurchargeCents: surcharge,
+			Description:                nilIfEmpty(data.Description), VersionID: versionID,
 		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)

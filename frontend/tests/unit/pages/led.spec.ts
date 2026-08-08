@@ -55,14 +55,13 @@ describe('LED shared ledger view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines the seven exact query ledgers and their backend dimensions', () => {
+  it('defines the exact query ledgers and their backend dimensions', () => {
     expect(Object.keys(ledgerEntityConfigs)).toEqual([
       'inventory',
       'fund',
       'customer',
       'supplier',
       'other',
-      'employee',
       'container',
     ])
     expect(
@@ -75,18 +74,20 @@ describe('LED shared ledger view model', () => {
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
     ])
     expect(ledgerEntityConfigs.other.referenceSources).toEqual([
+      { entity: 'customer' },
+      { entity: 'supplier' },
       { entity: 'other-party' },
-    ])
-    expect(ledgerEntityConfigs.employee.referenceSources).toEqual([
       { entity: 'employee' },
     ])
     expect(
-      ledgerEntityConfigs.employee.sourceEntities.map((item) => item.value),
-    ).toEqual([
-      'employee-loan',
-      'employee-repayment',
-      'employee-loan-writeoff',
-    ])
+      ledgerEntityConfigs.other.otherCategories?.map((item) => item.value),
+    ).toEqual(['COMMISSION', 'INTERMEDIARY', 'REBATE'])
+    expect(
+      ledgerEntityConfigs.other.counterpartyTypes?.map((item) => item.value),
+    ).toEqual(['customer', 'supplier', 'other-party', 'employee'])
+    expect(
+      ledgerEntityConfigs.other.sourceEntities.map((item) => item.value),
+    ).toContain('employee-loan')
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
       'opening',
@@ -182,6 +183,51 @@ describe('LED shared ledger view model', () => {
         },
         sort: [{ field: 'documentNo', order: 'asc' }],
       },
+      { signal: expect.any(AbortSignal) },
+    )
+    scope.stop()
+  })
+
+  it('uses the explicit counterparty type after changing it with a reference selected', async () => {
+    useSessionStore().permissions = [
+      '/led/other/query',
+      '/led/other/balance',
+    ]
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    const scope = effectScope()
+    const vm = scope.run(() => useLedgerViewModel(ledgerEntityConfigs.other))!
+    const employee = reference('employee', '2')
+    vm.queryFilters.object = employee
+    vm.queryFilters.counterpartyType = 'customer'
+
+    await vm.load()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'led/other/query',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          objectId: employee.objectId,
+          counterpartyType: 'customer',
+        }),
+      }),
+      { signal: expect.any(AbortSignal) },
+    )
+
+    vm.mode.value = 'balances'
+    vm.balanceFilters.object = employee
+    vm.balanceFilters.counterpartyType = 'supplier'
+    await vm.load()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'led/other/balance',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          objectId: employee.objectId,
+          counterpartyType: 'supplier',
+        }),
+      }),
       { signal: expect.any(AbortSignal) },
     )
     scope.stop()
@@ -352,6 +398,7 @@ describe('LED closing view model', () => {
       reason: '发现月末单据遗漏',
     })
     expect(vm.successMessage.value).toBe('已反结最近一期。')
+    expect(vm.closingDate.value).toBe('2026-06-30')
     expect(vm.uncloseDialog.value).toBe(false)
     expect(vm.uncloseReason.value).toBe('')
     scope.stop()

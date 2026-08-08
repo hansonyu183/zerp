@@ -48,15 +48,16 @@ func (s *Service) validateManagedPurchaseParentStatus(
 	if err != nil {
 		return s.internal("read purchase order status", err)
 	}
+	parentReady := status == StatusApproved || status == StatusFinalized
 	if document.Entity == EntityPurchaseReturn {
-		if status != StatusApproved || fulfillment == "SHORT_CLOSE_REQUESTED" {
+		if !parentReady || fulfillment == "SHORT_CLOSE_REQUESTED" {
 			return domainError(ErrorConflict, "purchase order is not returnable", map[string]any{
 				"status": status, "fulfillmentStatus": fulfillment, "targetStatus": targetStatus,
 			}, nil)
 		}
 		return nil
 	}
-	if status != StatusApproved || fulfillment != "OPEN" {
+	if !parentReady || fulfillment != "OPEN" {
 		return domainError(ErrorConflict, "purchase order is not open", map[string]any{
 			"status": status, "fulfillmentStatus": fulfillment, "targetStatus": targetStatus,
 		}, nil)
@@ -233,6 +234,10 @@ func (s *Service) CreatePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, order.ID, businessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	var generatedID, generatedNo string
 	var generatedRevision int64
 	err = tx.QueryRow(ctx, `SELECT id,document_no,revision FROM vou_documents
@@ -250,6 +255,7 @@ func (s *Service) CreatePurchaseInbound(
 		q := s.queries.WithTx(tx)
 		revision, updateErr := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 			BusinessDate: dateValue(businessDate), Currency: order.Currency,
+			DueDate:          dateValue(dueDate),
 			TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
 			ID: generatedID, Entity: EntityPurchaseInbound, Revision: generatedRevision,
 		})
@@ -294,10 +300,10 @@ func (s *Service) CreatePurchaseInbound(
 	id := newID()
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), businessDate.Format("20060102"), counter)
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,business_date,currency,total_amount_cents,remark,
+		id,entity,document_no,business_date,currency,due_date,total_amount_cents,remark,
 		parent_entity,parent_document_id,created_by,updated_by
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
-		id, EntityPurchaseInbound, number, businessDate, order.Currency, total,
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`,
+		id, EntityPurchaseInbound, number, businessDate, order.Currency, dueDate, total,
 		optionalText(input.Data.Remark), EntityPurchaseOrder, order.ID, actorID); err != nil {
 		return MutationResult{}, s.writeError("insert purchase inbound", err)
 	}
@@ -396,6 +402,10 @@ func (s *Service) SavePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, order.ID, businessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	lines, total, err := s.validateAndReserveInboundLines(
 		ctx, tx, order.ID, input.DocumentID, input.Data.SourceLines,
 	)
@@ -404,6 +414,7 @@ func (s *Service) SavePurchaseInbound(
 	}
 	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(businessDate), Currency: order.Currency,
+		DueDate:          dateValue(dueDate),
 		TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
 		ID: input.DocumentID, Entity: EntityPurchaseInbound, Revision: input.Revision,
 	})
@@ -583,8 +594,28 @@ func (s *Service) purchaseShortClose(
 	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
 		ID: documentID, Entity: EntityPurchaseOrder,
 	})
-	if err != nil || document.Revision != revision || document.Status != StatusApproved {
+	if err != nil || document.Revision != revision {
 		return MutationResult{}, domainError(ErrorConflict, "purchase order changed", nil, err)
+	}
+	expectedStatus := StatusApproved
+	if operation == "unconfirm" {
+		expectedStatus = StatusFinalized
+	}
+	if document.Status != expectedStatus {
+		return MutationResult{}, domainError(ErrorConflict, "purchase order changed", map[string]any{
+			"expectedStatus": expectedStatus, "actualStatus": document.Status,
+		}, nil)
+	}
+	if operation == "unconfirm" {
+		if _, err = s.systemUnfinalizeDocument(ctx, tx, document, requestID, "反短结重新打开"); err != nil {
+			return MutationResult{}, err
+		}
+		document, err = q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
+			ID: documentID, Entity: EntityPurchaseOrder,
+		})
+		if err != nil {
+			return MutationResult{}, s.internal("relock reopened purchase order", err)
+		}
 	}
 	detail, err := q.GetVouPurchaseOrderDetail(ctx, documentID)
 	if err != nil {
@@ -639,12 +670,12 @@ func (s *Service) purchaseShortClose(
 				SELECT sum(i.quantity_micros) - COALESCE((
 					SELECT sum(r.quantity_micros) FROM vou_purchase_return_lines r
 					JOIN vou_documents rd ON rd.id=r.document_id
-					WHERE r.source_order_line_id=o.id AND rd.status='FINALIZED'
+					WHERE r.source_order_line_id=o.id AND rd.status IN ('APPROVED','FINALIZED')
 				),0) FROM vou_purchase_inbound_lines i
 				JOIN vou_documents d ON d.id=i.document_id
 				JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
 				WHERE x.source_order_id=$1 AND i.source_order_line_id=o.id
-				  AND d.status='FINALIZED'
+				  AND d.status IN ('APPROVED','FINALIZED')
 			  ),0)
 		)`, documentID).Scan(&hasRemaining)
 		if err != nil || !hasRemaining {
@@ -674,7 +705,7 @@ func (s *Service) purchaseShortClose(
 	var newRevision int64
 	err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,
 		updated_at=now(),updated_by=$1 WHERE id=$2 AND revision=$3 RETURNING revision`,
-		actorID, documentID, revision).Scan(&newRevision)
+		actorID, documentID, document.Revision).Scan(&newRevision)
 	if err != nil {
 		return MutationResult{}, s.writeError("update purchase short close", err)
 	}
@@ -682,6 +713,15 @@ func (s *Service) purchaseShortClose(
 		fulfillment_status=$1,short_close_requested_by=$2,short_close_reason=$3
 		WHERE document_id=$4`, next, requestedBy, shortReason, documentID); err != nil {
 		return MutationResult{}, err
+	}
+	if next == "SHORT_CLOSED" {
+		if err = s.releaseOrderSettlement(ctx, tx, documentID); err != nil {
+			return MutationResult{}, err
+		}
+	} else if operation == "unconfirm" {
+		if err = s.reopenOrderSettlement(ctx, tx, EntityPurchaseOrder, documentID); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	processStatus := map[string]string{
 		"OPEN": StatusApproved, "SHORT_CLOSE_REQUESTED": StatusShortCloseRequested,
@@ -710,12 +750,35 @@ func (s *Service) purchaseShortClose(
 			return MutationResult{}, err
 		}
 	}
+	if err = insertAudit(ctx, q, auditInput{
+		DocumentID: document.ID, Entity: EntityPurchaseOrder,
+		Event: "SHORT_CLOSE_" + strings.ToUpper(operation),
+		From:  stringPtr(StatusApproved), To: StatusApproved, ActorID: actorID,
+		Reason: optionalText(reason), RequestID: requestID,
+		Summary: map[string]any{"fulfillmentStatus": next},
+	}); err != nil {
+		return MutationResult{}, s.writeError("audit purchase short close", err)
+	}
+	documentStatus := StatusApproved
+	if next == "SHORT_CLOSED" {
+		current, lockErr := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
+			ID: document.ID, Entity: EntityPurchaseOrder,
+		})
+		if lockErr != nil {
+			return MutationResult{}, s.internal("lock short-closed purchase order", lockErr)
+		}
+		newRevision, err = s.systemFinalizeDocument(ctx, tx, current, requestID)
+		if err != nil {
+			return MutationResult{}, err
+		}
+		documentStatus = StatusFinalized
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
 	return MutationResult{
 		DocumentID: document.ID, DocumentNo: document.DocumentNo,
-		Status: processStatus, Revision: newRevision,
+		Status: documentStatus, Revision: newRevision,
 	}, nil
 }
 
@@ -757,7 +820,8 @@ func (s *Service) lockPurchaseOrderForInbound(
 	if err != nil {
 		return order, detail, err
 	}
-	if order.Status != StatusApproved || detail.FulfillmentStatus != "OPEN" {
+	orderReady := order.Status == StatusApproved || order.Status == StatusFinalized
+	if !orderReady || detail.FulfillmentStatus != "OPEN" {
 		return order, detail, domainError(ErrorConflict,
 			"purchase order is not open for inbound", nil, nil)
 	}
@@ -821,7 +885,7 @@ func (s *Service) validateAndReserveInboundLines(
 		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0) - COALESCE((
 				SELECT sum(r.quantity_micros) FROM vou_purchase_return_lines r
 				JOIN vou_documents d ON d.id=r.document_id
-				WHERE r.source_order_line_id=$2 AND d.status='FINALIZED'
+				WHERE r.source_order_line_id=$2 AND d.status IN ('APPROVED','FINALIZED')
 			),0)
 			FROM vou_purchase_inbound_lines l
 			JOIN vou_purchase_inbound_details x ON x.document_id=l.document_id
@@ -875,7 +939,7 @@ func (s *Service) setPurchaseOrderBalances(
 			FROM vou_purchase_return_lines return_line
 			JOIN vou_documents return_doc ON return_doc.id=return_line.document_id
 			WHERE return_line.source_order_line_id=order_line.id
-			  AND return_doc.status='FINALIZED'
+			  AND return_doc.status IN ('APPROVED','FINALIZED')
 		),0)::bigint
 		FROM vou_product_lines order_line
 		LEFT JOIN vou_purchase_inbound_lines inbound_line
@@ -932,13 +996,13 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 				SELECT sum(r.quantity_micros)
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents rd ON rd.id=r.document_id
-				WHERE r.source_order_line_id=o.id AND rd.status='FINALIZED'
+				WHERE r.source_order_line_id=o.id AND rd.status IN ('APPROVED','FINALIZED')
 			),0)
 			FROM vou_purchase_inbound_lines i
 			JOIN vou_documents d ON d.id=i.document_id
 			JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
 			WHERE x.source_order_id=$1 AND i.source_order_line_id=o.id
-			  AND d.status='FINALIZED'
+			  AND d.status IN ('APPROVED','FINALIZED')
 		),0)
 	)`, orderID).Scan(&complete)
 	if err != nil {
@@ -958,6 +1022,13 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 			completed_at=CASE WHEN $1 THEN now() ELSE NULL END
 			WHERE root_document_id=$3 AND process_type=$4`,
 			complete, actorID, orderID, purchaseWorkflowType)
+	}
+	if err == nil {
+		if complete {
+			err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntityPurchaseOrder, orderID)
+		} else {
+			err = s.reopenOrderSettlement(ctx, tx, EntityPurchaseOrder, orderID)
+		}
 	}
 	return err
 }

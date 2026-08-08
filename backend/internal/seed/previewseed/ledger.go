@@ -8,6 +8,7 @@ import (
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 	"github.com/oklog/ulid/v2"
 )
@@ -67,7 +68,7 @@ func (s *Seeder) seedLedgerBaseline(ctx context.Context, counts *Counts) error {
 				FundAccount: ledReference(fund), BalanceType: "POSITIVE", Amount: "100000.00",
 			}},
 			Party: []leddomain.PartyOpeningInput{{
-				CounterpartyType: "customer", Counterparty: ledReference(customer),
+				AccountType: "TRADE", CounterpartyType: "customer", Counterparty: ledReference(customer),
 				Currency: "CNY", BalanceType: "RECEIVABLE", Amount: "5000.00",
 			}},
 			Container: []leddomain.ContainerOpeningInput{{
@@ -98,6 +99,11 @@ func (s *Seeder) seedLedgerBaseline(ctx context.Context, counts *Counts) error {
 	if err != nil {
 		return err
 	}
+	calculationOutcome, err := s.seedZeroIntermediaryCalculation(ctx, historyDate)
+	if err != nil {
+		return err
+	}
+	counts.add(calculationOutcome)
 	if _, err = s.ledger.Close(ctx, leddomain.ClosingInput{
 		Revision: closing.Revision, ClosingDate: historyDate,
 	}, actorID, requestID("ledger-closing", "close")); err != nil {
@@ -105,6 +111,59 @@ func (s *Seeder) seedLedgerBaseline(ctx context.Context, counts *Counts) error {
 	}
 	counts.add(outcomeCreated)
 	return nil
+}
+
+func (s *Seeder) seedZeroIntermediaryCalculation(ctx context.Context, businessDate string) (outcome, error) {
+	source, err := s.vouchers.IntermediarySource(ctx, voudomain.IntermediarySourceInput{
+		BusinessDate: businessDate,
+	})
+	if err != nil {
+		return 0, err
+	}
+	script, err := s.vouchers.GetIntermediaryScript(ctx)
+	if err != nil {
+		return 0, err
+	}
+	lines := make([]voudomain.IntermediaryResultLine, 0, len(source.Source.Lines))
+	for _, item := range source.Source.Lines {
+		lines = append(lines, voudomain.IntermediaryResultLine{
+			SourceSignoffLineID:      item.SourceSignoffLineID,
+			PremiumUnitPrice:         "0.00",
+			BarrelQuantity:           item.BarrelQuantity,
+			BaseCommission:           "0.00",
+			PremiumCommission:        "0.00",
+			LowPriceCommission:       "0.00",
+			MarketMaintenanceSubsidy: "0.00",
+			MarketDevelopmentSubsidy: "0.00",
+			BillCost:                 "0.00",
+			BillLineIDs:              []string{},
+			EmployeeAmount:           "0.00",
+			IntermediaryAmount:       "0.00",
+			RebateAmount:             "0.00",
+		})
+	}
+	_, _, result, err := s.ensureVoucher(
+		ctx,
+		"ledger-intermediary-calculation",
+		voudomain.EntityIntermediaryCalculation,
+		voudomain.StatusFinalized,
+		func() (voudomain.MutationResult, error) {
+			return s.vouchers.Create(ctx, voudomain.EntityIntermediaryCalculation, voudomain.CreateInput{
+				Data: voudomain.DraftInput{
+					BusinessDate: businessDate,
+					Currency:     "CNY",
+					Remark:       "预览历史期间零金额居间计算单",
+					IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
+						Source: source.Source, SourceHash: source.SourceHash, Script: script,
+						Result: voudomain.IntermediaryCalculationResult{
+							Lines: lines, Summaries: []voudomain.IntermediarySummary{},
+						},
+					},
+				},
+			}, actorID, requestID("ledger-intermediary-calculation", "create"))
+		},
+	)
+	return result, err
 }
 
 func ledReference(view bobdomain.ObjectView) leddomain.ReferenceInput {

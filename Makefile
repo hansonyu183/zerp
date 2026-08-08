@@ -3,12 +3,15 @@ SHELL := /bin/sh
 BACKEND_ENV ?= .env.local
 E2E_ENV ?= .env.e2e.local
 COREPACK_VERSION ?= 0.35.0
-PREVIEW_REF ?= HEAD
+PREVIEW_REF ?=
+PREVIEW_PR ?=
+PREVIEW_ACTOR ?=
+PREVIEW_MERGE ?=
 PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-status preview-password production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -55,6 +58,9 @@ check-backend:
 	if [ "$(BACKEND_SKIP_IMAGE)" != "1" ]; then targets="$$targets quality-image"; fi; \
 	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) $$targets
 
+check-backend-fast:
+	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) quality-fast
+
 check-containers:
 	$(COMPOSE) -f compose.yaml config --quiet
 	docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
@@ -73,11 +79,18 @@ check-runtime:
 	$(MAKE) check-release
 
 check-shell:
-	@for script in scripts/*.sh backend/scripts/*.sh; do sh -n "$$script"; done
+	@for script in scripts/*.sh backend/scripts/*.sh; do \
+		case "$$(sed -n '1p' "$$script")" in \
+			*bash) bash -n "$$script" ;; \
+			*) sh -n "$$script" ;; \
+		esac; \
+	done
 	shellcheck -x scripts/*.sh backend/scripts/*.sh
 
 release-check:
 	$(MAKE) check-shell
+	./scripts/test-release-flow-transition.sh
+	./scripts/preview-state-test.sh
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
 	GITHUB_BASE_REF=main ZERP_PR_BASE_SHA=HEAD^ ZERP_PR_HEAD_SHA=HEAD scripts/verify-pr-base.sh
@@ -111,7 +124,8 @@ preview-up:
 	@./scripts/preview.sh up
 
 preview-deploy:
-	@./scripts/preview-deploy.sh "$(PREVIEW_REF)"
+	@test -n "$(PREVIEW_PR)" -a -n "$(PREVIEW_REF)" || { echo "usage: make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-sha>" >&2; exit 2; }
+	@PREVIEW_ACTOR="$(PREVIEW_ACTOR)" ./scripts/preview-deploy.sh "$(PREVIEW_PR)" "$(PREVIEW_REF)"
 
 preview-down:
 	@./scripts/preview.sh down
@@ -119,11 +133,35 @@ preview-down:
 preview-reset:
 	@./scripts/preview.sh reset
 
+preview-rollback:
+	@./scripts/preview.sh rollback
+
 preview-status:
 	@./scripts/preview.sh status
 
 preview-password:
 	@./scripts/preview.sh password
+
+preview-touch:
+	@PREVIEW_PR="$(PREVIEW_PR)" ./scripts/preview-state.sh touch
+
+preview-close:
+	@PREVIEW_PR="$(PREVIEW_PR)" ./scripts/preview.sh close
+
+preview-accept:
+	@PREVIEW_PR="$(PREVIEW_PR)" PREVIEW_ACTOR="$(PREVIEW_ACTOR)" ./scripts/preview.sh accept
+
+preview-promote:
+	@PREVIEW_PR="$(PREVIEW_PR)" PREVIEW_MERGE_SHA="$(PREVIEW_MERGE)" ./scripts/preview.sh promote
+
+preview-reap:
+	@./scripts/preview.sh reap
+
+preview-gc:
+	@./scripts/preview.sh gc
+
+preview-uninstall-agent:
+	@./scripts/uninstall-preview-agent.sh
 
 production-status:
 	@./scripts/production-status.sh

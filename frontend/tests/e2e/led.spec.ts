@@ -1,21 +1,7 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
-import { loadEnv } from 'vite'
-import { wflBootstrapEnabled, wflOperatorAuthStatePath } from './wfl-runtime'
-
-const localE2EEnv = loadEnv('e2e', process.cwd(), '')
-const ledReadonlyEnabled =
-  (process.env.E2E_LED_READONLY ?? localE2EEnv.E2E_LED_READONLY) === '1'
-const reuseBootstrapSession = wflBootstrapEnabled()
-test.use({
-  storageState: reuseBootstrapSession ? wflOperatorAuthStatePath : undefined,
-})
+import { expect, test, type Page, type TestInfo } from './fixtures'
 
 async function signIn(page: Page): Promise<void> {
-  if (reuseBootstrapSession) return
-  await page.goto('/signin')
-  await page.getByLabel('用户名').fill(process.env.E2E_USERNAME!)
-  await page.getByLabel('密码').fill(process.env.E2E_PASSWORD!)
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.goto('/home/dashboard')
   await expect(page).not.toHaveURL(/\/signin/)
 }
 
@@ -40,28 +26,30 @@ async function expectMobileCards(
 }
 
 test.describe('LED 真实后端只读流程', () => {
-  test.skip(!ledReadonlyEnabled, '设置 E2E_LED_READONLY=1 后在隔离账簿运行。')
-
   test.beforeEach(async ({ page }) => {
     await signIn(page)
   })
 
-  test('加载期初状态和结账历史', async ({ page }, testInfo) => {
-    await page.goto('/led/closing')
-    await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与结账')
-    await expect(page.getByText(/版本 \d+/)).toBeVisible()
-    const auditTab = page.getByRole('tab', { name: '结账历史' })
-    if (await auditTab.isVisible()) {
-      await auditTab.click()
-      if (testInfo.project.name === 'mobile-chromium') {
-        await expectMobileCards(page, '.responsive-table', testInfo)
-      } else {
-        await expect(
-          page.getByRole('columnheader', { name: '结账日' }),
-        ).toBeVisible()
+  test(
+    '加载期初状态和结账历史',
+    { tag: '@mobile' },
+    async ({ page }, testInfo) => {
+      await page.goto('/led/closing')
+      await expect(pageBreadcrumb(page)).toHaveText('ZERP / 期初与结账')
+      await expect(page.getByText(/版本 \d+/)).toBeVisible()
+      const auditTab = page.getByRole('tab', { name: '结账历史' })
+      if (await auditTab.isVisible()) {
+        await auditTab.click()
+        if (testInfo.project.name === 'mobile-chromium') {
+          await expectMobileCards(page, '.responsive-table', testInfo)
+        } else {
+          await expect(
+            page.getByRole('columnheader', { name: '结账日' }),
+          ).toBeVisible()
+        }
       }
-    }
-  })
+    },
+  )
 
   async function verifyLedger(
     page: Page,
@@ -98,17 +86,20 @@ test.describe('LED 真实后端只读流程', () => {
     { entity: 'fund', title: '资金台账' },
     { entity: 'container', title: '空桶台账' },
   ]) {
-    test(`${ledger.title}查询流水和余额`, async ({ page }, testInfo) => {
-      await verifyLedger(page, testInfo, ledger)
-    })
+    test(
+      `${ledger.title}查询流水和余额`,
+      ledger.entity === 'inventory' ? { tag: '@mobile' } : {},
+      async ({ page }, testInfo) => {
+        await verifyLedger(page, testInfo, ledger)
+      },
+    )
   }
 
-  test('四类往来台账分别查询流水和余额', async ({ page }, testInfo) => {
+  test('三类往来台账分别查询流水和余额', async ({ page }, testInfo) => {
     for (const ledger of [
       { entity: 'customer', title: '往来台账-客户' },
       { entity: 'supplier', title: '往来台账-供应商' },
-      { entity: 'other', title: '往来台账-其他' },
-      { entity: 'employee', title: '往来台账-员工' },
+      { entity: 'other', title: '其他往来' },
     ]) {
       await verifyLedger(page, testInfo, ledger)
     }

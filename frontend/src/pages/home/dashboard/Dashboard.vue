@@ -14,7 +14,7 @@ import {
   type VoucherLifecycleLabels,
   type VoucherSort,
 } from '@/components/voucher'
-import { pageRegistry } from '@/router/registry'
+import { pageRegistrations, pageRegistry } from '@/router/registry'
 import {
   type WorkbenchAction,
   type WorkbenchDocumentItem,
@@ -30,31 +30,58 @@ const session = useSessionStore()
 const rejectTarget = ref<WorkbenchObjectItem | null>(null)
 const rejectComment = ref('')
 
-const entityFilterOptions = computed(() =>
-  (
-    session.menus.find(
-      (menu) => menu.domain === (vm.activeCategory === 'BOB' ? 'bob' : 'vou'),
-    )?.children ?? []
+function fallbackEntityTitle(entity: string): string {
+  return `开发中：${entity.replaceAll('-', ' ')}`
+}
+
+function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
+  const actions =
+    domain === 'bob'
+      ? ['submit', 'approve', 'reject']
+      : ['check', 'approve']
+  return (
+    session.can(`/${domain}/${entity}/query`) &&
+    actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
   )
-    .filter(
-      (entity) =>
-        entity.actions.includes('query') &&
-        (vm.activeCategory === 'BOB'
-          ? ['submit', 'approve', 'reject'].some((action) =>
-              entity.actions.includes(action),
-            )
-          : ['check', 'approve', 'finalize'].some((action) =>
-              entity.actions.includes(action),
-            )),
-    )
-    .map((entity) => ({ title: entity.title, value: entity.entity })),
-)
+}
+
+const entityFilterOptions = computed(() => {
+  const domain = vm.activeCategory === 'BOB' ? 'bob' : 'vou'
+  const options = new Map<string, string>()
+  const add = (entity: string, title?: string): void => {
+    if (!options.has(entity)) {
+      options.set(
+        entity,
+        pageRegistry[`${domain}/${entity}`]?.entityTitle ??
+          (title ? `开发中：${title}` : fallbackEntityTitle(entity)),
+      )
+    }
+  }
+
+  for (const registration of pageRegistrations) {
+    if (
+      registration.domain === domain &&
+      canProcessEntity(domain, registration.entity)
+    ) {
+      add(registration.entity, registration.entityTitle)
+    }
+  }
+  for (const menuDomain of session.routeMenus) {
+    if (menuDomain.domain !== domain) continue
+    for (const menu of menuDomain.children) {
+      const entity = menu.routeKey?.split('/')[1] ?? menu.entity
+      if (canProcessEntity(domain, entity)) add(entity, menu.title)
+    }
+  }
+  for (const row of vm.states[vm.activeCategory].rows) {
+    if (row.category === vm.activeCategory) add(row.entity)
+  }
+
+  return [...options].map(([value, title]) => ({ title, value }))
+})
 const pendingStageFilterOptions = computed(() => [
   { title: '待核对', value: 'CHECK' as const },
   { title: '待批准', value: 'APPROVE' as const },
-  ...(vm.activeCategory === 'VOU'
-    ? [{ title: '待完成', value: 'FINALIZE' as const }]
-    : []),
 ])
 
 const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
@@ -90,8 +117,6 @@ const documentLifecycleLabels: VoucherLifecycleLabels = {
   uncheck: '反核对',
   approve: '批准',
   unapprove: '反批准',
-  finalize: '完成',
-  unfinalize: '撤销完成',
   checked: '已核对',
   finalized: '已完成',
 }
@@ -107,11 +132,6 @@ const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   },
   reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
   check: { label: '核对', icon: 'mdi-account-check-outline', color: 'primary' },
-  finalize: {
-    label: '完成',
-    icon: 'mdi-play-circle-outline',
-    color: 'primary',
-  },
 }
 
 function entityTitle(row: Readonly<WorkbenchItem>): string {
@@ -125,13 +145,11 @@ function pendingStatus(row: Readonly<WorkbenchItem>): string {
   return {
     CHECK: '待核对',
     APPROVE: '待批准',
-    FINALIZE: '待完成',
   }[row.pendingStage]
 }
 
 function pendingColor(row: Readonly<WorkbenchItem>): string {
   if (row.pendingStage === 'APPROVE') return 'success'
-  if (row.pendingStage === 'FINALIZE') return 'primary'
   return 'warning'
 }
 
@@ -151,7 +169,7 @@ function rowActions(row: WorkbenchItem): {
 } {
   const actions = visibleActions(row)
   const forward = actions.find((action) =>
-    ['submit', 'approve', 'check', 'finalize', 'reject'].includes(action),
+    ['submit', 'approve', 'check', 'reject'].includes(action),
   )
   const primaryAction = forward ?? actions[0]
   const toAction = (action: WorkbenchAction): ListRowAction => ({
@@ -176,11 +194,7 @@ function updateEntityFilters(value: unknown): void {
 }
 
 function updatePendingStageFilters(value: unknown): void {
-  const validStages = new Set<WorkbenchPendingStage>([
-    'CHECK',
-    'APPROVE',
-    'FINALIZE',
-  ])
+  const validStages = new Set<WorkbenchPendingStage>(['CHECK', 'APPROVE'])
   vm.activeState.pendingStages = Array.isArray(value)
     ? value.filter(
         (stage): stage is WorkbenchPendingStage =>
@@ -219,8 +233,7 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
   if (
     action === 'submit' ||
     action === 'approve' ||
-    action === 'check' ||
-    action === 'finalize'
+    action === 'check'
   ) {
     await vm.runAction(row, action)
   }
@@ -242,7 +255,7 @@ function closeReject(value: boolean): void {
   }
 }
 
-void vm.query('BOB')
+void vm.query('VOU')
 </script>
 
 <template>
@@ -253,13 +266,13 @@ void vm.query('BOB')
         color="primary"
         @update:model-value="changeCategory"
       >
-        <v-tab value="BOB">
-          <v-icon class="mr-2" icon="mdi-database-clock-outline" />
-          待处理资料
-        </v-tab>
         <v-tab value="VOU">
           <v-icon class="mr-2" icon="mdi-file-clock-outline" />
-          待处理单据
+          待办单据
+        </v-tab>
+        <v-tab value="BOB">
+          <v-icon class="mr-2" icon="mdi-database-clock-outline" />
+          待办资料
         </v-tab>
       </v-tabs>
 
@@ -267,15 +280,21 @@ void vm.query('BOB')
 
       <div class="workbench__list">
         <AppSnackbar
+          diagnostics
           :message="vm.activeState.errorMessage"
           @dismiss="vm.activeState.errorMessage = null"
+        />
+        <AppSnackbar
+          :message="vm.successMessage"
+          type="success"
+          @dismiss="vm.successMessage = null"
         />
 
         <BusinessObjectList
           v-if="vm.activeCategory === 'BOB'"
           :columns="objectColumns"
           :editable="true"
-          empty-text="暂无待处理资料"
+          empty-text="暂无待办资料"
           :keyword="vm.activeState.keyword"
           :loading="vm.activeState.loading"
           :page="vm.activeState.page"
@@ -346,7 +365,7 @@ void vm.query('BOB')
           v-else
           :date-from="''"
           :date-to="''"
-          empty-text="暂无待处理单据"
+          empty-text="暂无待办单据"
           :filterable="true"
           :keyword="vm.activeState.keyword"
           :lifecycle-labels="documentLifecycleLabels"

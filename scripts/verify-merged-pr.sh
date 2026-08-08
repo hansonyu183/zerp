@@ -3,7 +3,9 @@ set -eu
 
 repository=${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}
 merge_sha=${GITHUB_SHA:?set GITHUB_SHA}
-required_checks=${ZERP_REQUIRED_PR_CHECKS:-"contracts frontend backend containers e2e"}
+required_checks=${ZERP_REQUIRED_PR_CHECKS:-"full-validation"}
+expected_pull_number=${ZERP_EXPECTED_PR:-}
+expected_head_sha=${ZERP_EXPECTED_HEAD:-}
 
 command -v gh >/dev/null 2>&1 || {
   echo "gh is required to verify merged PR evidence" >&2
@@ -14,40 +16,21 @@ command -v jq >/dev/null 2>&1 || {
   exit 1
 }
 
-pulls=$(
-  gh api \
-    -H "Accept: application/vnd.github+json" \
-    "repos/${repository}/commits/${merge_sha}/pulls?per_page=20"
-)
-pull_number=$(
-  printf '%s' "${pulls}" |
-    jq -r --arg merge_sha "${merge_sha}" \
-      '[.[] |
-        select(
-          .base.ref == "main" and
-          .merged_at != null and
-          .merge_commit_sha == $merge_sha
-        )
-      ] |
-      sort_by(.merged_at) |
-      if length == 0 then "" else last.number end'
-)
-head_sha=$(
-  printf '%s' "${pulls}" |
-    jq -r --arg merge_sha "${merge_sha}" \
-      '[.[] |
-        select(
-          .base.ref == "main" and
-          .merged_at != null and
-          .merge_commit_sha == $merge_sha
-        )
-      ] |
-      sort_by(.merged_at) |
-      if length == 0 then "" else last.head.sha end'
-)
+pulls=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/commits/${merge_sha}/pulls?per_page=20")
+pull_number=$(printf '%s' "${pulls}" | jq -r --arg merge_sha "${merge_sha}" '[.[] | select(.base.ref == "main" and .merged_at != null and .merge_commit_sha == $merge_sha)] | sort_by(.merged_at) | if length == 0 then "" else last.number end')
+head_sha=$(printf '%s' "${pulls}" | jq -r --arg merge_sha "${merge_sha}" '[.[] | select(.base.ref == "main" and .merged_at != null and .merge_commit_sha == $merge_sha)] | sort_by(.merged_at) | if length == 0 then "" else last.head.sha end')
 
 if [ -z "${pull_number}" ] || [ -z "${head_sha}" ]; then
   echo "Main commit ${merge_sha} is not an associated merged PR commit" >&2
+  exit 1
+fi
+
+if [ -n "${expected_pull_number}" ] && [ "${pull_number}" != "${expected_pull_number}" ]; then
+  echo "Main commit ${merge_sha} belongs to PR #${pull_number}, expected PR #${expected_pull_number}" >&2
+  exit 1
+fi
+if [ -n "${expected_head_sha}" ] && [ "${head_sha}" != "${expected_head_sha}" ]; then
+  echo "Merged PR #${pull_number} head is ${head_sha}, expected ${expected_head_sha}" >&2
   exit 1
 fi
 
@@ -58,25 +41,15 @@ test "${merge_tree}" = "${head_tree}" || {
   exit 1
 }
 
-check_runs=$(
-  gh api \
-    -H "Accept: application/vnd.github+json" \
-    "repos/${repository}/commits/${head_sha}/check-runs?per_page=100"
-)
+check_runs=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/commits/${head_sha}/check-runs?per_page=100")
+statuses=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/commits/${head_sha}/statuses?per_page=100")
 for required_check in ${required_checks}; do
-  check_state=$(
-    printf '%s' "${check_runs}" |
-      jq -r --arg name "${required_check}" \
-        '[.check_runs[] | select(.name == $name)] |
-        sort_by(.started_at) |
-        if length == 0 then "missing" else
-          (last | (.status + ":" + (.conclusion // "")))
-        end'
-  )
-  test "${check_state}" = "completed:success" || {
-    echo "Merged PR #${pull_number} check ${required_check} is ${check_state}" >&2
+  check_state=$(printf '%s' "${check_runs}" | jq -r --arg name "${required_check}" '[.check_runs[] | select(.name == $name)] | sort_by(.started_at) | if length == 0 then "missing" else (last | (.status + ":" + (.conclusion // ""))) end')
+  status_state=$(printf '%s' "${statuses}" | jq -r --arg name "${required_check}" '[.[] | select(.context == $name)] | sort_by(.created_at) | if length == 0 then "missing" else last.state end')
+  if [ "${check_state}" != "completed:success" ] && [ "${status_state}" != success ]; then
+    echo "Merged PR #${pull_number} check ${required_check} is check=${check_state}, status=${status_state}" >&2
     exit 1
-  }
+  fi
 done
 
-echo "Reused successful checks from merged PR #${pull_number} for ${merge_sha}"
+echo "Reused successful full-validation from merged PR #${pull_number} for ${merge_sha}"

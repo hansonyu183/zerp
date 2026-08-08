@@ -142,11 +142,11 @@ make e2e
 
 ```bash
 make e2e-env-init
-make e2e-up
-make e2e-status
+cd ..
+make e2e
 ```
 
-该兼容环境使用项目 `zerp-api-e2e`、数据库 `zerp_e2e`、API 端口 `18081`、PostgreSQL 端口 `55435` 和专用 Cookie。停止保留数据使用 `make e2e-down`；明确清空隔离数据使用 `make e2e-reset`。
+完整 E2E 使用数据库 `zerp_e2e`、API 端口 `18081`、PostgreSQL 端口 `55435` 和专用 Cookie；运行结束后自动清理一次性数据库容器和本机进程。
 
 安全校验固定拒绝生产环境、非隔离数据库、错误端口和启用 GitHub 反馈发布的配置。
 

@@ -85,13 +85,6 @@ func New(
 	business := bobdomain.NewService(pool)
 	business.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	events := txevent.NewBus()
-	ledger, err := leddomain.NewService(pool, business)
-	if err != nil {
-		return nil, fmt.Errorf("create ledger service: %w", err)
-	}
-	if err = ledger.RegisterSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register ledger subscriptions: %w", err)
-	}
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
@@ -103,8 +96,18 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
+	ledger, err := leddomain.NewService(pool, business, vouchers)
+	if err != nil {
+		return nil, fmt.Errorf("create ledger service: %w", err)
+	}
+	if err = ledger.RegisterSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register ledger subscriptions: %w", err)
+	}
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
+	}
+	if err = vouchers.RegisterCompletionSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register voucher completion subscriptions: %w", err)
 	}
 	return &Seeder{
 		pool: pool, auxiliary: auxiliary, business: business, ledger: ledger,

@@ -554,7 +554,7 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		}
 		data["symbol"], data["quantityScale"] = symbol, scale
 	case EntitySettlementMethod:
-		allow("ruleType", "dueDays", "cutoffDay", "monthOffset", "defaultSalesSurcharge", "description")
+		allow("ruleType", "dueDays", "defaultSalesSurcharge", "description")
 		rule := strings.ToUpper(strings.TrimSpace(stringValue(data["ruleType"])))
 		switch rule {
 		case "DUE_DAYS":
@@ -562,14 +562,7 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 			if !ok || days < 0 || days > 3650 {
 				return nil, errors.New("dueDays must be 0-3650")
 			}
-			delete(data, "cutoffDay")
-			delete(data, "monthOffset")
 		case "MONTH_END":
-			cutoff, cutoffOK := intValue(data["cutoffDay"])
-			offset, offsetOK := intValue(data["monthOffset"])
-			if !cutoffOK || cutoff < 1 || cutoff > 31 || !offsetOK || offset < 0 || offset > 120 {
-				return nil, errors.New("cutoffDay 1-31 and monthOffset 0-120 are required")
-			}
 			delete(data, "dueDays")
 		default:
 			return nil, errors.New("ruleType must be DUE_DAYS or MONTH_END")

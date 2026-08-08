@@ -32,7 +32,7 @@ export const otherPartyConfig = defineBobEntityConfig({
   uppercaseKeys: ['taxNumber'],
   references: {
     settlementMethodId: {
-      domain: 'aux',
+      domain: 'bob',
       entity: 'settlement-method',
       label: '结算方式',
     },

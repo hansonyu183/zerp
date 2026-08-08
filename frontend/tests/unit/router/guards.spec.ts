@@ -8,6 +8,53 @@ import {
 import { registerMenuRoutes } from '@/router/registry'
 import { useSessionStore } from '@/stores/session'
 
+function applyNavigation(
+  session: ReturnType<typeof useSessionStore>,
+  routes: Array<{ key: string; title: string }>,
+) {
+  const group = {
+    id: 'group',
+    parentId: null,
+    type: 'GROUP' as const,
+    level: 1,
+    order: 10,
+    displayName: '测试分组',
+    icon: null,
+    enabled: true,
+    routeKey: null,
+    routePath: null,
+    permissionCode: null,
+  }
+  const tree = {
+    revision: 1,
+    items: [
+      group,
+      ...routes.map((route, index) => ({
+        id: route.key,
+        parentId: 'group',
+        type: 'ROUTE' as const,
+        level: 2,
+        order: (index + 1) * 10,
+        displayName: route.title,
+        icon: null,
+        enabled: true,
+        routeKey: route.key,
+        routePath: `/${route.key}`,
+        permissionCode: `/${route.key}/query`,
+      })),
+    ],
+  }
+  session.applyMenuData({
+    mode: 'DEFAULT',
+    modeRevision: 1,
+    catalogRevision: 'catalog-revision',
+    defaultMenu: tree,
+    businessTemplate: tree,
+    navigation: tree,
+    availableRoutes: [],
+  })
+}
+
 function createTestRouter(): Router {
   return createRouter({
     history: createMemoryHistory(),
@@ -27,6 +74,34 @@ function createTestRouter(): Router {
           {
             path: 'home/dashboard',
             name: 'page:home/dashboard',
+            component: { template: '<div />' },
+            meta: { requiresAuth: true },
+          },
+          {
+            path: 'admin/user',
+            name: 'page:admin/user',
+            component: { template: '<div />' },
+            meta: {
+              requiresAuth: true,
+              requiredPermission: '/app/user/query',
+            },
+          },
+          {
+            path: 'admin/menu',
+            name: 'page:admin/menu',
+            component: { template: '<div />' },
+            meta: {
+              requiresAuth: true,
+              requiredAnyPermissions: [
+                '/app/menu/save-business-template',
+                '/app/menu/activate',
+                '/app/menu/reset-business-template',
+              ],
+            },
+          },
+          {
+            path: 'forbidden',
+            name: 'forbidden',
             component: { template: '<div />' },
             meta: { requiresAuth: true },
           },
@@ -55,10 +130,44 @@ function createAuthenticatedSession() {
 }
 
 describe('session menu route synchronization', () => {
+  it('系统管理静态路由要求精确 APP 查询权限', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/app/user/query-extra']
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/app/user/query']
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('page:admin/user')
+  })
+
+  it('菜单管理入口接受任一菜单写权限且拒绝无关权限', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    session.permissions = ['/app/user/query']
+    await router.push('/admin/menu')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/app/menu/activate']
+    await router.push('/admin/menu')
+    expect(router.currentRoute.value.name).toBe('page:admin/menu')
+  })
+
   it('会话已初始化但路由缺失时，在首次导航中注册并重新匹配真实页面', async () => {
     const router = createTestRouter()
     const session = createAuthenticatedSession()
     session.permissions = ['/aux/product-category/query']
+    applyNavigation(session, [
+      { key: 'aux/product-category', title: '产品分类' },
+    ])
     router.beforeEach(createSessionNavigationGuard(router, session))
 
     await router.push('/aux/product-category')
@@ -79,11 +188,61 @@ describe('session menu route synchronization', () => {
     expect(router.hasRoute('page:aux/department')).toBe(false)
 
     session.permissions = ['/aux/department/create']
+    applyNavigation(session, [{ key: 'aux/department', title: '部门' }])
     expect(router.hasRoute('page:aux/department')).toBe(true)
     expect(router.resolve('/aux/department').meta.title).toBe('部门')
 
     session.permissions = []
+    applyNavigation(session, [])
     expect(router.hasRoute('page:aux/department')).toBe(false)
+
+    stop()
+  })
+
+  it('导航隐藏授权页面时仍注册路由，并在权限撤销后移除', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    session.permissions = ['/bob/customer/query']
+    applyNavigation(session, [])
+    const stop = watchSessionMenuRoutes(router, session)
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    expect(
+      session.menus.some((domain) =>
+        domain.children.some((entity) => entity.routeKey === 'bob/customer'),
+      ),
+    ).toBe(false)
+    expect(router.hasRoute('page:bob/customer')).toBe(true)
+
+    await router.push('/bob/customer')
+    expect(router.currentRoute.value.name).toBe('page:bob/customer')
+
+    session.permissions = []
+    expect(router.hasRoute('page:bob/customer')).toBe(false)
+
+    stop()
+  })
+
+  it('服务端导航中的自定义 WFL 路由可由非 query 权限注册', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    session.permissions = ['/wfl/custom-flow/get']
+    applyNavigation(session, [{ key: 'wfl/custom-flow', title: '自定义流程' }])
+    const stop = watchSessionMenuRoutes(router, session)
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    expect(router.hasRoute('page:wfl/custom-flow')).toBe(true)
+
+    await router.push('/wfl/custom-flow')
+    expect(router.currentRoute.value.name).toBe('page:wfl/custom-flow')
+    expect(router.currentRoute.value.meta).toMatchObject({
+      actions: ['get'],
+      developing: false,
+      processName: 'custom-flow',
+    })
+
+    session.permissions = []
+    expect(router.hasRoute('page:wfl/custom-flow')).toBe(false)
 
     stop()
   })

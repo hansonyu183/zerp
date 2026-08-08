@@ -12,11 +12,12 @@ import (
 )
 
 type resolvedDraft struct {
-	Customer, Supplier, Counterparty, Employee, FundAccount *bobdomain.EffectiveReference
-	Salesperson, Purchaser, Handler, Warehouse              *bobdomain.EffectiveReference
-	CustomerSettlement, SupplierSettlement                  *bobdomain.EffectiveReference
-	Products                                                []bobdomain.EffectiveReference
-	FormulaMaterials                                        [][]bobdomain.EffectiveReference
+	Customer, Supplier, Counterparty, Employee, FundAccount, InterestParty *bobdomain.EffectiveReference
+	Salesperson, Purchaser, Handler, Warehouse                             *bobdomain.EffectiveReference
+	CustomerSettlement, SupplierSettlement                                 *bobdomain.EffectiveReference
+	Products                                                               []bobdomain.EffectiveReference
+	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
+	BillFunds                                                              []bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedPersonnel(
@@ -34,6 +35,27 @@ func (s *Service) loadPreservedPersonnel(
 			Data: bobdomain.DetailView{Name: *name},
 		}
 	}
+	settlementReference := func(
+		objectID, versionID, code, name, termCode, ruleType *string,
+		monthOffset, dayOfMonth, dayOffset *int32,
+		surcharge int64,
+		description *string,
+	) *bobdomain.EffectiveReference {
+		if objectID == nil || versionID == nil || code == nil || name == nil ||
+			termCode == nil || ruleType == nil || monthOffset == nil || dayOffset == nil {
+			return nil
+		}
+		return &bobdomain.EffectiveReference{
+			ObjectID: *objectID, Entity: bobdomain.EntitySettlementMethod,
+			Code: *code, VersionID: *versionID,
+			Data: bobdomain.DetailView{
+				Name: *name, TermCode: *termCode, RuleType: *ruleType,
+				MonthOffset: *monthOffset, DayOfMonth: dayOfMonth, DayOffset: *dayOffset,
+				DefaultSalesSurcharge: formatMoney(surcharge),
+				Description:           deref(description),
+			},
+		}
+	}
 	switch entity {
 	case EntitySaleOrder:
 		detail, err := q.GetVouSaleOrderDetail(ctx, documentID)
@@ -44,6 +66,17 @@ func (s *Service) loadPreservedPersonnel(
 			detail.SalespersonObjectID, detail.SalespersonVersionID,
 			detail.SalespersonCode, detail.SalespersonName,
 		)
+		result.Customer = &bobdomain.EffectiveReference{
+			ObjectID: detail.CustomerObjectID, VersionID: detail.CustomerVersionID,
+		}
+		result.CustomerSettlement = settlementReference(
+			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodCode, detail.SettlementMethodName,
+			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
+			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
+			detail.SettlementDayOffset, detail.SettlementDefaultSalesSurchargeCents,
+			detail.SettlementDescription,
+		)
 	case EntityPurchaseOrder:
 		detail, err := q.GetVouPurchaseOrderDetail(ctx, documentID)
 		if err != nil {
@@ -52,6 +85,16 @@ func (s *Service) loadPreservedPersonnel(
 		result.Purchaser = makeReference(
 			detail.PurchaserObjectID, detail.PurchaserVersionID,
 			detail.PurchaserCode, detail.PurchaserName,
+		)
+		result.Supplier = &bobdomain.EffectiveReference{
+			ObjectID: detail.SupplierObjectID, VersionID: detail.SupplierVersionID,
+		}
+		result.SupplierSettlement = settlementReference(
+			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodCode, detail.SettlementMethodName,
+			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
+			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
+			detail.SettlementDayOffset, 0, detail.SettlementDescription,
 		)
 	}
 	return result, nil
@@ -77,7 +120,7 @@ func (s *Service) resolveDraft(
 	if err := s.resolveDraftAccounts(ctx, tx, draft, &result); err != nil {
 		return result, err
 	}
-	if err := s.resolveDraftSettlements(ctx, tx, entity, &result); err != nil {
+	if err := s.resolveDraftSettlements(ctx, tx, entity, preserved, &result); err != nil {
 		return result, err
 	}
 	if err := s.resolveDraftProducts(ctx, tx, entity, draft, &result); err != nil {
@@ -99,11 +142,8 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	if settlement == nil {
 		return domainError(ErrorConflict, "settlement method is required", nil, nil)
 	}
-	dueDate, err := calculateDueDate(draft.BusinessDate, settlement.Data)
-	if err != nil {
-		return err
-	}
-	draft.DueDate = &dueDate
+	draft.DueDate = nil
+	var err error
 	defaultSurcharge := int64(0)
 	if entity == EntitySaleOrder {
 		defaultSurchargeValue := settlement.Data.DefaultSalesSurcharge
@@ -159,40 +199,112 @@ func pricingQuantityMicros(inventoryQuantity int64, product bobdomain.DetailView
 	return value.Int64(), nil
 }
 
-func calculateDueDate(businessDate time.Time, settlement bobdomain.DetailView) (time.Time, error) {
-	switch settlement.RuleType {
-	case "DUE_DAYS":
-		return businessDate.AddDate(0, 0, int(settlement.DueDays)), nil
-	case bobdomain.SettlementRuleRelativeDays:
-		return businessDate.AddDate(0, 0, int(settlement.DayOffset)), nil
-	case "MONTH_END":
-		extraMonth := 0
-		cutoffDay := settlement.CutoffDay
-		if cutoffDay == 0 {
-			cutoffDay = 31
+func calculateDueDate(
+	actualDate time.Time,
+	settlement bobdomain.DetailView,
+	monthlyClosingDay int32,
+) (time.Time, error) {
+	switch settlement.TermCode {
+	case bobdomain.SettlementTermPrepaid, bobdomain.SettlementTermCashOnDelivery:
+		return actualDate, nil
+	case bobdomain.SettlementTermArrival3, bobdomain.SettlementTermArrival5,
+		bobdomain.SettlementTermArrival7, bobdomain.SettlementTermArrival15,
+		bobdomain.SettlementTermArrival30:
+		return actualDate.AddDate(0, 0, int(settlement.DayOffset)), nil
+	case bobdomain.SettlementTermMonthlyCurrent, bobdomain.SettlementTermMonthly30,
+		bobdomain.SettlementTermMonthly60, bobdomain.SettlementTermMonthly90:
+		if monthlyClosingDay < 1 || monthlyClosingDay > 31 {
+			monthlyClosingDay = 31
 		}
-		if businessDate.Day() > int(cutoffDay) {
-			extraMonth = 1
+		statementOffset := 0
+		if actualDate.Day() > int(monthlyClosingDay) {
+			statementOffset = 1
 		}
-		firstOfTargetMonth := time.Date(
-			businessDate.Year(), businessDate.Month(), 1,
-			0, 0, 0, 0, businessDate.Location(),
-		).AddDate(0, int(settlement.MonthOffset)+extraMonth, 0)
-		return firstOfTargetMonth.AddDate(0, 1, -1).AddDate(0, 0, int(settlement.DayOffset)), nil
-	case bobdomain.SettlementRuleFixedDay:
-		firstOfTargetMonth := time.Date(
-			businessDate.Year(), businessDate.Month(), 1,
-			0, 0, 0, 0, businessDate.Location(),
-		).AddDate(0, int(settlement.MonthOffset), 0)
-		lastDay := firstOfTargetMonth.AddDate(0, 1, -1).Day()
-		day := int(*settlement.DayOfMonth)
-		if day > lastDay {
-			day = lastDay
-		}
-		return firstOfTargetMonth.AddDate(0, 0, day-1+int(settlement.DayOffset)), nil
-	default:
-		return time.Time{}, domainError(ErrorConflict, "unsupported settlement rule", nil, nil)
+		firstOfStatementMonth := time.Date(
+			actualDate.Year(), actualDate.Month(), 1,
+			0, 0, 0, 0, actualDate.Location(),
+		).AddDate(0, statementOffset, 0)
+		return firstOfStatementMonth.AddDate(0, int(settlement.MonthOffset)+1, -1), nil
 	}
+	return time.Time{}, domainError(ErrorConflict, "unsupported settlement term", nil, nil)
+}
+
+func (s *Service) orderSettlementDueDate(
+	ctx context.Context,
+	tx pgx.Tx,
+	orderEntity, orderID string,
+	actualDate time.Time,
+) (time.Time, error) {
+	var termCode, ruleType string
+	var monthOffset, dayOffset, cutoffDay int32
+	var err error
+	switch orderEntity {
+	case EntitySaleOrder:
+		err = tx.QueryRow(ctx, `SELECT settlement_term_code,COALESCE(settlement_rule_type,''),
+			COALESCE(settlement_month_offset,0),COALESCE(settlement_day_offset,0),
+			COALESCE(settlement_cutoff_day,31)
+			FROM vou_sale_order_details WHERE document_id=$1`, orderID).
+			Scan(&termCode, &ruleType, &monthOffset, &dayOffset, &cutoffDay)
+	case EntityPurchaseOrder:
+		err = tx.QueryRow(ctx, `SELECT settlement_term_code,COALESCE(settlement_rule_type,''),
+			COALESCE(settlement_month_offset,0),COALESCE(settlement_day_offset,0),31
+			FROM vou_purchase_order_details WHERE document_id=$1`, orderID).
+			Scan(&termCode, &ruleType, &monthOffset, &dayOffset, &cutoffDay)
+	default:
+		return time.Time{}, domainError(ErrorValidation, "invalid settlement source order", nil, nil)
+	}
+	if err != nil {
+		return time.Time{}, domainError(ErrorConflict, "order settlement snapshot is unavailable", nil, err)
+	}
+	if termCode == "" {
+		termCode = legacySettlementTerm(ruleType, monthOffset, dayOffset)
+	}
+	return calculateDueDate(actualDate, bobdomain.DetailView{
+		TermCode: termCode, RuleType: ruleType, MonthOffset: monthOffset, DayOffset: dayOffset,
+	}, cutoffDay)
+}
+
+func legacySettlementTerm(ruleType string, monthOffset, dayOffset int32) string {
+	if ruleType == "DUE_DAYS" || ruleType == bobdomain.SettlementRuleRelativeDays {
+		if dayOffset <= 0 {
+			return bobdomain.SettlementTermCashOnDelivery
+		}
+		candidates := []struct {
+			term string
+			days int32
+		}{
+			{bobdomain.SettlementTermArrival3, 3}, {bobdomain.SettlementTermArrival5, 5},
+			{bobdomain.SettlementTermArrival7, 7}, {bobdomain.SettlementTermArrival15, 15},
+			{bobdomain.SettlementTermArrival30, 30},
+		}
+		best := candidates[0]
+		for _, candidate := range candidates[1:] {
+			bestDistance := absInt32(best.days - dayOffset)
+			candidateDistance := absInt32(candidate.days - dayOffset)
+			if candidateDistance < bestDistance ||
+				(candidateDistance == bestDistance && candidate.days > best.days) {
+				best = candidate
+			}
+		}
+		return best.term
+	}
+	switch monthOffset {
+	case 0:
+		return bobdomain.SettlementTermMonthlyCurrent
+	case 1:
+		return bobdomain.SettlementTermMonthly30
+	case 2:
+		return bobdomain.SettlementTermMonthly60
+	default:
+		return bobdomain.SettlementTermMonthly90
+	}
+}
+
+func absInt32(value int32) int32 {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func (s *Service) insertDetail(
@@ -240,8 +352,8 @@ func (s *Service) writeDetail(
 		return s.writeSaleDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityPurchaseOrder:
 		return s.writePurchaseDetail(ctx, q, entity, documentID, draft, refs, update)
-	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		return s.writeCashDetail(ctx, q, entity, documentID, draft, refs, update)
 	case EntityExpenseReimbursement:
 		return s.writeExpenseDetail(ctx, q, entity, documentID, draft, refs, update)
@@ -263,6 +375,8 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -287,6 +401,9 @@ func (s *Service) replaceLines(
 			}
 		}
 		return nil
+	}
+	if entity == EntityBillReceipt || entity == EntityBillPayment || entity == EntityBillIssue || entity == EntityBillDiscount || entity == EntityBillMaturity {
+		return s.replaceBillLines(ctx, q, entity, documentID, draft, refs)
 	}
 	if entity == EntitySalePricing || entity == EntityPurchaseInquiry {
 		if err := q.DeleteVouPriceLines(ctx, documentID); err != nil {
@@ -393,6 +510,24 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntityIntermediaryCalculation:
+		return s.validateStoredIntermediaryCalculation(ctx, q, documentID)
+	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
+		detail, err := q.GetVouBillDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill detail", err)
+		}
+		lines, err := q.ListVouBillLines(ctx, documentID)
+		if err != nil {
+			return s.internal("read bill lines", err)
+		}
+		missing = len(lines) == 0
+		if entity != EntityBillMaturity {
+			missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || missing
+		}
+		if entity == EntityBillReceipt {
+			missing = missing || detail.HandlerObjectID == nil || detail.HandlerVersionID == nil
+		}
 	case EntityAssetAcquisition:
 		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)
 		if err != nil {
@@ -457,13 +592,13 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read purchase inbound lines", lineErr)
 		}
 		missing = detail.WarehouseObjectID == "" || len(lines) == 0
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read receipt attributes", err)
 		}
 		missing = detail.HandlerObjectID == nil
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		detail, err := q.GetVouPaymentDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read payment attributes", err)

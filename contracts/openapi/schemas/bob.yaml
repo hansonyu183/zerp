@@ -13,9 +13,126 @@
           'warehouse',
           'vehicle',
           'fund-account',
+          'settlement-method',
         ],
     },
-  'BobQueryRequest': { '$ref': '../schemas/common.yaml#/PageRequest' },
+  'BobQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': true,
+              'properties': {},
+            },
+          'sort':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string' },
+                      'order': { 'type': 'string', 'enum': ['asc', 'desc'] },
+                    },
+                },
+            },
+        },
+    },
+  'BobVersionSummary':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'submittedBy',
+          'summary',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'summary': { 'type': 'object', 'additionalProperties': true },
+        },
+    },
+  'BobListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'currentVersion',
+          'effectiveVersionId',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { '$ref': '#/BobEntity' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'currentVersion': { '$ref': '#/BobVersionSummary' },
+          'effectiveVersionId': { 'type': 'string', 'nullable': true },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobListPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/BobListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'BobQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/BobListPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BobGetRequest':
     {
       'type': 'object',
@@ -71,8 +188,30 @@
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'monthlyClosingDay':
+                    {
+                      'type': 'integer',
+                      'minimum': 1,
+                      'maximum': 31,
+                      'description': '仅客户适用；创建客户时省略则按 31 处理',
+                    },
+                  'termCode': { 'type': 'string', 'nullable': true },
+                  'defaultSalesSurcharge':
+                    { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
+                  'rebateUnitPrice':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅客户适用；返点单价，单位为元/kg，省略按 0 处理',
+                    },
+                  'intermediaryOtherPartyId':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅客户适用；引用其他往来单位中的居间商',
+                    },
                   'productKind':
                     {
                       'type': 'string',
@@ -166,7 +305,15 @@
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'monthlyClosingDay':
+                    { 'type': 'integer', 'minimum': 1, 'maximum': 31 },
+                  'termCode': { 'type': 'string', 'nullable': true },
+                  'defaultSalesSurcharge':
+                    { 'type': 'string', 'nullable': true },
                   'salespersonEmployeeId':
+                    { 'type': 'string', 'nullable': true },
+                  'rebateUnitPrice': { 'type': 'string', 'nullable': true },
+                  'intermediaryOtherPartyId':
                     { 'type': 'string', 'nullable': true },
                   'productKind':
                     {
@@ -320,7 +467,7 @@
         {
           'objectId': { 'type': 'string' },
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
         },
     },
 }

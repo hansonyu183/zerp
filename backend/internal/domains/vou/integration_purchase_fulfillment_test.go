@@ -3,16 +3,179 @@
 package vou
 
 import (
+	"context"
+	"strings"
 	"sync"
 	"testing"
+
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5"
 )
+
+func TestClosedPurchaseOrderRejectsChildCreationThatWouldReopenItIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	closingID := newID()
+	t.Cleanup(func() {
+		cleanupContext := context.Background()
+		if _, err := pool.Exec(cleanupContext, `UPDATE led_control
+			SET last_closing_id=NULL WHERE singleton=true`); err != nil {
+			t.Errorf("clear closing control: %v", err)
+		}
+		if _, err := pool.Exec(cleanupContext, `DELETE FROM led_closings WHERE id=$1`, closingID); err != nil {
+			t.Errorf("delete closing: %v", err)
+		}
+		truncateVOU(t, pool)
+	})
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-28", Currency: "CNY",
+		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "3", UnitPrice: "12.00",
+		}},
+	}}, integrationActorOne, "closed-purchase-create")
+	if err != nil {
+		t.Fatalf("create purchase order: %v", err)
+	}
+	checkedOrder, err := service.Check(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Revision,
+	}, integrationActorOne, "closed-purchase-check")
+	if err != nil {
+		t.Fatalf("check purchase order: %v", err)
+	}
+	_, err = service.Approve(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: checkedOrder.Revision,
+	}, integrationActorOne, "closed-purchase-approve")
+	if err != nil {
+		t.Fatalf("approve purchase order: %v", err)
+	}
+	orderView, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: order.DocumentID})
+	if err != nil {
+		t.Fatalf("get purchase order: %v", err)
+	}
+	orderLineID := orderView.Data.ProductLines[0].LineID
+	inbound, err := service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-29", SourceDocumentID: order.DocumentID,
+		Warehouse:   &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderLineID, Quantity: "3"}},
+	}}, integrationActorOne, "closed-purchase-inbound-create")
+	if err != nil {
+		t.Fatalf("create purchase inbound: %v", err)
+	}
+	checkedInbound, err := service.Check(t.Context(), EntityPurchaseInbound, DocumentRevisionInput{
+		DocumentID: inbound.DocumentID, Revision: inbound.Revision,
+	}, integrationActorOne, "closed-purchase-inbound-check")
+	if err != nil {
+		t.Fatalf("check purchase inbound: %v", err)
+	}
+	approvedInbound, err := service.Approve(t.Context(), EntityPurchaseInbound, DocumentRevisionInput{
+		DocumentID: inbound.DocumentID, Revision: checkedInbound.Revision,
+	}, integrationActorOne, "closed-purchase-inbound-approve")
+	if err != nil {
+		t.Fatalf("approve purchase inbound: %v", err)
+	}
+	inboundView, err := service.Get(t.Context(), EntityPurchaseInbound, GetInput{DocumentID: approvedInbound.DocumentID})
+	if err != nil {
+		t.Fatalf("get purchase inbound: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO led_closings(
+		id,closing_date,opening_date,revision,closed_by,request_id
+	) VALUES($1,$2::date,$3::date,1,$4,$5)`, closingID, "2026-07-31", "2026-08-01",
+		integrationActorOne, "closed-purchase-closing"); err != nil {
+		t.Fatalf("insert closing: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE led_control SET
+		last_closing_id=$1,revision=revision+1,updated_at=now(),updated_by=$2
+		WHERE singleton=true`, closingID, integrationActorOne); err != nil {
+		t.Fatalf("set closing control: %v", err)
+	}
+	if _, err = service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-08-01", Warehouse: &refs.warehouse,
+		ReturnReason: "结账后退货应拒绝",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: inboundView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}}, integrationActorOne, "closed-purchase-return-after-close"); err == nil ||
+		!strings.Contains(err.Error(), "closed period parent cannot be reopened") {
+		t.Fatalf("closed parent child creation error = %v", err)
+	}
+	var orderStatus, fulfillment string
+	var childCount int
+	if err = pool.QueryRow(t.Context(), `SELECT d.status,o.fulfillment_status
+		FROM vou_documents d JOIN vou_purchase_order_details o ON o.document_id=d.id
+		WHERE d.id=$1`, order.DocumentID).Scan(&orderStatus, &fulfillment); err != nil {
+		t.Fatalf("read closed purchase order: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_documents
+		WHERE parent_document_id=$1`, order.DocumentID).Scan(&childCount); err != nil {
+		t.Fatalf("count rolled back purchase children: %v", err)
+	}
+	if orderStatus != StatusFinalized || fulfillment != "FULFILLED" || childCount != 1 {
+		t.Fatalf("closed purchase order changed = status:%s fulfillment:%s children:%d", orderStatus, fulfillment, childCount)
+	}
+}
 
 func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	service := newIntegrationService(t, pool)
+	general := bobdomain.SupplierTypeGeneral
+	prepaid := fixedSettlementReference(t, pool, bobdomain.SettlementTermPrepaid)
+	refs.supplier = createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
+		Code: "VSP" + newID(), Name: "VOU 预付供应商", SupplierType: &general,
+		SettlementMethodID: prepaid.ObjectID, SalespersonEmployeeID: refs.employee.ObjectID,
+	})
+	refs.product = createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntityProduct, bobdomain.CreateDetailInput{
+		Code: "VPP" + newID(), Name: "VOU 预付采购包装物", Unit: "件",
+		ProductKind: bobdomain.ProductKindPackaging,
+	})
+	activateSettlementLedgerForParty(
+		t, pool, "supplier", refs.supplier, 12000,
+		businessdate.Today().Format(businessdate.Layout),
+	)
+	bus := txevent.NewBus()
+	registerSettlementPosting := func(entity string, sign int64) {
+		t.Helper()
+		if err := bus.Subscribe(DocumentApprovedTopic(entity), "test-led-posting",
+			func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+				event := raw.(DocumentApprovedEvent)
+				var amount int64
+				if err := tx.QueryRow(ctx, `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, event.DocumentID).Scan(&amount); err != nil {
+					return err
+				}
+				_, err := tx.Exec(ctx, `INSERT INTO led_party_entries(
+					id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
+					source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
+					counterparty_entity,counterparty_object_id,counterparty_version_id,
+					counterparty_code,counterparty_name,currency,amount_delta_cents
+				) SELECT $1,active_generation_id,'POSTING',$2,$3,$4,'',$5,$6::date,now(),$7,$8,
+					'supplier',$9,$10,'SUPPLIER','VOU 预付供应商','CNY',$11
+				FROM led_control WHERE singleton AND status='ACTIVE'`,
+					newID(), entity, event.DocumentID, event.DocumentNo, event.Revision,
+					businessdate.Today(), event.ActorID, event.RequestID,
+					refs.supplier.ObjectID, refs.supplier.VersionID, sign*amount)
+				return err
+			}); err != nil {
+			t.Fatalf("register %s settlement posting: %v", entity, err)
+		}
+		if err := bus.Subscribe(DocumentUnapprovedTopic(entity), "test-led-reversal",
+			func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+				event := raw.(DocumentUnapprovedEvent)
+				_, err := tx.Exec(ctx, `DELETE FROM led_party_entries
+					WHERE source_entity=$1 AND source_document_id=$2`, entity, event.DocumentID)
+				return err
+			}); err != nil {
+			t.Fatalf("register %s settlement reversal: %v", entity, err)
+		}
+	}
+	registerSettlementPosting(EntityPurchaseInbound, -1)
+	registerSettlementPosting(EntityPurchaseReturn, 1)
+	service := newIntegrationServiceWithBus(t, pool, bus)
 
 	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
@@ -30,6 +193,18 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if err != nil {
 		domainErr, _ := err.(*DomainError)
 		t.Fatalf("check order: %#v cause=%v", err, domainErr.Cause)
+	}
+	var orderAmount, prepaidBalance int64
+	if err = pool.QueryRow(t.Context(), `SELECT document.total_amount_cents,
+		COALESCE(sum(entry.amount_delta_cents),0)::bigint
+		FROM vou_documents document
+		JOIN vou_purchase_order_details detail ON detail.document_id=document.id
+		LEFT JOIN led_party_entries entry ON entry.counterparty_entity='supplier'
+		 AND entry.counterparty_object_id=detail.supplier_object_id
+		 AND entry.currency=document.currency AND entry.account_type='TRADE'
+		WHERE document.id=$1 GROUP BY document.total_amount_cents`, order.DocumentID).
+		Scan(&orderAmount, &prepaidBalance); err != nil || orderAmount != 12000 || prepaidBalance != 12000 {
+		t.Fatalf("prepaid purchase setup = amount:%d balance:%d err=%v", orderAmount, prepaidBalance, err)
 	}
 	approved, err := service.Approve(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
 		DocumentID: order.DocumentID, Revision: checked.Revision,
@@ -72,14 +247,10 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 		if approveErr != nil {
 			t.Fatalf("approve inbound: %v", approveErr)
 		}
-		finalized, finalizeErr := service.Finalize(
-			t.Context(), EntityPurchaseInbound, FinalizeInput{
-				DocumentID: inbound.DocumentID, Revision: approvedInbound.Revision,
-			}, integrationActorOne, requestID+"-finalize")
-		if finalizeErr != nil {
-			t.Fatalf("finalize inbound: %v", finalizeErr)
+		if approvedInbound.Status != StatusFinalized {
+			t.Fatalf("approved inbound status = %s", approvedInbound.Status)
 		}
-		return finalized
+		return approvedInbound
 	}
 
 	first := createInbound("4", "inbound-one")
@@ -93,6 +264,66 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 		t.Fatal("cumulative inbound overage was accepted")
 	}
 	finalizedFirst := finalizeInbound(first, "inbound-one")
+	firstView, err := service.Get(t.Context(), EntityPurchaseInbound, GetInput{
+		DocumentID: first.DocumentID,
+	})
+	if err != nil {
+		t.Fatalf("get first inbound: %v", err)
+	}
+	partialReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
+		ReturnReason: "部分入库退货",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}}, integrationActorOne, "partial-purchase-return-create")
+	if err != nil {
+		t.Fatalf("create partial purchase return: %v", err)
+	}
+	partialChecked, err := service.Check(t.Context(), EntityPurchaseReturn, DocumentRevisionInput{
+		DocumentID: partialReturn.DocumentID, Revision: partialReturn.Revision,
+	}, integrationActorOne, "partial-purchase-return-check")
+	if err != nil {
+		t.Fatalf("check partial purchase return: %v", err)
+	}
+	partialApproved, err := service.Approve(t.Context(), EntityPurchaseReturn, DocumentRevisionInput{
+		DocumentID: partialReturn.DocumentID, Revision: partialChecked.Revision,
+	}, integrationActorOne, "partial-purchase-return-approve")
+	if err != nil {
+		t.Fatalf("approve partial purchase return: %v", err)
+	}
+	var reservationActive bool
+	var reservedAmount int64
+	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
+		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
+		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 8400 {
+		t.Fatalf("partial purchase return reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
+	}
+	partialReversed, err := service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: partialReturn.DocumentID, Revision: partialApproved.Revision,
+		Reason: "清理部分退货测试",
+	}, integrationActorOne, "partial-purchase-return-unapprove")
+	if err != nil {
+		t.Fatalf("unapprove partial purchase return: %v", err)
+	}
+	partialDraft, err := service.Uncheck(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: partialReturn.DocumentID, Revision: partialReversed.Revision,
+		Reason: "清理部分退货测试",
+	}, integrationActorOne, "partial-purchase-return-uncheck")
+	if err != nil {
+		t.Fatalf("uncheck partial purchase return: %v", err)
+	}
+	if _, err = service.Delete(t.Context(), EntityPurchaseReturn, DeleteInput{
+		DocumentID: partialReturn.DocumentID, Revision: partialDraft.Revision,
+		Reason: "清理部分退货测试",
+	}, integrationActorOne, "partial-purchase-return-delete"); err != nil {
+		t.Fatalf("delete partial purchase return: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
+		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
+		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 7200 {
+		t.Fatalf("partial return reversal reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
+	}
 
 	draft := createInbound("6", "inbound-draft")
 	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
@@ -112,11 +343,32 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if fulfillment != "FULFILLED" {
 		t.Fatalf("completion = %s", fulfillment)
 	}
-	firstView, err := service.Get(t.Context(), EntityPurchaseInbound, GetInput{
-		DocumentID: first.DocumentID,
-	})
+	temporaryReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
+		ReturnReason: "临时采购退货",
+		ReturnLines: []ReturnLineInput{{
+			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}}, integrationActorOne, "temporary-purchase-return-create")
 	if err != nil {
-		t.Fatalf("get first inbound: %v", err)
+		t.Fatalf("create temporary purchase return: %v", err)
+	}
+	reopenedOrder, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: order.DocumentID})
+	if err != nil || reopenedOrder.Status != StatusApproved {
+		t.Fatalf("temporary return did not reopen order: status=%s err=%v", reopenedOrder.Status, err)
+	}
+	if _, err = service.Delete(t.Context(), EntityPurchaseReturn, DeleteInput{
+		DocumentID: temporaryReturn.DocumentID, Revision: temporaryReturn.Revision,
+		Reason: "取消临时采购退货",
+	}, integrationActorOne, "temporary-purchase-return-delete"); err != nil {
+		t.Fatalf("delete temporary purchase return: %v", err)
+	}
+	completedOrder, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: order.DocumentID})
+	if err != nil || completedOrder.Status != StatusFinalized {
+		t.Fatalf("deleting last unfinished child did not complete order: status=%s err=%v", completedOrder.Status, err)
+	}
+	if _, err = pool.Exec(t.Context(), `DELETE FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID); err != nil {
+		t.Fatalf("remove completed legacy reservation fixture: %v", err)
 	}
 	purchaseReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
@@ -140,22 +392,24 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if err != nil {
 		t.Fatalf("approve purchase return: %v", err)
 	}
-	returnFinalized, err := service.Finalize(t.Context(), EntityPurchaseReturn, FinalizeInput{
-		DocumentID: purchaseReturn.DocumentID, Revision: returnApproved.Revision,
-	}, integrationActorOne, "purchase-return-finalize")
-	if err != nil {
-		t.Fatalf("finalize purchase return: %v", err)
+	if returnApproved.Status != StatusFinalized {
+		t.Fatalf("approved purchase return status = %s", returnApproved.Status)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
 		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
 		Scan(&fulfillment); err != nil || fulfillment != "OPEN" {
 		t.Fatalf("purchase return did not reopen order: %s, err=%v", fulfillment, err)
 	}
+	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
+		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
+		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 2400 {
+		t.Fatalf("purchase return reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
+	}
 	replacement := createInbound("2", "replacement-inbound")
-	if _, err = service.Unfinalize(t.Context(), EntityPurchaseReturn, ReverseInput{
-		DocumentID: purchaseReturn.DocumentID, Revision: returnFinalized.Revision,
+	if _, err = service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnApproved.Revision,
 		Reason: "尝试撤销",
-	}, integrationActorOne, "purchase-return-unfinalize-blocked"); err == nil {
+	}, integrationActorOne, "purchase-return-unapprove-blocked"); err == nil {
 		t.Fatal("purchase return reversal ignored replacement inbound reservation")
 	}
 	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
@@ -163,26 +417,26 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	}, integrationActorOne, "replacement-delete"); err != nil {
 		t.Fatalf("delete replacement inbound: %v", err)
 	}
-	if _, err = service.Unfinalize(t.Context(), EntityPurchaseReturn, ReverseInput{
-		DocumentID: purchaseReturn.DocumentID, Revision: returnFinalized.Revision,
+	if _, err = service.Unapprove(t.Context(), EntityPurchaseInbound, ReverseInput{
+		DocumentID: first.DocumentID, Revision: finalizedFirst.Revision, Reason: "来源有退货",
+	}, integrationActorOne, "source-inbound-unapprove-blocked"); err == nil {
+		t.Fatal("source inbound with purchase return was unapproved")
+	}
+	if _, err = service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{
+		DocumentID: purchaseReturn.DocumentID, Revision: returnApproved.Revision,
 		Reason: "撤销采购退货",
-	}, integrationActorOne, "purchase-return-unfinalize"); err != nil {
-		t.Fatalf("unfinalize purchase return: %v", err)
+	}, integrationActorOne, "purchase-return-unapprove"); err != nil {
+		t.Fatalf("unapprove purchase return: %v", err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
 		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
 		Scan(&fulfillment); err != nil || fulfillment != "FULFILLED" {
 		t.Fatalf("purchase return reversal did not complete order: %s, err=%v", fulfillment, err)
 	}
-	if _, err = service.Unfinalize(t.Context(), EntityPurchaseInbound, ReverseInput{
-		DocumentID: first.DocumentID, Revision: finalizedFirst.Revision, Reason: "来源有退货",
-	}, integrationActorOne, "source-inbound-unfinalize-blocked"); err == nil {
-		t.Fatal("source inbound with purchase return was unfinalized")
-	}
-	if _, err = service.Unfinalize(t.Context(), EntityPurchaseInbound, ReverseInput{
+	if _, err = service.Unapprove(t.Context(), EntityPurchaseInbound, ReverseInput{
 		DocumentID: second.DocumentID, Revision: finalizedSecond.Revision, Reason: "验收撤回",
-	}, integrationActorOne, "inbound-unfinalize"); err != nil {
-		t.Fatalf("unfinalize inbound: %v", err)
+	}, integrationActorOne, "inbound-unapprove"); err != nil {
+		t.Fatalf("unapprove inbound: %v", err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT fulfillment_status
 		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
@@ -236,7 +490,7 @@ func TestPurchaseFulfillmentDualPersonShortCloseIntegration(t *testing.T) {
 	closed, err := service.PurchaseShortCloseConfirm(t.Context(), DocumentRevisionInput{
 		DocumentID: order.DocumentID, Revision: requested.Revision,
 	}, integrationActorTwo, "short-confirm")
-	if err != nil || closed.Status != StatusShortClosed {
+	if err != nil || closed.Status != StatusFinalized {
 		t.Fatalf("confirm short close = %+v, err=%v", closed, err)
 	}
 	if _, err = service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
@@ -248,7 +502,7 @@ func TestPurchaseFulfillmentDualPersonShortCloseIntegration(t *testing.T) {
 	reopened, err := service.PurchaseShortCloseUnconfirm(t.Context(), ReverseInput{
 		DocumentID: order.DocumentID, Revision: closed.Revision, Reason: "恢复采购",
 	}, integrationActorTwo, "short-unconfirm")
-	if err != nil || reopened.Status != StatusShortCloseRequested {
+	if err != nil || reopened.Status != StatusApproved {
 		t.Fatalf("unconfirm short close = %+v, err=%v", reopened, err)
 	}
 }

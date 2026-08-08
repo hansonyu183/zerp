@@ -11,7 +11,6 @@ import {
   VoucherAssetLinesEditor,
   VoucherAuditHistory,
   VoucherDocumentHeader,
-  VoucherExecutionDialog,
   VoucherExpenseLinesEditor,
   VoucherList,
   VoucherProductLinesEditor,
@@ -104,9 +103,7 @@ const secondaryTitle = ref('')
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove' | 'unfinalize'>>(
-    'uncheck',
-  )
+  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove'>>('uncheck')
 const listLifecycleReason = ref('')
 const listLifecycleTitle = computed(
   () => labels.value[listLifecycleAction.value],
@@ -180,7 +177,14 @@ function referenceProps(key: string) {
 }
 
 function changeCounterpartyType(value: string): void {
-  vm.form.counterpartyType = value === 'supplier' ? 'supplier' : 'customer'
+  vm.form.counterpartyType = [
+    'customer',
+    'supplier',
+    'other-party',
+    'employee',
+  ].includes(value)
+    ? (value as typeof vm.form.counterpartyType)
+    : ''
   vm.form.counterparty = null
   vm.markReferenceChanged('counterpartyType')
   vm.searchReference('counterparty', '')
@@ -206,11 +210,7 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (
-    action === 'uncheck' ||
-    action === 'unapprove' ||
-    action === 'unfinalize'
-  ) {
+  if (action === 'uncheck' || action === 'unapprove') {
     listLifecycleTarget.value = row
     listLifecycleAction.value = action
     listLifecycleReason.value = ''
@@ -255,7 +255,16 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
 
 <template>
   <v-container v-if="showList" fluid class="voucher-page pa-4 pa-md-7">
-    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
+    <AppSnackbar
+      diagnostics
+      :message="vm.errorMessage"
+      @dismiss="vm.errorMessage = null"
+    />
+    <AppSnackbar
+      :message="vm.successMessage"
+      type="success"
+      @dismiss="vm.successMessage = null"
+    />
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
@@ -334,6 +343,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     :document="vm.documentView"
     :editing="vm.editing"
     :error-message="vm.workspaceError"
+    :success-message="vm.successMessage"
     :title="workspaceTitle"
     @close="vm.closeWorkspace"
     @reload="vm.reloadDocument"
@@ -443,10 +453,18 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                             { title: '客户', value: 'customer' },
                             { title: '其他往来单位', value: 'other-party' },
                           ]
-                        : [
-                            { title: '客户', value: 'customer' },
-                            { title: '供应商', value: 'supplier' },
-                          ]
+                        : vm.config.entity === 'other-receipt' ||
+                            vm.config.entity === 'other-payment'
+                          ? [
+                              { title: '客户', value: 'customer' },
+                              { title: '供应商', value: 'supplier' },
+                              { title: '其他单位', value: 'other-party' },
+                              { title: '员工', value: 'employee' },
+                            ]
+                          : [
+                              { title: '客户', value: 'customer' },
+                              { title: '供应商', value: 'supplier' },
+                            ]
                     "
                     label="往来方类型"
                     :model-value="vm.form.counterpartyType"
@@ -463,8 +481,11 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         : vm.form.counterpartyType === 'other-party'
                           ? '其他往来单位'
                           : vm.form.counterpartyType === 'employee'
-                            ? '借款员工'
-                          : '客户'
+                            ? vm.config.entity === 'other-receipt' ||
+                              vm.config.entity === 'other-payment'
+                              ? '员工'
+                              : '借款员工'
+                            : '客户'
                     "
                     :model-value="vm.form.counterparty"
                     :required="vm.config.entity !== 'other-income'"
@@ -472,6 +493,25 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     @update:model-value="
                       updateReference('counterparty', $event)
                     "
+                  />
+
+                  <v-select
+                    v-if="
+                      vm.config.entity === 'other-receipt' ||
+                      vm.config.entity === 'other-payment'
+                    "
+                    v-model="vm.form.otherCategory"
+                    :disabled="!vm.editing"
+                    clearable
+                    item-title="title"
+                    item-value="value"
+                    :items="[
+                      { title: '提成', value: 'COMMISSION' },
+                      { title: '居间', value: 'INTERMEDIARY' },
+                      { title: '返点', value: 'REBATE' },
+                    ]"
+                    label="其他往来分类（可选）"
+                    variant="outlined"
                   />
 
                   <VoucherReferenceAutocomplete
@@ -483,6 +523,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :model-value="vm.form.salesperson"
                     @search="search('salesperson', $event)"
                     @update:model-value="updateReference('salesperson', $event)"
+                  />
+                  <v-switch
+                    v-if="vm.config.entity === 'sale-order'"
+                    v-model="vm.form.specialApproval"
+                    color="warning"
+                    :disabled="!vm.editing"
+                    hide-details
+                    label="特批销售"
                   />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.usesPurchaser"
@@ -1055,21 +1103,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       </v-card>
     </template>
   </VoucherWorkspace>
-
-  <VoucherExecutionDialog
-    v-model="vm.executionOpen"
-    :document="vm.documentView"
-    :error-message="vm.executionError"
-    :kind="vm.config.finalizationKind"
-    :platform-loading="vm.referenceLoading('platform')"
-    :platform-options="vm.referenceOptions('platform')"
-    :saving="vm.actionLoading === 'finalize'"
-    :vehicle-loading="vm.referenceLoading('vehicle')"
-    :vehicle-options="vm.referenceOptions('vehicle')"
-    @platform-search="vm.searchReference('platform', $event)"
-    @submit="vm.finalize"
-    @vehicle-search="vm.searchReference('vehicle', $event)"
-  />
 
   <VoucherReasonDialog
     v-model="secondaryOpen"

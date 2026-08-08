@@ -31,6 +31,8 @@ assert_check 'scripts/test-release-flow-transition.sh' validation impact
 assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
+assert_check 'scripts/production-watch.sh' application impact
+assert_check 'scripts/preview-runtime-sandbox.sh' 1 preview
 
 # Workflow behavior is intentionally structural here: GitHub Actions expressions
 # cannot be executed locally, so assert the public routing contract explicitly.

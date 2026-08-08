@@ -72,7 +72,7 @@ checks=$("${gh_bin}" api "repos/${repo}/commits/${head}/check-runs?per_page=100"
 validation_state=$(
   printf '%s' "${checks}" |
     jq -r '
-      [.check_runs[] | select(.name == "validation")]
+      [.check_runs[] | select(.name == "preview-required")]
       | sort_by(.started_at)
       | if length == 0 then "missing"
         else last | (.status + ":" + (.conclusion // ""))
@@ -80,7 +80,7 @@ validation_state=$(
     '
 )
 test "${validation_state}" = completed:success || {
-  echo "validation on ${head} is ${validation_state}" >&2
+  echo "Ready preview evidence on ${head} is ${validation_state}" >&2
   exit 1
 }
 
@@ -113,5 +113,5 @@ verify_pr_json "$("${gh_bin}" api "repos/${repo}/pulls/${pr}")" || {
   exit 1
 }
 
-printf 'preview PR #%s head=%s actor=%s validation=success\n' \
+printf 'preview PR #%s head=%s actor=%s preview-required=success\n' \
   "${pr}" "${head}" "${actor}"

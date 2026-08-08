@@ -204,7 +204,7 @@ warm_public_assets() {
   index_file=$(mktemp "${runtime_root}/preview-index.XXXXXX")
   cache_bust=${1:-$(date +%s)}
   if ! curl --silent --show-error --fail \
-    --retry 4 --retry-all-errors --retry-delay 1 \
+    --retry 15 --retry-all-errors --retry-delay 2 \
     --connect-timeout 10 --max-time 90 \
     --output "${index_file}" \
     "${preview_url}/signin?preview-release=${cache_bust}"; then
@@ -222,7 +222,7 @@ warm_public_assets() {
   for asset in ${assets}; do
     echo "Warming public preview asset: ${asset}"
     curl --silent --show-error --fail --compressed \
-      --retry 4 --retry-all-errors --retry-delay 1 \
+      --retry 15 --retry-all-errors --retry-delay 2 \
       --connect-timeout 10 --max-time 90 \
       --output /dev/null "${preview_url}${asset}" || return 1
   done
@@ -253,6 +253,14 @@ release_identity() {
 
 build_release() {
   build_cache="${runtime_root}/build-cache/${release_name}"
+  validate_regular_tree() {
+    artifact_root=$1
+    invalid_artifact=$(find -P "${artifact_root}" ! -type f ! -type d -print -quit)
+    test -z "${invalid_artifact}" || {
+      echo "Preview release contains a symlink or special file: ${invalid_artifact}" >&2
+      return 1
+    }
+  }
   remove_build_cache() {
     [ ! -e "${build_cache}" ] || {
       chmod -R u+w "${build_cache}"
@@ -261,12 +269,12 @@ build_release() {
   }
   if [ -x "${release_dir}/bin/zerp-server" ] && \
     [ -x "${release_dir}/bin/zerp-preview-web" ] && \
-    [ -x "${release_dir}/bin/zerp-bootstrap-admin" ] && \
     [ -x "${release_dir}/bin/zerp-seed-preview" ] && \
     [ -x "${release_dir}/bin/goose" ] && \
     [ -f "${release_dir}/release-sha" ] && \
     [ -d "${release_dir}/migrations" ] && \
     [ -f "${release_dir}/web/index.html" ]; then
+    validate_regular_tree "${release_dir}"
     remove_build_cache
     echo "Reusing native preview release ${release_name}"
     return
@@ -299,9 +307,6 @@ build_release() {
     -o "${build_temp}/bin/zerp-preview-web" ./cmd/preview-web
   sandbox_build_in "${source_root}/backend" \
     go build -buildvcs=false -trimpath \
-    -o "${build_temp}/bin/zerp-bootstrap-admin" ./cmd/bootstrap-admin
-  sandbox_build_in "${source_root}/backend" \
-    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-seed-preview" ./cmd/seed-preview
   sandbox_build_in "${source_root}/backend/tools" \
     go build -buildvcs=false -trimpath \
@@ -317,10 +322,16 @@ build_release() {
       GITHUB_SHA="${release_marker}" pnpm \
       --filter @zerp/frontend build
   fi
+
+  for artifact_root in "${source_root}/frontend/dist" \
+    "${source_root}/backend/db/migrations" "${build_temp}"; do
+    validate_regular_tree "${artifact_root}"
+  done
   cp -R "${source_root}/frontend/dist/." "${build_temp}/web/"
   cp -R "${source_root}/backend/db/migrations/." "${build_temp}/migrations/"
   printf '%s\n' "${release_marker}" >"${build_temp}/release-sha"
   printf '%s\n' "${release_marker}" >"${build_temp}/web/_zerp-release"
+  validate_regular_tree "${build_temp}"
   chmod -R a+rX "${build_temp}"
   mv "${build_temp}" "${release_dir}"
   build_temp=
@@ -424,11 +435,15 @@ EOF
 write_runtime_files() {
   api_runner="${runtime_root}/run-api.sh"
   web_runner="${runtime_root}/run-web.sh"
+  runtime_sandbox="${runtime_root}/preview-runtime-sandbox.sh"
+  cp "${repo_root}/scripts/preview-runtime-sandbox.sh" "${runtime_sandbox}"
+  chmod 700 "${runtime_sandbox}"
   cat >"${api_runner}" <<'EOF'
 #!/bin/sh
 set -eu
 runtime_root=$1
 env_file=$2
+primary_root=$(dirname "$(dirname "$(dirname "${runtime_root}")")")
 set -a
 # shellcheck disable=SC1090
 . "${env_file}"
@@ -438,21 +453,33 @@ export HTTP_ADDRESS="127.0.0.1:${API_PORT}"
 current_file="${runtime_root}/state/current"
 preview_db=$(sed -n 's/^db=//p' "$current_file")
 preview_attachments=$(sed -n 's/^attachments=//p' "$current_file")
-export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
-export ATTACHMENT_STORAGE_ROOT="${preview_attachments}"
-exec "${release_root}/bin/zerp-server"
+sandbox_database_url="postgres://${POSTGRES_USER}@/${preview_db}?host=/tmp&port=${POSTGRES_PORT}&sslmode=disable"
+exec "${runtime_root}/preview-runtime-sandbox.sh" api \
+  "${primary_root}" "${runtime_root}" \
+  "${release_root}" "${preview_attachments}" \
+  /usr/bin/env APP_ENV="${APP_ENV}" HTTP_ADDRESS="127.0.0.1:${API_PORT}" \
+  DATABASE_URL="${sandbox_database_url}" CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
+  APP_SESSION_COOKIE_NAME="${APP_SESSION_COOKIE_NAME}" \
+  APP_SESSION_COOKIE_SECURE="${APP_SESSION_COOKIE_SECURE}" \
+  APP_SESSION_COOKIE_SAME_SITE="${APP_SESSION_COOKIE_SAME_SITE}" \
+  FEEDBACK_GITHUB_ENABLED=false ATTACHMENT_STORAGE_ROOT="${preview_attachments}" \
+  "${release_root}/bin/zerp-server"
 EOF
   cat >"${web_runner}" <<'EOF'
 #!/bin/sh
 set -eu
 runtime_root=$1
 env_file=$2
+primary_root=$(dirname "$(dirname "$(dirname "${runtime_root}")")")
 set -a
 # shellcheck disable=SC1090
 . "${env_file}"
 set +a
 release_root=$(CDPATH='' cd -- "${runtime_root}/current" && pwd -P)
-exec "${release_root}/bin/zerp-preview-web" \
+exec "${runtime_root}/preview-runtime-sandbox.sh" web \
+  "${primary_root}" "${runtime_root}" \
+  "${release_root}" "${runtime_root}/sandbox/web/attachments" \
+  "${release_root}/bin/zerp-preview-web" \
   -listen "127.0.0.1:${WEB_PORT}" \
   -root "${release_root}/web" \
   -api "http://127.0.0.1:${API_PORT}"
@@ -597,22 +624,38 @@ prepare_database() {
 
 run_release_setup() {
   release=$1
-  DATABASE_URL="${database_url}" "${release}/bin/goose" \
-    -dir "${release}/migrations" postgres "${database_url}" up || return 1
+  sandbox_database_url="postgres://${POSTGRES_USER}@/${preview_db}?host=/tmp&port=${POSTGRES_PORT}&sslmode=disable"
+  sandbox_setup() {
+    "${runtime_root}/preview-runtime-sandbox.sh" api \
+      "${primary_root}" "${runtime_root}" "${release}" \
+      "${preview_attachment_root:-${attachment_root}}" "$@"
+  }
+  sandbox_setup /usr/bin/env DATABASE_URL="${sandbox_database_url}" \
+    "${release}/bin/goose" \
+    -dir "${release}/migrations" postgres "${sandbox_database_url}" up || return 1
   user_count=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
     -d "${preview_db:-${POSTGRES_DB}}" -Atqc \
     "SELECT count(*) FROM app_users WHERE id <> '${system_user_id}'") || return 1
   if [ "${user_count}" = 0 ]; then
+    controller_sha=$(git -C "${repo_root}" rev-parse HEAD)
+    controller_bin="${runtime_root}/controller-bin/${controller_sha}/zerp-bootstrap-admin"
+    if [ ! -x "${controller_bin}" ]; then
+      mkdir -p "$(dirname "${controller_bin}")"
+      chmod 700 "${runtime_root}/controller-bin" "$(dirname "${controller_bin}")"
+      (cd "${repo_root}/backend" && go build -buildvcs=false -trimpath \
+        -o "${controller_bin}" ./cmd/bootstrap-admin) || return 1
+      chmod 700 "${controller_bin}"
+    fi
     APP_BOOTSTRAP_PASSWORD="${APP_BOOTSTRAP_PASSWORD}" \
-      DATABASE_URL="${database_url}" \
-      "${release}/bin/zerp-bootstrap-admin" \
+      DATABASE_URL="${database_url}" "${controller_bin}" \
       -username "${APP_BOOTSTRAP_USERNAME}" \
       -display-name "${APP_BOOTSTRAP_DISPLAY_NAME}" || return 1
   else
     echo "Preview administrator already initialized"
   fi
-  DATABASE_URL="${database_url}" \
+  sandbox_setup /usr/bin/env DATABASE_URL="${sandbox_database_url}" \
+    APP_ENV=development \
     ATTACHMENT_STORAGE_ROOT="${preview_attachment_root:-${attachment_root}}" \
     "${release}/bin/zerp-seed-preview"
 }

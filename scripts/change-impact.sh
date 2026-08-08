@@ -229,6 +229,7 @@ if [ -n "${changed_files}" ]; then
 
       compose.preview.yaml | backend/.env.preview.example | \
         backend/scripts/init-preview-env.sh | scripts/preview.sh | \
+        scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
         scripts/preview-deploy.sh | scripts/preview-state.sh | \
         scripts/verify-preview-pr.sh | scripts/uninstall-preview-agent.sh)
         if [ "${impact}" = "docs" ]; then
@@ -247,9 +248,7 @@ if [ -n "${changed_files}" ]; then
         ;;
 
       scripts/production-watch.sh)
-        if [ "${impact}" = "docs" ]; then
-          impact=validation
-        fi
+        mark_application
         containers=1
         ;;
 

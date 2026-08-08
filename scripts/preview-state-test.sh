@@ -27,6 +27,14 @@ cat >"${root}/bin/dropdb" <<'EOF'
 [ "${PGPASSWORD:-}" = "${MOCK_POSTGRES_PASSWORD}" ]
 printf '%s\n' "$*" >>"${MOCK_DROPDB_LOG}"
 EOF
+cat >"${root}/bin/curl" <<'EOF'
+#!/bin/sh
+url=
+for argument in "$@"; do url=$argument; done
+case "$url" in
+  */_zerp-release*) printf '%s' "${MOCK_ACCEPT_HEAD}" ;;
+esac
+EOF
 cat >"${root}/bin/gh" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"${MOCK_GH_LOG}"
@@ -35,7 +43,11 @@ case "$*" in
     printf '{"state":"open","draft":false,"base":{"ref":"main"},"head":{"sha":"%s"}}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
   *"commits/${MOCK_ACCEPT_HEAD}/check-runs"*)
-    printf '{"check_runs":[{"name":"validation","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z"}]}\n'
+    if [ "${MOCK_DRAFT_ONLY:-0}" = 1 ]; then
+      printf '{"check_runs":[{"name":"validation","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z"}]}\n'
+    else
+      printf '{"check_runs":[{"name":"preview-required","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z"}]}\n'
+    fi
     ;;
   *"collaborators/alice/permission"*) printf 'write\n' ;;
   *"deployments?sha="*) ;;
@@ -55,7 +67,8 @@ case "$*" in
   *) printf '{}\n' ;;
 esac
 EOF
-chmod +x "${root}/bin/psql" "${root}/bin/createdb" "${root}/bin/dropdb" "${root}/bin/gh"
+chmod +x "${root}/bin/psql" "${root}/bin/createdb" "${root}/bin/dropdb" \
+  "${root}/bin/curl" "${root}/bin/gh"
 
 export PATH="${root}/bin:${PATH}"
 export MOCK_CREATEDB_LOG="${root}/createdb.log"
@@ -76,6 +89,12 @@ export ZERP_PREVIEW_MAIN_SHA="${main_sha}"
 export ZERP_GITHUB_REPOSITORY=example/zerp
 export ZERP_GH_BIN=gh
 state=${repo_root}/scripts/preview-state.sh
+
+if MOCK_DRAFT_ONLY=1 PREVIEW_ACTOR=alice \
+  "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
+  echo 'Draft-only evidence was accepted for preview' >&2
+  exit 1
+fi
 
 if [ "$(uname -s)" = Darwin ]; then
   sandbox=${repo_root}/scripts/preview-build-sandbox.sh
@@ -112,7 +131,44 @@ if [ "$(uname -s)" = Darwin ]; then
     echo 'preview sandbox reached the system keychain' >&2
     exit 1
   fi
+
+  runtime_sandbox=${repo_root}/scripts/preview-runtime-sandbox.sh
+  runtime_primary=${root}/runtime-primary
+  runtime_root=${runtime_primary}/runtime
+  runtime_release=${runtime_root}/release
+  runtime_attachments=${runtime_root}/attachments
+  mkdir -p "${runtime_release}" "${runtime_attachments}"
+  printf '%s\n' public >"${runtime_release}/public"
+  printf '%s\n' secret >"${runtime_primary}/secret"
+  PREVIEW_RUNTIME_TEST_SECRET=not-in-clean-environment \
+    "${runtime_sandbox}" web "${runtime_primary}" "${runtime_root}" \
+      "${runtime_release}" "${runtime_attachments}" /bin/cat \
+      "${runtime_release}/public" >/dev/null
+  if PREVIEW_RUNTIME_TEST_SECRET=not-in-clean-environment \
+    "${runtime_sandbox}" web "${runtime_primary}" "${runtime_root}" \
+      "${runtime_release}" "${runtime_attachments}" /usr/bin/env | \
+      grep -q PREVIEW_RUNTIME_TEST_SECRET; then
+    echo 'preview runtime inherited the controller environment' >&2
+    exit 1
+  fi
+  if "${runtime_sandbox}" web "${runtime_primary}" "${runtime_root}" \
+    "${runtime_release}" "${runtime_attachments}" /bin/cat \
+    "${runtime_primary}/secret" >/dev/null 2>&1; then
+    echo 'preview runtime read a controller file' >&2
+    exit 1
+  fi
+  if "${runtime_sandbox}" web "${runtime_primary}" "${runtime_root}" \
+    "${runtime_release}" "${runtime_attachments}" /usr/bin/touch \
+    "${runtime_primary}/outside" >/dev/null 2>&1; then
+    echo 'preview runtime wrote outside its isolated roots' >&2
+    exit 1
+  fi
 fi
+
+mkdir -p "${root}/runtime/releases/${accept_head}/web"
+printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
+printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/web/_zerp-release"
+ln -s "${root}/runtime/releases/${accept_head}" "${root}/runtime/current"
 
 "${state}" init
 before=$(cat "${root}/state/current")
@@ -159,6 +215,13 @@ test ! -e "${root}/state/active"
 
 ZERP_PREVIEW_NOW=90001 PREVIEW_PR=1 PREVIEW_REF="${accept_head}" \
   PREVIEW_VERIFIED=1 "${state}" claim
+printf '%s\n' 9999999999999999999999999999999999999999 \
+  >"${root}/runtime/releases/${accept_head}/release-sha"
+if PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept >/dev/null 2>&1; then
+  echo 'Drifted preview runtime was accepted' >&2
+  exit 1
+fi
+printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
 PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept
 grep -Fq "repos/example/zerp/deployments" "${MOCK_GH_LOG}"
 grep -Fq "repos/example/zerp/statuses/${accept_head}" "${MOCK_GH_LOG}"
@@ -215,6 +278,15 @@ grep -Fq '(literal (param "SECRET_FILE"))' \
   "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '(deny network*)' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '/private/tmp/.s.PGSQL.55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+# shellcheck disable=SC2016 # intentional literal source assertion
+grep -Fq 'find -P "${artifact_root}" ! -type f ! -type d' "${repo_root}/scripts/preview.sh"
+grep -Fq 'sandbox_setup /usr/bin/env' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016 # intentional literal source assertion
+grep -Fq 'verify_active_release "$head"' "${repo_root}/scripts/preview-state.sh"
 # shellcheck disable=SC2016 # intentional literal source assertions
 grep -Fq 'build-cache/${release_name}' "${repo_root}/scripts/preview.sh"
 # shellcheck disable=SC2016

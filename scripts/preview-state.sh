@@ -14,6 +14,27 @@ safe_sha(){ case "$1" in ????????*) case "$1" in *[!0-9a-f]*) return 1;; esac; [
 mkdir_state(){ mkdir -p "$baseline_root" "$pr_root" "$failure_root"; chmod 700 "$state_root" "$baseline_root" "$pr_root" "$failure_root"; }
 read_field(){ key=$1; file=$2; sed -n "s/^${key}=//p" "$file" 2>/dev/null | sed -n '1p'; }
 write_record(){ file=$1; shift; tmp="${file}.new.$$"; : >"$tmp"; chmod 600 "$tmp"; while [ "$#" -gt 1 ]; do printf '%s=%s\n' "$1" "$2" >>"$tmp"; shift 2; done; mv -f "$tmp" "$file"; }
+verify_active_release(){
+  expected=$1
+  state_sha=$(read_field sha "$current_file")
+  release_sha=$(cat "$runtime_root/current/release-sha" 2>/dev/null || true)
+  [ "$state_sha" = "$expected" ] && [ "$release_sha" = "$expected" ] || {
+    echo "Preview state/runtime is ${state_sha:-missing}/${release_sha:-missing}; expected $expected" >&2
+    return 1
+  }
+  curl --silent --show-error --fail --output /dev/null \
+    "http://127.0.0.1:${WEB_PORT:-15176}/healthz"
+  curl --silent --show-error --fail --output /dev/null \
+    "http://127.0.0.1:${API_PORT:-18082}/readyz"
+  local_marker=$(curl --silent --show-error --fail \
+    "http://127.0.0.1:${WEB_PORT:-15176}/_zerp-release?preview-release=$expected")
+  public_marker=$(curl --silent --show-error --fail \
+    "${ZERP_PREVIEW_URL:-https://zerp-preview.bytesucceed.com}/_zerp-release?preview-release=$expected")
+  [ "$local_marker" = "$expected" ] && [ "$public_marker" = "$expected" ] || {
+    echo "Preview local/public marker is ${local_marker:-missing}/${public_marker:-missing}; expected $expected" >&2
+    return 1
+  }
+}
 atomic_current(){ tmp="${current_file}.new.$$"; cat >"$tmp" <<EOT
 kind=$1
 id=$2
@@ -128,6 +149,12 @@ accept_state(){
   command -v "$gh_bin" >/dev/null 2>&1 || { echo 'gh is required' >&2; return 1; }
   if [ -z "$actor" ]; then actor=$($gh_bin api user --jq .login); fi
   PREVIEW_ACTOR="$actor" "${repo_root}/scripts/verify-preview-pr.sh" "$pr" "$head" >/dev/null
+  verify_active_release "$head"
+  [ "$(read_field sha "$current_file")" = "$head" ] && \
+    [ "$(cat "$runtime_root/current/release-sha" 2>/dev/null || true)" = "$head" ] || {
+      echo "Preview changed during acceptance verification" >&2
+      return 1
+    }
   description="preview PR #$pr generation $generation actor $actor"
   deployment=$($gh_bin api "repos/${repo}/deployments?sha=${head}&environment=preview&per_page=100" --jq ".[] | select(.description == \"$description\") | .id" | sed -n '1p')
   if [ -z "$deployment" ]; then

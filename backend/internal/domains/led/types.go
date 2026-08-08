@@ -202,14 +202,15 @@ type QueryInput struct {
 }
 
 type BillQueryFilters struct {
-	PositionType     string `json:"positionType,omitempty"`
-	Availability     string `json:"availability,omitempty"`
-	BillType         string `json:"billType,omitempty"`
-	BillNo           string `json:"billNo,omitempty"`
-	MaturityDateFrom string `json:"maturityDateFrom,omitempty"`
-	MaturityDateTo   string `json:"maturityDateTo,omitempty"`
-	CustomerObjectID string `json:"customerObjectId,omitempty"`
-	SourceEntity     string `json:"sourceEntity,omitempty"`
+	PositionType             string `json:"positionType,omitempty"`
+	Availability             string `json:"availability,omitempty"`
+	BillType                 string `json:"billType,omitempty"`
+	BillNo                   string `json:"billNo,omitempty"`
+	MaturityDateFrom         string `json:"maturityDateFrom,omitempty"`
+	MaturityDateTo           string `json:"maturityDateTo,omitempty"`
+	OriginatingPartyType     string `json:"originatingPartyType,omitempty"`
+	OriginatingPartyObjectID string `json:"originatingPartyObjectId,omitempty"`
+	SourceEntity             string `json:"sourceEntity,omitempty"`
 }
 
 type BillQueryInput struct {
@@ -236,17 +237,10 @@ type BillView struct {
 	AnnualRateBps      int32         `json:"annualRateBps"`
 	InterestDays       int32         `json:"interestDays"`
 	InterestAmount     string        `json:"interestAmount"`
-	Customer           BillPartyView `json:"customer"`
+	OriginatingParty   ReferenceView `json:"originatingParty"`
 	CustomerCostAmount string        `json:"customerCostAmount"`
 	SourceEntity       string        `json:"sourceEntity"`
 	SourceDocumentNo   string        `json:"sourceDocumentNo"`
-}
-
-type BillPartyView struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
 }
 
 type BalanceFilters struct {

@@ -35,7 +35,12 @@
                   'billNo': { 'type': 'string', 'maxLength': 200 },
                   'maturityDateFrom': { 'type': 'string', 'format': 'date' },
                   'maturityDateTo': { 'type': 'string', 'format': 'date' },
-                  'customerObjectId': { 'type': 'string' },
+                  'originatingPartyType':
+                    {
+                      'type': 'string',
+                      'enum': ['customer', 'supplier', 'other-party'],
+                    },
+                  'originatingPartyObjectId': { 'type': 'string' },
                   'sourceEntity':
                     {
                       'type': 'string',
@@ -99,7 +104,7 @@
           'annualRateBps',
           'interestDays',
           'interestAmount',
-          'customer',
+          'originatingParty',
           'customerCostAmount',
           'sourceEntity',
           'sourceDocumentNo',
@@ -129,15 +134,20 @@
           'annualRateBps': { 'type': 'integer', 'minimum': 0 },
           'interestDays': { 'type': 'integer', 'minimum': 0 },
           'interestAmount': { 'type': 'string' },
-          'customer':
+          'originatingParty':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId', 'code', 'name'],
+              'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
                   'versionId': { 'type': 'string' },
+                  'entity':
+                    {
+                      'type': 'string',
+                      'enum': ['customer', 'supplier', 'other-party'],
+                    },
                   'code': { 'type': 'string' },
                   'name': { 'type': 'string' },
                 },

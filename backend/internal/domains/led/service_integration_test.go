@@ -1482,10 +1482,12 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 		t.Fatalf("finalize bill receipt: %v", err)
 	}
 	bills, err := ledger.QueryBills(t.Context(), BillQueryInput{
-		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE", CustomerObjectID: refs.customer.ObjectID},
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE",
+			OriginatingPartyType: "customer", OriginatingPartyObjectID: refs.customer.ObjectID},
 		Sort: []SortInput{{Field: "maturityDate", Order: "asc"}},
 	})
-	if err != nil || bills.Total != 1 || len(bills.Items) != 1 || bills.Items[0].CustomerCostAmount != "3100.00" {
+	if err != nil || bills.Total != 1 || len(bills.Items) != 1 || bills.Items[0].CustomerCostAmount != "3100.00" ||
+		bills.Items[0].OriginatingParty.Entity != "customer" {
 		t.Fatalf("bill ledger after finalize = %+v, err=%v", bills, err)
 	}
 	duplicate, _ := advanceToChecked(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
@@ -1817,6 +1819,16 @@ func TestBillIssuePostsLiabilitySupplierInterestAndActualCashIntegration(t *test
 	}, integrationActorOne, "bill-issue-finalize")
 	if err != nil {
 		t.Fatalf("finalize bill issue: %v", err)
+	}
+	issuedBills, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{
+			OriginatingPartyType: "supplier", OriginatingPartyObjectID: refs.supplier.ObjectID,
+		},
+	})
+	if err != nil || len(issuedBills.Items) != 1 ||
+		issuedBills.Items[0].OriginatingParty.Entity != "supplier" ||
+		issuedBills.Items[0].OriginatingParty.ObjectID != refs.supplier.ObjectID {
+		t.Fatalf("supplier-originated bill query = %+v, err=%v", issuedBills, err)
 	}
 	supplier, err := ledger.PartyBalance(t.Context(), BalanceInput{
 		Page: 1, PageSize: 20, Filters: BalanceFilters{AsOfDate: "2026-08-01", ObjectID: refs.supplier.ObjectID},

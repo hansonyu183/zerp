@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import ReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
+import { formatReferenceLabel } from '@/utils/reference-label'
 import { useBillLedgerViewModel } from './vm'
 const vm = useBillLedgerViewModel()
 const labels: Record<string, string> = {
@@ -11,6 +12,11 @@ const labels: Record<string, string> = {
   COMMERCIAL_ACCEPTANCE: '商业承兑',
   CHECK: '支票',
   OTHER: '其他',
+}
+const partyTypeLabels: Record<string, string> = {
+  customer: '客户',
+  supplier: '供应商',
+  'other-party': '其他往来方',
 }
 onMounted(() => void vm.load())
 </script>
@@ -65,11 +71,11 @@ onMounted(() => void vm.load())
             variant="outlined"
           />
           <ReferenceAutocomplete
-            label="客户"
-            :model-value="vm.selectedCustomer.value"
-            :options="vm.customerOptions.value"
-            @search="vm.searchCustomer"
-            @update:model-value="vm.selectCustomer"
+            label="来源往来方"
+            :model-value="vm.selectedOriginatingParty.value"
+            :options="vm.originatingPartyOptions.value"
+            @search="vm.searchOriginatingParty"
+            @update:model-value="vm.selectOriginatingParty"
           />
           <v-btn color="primary" @click="vm.search">查询</v-btn>
           <v-btn variant="tonal" @click="vm.maturityShortcut('30d')">未来30天到期</v-btn>
@@ -94,7 +100,7 @@ onMounted(() => void vm.load())
             <th>币种</th>
             <th>票面金额</th>
             <th>到期日</th>
-            <th>客户</th>
+            <th>来源往来方</th>
             <th>客户成本</th>
             <th>来源</th>
           </tr>
@@ -107,8 +113,12 @@ onMounted(() => void vm.load())
             <td data-label="币种">{{ row.currency }}</td>
             <td data-label="票面金额">{{ row.faceAmount }}</td>
             <td data-label="到期日">{{ row.maturityDate }}</td>
-            <td data-label="客户">
-              {{ row.customer ? `${row.customer.code} · ${row.customer.name}` : '—' }}
+            <td data-label="来源往来方">
+              {{
+                row.originatingParty
+                  ? `${partyTypeLabels[row.originatingParty.entity]} · ${formatReferenceLabel(row.originatingParty)}`
+                  : '—'
+              }}
             </td>
             <td data-label="客户成本">{{ row.customerCostAmount }}</td>
             <td data-label="来源">{{ row.sourceDocumentNo || '—' }}</td>

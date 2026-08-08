@@ -3,6 +3,7 @@ import type { components } from '@/api/generated/schema'
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { localDate } from '@/utils/date'
 
 type Request = components['schemas']['LedBillQueryRequest']
 type Row = components['schemas']['LedBillListItem']
@@ -15,15 +16,15 @@ export function useBillLedgerViewModel() {
   const pageSize = ref(20)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
-  type CustomerReference = {
+  type OriginatingPartyReference = {
     objectId: string
     versionId: string
     code: string
     name: string
-    entity?: string
+    entity: 'customer' | 'supplier' | 'other-party'
   }
-  const customerOptions = ref<CustomerReference[]>([])
-  const selectedCustomer = ref<CustomerReference | null>(null)
+  const originatingPartyOptions = ref<OriginatingPartyReference[]>([])
+  const selectedOriginatingParty = ref<OriginatingPartyReference | null>(null)
   const filters = reactive<Request['filters']>({})
   const sort = reactive<Request['sort'][number]>({
     field: 'maturityDate',
@@ -59,13 +60,13 @@ export function useBillLedgerViewModel() {
       if (current === loadSequence) loading.value = false
     }
   }
-  let customerController: AbortController | undefined
-  let customerSequence = 0
-  async function searchCustomer(keyword: string) {
-    const current = ++customerSequence
-    customerController?.abort()
+  let originatingPartyController: AbortController | undefined
+  let originatingPartySequence = 0
+  async function searchOriginatingParty(keyword: string) {
+    const current = ++originatingPartySequence
+    originatingPartyController?.abort()
     const requestController = new AbortController()
-    customerController = requestController
+    originatingPartyController = requestController
     try {
       const request: components['schemas']['BobQueryRequest'] = {
         page: 1,
@@ -73,27 +74,44 @@ export function useBillLedgerViewModel() {
         filters: { keyword },
         sort: [{ field: 'code', order: 'asc' }],
       }
-      const result = await apiClient.post<
-        components['schemas']['BobListPage'],
-        components['schemas']['BobQueryRequest']
-      >('bob/customer/query', request, { signal: requestController.signal })
-      if (current === customerSequence && !requestController.signal.aborted) {
-        customerOptions.value = result.data.items.map((item) => ({
-          objectId: item.objectId,
-          versionId: item.effectiveVersionId ?? item.currentVersion.versionId,
-          code: item.code,
-          name: String(item.currentVersion.summary.name ?? item.code),
-          entity: item.entity,
-        }))
+      const entities = ['customer', 'supplier', 'other-party'] as const
+      const results = await Promise.all(
+        entities.map(async (entity) => ({
+          entity,
+          result: await apiClient.post<
+            components['schemas']['BobListPage'],
+            components['schemas']['BobQueryRequest']
+          >(`bob/${entity}/query`, request, {
+            signal: requestController.signal,
+          }),
+        })),
+      )
+      if (
+        current === originatingPartySequence &&
+        !requestController.signal.aborted
+      ) {
+        originatingPartyOptions.value = results.flatMap(({ entity, result }) =>
+          result.data.items.map((item) => ({
+            objectId: item.objectId,
+            versionId: item.effectiveVersionId ?? item.currentVersion.versionId,
+            code: item.code,
+            name: String(item.currentVersion.summary.name ?? item.code),
+            entity,
+          })),
+        )
       }
     } catch (error) {
-      if (current === customerSequence && !requestController.signal.aborted)
+      if (
+        current === originatingPartySequence &&
+        !requestController.signal.aborted
+      )
         errorMessage.value = getErrorMessage(error)
     }
   }
-  function selectCustomer(value: CustomerReference | null) {
-    selectedCustomer.value = value
-    filters.customerObjectId = value?.objectId
+  function selectOriginatingParty(value: OriginatingPartyReference | null) {
+    selectedOriginatingParty.value = value
+    filters.originatingPartyType = value?.entity
+    filters.originatingPartyObjectId = value?.objectId
   }
   function search() {
     page.value = 1
@@ -101,16 +119,13 @@ export function useBillLedgerViewModel() {
   }
   function maturityShortcut(kind: '30d' | '7d' | 'today' | 'overdue') {
     const today = new Date()
-    const iso = (date: Date) => date.toISOString().slice(0, 10)
     const end = new Date(today)
-    end.setUTCDate(
-      end.getUTCDate() + (kind === '30d' ? 30 : kind === '7d' ? 7 : 0),
-    )
-    filters.maturityDateFrom = kind === 'overdue' ? undefined : iso(today)
+    end.setDate(end.getDate() + (kind === '30d' ? 30 : kind === '7d' ? 7 : 0))
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    filters.maturityDateFrom = kind === 'overdue' ? undefined : localDate(today)
     filters.maturityDateTo =
-      kind === 'overdue'
-        ? iso(new Date(today.getTime() - 86_400_000))
-        : iso(end)
+      kind === 'overdue' ? localDate(yesterday) : localDate(end)
     filters.availability = kind === 'overdue' ? 'MATURED' : undefined
     search()
   }
@@ -122,7 +137,7 @@ export function useBillLedgerViewModel() {
   }
   onScopeDispose(() => {
     controller?.abort()
-    customerController?.abort()
+    originatingPartyController?.abort()
   })
   return {
     canQuery,
@@ -134,13 +149,13 @@ export function useBillLedgerViewModel() {
     errorMessage,
     filters,
     sort,
-    customerOptions,
-    selectedCustomer,
+    originatingPartyOptions,
+    selectedOriginatingParty,
     load,
     search,
     maturityShortcut,
     changePage,
-    searchCustomer,
-    selectCustomer,
+    searchOriginatingParty,
+    selectOriginatingParty,
   }
 }

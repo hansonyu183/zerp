@@ -10,10 +10,10 @@ import (
 )
 
 type validatedBillQuery struct {
-	Page, PageSize                                                   int
-	PositionType, Availability, BillType, BillNo                     string
-	MaturityDateFrom, MaturityDateTo, CustomerObjectID, SourceEntity string
-	SortField, SortOrder                                             string
+	Page, PageSize                                                                   int
+	PositionType, Availability, BillType, BillNo                                     string
+	MaturityDateFrom, MaturityDateTo, OriginatingPartyType, OriginatingPartyObjectID string
+	SourceEntity, SortField, SortOrder                                               string
 }
 
 func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[BillView], error) {
@@ -29,7 +29,8 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 		GenerationID: generationID, PositionType: query.PositionType,
 		Availability: query.Availability, BillType: query.BillType, BillNo: query.BillNo,
 		MaturityDateFrom: query.MaturityDateFrom, MaturityDateTo: query.MaturityDateTo,
-		CustomerObjectID: query.CustomerObjectID, SourceEntity: query.SourceEntity,
+		OriginatingPartyEntity:   query.OriginatingPartyType,
+		OriginatingPartyObjectID: query.OriginatingPartyObjectID, SourceEntity: query.SourceEntity,
 		SortField: query.SortField, SortOrder: query.SortOrder,
 		PageOffset: int32((query.Page - 1) * query.PageSize), PageSize: int32(query.PageSize),
 	})
@@ -48,9 +49,9 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 			Drawer: row.Drawer, Acceptor: row.Acceptor, Payee: row.Payee,
 			AnnualRateBps: row.AnnualRateBps, InterestDays: row.InterestDays,
 			InterestAmount: formatMoney(row.InterestAmountCents),
-			Customer: BillPartyView{
+			OriginatingParty: ReferenceView{
 				ObjectID: deref(row.OriginPartyObjectID), VersionID: deref(row.OriginPartyVersionID),
-				Code: deref(row.OriginPartyCode), Name: deref(row.OriginPartyName),
+				Entity: deref(row.OriginPartyEntity), Code: deref(row.OriginPartyCode), Name: deref(row.OriginPartyName),
 			},
 			CustomerCostAmount: formatMoney(row.CustomerCostAmountCents),
 			SourceEntity:       row.SourceEntity, SourceDocumentNo: row.SourceDocumentNo,
@@ -62,14 +63,15 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 func validateBillQuery(input BillQueryInput) (validatedBillQuery, error) {
 	result := validatedBillQuery{
 		Page: input.Page, PageSize: input.PageSize, SortField: "maturityDate", SortOrder: "asc",
-		PositionType:     strings.ToUpper(strings.TrimSpace(input.Filters.PositionType)),
-		Availability:     strings.ToUpper(strings.TrimSpace(input.Filters.Availability)),
-		BillType:         strings.ToUpper(strings.TrimSpace(input.Filters.BillType)),
-		BillNo:           strings.TrimSpace(input.Filters.BillNo),
-		MaturityDateFrom: strings.TrimSpace(input.Filters.MaturityDateFrom),
-		MaturityDateTo:   strings.TrimSpace(input.Filters.MaturityDateTo),
-		CustomerObjectID: strings.TrimSpace(input.Filters.CustomerObjectID),
-		SourceEntity:     strings.TrimSpace(input.Filters.SourceEntity),
+		PositionType:             strings.ToUpper(strings.TrimSpace(input.Filters.PositionType)),
+		Availability:             strings.ToUpper(strings.TrimSpace(input.Filters.Availability)),
+		BillType:                 strings.ToUpper(strings.TrimSpace(input.Filters.BillType)),
+		BillNo:                   strings.TrimSpace(input.Filters.BillNo),
+		MaturityDateFrom:         strings.TrimSpace(input.Filters.MaturityDateFrom),
+		MaturityDateTo:           strings.TrimSpace(input.Filters.MaturityDateTo),
+		OriginatingPartyType:     strings.TrimSpace(input.Filters.OriginatingPartyType),
+		OriginatingPartyObjectID: strings.TrimSpace(input.Filters.OriginatingPartyObjectID),
+		SourceEntity:             strings.TrimSpace(input.Filters.SourceEntity),
 	}
 	if result.Page < 1 || result.PageSize < 1 || result.PageSize > 100 || len(input.Sort) > 1 || utf8.RuneCountInString(result.BillNo) > 200 {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid bill query", nil, nil)
@@ -83,8 +85,15 @@ func validateBillQuery(input BillQueryInput) (validatedBillQuery, error) {
 	if result.BillType != "" && result.BillType != "BANK_ACCEPTANCE" && result.BillType != "COMMERCIAL_ACCEPTANCE" && result.BillType != "CHECK" && result.BillType != "OTHER" {
 		return validatedBillQuery{}, domainError(ErrorValidation, "invalid billType", nil, nil)
 	}
-	if result.CustomerObjectID != "" && !validID(result.CustomerObjectID) {
-		return validatedBillQuery{}, domainError(ErrorValidation, "invalid customerObjectId", nil, nil)
+	if result.OriginatingPartyType != "" && result.OriginatingPartyType != "customer" &&
+		result.OriginatingPartyType != "supplier" && result.OriginatingPartyType != "other-party" {
+		return validatedBillQuery{}, domainError(ErrorValidation, "invalid originatingPartyType", nil, nil)
+	}
+	if result.OriginatingPartyObjectID != "" && !validID(result.OriginatingPartyObjectID) {
+		return validatedBillQuery{}, domainError(ErrorValidation, "invalid originatingPartyObjectId", nil, nil)
+	}
+	if (result.OriginatingPartyType == "") != (result.OriginatingPartyObjectID == "") {
+		return validatedBillQuery{}, domainError(ErrorValidation, "incomplete originating party filter", nil, nil)
 	}
 	if result.SourceEntity != "" && result.SourceEntity != "bill-receipt" &&
 		result.SourceEntity != "bill-payment" && result.SourceEntity != "bill-issue" &&

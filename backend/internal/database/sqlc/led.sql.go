@@ -1953,9 +1953,13 @@ WITH bill_positions AS (
     )
     AND (
       $12::text = ''
-      OR origin_party_object_id = $12
+      OR origin_party_entity = $12
     )
-    AND ($13::text = '' OR source_entity = $13)
+    AND (
+      $13::text = ''
+      OR origin_party_object_id = $13
+    )
+    AND ($14::text = '' OR source_entity = $14)
 )
 SELECT filtered.id, filtered.position_type, filtered.bill_type, filtered.bill_no, filtered.medium, filtered.currency, filtered.face_amount_cents, filtered.issue_date, filtered.maturity_date, filtered.drawer, filtered.acceptor, filtered.payee, filtered.annual_rate_bps, filtered.interest_days, filtered.interest_amount_cents, filtered.customer_cost_amount_cents, filtered.origin_party_entity, filtered.origin_party_object_id, filtered.origin_party_version_id, filtered.origin_party_code, filtered.origin_party_name, filtered.source_document_id, filtered.source_line_id, filtered.created_at, filtered.source_entity, filtered.source_document_no, filtered.available_balance, filtered.availability, count(*) OVER()::bigint AS total_count
 FROM filtered
@@ -1976,19 +1980,20 @@ LIMIT $5 OFFSET $4
 `
 
 type ListLedBillsParams struct {
-	Availability     string `db:"availability" json:"availability"`
-	SortField        string `db:"sort_field" json:"sort_field"`
-	SortOrder        string `db:"sort_order" json:"sort_order"`
-	PageOffset       int32  `db:"page_offset" json:"page_offset"`
-	PageSize         int32  `db:"page_size" json:"page_size"`
-	GenerationID     string `db:"generation_id" json:"generation_id"`
-	PositionType     string `db:"position_type" json:"position_type"`
-	BillType         string `db:"bill_type" json:"bill_type"`
-	BillNo           string `db:"bill_no" json:"bill_no"`
-	MaturityDateFrom string `db:"maturity_date_from" json:"maturity_date_from"`
-	MaturityDateTo   string `db:"maturity_date_to" json:"maturity_date_to"`
-	CustomerObjectID string `db:"customer_object_id" json:"customer_object_id"`
-	SourceEntity     string `db:"source_entity" json:"source_entity"`
+	Availability             string `db:"availability" json:"availability"`
+	SortField                string `db:"sort_field" json:"sort_field"`
+	SortOrder                string `db:"sort_order" json:"sort_order"`
+	PageOffset               int32  `db:"page_offset" json:"page_offset"`
+	PageSize                 int32  `db:"page_size" json:"page_size"`
+	GenerationID             string `db:"generation_id" json:"generation_id"`
+	PositionType             string `db:"position_type" json:"position_type"`
+	BillType                 string `db:"bill_type" json:"bill_type"`
+	BillNo                   string `db:"bill_no" json:"bill_no"`
+	MaturityDateFrom         string `db:"maturity_date_from" json:"maturity_date_from"`
+	MaturityDateTo           string `db:"maturity_date_to" json:"maturity_date_to"`
+	OriginatingPartyEntity   string `db:"originating_party_entity" json:"originating_party_entity"`
+	OriginatingPartyObjectID string `db:"originating_party_object_id" json:"originating_party_object_id"`
+	SourceEntity             string `db:"source_entity" json:"source_entity"`
 }
 
 type ListLedBillsRow struct {
@@ -2036,7 +2041,8 @@ func (q *Queries) ListLedBills(ctx context.Context, arg ListLedBillsParams) ([]L
 		arg.BillNo,
 		arg.MaturityDateFrom,
 		arg.MaturityDateTo,
-		arg.CustomerObjectID,
+		arg.OriginatingPartyEntity,
+		arg.OriginatingPartyObjectID,
 		arg.SourceEntity,
 	)
 	if err != nil {

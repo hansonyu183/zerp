@@ -840,8 +840,12 @@ WITH bill_positions AS (
       OR maturity_date <= sqlc.arg(maturity_date_to)::date
     )
     AND (
-      sqlc.arg(customer_object_id)::text = ''
-      OR origin_party_object_id = sqlc.arg(customer_object_id)
+      sqlc.arg(originating_party_entity)::text = ''
+      OR origin_party_entity = sqlc.arg(originating_party_entity)
+    )
+    AND (
+      sqlc.arg(originating_party_object_id)::text = ''
+      OR origin_party_object_id = sqlc.arg(originating_party_object_id)
     )
     AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
 )

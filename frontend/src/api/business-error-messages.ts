@@ -258,6 +258,9 @@ const exactMessages: Readonly<Record<string, string>> = {
     '到期处理现金行不能关联票据行。',
   'billLineId is not supported in bill discount cash lines':
     '票据贴现现金行不能关联票据行。',
+  'invalid originatingPartyType': '来源往来方类型无效。',
+  'invalid originatingPartyObjectId': '来源往来方无效，请重新选择。',
+  'incomplete originating party filter': '请重新选择完整的来源往来方。',
   'bill receipt is missing customer salesperson':
     '票据收入单缺少客户业务员，请先补全客户资料。',
   'businessDate must be the calendar month end':

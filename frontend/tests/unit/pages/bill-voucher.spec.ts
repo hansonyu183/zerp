@@ -156,9 +156,10 @@ beforeEach(() => {
           drawer: 'D',
           acceptor: 'A',
           payee: 'P',
-          customer: {
+          originatingParty: {
             objectId: 'customer-1',
             versionId: 'customer-v1',
+            entity: 'customer',
             code: 'CUS-001',
             name: '客户一',
           },
@@ -554,6 +555,7 @@ describe('bill voucher view model behavior', () => {
     expect(vm.heldBillOptions.value[0]?.originatingParty).toEqual({
       objectId: 'customer-1',
       versionId: 'customer-v1',
+      entity: 'customer',
       code: 'CUS-001',
       name: '客户一',
     })
@@ -697,25 +699,34 @@ describe('bill voucher view model behavior', () => {
 })
 
 describe('bill ledger view model behavior', () => {
-  it('loads ledger, searches customer and applies maturity shortcuts', async () => {
+  it('loads ledger, searches every originating-party type and applies maturity shortcuts', async () => {
     const session = useSessionStore()
     session.$patch({ permissions: ['/led/bill/query'] })
     const scope = effectScope()
     const vm = scope.run(() => useBillLedgerViewModel())!
     await vm.load()
     vm.search()
-    await vm.searchCustomer('客户')
-    expect(vm.customerOptions.value[0]).toMatchObject({
+    await vm.searchOriginatingParty('往来方')
+    expect(vm.originatingPartyOptions.value).toHaveLength(3)
+    expect(vm.originatingPartyOptions.value[0]).toMatchObject({
       objectId: 'r',
       versionId: 'rv',
       code: 'R',
       name: '引用',
       entity: 'customer',
     })
-    vm.selectCustomer(vm.customerOptions.value[0]!)
-    vm.customerOptions.value = []
-    expect(vm.selectedCustomer.value).toMatchObject({ objectId: 'r', name: '引用' })
-    expect(vm.filters.customerObjectId).toBe('r')
+    expect(vm.originatingPartyOptions.value.map((item) => item.entity)).toEqual(
+      ['customer', 'supplier', 'other-party'],
+    )
+    vm.selectOriginatingParty(vm.originatingPartyOptions.value[1]!)
+    vm.originatingPartyOptions.value = []
+    expect(vm.selectedOriginatingParty.value).toMatchObject({
+      objectId: 'r',
+      name: '引用',
+      entity: 'supplier',
+    })
+    expect(vm.filters.originatingPartyType).toBe('supplier')
+    expect(vm.filters.originatingPartyObjectId).toBe('r')
     vm.maturityShortcut('30d')
     expect(vm.filters.availability).toBeUndefined()
     vm.maturityShortcut('7d')
@@ -738,6 +749,25 @@ describe('bill ledger view model behavior', () => {
     vm.maturityShortcut('today')
     expect(vm.filters.availability).toBeUndefined()
     scope.stop()
+  })
+
+  it('builds maturity shortcuts from the local calendar date', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 8, 0, 30))
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/led/bill/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillLedgerViewModel())!
+
+    vm.maturityShortcut('today')
+    expect(vm.filters.maturityDateFrom).toBe('2026-08-08')
+    expect(vm.filters.maturityDateTo).toBe('2026-08-08')
+    vm.maturityShortcut('overdue')
+    expect(vm.filters.maturityDateFrom).toBeUndefined()
+    expect(vm.filters.maturityDateTo).toBe('2026-08-07')
+
+    scope.stop()
+    vi.useRealTimers()
   })
 
   it('keeps the latest bill ledger load while an older request settles late', async () => {

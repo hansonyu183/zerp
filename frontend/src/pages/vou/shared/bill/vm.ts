@@ -684,7 +684,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         drawer: row.drawer,
         acceptor: row.acceptor,
         payee: row.payee,
-        originatingParty: row.customer,
+        originatingParty: row.originatingParty,
         annualRateBps: row.annualRateBps ?? 0,
         interestDays: row.interestDays,
         interestAmount: row.interestAmount,

@@ -3526,7 +3526,9 @@ export interface components {
                 maturityDateFrom?: string;
                 /** Format: date */
                 maturityDateTo?: string;
-                customerObjectId?: string;
+                /** @enum {string} */
+                originatingPartyType?: "customer" | "supplier" | "other-party";
+                originatingPartyObjectId?: string;
                 /** @enum {string} */
                 sourceEntity?: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
             };
@@ -3560,9 +3562,11 @@ export interface components {
             annualRateBps: number;
             interestDays: number;
             interestAmount: string;
-            customer: {
+            originatingParty: {
                 objectId: string;
                 versionId: string;
+                /** @enum {string} */
+                entity: "customer" | "supplier" | "other-party";
                 code: string;
                 name: string;
             };

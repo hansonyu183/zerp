@@ -8,7 +8,6 @@ AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不�
 product-category
 department
 position
-settlement-method
 dictionary-type
 dictionary-item
 measurement-unit
@@ -44,7 +43,7 @@ query get create save enable disable delete versions audit-history
 
 ```text
 product-category PCT         department DEP
-position POS                 settlement-method STM
+position POS
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
 account-subject ACS             asset-category ACT
@@ -58,18 +57,9 @@ account-subject ACS             asset-category ACT
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 
-### 3.3 结算方式
+### 3.3 结算方式迁出
 
-结算方式会影响单据到期日和销售价格，不是字典。字段为：
-
-- `ruleType`：`DUE_DAYS` 或 `MONTH_END`；
-- `dueDays`：`DUE_DAYS` 的自然日天数；
-- `cutoffDay`：`MONTH_END` 的月内截止日，取 `1–31`；
-- `monthOffset`：目标结算月偏移，取 `0–120`；
-- `defaultSalesSurcharge`：销售商品默认加价，单位为元/kg，非负两位小数；
-- `description`。
-
-`DUE_DAYS` 到期日为业务日期加 `dueDays`。`MONTH_END` 先判断业务日期是否超过 `cutoffDay`，超过则额外顺延一个月，再叠加 `monthOffset`，最后取目标月月末。销售订单对非包装物商品自动带入默认加价；包装物不加价。单据保存结算方式和加价快照。
+结算方式会影响订单审批、履约到期日和销售价格，属于有版本的业务对象，由 BOB 领域管理。AUX 不对外提供 `settlement-method` 查询或写入入口；迁移前的 AUX 对象和版本仅作历史追溯。
 
 ### 3.4 计量单位
 
@@ -92,5 +82,7 @@ account-subject ACS             asset-category ACT
 ## 4. 数据与引用
 
 `aux_objects` 保存稳定对象和当前版本指针，`aux_versions` 保存版本及类型化 JSON 数据，`aux_audit_events` 保存追加式审计。虽然明细采用 JSONB，不同实体的允许字段、类型、范围和交叉约束必须由服务端严格白名单校验。
+
+`aux_objects.oit_id` 仅作为旧 OIT 聚合根映射的数据库内部字段。非空值不得含首尾空格，长度为 1–64，且在同一 `entity` 内唯一；应用 HTTP/API/UI 不读取或写入它。
 
 BOB、VOU 和 LED 在同一 PostgreSQL 事务中解析辅助对象引用并对稳定对象取得共享锁。历史版本永不被后续保存覆盖；停用、改名或新版本不会改写既有交易快照。

@@ -20,7 +20,10 @@ var (
 
 const maxFeedbackAttachmentSize int64 = 10 * 1024 * 1024
 
-var feedbackSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var (
+	feedbackSHA256Pattern     = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	feedbackSubmissionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
+)
 
 func validateFeedbackAttachmentInitiate(input FeedbackAttachmentInitiateInput) (string, error) {
 	fileName := strings.TrimSpace(input.FileName)
@@ -41,6 +44,7 @@ func validateFeedbackAttachmentInitiate(input FeedbackAttachmentInitiateInput) (
 }
 
 type validatedFeedback struct {
+	SubmissionKey    string
 	Category         string
 	Title            string
 	Content          string
@@ -51,6 +55,10 @@ type validatedFeedback struct {
 }
 
 func validateFeedback(input CreateFeedbackInput) (validatedFeedback, error) {
+	submissionKey := strings.TrimSpace(input.SubmissionKey)
+	if !feedbackSubmissionPattern.MatchString(submissionKey) {
+		return validatedFeedback{}, domainError(ErrorValidation, "invalid feedback submission key", nil)
+	}
 	category := strings.ToUpper(strings.TrimSpace(input.Category))
 	if !slices.Contains([]string{FeedbackCategoryBug, FeedbackCategorySuggestion, FeedbackCategoryOther}, category) {
 		return validatedFeedback{}, domainError(ErrorValidation, "invalid feedback category", nil)
@@ -99,7 +107,8 @@ func validateFeedback(input CreateFeedbackInput) (validatedFeedback, error) {
 	clientVersionValue = redactOptionalFeedback(clientVersionValue)
 	relatedRequestIDValue = redactOptionalFeedback(relatedRequestIDValue)
 	return validatedFeedback{
-		Category: category, Title: title, Content: content, PagePath: pagePath,
+		SubmissionKey: submissionKey,
+		Category:      category, Title: title, Content: content, PagePath: pagePath,
 		ClientVersion: clientVersionValue, RelatedRequestID: relatedRequestIDValue,
 		AttachmentIDs: attachmentIDs,
 	}, nil

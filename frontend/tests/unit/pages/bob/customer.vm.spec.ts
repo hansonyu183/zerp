@@ -20,7 +20,10 @@ const customerForm = {
   customerType: 'DIT-0002',
   shortName: '华东',
   settlementMethodId: 'SM-1',
+  monthlyClosingDay: 25,
   salespersonEmployeeId: 'EMP-1',
+  rebateUnitPrice: '0.35',
+  intermediaryOtherPartyId: 'OTP-1',
   taxNumber: 'TAX-001',
   contactName: '张三',
   contactPhone: '13800000000',
@@ -93,7 +96,10 @@ describe('customer shared BOB configuration and view model', () => {
       customerType: 'DIT-0001',
       shortName: '',
       settlementMethodId: '',
+      monthlyClosingDay: 31,
       salespersonEmployeeId: '',
+      rebateUnitPrice: '0.00',
+      intermediaryOtherPartyId: '',
       taxNumber: '',
       contactName: '',
       contactPhone: '',
@@ -104,12 +110,35 @@ describe('customer shared BOB configuration and view model', () => {
     expect(customerConfig.requiredKeys).toEqual([
       'name',
       'customerType',
+      'monthlyClosingDay',
       'salespersonEmployeeId',
     ])
     expect(customerConfig.references?.settlementMethodId).toMatchObject({
-      domain: 'aux',
+      domain: 'bob',
       entity: 'settlement-method',
     })
+    expect(customerConfig.references?.intermediaryOtherPartyId).toMatchObject({
+      entity: 'other-party',
+    })
+    const rebateField = customerConfig
+      .fields({
+        mode: 'create',
+        referenceErrors: {},
+        referenceLoading: {},
+        referenceOptions: {},
+      })
+      .find((field) => field.key === 'rebateUnitPrice')
+    expect(rebateField).toMatchObject({
+      type: 'text',
+      required: true,
+      placeholder: '0.00',
+    })
+    expect(rebateField?.rules?.[0]?.('0.35', customerConfig.emptyForm())).toBe(
+      true,
+    )
+    expect(
+      rebateField?.rules?.[0]?.('0.351', customerConfig.emptyForm()),
+    ).toBe('返点价必须是非负且最多两位小数的数值。')
     expect(customerConfig.filters.map((field) => field.key)).toEqual([
       'status',
       'enabled',
@@ -147,9 +176,9 @@ describe('customer shared BOB configuration and view model', () => {
     })
   })
 
-  it('结算方式从 AUX 查询启用对象', async () => {
+  it('结算方式从 BOB 查询启用对象', async () => {
     vi.useFakeTimers()
-    useSessionStore().permissions = ['/aux/settlement-method/query']
+    useSessionStore().permissions = ['/bob/settlement-method/query']
     mockedApiClient.post.mockResolvedValueOnce({
       data: {
         items: [],
@@ -164,12 +193,13 @@ describe('customer shared BOB configuration and view model', () => {
     await vi.advanceTimersByTimeAsync(300)
 
     expect(mockedApiClient.post).toHaveBeenCalledWith(
-      'aux/settlement-method/query',
+      'bob/settlement-method/query',
       {
         page: 1,
         pageSize: 20,
         filters: {
           keyword: '月结',
+          status: ['EFFECTIVE'],
           enabled: true,
         },
         sort: [{ field: 'name', order: 'asc' }],
@@ -216,7 +246,10 @@ describe('customer shared BOB configuration and view model', () => {
         data: {
           name: '新客户',
           customerType: 'DIT-0002',
+          monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
+          rebateUnitPrice: '0.35',
+          intermediaryOtherPartyId: 'OTP-1',
         },
       },
     )
@@ -274,7 +307,10 @@ describe('customer shared BOB configuration and view model', () => {
           customerType: 'DIT-0002',
           shortName: '',
           settlementMethodId: '',
+          monthlyClosingDay: 25,
           salespersonEmployeeId: 'EMP-1',
+          rebateUnitPrice: '0.35',
+          intermediaryOtherPartyId: 'OTP-1',
           taxNumber: 'TAX-001',
           contactName: '',
           contactPhone: '',

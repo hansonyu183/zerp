@@ -17,18 +17,17 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		statusCounts[item.status]++
 	}
 	expectedEntityCounts := map[string]int{
-		bob.EntityCustomer:         2,
-		bob.EntitySupplier:         3,
-		bob.EntityEmployee:         2,
-		bob.EntityProduct:          4,
-		bob.EntityService:          2,
-		bob.EntityWarehouse:        2,
-		bob.EntityVehicle:          2,
-		bob.EntityFundAccount:      2,
-		bob.EntityCategory:         2,
-		bob.EntityDepartment:       2,
-		bob.EntityPosition:         2,
-		bob.EntitySettlementMethod: 1,
+		bob.EntityCustomer:    2,
+		bob.EntitySupplier:    3,
+		bob.EntityEmployee:    2,
+		bob.EntityProduct:     4,
+		bob.EntityService:     2,
+		bob.EntityWarehouse:   2,
+		bob.EntityVehicle:     2,
+		bob.EntityFundAccount: 2,
+		bob.EntityCategory:    2,
+		bob.EntityDepartment:  2,
+		bob.EntityPosition:    2,
 	}
 	for entity, expected := range expectedEntityCounts {
 		if entityCounts[entity] != expected {
@@ -53,7 +52,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
+	if store.createCalls != 25 || store.submitCalls != 18 || store.approveCalls != 15 || store.rejectCalls != 0 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -70,7 +69,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
+	if store.createCalls != 25 || store.submitCalls != 18 || store.approveCalls != 15 || store.rejectCalls != 0 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -198,6 +197,9 @@ func key(entity, code string) string {
 }
 
 func (s *fakeStore) Find(_ context.Context, entity, code string) (string, bool, error) {
+	if entity == bob.EntitySettlementMethod && code == bob.SettlementTermMonthlyCurrent {
+		return "fixed-monthly-current", true, nil
+	}
 	view, found := s.byKey[key(entity, code)]
 	return view.ObjectID, found, nil
 }
@@ -214,6 +216,10 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	customerType := deref(input.Data.CustomerType)
 	if entity == bob.EntityCustomer && customerType == "" {
 		customerType = bob.CustomerTypeEndUser
+	}
+	monthlyClosingDay := input.Data.MonthlyClosingDay
+	if entity == bob.EntityCustomer && monthlyClosingDay == 0 {
+		monthlyClosingDay = 31
 	}
 	productKind := input.Data.ProductKind
 	if entity == bob.EntityProduct && productKind == "" {
@@ -268,6 +274,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			AccountNumber:         input.Data.AccountNumber,
 			ParentID:              input.Data.ParentID,
 			SettlementMethodID:    input.Data.SettlementMethodID,
+			MonthlyClosingDay:     monthlyClosingDay,
 			SalespersonEmployeeID: input.Data.SalespersonEmployeeID,
 			RuleType:              input.Data.RuleType,
 			MonthOffset:           input.Data.MonthOffset,
@@ -345,6 +352,9 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	applyOptional(input.Data.AccountNumber, &view.Data.AccountNumber)
 	applyOptional(input.Data.ParentID, &view.Data.ParentID)
 	applyOptional(input.Data.SettlementMethodID, &view.Data.SettlementMethodID)
+	if input.Data.MonthlyClosingDay != nil {
+		view.Data.MonthlyClosingDay = *input.Data.MonthlyClosingDay
+	}
 	applyOptional(input.Data.SalespersonEmployeeID, &view.Data.SalespersonEmployeeID)
 	view.Data.RuleType = input.Data.RuleType
 	view.Data.MonthOffset = input.Data.MonthOffset

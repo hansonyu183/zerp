@@ -4,4 +4,5 @@ export interface ListRowAction {
   icon: string
   color?: string
   disabled?: boolean
+  disabledReason?: string
 }

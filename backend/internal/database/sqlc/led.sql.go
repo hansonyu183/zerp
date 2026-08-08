@@ -139,9 +139,12 @@ func (q *Queries) CopyLedOpeningToDraftInventory(ctx context.Context, generation
 }
 
 const copyLedOpeningToDraftParty = `-- name: CopyLedOpeningToDraftParty :exec
-INSERT INTO led_draft_party
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+INSERT INTO led_draft_party(
+    id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
+)
+SELECT id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_opening_party WHERE generation_id = $1
 `
 
@@ -187,6 +190,34 @@ SELECT count(*) FROM led_audit_events
 
 func (q *Queries) CountLedAuditEvents(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countLedAuditEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLedBillDownstreamEntries = `-- name: CountLedBillDownstreamEntries :one
+WITH source AS (
+  SELECT entry.bill_id, max(entry.occurred_at) AS occurred_at
+  FROM led_bill_entries AS entry
+  JOIN led_control AS control
+    ON control.active_generation_id = entry.generation_id
+  WHERE entry.source_document_id = $1
+    AND control.status = 'ACTIVE'
+  GROUP BY entry.bill_id
+)
+SELECT count(*)
+FROM led_bill_entries AS downstream
+JOIN led_control AS control
+  ON control.active_generation_id = downstream.generation_id
+JOIN source
+  ON source.bill_id = downstream.bill_id
+WHERE downstream.source_document_id <> $1
+  AND downstream.occurred_at > source.occurred_at
+  AND control.status = 'ACTIVE'
+`
+
+func (q *Queries) CountLedBillDownstreamEntries(ctx context.Context, sourceDocumentID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedBillDownstreamEntries, sourceDocumentID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -314,7 +345,7 @@ const countLedPartyBalances = `-- name: CountLedPartyBalances :one
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = $1
+    WHERE generation_id = $1 AND account_type = 'TRADE'
       AND ($2::text = '' OR counterparty_entity = $2)
       AND effective_date <= $3
       AND ($4::text = '' OR counterparty_object_id = $4)
@@ -343,7 +374,7 @@ func (q *Queries) CountLedPartyBalances(ctx context.Context, arg CountLedPartyBa
 
 const countLedPartyEntries = `-- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id = $1
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date >= $3 AND effective_date <= $4
   AND ($5::text = '' OR counterparty_object_id = $5)
@@ -405,6 +436,37 @@ type DeleteLedAssetsBySourceParams struct {
 
 func (q *Queries) DeleteLedAssetsBySource(ctx context.Context, arg DeleteLedAssetsBySourceParams) error {
 	_, err := q.db.Exec(ctx, deleteLedAssetsBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
+const deleteLedBillEntriesBySource = `-- name: DeleteLedBillEntriesBySource :exec
+DELETE FROM led_bill_entries
+WHERE generation_id = $1
+  AND source_document_id = $2
+`
+
+type DeleteLedBillEntriesBySourceParams struct {
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+}
+
+func (q *Queries) DeleteLedBillEntriesBySource(ctx context.Context, arg DeleteLedBillEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteLedBillEntriesBySource, arg.GenerationID, arg.SourceDocumentID)
+	return err
+}
+
+const deleteLedBillsBySource = `-- name: DeleteLedBillsBySource :exec
+DELETE FROM led_bills AS bill
+WHERE bill.source_document_id = $1
+  AND NOT EXISTS (
+    SELECT 1
+    FROM led_bill_entries AS entry
+    WHERE entry.bill_id = bill.id
+  )
+`
+
+func (q *Queries) DeleteLedBillsBySource(ctx context.Context, sourceDocumentID string) error {
+	_, err := q.db.Exec(ctx, deleteLedBillsBySource, sourceDocumentID)
 	return err
 }
 
@@ -508,6 +570,107 @@ func (q *Queries) DeleteLedPartyEntriesBySource(ctx context.Context, arg DeleteL
 	return err
 }
 
+const ensureLedBill = `-- name: EnsureLedBill :execrows
+INSERT INTO led_bills (
+  id, position_type, bill_type, bill_no, medium, currency, face_amount_cents,
+  issue_date, maturity_date, drawer, acceptor, payee, annual_rate_bps,
+  interest_days, interest_amount_cents, customer_cost_amount_cents,
+  origin_party_entity, origin_party_object_id, origin_party_version_id,
+  origin_party_code, origin_party_name, source_document_id, source_line_id
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9, $10,
+  $11, $12, $13,
+  $14, $15,
+  $16, $17,
+  $18, $19,
+  $20, $21,
+  $22, $23
+)
+ON CONFLICT (id) DO UPDATE SET id = excluded.id
+WHERE led_bills.position_type = excluded.position_type
+  AND led_bills.bill_type = excluded.bill_type
+  AND led_bills.bill_no = excluded.bill_no
+  AND led_bills.medium = excluded.medium
+  AND led_bills.currency = excluded.currency
+  AND led_bills.face_amount_cents = excluded.face_amount_cents
+  AND led_bills.issue_date = excluded.issue_date
+  AND led_bills.maturity_date = excluded.maturity_date
+  AND led_bills.drawer = excluded.drawer
+  AND led_bills.acceptor = excluded.acceptor
+  AND led_bills.payee = excluded.payee
+  AND led_bills.annual_rate_bps = excluded.annual_rate_bps
+  AND led_bills.interest_days = excluded.interest_days
+  AND led_bills.interest_amount_cents = excluded.interest_amount_cents
+  AND led_bills.customer_cost_amount_cents = excluded.customer_cost_amount_cents
+  AND led_bills.origin_party_entity IS NOT DISTINCT FROM excluded.origin_party_entity
+  AND led_bills.origin_party_object_id IS NOT DISTINCT FROM excluded.origin_party_object_id
+  AND led_bills.origin_party_version_id IS NOT DISTINCT FROM excluded.origin_party_version_id
+  AND led_bills.origin_party_code IS NOT DISTINCT FROM excluded.origin_party_code
+  AND led_bills.origin_party_name IS NOT DISTINCT FROM excluded.origin_party_name
+  AND led_bills.source_document_id = excluded.source_document_id
+  AND led_bills.source_line_id = excluded.source_line_id
+`
+
+type EnsureLedBillParams struct {
+	ID                      string      `db:"id" json:"id"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	Medium                  string      `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountCents         int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64       `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64       `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	SourceDocumentID        string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID            string      `db:"source_line_id" json:"source_line_id"`
+}
+
+func (q *Queries) EnsureLedBill(ctx context.Context, arg EnsureLedBillParams) (int64, error) {
+	result, err := q.db.Exec(ctx, ensureLedBill,
+		arg.ID,
+		arg.PositionType,
+		arg.BillType,
+		arg.BillNo,
+		arg.Medium,
+		arg.Currency,
+		arg.FaceAmountCents,
+		arg.IssueDate,
+		arg.MaturityDate,
+		arg.Drawer,
+		arg.Acceptor,
+		arg.Payee,
+		arg.AnnualRateBps,
+		arg.InterestDays,
+		arg.InterestAmountCents,
+		arg.CustomerCostAmountCents,
+		arg.OriginPartyEntity,
+		arg.OriginPartyObjectID,
+		arg.OriginPartyVersionID,
+		arg.OriginPartyCode,
+		arg.OriginPartyName,
+		arg.SourceDocumentID,
+		arg.SourceLineID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findLedAssetNoBySourceLine = `-- name: FindLedAssetNoBySourceLine :one
 SELECT asset_no FROM led_asset_number_assignments WHERE source_line_id=$1
 `
@@ -562,6 +725,27 @@ func (q *Queries) GetActiveLedAsset(ctx context.Context, assetID string) (LedAss
 	return i, err
 }
 
+const getLedBillAvailableBalance = `-- name: GetLedBillAvailableBalance :one
+SELECT COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint
+FROM led_bill_entries AS entry
+WHERE entry.generation_id = $1
+  AND entry.bill_id = $2
+  AND entry.position_type = $3
+`
+
+type GetLedBillAvailableBalanceParams struct {
+	GenerationID string `db:"generation_id" json:"generation_id"`
+	BillID       string `db:"bill_id" json:"bill_id"`
+	PositionType string `db:"position_type" json:"position_type"`
+}
+
+func (q *Queries) GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLedBillAvailableBalance, arg.GenerationID, arg.BillID, arg.PositionType)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getLedControl = `-- name: GetLedControl :one
 SELECT singleton, status, cutover_date, active_generation_id, revision, updated_at, updated_by, last_closing_id, rebuild_required FROM led_control WHERE singleton = true
 `
@@ -583,10 +767,41 @@ func (q *Queries) GetLedControl(ctx context.Context) (LedControl, error) {
 	return i, err
 }
 
+const getLedOtherBalanceAtDate = `-- name: GetLedOtherBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents),0)::bigint
+FROM led_party_entries
+WHERE generation_id=$1 AND account_type='OTHER'
+  AND counterparty_entity=$2
+  AND counterparty_object_id=$3
+  AND currency=$4
+  AND effective_date<=$5
+`
+
+type GetLedOtherBalanceAtDateParams struct {
+	GenerationID         string      `db:"generation_id" json:"generation_id"`
+	CounterpartyEntity   string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	Currency             string      `db:"currency" json:"currency"`
+	AsOfDate             pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) GetLedOtherBalanceAtDate(ctx context.Context, arg GetLedOtherBalanceAtDateParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLedOtherBalanceAtDate,
+		arg.GenerationID,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.Currency,
+		arg.AsOfDate,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getLedPartyBalanceAtDate = `-- name: GetLedPartyBalanceAtDate :one
 SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
 FROM led_party_entries
-WHERE generation_id=$1
+WHERE generation_id=$1 AND account_type = 'TRADE'
   AND counterparty_entity=$2
   AND counterparty_object_id=$3
   AND currency=$4
@@ -633,13 +848,13 @@ const hasInvalidEmployeeWriteoffTimeline = `-- name: HasInvalidEmployeeWriteoffT
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=$1
+    WHERE writeoff.generation_id=$1 AND writeoff.account_type='OTHER'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type='OTHER'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency
@@ -687,6 +902,7 @@ SELECT (
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = $1 AND p.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = $1 AND c.source_document_id = $2)
     OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = $1 AND a.source_document_id = $2)
+    OR EXISTS (SELECT 1 FROM led_bill_entries b WHERE b.generation_id = $1 AND b.source_document_id = $2)
 )::boolean
 `
 
@@ -910,6 +1126,49 @@ func (q *Queries) InsertLedAuditEvent(ctx context.Context, arg InsertLedAuditEve
 	return err
 }
 
+const insertLedBillEntry = `-- name: InsertLedBillEntry :exec
+INSERT INTO led_bill_entries (
+  id, generation_id, bill_id, source_entity, source_document_id, source_line_id,
+  position_type, direction, purpose, effective_date, occurred_at
+) VALUES (
+  $1, $2, $3,
+  $4, $5, $6,
+  $7, $8, $9,
+  $10, $11
+)
+`
+
+type InsertLedBillEntryParams struct {
+	ID               string             `db:"id" json:"id"`
+	GenerationID     string             `db:"generation_id" json:"generation_id"`
+	BillID           string             `db:"bill_id" json:"bill_id"`
+	SourceEntity     string             `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
+	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
+	PositionType     string             `db:"position_type" json:"position_type"`
+	Direction        string             `db:"direction" json:"direction"`
+	Purpose          string             `db:"purpose" json:"purpose"`
+	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
+	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+}
+
+func (q *Queries) InsertLedBillEntry(ctx context.Context, arg InsertLedBillEntryParams) error {
+	_, err := q.db.Exec(ctx, insertLedBillEntry,
+		arg.ID,
+		arg.GenerationID,
+		arg.BillID,
+		arg.SourceEntity,
+		arg.SourceDocumentID,
+		arg.SourceLineID,
+		arg.PositionType,
+		arg.Direction,
+		arg.Purpose,
+		arg.EffectiveDate,
+		arg.OccurredAt,
+	)
+	return err
+}
+
 const insertLedDraftContainer = `-- name: InsertLedDraftContainer :exec
 INSERT INTO led_draft_container(
     id, customer_object_id, customer_version_id, customer_code, customer_name,
@@ -1032,11 +1291,11 @@ func (q *Queries) InsertLedDraftInventory(ctx context.Context, arg InsertLedDraf
 const insertLedDraftParty = `-- name: InsertLedDraftParty :exec
 INSERT INTO led_draft_party (
     id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 ) VALUES (
     $1, $2, $3,
     $4, $5,
-    $6, $7, $8
+    $6,$7,$8,$9
 )
 `
 
@@ -1049,6 +1308,7 @@ type InsertLedDraftPartyParams struct {
 	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
 	Currency              string `db:"currency" json:"currency"`
 	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
+	AccountType           string `db:"account_type" json:"account_type"`
 }
 
 func (q *Queries) InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPartyParams) error {
@@ -1061,6 +1321,7 @@ func (q *Queries) InsertLedDraftParty(ctx context.Context, arg InsertLedDraftPar
 		arg.CounterpartyName,
 		arg.Currency,
 		arg.AmountCents,
+		arg.AccountType,
 	)
 	return err
 }
@@ -1382,12 +1643,12 @@ const insertLedOpeningPartyEntries = `-- name: InsertLedOpeningPartyEntries :exe
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, counterparty_entity, counterparty_object_id,
-    counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents
+    counterparty_version_id,counterparty_code,counterparty_name,currency,amount_delta_cents,account_type
 )
 SELECT id, $1, 'OPENING', 'opening', id, $2,
        $3, $4, $5,
        counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party WHERE amount_cents <> 0
 `
 
@@ -1413,10 +1674,10 @@ func (q *Queries) InsertLedOpeningPartyEntries(ctx context.Context, arg InsertLe
 const insertLedOpeningPartyFromDraft = `-- name: InsertLedOpeningPartyFromDraft :exec
 INSERT INTO led_opening_party (
     id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 )
 SELECT id, $1, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party
 `
 
@@ -1489,56 +1750,6 @@ func (q *Queries) InsertLedPartyEntry(ctx context.Context, arg InsertLedPartyEnt
 		arg.AmountDeltaCents,
 	)
 	return err
-}
-
-const listFinalizedVouDocumentsForLed = `-- name: ListFinalizedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id
-`
-
-func (q *Queries) ListFinalizedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
-	rows, err := q.db.Query(ctx, listFinalizedVouDocumentsForLed)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouDocument{}
-	for rows.Next() {
-		var i VouDocument
-		if err := rows.Scan(
-			&i.ID,
-			&i.Entity,
-			&i.DocumentNo,
-			&i.Status,
-			&i.Revision,
-			&i.BusinessDate,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.Remark,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-			&i.ReviewedAt,
-			&i.ReviewedBy,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
-			&i.CheckedAt,
-			&i.CheckedBy,
-			&i.CompletedAt,
-			&i.ParentDocumentID,
-			&i.ParentEntity,
-			&i.DueDate,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listLedAssetHistory = `-- name: ListLedAssetHistory :many
@@ -1707,6 +1918,175 @@ func (q *Queries) ListLedAuditEvents(ctx context.Context, arg ListLedAuditEvents
 	return items, nil
 }
 
+const listLedBills = `-- name: ListLedBills :many
+WITH bill_positions AS (
+  SELECT
+    bill.id, bill.position_type, bill.bill_type, bill.bill_no, bill.medium, bill.currency, bill.face_amount_cents, bill.issue_date, bill.maturity_date, bill.drawer, bill.acceptor, bill.payee, bill.annual_rate_bps, bill.interest_days, bill.interest_amount_cents, bill.customer_cost_amount_cents, bill.origin_party_entity, bill.origin_party_object_id, bill.origin_party_version_id, bill.origin_party_code, bill.origin_party_name, bill.source_document_id, bill.source_line_id, bill.created_at,
+    document.entity AS source_entity,
+    document.document_no AS source_document_no,
+    COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint AS available_balance
+  FROM led_bills AS bill
+  JOIN vou_documents AS document ON document.id = bill.source_document_id
+  LEFT JOIN led_bill_entries AS entry
+    ON entry.bill_id = bill.id
+   AND entry.generation_id = $6
+  GROUP BY bill.id, document.entity, document.document_no
+), filtered AS (
+  SELECT
+    bill_positions.id, bill_positions.position_type, bill_positions.bill_type, bill_positions.bill_no, bill_positions.medium, bill_positions.currency, bill_positions.face_amount_cents, bill_positions.issue_date, bill_positions.maturity_date, bill_positions.drawer, bill_positions.acceptor, bill_positions.payee, bill_positions.annual_rate_bps, bill_positions.interest_days, bill_positions.interest_amount_cents, bill_positions.customer_cost_amount_cents, bill_positions.origin_party_entity, bill_positions.origin_party_object_id, bill_positions.origin_party_version_id, bill_positions.origin_party_code, bill_positions.origin_party_name, bill_positions.source_document_id, bill_positions.source_line_id, bill_positions.created_at, bill_positions.source_entity, bill_positions.source_document_no, bill_positions.available_balance,
+    CASE
+      WHEN available_balance = 1 AND maturity_date < CURRENT_DATE THEN 'MATURED'
+      WHEN available_balance = 1 THEN 'AVAILABLE'
+      ELSE 'USED'
+    END::text AS availability
+  FROM bill_positions
+  WHERE ($7::text = '' OR position_type = $7)
+    AND ($8::text = '' OR bill_type = $8)
+    AND ($9::text = '' OR bill_no ILIKE '%' || $9 || '%')
+    AND (
+      $10::text = ''
+      OR maturity_date >= $10::date
+    )
+    AND (
+      $11::text = ''
+      OR maturity_date <= $11::date
+    )
+    AND (
+      $12::text = ''
+      OR origin_party_object_id = $12
+    )
+    AND ($13::text = '' OR source_entity = $13)
+)
+SELECT filtered.id, filtered.position_type, filtered.bill_type, filtered.bill_no, filtered.medium, filtered.currency, filtered.face_amount_cents, filtered.issue_date, filtered.maturity_date, filtered.drawer, filtered.acceptor, filtered.payee, filtered.annual_rate_bps, filtered.interest_days, filtered.interest_amount_cents, filtered.customer_cost_amount_cents, filtered.origin_party_entity, filtered.origin_party_object_id, filtered.origin_party_version_id, filtered.origin_party_code, filtered.origin_party_name, filtered.source_document_id, filtered.source_line_id, filtered.created_at, filtered.source_entity, filtered.source_document_no, filtered.available_balance, filtered.availability, count(*) OVER()::bigint AS total_count
+FROM filtered
+WHERE $1::text = ''
+   OR availability = $1
+   OR ($1::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'))
+ORDER BY
+  CASE WHEN $2::text = 'maturityDate' AND $3::text = 'asc' THEN maturity_date END ASC,
+  CASE WHEN $2::text = 'maturityDate' AND $3::text = 'desc' THEN maturity_date END DESC,
+  CASE WHEN $2::text = 'billNo' AND $3::text = 'asc' THEN bill_no END ASC,
+  CASE WHEN $2::text = 'billNo' AND $3::text = 'desc' THEN bill_no END DESC,
+  CASE WHEN $2::text = 'faceAmount' AND $3::text = 'asc' THEN face_amount_cents END ASC,
+  CASE WHEN $2::text = 'faceAmount' AND $3::text = 'desc' THEN face_amount_cents END DESC,
+  CASE WHEN $2::text = 'sourceDocumentNo' AND $3::text = 'asc' THEN source_document_no END ASC,
+  CASE WHEN $2::text = 'sourceDocumentNo' AND $3::text = 'desc' THEN source_document_no END DESC,
+  id
+LIMIT $5 OFFSET $4
+`
+
+type ListLedBillsParams struct {
+	Availability     string `db:"availability" json:"availability"`
+	SortField        string `db:"sort_field" json:"sort_field"`
+	SortOrder        string `db:"sort_order" json:"sort_order"`
+	PageOffset       int32  `db:"page_offset" json:"page_offset"`
+	PageSize         int32  `db:"page_size" json:"page_size"`
+	GenerationID     string `db:"generation_id" json:"generation_id"`
+	PositionType     string `db:"position_type" json:"position_type"`
+	BillType         string `db:"bill_type" json:"bill_type"`
+	BillNo           string `db:"bill_no" json:"bill_no"`
+	MaturityDateFrom string `db:"maturity_date_from" json:"maturity_date_from"`
+	MaturityDateTo   string `db:"maturity_date_to" json:"maturity_date_to"`
+	CustomerObjectID string `db:"customer_object_id" json:"customer_object_id"`
+	SourceEntity     string `db:"source_entity" json:"source_entity"`
+}
+
+type ListLedBillsRow struct {
+	ID                      string             `db:"id" json:"id"`
+	PositionType            string             `db:"position_type" json:"position_type"`
+	BillType                string             `db:"bill_type" json:"bill_type"`
+	BillNo                  string             `db:"bill_no" json:"bill_no"`
+	Medium                  string             `db:"medium" json:"medium"`
+	Currency                string             `db:"currency" json:"currency"`
+	FaceAmountCents         int64              `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date        `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date        `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string             `db:"drawer" json:"drawer"`
+	Acceptor                string             `db:"acceptor" json:"acceptor"`
+	Payee                   string             `db:"payee" json:"payee"`
+	AnnualRateBps           int32              `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32              `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64              `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64              `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	OriginPartyEntity       *string            `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string            `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string            `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string            `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string            `db:"origin_party_name" json:"origin_party_name"`
+	SourceDocumentID        string             `db:"source_document_id" json:"source_document_id"`
+	SourceLineID            string             `db:"source_line_id" json:"source_line_id"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	SourceEntity            string             `db:"source_entity" json:"source_entity"`
+	SourceDocumentNo        string             `db:"source_document_no" json:"source_document_no"`
+	AvailableBalance        int64              `db:"available_balance" json:"available_balance"`
+	Availability            string             `db:"availability" json:"availability"`
+	TotalCount              int64              `db:"total_count" json:"total_count"`
+}
+
+func (q *Queries) ListLedBills(ctx context.Context, arg ListLedBillsParams) ([]ListLedBillsRow, error) {
+	rows, err := q.db.Query(ctx, listLedBills,
+		arg.Availability,
+		arg.SortField,
+		arg.SortOrder,
+		arg.PageOffset,
+		arg.PageSize,
+		arg.GenerationID,
+		arg.PositionType,
+		arg.BillType,
+		arg.BillNo,
+		arg.MaturityDateFrom,
+		arg.MaturityDateTo,
+		arg.CustomerObjectID,
+		arg.SourceEntity,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLedBillsRow{}
+	for rows.Next() {
+		var i ListLedBillsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PositionType,
+			&i.BillType,
+			&i.BillNo,
+			&i.Medium,
+			&i.Currency,
+			&i.FaceAmountCents,
+			&i.IssueDate,
+			&i.MaturityDate,
+			&i.Drawer,
+			&i.Acceptor,
+			&i.Payee,
+			&i.AnnualRateBps,
+			&i.InterestDays,
+			&i.InterestAmountCents,
+			&i.CustomerCostAmountCents,
+			&i.OriginPartyEntity,
+			&i.OriginPartyObjectID,
+			&i.OriginPartyVersionID,
+			&i.OriginPartyCode,
+			&i.OriginPartyName,
+			&i.SourceDocumentID,
+			&i.SourceLineID,
+			&i.CreatedAt,
+			&i.SourceEntity,
+			&i.SourceDocumentNo,
+			&i.AvailableBalance,
+			&i.Availability,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLedDraftContainer = `-- name: ListLedDraftContainer :many
 SELECT id, customer_object_id, customer_version_id, customer_code, customer_name, container_type, quantity FROM led_draft_container ORDER BY customer_code, container_type, id
 `
@@ -1811,7 +2191,7 @@ func (q *Queries) ListLedDraftInventory(ctx context.Context) ([]LedDraftInventor
 }
 
 const listLedDraftParty = `-- name: ListLedDraftParty :many
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents FROM led_draft_party ORDER BY counterparty_entity, counterparty_code, currency, id
+SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents, account_type FROM led_draft_party ORDER BY account_type,counterparty_entity,counterparty_code,currency,id
 `
 
 func (q *Queries) ListLedDraftParty(ctx context.Context) ([]LedDraftParty, error) {
@@ -1832,6 +2212,7 @@ func (q *Queries) ListLedDraftParty(ctx context.Context) ([]LedDraftParty, error
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountCents,
+			&i.AccountType,
 		); err != nil {
 			return nil, err
 		}
@@ -2389,9 +2770,9 @@ func (q *Queries) ListLedOpeningInventory(ctx context.Context, generationID stri
 }
 
 const listLedOpeningParty = `-- name: ListLedOpeningParty :many
-SELECT id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents FROM led_opening_party
+SELECT id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_cents, account_type FROM led_opening_party
 WHERE generation_id = $1
-ORDER BY counterparty_entity, counterparty_code, currency, id
+ORDER BY account_type,counterparty_entity,counterparty_code,currency,id
 `
 
 func (q *Queries) ListLedOpeningParty(ctx context.Context, generationID string) ([]LedOpeningParty, error) {
@@ -2413,6 +2794,7 @@ func (q *Queries) ListLedOpeningParty(ctx context.Context, generationID string) 
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountCents,
+			&i.AccountType,
 		); err != nil {
 			return nil, err
 		}
@@ -2431,7 +2813,7 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = $1
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date <= $3
   AND ($4::text = '' OR counterparty_object_id = $4)
@@ -2495,8 +2877,8 @@ func (q *Queries) ListLedPartyBalances(ctx context.Context, arg ListLedPartyBala
 }
 
 const listLedPartyEntries = `-- name: ListLedPartyEntries :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
-WHERE generation_id = $1
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, other_category FROM led_party_entries
+WHERE generation_id = $1 AND account_type = 'TRADE'
   AND ($2::text = '' OR counterparty_entity = $2)
   AND effective_date >= $3 AND effective_date <= $4
   AND ($5::text = '' OR counterparty_object_id = $5)
@@ -2573,6 +2955,8 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountDeltaCents,
+			&i.AccountType,
+			&i.OtherCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2585,7 +2969,7 @@ func (q *Queries) ListLedPartyEntries(ctx context.Context, arg ListLedPartyEntri
 }
 
 const listLedPartyEntriesBySource = `-- name: ListLedPartyEntriesBySource :many
-SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents FROM led_party_entries
+SELECT id, generation_id, entry_type, source_entity, source_document_id, source_document_no, source_line_id, source_revision, effective_date, occurred_at, actor_id, request_id, remark, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents, account_type, other_category FROM led_party_entries
 WHERE generation_id = $1
   AND source_document_id = $2
   AND entry_type = 'POSTING'
@@ -2627,6 +3011,75 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 			&i.CounterpartyName,
 			&i.Currency,
 			&i.AmountDeltaCents,
+			&i.AccountType,
+			&i.OtherCategory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostedVouDocumentsForLed = `-- name: ListPostedVouDocumentsForLed :many
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by FROM vou_documents
+WHERE status IN ('APPROVED', 'FINALIZED')
+  AND entity IN (
+    'sale-outbound', 'sale-signoff', 'sale-return',
+    'purchase-inbound', 'purchase-return',
+    'order-production', 'self-production', 'inventory-count',
+    'sales-receipt','sales-refund','purchase-payment','purchase-refund',
+    'other-receipt','other-payment',
+    'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
+    'expense-reimbursement', 'expense-payment', 'other-income',
+    'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity',
+    'intermediary-calculation'
+  )
+ORDER BY posted_at, id
+`
+
+func (q *Queries) ListPostedVouDocumentsForLed(ctx context.Context) ([]VouDocument, error) {
+	rows, err := q.db.Query(ctx, listPostedVouDocumentsForLed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VouDocument{}
+	for rows.Next() {
+		var i VouDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.Entity,
+			&i.DocumentNo,
+			&i.Status,
+			&i.Revision,
+			&i.BusinessDate,
+			&i.Currency,
+			&i.TotalAmountCents,
+			&i.Remark,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.ExecutedAt,
+			&i.ExecutedBy,
+			&i.CheckedAt,
+			&i.CheckedBy,
+			&i.CompletedAt,
+			&i.ParentDocumentID,
+			&i.ParentEntity,
+			&i.DueDate,
+			&i.OitID,
+			&i.PostedAt,
+			&i.PostedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -2681,6 +3134,45 @@ func (q *Queries) LockLedAsset(ctx context.Context, arg LockLedAssetParams) (Led
 		&i.SourceLineID,
 		&i.SourceRevision,
 		&i.Remark,
+	)
+	return i, err
+}
+
+const lockLedBill = `-- name: LockLedBill :one
+SELECT id, position_type, bill_type, bill_no, medium, currency, face_amount_cents, issue_date, maturity_date, drawer, acceptor, payee, annual_rate_bps, interest_days, interest_amount_cents, customer_cost_amount_cents, origin_party_entity, origin_party_object_id, origin_party_version_id, origin_party_code, origin_party_name, source_document_id, source_line_id, created_at
+FROM led_bills
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) LockLedBill(ctx context.Context, id string) (LedBill, error) {
+	row := q.db.QueryRow(ctx, lockLedBill, id)
+	var i LedBill
+	err := row.Scan(
+		&i.ID,
+		&i.PositionType,
+		&i.BillType,
+		&i.BillNo,
+		&i.Medium,
+		&i.Currency,
+		&i.FaceAmountCents,
+		&i.IssueDate,
+		&i.MaturityDate,
+		&i.Drawer,
+		&i.Acceptor,
+		&i.Payee,
+		&i.AnnualRateBps,
+		&i.InterestDays,
+		&i.InterestAmountCents,
+		&i.CustomerCostAmountCents,
+		&i.OriginPartyEntity,
+		&i.OriginPartyObjectID,
+		&i.OriginPartyVersionID,
+		&i.OriginPartyCode,
+		&i.OriginPartyName,
+		&i.SourceDocumentID,
+		&i.SourceLineID,
+		&i.CreatedAt,
 	)
 	return i, err
 }

@@ -18,17 +18,29 @@ type effectiveReferenceResolver interface {
 	ResolveEffectiveReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 }
 
-type Service struct {
-	pool     *pgxpool.Pool
-	queries  *dbsqlc.Queries
-	resolver effectiveReferenceResolver
+type intermediaryCalculationValidator interface {
+	ValidateIntermediaryCalculation(context.Context, pgx.Tx, string) error
 }
 
-func NewService(pool *pgxpool.Pool, resolver effectiveReferenceResolver) (*Service, error) {
-	if pool == nil || resolver == nil {
-		return nil, errors.New("LED pool and BOB resolver are required")
+type Service struct {
+	pool                  *pgxpool.Pool
+	queries               *dbsqlc.Queries
+	resolver              effectiveReferenceResolver
+	intermediaryValidator intermediaryCalculationValidator
+}
+
+func NewService(
+	pool *pgxpool.Pool,
+	resolver effectiveReferenceResolver,
+	intermediaryValidator intermediaryCalculationValidator,
+) (*Service, error) {
+	if pool == nil || resolver == nil || intermediaryValidator == nil {
+		return nil, errors.New("LED pool, BOB resolver, and intermediary validator are required")
 	}
-	return &Service{pool: pool, queries: dbsqlc.New(pool), resolver: resolver}, nil
+	return &Service{
+		pool: pool, queries: dbsqlc.New(pool), resolver: resolver,
+		intermediaryValidator: intermediaryValidator,
+	}, nil
 }
 
 func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
@@ -75,7 +87,7 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 				row.FundAccountCode, row.FundAccountName, row.Currency, row.AmountCents))
 		}
 		for _, row := range party {
-			view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
+			view.Party = append(view.Party, openingPartyView(row.ID, row.AccountType, row.CounterpartyEntity, row.CounterpartyObjectID,
 				row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
 		}
 		for _, row := range containers {
@@ -111,7 +123,7 @@ func (s *Service) GetOpening(ctx context.Context) (OpeningView, error) {
 			row.FundAccountCode, row.FundAccountName, row.Currency, row.AmountCents))
 	}
 	for _, row := range party {
-		view.Party = append(view.Party, openingPartyView(row.ID, row.CounterpartyEntity, row.CounterpartyObjectID,
+		view.Party = append(view.Party, openingPartyView(row.ID, row.AccountType, row.CounterpartyEntity, row.CounterpartyObjectID,
 			row.CounterpartyVersionID, row.CounterpartyCode, row.CounterpartyName, row.Currency, row.AmountCents))
 	}
 	for _, row := range containers {
@@ -381,13 +393,13 @@ func containerOpeningView(
 	}
 }
 
-func openingPartyView(id, entity, objectID, versionID, code, name, currency string, amount int64) PartyOpeningView {
+func openingPartyView(id, accountType, entity, objectID, versionID, code, name, currency string, amount int64) PartyOpeningView {
 	balanceType := "RECEIVABLE"
 	if amount < 0 {
 		balanceType = "PAYABLE"
 	}
 	return PartyOpeningView{
-		ID: id, CounterpartyType: entity,
+		ID: id, AccountType: accountType, CounterpartyType: entity,
 		Counterparty: ReferenceView{ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Name: name},
 		Currency:     currency, BalanceType: balanceType, Amount: formatAbsoluteMoney(amount),
 	}

@@ -10,18 +10,22 @@ const props = withDefaults(
     type?: 'error' | 'success' | 'info' | 'warning'
     timeout?: number
     actionLabel?: string
+    diagnostics?: boolean
   }>(),
   {
     message: null,
     type: 'error',
     timeout: 5000,
+    diagnostics: false,
   },
 )
 
 const emit = defineEmits<{ action: []; dismiss: [] }>()
 const open = ref(false)
 const displayMessage = computed(() => {
-  const message = sanitizeUserMessage(props.message ?? '')
+  const message = props.diagnostics
+    ? (props.message ?? '').trim()
+    : sanitizeUserMessage(props.message ?? '')
   if (props.type === 'error' && message && !containsChineseText(message)) {
     return '操作失败，请稍后重试。'
   }

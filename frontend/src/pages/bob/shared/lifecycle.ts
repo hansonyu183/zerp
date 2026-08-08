@@ -23,12 +23,79 @@ interface ReverseRequest extends VersionRevisionRequest {
   reason: string
 }
 
+export function bobSelfReviewBlocked(
+  row: Readonly<BobListItem>,
+  currentUserId: string | undefined,
+): boolean {
+  return (
+    currentUserId !== undefined &&
+    row.currentVersion.status === 'PENDING' &&
+    row.currentVersion.submittedBy === currentUserId
+  )
+}
+
+export function bobActionBlockedReason(
+  row: Readonly<BobListItem>,
+  currentUserId: string | undefined,
+  canReview: boolean,
+): string | null {
+  return bobSelfReviewBlocked(row, currentUserId) && canReview
+    ? '提交人不能审核自己提交的版本，请由其他审核人处理。'
+    : null
+}
+
+export function bobActionAvailability(
+  row: Readonly<BobListItem>,
+  currentUserId: string | undefined,
+  can: (action: string) => boolean,
+): BobActionAvailability {
+  const status = row.currentVersion.status
+  const selfReview = bobSelfReviewBlocked(row, currentUserId)
+  return {
+    view: can('get'),
+    edit: status === 'DRAFT' && can('get') && can('save'),
+    delete:
+      can('delete') &&
+      status === 'DRAFT' &&
+      row.currentVersion.version === 1 &&
+      row.effectiveVersionId === null,
+    submit: can('submit') && status === 'DRAFT',
+    unsubmit: can('unsubmit') && status === 'PENDING',
+    approve: can('approve') && status === 'PENDING' && !selfReview,
+    unapprove: can('unapprove') && status === 'EFFECTIVE',
+    reject: can('reject') && status === 'PENDING' && !selfReview,
+    enable: can('enable') && status === 'EFFECTIVE' && !row.enabled,
+    disable: can('disable') && status === 'EFFECTIVE' && row.enabled,
+    versions: can('versions'),
+    audit: can('audit-history'),
+  }
+}
+
+export function bobLifecycleSuccessLabel(
+  action:
+    'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable',
+): string {
+  return {
+    approve: '已审核通过',
+    reject: '已审核驳回',
+    unsubmit: '已撤回提交',
+    unapprove: '已撤销批准',
+    enable: '已启用',
+    disable: '已禁用',
+  }[action]
+}
+
 export function useBobLifecycleActions(
   entity: BobEntity,
   actionLoading: Ref<string | null>,
   errorMessage: Ref<string | null>,
   actionAvailability: (row: Readonly<BobListItem>) => BobActionAvailability,
   query: () => Promise<void>,
+  onSuccess: (
+    row: BobListItem,
+    action:
+      'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable',
+  ) => void,
 ) {
   async function review(
     row: BobListItem,
@@ -60,6 +127,7 @@ export function useBobLifecycleActions(
         request,
       )
       await query()
+      onSuccess(row, action)
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -98,6 +166,7 @@ export function useBobLifecycleActions(
         },
       )
       await query()
+      onSuccess(row, action)
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -121,6 +190,7 @@ export function useBobLifecycleActions(
         objectRevision: row.objectRevision,
       })
       await query()
+      onSuccess(row, action)
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)

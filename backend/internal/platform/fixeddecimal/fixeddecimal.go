@@ -49,6 +49,22 @@ func ParsePositive(value string, scale int, allowZero bool) (int64, error) {
 	return parsed, nil
 }
 
+func ParseSigned(value string, scale int, allowZero bool) (int64, error) {
+	value = strings.TrimSpace(value)
+	negative := strings.HasPrefix(value, "-")
+	if negative {
+		value = strings.TrimPrefix(value, "-")
+	}
+	parsed, err := ParsePositive(value, scale, allowZero)
+	if err != nil {
+		return 0, err
+	}
+	if negative {
+		return -parsed, nil
+	}
+	return parsed, nil
+}
+
 func LineAmountCents(quantityMicros, unitPriceMicros int64) (int64, error) {
 	product := new(big.Int).Mul(big.NewInt(quantityMicros), big.NewInt(unitPriceMicros))
 	divisor := big.NewInt(1_000_000)

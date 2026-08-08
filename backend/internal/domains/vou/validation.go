@@ -76,11 +76,19 @@ type validatedDraft struct {
 	Customer, Supplier, Counterparty, Employee, FundAccount *ReferenceInput
 	Salesperson, Purchaser, Handler, Warehouse              *ReferenceInput
 	CounterpartyType                                        string
+	OtherCategory                                           string
 	SourceName                                              string
 	ProductLines                                            []fixedProductLine
 	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
 	InventoryCountLines                                     []fixedInventoryCountLine
+	BillLines                                               []fixedBillLine
+	BillCashLines                                           []fixedBillCashLine
+	InternalCostRateBps                                     int32
+	MaturityType, InterestMode                              string
+	InterestParty                                           *ReferenceInput
+	WithRecourse                                            bool
+	SpecialApproval                                         bool
 	TotalAmount                                             int64
 }
 
@@ -91,22 +99,7 @@ type validatedQuery struct {
 	DateFrom, DateTo                             *time.Time
 }
 
-type fixedSaleExecutionLine struct {
-	LineID                           string
-	Outbound, Signed, Rejected, Loss int64
-}
-
-type validatedSaleExecution struct {
-	OutboundDate, SignoffDate time.Time
-	Platform, Vehicle         ReferenceInput
-	DifferenceReason          *string
-	Lines                     []fixedSaleExecutionLine
-}
-
 func validEntity(entity string) bool {
-	if entity == EntityReceipt || entity == EntityPayment {
-		return true
-	}
 	for _, candidate := range entities {
 		if candidate == entity {
 			return true
@@ -116,23 +109,21 @@ func validEntity(entity string) bool {
 }
 
 func receiptEntity(entity string) bool {
-	return entity == EntityReceipt || entity == EntityCustomerReceipt ||
-		entity == EntitySupplierReceipt || entity == EntityOtherReceipt || entity == EntityEmployeeRepayment
+	return entity == EntitySalesReceipt || entity == EntityPurchaseRefund ||
+		entity == EntityOtherReceipt || entity == EntityEmployeeRepayment
 }
 
 func paymentEntity(entity string) bool {
-	return entity == EntityPayment || entity == EntityCustomerPayment ||
-		entity == EntitySupplierPayment || entity == EntityOtherPayment || entity == EntityEmployeeLoan
+	return entity == EntitySalesRefund || entity == EntityPurchasePayment ||
+		entity == EntityOtherPayment || entity == EntityEmployeeLoan
 }
 
 func fixedCounterpartyType(entity string) string {
 	switch entity {
-	case EntityCustomerReceipt, EntityCustomerPayment:
+	case EntitySalesReceipt, EntitySalesRefund:
 		return "customer"
-	case EntitySupplierReceipt, EntitySupplierPayment:
+	case EntityPurchaseRefund, EntityPurchasePayment:
 		return "supplier"
-	case EntityOtherReceipt, EntityOtherPayment:
-		return "other-party"
 	case EntityEmployeeLoan, EntityEmployeeRepayment:
 		return "employee"
 	default:
@@ -189,6 +180,26 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		Handler: input.Handler, Warehouse: input.Warehouse,
 		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
 		SourceName:       strings.TrimSpace(input.SourceName),
+		SpecialApproval:  input.SpecialApproval,
+	}
+	otherCategory := strings.ToUpper(strings.TrimSpace(input.OtherCategory))
+	if otherCategory != "" && entity != EntityOtherReceipt && entity != EntityOtherPayment {
+		return validatedDraft{}, domainError(ErrorValidation, "otherCategory only applies to other transactions", nil, nil)
+	}
+	if entity == EntityBillReceipt {
+		return validateBillReceiptDraft(input, result)
+	}
+	if entity == EntityBillPayment {
+		return validateBillPaymentDraft(input, result)
+	}
+	if entity == EntityBillIssue {
+		return validateBillIssueDraft(input, result)
+	}
+	if entity == EntityBillDiscount {
+		return validateBillDiscountDraft(input, result)
+	}
+	if entity == EntityBillMaturity {
+		return validateBillMaturityDraft(input, result)
 	}
 
 	switch entity {
@@ -255,8 +266,8 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
 		}
 		result.InventoryCountLines, err = validateInventoryCountLines(input.InventoryCountLines)
-	case EntityReceipt, EntityPayment, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt,
-		EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
 		}
@@ -279,6 +290,11 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		result.TotalAmount, err = moneyCents(input.Amount)
+		result.OtherCategory = otherCategory
+		if result.OtherCategory != "" && result.OtherCategory != "COMMISSION" &&
+			result.OtherCategory != "INTERMEDIARY" && result.OtherCategory != "REBATE" {
+			return validatedDraft{}, domainError(ErrorValidation, "invalid otherCategory", nil, nil)
+		}
 	case EntityEmployeeLoanWriteoff:
 		if err = requireOnlyDraftRefs(input, false, false, false, true, false, false, false, false, false, false); err != nil {
 			return validatedDraft{}, err
@@ -650,76 +666,6 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 func validateHistory(input HistoryInput) error {
 	if !validID(input.DocumentID) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 100 {
 		return domainError(ErrorValidation, "invalid history query", nil, nil)
-	}
-	return nil
-}
-
-func validateSaleExecution(input FinalizeInput) (validatedSaleExecution, error) {
-	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	outboundDate, err := time.Parse(dateLayout, strings.TrimSpace(input.OutboundDate))
-	if err != nil {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundDate", nil, nil)
-	}
-	signoffDate, err := time.Parse(dateLayout, strings.TrimSpace(input.SignoffDate))
-	if err != nil || outboundDate.After(signoffDate) {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signoffDate", nil, nil)
-	}
-	if err = validateReference(input.Platform, "platform", true); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	if err = validateReference(input.Vehicle, "vehicle", true); err != nil {
-		return validatedSaleExecution{}, err
-	}
-	if len(input.SaleLines) == 0 || len(input.PurchaseLines) != 0 || strings.TrimSpace(input.InboundDate) != "" {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lines", nil, nil)
-	}
-	result := validatedSaleExecution{
-		OutboundDate: outboundDate, SignoffDate: signoffDate, Platform: *input.Platform,
-		Vehicle: *input.Vehicle, DifferenceReason: optionalText(input.DifferenceReason),
-	}
-	if result.DifferenceReason != nil && utf8.RuneCountInString(*result.DifferenceReason) > 1000 {
-		return validatedSaleExecution{}, domainError(ErrorValidation, "differenceReason is too long", nil, nil)
-	}
-	seen := map[string]bool{}
-	for _, line := range input.SaleLines {
-		if !validID(line.LineID) || seen[line.LineID] {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid execution lineId", nil, nil)
-		}
-		seen[line.LineID] = true
-		outbound, err := quantityMicros(line.OutboundQuantity, false)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid outboundQuantity", nil, err)
-		}
-		signed, err := quantityMicros(line.SignedQuantity, true)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid signedQuantity", nil, err)
-		}
-		rejected, err := quantityMicros(line.RejectedQuantity, true)
-		if err != nil {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "invalid rejectedQuantity", nil, err)
-		}
-		loss, err := quantityMicros(line.LossQuantity, true)
-		if err != nil || signed > math.MaxInt64-rejected || signed+rejected > math.MaxInt64-loss ||
-			signed+rejected+loss != outbound {
-			return validatedSaleExecution{}, domainError(ErrorValidation, "sale quantities do not reconcile", nil, err)
-		}
-		result.Lines = append(result.Lines, fixedSaleExecutionLine{
-			LineID: line.LineID, Outbound: outbound, Signed: signed, Rejected: rejected, Loss: loss,
-		})
-	}
-	return result, nil
-}
-
-func validateFinancialExecution(input FinalizeInput) error {
-	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
-		return err
-	}
-	if input.OutboundDate != "" || input.SignoffDate != "" || input.InboundDate != "" ||
-		input.Platform != nil || input.Vehicle != nil || input.DifferenceReason != "" ||
-		len(input.SaleLines) != 0 || len(input.PurchaseLines) != 0 {
-		return domainError(ErrorValidation, "execution fields do not match entity", nil, nil)
 	}
 	return nil
 }

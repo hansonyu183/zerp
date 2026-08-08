@@ -37,9 +37,6 @@ func (s *Service) CreateFeedback(
 	input CreateFeedbackInput,
 	actorID string,
 ) (FeedbackCreatedView, error) {
-	if !s.cfg.FeedbackGitHubEnabled {
-		return FeedbackCreatedView{}, domainError(ErrorInternal, "feedback service unavailable", nil)
-	}
 	validated, err := validateFeedback(input)
 	if err != nil {
 		return FeedbackCreatedView{}, err
@@ -52,6 +49,25 @@ func (s *Service) CreateFeedback(
 	q := s.queries.WithTx(tx)
 	if err = q.LockAppFeedbackRateLimit(ctx, actorID); err != nil {
 		return FeedbackCreatedView{}, s.internal("lock feedback rate limit", err)
+	}
+	feedbackID := feedbackIDForSubmission(actorID, validated.SubmissionKey)
+	existing, err := q.GetAppFeedbackByOwner(ctx, dbsqlc.GetAppFeedbackByOwnerParams{
+		ID: feedbackID, UserID: actorID,
+	})
+	if err == nil {
+		matches, matchErr := feedbackSubmissionMatches(ctx, q, existing, validated)
+		if matchErr != nil {
+			return FeedbackCreatedView{}, s.internal("verify repeated feedback submission", matchErr)
+		}
+		if !matches {
+			return FeedbackCreatedView{}, domainError(ErrorConflict, "feedback submission key was already used", nil)
+		}
+		return FeedbackCreatedView{
+			FeedbackID: existing.ID, Status: FeedbackStatusPending, SubmittedAt: existing.CreatedAt.Time,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return FeedbackCreatedView{}, s.internal("find repeated feedback submission", err)
 	}
 	count, err := q.CountRecentAppFeedback(ctx, actorID)
 	if err != nil {
@@ -73,7 +89,6 @@ func (s *Service) CreateFeedback(
 	if len(attachmentsByID) != len(validated.AttachmentIDs) {
 		return FeedbackCreatedView{}, domainError(ErrorValidation, "attachment not found or not ready", nil)
 	}
-	feedbackID := newID()
 	if err = q.InsertAppFeedback(ctx, dbsqlc.InsertAppFeedbackParams{
 		ID: feedbackID, UserID: actorID, Category: validated.Category, Title: validated.Title,
 		Content: validated.Content, PagePath: validated.PagePath, ClientVersion: validated.ClientVersion,
@@ -91,12 +106,46 @@ func (s *Service) CreateFeedback(
 			return FeedbackCreatedView{}, s.writeError("insert feedback attachment", err)
 		}
 	}
+	createdRow, err := q.GetAppFeedbackByOwner(ctx, dbsqlc.GetAppFeedbackByOwnerParams{
+		ID: feedbackID, UserID: actorID,
+	})
+	if err != nil {
+		return FeedbackCreatedView{}, s.internal("read created feedback", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return FeedbackCreatedView{}, s.internal("commit feedback submission", err)
 	}
-	now := time.Now().UTC()
 	s.logger.Info("feedback accepted", "feedbackId", feedbackID, "status", FeedbackStatusPending)
-	return FeedbackCreatedView{FeedbackID: feedbackID, Status: FeedbackStatusPending, SubmittedAt: now}, nil
+	return FeedbackCreatedView{
+		FeedbackID: feedbackID, Status: FeedbackStatusPending, SubmittedAt: createdRow.CreatedAt.Time,
+	}, nil
+}
+
+func feedbackSubmissionMatches(
+	ctx context.Context,
+	q *dbsqlc.Queries,
+	existing dbsqlc.AppFeedback,
+	validated validatedFeedback,
+) (bool, error) {
+	if existing.Category != validated.Category || existing.Title != validated.Title ||
+		existing.Content != validated.Content || !optionalStringEqual(existing.PagePath, validated.PagePath) ||
+		!optionalStringEqual(existing.ClientVersion, validated.ClientVersion) ||
+		!optionalStringEqual(existing.RelatedRequestID, validated.RelatedRequestID) {
+		return false, nil
+	}
+	attachments, err := q.ListAppFeedbackAttachments(ctx, existing.ID)
+	if err != nil {
+		return false, err
+	}
+	if len(attachments) != len(validated.AttachmentIDs) {
+		return false, nil
+	}
+	for index, attachment := range attachments {
+		if attachment.FileID != validated.AttachmentIDs[index] {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (s *Service) GetFeedback(ctx context.Context, feedbackID, actorID string) (FeedbackView, error) {

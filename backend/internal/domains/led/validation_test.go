@@ -3,6 +3,10 @@ package led
 import (
 	"strings"
 	"testing"
+	"time"
+
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestValidateOpeningRejectsDuplicatesAndInvalidDirections(t *testing.T) {
@@ -72,5 +76,25 @@ func TestFixedPointFormattingAndRounding(t *testing.T) {
 	}
 	if got := formatAbsoluteQuantity(-1_500_000); got != "1.5" {
 		t.Fatalf("formatAbsoluteQuantity = %q", got)
+	}
+}
+
+func TestRequireEffectiveDateRejectsLiveAndSkipsRebuildBeforeCutover(t *testing.T) {
+	t.Parallel()
+	cutover := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	posting := postingContext{
+		CutoverDate: cutover,
+		Document: dbsqlc.VouDocument{
+			DocumentNo:   "ICL-20260630-0001",
+			BusinessDate: pgtype.Date{Time: time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC), Valid: true},
+		},
+		Live: true,
+	}
+	if include, err := requireEffectiveDate(posting, posting.Document.BusinessDate); err == nil || include {
+		t.Fatalf("live pre-cutover posting include=%t, err=%v", include, err)
+	}
+	posting.Live = false
+	if include, err := requireEffectiveDate(posting, posting.Document.BusinessDate); err != nil || include {
+		t.Fatalf("rebuild pre-cutover posting include=%t, err=%v", include, err)
 	}
 }

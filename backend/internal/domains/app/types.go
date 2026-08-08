@@ -164,12 +164,12 @@ type WorkbenchItem struct {
 	Code           string `json:"code,omitempty"`
 	Name           string `json:"name,omitempty"`
 
-	DocumentID   string `json:"documentId,omitempty"`
-	DocumentNo   string `json:"documentNo,omitempty"`
-	BusinessDate string `json:"businessDate,omitempty"`
-	PartyName    string `json:"partyName,omitempty"`
-	Currency     string `json:"currency,omitempty"`
-	Amount       string `json:"amount,omitempty"`
+	DocumentID   string  `json:"documentId,omitempty"`
+	DocumentNo   string  `json:"documentNo,omitempty"`
+	BusinessDate string  `json:"businessDate,omitempty"`
+	PartyName    *string `json:"partyName,omitempty"`
+	Currency     *string `json:"currency,omitempty"`
+	Amount       string  `json:"amount,omitempty"`
 
 	Revision int64 `json:"revision"`
 }
@@ -218,4 +218,105 @@ type PermissionView struct {
 	Status      string  `json:"status"`
 	Revision    int64   `json:"revision"`
 	RoleCount   *int64  `json:"roleCount,omitempty"`
+}
+
+const (
+	SystemParameterString  = "STRING"
+	SystemParameterInteger = "INTEGER"
+	SystemParameterDecimal = "DECIMAL"
+	SystemParameterBoolean = "BOOLEAN"
+	MenuModeParameterKey   = "app.menu.mode"
+)
+
+type SystemParameterView struct {
+	Key          string    `json:"key"`
+	Name         string    `json:"name"`
+	Description  *string   `json:"description"`
+	ValueType    string    `json:"valueType"`
+	Value        string    `json:"value"`
+	DefaultValue string    `json:"defaultValue"`
+	Editable     bool      `json:"editable"`
+	Revision     int64     `json:"revision"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	UpdatedBy    *string   `json:"updatedBy"`
+}
+
+type SaveSystemParameterInput struct {
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+	Revision int64  `json:"revision"`
+}
+
+type ResetSystemParameterInput struct {
+	Key      string `json:"key"`
+	Revision int64  `json:"revision"`
+}
+
+const (
+	MenuModeDefault          = "DEFAULT"
+	MenuModeBusinessTemplate = "BUSINESS_TEMPLATE"
+	MenuItemGroup            = "GROUP"
+	MenuItemRoute            = "ROUTE"
+)
+
+type MenuItemView struct {
+	ID             string  `json:"id"`
+	ParentID       *string `json:"parentId"`
+	Type           string  `json:"type"`
+	Level          int32   `json:"level"`
+	Order          int32   `json:"order"`
+	DisplayName    string  `json:"displayName"`
+	Icon           *string `json:"icon"`
+	Enabled        bool    `json:"enabled"`
+	RouteKey       *string `json:"routeKey"`
+	RoutePath      *string `json:"routePath"`
+	PermissionCode *string `json:"permissionCode"`
+}
+
+type MenuTree struct {
+	Revision int64          `json:"revision"`
+	Items    []MenuItemView `json:"items"`
+}
+
+type MenuRouteOption struct {
+	RouteKey       string  `json:"routeKey"`
+	RoutePath      string  `json:"routePath"`
+	DisplayName    string  `json:"displayName"`
+	PermissionCode *string `json:"permissionCode"`
+}
+
+type MenuGetData struct {
+	Mode             string            `json:"mode"`
+	ModeRevision     int64             `json:"modeRevision"`
+	CatalogRevision  string            `json:"catalogRevision"`
+	DefaultMenu      MenuTree          `json:"defaultMenu"`
+	BusinessTemplate MenuTree          `json:"businessTemplate"`
+	Navigation       MenuTree          `json:"navigation"`
+	AvailableRoutes  []MenuRouteOption `json:"availableRoutes"`
+}
+
+type SaveMenuItemInput struct {
+	ID          string  `json:"id"`
+	ParentID    *string `json:"parentId"`
+	Type        string  `json:"type"`
+	Order       int32   `json:"order"`
+	DisplayName string  `json:"displayName"`
+	Icon        *string `json:"icon"`
+	Enabled     bool    `json:"enabled"`
+	RouteKey    *string `json:"routeKey"`
+}
+
+type SaveBusinessMenuInput struct {
+	Revision        int64               `json:"revision"`
+	CatalogRevision string              `json:"catalogRevision"`
+	Items           []SaveMenuItemInput `json:"items"`
+}
+
+type ActivateMenuInput struct {
+	Mode     string `json:"mode"`
+	Revision int64  `json:"revision"`
+}
+
+type ResetBusinessMenuInput struct {
+	Revision int64 `json:"revision"`
 }

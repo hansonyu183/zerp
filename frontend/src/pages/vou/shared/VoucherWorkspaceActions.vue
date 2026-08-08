@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import {
   VoucherLifecycleActions,
   type VoucherLifecycleLabels,
@@ -25,6 +25,11 @@ const emit = defineEmits<{
 
 const vm = reactive(props.model)
 const session = useSessionStore()
+const lifecycleDisabledReason = computed(() => {
+  if (vm.busy) return '正在处理或刷新单据，请稍候。'
+  if (vm.dirty) return '请先保存或取消当前修改。'
+  return ''
+})
 </script>
 
 <template>
@@ -60,15 +65,24 @@ const session = useSessionStore()
       v-if="vm.documentView && !vm.editing"
       :availability="vm.actionAvailability"
       :disabled="vm.busy || vm.dirty"
+      :disabled-reason="lifecycleDisabledReason"
       :labels="labels"
       :loading-action="vm.actionLoading"
       :status="vm.documentView.status"
       @action="vm.lifecycleAction"
     />
+    <span
+      v-if="vm.documentView && !vm.editing && lifecycleDisabledReason"
+      class="voucher-workspace-actions__reason text-caption"
+    >
+      <v-icon icon="mdi-information-outline" size="small" />
+      {{ lifecycleDisabledReason }}
+    </span>
     <v-btn
       v-if="
+        vm.documentView &&
         vm.config.entity === 'sale-signoff' &&
-        vm.documentView?.status === 'FINALIZED' &&
+        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
         session.can('/vou/sale-return/create')
       "
       :to="{
@@ -82,8 +96,9 @@ const session = useSessionStore()
     </v-btn>
     <v-btn
       v-if="
+        vm.documentView &&
         vm.config.entity === 'purchase-inbound' &&
-        vm.documentView?.status === 'FINALIZED' &&
+        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
         session.can('/vou/purchase-return/create')
       "
       :to="{
@@ -142,5 +157,12 @@ const session = useSessionStore()
   align-items: center;
   gap: 8px;
   margin-right: 12px;
+}
+
+.voucher-workspace-actions__reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 </style>

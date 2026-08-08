@@ -22,6 +22,12 @@ export function buildVoucherDraftPayload(
       : { currency: value.currency.trim().toUpperCase() || 'CNY' }),
     ...(value.remark.trim() ? { remark: value.remark.trim() } : {}),
   }
+  if (config.entity === 'sale-order') {
+    payload.specialApproval = value.specialApproval
+  }
+  if (config.entity === 'intermediary-calculation') {
+    payload.intermediaryCalculation = value.intermediaryCalculation
+  }
   if (config.partyMode === 'customer' || config.partyMode === 'dual') {
     payload.customer = inputReference(value.customer)
   }
@@ -33,6 +39,12 @@ export function buildVoucherDraftPayload(
       payload.counterpartyType = value.counterpartyType
     }
     payload.counterparty = inputReference(value.counterparty)
+  }
+  if (
+    (config.entity === 'other-receipt' || config.entity === 'other-payment') &&
+    value.otherCategory
+  ) {
+    payload.otherCategory = value.otherCategory
   }
   if (config.usesEmployee) payload.employee = inputReference(value.employee)
   if (

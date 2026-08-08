@@ -15,6 +15,24 @@ type bobSample struct {
 }
 
 func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
+	for key, termCode := range map[string]string{
+		"settlement-month-end": "MONTHLY_CURRENT",
+		"settlement-due-days":  "ARRIVAL_30",
+	} {
+		var objectID string
+		if err := s.pool.QueryRow(ctx, `SELECT object.id
+			FROM bob_objects object
+			JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+			WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1`,
+			termCode).Scan(&objectID); err != nil {
+			return fmt.Errorf("load fixed settlement method %s: %w", termCode, err)
+		}
+		view, err := s.business.Get(ctx, bobdomain.EntitySettlementMethod, bobdomain.GetInput{ObjectID: objectID})
+		if err != nil {
+			return fmt.Errorf("get fixed settlement method %s: %w", termCode, err)
+		}
+		s.bobRefs[key] = view
+	}
 	samples := []bobSample{
 		{"employee-effective", bobdomain.EntityEmployee, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
@@ -37,7 +55,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				ShortName: "星河制造", TaxNumber: "91310000PREVIEW0101",
 				ContactName: "王经理", ContactPhone: "13800000103",
 				Email: "preview.customer@example.com", Address: "上海市浦东新区预览路 101 号",
-				SettlementMethodID:    s.auxRefs["settlement-month-end"].ObjectID,
+				SettlementMethodID:    s.bobRefs["settlement-month-end"].ObjectID,
+				MonthlyClosingDay:     15,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试有效客户",
 			}
@@ -47,7 +66,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "新客户（预览草稿）", CustomerType: &customerType,
 				ContactName: "陈先生", ContactPhone: "13800000104",
-				SettlementMethodID:    s.auxRefs["settlement-due-days"].ObjectID,
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试草稿客户",
 			}
@@ -58,7 +77,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Name: "自营物流平台（预览）", SupplierType: &supplierType,
 				ShortName: "预览物流", ContactName: "调度中心", ContactPhone: "021-60000101",
 				Address:               "上海市嘉定区预览物流园",
-				SettlementMethodID:    s.auxRefs["settlement-due-days"].ObjectID,
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试物流平台",
 			}
@@ -70,7 +89,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				ShortName: "预览原料", TaxNumber: "91310000PREVIEW0102",
 				ContactName: "赵经理", ContactPhone: "13800000105",
 				Address:               "江苏省苏州市预览工业园",
-				SettlementMethodID:    s.auxRefs["settlement-due-days"].ObjectID,
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试有效供应商",
 			}
@@ -80,7 +99,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "候选供应商（预览待审核）", SupplierType: &supplierType,
 				ContactName: "周经理", ContactPhone: "13800000106",
-				SettlementMethodID:    s.auxRefs["settlement-due-days"].ObjectID,
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
 				Remark:                "预览测试待审核供应商",
 			}

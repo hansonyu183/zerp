@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
-import { resolveFirstMenuPath } from '@/router/registry'
 import { useSessionStore } from '@/stores/session'
 
 export function useSignInViewModel() {
@@ -13,9 +12,7 @@ export function useSignInViewModel() {
   const errorMessage = ref<string | null>(null)
   const submitting = ref(false)
   const successMessage = computed(() =>
-    route.query.passwordChanged === '1'
-      ? '密码已更新，请重新登录。'
-      : null,
+    route.query.passwordChanged === '1' ? '密码已更新，请重新登录。' : null,
   )
 
   const canSubmit = computed(
@@ -33,11 +30,11 @@ export function useSignInViewModel() {
         password: password.value,
       })
 
-      const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-      const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//')
-      await router.replace(
-        safeRedirect ? redirect : resolveFirstMenuPath(session.menus),
-      )
+      const redirect =
+        typeof route.query.redirect === 'string' ? route.query.redirect : ''
+      const safeRedirect =
+        redirect.startsWith('/') && !redirect.startsWith('//')
+      await router.replace(safeRedirect ? redirect : '/home/dashboard')
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {

@@ -6,7 +6,6 @@ export type LedgerEntity =
   | 'customer'
   | 'supplier'
   | 'other'
-  | 'employee'
   | 'container'
 export type LedgerMode = 'entries' | 'balances'
 export type LedgerRecord = Record<string, unknown>
@@ -56,6 +55,8 @@ export interface LedgerEntityConfig {
   referenceSources: readonly LedgerReferenceSource[]
   sourceEntities: readonly LedgerOption[]
   directions: readonly LedgerOption[]
+  counterpartyTypes?: readonly LedgerOption[]
+  otherCategories?: readonly LedgerOption[]
   entryColumns: readonly LedgerColumn[]
   balanceColumns: readonly LedgerColumn[]
 }
@@ -67,11 +68,14 @@ export interface LedgerQueryFilters {
   sourceEntity: string
   documentNo: string
   direction: string[]
+  counterpartyType: string
+  otherCategory: string
 }
 
 export interface LedgerBalanceFilters {
   asOfDate: string
   object: LedgerReference | null
+  counterpartyType: string
 }
 
 export interface LedgerSort {

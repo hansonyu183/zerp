@@ -37,7 +37,6 @@ FROM vou_documents document
 WHERE (
     (document.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (document.status = 'CHECKED' AND document.entity = ANY(sqlc.arg(checked_entities)::text[]))
-    OR (document.status = 'APPROVED' AND document.entity = ANY(sqlc.arg(approved_entities)::text[]))
   )
   AND (
     sqlc.arg(keyword)::text = ''
@@ -91,7 +90,6 @@ LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
     (document.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (document.status = 'CHECKED' AND document.entity = ANY(sqlc.arg(checked_entities)::text[]))
-    OR (document.status = 'APPROVED' AND document.entity = ANY(sqlc.arg(approved_entities)::text[]))
   )
   AND (
     sqlc.arg(keyword)::text = ''

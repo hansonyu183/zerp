@@ -21,8 +21,6 @@ type salesVoucherService interface {
 	Uncheck(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	Finalize(context.Context, string, voudomain.FinalizeInput, string, string) (voudomain.MutationResult, error)
-	Unfinalize(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	ShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	ShortCloseCancel(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	ShortCloseConfirm(context.Context, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
@@ -294,14 +292,6 @@ func (s *Service) SalesAction(
 		result, err = s.sales.Unapprove(ctx, entity, voudomain.ReverseInput{
 			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
 		}, actorID, requestID)
-	case "finalize":
-		result, err = s.sales.Finalize(ctx, entity, voudomain.FinalizeInput{
-			DocumentID: documentID, Revision: input.DocumentRevision,
-		}, actorID, requestID)
-	case "unfinalize":
-		result, err = s.sales.Unfinalize(ctx, entity, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
 	case "short-close-request":
 		result, err = s.sales.ShortCloseRequest(ctx, voudomain.ReverseInput{
 			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
@@ -346,7 +336,6 @@ func salesActionEntity(action string) (string, string, error) {
 func salesActionParts(action string) (string, string, string, error) {
 	rootActions := map[string]bool{
 		"check": true, "uncheck": true, "approve": true, "unapprove": true,
-		"finalize": true, "unfinalize": true,
 		"short-close-request": true, "short-close-cancel": true,
 		"short-close-confirm": true, "short-close-unconfirm": true,
 	}

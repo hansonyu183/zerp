@@ -344,6 +344,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/system-parameter/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询系统参数 */
+        post: operations["appSystemParameterQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取系统参数 */
+        post: operations["appSystemParameterGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存系统参数 */
+        post: operations["appSystemParameterSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/system-parameter/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复系统参数默认值 */
+        post: operations["appSystemParameterReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取菜单模式、模板和当前导航 */
+        post: operations["appMenuGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/save-business-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存整棵业务菜单模板 */
+        post: operations["appMenuSaveBusinessTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 切换当前菜单模式 */
+        post: operations["appMenuActivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/menu/reset-business-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复初始业务菜单模板 */
+        post: operations["appMenuResetBusinessTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/feedback/attachment-initiate": {
         parameters: {
             query?: never;
@@ -837,6 +973,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成居间计算来源 */
+        post: operations["vouIntermediaryCalculationSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/script-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取当前居间计算脚本 */
+        post: operations["vouIntermediaryCalculationScriptGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/script-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存当前居间计算脚本 */
+        post: operations["vouIntermediaryCalculationScriptSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/book-balance": {
         parameters: {
             query?: never;
@@ -1018,40 +1205,6 @@ export interface paths {
         put?: never;
         /** 取消批准业务单据 */
         post: operations["vouunapprove"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/vou/{entity}/finalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 最终处理业务单据 */
-        post: operations["voufinalize"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/vou/{entity}/unfinalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 撤销业务单据最终处理 */
-        post: operations["vouunfinalize"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1585,6 +1738,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/led/bill/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询票据台账 */
+        post: operations["ledbillquery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/led/inventory/balance": {
         parameters: {
             query?: never;
@@ -1732,40 +1902,6 @@ export interface paths {
         put?: never;
         /** 查询其他往来余额 */
         post: operations["ledotherbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/employee/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询员工往来流水 */
-        post: operations["ledemployeequery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/employee/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询员工往来余额 */
-        post: operations["ledemployeebalance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1947,7 +2083,7 @@ export interface components {
         /** @enum {string} */
         WorkbenchCategory: "BOB" | "VOU";
         /** @enum {string} */
-        WorkbenchPendingStage: "CHECK" | "APPROVE" | "FINALIZE";
+        WorkbenchPendingStage: "CHECK" | "APPROVE";
         WorkbenchQueryRequest: {
             category: components["schemas"]["WorkbenchCategory"];
             keyword?: string;
@@ -1957,9 +2093,9 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account";
+        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "settlement-method";
         /** @enum {string} */
-        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check" | "finalize";
+        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check";
         WorkbenchObjectItem: {
             /** @enum {string} */
             category: "BOB";
@@ -1981,7 +2117,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2071,6 +2207,127 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        /** @enum {string} */
+        SystemParameterValueType: "STRING" | "INTEGER" | "DECIMAL" | "BOOLEAN";
+        SystemParameterView: {
+            key: string;
+            name: string;
+            description: string | null;
+            valueType: components["schemas"]["SystemParameterValueType"];
+            value: string;
+            defaultValue: string;
+            editable: boolean;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string | null;
+        };
+        SystemParameterPage: {
+            items: components["schemas"]["SystemParameterView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SystemParameterQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterPage"] | null;
+            requestId: string;
+        };
+        SystemParameterKeyRequest: {
+            key: string;
+        };
+        SystemParameterResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SystemParameterView"] | null;
+            requestId: string;
+        };
+        SaveSystemParameterRequest: {
+            key: string;
+            value: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetSystemParameterRequest: {
+            key: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        /** @enum {string} */
+        MenuMode: "DEFAULT" | "BUSINESS_TEMPLATE";
+        /** @enum {string} */
+        MenuItemType: "GROUP" | "ROUTE";
+        MenuItemView: {
+            id: string;
+            parentId: string | null;
+            type: components["schemas"]["MenuItemType"];
+            level: number;
+            order: number;
+            displayName: string;
+            icon: string | null;
+            enabled: boolean;
+            routeKey: string | null;
+            routePath: string | null;
+            permissionCode: string | null;
+        };
+        MenuTree: {
+            /** Format: int64 */
+            revision: number;
+            items: components["schemas"]["MenuItemView"][];
+        };
+        MenuRouteOption: {
+            routeKey: string;
+            routePath: string;
+            displayName: string;
+            permissionCode: string | null;
+        };
+        MenuGetData: {
+            mode: components["schemas"]["MenuMode"];
+            /** Format: int64 */
+            modeRevision: number;
+            catalogRevision: string;
+            defaultMenu: components["schemas"]["MenuTree"];
+            businessTemplate: components["schemas"]["MenuTree"];
+            navigation: components["schemas"]["MenuTree"];
+            availableRoutes: components["schemas"]["MenuRouteOption"][];
+        };
+        MenuGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MenuGetData"] | null;
+            requestId: string;
+        };
+        SaveMenuItem: {
+            id: string;
+            parentId: string | null;
+            type: components["schemas"]["MenuItemType"];
+            order: number;
+            displayName: string;
+            icon: string | null;
+            enabled: boolean;
+            routeKey: string | null;
+        };
+        SaveBusinessMenuRequest: {
+            /** Format: int64 */
+            revision: number;
+            catalogRevision: string;
+            items: components["schemas"]["SaveMenuItem"][];
+        };
+        ActivateMenuRequest: {
+            mode: components["schemas"]["MenuMode"];
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetBusinessMenuRequest: {
+            /** Format: int64 */
+            revision: number;
+        };
         FeedbackAttachmentInitiateRequest: {
             fileName: string;
             contentType: string;
@@ -2082,6 +2339,8 @@ export interface components {
             fileId: string;
         };
         FeedbackCreateRequest: {
+            /** @description 客户端为一次反馈草稿生成并在重试时复用的幂等键。 */
+            submissionKey: string;
             /** @enum {string} */
             category: "BUG" | "SUGGESTION" | "OTHER";
             title: string;
@@ -2095,7 +2354,7 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
+        AuxEntity: "product-category" | "department" | "position" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
         AuxQueryRequest: {
             page: number;
             pageSize: number;
@@ -2143,6 +2402,57 @@ export interface components {
             objectId: string;
             page: number;
             pageSize: number;
+        };
+        BobQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters?: {
+                [key: string]: unknown;
+            };
+            sort?: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        BobVersionSummary: {
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "REJECTED" | "EFFECTIVE" | "INVALID";
+            /** Format: int64 */
+            revision: number;
+            submittedBy: string | null;
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        BobListItem: {
+            objectId: string;
+            entity: components["schemas"]["BobEntity"];
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            currentVersion: components["schemas"]["BobVersionSummary"];
+            effectiveVersionId: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        BobListPage: {
+            items: components["schemas"]["BobListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BobQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["BobListPage"] | null;
+            requestId: string;
         };
         BobGetRequest: {
             objectId: string;
@@ -2200,7 +2510,15 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
+                /** @description 仅客户适用；创建客户时省略则按 31 处理 */
+                monthlyClosingDay?: number;
+                termCode?: string | null;
+                defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
+                /** @description 仅客户适用；返点单价，单位为元/kg，省略按 0 处理 */
+                rebateUnitPrice?: string | null;
+                /** @description 仅客户适用；引用其他往来单位中的居间商 */
+                intermediaryOtherPartyId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
                 inventoryUnitId?: string | null;
@@ -2250,7 +2568,12 @@ export interface components {
                 bankBranch?: string | null;
                 accountNumber?: string | null;
                 settlementMethodId?: string | null;
+                monthlyClosingDay?: number;
+                termCode?: string | null;
+                defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
+                rebateUnitPrice?: string | null;
+                intermediaryOtherPartyId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
                 inventoryUnitId?: string | null;
@@ -2376,6 +2699,113 @@ export interface components {
         VouGetRequest: {
             documentId: string;
         };
+        VouIntermediarySourceRequest: {
+            /** Format: date */
+            businessDate: string;
+        };
+        VouIntermediaryReference: {
+            objectId: string;
+            versionId: string;
+            /** @enum {string} */
+            entity: "customer" | "employee" | "other-party" | "product";
+            code: string;
+            name: string;
+        };
+        VouIntermediarySourceLine: {
+            sourceSignoffLineId: string;
+            /** @enum {string} */
+            sourceKind: "SALE" | "RETURN_ADJUSTMENT";
+            signoffDocumentId: string;
+            signoffDocumentNo: string;
+            /** Format: date */
+            signoffDate: string;
+            orderDocumentId: string;
+            orderDocumentNo: string;
+            /** Format: date */
+            orderDate: string;
+            /** Format: date */
+            dueDate: string;
+            /** Format: date */
+            collectionDate: string;
+            collectionDelayDays: number;
+            customer: components["schemas"]["VouIntermediaryReference"];
+            salesperson: components["schemas"]["VouIntermediaryReference"];
+            intermediary?: components["schemas"]["VouIntermediaryReference"];
+            product: components["schemas"]["VouIntermediaryReference"];
+            productKind: string;
+            signedQuantity: string;
+            pricingQuantity: string;
+            barrelQuantity: string;
+            unitPrice: string;
+            referenceUnitPrice: string;
+            settlementSurcharge: string;
+            rebateUnitPrice: string;
+            lineAmount: string;
+            settlementTermCode: string;
+            specialApproval: boolean;
+            returnDocumentNos?: string[];
+            adjustmentEmployeeAmount: string;
+            adjustmentIntermediaryAmount: string;
+            adjustmentRebateAmount: string;
+        };
+        VouIntermediarySourceBill: {
+            billLineId: string;
+            receiptDocumentId: string;
+            receiptDocumentNo: string;
+            /** Format: date */
+            receiptDate: string;
+            customer: components["schemas"]["VouIntermediaryReference"];
+            salesperson: components["schemas"]["VouIntermediaryReference"];
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            costDays: number;
+        };
+        VouIntermediaryCalculationSource: {
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** @enum {string} */
+            currency: "CNY";
+            lines: components["schemas"]["VouIntermediarySourceLine"][];
+            bills: components["schemas"]["VouIntermediarySourceBill"][];
+        };
+        VouIntermediarySourceResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: {
+                source: components["schemas"]["VouIntermediaryCalculationSource"];
+                sourceHash: string;
+            };
+            requestId: string;
+        };
+        VouIntermediaryScriptSnapshot: {
+            scriptId: string;
+            /** Format: int64 */
+            revision: number;
+            name: string;
+            source: string;
+            hash: string;
+        };
+        VouIntermediaryScriptGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["VouIntermediaryScriptSnapshot"];
+            requestId: string;
+        };
+        VouIntermediaryScriptSaveRequest: {
+            /** Format: int64 */
+            revision: number;
+            name: string;
+            source: string;
+        };
         VouInventoryCountBalanceRequest: {
             page: number;
             pageSize: number;
@@ -2423,7 +2853,39 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "customer-receipt" | "supplier-receipt" | "other-receipt" | "customer-payment" | "supplier-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouIntermediaryResultLine: {
+            sourceSignoffLineId: string;
+            premiumUnitPrice: string;
+            barrelQuantity: string;
+            baseCommission: string;
+            premiumCommission: string;
+            lowPriceCommission: string;
+            marketMaintenanceSubsidy: string;
+            marketDevelopmentSubsidy: string;
+            billCost: string;
+            billLineIds: string[];
+            employeeAmount: string;
+            intermediaryAmount: string;
+            rebateAmount: string;
+            note?: string;
+        };
+        VouIntermediarySummary: {
+            payee: components["schemas"]["VouIntermediaryReference"];
+            /** @enum {string} */
+            category: "COMMISSION" | "INTERMEDIARY" | "REBATE";
+            amount: string;
+        };
+        VouIntermediaryCalculationResult: {
+            lines: components["schemas"]["VouIntermediaryResultLine"][];
+            summaries: components["schemas"]["VouIntermediarySummary"][];
+        };
+        VouIntermediaryCalculationInput: {
+            source: components["schemas"]["VouIntermediaryCalculationSource"];
+            sourceHash: string;
+            script: components["schemas"]["VouIntermediaryScriptSnapshot"];
+            result: components["schemas"]["VouIntermediaryCalculationResult"];
+        };
         VouProductionMaterialInput: {
             formulaLineNo: number;
             actualMaterial: {
@@ -2476,6 +2938,93 @@ export interface components {
             disposalExpense: string;
             remark?: string;
         };
+        VouBillPrimaryLineInput: {
+            /** @enum {string} */
+            positionType: "ASSET";
+            /** @enum {string} */
+            direction: "IN";
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillChangeLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "CHANGE";
+            remark?: string;
+        };
+        VouBillPaymentLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillIssueLineInput: {
+            /** @enum {string} */
+            positionType: "LIABILITY";
+            /** @enum {string} */
+            direction: "IN";
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillDiscountLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            annualRateBps: number;
+            remark?: string;
+        };
+        VouBillMaturityLineInput: {
+            billId: string;
+            /** @enum {string} */
+            purpose: "PRIMARY";
+            remark?: string;
+        };
+        VouBillLineInput: components["schemas"]["VouBillPrimaryLineInput"] | components["schemas"]["VouBillChangeLineInput"] | components["schemas"]["VouBillPaymentLineInput"] | components["schemas"]["VouBillIssueLineInput"] | components["schemas"]["VouBillDiscountLineInput"] | components["schemas"]["VouBillMaturityLineInput"];
+        VouBillCashLineInput: {
+            billLineId?: string;
+            fundAccount: {
+                objectId: string;
+                versionId: string;
+            };
+            /** @enum {string} */
+            direction: "IN" | "OUT";
+            /** @enum {string} */
+            amountType: "PRINCIPAL" | "INTEREST" | "FEE" | "MARGIN" | "OTHER";
+            amount: string;
+            remark?: string;
+        };
         VouFormulaComponentInput: {
             material: {
                 objectId: string;
@@ -2516,6 +3065,8 @@ export interface components {
                 currency?: string;
                 remark?: string;
                 returnReason?: string;
+                specialApproval?: boolean;
+                intermediaryCalculation?: components["schemas"]["VouIntermediaryCalculationInput"];
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -2525,6 +3076,8 @@ export interface components {
                     versionId: string;
                 };
                 counterpartyType?: string;
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
                 counterparty?: {
                     objectId: string;
                     versionId: string;
@@ -2577,6 +3130,18 @@ export interface components {
                 };
                 sourceName?: string;
                 amount?: string;
+                internalCostRateBps?: number;
+                /** @enum {string} */
+                interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
+                interestParty?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                withRecourse?: boolean;
+                billLines?: components["schemas"]["VouBillLineInput"][];
+                billCashLines?: components["schemas"]["VouBillCashLineInput"][];
                 productLines?: {
                     product: {
                         objectId: string;
@@ -2632,6 +3197,8 @@ export interface components {
                 currency?: string;
                 remark?: string;
                 returnReason?: string;
+                specialApproval?: boolean;
+                intermediaryCalculation?: components["schemas"]["VouIntermediaryCalculationInput"];
                 customer?: {
                     objectId: string;
                     versionId: string;
@@ -2641,6 +3208,8 @@ export interface components {
                     versionId: string;
                 };
                 counterpartyType?: string;
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
                 counterparty?: {
                     objectId: string;
                     versionId: string;
@@ -2693,6 +3262,18 @@ export interface components {
                 };
                 sourceName?: string;
                 amount?: string;
+                internalCostRateBps?: number;
+                /** @enum {string} */
+                interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+                /** @enum {string} */
+                maturityType?: "RECEIPT" | "PAYMENT";
+                interestParty?: {
+                    objectId: string;
+                    versionId: string;
+                };
+                withRecourse?: boolean;
+                billLines?: components["schemas"]["VouBillLineInput"][];
+                billCashLines?: components["schemas"]["VouBillCashLineInput"][];
                 productLines?: {
                     product: {
                         objectId: string;
@@ -2743,32 +3324,6 @@ export interface components {
             documentId: string;
             /** Format: int64 */
             revision: number;
-        };
-        VouFinalizeRequest: {
-            documentId: string;
-            /** Format: int64 */
-            revision: number;
-            /** Format: date */
-            outboundDate?: string;
-            /** Format: date */
-            signoffDate?: string;
-            /** Format: date */
-            inboundDate?: string;
-            platform?: {
-                objectId: string;
-                versionId: string;
-            };
-            vehicle?: {
-                objectId: string;
-                versionId: string;
-            };
-            differenceReason?: string;
-            saleLines?: {
-                [key: string]: unknown;
-            }[];
-            purchaseLines?: {
-                [key: string]: unknown;
-            }[];
         };
         VouHistoryRequest: {
             documentId: string;
@@ -2956,6 +3511,79 @@ export interface components {
                 order: "asc" | "desc";
             }[];
         };
+        LedBillQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** @enum {string} */
+                positionType?: "ASSET" | "LIABILITY";
+                /** @enum {string} */
+                availability?: "AVAILABLE" | "USED" | "MATURED" | "HELD";
+                /** @enum {string} */
+                billType?: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+                billNo?: string;
+                /** Format: date */
+                maturityDateFrom?: string;
+                /** Format: date */
+                maturityDateTo?: string;
+                customerObjectId?: string;
+                /** @enum {string} */
+                sourceEntity?: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+            };
+            sort: {
+                /** @enum {string} */
+                field: "maturityDate" | "billNo" | "faceAmount" | "sourceDocumentNo";
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        LedBillListItem: {
+            billId: string;
+            /** @enum {string} */
+            positionType: "ASSET" | "LIABILITY";
+            /** @enum {string} */
+            availability: "AVAILABLE" | "USED" | "MATURED";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            maturityDate: string;
+            /** Format: date */
+            issueDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            interestDays: number;
+            interestAmount: string;
+            customer: {
+                objectId: string;
+                versionId: string;
+                code: string;
+                name: string;
+            };
+            customerCostAmount: string;
+            /** @enum {string} */
+            sourceEntity: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
+            sourceDocumentNo: string;
+        };
+        LedBillQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["LedBillListItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
+        };
         LedBalanceRequest: {
             page: number;
             pageSize: number;
@@ -2963,6 +3591,40 @@ export interface components {
                 /** Format: date */
                 asOfDate: string;
                 objectId?: string;
+            };
+        };
+        LedOtherQueryRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** Format: date */
+                dateFrom: string;
+                /** Format: date */
+                dateTo: string;
+                objectId?: string;
+                sourceEntity?: string;
+                documentNo?: string;
+                direction?: string[];
+                /** @enum {string} */
+                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
+                /** @enum {string} */
+                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
+            };
+            sort: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
+        };
+        LedOtherBalanceRequest: {
+            page: number;
+            pageSize: number;
+            filters: {
+                /** Format: date */
+                asOfDate: string;
+                objectId?: string;
+                /** @enum {string} */
+                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
             };
         };
         LedAssetQueryRequest: {
@@ -3357,6 +4019,198 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    appSystemParameterQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数分页结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterQueryResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemParameterKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description 系统参数详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appSystemParameterReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetSystemParameterRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复后的系统参数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemParameterResponse"];
+                };
+            };
+        };
+    };
+    appMenuGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description 当前菜单配置及权限过滤后的导航。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuSaveBusinessTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveBusinessMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuActivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 切换后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuResetBusinessTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBusinessMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
     appFeedbackattachmentinitiate: {
         parameters: {
             query?: never;
@@ -3594,11 +4448,19 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["BobQueryRequest"];
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 业务对象分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BobQueryResponse"];
+                };
+            };
         };
     };
     bobget: {
@@ -3879,6 +4741,84 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    vouIntermediaryCalculationSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouIntermediarySourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 居间计算来源及哈希。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediarySourceResponse"];
+                };
+            };
+        };
+    };
+    vouIntermediaryCalculationScriptGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description 当前居间计算脚本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediaryScriptGetResponse"];
+                };
+            };
+        };
+    };
+    vouIntermediaryCalculationScriptSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouIntermediaryScriptSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的居间计算脚本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouIntermediaryScriptGetResponse"];
+                };
+            };
+        };
+    };
     vouInventoryCountBookBalance: {
         parameters: {
             query?: never;
@@ -4068,42 +5008,6 @@ export interface operations {
         };
     };
     vouunapprove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["VouEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VouReverseRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    voufinalize: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["VouEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VouFinalizeRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    vouunfinalize: {
         parameters: {
             query?: never;
             header?: never;
@@ -4647,6 +5551,30 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    ledbillquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedBillQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 票据台账分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedBillQueryResponse"];
+                };
+            };
+        };
+    };
     ledinventorybalance: {
         parameters: {
             query?: never;
@@ -4768,7 +5696,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
+                "application/json": components["schemas"]["LedOtherQueryRequest"];
             };
         };
         responses: {
@@ -4784,39 +5712,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledemployeequery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledemployeebalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
+                "application/json": components["schemas"]["LedOtherBalanceRequest"];
             };
         };
         responses: {

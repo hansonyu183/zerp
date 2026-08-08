@@ -21,7 +21,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	created, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "10.00",
@@ -31,7 +31,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	}
 	content := []byte("%PDF-1.7\nintegration")
 	sum := sha256.Sum256(content)
-	initiated, err := service.InitiateAttachment(t.Context(), EntityReceipt, AttachmentInitiateInput{
+	initiated, err := service.InitiateAttachment(t.Context(), EntitySalesReceipt, AttachmentInitiateInput{
 		DocumentID: created.DocumentID, Revision: created.Revision, FileName: "invoice.pdf",
 		ContentType: "application/pdf", Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]),
 	}, integrationActorOne, "attachment-initiate")
@@ -61,7 +61,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	if replayRecorder.Code != http.StatusBadRequest {
 		t.Fatalf("replay status=%d", replayRecorder.Code)
 	}
-	download, err := service.CreateDownload(t.Context(), EntityReceipt, AttachmentDownloadInput{
+	download, err := service.CreateDownload(t.Context(), EntitySalesReceipt, AttachmentDownloadInput{
 		DocumentID: created.DocumentID, FileID: initiated.FileID,
 	}, integrationActorOne)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	if downloadRecorder.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("download security headers = %#v", downloadRecorder.Header())
 	}
-	if _, err = service.RemoveAttachment(t.Context(), EntityReceipt, AttachmentRemoveInput{
+	if _, err = service.RemoveAttachment(t.Context(), EntitySalesReceipt, AttachmentRemoveInput{
 		DocumentID: created.DocumentID, Revision: initiated.Revision, FileID: initiated.FileID,
 	}, integrationActorOne, "attachment-remove"); err != nil {
 		t.Fatalf("remove attachment: %v", err)

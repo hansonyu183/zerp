@@ -4,7 +4,10 @@ import type { Router } from 'vue-router'
 type PageLoader = () => Promise<{ default: Component }>
 
 export interface MenuEntity {
+  id?: string
   entity: string
+  routeKey?: string
+  routePath?: string
   title: string
   icon?: string
   order: number
@@ -17,6 +20,17 @@ export interface MenuDomain {
   icon?: string
   order: number
   children: MenuEntity[]
+}
+
+interface ServerMenuItem {
+  id: string
+  parentId: string | null
+  type: 'GROUP' | 'ROUTE'
+  order: number
+  displayName: string
+  icon: string | null
+  routeKey: string | null
+  routePath: string | null
 }
 
 export interface PageRegistration {
@@ -156,6 +170,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
+  registerPage('bob', {
+    entity: 'settlement-method',
+    entityTitle: '结算方式',
+    icon: 'mdi-calendar-clock-outline',
+    order: 90,
+    component: () =>
+      import('@/pages/bob/settlement-method/SettlementMethod.vue'),
+  }),
   registerPage('aux', {
     entity: 'asset-category',
     entityTitle: '资产类别',
@@ -183,14 +205,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-briefcase-account-outline',
     order: 30,
     component: () => import('@/pages/aux/position/Position.vue'),
-  }),
-  registerPage('aux', {
-    entity: 'settlement-method',
-    entityTitle: '结算方式',
-    icon: 'mdi-calendar-clock-outline',
-    order: 40,
-    component: () =>
-      import('@/pages/aux/settlement-method/SettlementMethod.vue'),
   }),
   registerPage('aux', {
     entity: 'measurement-unit',
@@ -227,6 +241,41 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-file-tree-outline',
     order: 90,
     component: () => import('@/pages/aux/account-subject/AccountSubject.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'bill-receipt',
+    entityTitle: '票据收入',
+    icon: 'mdi-cash-plus',
+    order: 130,
+    component: () => import('@/pages/vou/bill-receipt/BillReceipt.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'bill-payment',
+    entityTitle: '票据付出',
+    icon: 'mdi-cash-minus',
+    order: 131,
+    component: () => import('@/pages/vou/bill-payment/BillPayment.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'bill-issue',
+    entityTitle: '票据开出',
+    icon: 'mdi-cash-plus',
+    order: 132,
+    component: () => import('@/pages/vou/bill-issue/BillIssue.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'bill-discount',
+    entityTitle: '票据贴现',
+    icon: 'mdi-cash-fast',
+    order: 133,
+    component: () => import('@/pages/vou/bill-discount/BillDiscount.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'bill-maturity',
+    entityTitle: '票据到期处理',
+    icon: 'mdi-calendar-clock-outline',
+    order: 134,
+    component: () => import('@/pages/vou/bill-maturity/BillMaturity.vue'),
   }),
   registerPage('vou', {
     entity: 'sale-pricing',
@@ -269,6 +318,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-keyboard-return',
     order: 50,
     component: () => import('@/pages/vou/sale-return/SaleReturn.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'intermediary-calculation',
+    entityTitle: '居间计算单',
+    icon: 'mdi-calculator-variant-outline',
+    order: 45,
+    component: () =>
+      import('@/pages/vou/intermediary-calculation/IntermediaryCalculation.vue'),
   }),
   registerPage('vou', {
     entity: 'order-production',
@@ -320,43 +377,43 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/vou/purchase-return/PurchaseReturn.vue'),
   }),
   registerPage('vou', {
-    entity: 'customer-receipt',
-    entityTitle: '往来收款-客户',
+    entity: 'sales-receipt',
+    entityTitle: '销售收款',
     icon: 'mdi-cash-plus',
     order: 80,
-    component: () => import('@/pages/vou/customer-receipt/CustomerReceipt.vue'),
+    component: () => import('@/pages/vou/sales-receipt/SalesReceipt.vue'),
   }),
   registerPage('vou', {
-    entity: 'supplier-receipt',
-    entityTitle: '往来收款-供应商',
+    entity: 'purchase-refund',
+    entityTitle: '采购退款',
     icon: 'mdi-cash-plus',
     order: 81,
-    component: () => import('@/pages/vou/supplier-receipt/SupplierReceipt.vue'),
+    component: () => import('@/pages/vou/purchase-refund/PurchaseRefund.vue'),
   }),
   registerPage('vou', {
     entity: 'other-receipt',
-    entityTitle: '往来收款-其他',
+    entityTitle: '其他往来收款',
     icon: 'mdi-cash-plus',
     order: 82,
     component: () => import('@/pages/vou/other-receipt/OtherReceipt.vue'),
   }),
   registerPage('vou', {
-    entity: 'customer-payment',
-    entityTitle: '往来付款-客户',
+    entity: 'sales-refund',
+    entityTitle: '销售退款',
     icon: 'mdi-cash-minus',
     order: 90,
-    component: () => import('@/pages/vou/customer-payment/CustomerPayment.vue'),
+    component: () => import('@/pages/vou/sales-refund/SalesRefund.vue'),
   }),
   registerPage('vou', {
-    entity: 'supplier-payment',
-    entityTitle: '往来付款-供应商',
+    entity: 'purchase-payment',
+    entityTitle: '采购付款',
     icon: 'mdi-cash-minus',
     order: 91,
-    component: () => import('@/pages/vou/supplier-payment/SupplierPayment.vue'),
+    component: () => import('@/pages/vou/purchase-payment/PurchasePayment.vue'),
   }),
   registerPage('vou', {
     entity: 'other-payment',
-    entityTitle: '往来付款-其他',
+    entityTitle: '其他往来付款',
     icon: 'mdi-cash-minus',
     order: 92,
     component: () => import('@/pages/vou/other-payment/OtherPayment.vue'),
@@ -489,7 +546,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('led', {
     entity: 'other',
-    entityTitle: '往来台账-其他',
+    entityTitle: '其他往来',
     icon: 'mdi-account-cash-outline',
     order: 42,
     component: () => import('@/pages/led/other/Other.vue'),
@@ -502,11 +559,11 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/led/container/Container.vue'),
   }),
   registerPage('led', {
-    entity: 'employee',
-    entityTitle: '往来台账-员工',
-    icon: 'mdi-account-cash-outline',
-    order: 43,
-    component: () => import('@/pages/led/employee/Employee.vue'),
+    entity: 'bill',
+    entityTitle: '票据台账',
+    icon: 'mdi-receipt-text-outline',
+    order: 70,
+    component: () => import('@/pages/led/bill/Bill.vue'),
   }),
   registerPage('led', {
     entity: 'asset',
@@ -643,6 +700,70 @@ export function buildMenus(
     )
 }
 
+export function buildServerMenus(
+  items: readonly ServerMenuItem[],
+  permissions: readonly string[],
+): MenuDomain[] {
+  const groups = items
+    .filter((item) => item.type === 'GROUP')
+    .sort(
+      (left, right) =>
+        left.order - right.order || left.id.localeCompare(right.id),
+    )
+  const actionsByRoute = new Map<string, string[]>()
+  for (const permission of permissions) {
+    const match = permission.match(PERMISSION_PATTERN)
+    if (!match) continue
+    const [, domain, entity, action] = match
+    const key = `${domain}/${entity}`
+    const actions = actionsByRoute.get(key) ?? []
+    if (!actions.includes(action)) actions.push(action)
+    actionsByRoute.set(key, actions)
+  }
+
+  return groups.map((group) => ({
+    domain: group.id,
+    title: group.displayName,
+    ...(group.icon ? { icon: group.icon } : {}),
+    order: group.order,
+    children: items
+      .filter(
+        (item) =>
+          item.type === 'ROUTE' &&
+          item.parentId === group.id &&
+          item.routeKey &&
+          item.routePath,
+      )
+      .sort(
+        (left, right) =>
+          left.order - right.order || left.id.localeCompare(right.id),
+      )
+      .map((item) => {
+        const routeKey = item.routeKey as string
+        const registration = pageRegistry[routeKey]
+        const isDefaultMenu = group.id.startsWith('default-')
+        return {
+          id: item.id,
+          entity: item.id,
+          routeKey,
+          routePath: item.routePath as string,
+          title: isDefaultMenu
+            ? (registration?.entityTitle ??
+              WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
+              item.displayName)
+            : item.displayName,
+          ...(isDefaultMenu && registration?.icon
+            ? { icon: registration.icon }
+            : item.icon
+              ? { icon: item.icon }
+              : {}),
+          order: item.order,
+          actions: actionsByRoute.get(routeKey) ?? [],
+        }
+      }),
+  }))
+}
+
 function formatIdentifierTitle(identifier: string): string {
   return identifier
     .split('-')
@@ -664,14 +785,17 @@ export function registerMenuRoutes(
 
   for (const domain of menus) {
     for (const entity of domain.children) {
-      const key = `${domain.domain}/${entity.entity}`
+      const key = entity.routeKey ?? `${domain.domain}/${entity.entity}`
+      if (key.startsWith('admin/') || key === 'home/dashboard') continue
+      const routeName = `page:${key}`
+      if (expectedRouteNames.has(routeName)) continue
       const registration = pageRegistry[key]
+      const [routeDomain, routeEntity] = key.split('/') as [string, string]
       const dynamicWorkflow =
-        domain.domain === 'wfl' &&
-        entity.entity !== 'process-definition' &&
+        routeDomain === 'wfl' &&
+        routeEntity !== 'process-definition' &&
         !registration
 
-      const routeName = `page:${key}`
       expectedRouteNames.add(routeName)
       const currentRoute = router
         .getRoutes()
@@ -681,7 +805,7 @@ export function registerMenuRoutes(
         currentRoute?.meta.title === entity.title &&
         currentRoute.meta.developing === developing &&
         currentRoute.meta.processName ===
-          (dynamicWorkflow ? entity.entity : undefined) &&
+          (dynamicWorkflow ? routeEntity : undefined) &&
         hasSameActions(currentRoute.meta.actions, entity.actions)
 
       registeredRouteNames.add(routeName)
@@ -689,7 +813,7 @@ export function registerMenuRoutes(
       if (currentRoute) router.removeRoute(routeName)
 
       router.addRoute('app', {
-        path: key,
+        path: entity.routePath?.replace(/^\//, '') ?? key,
         name: routeName,
         component:
           registration?.component ??
@@ -699,7 +823,7 @@ export function registerMenuRoutes(
           title: entity.title,
           actions: entity.actions,
           developing,
-          ...(dynamicWorkflow ? { processName: entity.entity } : {}),
+          ...(dynamicWorkflow ? { processName: routeEntity } : {}),
         },
       })
       added += 1
@@ -720,6 +844,6 @@ export function resolveFirstMenuPath(menus: readonly MenuDomain[]): string {
   const firstEntity = firstDomain?.children[0]
 
   return firstDomain && firstEntity
-    ? `/${firstDomain.domain}/${firstEntity.entity}`
+    ? (firstEntity.routePath ?? `/${firstDomain.domain}/${firstEntity.entity}`)
     : '/home/dashboard'
 }

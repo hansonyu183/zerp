@@ -24,8 +24,6 @@ type purchaseVoucherService interface {
 	Uncheck(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	Finalize(context.Context, string, voudomain.FinalizeInput, string, string) (voudomain.MutationResult, error)
-	Unfinalize(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	PurchaseShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	PurchaseShortCloseCancel(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 	PurchaseShortCloseConfirm(context.Context, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
@@ -285,14 +283,6 @@ func (s *Service) PurchaseAction(
 		}, actorID, requestID)
 	case "unapprove":
 		result, err = s.purchase.Unapprove(ctx, entity, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "finalize":
-		result, err = s.purchase.Finalize(ctx, entity, voudomain.FinalizeInput{
-			DocumentID: documentID, Revision: input.DocumentRevision,
-		}, actorID, requestID)
-	case "unfinalize":
-		result, err = s.purchase.Unfinalize(ctx, entity, voudomain.ReverseInput{
 			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
 		}, actorID, requestID)
 	case "short-close-request":

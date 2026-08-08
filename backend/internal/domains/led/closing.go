@@ -8,9 +8,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type inventoryCostBalance struct {
@@ -44,72 +46,149 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
 	var rebuild bool
-	var generationID *string
+	var previousGenerationID *string
 	err = tx.QueryRow(ctx, `SELECT rebuild_required,active_generation_id
-		FROM led_control WHERE singleton=true FOR UPDATE`).Scan(&rebuild, &generationID)
+		FROM led_control WHERE singleton=true FOR UPDATE`).Scan(&rebuild, &previousGenerationID)
 	if err != nil {
 		return s.internal("lock ledger initialization", err)
 	}
 	if !rebuild {
 		return tx.Commit(ctx)
 	}
-	if generationID == nil {
-		id := newID()
-		if _, err = tx.Exec(ctx, `INSERT INTO led_generations(
-			id,cutover_date,status,activated_by,request_id
-		) VALUES($1,DATE '0001-01-01','ACTIVE',$2,'zero-opening')`,
-			id, systemidentity.UserID); err != nil {
-			return s.writeError("create ledger base generation", err)
+	generationID := newID()
+	cutoverDate := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	if previousGenerationID == nil {
+		if err = q.InsertLedGeneration(ctx, dbsqlc.InsertLedGenerationParams{
+			ID: generationID, CutoverDate: pgtype.Date{Time: cutoverDate, Valid: true},
+			ActorID: systemidentity.UserID, RequestID: "approved-posting-rebuild",
+		}); err != nil {
+			return s.writeError("create rebuilt ledger generation", err)
 		}
-		generationID = &id
-		if _, err = tx.Exec(ctx, `UPDATE led_control SET status='ACTIVE',
-			cutover_date=DATE '0001-01-01',active_generation_id=$1
-			WHERE singleton=true`, id); err != nil {
-			return s.writeError("attach ledger base generation", err)
+	} else {
+		if err = tx.QueryRow(ctx, `SELECT cutover_date FROM led_generations
+			WHERE id=$1 AND status='ACTIVE'`, *previousGenerationID).Scan(&cutoverDate); err != nil {
+			return s.internal("get active ledger cutover", err)
+		}
+		if err = clearDraft(ctx, q); err != nil {
+			return s.writeError("clear approved-posting rebuild draft", err)
+		}
+		if err = q.CopyLedOpeningToDraftInventory(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy inventory opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftFund(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy fund opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftParty(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy party opening for approved-posting rebuild", err)
+		}
+		if err = q.CopyLedOpeningToDraftContainer(ctx, *previousGenerationID); err != nil {
+			return s.writeError("copy container opening for approved-posting rebuild", err)
+		}
+		if err = s.createOpeningGeneration(
+			ctx, q, generationID, pgtype.Date{Time: cutoverDate, Valid: true},
+			systemidentity.UserID, "approved-posting-rebuild",
+		); err != nil {
+			return err
+		}
+		if err = clearDraft(ctx, q); err != nil {
+			return s.writeError("clear approved-posting rebuild draft", err)
 		}
 	}
-	for _, table := range []string{
-		"led_inventory_entries", "led_fund_entries", "led_party_entries", "led_container_entries",
-		"led_asset_entries", "led_assets",
-	} {
-		if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE generation_id=$1", *generationID); err != nil {
-			return s.writeError("clear ledger for zero rebuild", err)
-		}
-	}
-	if _, err = tx.Exec(ctx, `TRUNCATE led_draft_inventory,led_draft_fund,led_draft_party,
-		led_draft_container,led_opening_inventory,led_opening_fund,led_opening_party,
-		led_opening_container`); err != nil {
-		return s.writeError("clear legacy opening data", err)
-	}
-	documents, err := q.ListFinalizedVouDocumentsForLed(ctx)
+	documents, err := q.ListPostedVouDocumentsForLed(ctx)
 	if err != nil {
-		return s.internal("list documents for zero rebuild", err)
+		return s.internal("list documents for approved-posting rebuild", err)
 	}
 	if err = s.replayVouDocuments(
-		ctx, tx, q, *generationID, time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
-		documents, systemidentity.UserID, "zero-opening",
+		ctx, tx, q, generationID, cutoverDate,
+		documents, systemidentity.UserID, "approved-posting-rebuild",
 	); err != nil {
 		return err
 	}
-	negative, err := q.HasNegativeLedInventoryTimeline(ctx, *generationID)
+	negative, err := q.HasNegativeLedInventoryTimeline(ctx, generationID)
 	if err != nil {
-		return s.internal("validate zero-opening rebuild", err)
+		return s.internal("validate approved-posting rebuild", err)
 	}
 	if negative {
 		return domainError(
 			ErrorConflict,
-			"zero-opening rebuild would create negative inventory",
+			"approved posting rebuild would create negative inventory",
 			nil,
 			nil,
 		)
 	}
-	if _, err = tx.Exec(ctx, `UPDATE led_control SET rebuild_required=false,
-		cutover_date=DATE '0001-01-01',updated_at=now(),updated_by=$1
-		WHERE singleton=true`, systemidentity.UserID); err != nil {
+	if err = s.rebuildClosingSnapshots(ctx, tx, generationID, cutoverDate); err != nil {
+		return err
+	}
+	if previousGenerationID != nil {
+		if err = q.ArchiveActiveLedGeneration(ctx, *previousGenerationID); err != nil {
+			return s.writeError("archive previous ledger generation", err)
+		}
+	}
+	if _, err = tx.Exec(ctx, `UPDATE led_control SET status='ACTIVE',rebuild_required=false,
+		cutover_date=$2,active_generation_id=$1,revision=revision+1,
+		updated_at=now(),updated_by=$3 WHERE singleton=true`, generationID, cutoverDate, systemidentity.UserID); err != nil {
 		return s.writeError("finish ledger initialization", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return s.writeError("commit ledger initialization", err)
+	}
+	return nil
+}
+
+func (s *Service) rebuildClosingSnapshots(
+	ctx context.Context,
+	tx pgx.Tx,
+	generationID string,
+	cutoverDate time.Time,
+) error {
+	rows, err := tx.Query(ctx, `SELECT id,closing_date
+		FROM led_closings WHERE status='ACTIVE'
+		ORDER BY closing_date,id`)
+	if err != nil {
+		return s.internal("list closings for ledger rebuild", err)
+	}
+	type closingPeriod struct {
+		id   string
+		date time.Time
+	}
+	closings := make([]closingPeriod, 0)
+	for rows.Next() {
+		var closing closingPeriod
+		if err = rows.Scan(&closing.id, &closing.date); err != nil {
+			rows.Close()
+			return s.internal("scan closing for ledger rebuild", err)
+		}
+		closings = append(closings, closing)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return s.internal("read closings for ledger rebuild", err)
+	}
+	rows.Close()
+	for _, closing := range closings {
+		for _, table := range []string{
+			"led_inventory_cost_allocations", "led_closing_inventory", "led_closing_fund",
+			"led_closing_party", "led_closing_container",
+		} {
+			if _, err = tx.Exec(ctx, "DELETE FROM "+table+" WHERE closing_id=$1", closing.id); err != nil {
+				return s.writeError("clear closing snapshot for ledger rebuild", err)
+			}
+		}
+	}
+	periodStart := cutoverDate
+	var previousClosingID *string
+	for _, closing := range closings {
+		if err = s.calculateInventoryClosing(
+			ctx, tx, generationID, previousClosingID, closing.id, periodStart, closing.date,
+		); err != nil {
+			return err
+		}
+		if err = s.snapshotNonInventoryBalances(ctx, tx, generationID, closing.id, closing.date); err != nil {
+			return err
+		}
+		id := closing.id
+		previousClosingID = &id
+		periodStart = closing.date.AddDate(0, 0, 1)
 	}
 	return nil
 }
@@ -171,14 +250,20 @@ func (s *Service) Close(
 	var revision int64
 	var lastClosingID, generationID *string
 	var rebuildRequired bool
-	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required
+	var cutoverDate time.Time
+	err = tx.QueryRow(ctx, `SELECT revision,last_closing_id,active_generation_id,rebuild_required,cutover_date
 		FROM led_control WHERE singleton=true FOR UPDATE`).
-		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired)
+		Scan(&revision, &lastClosingID, &generationID, &rebuildRequired, &cutoverDate)
 	if err != nil {
 		return ClosingMutationResult{}, s.internal("lock closing control", err)
 	}
 	if revision != input.Revision || rebuildRequired || generationID == nil {
 		return ClosingMutationResult{}, domainError(ErrorConflict, "ledger closing changed", nil, nil)
+	}
+	if closingDate.Before(cutoverDate) {
+		return ClosingMutationResult{}, domainError(
+			ErrorValidation, "closingDate cannot predate the ledger cutover", nil, nil,
+		)
 	}
 	var periodStart = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 	if lastClosingID != nil {
@@ -206,6 +291,88 @@ func (s *Service) Close(
 			map[string]any{"count": pendingCount, "closingDate": closingDate.Format(dateLayout)},
 			nil,
 		)
+	}
+	calculationStart := periodStart
+	if lastClosingID == nil {
+		calculationStart = time.Date(cutoverDate.Year(), cutoverDate.Month(), 1, 0, 0, 0, 0, cutoverDate.Location())
+		if cutoverDate.Year() == 1 {
+			var firstActivityDate pgtype.Date
+			if err = tx.QueryRow(ctx, `SELECT min(business_date) FROM vou_documents
+				WHERE status='FINALIZED' AND business_date <= $1`, closingDate).Scan(&firstActivityDate); err != nil {
+				return ClosingMutationResult{}, s.internal("find first document month for closing", err)
+			}
+			if firstActivityDate.Valid {
+				calculationStart = time.Date(firstActivityDate.Time.Year(), firstActivityDate.Time.Month(), 1,
+					0, 0, 0, 0, firstActivityDate.Time.Location())
+			} else {
+				calculationStart = time.Date(closingDate.Year(), closingDate.Month(), 1,
+					0, 0, 0, 0, closingDate.Location())
+			}
+		}
+	}
+	var missingCalculationCount int64
+	var firstMissingCalculationDate pgtype.Date
+	if err = tx.QueryRow(ctx, `WITH required_months AS (
+		SELECT (month_start + interval '1 month - 1 day')::date AS month_end
+		FROM generate_series(date_trunc('month',$1::date),date_trunc('month',$2::date),interval '1 month') month_start
+	)
+	SELECT count(*),min(month_end) FROM required_months
+	WHERE NOT EXISTS (
+		SELECT 1 FROM vou_documents document
+		WHERE document.entity='intermediary-calculation'
+		  AND document.business_date=required_months.month_end
+		  AND document.status='FINALIZED'
+	)`, calculationStart, closingDate).Scan(&missingCalculationCount, &firstMissingCalculationDate); err != nil {
+		return ClosingMutationResult{}, s.internal("check intermediary calculations", err)
+	}
+	if missingCalculationCount != 0 {
+		firstMissing := ""
+		if firstMissingCalculationDate.Valid {
+			firstMissing = firstMissingCalculationDate.Time.Format(dateLayout)
+		}
+		return ClosingMutationResult{}, domainError(ErrorConflict,
+			"every unclosed month must have an approved intermediary calculation before closing",
+			map[string]any{"count": missingCalculationCount, "firstMissingDate": firstMissing,
+				"closingDate": closingDate.Format(dateLayout)}, nil)
+	}
+	calculationRows, err := tx.Query(ctx, `SELECT id,document_no,business_date
+		FROM vou_documents
+		WHERE entity='intermediary-calculation' AND status='FINALIZED'
+		  AND business_date BETWEEN date_trunc('month',$1::date)::date AND $2::date
+		ORDER BY business_date,document_no`, calculationStart, closingDate)
+	if err != nil {
+		return ClosingMutationResult{}, s.internal("list intermediary calculations for closing validation", err)
+	}
+	type calculationForClosing struct {
+		id, number string
+		date       time.Time
+	}
+	calculations := make([]calculationForClosing, 0)
+	for calculationRows.Next() {
+		var calculation calculationForClosing
+		if err = calculationRows.Scan(&calculation.id, &calculation.number, &calculation.date); err != nil {
+			calculationRows.Close()
+			return ClosingMutationResult{}, s.internal("scan intermediary calculation for closing validation", err)
+		}
+		calculations = append(calculations, calculation)
+	}
+	if err = calculationRows.Err(); err != nil {
+		calculationRows.Close()
+		return ClosingMutationResult{}, s.internal("read intermediary calculations for closing validation", err)
+	}
+	calculationRows.Close()
+	for _, calculation := range calculations {
+		if err = s.intermediaryValidator.ValidateIntermediaryCalculation(ctx, tx, calculation.id); err != nil {
+			return ClosingMutationResult{}, domainError(
+				ErrorConflict,
+				"intermediary calculation source changed; recalculate before closing",
+				map[string]any{
+					"documentId": calculation.id, "documentNo": calculation.number,
+					"businessDate": calculation.date.Format(dateLayout),
+				},
+				err,
+			)
+		}
 	}
 	closingID := newID()
 	nextRevision := revision + 1
@@ -386,7 +553,43 @@ func (s *Service) calculateInventoryClosing(
 	periodStart, closingDate time.Time,
 ) error {
 	balances := make(map[string]*inventoryCostBalance)
-	if previousClosingID != nil {
+	if previousClosingID == nil {
+		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
+			warehouse_code,warehouse_name,product_object_id,product_version_id,
+			product_code,product_name,product_unit,quantity_micros,currency,amount_cents
+			FROM led_opening_inventory WHERE generation_id=$1`, generationID)
+		if err != nil {
+			return s.internal("load inventory opening for closing", err)
+		}
+		for rows.Next() {
+			balance := &inventoryCostBalance{}
+			var currency *string
+			var amount *int64
+			if err = rows.Scan(
+				&balance.warehouseObjectID, &balance.warehouseVersionID,
+				&balance.warehouseCode, &balance.warehouseName,
+				&balance.productObjectID, &balance.productVersionID,
+				&balance.productCode, &balance.productName, &balance.productUnit,
+				&balance.quantity, &currency, &amount,
+			); err != nil {
+				rows.Close()
+				return s.internal("scan inventory opening for closing", err)
+			}
+			if currency == nil || *currency != "CNY" || amount == nil {
+				rows.Close()
+				return domainError(
+					ErrorConflict, "inventory opening cost must be complete and use CNY", nil, nil,
+				)
+			}
+			balance.amount = *amount
+			balances[inventoryCostKey(balance.warehouseObjectID, balance.productObjectID)] = balance
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			return s.internal("read inventory opening for closing", err)
+		}
+		rows.Close()
+	} else {
 		rows, err := tx.Query(ctx, `SELECT warehouse_object_id,warehouse_version_id,
 			warehouse_code,warehouse_name,product_object_id,product_version_id,
 			product_code,product_name,product_unit,quantity_micros,cost_amount_cents
@@ -807,16 +1010,16 @@ func (s *Service) snapshotNonInventoryBalances(
 		FROM led_fund_entries WHERE generation_id=$2 AND effective_date <= $3
 		GROUP BY fund_account_object_id,currency HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_party(
-			closing_id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+			closing_id,account_type,counterparty_entity,counterparty_object_id,counterparty_version_id,
 			counterparty_code,counterparty_name,currency,amount_cents
 		)
-		SELECT $1,counterparty_entity,counterparty_object_id,
+		SELECT $1,account_type,counterparty_entity,counterparty_object_id,
 			(array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			max(counterparty_code),
 			(array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1],
 			currency,sum(amount_delta_cents)
 		FROM led_party_entries WHERE generation_id=$2 AND effective_date <= $3
-		GROUP BY counterparty_entity,counterparty_object_id,currency
+		GROUP BY account_type,counterparty_entity,counterparty_object_id,currency
 		HAVING sum(amount_delta_cents) <> 0`,
 		`INSERT INTO led_closing_container(
 			closing_id,customer_object_id,customer_version_id,customer_code,
@@ -890,25 +1093,30 @@ func (s *Service) loadClosingFund(ctx context.Context, closingID string, view *C
 }
 
 func (s *Service) loadClosingParty(ctx context.Context, closingID string, view *ClosingView) error {
-	rows, err := s.pool.Query(ctx, `SELECT counterparty_entity,counterparty_object_id,
+	rows, err := s.pool.Query(ctx, `SELECT account_type,counterparty_entity,counterparty_object_id,
 		counterparty_version_id,counterparty_code,counterparty_name,currency,amount_cents
 		FROM led_closing_party WHERE closing_id=$1
-		ORDER BY counterparty_entity,counterparty_code,currency`, closingID)
+		ORDER BY account_type,counterparty_entity,counterparty_code,currency`, closingID)
 	if err != nil {
 		return s.internal("list closing party", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var entity, id, version, code, name, currency string
+		var accountType, entity, id, version, code, name, currency string
 		var amount int64
-		if err = rows.Scan(&entity, &id, &version, &code, &name, &currency, &amount); err != nil {
+		if err = rows.Scan(&accountType, &entity, &id, &version, &code, &name, &currency, &amount); err != nil {
 			return s.internal("scan closing party", err)
 		}
 		view.Party = append(
-			view.Party, openingPartyView(id, entity, id, version, code, name, currency, amount),
+			view.Party, openingPartyView(closingPartyRowID(accountType, entity, id, currency),
+				accountType, entity, id, version, code, name, currency, amount),
 		)
 	}
 	return rows.Err()
+}
+
+func closingPartyRowID(accountType, entity, objectID, currency string) string {
+	return accountType + "/" + entity + "/" + objectID + "/" + currency
 }
 
 func (s *Service) loadClosingContainer(ctx context.Context, closingID string, view *ClosingView) error {

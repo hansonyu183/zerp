@@ -7,7 +7,8 @@ import (
 
 func TestValidateFeedbackAcceptsUnicodeAndStrictAttachments(t *testing.T) {
 	input := CreateFeedbackInput{
-		Category: "bug", Title: "保存失败", Content: "点击保存后页面没有响应",
+		SubmissionKey: "feedback-submission-0001",
+		Category:      "bug", Title: "保存失败", Content: "点击保存后页面没有响应",
 		PagePath: "/vou/sale-order", ClientVersion: "1.2.3+abc",
 		RelatedRequestID: "request-123",
 		AttachmentIDs:    []string{"01J00000000000000000000000"},
@@ -22,12 +23,26 @@ func TestValidateFeedbackAcceptsUnicodeAndStrictAttachments(t *testing.T) {
 	}
 }
 
+func TestFeedbackIDForSubmissionIsStableAndActorScoped(t *testing.T) {
+	const submissionKey = "feedback-submission-stable"
+	first := feedbackIDForSubmission("01J00000000000000000000000", submissionKey)
+	if !validID(first) || first != feedbackIDForSubmission("01J00000000000000000000000", submissionKey) {
+		t.Fatalf("feedback submission id = %q", first)
+	}
+	if first == feedbackIDForSubmission("01J00000000000000000000001", submissionKey) {
+		t.Fatal("feedback submission id must be scoped to the actor")
+	}
+}
+
 func TestValidateFeedbackRejectsUnsafeContextAndAttachments(t *testing.T) {
-	base := CreateFeedbackInput{Category: "OTHER", Title: "反馈", Content: "内容"}
+	base := CreateFeedbackInput{
+		SubmissionKey: "feedback-submission-0002", Category: "OTHER", Title: "反馈", Content: "内容",
+	}
 	tests := []struct {
 		name   string
 		mutate func(*CreateFeedbackInput)
 	}{
+		{name: "invalid submission key", mutate: func(input *CreateFeedbackInput) { input.SubmissionKey = "short" }},
 		{name: "external path", mutate: func(input *CreateFeedbackInput) { input.PagePath = "https://example.com/path" }},
 		{name: "query path", mutate: func(input *CreateFeedbackInput) { input.PagePath = "/path?token=secret" }},
 		{name: "invalid version", mutate: func(input *CreateFeedbackInput) { input.ClientVersion = "version one" }},
@@ -76,8 +91,9 @@ func TestValidateFeedbackAttachmentInitiate(t *testing.T) {
 
 func TestRedactFeedbackRemovesSensitiveValues(t *testing.T) {
 	input := CreateFeedbackInput{
-		Category: "BUG",
-		Title:    "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+		SubmissionKey: "feedback-submission-0003",
+		Category:      "BUG",
+		Title:         "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
 		Content: strings.Join([]string{
 			"password=super-secret",
 			"Cookie: session=secret",

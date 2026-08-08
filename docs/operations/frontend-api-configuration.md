@@ -132,7 +132,7 @@ make e2e
 
 根级脚本会向 Playwright 注入正确的 API、Web 和账号变量。不要在前端环境文件中长期复制密码或端口；不得把 E2E 指向生产或日常联调数据库。
 
-只需保留后端隔离环境时，可在 `backend/` 使用 `make e2e-up`、`make e2e-down` 和 `make e2e-reset`，但完整验收仍以根目录 `make e2e` 为准。
+完整验收统一从仓库根目录运行 `make e2e`。命令会创建一次性 PostgreSQL 容器，原生启动 API 和 Web，结束后自动清理隔离数据库与进程。
 
 ## 5. 联调验收
 

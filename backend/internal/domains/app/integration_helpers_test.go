@@ -51,7 +51,8 @@ func appIntegrationPool(t *testing.T) *pgxpool.Pool {
 func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
-		TRUNCATE app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
+		TRUNCATE vou_intermediary_scripts,
+			app_business_menu_items, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users;
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
@@ -84,6 +85,17 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 	admin, err := service.BootstrapAdmin(t.Context(), "admin", "系统管理员", integrationAdminPassword)
 	if err != nil {
 		t.Fatalf("bootstrap admin: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO app_system_parameters (
+			parameter_key, name, description, value_type, current_value,
+			default_value, editable, created_by, updated_by
+		) VALUES (
+			'app.menu.mode', '当前菜单方式', '菜单服务专用', 'STRING',
+			'DEFAULT', 'DEFAULT', false, $1, $1
+		)
+	`, admin.ID); err != nil {
+		t.Fatalf("seed APP system parameters: %v", err)
 	}
 	return service, pool, admin
 }

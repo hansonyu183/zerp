@@ -52,14 +52,20 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
-	ledService, err := leddomain.NewService(db, bobService)
+	ledService, err := leddomain.NewService(db, bobService, vouService)
 	if err != nil {
 		return nil, nil, err
 	}
 	if err = ledService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}
+	if err = vouService.RegisterCompletionSubscriptions(eventBus); err != nil {
+		return nil, nil, err
+	}
 	if err = ledService.EnsureReady(context.Background()); err != nil {
+		return nil, nil, err
+	}
+	if err = vouService.ReconcileCompletionStatuses(context.Background()); err != nil {
 		return nil, nil, err
 	}
 	var publisher *appdomain.FeedbackPublisher

@@ -74,6 +74,18 @@ const exactMessages: Readonly<Record<string, string>> = {
   'purchaser is required': '请选择采购人员。',
   'settlement method is required': '请选择结算方式。',
   'settlement method is not configured': '尚未配置结算方式，请先完成配置。',
+  'settlement methods are system-defined':
+    '结算方式由系统固定维护，不能新增或删除。',
+  'settlement rule does not match fixed term':
+    '结算规则与系统固定期限不一致，请刷新后重试。',
+  'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
+  'order currency is required for settlement approval':
+    '订单缺少币种，无法校验结算资金。',
+  'settlement ledger is not active': '业务账簿尚未启用，无法校验结算资金。',
+  'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
+  'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
+  'counterparty already has an unfinished cash-on-delivery order':
+    '往来单位已有一张未完成的现结订单。',
   'fund account currency does not match document currency':
     '资金账户币种与单据币种不一致。',
   'fund account currency does not match reimbursement':
@@ -95,6 +107,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '流程已有下游单据，不能移除。',
   'downstream workflow document has changed':
     '下游流程单据已变化，请刷新后重试。',
+  'downstream documents must be reversed first':
+    '已有下游单据，请先反向处理下游单据。',
   'sales-chain source is not finalized': '销售来源单据尚未完成。',
   'sales-chain source is not ready': '销售来源资料尚未准备完成。',
   'sales fulfillment cannot be changed': '销售履约已生成后续单据，不能修改。',
@@ -111,7 +125,12 @@ const exactMessages: Readonly<Record<string, string>> = {
   'purchase order has no remaining inbound quantity':
     '采购订单没有剩余可入库数量。',
   'purchase order has no remaining quantity': '采购订单没有剩余数量。',
-  'purchase order is not open': '采购订单当前未开放执行。',
+  'purchase order is not open':
+    '采购订单当前未开放执行，请先在采购订单中撤销完成后重试。',
+  'unfinished documents exist on or before the closing date':
+    '结账日及以前仍有未完成单据，请先处理这些单据，或选择更早的结账月末。',
+  'closingDate cannot predate the ledger cutover':
+    '结账日期不能早于业务账簿切换日期。',
   'purchase order is not returnable': '采购订单当前不能退货。',
   'purchase order is not short closed': '采购订单尚未短关闭。',
   'purchase document has no source order': '采购单据缺少来源订单。',
@@ -152,6 +171,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'inventory count date is already closed': '盘点日期所在期间已关账。',
   'inventory count predates the active ledger': '盘点日期早于台账启用日期。',
   'inventory count result is incomplete': '盘点结果不完整，请补全实盘数量。',
+  'inventory count line changed during replay':
+    '盘点明细在台账重建期间发生变化，请重试。',
   'inventory ledger is not active': '库存台账尚未启用。',
   'ledger cannot be activated': '当前台账不能启用。',
   'ledger cannot be reopened': '当前台账不能重新打开。',
@@ -163,6 +184,170 @@ const exactMessages: Readonly<Record<string, string>> = {
   'useful life or residual rate is invalid': '使用年限或残值率不正确。',
   'unsupported transition': '当前状态不支持该操作。',
   'unsupported reverse transition': '当前状态不支持撤销该操作。',
+  'bill receipt net settlement is invalid': '票据净结算金额必须为正。',
+  'bill receipt requires customer counterparty': '请选择客户往来方。',
+  'bill ledger identity conflicts with different fixed facts':
+    '票据标识与已保存的固定资料冲突。',
+  'bill document with ledger history cannot be deleted':
+    '该票据单已形成台账历史，不能删除。',
+  'billCashLines supports at most 20 items': '现金行数不能超过 20 行。',
+  'billLineId is not supported in bill receipt cash lines':
+    '现金行不能关联票据行。',
+  'change bill requires billId': '找零票据必须引用当前持有票据。',
+  'customer net settlement must be positive': '客户净结算金额必须为正。',
+  'duplicate bill':
+    '该票据已存在，请核对票据类型、号码、承兑人、票面金额和到期日。',
+  'fields do not match bill receipt': '提交字段与票据收入业务不匹配。',
+  'source bill is not available': '所选找零票据当前不可用。',
+  'source bill currency must match document currency':
+    '所选票据币种必须与单据币种一致。',
+  'bill payment line is invalid': '付出票据明细无效，请重新选择可用持有票据。',
+  'bill payment requires available billId':
+    '付出票据必须引用当前可用持有票据。',
+  'bill payment requires supplier': '请选择供应商。',
+  'bill payment total is invalid': '付出票面合计必须大于零。',
+  'fields do not match bill payment': '提交内容与票据付出业务不匹配。',
+  'bill issue requires supplier': '请选择供应商。',
+  'bill issue requires interestMode': '请选择利息承担方式。',
+  'bill issue requires other-party interestParty':
+    '第三方承担利息时必须选择其他往来单位。',
+  'bill issue interestParty is not allowed':
+    '银行扣息时不能填写第三方利息承担方。',
+  'fields do not match bill issue': '提交内容与票据开出业务不匹配。',
+  'invalid bill issue line': '自开票据明细无效，请检查负债、金额和日期。',
+  'bill issue line is invalid': '自开票据明细无效，请检查负债、金额和日期。',
+  'bill issue total is invalid': '自开票据票面合计无效。',
+  'billLineId is not supported in bill issue cash lines':
+    '自开票据现金行不能关联票据行。',
+  'bill discount requires other-party counterparty': '请选择贴现方。',
+  'bill discount requires interestMode': '请选择利息承担方式。',
+  'invalid bill discount interestMode': '请选择有效的利息承担方式。',
+  'bill discount requires other-party interestParty':
+    '第三方承担利息时必须选择其他往来单位。',
+  'bill discount interestParty is not allowed':
+    '银行扣息时不能填写第三方利息承担方。',
+  'bill discount requires available billId':
+    '贴现票据必须引用当前可用持有票据。',
+  'bill discount requires available billId and rate':
+    '贴现票据必须引用当前可用持有票据并填写年利率。',
+  'bill discount line is invalid': '贴现票据明细无效，请检查票据和年利率。',
+  'bill discount lines must contain 1 to 20 items':
+    '贴现票据和现金行数必须在允许范围内。',
+  'invalid bill discount cash line': '贴现现金行无效，请检查方向和金额类型。',
+  'duplicate billId': '贴现票据不能重复选择。',
+  'bill discount total is invalid': '贴现净到账必须大于零。',
+  'fields do not match bill discount': '提交内容与票据贴现业务不匹配。',
+  'source bill is matured': '来源票据已到期，不能贴现。',
+  'interestParty does not match interestMode': '利息承担方与承担方式不匹配。',
+  'bill maturity requires receipt or payment': '请选择到期收款或到期付款。',
+  'bill maturity type is invalid': '票据到期处理方式无效。',
+  'bill maturity requires bills': '票据到期单必须包含待处理票据。',
+  'bill maturity line is invalid': '到期票据明细与处理方式不匹配。',
+  'bill maturity requires cash': '票据到期单必须包含实际资金明细。',
+  'bill maturity cash direction is invalid': '资金方向与到期收款或付款不匹配。',
+  'bill maturity requires available billId':
+    '到期处理必须引用当前可用持有票据。',
+  'source bill is not matured': '来源票据尚未到期。',
+  'bill maturity lines must contain 1 to 20 items':
+    '到期票据和现金行数必须在允许范围内。',
+  'invalid bill maturity cash line':
+    '到期处理现金行无效，请检查方向和金额类型。',
+  'invalid bill maturityDate': '到期日无效。',
+  'fields do not match bill maturity': '提交内容与票据到期处理业务不匹配。',
+  'billLineId is not supported in bill maturity cash lines':
+    '到期处理现金行不能关联票据行。',
+  'billLineId is not supported in bill discount cash lines':
+    '票据贴现现金行不能关联票据行。',
+  'bill receipt is missing customer salesperson':
+    '票据收入单缺少客户业务员，请先补全客户资料。',
+  'businessDate must be the calendar month end':
+    '居间计算单业务日期必须是期间月末。',
+  'calculation result contains an invalid amount':
+    '计算稿包含格式不正确的金额。',
+  'calculation result contains an invalid barrel quantity':
+    '计算稿包含格式不正确的桶数。',
+  'calculation result barrel quantity does not match its source':
+    '计算稿桶数与销售签收来源不一致，请重新计算。',
+  'calculation result note is too long': '计算稿说明不能超过 1000 个字符。',
+  'calculation result contains an invalid premium price':
+    '计算稿包含格式不正确的溢价。',
+  'calculation source kind is invalid': '计算来源类型无效，请重新生成计算稿。',
+  'calculation bill allocation does not match its source':
+    '票据成本分配与客户、业务员或来源票据不一致。',
+  'bill cost requires its source bill allocation':
+    '票据成本必须记录对应的来源票据。',
+  'bill allocation requires a positive bill cost':
+    '已分配来源票据时必须同时扣除正数票据成本。',
+  'eligible bill cost must be allocated to a calculation line':
+    '存在可分配但尚未分配的票据成本，请重新计算。',
+  'calculation result line does not match its source':
+    '计算稿明细与销售签收来源不一致，请重新计算。',
+  'calculation result must contain one row per source line':
+    '每条销售签收来源必须对应一条计算明细。',
+  'calculation script changed; recalculate before saving':
+    '计算脚本已更新，请重新计算后保存。',
+  'calculation source changed; recalculate before saving':
+    '计算来源已变化，请重新计算后保存。',
+  'calculation source changed; recalculate before approval':
+    '计算来源已变化，请退回复核并重新计算后再批准。',
+  'later intermediary calculations must be reversed first':
+    '该居间计算单已被后续退货冲回使用，请先反批准后续居间计算单。',
+  'later intermediary calculations must be deleted first':
+    '该居间计算单仍被后续退货冲回引用，请先将后续居间计算单退回草稿并删除。',
+  'intermediary calculation source changed; recalculate before closing':
+    '居间计算来源已变化，请重新计算后再结账。',
+  'calculation summaries are incomplete': '计算稿汇总不完整，请重新计算。',
+  'calculation summary does not match detail results':
+    '计算稿汇总与明细不一致，请重新计算。',
+  'calculation summary category is invalid': '计算稿汇总类别无效，请重新计算。',
+  'intermediary amount requires a source intermediary':
+    '居间金额缺少对应居间商，请检查客户资料后重新计算。',
+  'intermediary return quantity exceeds its original calculation':
+    '跨月退货数量超过原居间计算数量，请检查退货单。',
+  'return adjustment cannot allocate bill cost':
+    '跨月退货冲回明细不能分配票据成本。',
+  'return adjustment result has an invalid direction':
+    '跨月退货冲回金额方向不正确，请重新计算。',
+  'return adjustment source amount is invalid':
+    '跨月退货冲回来源金额无效，请检查原居间计算单。',
+  'return adjustment source calculation is missing':
+    '跨月退货冲回缺少原居间计算单，请重新生成计算稿。',
+  'return adjustment source calculation changed':
+    '跨月退货冲回引用的原居间计算单已变化，请重新生成计算稿。',
+  'return adjustment result amounts do not match its source':
+    '跨月退货冲回金额必须与来源金额一致，请重新计算。',
+  'original intermediary calculation source is incomplete':
+    '原居间计算来源不完整，无法生成跨月退货冲回。',
+  'original intermediary calculation quantity is invalid':
+    '原居间计算数量无效，无法生成跨月退货冲回。',
+  'original intermediary pricing quantity is invalid':
+    '原居间计算计价数量无效，无法生成跨月退货冲回。',
+  'original intermediary calculation amount is invalid':
+    '原居间计算金额无效，无法生成跨月退货冲回。',
+  'intermediary calculation must use CNY and include its calculation draft':
+    '居间计算单必须使用人民币并包含完整计算稿。',
+  'ledger must be active before calculation':
+    '业务账簿尚未启用，不能生成居间计算来源。',
+  'sale signoff is missing its order salesperson snapshot':
+    '销售签收单缺少订单业务员快照，请先处理来源单据。',
+  'sale return exceeds its source signoff':
+    '销售退货金额或数量超过来源签收单，请检查退货单。',
+  'sale return timeline is invalid':
+    '销售退货时间线与来源签收单不一致，请检查来源单据。',
+  'intermediary FIFO amount is out of range':
+    '居间计算的签收金额超出可处理范围，请检查来源单据。',
+  'intermediary FIFO balance is out of range':
+    '居间计算的客户应收余额超出可处理范围，请检查往来数据。',
+  'source pricing quantity is invalid':
+    '销售签收来源的计价数量无效，请检查产品单位换算。',
+  'every unclosed month must have an approved intermediary calculation before closing':
+    '结账范围内存在尚未完成的月度居间计算单，请逐月处理后再结账。',
+  'other transaction filters only apply to other ledger':
+    '主体类型和分类筛选仅适用于其他往来。',
+  'otherCategory only applies to other transactions':
+    '其他往来分类仅适用于其他往来收付款。',
+  'trade opening requires customer or supplier':
+    '贸易往来期初只能选择客户或供应商。',
   'unsupported settlement rule': '当前结算规则不受支持。',
   'asset acquisition requires 1-200 lines':
     '固定资产购置单必须包含 1 至 200 条明细。',
@@ -209,6 +394,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'feedback content must be between 1 and 4000 characters':
     '反馈内容必须为 1 至 4000 个字符。',
   'feedback daily limit reached': '今日反馈提交次数已达到上限。',
+  'feedback submission key was already used':
+    '当前反馈草稿已发生变化，请刷新页面后重新填写。',
   'feedback title must be between 1 and 120 characters':
     '反馈标题必须为 1 至 120 个字符。',
   'fields do not match sale-delivery': '提交内容与销售配送单不匹配。',
@@ -219,6 +406,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'formula must contain 1 to 200 components':
     '配方必须包含 1 至 200 条材料明细。',
   invalid: '输入内容不正确，请检查后重试。',
+  'invalid feedback submission key': '反馈提交标识无效，请重新打开反馈窗口。',
   'ledger is not available': '业务台账不可用，请先完成台账配置。',
   'load parent document': '上级单据加载失败，请刷新后重试。',
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',
@@ -243,6 +431,27 @@ const exactMessages: Readonly<Record<string, string>> = {
   'request body must be an empty object': '该操作不接受额外输入内容。',
   'role revision conflict': '角色已被其他操作修改，请刷新后重试。',
   'role status unchanged': '角色已经是目标状态，无需重复操作。',
+  'business menu revision conflict':
+    '业务菜单已被其他管理员修改，请刷新后重试。',
+  'menu catalog revision conflict': '菜单目录已更新，请刷新后重试。',
+  'menu depth exceeds two levels or parent is invalid':
+    '菜单最多支持两级，请检查分组与路由的父子关系。',
+  'menu groups must be top level': '菜单分组必须位于第一层。',
+  'menu management entry must remain enabled': '必须保留已启用的菜单管理入口。',
+  'menu mode is not registered': '菜单方式尚未完成系统注册，请联系管理员。',
+  'menu mode revision conflict': '菜单方式已被其他管理员修改，请刷新后重试。',
+  'menu route is not registered': '所选菜单路由未在系统中注册。',
+  'menu routes require a parent and route key':
+    '菜单路由必须属于一个分组并选择已注册路由。',
+  'reserved menu item id': '该菜单项标识由系统保留，请重新添加菜单项。',
+  'system parameter is managed by its owning service':
+    '该系统参数只能由对应功能修改。',
+  'system parameter must be a decimal': '系统参数必须填写为小数。',
+  'system parameter must be an integer': '系统参数必须填写为整数。',
+  'system parameter must be true or false': '系统参数必须选择是或否。',
+  'system parameter revision conflict':
+    '系统参数已被其他管理员修改，请刷新后重试。',
+  'unsupported system parameter value type': '系统参数类型不受支持。',
   'saleAmount is invalid': '销售金额不正确，请检查后重试。',
   'salvageIncome is invalid': '残值收入不正确，请检查后重试。',
   'settlement surcharge is invalid': '结算附加费不正确，请检查后重试。',
@@ -265,6 +474,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'IN requires array': 'IN 条件必须提供列表值。',
   'LED pool and BOB resolver are required':
     '账簿服务配置不完整，请联系管理员。',
+  'LED pool, BOB resolver, and intermediary validator are required':
+    '账簿服务配置不完整，请联系管理员。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',
   'WFL pool, event bus, and document service are required':
@@ -278,8 +489,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'condition item must be an object': '每条条件必须是完整的条件对象。',
   'condition must contain one group or one predicate':
     '条件必须包含一个条件组或一个判断项。',
-  'cutoffDay 1-31 and monthOffset 0-120 are required':
-    '截止日必须为 1 至 31，月份偏移必须为 0 至 120。',
+  'monthly closing day must be 1-31': '月结日必须为 1 至 31。',
   'defaultSalesSurcharge must be a non-negative amount':
     '默认销售附加费不能为负数。',
   'defaultUsefulLifeMonths 1-1200 and defaultResidualRate 0-99.99 are required':

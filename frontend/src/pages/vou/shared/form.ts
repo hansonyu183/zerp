@@ -13,11 +13,14 @@ export interface DraftPayload {
   businessDate: string
   currency?: string
   remark?: string
+  specialApproval?: boolean
+  intermediaryCalculation?: VoucherDraftForm['intermediaryCalculation']
   returnReason?: string
   customer?: VoucherReferenceInput
   supplier?: VoucherReferenceInput
   counterpartyType?: string
   counterparty?: VoucherReferenceInput
+  otherCategory?: VoucherDraftForm['otherCategory']
   employee?: VoucherReferenceInput
   salesperson?: VoucherReferenceInput
   purchaser?: VoucherReferenceInput
@@ -117,6 +120,8 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     businessDate: localDate(),
     currency: config.productionMode ? '' : 'CNY',
     remark: '',
+    specialApproval: false,
+    intermediaryCalculation: null,
     returnReason: '',
     returnKind: '',
     customer: null,
@@ -126,6 +131,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         ? (config.fixedCounterpartyType ?? 'customer')
         : '',
     counterparty: null,
+    otherCategory: '',
     employee: null,
     salesperson: null,
     purchaser: null,
@@ -262,12 +268,15 @@ export function formFromDocument(
     businessDate: data.businessDate,
     currency: data.currency,
     remark: data.remark ?? '',
+    specialApproval: data.specialApproval ?? false,
+    intermediaryCalculation: data.intermediaryCalculation ?? null,
     returnReason: data.returnReason ?? '',
     returnKind: data.returnKind ?? '',
     customer: formReference(data.customer),
     supplier: formReference(data.supplier),
     counterpartyType: formCounterpartyType(data.counterparty),
     counterparty: formReference(data.counterparty),
+    otherCategory: data.otherCategory ?? '',
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),
     purchaser: formReference(data.purchaser),

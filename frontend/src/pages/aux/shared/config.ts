@@ -86,57 +86,6 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
     defaults: () => ({ name: '', description: '' }),
     fields: [text('name', '名称', { required: true }), description],
   },
-  'settlement-method': {
-    entity: 'settlement-method',
-    title: '结算方式',
-    defaults: () => ({
-      name: '',
-      ruleType: 'DUE_DAYS',
-      dueDays: 0,
-      cutoffDay: 25,
-      monthOffset: 0,
-      defaultSalesSurcharge: '0.00',
-      description: '',
-    }),
-    fields: [
-      text('name', '名称', { required: true }),
-      {
-        key: 'ruleType',
-        label: '规则',
-        type: 'select',
-        required: true,
-        options: [
-          { title: '到期天数', value: 'DUE_DAYS' },
-          { title: '截止日月结', value: 'MONTH_END' },
-        ],
-      },
-      {
-        key: 'dueDays',
-        label: '到期天数',
-        type: 'number',
-        required: true,
-        visible: (form) => form.ruleType === 'DUE_DAYS',
-      },
-      {
-        key: 'cutoffDay',
-        label: '截止日',
-        type: 'number',
-        required: true,
-        visible: (form) => form.ruleType === 'MONTH_END',
-      },
-      {
-        key: 'monthOffset',
-        label: '结算月偏移',
-        type: 'number',
-        required: true,
-        visible: (form) => form.ruleType === 'MONTH_END',
-      },
-      text('defaultSalesSurcharge', '销售加价（元/kg）', {
-        required: true,
-      }),
-      description,
-    ],
-  },
   'dictionary-type': {
     entity: 'dictionary-type',
     title: '字典类型',

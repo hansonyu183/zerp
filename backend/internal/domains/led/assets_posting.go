@@ -70,7 +70,16 @@ func (s *Service) postAssetDocument(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				return s.writeError("post asset acquisition", err)
 			}
 			if include {
-				if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate, detail.SupplierObjectID, detail.SupplierVersionID, detail.SupplierCode, detail.SupplierName, "supplier", -line.OriginalValueCents)); err != nil {
+				if detail.PartyAccountType == "TRADE" {
+					err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
+						detail.SupplierObjectID, detail.SupplierVersionID, detail.SupplierCode, detail.SupplierName,
+						"supplier", -line.OriginalValueCents))
+				} else {
+					err = q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, line.ID, doc.BusinessDate,
+						detail.SupplierObjectID, detail.SupplierVersionID, detail.SupplierCode, detail.SupplierName,
+						"supplier", -line.OriginalValueCents, nil))
+				}
+				if err != nil {
 					return s.writeError("post asset acquisition payable", err)
 				}
 			}
@@ -117,7 +126,16 @@ func (s *Service) postAssetDocument(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				return err
 			}
 			if include {
-				if err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate, detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode, detail.CounterpartyName, detail.CounterpartyEntity, line.SaleAmountCents)); err != nil {
+				if detail.PartyAccountType == "TRADE" {
+					err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, line.ID, doc.BusinessDate,
+						detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+						detail.CounterpartyName, detail.CounterpartyEntity, line.SaleAmountCents))
+				} else {
+					err = q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, line.ID, doc.BusinessDate,
+						detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+						detail.CounterpartyName, detail.CounterpartyEntity, line.SaleAmountCents, nil))
+				}
+				if err != nil {
 					return s.writeError("post asset sale receivable", err)
 				}
 			}

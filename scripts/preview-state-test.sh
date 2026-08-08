@@ -77,6 +77,43 @@ export ZERP_GITHUB_REPOSITORY=example/zerp
 export ZERP_GH_BIN=gh
 state=${repo_root}/scripts/preview-state.sh
 
+if [ "$(uname -s)" = Darwin ]; then
+  sandbox=${repo_root}/scripts/preview-build-sandbox.sh
+  sandbox_primary=${root}/sandbox-primary
+  sandbox_source=${sandbox_primary}/source
+  sandbox_output=${root}/sandbox-output
+  sandbox_cache=${root}/sandbox-cache
+  sandbox_secret=${sandbox_primary}/preview.env
+  mkdir -p "${sandbox_source}" "${sandbox_output}" "${sandbox_cache}"
+  printf '%s\n' secret >"${sandbox_secret}"
+  printf '%s\n' public >"${sandbox_source}/public"
+  ln -s ../preview.env "${sandbox_source}/secret-link"
+  "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    node --version >/dev/null
+  "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /bin/cat "${sandbox_source}/public" >/dev/null
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /bin/cat "${sandbox_source}/secret-link" >/dev/null 2>&1; then
+    echo 'preview sandbox followed a secret symlink' >&2
+    exit 1
+  fi
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /usr/bin/touch "${root}/sandbox-outside" >/dev/null 2>&1; then
+    echo 'preview sandbox wrote outside build directories' >&2
+    exit 1
+  fi
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /usr/bin/security list-keychains >/dev/null 2>&1; then
+    echo 'preview sandbox reached the system keychain' >&2
+    exit 1
+  fi
+fi
+
 "${state}" init
 before=$(cat "${root}/state/current")
 if PREVIEW_PR=1 PREVIEW_REF=bad PREVIEW_VERIFIED=1 "${state}" claim >/dev/null 2>&1; then
@@ -169,7 +206,15 @@ grep -Fq 'zerp_preview_pr_3' "${MOCK_DROPDB_LOG}"
 
 # The deploy wrapper verifies before and after the secret-free build.
 test "$(grep -c 'scripts/verify-preview-pr.sh' "${repo_root}/scripts/preview-deploy.sh")" = 2
-grep -q 'env -i PATH=' "${repo_root}/scripts/preview.sh"
+grep -Fq 'scripts/preview-build-sandbox.sh' "${repo_root}/scripts/preview.sh"
+grep -Fq '(subpath (param "PRIMARY_ROOT"))' \
+  "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '(subpath (param "USER_HOME"))' \
+  "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '(literal (param "SECRET_FILE"))' \
+  "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
 # shellcheck disable=SC2016 # these are intentional literal source assertions
 if grep -q '"${build_root}/scripts/preview.sh"' "${repo_root}/scripts/preview-deploy.sh"; then
   echo 'preview deploy executes an untrusted PR controller' >&2

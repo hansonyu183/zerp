@@ -272,31 +272,43 @@ build_release() {
 
   build_temp=$(mktemp -d "${runtime_root}/release.${release_name}.XXXXXX")
   mkdir -p "${build_temp}/bin" "${build_temp}/web" "${build_temp}/migrations"
+  build_cache="${runtime_root}/build-cache/${release_name}"
+  sandbox_build() {
+    "${repo_root}/scripts/preview-build-sandbox.sh" \
+      "${primary_root}" "${source_root}" "${build_temp}" "${build_cache}" \
+      "${env_file}" "$@"
+  }
+  sandbox_build_in() {
+    # shellcheck disable=SC2016 # expanded by the inner trusted shell
+    sandbox_build /bin/sh -c \
+      'cd "$1" && shift && exec "$@"' preview-build "$@"
+  }
   echo "Building native preview release ${release_name}"
-  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
-    go -C "${source_root}/backend" build -trimpath \
+  sandbox_build_in "${source_root}/backend" \
+    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-server" ./cmd/server
-  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
-    go -C "${source_root}/backend" build -trimpath \
+  sandbox_build_in "${source_root}/backend" \
+    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-preview-web" ./cmd/preview-web
-  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
-    go -C "${source_root}/backend" build -trimpath \
+  sandbox_build_in "${source_root}/backend" \
+    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-bootstrap-admin" ./cmd/bootstrap-admin
-  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
-    go -C "${source_root}/backend" build -trimpath \
+  sandbox_build_in "${source_root}/backend" \
+    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/zerp-seed-preview" ./cmd/seed-preview
-  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
-    go -C "${source_root}/backend/tools" build -trimpath \
+  sandbox_build_in "${source_root}/backend/tools" \
+    go build -buildvcs=false -trimpath \
     -o "${build_temp}/bin/goose" github.com/pressly/goose/v3/cmd/goose
 
-  (cd "${source_root}" && env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" CI="${CI:-}" pnpm install --frozen-lockfile)
+  sandbox_build_in "${source_root}" pnpm install --frozen-lockfile \
+    --store-dir "${build_cache}/pnpm-store"
   if [ "${release_marker}" = workspace ]; then
-    (cd "${source_root}" && \
-      env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" VITE_API_BASE_URL=/api/ pnpm --filter @zerp/frontend build)
+    sandbox_build_in "${source_root}" /usr/bin/env VITE_API_BASE_URL=/api/ \
+      pnpm --filter @zerp/frontend build
   else
-    (cd "${source_root}" && \
-      env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" VITE_API_BASE_URL=/api/ GITHUB_SHA="${release_marker}" \
-        pnpm --filter @zerp/frontend build)
+    sandbox_build_in "${source_root}" /usr/bin/env VITE_API_BASE_URL=/api/ \
+      GITHUB_SHA="${release_marker}" pnpm \
+      --filter @zerp/frontend build
   fi
   cp -R "${source_root}/frontend/dist/." "${build_temp}/web/"
   cp -R "${source_root}/backend/db/migrations/." "${build_temp}/migrations/"
@@ -305,6 +317,7 @@ build_release() {
   chmod -R a+rX "${build_temp}"
   mv "${build_temp}" "${release_dir}"
   build_temp=
+  rm -rf "${build_cache}"
 }
 
 xml_escape() {

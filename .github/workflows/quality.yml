@@ -111,6 +111,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
+          ZERP_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           ZERP_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: scripts/reusable-pr-checks.sh

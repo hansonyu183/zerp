@@ -31,6 +31,8 @@ make preview-accept PREVIEW_PR=<number> PREVIEW_ACTOR=<github-login>
 
 `preview-deploy` 在构建前后各读取一次 GitHub PR，要求 PR 为 Ready、仍打开、目标为 `main`、包含最新 `origin/main`、head SHA 未变化且 `validation` 成功。人工验收只能由仓库 write 及以上权限的非 Bot 用户确认；成功后写入绑定 PR、SHA、状态代次和验收人的 GitHub Preview Deployment，并为同一 SHA 发布 `full-validation` 状态。新提交会使旧预览和验收失效。
 
+预览命令必须从 `HEAD == origin/main` 的受信任控制 checkout 运行，不能在 PR worktree 运行；PR checkout 只作为无密钥编译输入。
+
 合并前必须确认最新 SHA 的全部 required checks 成功且所有可执行 review thread 已解决。禁止直接推送、强推或自动合并 `main`。
 
 ## 3. 合并与生产

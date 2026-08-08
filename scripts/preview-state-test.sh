@@ -19,6 +19,7 @@ EOF
 cat >"${root}/bin/createdb" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"${MOCK_CREATEDB_LOG}"
+[ "${MOCK_CREATEDB_FAIL:-0}" != 1 ]
 EOF
 cat >"${root}/bin/dropdb" <<'EOF'
 #!/bin/sh
@@ -78,6 +79,16 @@ if PREVIEW_PR=1 PREVIEW_REF=bad PREVIEW_VERIFIED=1 "${state}" claim >/dev/null 2
   exit 1
 fi
 test "$(cat "${root}/state/current")" = "${before}"
+
+# A failed clone is transactional: it cannot strand the slot or mutate state.
+if MOCK_CREATEDB_FAIL=1 PREVIEW_PR=9 \
+  PREVIEW_REF=9999999999999999999999999999999999999999 \
+  PREVIEW_VERIFIED=1 "${state}" claim >/dev/null 2>&1; then
+  exit 1
+fi
+test ! -e "${root}/state/lock"
+test ! -e "${root}/state/active"
+test "$(cat "${root}/state/current")" = "${before}"
 if PREVIEW_PR=1 PREVIEW_REF=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "${state}" claim >/dev/null 2>&1; then
   exit 1
 fi
@@ -113,6 +124,23 @@ grep -Fq "repos/example/zerp/statuses/${accept_head}" "${MOCK_GH_LOG}"
 PREVIEW_PR=1 PREVIEW_MERGE_SHA="${merge_sha}" "${state}" promote
 test "$(grep '^sha=' "${root}/state/current")" = "sha=${merge_sha}"
 
+# GC must retain the baseline referenced by an active PR even when it is older
+# than all of the ordinary retained baselines.
+ZERP_PREVIEW_NOW=90002 PREVIEW_PR=4 \
+  PREVIEW_REF=4444444444444444444444444444444444444444 \
+  PREVIEW_VERIFIED=1 "${state}" claim
+touch -t 202608080100 "${root}/state/baselines/${merge_sha}.state"
+for suffix in 5 6 7 8; do
+  sha="${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}${suffix}"
+  sed -e "s/^id=.*/id=${sha}/" -e "s/^sha=.*/sha=${sha}/" \
+    "${root}/state/baselines/${merge_sha}.state" >"${root}/state/baselines/${sha}.state"
+  touch -t "20260808010${suffix}" "${root}/state/baselines/${sha}.state"
+done
+ZERP_PREVIEW_NOW=90003 "${state}" gc
+test -e "${root}/state/baselines/${merge_sha}.state"
+PREVIEW_PR=4 ZERP_PREVIEW_NOW=90004 "${state}" close
+test "$(grep '^sha=' "${root}/state/current")" = "sha=${merge_sha}"
+
 # Failed deployment restores the baseline and leaves a seven-day record.
 ZERP_PREVIEW_NOW=100000 PREVIEW_PR=2 PREVIEW_FAILURE_REASON=health "${state}" fail
 test "$(grep '^kind=' "${root}/state/current")" = kind=baseline
@@ -133,4 +161,24 @@ grep -Fq 'zerp_preview_pr_3' "${MOCK_DROPDB_LOG}"
 # The deploy wrapper verifies before and after the secret-free build.
 test "$(grep -c 'scripts/verify-preview-pr.sh' "${repo_root}/scripts/preview-deploy.sh")" = 2
 grep -q 'env -i PATH=' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016 # these are intentional literal source assertions
+if grep -q '"${build_root}/scripts/preview.sh"' "${repo_root}/scripts/preview-deploy.sh"; then
+  echo 'preview deploy executes an untrusted PR controller' >&2
+  exit 1
+fi
+# shellcheck disable=SC2016
+grep -Fq '"${repo_root}/scripts/preview.sh" "$@"' "${repo_root}/scripts/preview-deploy.sh"
+# shellcheck disable=SC2016
+grep -Fq 'controller_sha=$(git rev-parse HEAD)' "${repo_root}/scripts/preview-deploy.sh"
+# shellcheck disable=SC2016
+grep -Fq 'trusted_sha=$(git rev-parse FETCH_HEAD)' "${repo_root}/scripts/preview-deploy.sh"
+grep -Fq 'if ! git diff --quiet || ! git diff --cached --quiet; then' "${repo_root}/scripts/preview-deploy.sh"
+grep -Fq 'Missing cached release for non-current baseline' "${repo_root}/scripts/preview-deploy.sh"
+# shellcheck disable=SC2016
+if grep -q '"${source_root}/compose' "${repo_root}/scripts/preview.sh"; then
+  echo 'preview runtime executes untrusted PR compose configuration' >&2
+  exit 1
+fi
+grep -Fq 'sync_release_to_state 1' "${repo_root}/scripts/preview.sh"
+grep -Fq 'sync_release_to_state 0' "${repo_root}/scripts/preview.sh"
 printf '%s\n' 'preview state tests passed'

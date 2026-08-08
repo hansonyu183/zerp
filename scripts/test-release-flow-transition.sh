@@ -179,10 +179,10 @@ cat >"${tmp}/bin/gh" <<'MOCK_REUSE'
 #!/bin/sh
 case "$*" in
   *'/pulls/9'*)
-    printf '{"head":{"sha":"%s","ref":"feature-nine"}}\n' "${MOCK_HEAD_SHA}"
+    printf '{"base":{"sha":"%s"},"head":{"sha":"%s","ref":"feature-nine"}}\n' "${MOCK_CURRENT_BASE_SHA}" "${MOCK_HEAD_SHA}"
     ;;
   *'/actions/runs?event=pull_request&head_sha='*)
-    printf '{"workflow_runs":[{"id":88,"name":"Full-stack quality","event":"pull_request","head_branch":"feature-nine","status":"completed","conclusion":"success","updated_at":"2026-08-08T00:00:00Z"}]}\n'
+    printf '{"workflow_runs":[{"id":88,"name":"Full-stack quality","event":"pull_request","head_branch":"feature-nine","head_sha":"%s","pull_requests":[{"number":%s,"base":{"sha":"%s"},"head":{"sha":"%s"}}],"status":"completed","conclusion":"success","updated_at":"2026-08-08T00:00:00Z"}]}\n' "${MOCK_HEAD_SHA}" "${MOCK_RUN_PR_NUMBER}" "${MOCK_RUN_BASE_SHA}" "${MOCK_HEAD_SHA}"
     ;;
   *'/actions/runs/88/jobs?per_page=100'*)
     printf '{"jobs":[{"name":"contracts","status":"completed","conclusion":"success","completed_at":"2026-08-08T00:01:00Z"}]}\n'
@@ -192,10 +192,25 @@ esac
 MOCK_REUSE
 chmod +x "${tmp}/bin/gh"
 reuse_output=${tmp}/reuse-output
+base_fingerprint=4444444444444444444444444444444444444444
 PATH="${tmp}/bin:${PATH}" GITHUB_REPOSITORY=example/zerp GITHUB_RUN_ID=99 \
   GITHUB_OUTPUT="${reuse_output}" ZERP_PR_NUMBER=9 \
-  MOCK_HEAD_SHA="${head_sha}" \
-  ZERP_PR_HEAD_SHA="${head_sha}" ZERP_PR_HEAD_REF=feature-nine \
+  MOCK_HEAD_SHA="${head_sha}" MOCK_CURRENT_BASE_SHA="${base_fingerprint}" \
+  MOCK_RUN_PR_NUMBER=9 MOCK_RUN_BASE_SHA="${base_fingerprint}" \
+  ZERP_PR_BASE_SHA="${base_fingerprint}" ZERP_PR_HEAD_SHA="${head_sha}" ZERP_PR_HEAD_REF=feature-nine \
   scripts/reusable-pr-checks.sh >/dev/null
 grep -Fxq 'reuse_contracts=1' "${reuse_output}"
-grep -Fxq "fingerprint=${head_sha}" "${reuse_output}"
+grep -Fxq "fingerprint=9:${base_fingerprint}:${head_sha}" "${reuse_output}"
+
+for mismatch in pr base; do
+  mismatch_output="${tmp}/reuse-${mismatch}"
+  run_pr=9; run_base=${base_fingerprint}
+  if [ "${mismatch}" = pr ]; then run_pr=10; else run_base=5555555555555555555555555555555555555555; fi
+  PATH="${tmp}/bin:${PATH}" GITHUB_REPOSITORY=example/zerp GITHUB_RUN_ID=99 \
+    GITHUB_OUTPUT="${mismatch_output}" ZERP_PR_NUMBER=9 \
+    MOCK_HEAD_SHA="${head_sha}" MOCK_CURRENT_BASE_SHA="${base_fingerprint}" \
+    MOCK_RUN_PR_NUMBER="${run_pr}" MOCK_RUN_BASE_SHA="${run_base}" \
+    ZERP_PR_BASE_SHA="${base_fingerprint}" ZERP_PR_HEAD_SHA="${head_sha}" ZERP_PR_HEAD_REF=feature-nine \
+    scripts/reusable-pr-checks.sh >/dev/null
+  grep -Fxq 'reuse_contracts=0' "${mismatch_output}"
+done

@@ -44,8 +44,8 @@ trap 'exit 143' TERM
 
 legacy_compose() {
   docker compose --env-file "${env_file}" \
-    -p "${legacy_project}" -f "${source_root}/compose.yaml" \
-    -f "${source_root}/compose.preview.yaml" "$@"
+    -p "${legacy_project}" -f "${repo_root}/compose.yaml" \
+    -f "${repo_root}/compose.preview.yaml" "$@"
 }
 
 ensure_env() {
@@ -615,6 +615,48 @@ activate_release() {
   atomic_symlink "${target}" "${current_link}"
 }
 
+sync_release_to_state() {
+  allow_exact_tree_relabel=${1:-0}
+  desired_sha=$(sed -n 's/^sha=//p' "${runtime_root}/state/current")
+  case "${desired_sha}" in
+    *[!0-9a-f]* | '')
+      echo "Preview state has an invalid release SHA: ${desired_sha:-missing}" >&2
+      return 1
+      ;;
+  esac
+  test "$(printf '%s' "${desired_sha}" | wc -c | tr -d ' ')" = 40 || {
+    echo "Preview state release SHA must be full length" >&2
+    return 1
+  }
+
+  desired_release="${releases_root}/${desired_sha}"
+  if [ ! -d "${desired_release}" ]; then
+    [ "${allow_exact_tree_relabel}" = 1 ] || {
+      echo "Trusted preview release ${desired_sha} is not available for restoration" >&2
+      return 1
+    }
+    current_release=$(CDPATH='' cd -- "${current_link}" && pwd -P)
+    promoted_temp=$(mktemp -d "${runtime_root}/promoted.${desired_sha}.XXXXXX")
+    if ! cp -Rp "${current_release}/." "${promoted_temp}/"; then
+      rm -rf "${promoted_temp}"
+      return 1
+    fi
+    printf '%s\n' "${desired_sha}" >"${promoted_temp}/release-sha"
+    printf '%s\n' "${desired_sha}" >"${promoted_temp}/web/_zerp-release"
+    chmod -R a+rX "${promoted_temp}"
+    if ! mv "${promoted_temp}" "${desired_release}"; then
+      rm -rf "${promoted_temp}"
+      return 1
+    fi
+    echo "Reused exact-tree preview artifacts for merge ${desired_sha}"
+  fi
+  test "$(cat "${desired_release}/release-sha")" = "${desired_sha}" || {
+    echo "Preview release marker does not match state ${desired_sha}" >&2
+    return 1
+  }
+  activate_release "${desired_release}"
+}
+
 rollback_release_links() {
   current_target=$(readlink "${current_link}" 2>/dev/null || true)
   previous_target=$(readlink "${previous_link}" 2>/dev/null || true)
@@ -719,9 +761,18 @@ restart_apps() {
 reap_state() {
   guard
   before=$(cat "${runtime_root}/state/current")
+  before_pr=$(sed -n 's/^id=//p' "${runtime_root}/state/current")
+  before_kind=$(sed -n 's/^kind=//p' "${runtime_root}/state/current")
   "${repo_root}/scripts/preview-state.sh" reap
   after=$(cat "${runtime_root}/state/current")
   if [ "${before}" != "${after}" ]; then
+    allow_relabel=0
+    if [ "${before_kind}" = pr ] && \
+      [ "$(sed -n 's/^status=//p' "${runtime_root}/state/prs/${before_pr}.state" 2>/dev/null)" = promoted ]; then
+      allow_relabel=1
+    fi
+    stop_apps
+    sync_release_to_state "${allow_relabel}"
     restart_apps
   fi
 }
@@ -729,6 +780,19 @@ reap_state() {
 close_state() {
   stop_apps
   if "${repo_root}/scripts/preview-state.sh" close; then
+    sync_release_to_state 0
+    restart_apps
+  else
+    restart_apps || true
+    return 1
+  fi
+}
+
+promote_state() {
+  guard
+  stop_apps
+  if "${repo_root}/scripts/preview-state.sh" promote; then
+    sync_release_to_state 1
     restart_apps
   else
     restart_apps || true
@@ -872,7 +936,11 @@ case "${1:-}" in
     [ "$#" -eq 1 ] || usage
     close_state
     ;;
-  accept|promote|gc)
+  promote)
+    [ "$#" -eq 1 ] || usage
+    promote_state
+    ;;
+  accept|gc)
     "${repo_root}/scripts/preview-state.sh" "$1"
     ;;
   *)

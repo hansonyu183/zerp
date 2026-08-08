@@ -49,6 +49,13 @@ var vouEntities = [...]string{
 	voudomain.EntityIntermediaryCalculation,
 }
 
+// PostingVOUEntities returns the VOU entities whose finalization writes LED entries.
+func PostingVOUEntities() []string {
+	entities := make([]string, len(vouEntities))
+	copy(entities, vouEntities[:])
+	return entities
+}
+
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 	if bus == nil {
 		return errors.New("LED event bus is required")

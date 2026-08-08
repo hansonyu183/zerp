@@ -1091,8 +1091,14 @@ SELECT storage_key FROM vou_files;
 
 -- name: ListVouApprovedCutoverDocuments :many
 SELECT entity, document_no, business_date::text AS business_date, status
-FROM vou_documents
-WHERE status = 'APPROVED'
+FROM vou_documents d
+WHERE d.status = 'APPROVED'
+  AND d.entity = ANY(sqlc.arg(posting_entities)::text[])
+  AND NOT EXISTS (SELECT 1 FROM led_inventory_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_fund_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_party_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_container_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_asset_entries e WHERE e.source_document_id = d.id)
 ORDER BY entity, business_date, document_no, id;
 
 -- name: InsertVouBillDetail :exec

@@ -2927,8 +2927,14 @@ func (q *Queries) ListOpenPeriodFinalizedVouDocumentsForCompletion(ctx context.C
 
 const listVouApprovedCutoverDocuments = `-- name: ListVouApprovedCutoverDocuments :many
 SELECT entity, document_no, business_date::text AS business_date, status
-FROM vou_documents
-WHERE status = 'APPROVED'
+FROM vou_documents d
+WHERE d.status = 'APPROVED'
+  AND d.entity = ANY($1::text[])
+  AND NOT EXISTS (SELECT 1 FROM led_inventory_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_fund_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_party_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_container_entries e WHERE e.source_document_id = d.id)
+  AND NOT EXISTS (SELECT 1 FROM led_asset_entries e WHERE e.source_document_id = d.id)
 ORDER BY entity, business_date, document_no, id
 `
 
@@ -2939,8 +2945,8 @@ type ListVouApprovedCutoverDocumentsRow struct {
 	Status       string `db:"status" json:"status"`
 }
 
-func (q *Queries) ListVouApprovedCutoverDocuments(ctx context.Context) ([]ListVouApprovedCutoverDocumentsRow, error) {
-	rows, err := q.db.Query(ctx, listVouApprovedCutoverDocuments)
+func (q *Queries) ListVouApprovedCutoverDocuments(ctx context.Context, postingEntities []string) ([]ListVouApprovedCutoverDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listVouApprovedCutoverDocuments, postingEntities)
 	if err != nil {
 		return nil, err
 	}

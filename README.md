@@ -44,33 +44,33 @@ make dev-down
 
 ## 常用命令
 
-| 命令                           | 作用                                   |
-| ------------------------------ | -------------------------------------- |
-| `make bootstrap`               | 安装 pnpm 与 Go 依赖                   |
-| `make dev`                     | 启动数据库、迁移、API 与前端热更新     |
-| `make generate`                | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
-| `make generate-check`          | 验证生成物已提交且无漂移               |
-| `make check`                   | 运行前端与后端质量门禁                 |
-| `make pre-push-plan`           | 显示当前提交将运行的分层门禁           |
-| `make pre-push`                | 按变更影响运行分层推送前门禁           |
-| `make test`                    | 运行前后端测试                         |
-| `make e2e`                     | 启动隔离全栈并运行真实 API Playwright  |
-| `make build`                   | 构建前端、后端及容器镜像               |
-| `make compose-up`              | 启动生产形态 Compose                   |
-| `make compose-down`            | 停止生产形态 Compose                   |
-| `make vou-cutover-check`       | 检查开发环境遗留的 `APPROVED` VOU      |
-| `make preview-up`              | 以本机进程构建并启动固定开发预览       |
-| `make preview-deploy`          | 从指定 commit 构建本机固定预览         |
-| `make preview-down`            | 停止预览并保留人工测试数据             |
-| `make preview-reset`           | 仅重置预览环境的数据与附件             |
-| `make preview-rollback`        | 回退到上一版固定预览                   |
-| `make preview-status`          | 检查预览进程、本机和公网版本           |
-| `make preview-password`        | 仅把预览管理员密码复制到剪贴板         |
-| `make preview-vou-cutover-check` | 检查固定预览遗留的 `APPROVED` VOU    |
-| `make preview-uninstall-agent` | 卸载旧版 `dev` 预览轮询代理            |
-| `make production-status`       | 检查正式环境版本及本地/公网健康状态    |
-| `make production-retry`        | 修复发布阻塞后重试被熔断的正式发布     |
-| `make production-vou-cutover-check` | 检查生产遗留的 `APPROVED` VOU      |
+| 命令                                | 作用                                   |
+| ----------------------------------- | -------------------------------------- |
+| `make bootstrap`                    | 安装 pnpm 与 Go 依赖                   |
+| `make dev`                          | 启动数据库、迁移、API 与前端热更新     |
+| `make generate`                     | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
+| `make generate-check`               | 验证生成物已提交且无漂移               |
+| `make check`                        | 运行前端与后端质量门禁                 |
+| `make pre-push-plan`                | 显示当前提交将运行的分层门禁           |
+| `make pre-push`                     | 按变更影响运行分层推送前门禁           |
+| `make test`                         | 运行前后端测试                         |
+| `make e2e`                          | 启动隔离全栈并运行真实 API Playwright  |
+| `make build`                        | 构建前端、后端及容器镜像               |
+| `make compose-up`                   | 启动生产形态 Compose                   |
+| `make compose-down`                 | 停止生产形态 Compose                   |
+| `make vou-cutover-check`            | 检查开发环境遗留的 `APPROVED` VOU      |
+| `make preview-up`                   | 以本机进程构建并启动固定开发预览       |
+| `make preview-deploy`               | 从指定 commit 构建本机固定预览         |
+| `make preview-down`                 | 停止预览并保留人工测试数据             |
+| `make preview-reset`                | 仅重置预览环境的数据与附件             |
+| `make preview-rollback`             | 回退到上一版固定预览                   |
+| `make preview-status`               | 检查预览进程、本机和公网版本           |
+| `make preview-password`             | 仅把预览管理员密码复制到剪贴板         |
+| `make preview-vou-cutover-check`    | 检查固定预览遗留的 `APPROVED` VOU      |
+| `make preview-uninstall-agent`      | 卸载旧版 `dev` 预览轮询代理            |
+| `make production-status`            | 检查正式环境版本及本地/公网健康状态    |
+| `make production-retry`             | 修复发布阻塞后重试被熔断的正式发布     |
+| `make production-vou-cutover-check` | 检查生产遗留的 `APPROVED` VOU          |
 
 ## 契约工作流
 

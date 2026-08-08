@@ -55,21 +55,39 @@ func TestVouCutoverCheckCommand(t *testing.T) {
 	t.Run("multiple entities", func(t *testing.T) {
 		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000116", "other-income", "OIN-20260809-0116", "2026-08-09")
 		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000117", "other-income", "OIN-20260810-0117", "2026-08-10")
-		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000118", "sale-pricing", "SPR-20260807-0118", "2026-08-07")
+		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000118", "employee-loan", "ELN-20260807-0118", "2026-08-07")
 
 		result := runCutoverCheck(t, commandPath, readOnlyDatabaseURL)
 		if result.exitCode != 1 {
 			t.Fatalf("exit code = %d, stderr=%q", result.exitCode, result.stderr)
 		}
 		want := "VOU approval cutover check: total=4\n" +
+			"entity employee-loan: 1\n" +
 			"entity other-income: 3\n" +
-			"entity sale-pricing: 1\n" +
+			"document entity=employee-loan number=ELN-20260807-0118 business_date=2026-08-07 status=APPROVED\n" +
 			"document entity=other-income number=OIN-20260808-0115 business_date=2026-08-08 status=APPROVED\n" +
 			"document entity=other-income number=OIN-20260809-0116 business_date=2026-08-09 status=APPROVED\n" +
-			"document entity=other-income number=OIN-20260810-0117 business_date=2026-08-10 status=APPROVED\n" +
-			"document entity=sale-pricing number=SPR-20260807-0118 business_date=2026-08-07 status=APPROVED\n"
+			"document entity=other-income number=OIN-20260810-0117 business_date=2026-08-10 status=APPROVED\n"
 		if result.stdout != want {
 			t.Fatalf("stdout = %q, want %q", result.stdout, want)
+		}
+		if result.stderr != "" {
+			t.Fatalf("stderr = %q", result.stderr)
+		}
+	})
+
+	t.Run("posted and non-ledger documents are ignored", func(t *testing.T) {
+		truncateCutoverCheckVOU(t, pool)
+		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000119", "other-income", "OIN-20260811-0119", "2026-08-11")
+		insertCutoverCheckFundEntry(t, pool, "01J00000000000000000000119", "OIN-20260811-0119", "2026-08-11")
+		insertApprovedCutoverCheckDocument(t, pool, "01J00000000000000000000120", "sale-pricing", "SPR-20260811-0120", "2026-08-11")
+
+		result := runCutoverCheck(t, commandPath, readOnlyDatabaseURL)
+		if result.exitCode != 0 {
+			t.Fatalf("exit code = %d, stdout=%q, stderr=%q", result.exitCode, result.stdout, result.stderr)
+		}
+		if result.stdout != "VOU approval cutover check: total=0\n" {
+			t.Fatalf("stdout = %q", result.stdout)
 		}
 		if result.stderr != "" {
 			t.Fatalf("stderr = %q", result.stderr)
@@ -171,7 +189,7 @@ func truncateCutoverCheckVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_product_lines, vou_other_income_details,
 			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details,
-			vou_sale_order_details, vou_documents, vou_number_counters`)
+			vou_sale_order_details, vou_documents, vou_number_counters CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate VOU: %v", err)
 	}
@@ -187,20 +205,32 @@ func insertApprovedCutoverCheckDocument(t *testing.T, pool *pgxpool.Pool, id, en
 	_, err = tx.Exec(t.Context(), `
 		INSERT INTO vou_documents(
 			id, entity, document_no, status, business_date, currency, total_amount_cents,
-			created_by, updated_by, reviewed_at, reviewed_by, approved_at, approved_by
-		) VALUES($1, $2, $3, 'APPROVED', $4, 'CNY', 1, $5, $5, now(), $5, now(), $5)`,
+			created_by, updated_by, reviewed_at, reviewed_by, approved_at, approved_by,
+			posted_at, posted_by
+		) VALUES($1, $2, $3, 'APPROVED', $4, 'CNY', 1, $5, $5, now(), $5, now(), $5,
+			now(), $5)`,
 		id, entity, number, businessDate, cutoverCheckActor)
 	if err != nil {
 		t.Fatalf("insert fixture document: %v", err)
 	}
-	if entity == "other-income" {
+	switch entity {
+	case "other-income":
 		_, err = tx.Exec(t.Context(), `
 			INSERT INTO vou_other_income_details(
 				document_id, entity, source_name, fund_account_object_id, fund_account_version_id,
 				fund_account_code, fund_account_name
 			) VALUES($1, $2, 'cutover fixture', '01J00000000000000000000001',
 				'01J00000000000000000000002', 'BANK', 'Cutover fixture')`, id, entity)
-	} else {
+	case "employee-loan":
+		_, err = tx.Exec(t.Context(), `
+			INSERT INTO vou_payment_details(
+				document_id, entity, counterparty_entity, counterparty_object_id,
+				counterparty_version_id, counterparty_code, counterparty_name,
+				fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+			) VALUES($1, $2, 'employee', '01J00000000000000000000003',
+				'01J00000000000000000000004', 'EMP-001', 'Cutover employee',
+				'01J00000000000000000000001', '01J00000000000000000000002', 'BANK', 'Cutover fixture')`, id, entity)
+	default:
 		_, err = tx.Exec(t.Context(), `
 			INSERT INTO vou_sale_pricing_details(document_id, entity) VALUES($1, $2)`, id, entity)
 	}
@@ -210,4 +240,40 @@ func insertApprovedCutoverCheckDocument(t *testing.T, pool *pgxpool.Pool, id, en
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit fixture: %v", err)
 	}
+}
+
+func insertCutoverCheckFundEntry(t *testing.T, pool *pgxpool.Pool, documentID, documentNo, businessDate string) {
+	t.Helper()
+	generationID := "01J00000000000000000000999"
+	_, err := pool.Exec(t.Context(), `
+		INSERT INTO led_generations(id, cutover_date, status, activated_by, request_id)
+		VALUES($1, $2, 'ARCHIVED', $3, 'cutover-check-fixture')`,
+		generationID, businessDate, cutoverCheckActor)
+	if err == nil {
+		_, err = pool.Exec(t.Context(), `
+		INSERT INTO led_fund_entries(
+			id, generation_id, entry_type, source_entity, source_document_id, source_document_no,
+			source_revision, effective_date, occurred_at, actor_id, request_id,
+			fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
+			currency, amount_delta_cents
+		) VALUES(
+			'01J00000000000000000000998', $1, 'POSTING', 'other-income', $4, $5,
+			1, $2, now(), $3, 'cutover-check-fixture',
+			'01J00000000000000000000001', '01J00000000000000000000002', 'BANK', 'Cutover fixture',
+			'CNY', 1
+		)`, generationID, businessDate, cutoverCheckActor, documentID, documentNo)
+	}
+	if err != nil {
+		t.Fatalf("insert posted ledger fixture: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := pool.Exec(context.Background(),
+			"DELETE FROM led_fund_entries WHERE generation_id=$1", generationID); cleanupErr != nil {
+			t.Errorf("remove posted ledger fixture: %v", cleanupErr)
+		}
+		if _, cleanupErr := pool.Exec(context.Background(),
+			"DELETE FROM led_generations WHERE id=$1", generationID); cleanupErr != nil {
+			t.Errorf("remove ledger generation fixture: %v", cleanupErr)
+		}
+	})
 }

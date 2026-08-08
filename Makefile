@@ -178,3 +178,6 @@ production-retry:
 production-rollback:
 	@test -n "$(PRODUCTION_REF)" || { echo "usage: make production-rollback PRODUCTION_REF=<release-sha>" >&2; exit 2; }
 	@./scripts/production-rollback.sh "$(PRODUCTION_REF)"
+
+production-vou-cutover-check:
+	@./scripts/production-vou-cutover-check.sh

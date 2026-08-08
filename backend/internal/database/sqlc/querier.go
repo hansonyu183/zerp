@@ -349,7 +349,7 @@ type Querier interface {
 	ListSalesWorkflowProgress(ctx context.Context, processIds []string) ([]ListSalesWorkflowProgressRow, error)
 	ListSalesWorkflowSummaries(ctx context.Context, arg ListSalesWorkflowSummariesParams) ([]ListSalesWorkflowSummariesRow, error)
 	ListStaleAppFeedbackFiles(ctx context.Context, arg ListStaleAppFeedbackFilesParams) ([]AppFeedbackFile, error)
-	ListVouApprovedCutoverDocuments(ctx context.Context) ([]ListVouApprovedCutoverDocumentsRow, error)
+	ListVouApprovedCutoverDocuments(ctx context.Context, postingEntities []string) ([]ListVouApprovedCutoverDocumentsRow, error)
 	ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error)
 	ListVouAssetDepreciationLines(ctx context.Context, documentID string) ([]VouAssetDepreciationLine, error)
 	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)

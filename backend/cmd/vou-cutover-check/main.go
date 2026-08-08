@@ -8,6 +8,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -30,7 +31,7 @@ func main() {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	documents, err := dbsqlc.New(tx).ListVouApprovedCutoverDocuments(ctx)
+	documents, err := dbsqlc.New(tx).ListVouApprovedCutoverDocuments(ctx, leddomain.PostingVOUEntities())
 	if err != nil {
 		fail()
 	}

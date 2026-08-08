@@ -13,6 +13,7 @@ import {
   type VoucherListItem,
 } from '@/components/voucher'
 import { formatReferenceLabel } from '@/utils/reference-label'
+import { formatBillType } from '@/utils/bill-type'
 import VoucherReasonDialog from '../shared/VoucherReasonDialog.vue'
 import VoucherWorkspaceActions from '../shared/VoucherWorkspaceActions.vue'
 import { lifecycleLabels } from '../shared/config'
@@ -579,7 +580,7 @@ async function confirmDelete(): Promise<void> {
                 :key="bill.billLineId"
               >
                 <td data-label="票据收入单">{{ bill.receiptDocumentNo }}</td>
-                <td data-label="类型">{{ bill.billType }}</td>
+                <td data-label="类型">{{ formatBillType(bill.billType) }}</td>
                 <td data-label="客户">{{ formatReferenceLabel(bill.customer) }}</td>
                 <td data-label="业务员">{{ formatReferenceLabel(bill.salesperson) }}</td>
                 <td class="text-end" data-label="票面金额">

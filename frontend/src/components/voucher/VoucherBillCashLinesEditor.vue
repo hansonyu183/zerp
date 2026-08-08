@@ -5,6 +5,7 @@ import type {
 } from '@/pages/vou/shared/bill/vm'
 import ReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
+import { billCashAmountTypeOptions } from '@/utils/bill-cash-amount-type'
 const props = defineProps<{
   modelValue: BillCashLineDraft[]
   editable: boolean
@@ -98,7 +99,7 @@ function remove(index: number) {
               <v-select
                 :disabled="!editable"
                 hide-details
-                :items="['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER']"
+                :items="billCashAmountTypeOptions"
                 :model-value="line.amountType"
                 variant="underlined"
                 @update:model-value="update(index, { amountType: $event })"

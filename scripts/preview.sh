@@ -586,9 +586,13 @@ EOF
 
   PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
-    -d postgres -v ON_ERROR_STOP=1 <<EOF
+    -d postgres -v ON_ERROR_STOP=1 <<EOF || return 1
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '${db_migration_user}', '${migration_password}')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${db_migration_user}') \gexec
+SELECT 'ALTER ROLE ${POSTGRES_USER} RENAME TO zerp_preview_bootstrap'
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_USER}' AND rolsuper) \gexec
+SELECT 'ALTER ROLE zerp_preview_bootstrap NOLOGIN'
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname='zerp_preview_bootstrap') \gexec
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '${POSTGRES_USER}', '${POSTGRES_PASSWORD}')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_USER}') \gexec
 ALTER ROLE ${db_migration_user} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${migration_password}';
@@ -605,7 +609,7 @@ EOF
   mv -f "${hba_new}" "${hba_file}"
   PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
-    -d postgres -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()' >/dev/null
+    -d postgres -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()' >/dev/null || return 1
 }
 
 grant_runtime_database_access() {
@@ -646,8 +650,43 @@ ensure_database_exists() {
   for database in ${managed_databases}; do
     PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
       -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
-      -d "${database}" -v ON_ERROR_STOP=1 <<EOF
-REASSIGN OWNED BY ${POSTGRES_USER} TO ${db_migration_user};
+      -d "${database}" -v ON_ERROR_STOP=1 <<EOF || return 1
+DO \$ownership\$
+DECLARE object record;
+BEGIN
+  FOR object IN
+    SELECT n.nspname AS schema_name,c.relname AS object_name,c.relkind
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    JOIN pg_roles r ON r.oid=c.relowner
+    WHERE r.rolname='zerp_preview_bootstrap'
+      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
+      AND c.relkind IN ('r','p','v','m','f','S')
+      AND (c.relkind<>'S' OR NOT EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype IN ('a','i')
+      ))
+  LOOP
+    IF object.relkind='S' THEN
+      EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO ${db_migration_user}', object.schema_name, object.object_name);
+    ELSE
+      EXECUTE format('ALTER TABLE %I.%I OWNER TO ${db_migration_user}', object.schema_name, object.object_name);
+    END IF;
+  END LOOP;
+  FOR object IN
+    SELECT n.nspname AS schema_name,p.oid::regprocedure AS object_identity,p.prokind
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    JOIN pg_roles r ON r.oid=p.proowner
+    WHERE r.rolname='zerp_preview_bootstrap'
+      AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
+  LOOP
+    IF object.prokind='p' THEN
+      EXECUTE format('ALTER PROCEDURE %s OWNER TO ${db_migration_user}', object.object_identity);
+    ELSE
+      EXECUTE format('ALTER FUNCTION %s OWNER TO ${db_migration_user}', object.object_identity);
+    END IF;
+  END LOOP;
+END
+\$ownership\$;
 ALTER SCHEMA public OWNER TO ${db_migration_user};
 EOF
     PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \

@@ -21,6 +21,7 @@ export function createPermissionManagementViewModel() {
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
   let querySequence = 0
+  let detailLoadSequence = 0
   const detailOpen = ref(false)
   const canGet = computed(() => session.can('/app/permission/get'))
 
@@ -69,15 +70,19 @@ export function createPermissionManagementViewModel() {
   }
 
   async function openDetail(row: AdminPermission): Promise<void> {
+    const sequence = ++detailLoadSequence
     loading.value = true
     errorMessage.value = null
     try {
-      detail.value = (await getAdminPermission(row.id)).data
+      const result = await getAdminPermission(row.id)
+      if (sequence !== detailLoadSequence) return
+      detail.value = result.data
       detailOpen.value = true
     } catch (error) {
+      if (sequence !== detailLoadSequence) return
       errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (sequence === detailLoadSequence) loading.value = false
     }
   }
 

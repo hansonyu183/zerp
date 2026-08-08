@@ -402,6 +402,34 @@ describe('role and permission management view models', () => {
     expect(vm.detail.value).toEqual(permission)
   })
 
+  it('忽略乱序的旧权限详情响应', async () => {
+    const first = deferred<{ data: typeof permission }>()
+    const second = deferred<{ data: typeof permission }>()
+    const otherPermission = {
+      ...permission,
+      id: 'PERMISSION-2',
+      path: '/app/role/get',
+      entity: 'role',
+      description: '查看角色',
+      revision: 2,
+    }
+    vi.mocked(getAdminPermission)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const vm = createPermissionManagementViewModel()
+
+    const firstLoad = vm.openDetail(permission)
+    const secondLoad = vm.openDetail(otherPermission)
+    second.resolve({ data: otherPermission })
+    await secondLoad
+    expect(vm.detail.value).toEqual(otherPermission)
+
+    first.resolve({ data: permission })
+    await firstLoad
+    expect(vm.detail.value).toEqual(otherPermission)
+    expect(vm.loading.value).toBe(false)
+  })
+
   it('忽略乱序的旧权限查询响应和错误', async () => {
     const first = deferred<{
       data: {

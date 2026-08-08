@@ -119,6 +119,11 @@ export const useSessionStore = defineStore('session', () => {
     try {
       await refreshMenu()
     } catch (error) {
+      if (isUnauthenticatedError(error)) {
+        clearSession()
+        initialized.value = true
+        throw error
+      }
       errorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
     }
   }

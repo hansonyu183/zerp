@@ -333,6 +333,39 @@ describe('useSessionStore.restore errors', () => {
     expect(session.errorMessage).toBeNull()
   })
 
+  it.each(['restore', 'signIn'] as const)(
+    '%s 成功后菜单返回未认证时清空会话',
+    async (action) => {
+      mockedApiClient.post
+        .mockResolvedValueOnce({
+          data: {
+            user: { id: '1', username: 'admin', displayName: '管理员' },
+            csrfToken: 'csrf-1',
+            permissions: ['/bob/customer/query'],
+          },
+        })
+        .mockRejectedValueOnce(
+          new ApiError('business', '登录状态已失效', { code: 1001 }),
+        )
+      const session = useSessionStore()
+
+      if (action === 'restore') {
+        await expect(session.restore()).resolves.toBe(false)
+        expect(session.errorMessage).toBeNull()
+      } else {
+        await expect(
+          session.signIn({ username: 'admin', password: 'correct' }),
+        ).rejects.toThrow('登录状态已失效')
+      }
+
+      expect(session.authenticated).toBe(false)
+      expect(session.permissions).toEqual([])
+      expect(session.csrfToken).toBeNull()
+      expect(session.menus).toEqual([])
+      expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith(null)
+    },
+  )
+
   it('登录密码错误时显示后端返回的剩余重试次数', async () => {
     mockedApiClient.post.mockRejectedValue(
       new ApiError('business', '密码错误，剩余重试次数 4。', {

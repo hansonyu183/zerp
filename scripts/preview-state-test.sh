@@ -51,7 +51,14 @@ case "$*" in
     fi
     ;;
   *"collaborators/alice/permission"*) printf 'write\n' ;;
-  *"deployments?sha="*) ;;
+  *"deployments/42/statuses?per_page=100"*)
+    printf '[{"state":"success","description":"accepted PR #1 head %s generation 1 actor alice","creator":{"login":"alice"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_ACCEPT_HEAD}"
+    ;;
+  *"deployments?sha="*)
+    if grep -Fq -- "--method POST repos/example/zerp/deployments/42/statuses" "${MOCK_GH_LOG}"; then
+      printf '[{"id":42,"description":"preview PR #1 generation 1 actor alice","payload":{"pr":"1","generation":"1","actor":"alice"},"creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
+    fi
+    ;;
   *"--method POST repos/example/zerp/deployments --input - --jq .id"*) printf '42\n' ;;
   *"--method POST repos/example/zerp/statuses/${MOCK_ACCEPT_HEAD}"*)
     if [ "${MOCK_DRIFT_AFTER_STATUS:-0}" = 1 ]; then
@@ -66,7 +73,7 @@ case "$*" in
     printf '%s\n' "${MOCK_TREE_SHA}"
     ;;
   *"commits/${MOCK_ACCEPT_HEAD}/statuses?per_page=100"*)
-    printf '[{"context":"full-validation","state":"success","created_at":"2026-08-08T00:01:00Z"}]\n'
+    printf '[{"context":"full-validation","state":"success","description":"accepted preview PR #1 generation 1 by alice","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
     ;;
   *"commits/${MOCK_ACCEPT_HEAD}/check-runs?per_page=100"*)
     printf '{"check_runs":[]}\n'

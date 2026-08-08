@@ -131,7 +131,7 @@ case "$*" in
   *'/check-runs?per_page=100'*)
     case "${MOCK_SCENARIO}" in
       success) checks='full-validation:success' ;;
-      status-success) checks='validation:success' ;;
+      status-success | accepted-status-success) checks='validation:success' ;;
       missing) checks='validation:success' ;;
       failed) checks='full-validation:failure' ;;
       *) exit 2 ;;
@@ -145,12 +145,21 @@ case "$*" in
     done
     printf ']}\n'
     ;;
-  *'/statuses?per_page=100'*)
+  *"commits/${MOCK_HEAD_SHA}/statuses?per_page=100"*)
     if [ "${MOCK_SCENARIO}" = status-success ]; then
       printf '[{"context":"full-validation","state":"success","created_at":"2026-08-08T00:01:00Z"}]\n'
+    elif [ "${MOCK_SCENARIO}" = accepted-status-success ]; then
+      printf '[{"context":"full-validation","state":"success","description":"accepted preview PR #7 generation 3 by alice","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
     else
       printf '[]\n'
     fi
+    ;;
+  *'/collaborators/alice/permission'*) printf 'write\n' ;;
+  *'/deployments?sha='*)
+    printf '[{"id":42,"description":"preview PR #7 generation 3 actor alice","payload":{"pr":"7","generation":"3","actor":"alice"},"creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
+    ;;
+  *'/deployments/42/statuses?per_page=100'*)
+    printf '[{"state":"success","description":"accepted PR #7 head %s generation 3 actor alice","creator":{"login":"alice"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_HEAD_SHA}"
     ;;
   *) exit 2 ;;
 esac
@@ -175,7 +184,8 @@ assert_merge_evidence() {
 }
 
 assert_merge_evidence success 3333333333333333333333333333333333333333 success
-assert_merge_evidence status-success 3333333333333333333333333333333333333333 success
+assert_merge_evidence status-success 3333333333333333333333333333333333333333 failure
+assert_merge_evidence accepted-status-success 3333333333333333333333333333333333333333 success
 assert_merge_evidence missing 3333333333333333333333333333333333333333 failure
 assert_merge_evidence failed 3333333333333333333333333333333333333333 failure
 assert_merge_evidence success 4444444444444444444444444444444444444444 failure

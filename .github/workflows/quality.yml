@@ -2,6 +2,7 @@ name: Full-stack quality
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
   workflow_dispatch:
@@ -376,3 +377,56 @@ jobs:
       - name: Reuse successful PR E2E check
         if: github.event_name == 'push'
         run: echo "Reused merged PR E2E result"
+
+  validation:
+    name: validation
+    if: always()
+    needs:
+      - merge_evidence
+      - contracts
+      - frontend
+      - backend
+      - containers
+      - e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate automated validation
+        env:
+          EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          CONTAINERS_RESULT: ${{ needs.containers.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          test "$EVIDENCE_RESULT" = "success"
+          test "$CONTRACTS_RESULT" = "success"
+          test "$FRONTEND_RESULT" = "success"
+          test "$BACKEND_RESULT" = "success"
+          test "$CONTAINERS_RESULT" = "success"
+          test "$E2E_RESULT" = "success"
+
+  full_validation:
+    name: >-
+      ${{
+        github.event_name != 'push' &&
+        needs.merge_evidence.outputs.preview == '1' &&
+        'preview-required' || 'full-validation'
+      }}
+    if: always()
+    needs:
+      - merge_evidence
+      - validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish release readiness
+        env:
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+          PREVIEW_REQUIRED: ${{ needs.merge_evidence.outputs.preview }}
+        run: |
+          test "$VALIDATION_RESULT" = "success"
+          if [ "$PREVIEW_REQUIRED" = "1" ]; then
+            echo "Automated validation passed; exact-SHA preview acceptance must publish full-validation"
+          fi

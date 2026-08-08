@@ -8,6 +8,25 @@ test "$(printf 'README.md\n' | scripts/change-impact.sh --paths)" = docs
 test "$(printf 'README.md\nscripts/pre-push.sh\n' | scripts/change-impact.sh --paths)" = validation
 test "$(printf 'README.md\nfrontend/src/main.ts\n' | scripts/change-impact.sh --paths)" = application
 
+# Bootstrap the stable release-readiness check while existing component checks
+# remain required until preview acceptance joins the same end-to-end tree.
+grep -Fq 'types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]' \
+  .github/workflows/quality.yml
+grep -Fq 'name: validation' .github/workflows/quality.yml
+grep -Fq "'preview-required' || 'full-validation'" .github/workflows/quality.yml
+full_validation_block=$(sed -n '/^  full_validation:/,/^$/p' .github/workflows/quality.yml)
+printf '%s\n' "${full_validation_block}" |
+  grep -Fq "github.event_name != 'push' &&" || {
+  echo "main push must preserve the full-validation check name" >&2
+  exit 1
+}
+if printf '%s\n' "${full_validation_block}" |
+  grep -Fq "github.event_name == 'pull_request' &&"; then
+  echo "full-validation must never bypass preview acceptance by event type" >&2
+  exit 1
+fi
+grep -Fq "PREVIEW_REQUIRED: \${{ needs.merge_evidence.outputs.preview }}" \
+  .github/workflows/quality.yml
 assert_checks() {
   expected=$1
   shift

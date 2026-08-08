@@ -4,6 +4,8 @@ set -eu
 repository=${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}
 merge_sha=${GITHUB_SHA:?set GITHUB_SHA}
 required_checks=${ZERP_REQUIRED_PR_CHECKS:-"full-validation"}
+expected_pull_number=${ZERP_EXPECTED_PR:-}
+expected_head_sha=${ZERP_EXPECTED_HEAD:-}
 
 command -v gh >/dev/null 2>&1 || {
   echo "gh is required to verify merged PR evidence" >&2
@@ -20,6 +22,15 @@ head_sha=$(printf '%s' "${pulls}" | jq -r --arg merge_sha "${merge_sha}" '[.[] |
 
 if [ -z "${pull_number}" ] || [ -z "${head_sha}" ]; then
   echo "Main commit ${merge_sha} is not an associated merged PR commit" >&2
+  exit 1
+fi
+
+if [ -n "${expected_pull_number}" ] && [ "${pull_number}" != "${expected_pull_number}" ]; then
+  echo "Main commit ${merge_sha} belongs to PR #${pull_number}, expected PR #${expected_pull_number}" >&2
+  exit 1
+fi
+if [ -n "${expected_head_sha}" ] && [ "${head_sha}" != "${expected_head_sha}" ]; then
+  echo "Merged PR #${pull_number} head is ${head_sha}, expected ${expected_head_sha}" >&2
   exit 1
 fi
 

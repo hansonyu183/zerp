@@ -52,8 +52,14 @@ case "$*" in
   *"collaborators/alice/permission"*) printf 'write\n' ;;
   *"deployments?sha="*) ;;
   *"--method POST repos/example/zerp/deployments --input - --jq .id"*) printf '42\n' ;;
+  *"--method POST repos/example/zerp/statuses/${MOCK_ACCEPT_HEAD}"*)
+    if [ "${MOCK_DRIFT_AFTER_STATUS:-0}" = 1 ]; then
+      printf '%s\n' 9999999999999999999999999999999999999999 >"${MOCK_RUNTIME_RELEASE_FILE}"
+    fi
+    printf '{}\n'
+    ;;
   *"commits/${MOCK_MERGE_SHA}/pulls?per_page=20"*)
-    printf '[{"number":1,"base":{"ref":"main"},"merged_at":"2026-08-08T00:00:00Z","merge_commit_sha":"%s","head":{"sha":"%s"}}]\n' "${MOCK_MERGE_SHA}" "${MOCK_ACCEPT_HEAD}"
+    printf '[{"number":%s,"base":{"ref":"main"},"merged_at":"2026-08-08T00:00:00Z","merge_commit_sha":"%s","head":{"sha":"%s"}}]\n' "${MOCK_MERGED_PR:-1}" "${MOCK_MERGE_SHA}" "${MOCK_MERGED_HEAD:-${MOCK_ACCEPT_HEAD}}"
     ;;
   *"git/commits/${MOCK_MERGE_SHA}"* | *"git/commits/${MOCK_ACCEPT_HEAD}"*)
     printf '%s\n' "${MOCK_TREE_SHA}"
@@ -77,6 +83,7 @@ export MOCK_DROPDB_LOG="${root}/dropdb.log"
 export MOCK_ACCEPT_HEAD="${accept_head}"
 export MOCK_MERGE_SHA="${merge_sha}"
 export MOCK_TREE_SHA="${tree_sha}"
+export MOCK_RUNTIME_RELEASE_FILE="${root}/runtime/releases/${accept_head}/release-sha"
 export MOCK_POSTGRES_PASSWORD=preview-test-password
 export ZERP_PREVIEW_STATE_ROOT="${root}/state"
 export ZERP_PREVIEW_RUNTIME_ROOT="${root}/runtime"
@@ -236,9 +243,28 @@ if PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept >/dev/null 2>&1; then
   exit 1
 fi
 printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
+if MOCK_DRIFT_AFTER_STATUS=1 PREVIEW_PR=1 PREVIEW_ACTOR=alice \
+  "${state}" accept >/dev/null 2>&1; then
+  echo 'Preview drift after acceptance publication was accepted' >&2
+  exit 1
+fi
+test "$(grep '^status=' "${root}/state/prs/1.state")" = status=active
+printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
 PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept
 grep -Fq "repos/example/zerp/deployments" "${MOCK_GH_LOG}"
 grep -Fq "repos/example/zerp/statuses/${accept_head}" "${MOCK_GH_LOG}"
+if MOCK_MERGED_PR=2 PREVIEW_PR=1 PREVIEW_MERGE_SHA="${merge_sha}" \
+  "${state}" promote >/dev/null 2>&1; then
+  echo 'Promotion accepted a merge from another PR' >&2
+  exit 1
+fi
+if MOCK_MERGED_HEAD=3333333333333333333333333333333333333333 \
+  PREVIEW_PR=1 PREVIEW_MERGE_SHA="${merge_sha}" \
+  "${state}" promote >/dev/null 2>&1; then
+  echo 'Promotion accepted a merge from another head' >&2
+  exit 1
+fi
+test "$(grep '^status=' "${root}/state/prs/1.state")" = status=accepted
 PREVIEW_PR=1 PREVIEW_MERGE_SHA="${merge_sha}" "${state}" promote
 test "$(grep '^sha=' "${root}/state/current")" = "sha=${merge_sha}"
 

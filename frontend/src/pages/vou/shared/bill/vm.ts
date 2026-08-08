@@ -140,6 +140,16 @@ type BillMaturitySaveRequest = {
   data: BillMaturityData
 }
 
+const requiredCreateReferencePermissions: Readonly<
+  Record<BillVoucherConfig['mode'], readonly string[]>
+> = {
+  receipt: ['/bob/customer/query', '/bob/employee/query'],
+  payment: ['/bob/supplier/query'],
+  issue: ['/bob/supplier/query'],
+  discount: ['/bob/other-party/query'],
+  maturity: ['/bob/fund-account/query'],
+}
+
 function key() {
   return crypto.randomUUID()
 }
@@ -203,8 +213,16 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const hasRequiredHeldBillAccess = computed(
     () => !requiresHeldBillAccess || canSelectHeldBills.value,
   )
+  const hasRequiredCreateReferenceAccess = computed(() =>
+    requiredCreateReferencePermissions[config.mode].every((required) =>
+      session.can(required),
+    ),
+  )
   const canCreate = computed(
-    () => session.can(permission('create')) && hasRequiredHeldBillAccess.value,
+    () =>
+      session.can(permission('create')) &&
+      hasRequiredHeldBillAccess.value &&
+      hasRequiredCreateReferenceAccess.value,
   )
   const rows = ref<BillListItem[]>([])
   const total = ref(0)

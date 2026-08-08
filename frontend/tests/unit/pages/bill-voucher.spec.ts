@@ -532,6 +532,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-payment/create',
         '/vou/bill-payment/get',
         '/led/bill/query',
+        '/bob/supplier/query',
       ],
     })
     const document = (documentId: string, documentNo: string) => ({
@@ -609,6 +610,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-payment/create',
         '/vou/bill-payment/get',
         '/vou/bill-payment/save',
+        '/bob/supplier/query',
       ],
     })
     const scope = effectScope()
@@ -633,6 +635,45 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
+  it('requires every mandatory reference catalog before enabling create', () => {
+    const cases = [
+      {
+        entity: 'bill-receipt' as const,
+        permissions: ['/bob/customer/query', '/bob/employee/query'],
+      },
+      {
+        entity: 'bill-payment' as const,
+        permissions: ['/led/bill/query', '/bob/supplier/query'],
+      },
+      {
+        entity: 'bill-issue' as const,
+        permissions: ['/bob/supplier/query'],
+      },
+      {
+        entity: 'bill-discount' as const,
+        permissions: ['/led/bill/query', '/bob/other-party/query'],
+      },
+      {
+        entity: 'bill-maturity' as const,
+        permissions: ['/led/bill/query', '/bob/fund-account/query'],
+      },
+    ]
+    const session = useSessionStore()
+
+    for (const testCase of cases) {
+      session.$patch({ permissions: [`/vou/${testCase.entity}/create`] })
+      const scope = effectScope()
+      const vm = scope.run(() =>
+        useBillVoucherViewModel(billVoucherConfigs[testCase.entity]),
+      )!
+
+      expect(vm.canCreate.value).toBe(false)
+      session.permissions.push(...testCase.permissions)
+      expect(vm.canCreate.value).toBe(true)
+      scope.stop()
+    }
+  })
+
   it('covers create, references, LED selection, save, lifecycle and delete flows', async () => {
     const session = useSessionStore()
     session.$patch({
@@ -644,6 +685,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-maturity/check',
         '/vou/bill-maturity/delete',
         '/led/bill/query',
+        '/bob/fund-account/query',
       ],
     })
     const scope = effectScope()
@@ -749,7 +791,11 @@ describe('bill voucher view model behavior', () => {
   it('rejects invalid maturity form before API mutation', async () => {
     const session = useSessionStore()
     session.$patch({
-      permissions: ['/vou/bill-maturity/create', '/led/bill/query'],
+      permissions: [
+        '/vou/bill-maturity/create',
+        '/led/bill/query',
+        '/bob/fund-account/query',
+      ],
     })
     const scope = effectScope()
     const vm = scope.run(() =>

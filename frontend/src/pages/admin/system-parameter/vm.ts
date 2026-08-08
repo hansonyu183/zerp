@@ -24,6 +24,7 @@ export function createSystemParameterViewModel() {
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
   let querySequence = 0
+  let editorLoadSequence = 0
   const editorOpen = ref(false)
   const editing = ref<SystemParameter | null>(null)
   const inputValue = ref('')
@@ -107,20 +108,26 @@ export function createSystemParameterViewModel() {
   }
 
   async function openEdit(row: SystemParameter): Promise<void> {
+    const sequence = ++editorLoadSequence
     loading.value = true
     errorMessage.value = null
     try {
-      editing.value = (await getSystemParameter(row.key)).data
-      inputValue.value = editing.value.value
+      const detail = (await getSystemParameter(row.key)).data
+      if (sequence !== editorLoadSequence) return
+      editing.value = detail
+      inputValue.value = detail.value
       editorOpen.value = true
     } catch (error) {
+      if (sequence !== editorLoadSequence) return
       errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (sequence === editorLoadSequence) loading.value = false
     }
   }
 
   function closeEditor(): void {
+    editorLoadSequence += 1
+    loading.value = false
     editorOpen.value = false
     editing.value = null
     inputValue.value = ''

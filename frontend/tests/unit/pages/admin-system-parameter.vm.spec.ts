@@ -150,6 +150,35 @@ describe('system parameter view model', () => {
     expect(vm.loading.value).toBe(false)
   })
 
+  it('忽略乱序的旧参数编辑详情响应', async () => {
+    const first = deferred<{ data: typeof integerParameter }>()
+    const second = deferred<{ data: typeof integerParameter }>()
+    const otherParameter = {
+      ...integerParameter,
+      key: 'voucher.rounding.scale',
+      name: '凭证金额小数位',
+      value: '4',
+      revision: 7,
+    }
+    vi.mocked(getSystemParameter)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const vm = createSystemParameterViewModel()
+
+    const firstLoad = vm.openEdit(integerParameter)
+    const secondLoad = vm.openEdit(otherParameter)
+    second.resolve({ data: otherParameter })
+    await secondLoad
+    expect(vm.editing.value).toEqual(otherParameter)
+    expect(vm.inputValue.value).toBe('4')
+
+    first.resolve({ data: integerParameter })
+    await firstLoad
+    expect(vm.editing.value).toEqual(otherParameter)
+    expect(vm.inputValue.value).toBe('4')
+    expect(vm.loading.value).toBe(false)
+  })
+
   it('保存时在前端校验类型并携带当前 revision', async () => {
     const vm = createSystemParameterViewModel()
     await vm.openEdit(integerParameter)

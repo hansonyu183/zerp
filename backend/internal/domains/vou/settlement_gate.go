@@ -100,15 +100,17 @@ func (s *Service) reserveOrderSettlementAmount(
 				"availableBalance": formatMoney(maxInt64(available, 0)),
 			}, nil)
 		}
-	} else if !reservationExists {
-		outstandingDebt := (gate.CounterpartyEntity == "customer" && balance > 0) ||
-			(gate.CounterpartyEntity == "supplier" && balance < 0)
-		if outstandingDebt {
-			return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
-				"currency":           gate.Currency,
-				"orderAmount":        formatMoney(reservedAmount),
-				"outstandingBalance": formatMoney(absInt64(balance)),
-			}, nil)
+	} else {
+		if !reservationExists {
+			outstandingDebt := (gate.CounterpartyEntity == "customer" && balance > 0) ||
+				(gate.CounterpartyEntity == "supplier" && balance < 0)
+			if outstandingDebt {
+				return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
+					"currency":           gate.Currency,
+					"orderAmount":        formatMoney(reservedAmount),
+					"outstandingBalance": formatMoney(absInt64(balance)),
+				}, nil)
+			}
 		}
 		var existingOrderID string
 		err = tx.QueryRow(ctx, `SELECT order_id FROM vou_settlement_reservations

@@ -322,6 +322,19 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	}, integrationActorTwo, "cod-second-after-release"); err != nil {
 		t.Fatalf("approve second COD order after release: %v", err)
 	}
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin COD reopen transaction: %v", err)
+	}
+	if err = service.reserveOrderSettlement(
+		t.Context(), tx, EntitySaleOrder, first.DocumentID,
+	); err == nil || !strings.Contains(err.Error(), "unfinished cash-on-delivery order") {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("reopened first COD order ignored active second order: %v", err)
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback COD reopen transaction: %v", err)
+	}
 	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
 		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
 		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,

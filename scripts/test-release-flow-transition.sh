@@ -137,6 +137,8 @@ case "$*" in
   *'/check-runs?per_page=100'*)
     case "${MOCK_SCENARIO}" in
       success) checks='full-validation:success' ;;
+      untrusted-check) checks='full-validation:success' ;;
+      preview-check-success) checks='preview-required:success full-validation:success' ;;
       status-success | accepted-status-*) checks='validation:success' ;;
       missing) checks='validation:success' ;;
       failed) checks='full-validation:failure' ;;
@@ -146,10 +148,18 @@ case "$*" in
     separator=
     for check in ${checks}; do
       name=${check%%:*}; conclusion=${check##*:}
-      printf '%s{"name":"%s","status":"completed","conclusion":"%s","started_at":"2026-08-08T00:00:00Z"}' "$separator" "$name" "$conclusion"
+      app=github-actions
+      [ "${MOCK_SCENARIO}" != untrusted-check ] || app=untrusted-app
+      printf '%s{"name":"%s","status":"completed","conclusion":"%s","started_at":"2026-08-08T00:00:00Z","details_url":"https://github.com/example/zerp/actions/runs/88/job/99","app":{"slug":"%s"}}' "$separator" "$name" "$conclusion" "$app"
       separator=,
     done
     printf ']}\n'
+    ;;
+  *'/actions/runs/88')
+    printf '{"name":"Full-stack quality","path":".github/workflows/quality.yml","event":"pull_request","status":"completed","conclusion":"success","head_sha":"%s","head_repository":{"full_name":"example/zerp"},"pull_requests":[{"number":7,"base":{"ref":"main"},"head":{"sha":"%s"}}]}\n' "${MOCK_HEAD_SHA}" "${MOCK_HEAD_SHA}"
+    ;;
+  *'/actions/jobs/99')
+    printf '{"name":"full-validation","status":"completed","conclusion":"success","head_sha":"%s","html_url":"https://github.com/example/zerp/actions/runs/88/job/99","workflow_name":"Full-stack quality"}\n' "${MOCK_HEAD_SHA}"
     ;;
   *"commits/${MOCK_HEAD_SHA}/statuses?per_page=100"*)
     if [ "${MOCK_SCENARIO}" = status-success ]; then
@@ -190,6 +200,8 @@ assert_merge_evidence() {
 }
 
 assert_merge_evidence success 3333333333333333333333333333333333333333 success
+assert_merge_evidence untrusted-check 3333333333333333333333333333333333333333 failure
+assert_merge_evidence preview-check-success 3333333333333333333333333333333333333333 failure
 assert_merge_evidence status-success 3333333333333333333333333333333333333333 failure
 assert_merge_evidence accepted-status-success 3333333333333333333333333333333333333333 success
 assert_merge_evidence accepted-status-bot 3333333333333333333333333333333333333333 failure

@@ -4,6 +4,7 @@ import CompactTableField from '@/components/common/CompactTableField.vue'
 import type { BillLineDraft } from '@/pages/vou/shared/bill/vm'
 import { appendHeldBillLines } from '@/pages/vou/shared/bill/selection'
 import { previewInterestAmount } from '@/pages/vou/shared/bill/validation'
+import { billTypeOptions, formatBillType } from '@/utils/bill-type'
 
 const props = withDefaults(
   defineProps<{
@@ -139,7 +140,7 @@ function costPreview(line: BillLineDraft): string | null {
 }
 
 function billTypeLabel(value: BillLineDraft['billType']): string {
-  return billTypes.find((item) => item.value === value)?.title ?? value
+  return formatBillType(value)
 }
 
 function originatingPartyLabel(line: BillLineDraft): string {
@@ -147,12 +148,7 @@ function originatingPartyLabel(line: BillLineDraft): string {
   return party ? `${party.code} · ${party.name}` : '—'
 }
 
-const billTypes = [
-  { title: '银行承兑', value: 'BANK_ACCEPTANCE' },
-  { title: '商业承兑', value: 'COMMERCIAL_ACCEPTANCE' },
-  { title: '支票', value: 'CHECK' },
-  { title: '其他', value: 'OTHER' },
-]
+const billTypes = billTypeOptions
 const media = [
   { title: '电子', value: 'ELECTRONIC' },
   { title: '纸质', value: 'PAPER' },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import ReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
+import { billTypeOptions, formatBillType } from '@/utils/bill-type'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import { useBillLedgerViewModel } from './vm'
 const vm = useBillLedgerViewModel()
@@ -8,10 +9,6 @@ const labels: Record<string, string> = {
   AVAILABLE: '可用',
   USED: '已使用',
   MATURED: '已到期',
-  BANK_ACCEPTANCE: '银行承兑',
-  COMMERCIAL_ACCEPTANCE: '商业承兑',
-  CHECK: '支票',
-  OTHER: '其他',
 }
 const partyTypeLabels: Record<string, string> = {
   customer: '客户',
@@ -43,12 +40,7 @@ onMounted(() => void vm.load())
           <v-select
             v-model="vm.filters.billType"
             clearable
-            :items="[
-              { title: '银行承兑', value: 'BANK_ACCEPTANCE' },
-              { title: '商业承兑', value: 'COMMERCIAL_ACCEPTANCE' },
-              { title: '支票', value: 'CHECK' },
-              { title: '其他', value: 'OTHER' },
-            ]"
+            :items="billTypeOptions"
             label="票据类型"
             variant="outlined"
           />
@@ -108,7 +100,7 @@ onMounted(() => void vm.load())
         <tbody>
           <tr v-for="row in vm.rows.value" :key="row.billId">
             <td data-label="票据号码">{{ row.billNo }}</td>
-            <td data-label="类型">{{ labels[row.billType] ?? row.billType }}</td>
+            <td data-label="类型">{{ formatBillType(row.billType) }}</td>
             <td data-label="持有状态">{{ labels[row.availability] ?? row.availability }}</td>
             <td data-label="币种">{{ row.currency }}</td>
             <td data-label="票面金额">{{ row.faceAmount }}</td>

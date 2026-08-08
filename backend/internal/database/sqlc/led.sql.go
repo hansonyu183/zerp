@@ -1935,31 +1935,31 @@ WITH bill_positions AS (
   SELECT
     bill_positions.id, bill_positions.position_type, bill_positions.bill_type, bill_positions.bill_no, bill_positions.medium, bill_positions.currency, bill_positions.face_amount_cents, bill_positions.issue_date, bill_positions.maturity_date, bill_positions.drawer, bill_positions.acceptor, bill_positions.payee, bill_positions.annual_rate_bps, bill_positions.interest_days, bill_positions.interest_amount_cents, bill_positions.customer_cost_amount_cents, bill_positions.origin_party_entity, bill_positions.origin_party_object_id, bill_positions.origin_party_version_id, bill_positions.origin_party_code, bill_positions.origin_party_name, bill_positions.source_document_id, bill_positions.source_line_id, bill_positions.created_at, bill_positions.source_entity, bill_positions.source_document_no, bill_positions.available_balance,
     CASE
-      WHEN available_balance = 1 AND maturity_date < CURRENT_DATE THEN 'MATURED'
+      WHEN available_balance = 1 AND maturity_date < $7::date THEN 'MATURED'
       WHEN available_balance = 1 THEN 'AVAILABLE'
       ELSE 'USED'
     END::text AS availability
   FROM bill_positions
-  WHERE ($7::text = '' OR position_type = $7)
-    AND ($8::text = '' OR bill_type = $8)
-    AND ($9::text = '' OR bill_no ILIKE '%' || $9 || '%')
-    AND (
-      $10::text = ''
-      OR maturity_date >= $10::date
-    )
+  WHERE ($8::text = '' OR position_type = $8)
+    AND ($9::text = '' OR bill_type = $9)
+    AND ($10::text = '' OR bill_no ILIKE '%' || $10 || '%')
     AND (
       $11::text = ''
-      OR maturity_date <= $11::date
+      OR maturity_date >= $11::date
     )
     AND (
       $12::text = ''
-      OR origin_party_entity = $12
+      OR maturity_date <= $12::date
     )
     AND (
       $13::text = ''
-      OR origin_party_object_id = $13
+      OR origin_party_entity = $13
     )
-    AND ($14::text = '' OR source_entity = $14)
+    AND (
+      $14::text = ''
+      OR origin_party_object_id = $14
+    )
+    AND ($15::text = '' OR source_entity = $15)
 )
 SELECT filtered.id, filtered.position_type, filtered.bill_type, filtered.bill_no, filtered.medium, filtered.currency, filtered.face_amount_cents, filtered.issue_date, filtered.maturity_date, filtered.drawer, filtered.acceptor, filtered.payee, filtered.annual_rate_bps, filtered.interest_days, filtered.interest_amount_cents, filtered.customer_cost_amount_cents, filtered.origin_party_entity, filtered.origin_party_object_id, filtered.origin_party_version_id, filtered.origin_party_code, filtered.origin_party_name, filtered.source_document_id, filtered.source_line_id, filtered.created_at, filtered.source_entity, filtered.source_document_no, filtered.available_balance, filtered.availability, count(*) OVER()::bigint AS total_count
 FROM filtered
@@ -1980,20 +1980,21 @@ LIMIT $5 OFFSET $4
 `
 
 type ListLedBillsParams struct {
-	Availability             string `db:"availability" json:"availability"`
-	SortField                string `db:"sort_field" json:"sort_field"`
-	SortOrder                string `db:"sort_order" json:"sort_order"`
-	PageOffset               int32  `db:"page_offset" json:"page_offset"`
-	PageSize                 int32  `db:"page_size" json:"page_size"`
-	GenerationID             string `db:"generation_id" json:"generation_id"`
-	PositionType             string `db:"position_type" json:"position_type"`
-	BillType                 string `db:"bill_type" json:"bill_type"`
-	BillNo                   string `db:"bill_no" json:"bill_no"`
-	MaturityDateFrom         string `db:"maturity_date_from" json:"maturity_date_from"`
-	MaturityDateTo           string `db:"maturity_date_to" json:"maturity_date_to"`
-	OriginatingPartyEntity   string `db:"originating_party_entity" json:"originating_party_entity"`
-	OriginatingPartyObjectID string `db:"originating_party_object_id" json:"originating_party_object_id"`
-	SourceEntity             string `db:"source_entity" json:"source_entity"`
+	Availability             string      `db:"availability" json:"availability"`
+	SortField                string      `db:"sort_field" json:"sort_field"`
+	SortOrder                string      `db:"sort_order" json:"sort_order"`
+	PageOffset               int32       `db:"page_offset" json:"page_offset"`
+	PageSize                 int32       `db:"page_size" json:"page_size"`
+	GenerationID             string      `db:"generation_id" json:"generation_id"`
+	AsOfDate                 pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	PositionType             string      `db:"position_type" json:"position_type"`
+	BillType                 string      `db:"bill_type" json:"bill_type"`
+	BillNo                   string      `db:"bill_no" json:"bill_no"`
+	MaturityDateFrom         string      `db:"maturity_date_from" json:"maturity_date_from"`
+	MaturityDateTo           string      `db:"maturity_date_to" json:"maturity_date_to"`
+	OriginatingPartyEntity   string      `db:"originating_party_entity" json:"originating_party_entity"`
+	OriginatingPartyObjectID string      `db:"originating_party_object_id" json:"originating_party_object_id"`
+	SourceEntity             string      `db:"source_entity" json:"source_entity"`
 }
 
 type ListLedBillsRow struct {
@@ -2036,6 +2037,7 @@ func (q *Queries) ListLedBills(ctx context.Context, arg ListLedBillsParams) ([]L
 		arg.PageOffset,
 		arg.PageSize,
 		arg.GenerationID,
+		arg.AsOfDate,
 		arg.PositionType,
 		arg.BillType,
 		arg.BillNo,

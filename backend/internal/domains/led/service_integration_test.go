@@ -1490,6 +1490,16 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 		bills.Items[0].OriginatingParty.Entity != "customer" {
 		t.Fatalf("bill ledger after finalize = %+v, err=%v", bills, err)
 	}
+	originalToday := ledger.today
+	ledger.today = func() time.Time { return time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC) }
+	matured, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "MATURED"},
+		Sort: []SortInput{{Field: "maturityDate", Order: "asc"}},
+	})
+	ledger.today = originalToday
+	if err != nil || matured.Total != 1 || len(matured.Items) != 1 || matured.Items[0].BillID != bills.Items[0].BillID {
+		t.Fatalf("bill business-date maturity classification = %+v, err=%v", matured, err)
+	}
 	duplicate, _ := advanceToChecked(t, vouchers, voudomain.EntityBillReceipt, voudomain.DraftInput{
 		BusinessDate: "2026-08-01", Currency: "CNY", Counterparty: &refs.customer,
 		Handler: &refs.employee, BillLines: []voudomain.BillLineInput{primary},

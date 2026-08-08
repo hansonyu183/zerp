@@ -43,6 +43,11 @@ func (s *Service) handleApprovedCompletion(ctx context.Context, tx pgx.Tx, raw t
 	if !ok {
 		return nil
 	}
+	if event.Entity == EntityPurchaseReturn {
+		if err := s.refreshPurchaseOrderFulfillment(ctx, tx, event.DocumentID, event.ActorID); err != nil {
+			return err
+		}
+	}
 	return s.completeDocumentIfReady(ctx, tx, event.Entity, event.DocumentID, event.RequestID, "")
 }
 
@@ -67,7 +72,7 @@ func (s *Service) handleCreatedCompletion(ctx context.Context, tx pgx.Tx, raw tx
 	if !ok || event.ParentDocumentID == "" {
 		return nil
 	}
-	return s.reopenDocumentByID(ctx, tx, event.ParentDocumentID, event.RequestID, "新增后续单据")
+	return s.reopenDocumentByID(ctx, tx, event.ParentDocumentID, event.RequestID, "新增后续单据", true)
 }
 
 func (s *Service) handleDeletedCompletion(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
@@ -230,10 +235,15 @@ func (s *Service) reopenParent(ctx context.Context, tx pgx.Tx, childID, requestI
 	if parentID == nil {
 		return nil
 	}
-	return s.reopenDocumentByID(ctx, tx, *parentID, requestID, reason)
+	return s.reopenDocumentByID(ctx, tx, *parentID, requestID, reason, false)
 }
 
-func (s *Service) reopenDocumentByID(ctx context.Context, tx pgx.Tx, documentID, requestID, reason string) error {
+func (s *Service) reopenDocumentByID(
+	ctx context.Context,
+	tx pgx.Tx,
+	documentID, requestID, reason string,
+	rejectClosed bool,
+) error {
 	var entity string
 	if err := tx.QueryRow(ctx, `SELECT entity FROM vou_documents WHERE id=$1`, documentID).Scan(&entity); err != nil {
 		return err
@@ -248,6 +258,9 @@ func (s *Service) reopenDocumentByID(ctx context.Context, tx pgx.Tx, documentID,
 		return err
 	}
 	if closed {
+		if rejectClosed {
+			return domainError(ErrorConflict, "closed period parent cannot be reopened", nil, nil)
+		}
 		return nil
 	}
 	_, err = s.systemUnfinalizeDocument(ctx, tx, document, requestID, reason)

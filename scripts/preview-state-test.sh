@@ -133,6 +133,12 @@ if [ "$(uname -s)" = Darwin ]; then
     echo 'preview sandbox reached the system keychain' >&2
     exit 1
   fi
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /usr/bin/pbpaste >/dev/null 2>&1; then
+    echo 'preview sandbox reached the system pasteboard' >&2
+    exit 1
+  fi
 
   runtime_sandbox=${repo_root}/scripts/preview-runtime-sandbox.sh
   runtime_primary=${root}/runtime-primary
@@ -163,6 +169,12 @@ if [ "$(uname -s)" = Darwin ]; then
     "${runtime_release}" "${runtime_attachments}" /usr/bin/touch \
     "${runtime_primary}/outside" >/dev/null 2>&1; then
     echo 'preview runtime wrote outside its isolated roots' >&2
+    exit 1
+  fi
+  if "${runtime_sandbox}" web "${runtime_primary}" "${runtime_root}" \
+    "${runtime_release}" "${runtime_attachments}" \
+    /usr/bin/pbpaste >/dev/null 2>&1; then
+    echo 'preview runtime reached the system pasteboard' >&2
     exit 1
   fi
 fi
@@ -280,10 +292,12 @@ grep -Fq '(literal (param "SECRET_FILE"))' \
   "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '/usr/bin/pbpaste' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny network*)' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq '/usr/bin/pbpaste' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'db_admin_user=zerp_preview_admin' "${repo_root}/scripts/preview.sh"
 grep -Fq 'db_migration_user=zerp_preview_migrator' "${repo_root}/scripts/preview.sh"
 grep -Fq 'restrict_preview_database_connections' "${repo_root}/scripts/preview.sh"

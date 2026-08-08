@@ -83,6 +83,8 @@ profile="(version 1)
       (subpath (param \"USER_HOME\"))
       (require-not (subpath (param \"RELEASE_ROOT\"))))
     (literal \"/usr/bin/security\")
+    (literal \"/usr/bin/pbcopy\")
+    (literal \"/usr/bin/pbpaste\")
     (literal \"/usr/bin/ssh\")
     (literal \"/usr/bin/scp\")
     (literal \"/usr/bin/sftp\")
@@ -92,7 +94,13 @@ profile="(version 1)
     (global-name \"com.apple.securityd\")
     (global-name \"com.apple.security.agent\")
     (global-name \"com.apple.securityd.system\")
-    (global-name \"com.apple.securityd.xpc\"))"
+    (global-name \"com.apple.securityd.xpc\")
+    (global-name \"com.apple.pboard\")
+    (global-name \"com.apple.pasteboard.1\")
+    (global-name \"com.apple.coreservices.uasharedpasteboardmanager.xpc\")
+    (global-name \"com.apple.coreservices.uasharedpasteboardaux.xpc\")
+    (global-name \"com.apple.coreservices.uauseractivitypasteboardclient.xpc\")
+    (global-name \"com.apple.coreservices.uasharedpasteboardcontroll.xpc\"))"
 
 exec sandbox-exec \
   -D "USER_HOME=${user_home}" \

@@ -109,6 +109,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '下游流程单据已变化，请刷新后重试。',
   'downstream documents must be reversed first':
     '已有下游单据，请先反向处理下游单据。',
+  'closed period parent cannot be reopened':
+    '上级单据已进入结账期间，不能新增或撤回会重新打开它的后续单据。',
   'sales-chain source is not finalized': '销售来源单据尚未完成。',
   'sales-chain source is not ready': '销售来源资料尚未准备完成。',
   'sales fulfillment cannot be changed': '销售履约已生成后续单据，不能修改。',

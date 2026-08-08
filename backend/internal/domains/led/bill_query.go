@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type validatedBillQuery struct {
@@ -27,6 +28,7 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 	}
 	rows, err := s.queries.ListLedBills(ctx, dbsqlc.ListLedBillsParams{
 		GenerationID: generationID, PositionType: query.PositionType,
+		AsOfDate:     pgtype.Date{Time: s.today(), Valid: true},
 		Availability: query.Availability, BillType: query.BillType, BillNo: query.BillNo,
 		MaturityDateFrom: query.MaturityDateFrom, MaturityDateTo: query.MaturityDateTo,
 		OriginatingPartyEntity:   query.OriginatingPartyType,

@@ -448,11 +448,6 @@ func (s *Service) forwardTransition(
 			return MutationResult{}, err
 		}
 	}
-	if entity == EntityPurchaseReturn {
-		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
-			return MutationResult{}, err
-		}
-	}
 	if err = s.replenishManagedOutbound(ctx, tx, document, actorID, requestID); err != nil {
 		return MutationResult{}, err
 	}
@@ -558,11 +553,6 @@ func (s *Service) reverseTransition(
 	if err != nil {
 		return MutationResult{}, s.writeError("reverse transition", err)
 	}
-	if from == StatusApproved && to == StatusChecked {
-		if err = s.finishUnapproval(ctx, tx, document, actorID); err != nil {
-			return MutationResult{}, err
-		}
-	}
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: input.DocumentID, Entity: entity, Event: event,
 		From: &from, To: to, ActorID: actorID, Reason: reason, RequestID: requestID,
@@ -592,6 +582,9 @@ func (s *Service) reverseTransition(
 			if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, true); err != nil {
 				return MutationResult{}, s.writeError("restore settlement reservation", err)
 			}
+		}
+		if err = s.finishUnapproval(ctx, tx, document, actorID); err != nil {
+			return MutationResult{}, err
 		}
 		if entity == EntityInventoryCount {
 			if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {

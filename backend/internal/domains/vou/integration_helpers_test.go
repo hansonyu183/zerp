@@ -195,7 +195,11 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 
 func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 	t.Helper()
-	bus := txevent.NewBus()
+	return newIntegrationServiceWithBus(t, pool, txevent.NewBus())
+}
+
+func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
+	t.Helper()
 	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {

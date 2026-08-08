@@ -73,6 +73,48 @@ BEGIN
         WHERE table_name='vou_settlement_reservations' AND column_name='active' AND is_nullable='NO') THEN
         RAISE EXCEPTION 'migration 00046 reservation schema is missing';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM vou_settlement_reservations
+        WHERE order_id='01J0000000000000000000474'
+          AND order_entity='sale-order' AND term_code='PREPAID'
+          AND counterparty_entity='customer'
+          AND counterparty_object_id='01J0000000000000000000467'
+          AND currency='CNY' AND original_amount_cents=1000
+          AND reserved_amount_cents=1000 AND active
+    ) THEN
+        RAISE EXCEPTION 'migration 00046 did not backfill an active prepaid order';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM vou_settlement_reservations
+        WHERE order_id='01J0000000000000000000475'
+          AND order_entity='purchase-order' AND term_code='CASH_ON_DELIVERY'
+          AND counterparty_entity='supplier'
+          AND counterparty_object_id='01J0000000000000000000471'
+          AND currency='CNY' AND original_amount_cents=2000
+          AND reserved_amount_cents=1700 AND active
+    ) THEN
+        RAISE EXCEPTION 'migration 00046 did not backfill the remaining COD commitment';
+    END IF;
+    IF (SELECT count(*) FROM vou_settlement_reservations
+        WHERE counterparty_entity='supplier'
+          AND counterparty_object_id='01J0000000000000000000471'
+          AND currency='CNY' AND term_code='CASH_ON_DELIVERY' AND active) <> 2
+       OR NOT EXISTS (
+        SELECT 1 FROM vou_settlement_reservations
+        WHERE order_id='01J0000000000000000000478'
+          AND reserved_amount_cents=300 AND active
+    ) THEN
+        RAISE EXCEPTION 'migration 00046 did not preserve concurrent legacy COD commitments';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM vou_settlement_reservations
+        WHERE order_id='01J0000000000000000000479'
+          AND term_code='CASH_ON_DELIVERY'
+          AND original_amount_cents=400
+          AND reserved_amount_cents=0 AND NOT active
+    ) THEN
+        RAISE EXCEPTION 'migration 00046 did not preserve a reopenable completed order';
+    END IF;
     IF (SELECT monthly_closing_day FROM bob_customer_versions
         WHERE version_id='01J0000000000000000000468') <> 31 THEN
         RAISE EXCEPTION 'migration 00046 changed the natural-month default';

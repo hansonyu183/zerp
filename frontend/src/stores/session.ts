@@ -111,7 +111,16 @@ export const useSessionStore = defineStore('session', () => {
   async function refreshMenu(): Promise<MenuData> {
     const { data } = await getMenu()
     applyMenuData(data)
+    errorMessage.value = null
     return data
+  }
+
+  async function refreshMenuWithoutLosingSession(): Promise<void> {
+    try {
+      await refreshMenu()
+    } catch (error) {
+      errorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
+    }
   }
 
   function clearSession(): void {
@@ -130,7 +139,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
-      await refreshMenu()
+      await refreshMenuWithoutLosingSession()
       return true
     } catch (error) {
       clearSession()
@@ -153,7 +162,7 @@ export const useSessionStore = defineStore('session', () => {
         credentials,
       )
       applySession(data)
-      await refreshMenu()
+      await refreshMenuWithoutLosingSession()
     } catch (error) {
       clearSession()
       errorMessage.value = getErrorMessage(error)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -48,6 +49,12 @@ func (s *Service) reserveOrderSettlementAmount(
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
 		return s.internal("lock settlement balance", err)
 	}
+	var reservationExists bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM vou_settlement_reservations WHERE order_id=$1
+	)`, gate.OrderID).Scan(&reservationExists); err != nil {
+		return s.internal("read order settlement reservation", err)
+	}
 	var activeGenerationID string
 	if err = tx.QueryRow(ctx, `SELECT active_generation_id
 		FROM led_control
@@ -63,8 +70,9 @@ func (s *Service) reserveOrderSettlementAmount(
 		WHERE entry.generation_id=$1
 		  AND entry.account_type='TRADE'
 		  AND entry.counterparty_entity=$2 AND entry.counterparty_object_id=$3
-		  AND entry.currency=$4 AND entry.effective_date<=CURRENT_DATE`,
-		activeGenerationID, gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency).Scan(&balance); err != nil {
+		  AND entry.currency=$4 AND entry.effective_date<=$5::date`,
+		activeGenerationID, gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency,
+		businessdate.Today()).Scan(&balance); err != nil {
 		return s.internal("read settlement balance", err)
 	}
 	if gate.TermCode == bobSettlementPrepaid {
@@ -92,7 +100,7 @@ func (s *Service) reserveOrderSettlementAmount(
 				"availableBalance": formatMoney(maxInt64(available, 0)),
 			}, nil)
 		}
-	} else {
+	} else if !reservationExists {
 		outstandingDebt := (gate.CounterpartyEntity == "customer" && balance > 0) ||
 			(gate.CounterpartyEntity == "supplier" && balance < 0)
 		if outstandingDebt {
@@ -141,16 +149,12 @@ func (s *Service) reopenOrderSettlement(
 	tx pgx.Tx,
 	orderEntity, orderID string,
 ) error {
-	var originalAmount int64
-	var active bool
-	err := tx.QueryRow(ctx, `SELECT original_amount_cents,active
-		FROM vou_settlement_reservations WHERE order_id=$1`, orderID).
-		Scan(&originalAmount, &active)
-	if err == pgx.ErrNoRows || active {
-		return nil
-	}
+	gate, err := loadOrderSettlementGate(ctx, tx, orderEntity, orderID)
 	if err != nil {
 		return err
+	}
+	if gate.TermCode != bobSettlementPrepaid && gate.TermCode != bobSettlementCOD {
+		return nil
 	}
 	var fulfilledAmount, returnedAmount int64
 	switch orderEntity {
@@ -182,12 +186,12 @@ func (s *Service) reopenOrderSettlement(
 	if err != nil {
 		return err
 	}
-	remaining := originalAmount - fulfilledAmount + returnedAmount
+	remaining := gate.AmountCents - fulfilledAmount + returnedAmount
 	if remaining <= 0 {
-		return nil
+		return s.releaseOrderSettlement(ctx, tx, orderID)
 	}
-	if remaining > originalAmount {
-		remaining = originalAmount
+	if remaining > gate.AmountCents {
+		remaining = gate.AmountCents
 	}
 	return s.reserveOrderSettlementAmount(ctx, tx, orderEntity, orderID, remaining)
 }

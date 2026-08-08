@@ -8,6 +8,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,6 +28,7 @@ type Service struct {
 	queries               *dbsqlc.Queries
 	resolver              effectiveReferenceResolver
 	intermediaryValidator intermediaryCalculationValidator
+	today                 func() time.Time
 }
 
 func NewService(
@@ -39,7 +41,7 @@ func NewService(
 	}
 	return &Service{
 		pool: pool, queries: dbsqlc.New(pool), resolver: resolver,
-		intermediaryValidator: intermediaryValidator,
+		intermediaryValidator: intermediaryValidator, today: businessdate.Today,
 	}, nil
 }
 

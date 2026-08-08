@@ -72,4 +72,92 @@ FROM app_permissions permission
 WHERE permission.domain='aux' AND permission.entity='settlement-method'
   AND permission.action IN ('query','save','disable');
 
+INSERT INTO vou_documents(
+    id,entity,document_no,status,business_date,currency,total_amount_cents,
+    reviewed_at,reviewed_by,approved_at,approved_by,created_by,updated_by
+) VALUES
+ ('01J0000000000000000000474','sale-order','SOR-20460101-0046','APPROVED',
+  '2046-01-01','CNY',1000,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+ ('01J0000000000000000000475','purchase-order','POR-20460101-0046','APPROVED',
+  '2046-01-01','CNY',2000,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+ ('01J0000000000000000000476','purchase-inbound','PIN-20460102-0046','APPROVED',
+  '2046-01-02','CNY',500,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+ ('01J0000000000000000000477','purchase-return','PRT-20460103-0046','APPROVED',
+  '2046-01-03','CNY',200,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+ ('01J0000000000000000000478','purchase-order','POR-20460101-0047','APPROVED',
+  '2046-01-01','CNY',300,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+ ('01J0000000000000000000479','purchase-order','POR-20460101-0048','APPROVED',
+  '2046-01-01','CNY',400,now(),'01JAPPSYST3MACTR0000000000',now(),
+  '01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000');
+
+INSERT INTO vou_sale_order_details(
+    document_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name,
+    settlement_method_object_id,settlement_method_version_id,settlement_method_code,
+    settlement_method_name,settlement_rule_type,settlement_month_offset,
+    settlement_day_offset,settlement_due_days,fulfillment_status
+) VALUES (
+    '01J0000000000000000000474','01J0000000000000000000467',
+    '01J0000000000000000000468','CUS-9046','迁移测试客户',
+    '01J0000000000000000000480','01J0000000000000000000481','WAR-9046','迁移仓库',
+    '01J0000000000000000000461','01J0000000000000000000462','SMT-0461',
+    '迁移预付','DUE_DAYS',0,30,30,'OPEN'
+);
+
+INSERT INTO vou_purchase_order_details(
+    document_id,supplier_object_id,supplier_version_id,supplier_code,supplier_name,
+    warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name,
+    settlement_method_object_id,settlement_method_version_id,settlement_method_code,
+    settlement_method_name,settlement_rule_type,settlement_month_offset,
+    settlement_day_offset,settlement_due_days,fulfillment_status
+) VALUES
+(
+    '01J0000000000000000000475','01J0000000000000000000471',
+    '01J0000000000000000000472','SUP-9046','迁移测试供应商',
+    '01J0000000000000000000480','01J0000000000000000000481','WAR-9046','迁移仓库',
+    '01J0000000000000000000463','01J0000000000000000000464','SMT-0463',
+    '现结','DUE_DAYS',0,0,0,'OPEN'
+),
+(
+    '01J0000000000000000000478','01J0000000000000000000471',
+    '01J0000000000000000000472','SUP-9046','迁移测试供应商',
+    '01J0000000000000000000480','01J0000000000000000000481','WAR-9046','迁移仓库',
+    '01J0000000000000000000463','01J0000000000000000000464','SMT-0463',
+    '现结','DUE_DAYS',0,0,0,'OPEN'
+),
+(
+    '01J0000000000000000000479','01J0000000000000000000471',
+    '01J0000000000000000000472','SUP-9046','迁移测试供应商',
+    '01J0000000000000000000480','01J0000000000000000000481','WAR-9046','迁移仓库',
+    '01J0000000000000000000463','01J0000000000000000000464','SMT-0463',
+    '现结','DUE_DAYS',0,0,0,'FULFILLED'
+);
+
+INSERT INTO vou_purchase_inbound_details(
+    document_id,source_order_id,supplier_object_id,supplier_version_id,
+    supplier_code,supplier_name,warehouse_object_id,warehouse_version_id,
+    warehouse_code,warehouse_name
+) VALUES (
+    '01J0000000000000000000476','01J0000000000000000000475',
+    '01J0000000000000000000471','01J0000000000000000000472','SUP-9046',
+    '迁移测试供应商','01J0000000000000000000480','01J0000000000000000000481',
+    'WAR-9046','迁移仓库'
+);
+
+INSERT INTO vou_purchase_return_details(
+    document_id,source_order_id,return_reason,supplier_object_id,supplier_version_id,
+    supplier_code,supplier_name,warehouse_object_id,warehouse_version_id,
+    warehouse_code,warehouse_name
+) VALUES (
+    '01J0000000000000000000477','01J0000000000000000000475','迁移回填测试',
+    '01J0000000000000000000471','01J0000000000000000000472','SUP-9046',
+    '迁移测试供应商','01J0000000000000000000480','01J0000000000000000000481',
+    'WAR-9046','迁移仓库'
+);
+
 COMMIT;

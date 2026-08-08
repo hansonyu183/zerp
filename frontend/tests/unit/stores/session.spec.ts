@@ -305,6 +305,34 @@ describe('useSessionStore.restore errors', () => {
     expect(session.errorMessage).toBe('网络连接失败，请检查网络后重试。')
   })
 
+  it('菜单加载失败时保留已恢复的认证会话和权限', async () => {
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: ['/bob/customer/query'],
+        },
+      })
+      .mockRejectedValueOnce(new ApiError('network', 'menu unavailable'))
+    const session = useSessionStore()
+
+    await expect(session.restore()).resolves.toBe(true)
+
+    expect(session.authenticated).toBe(true)
+    expect(session.user?.username).toBe('admin')
+    expect(session.permissions).toEqual(['/bob/customer/query'])
+    expect(session.can('/bob/customer/query')).toBe(true)
+    expect(session.errorMessage).toBe(
+      '菜单加载失败：网络连接失败，请检查网络后重试。',
+    )
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
+
+    mockedApiClient.post.mockResolvedValueOnce(menuResponse())
+    await expect(session.refreshMenu()).resolves.toEqual(menuResponse().data)
+    expect(session.errorMessage).toBeNull()
+  })
+
   it('登录密码错误时显示后端返回的剩余重试次数', async () => {
     mockedApiClient.post.mockRejectedValue(
       new ApiError('business', '密码错误，剩余重试次数 4。', {
@@ -319,6 +347,29 @@ describe('useSessionStore.restore errors', () => {
 
     expect(session.errorMessage).toBe('密码错误，剩余重试次数 4。')
     expect(session.user).toBeNull()
+  })
+
+  it('登录成功但菜单加载失败时不撤销认证结果', async () => {
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: ['/bob/customer/query'],
+        },
+      })
+      .mockRejectedValueOnce(new ApiError('network', 'menu unavailable'))
+    const session = useSessionStore()
+
+    await expect(
+      session.signIn({ username: 'admin', password: 'correct' }),
+    ).resolves.toBeUndefined()
+
+    expect(session.authenticated).toBe(true)
+    expect(session.permissions).toEqual(['/bob/customer/query'])
+    expect(session.errorMessage).toBe(
+      '菜单加载失败：网络连接失败，请检查网络后重试。',
+    )
   })
 })
 

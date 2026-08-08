@@ -823,7 +823,7 @@ WITH bill_positions AS (
   SELECT
     bill_positions.*,
     CASE
-      WHEN available_balance = 1 AND maturity_date < CURRENT_DATE THEN 'MATURED'
+      WHEN available_balance = 1 AND maturity_date < sqlc.arg(as_of_date)::date THEN 'MATURED'
       WHEN available_balance = 1 THEN 'AVAILABLE'
       ELSE 'USED'
     END::text AS availability

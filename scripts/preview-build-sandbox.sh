@@ -108,6 +108,8 @@ profile='(version 1)
       (require-not (subpath (param "OUTPUT_ROOT")))
       (require-not (subpath (param "CACHE_ROOT"))))
     (literal "/usr/bin/security")
+    (literal "/usr/bin/pbcopy")
+    (literal "/usr/bin/pbpaste")
     (literal "/usr/bin/ssh")
     (literal "/usr/bin/scp")
     (literal "/usr/bin/sftp")
@@ -117,7 +119,13 @@ profile='(version 1)
     (global-name "com.apple.securityd")
     (global-name "com.apple.security.agent")
     (global-name "com.apple.securityd.system")
-    (global-name "com.apple.securityd.xpc"))'
+    (global-name "com.apple.securityd.xpc")
+    (global-name "com.apple.pboard")
+    (global-name "com.apple.pasteboard.1")
+    (global-name "com.apple.coreservices.uasharedpasteboardmanager.xpc")
+    (global-name "com.apple.coreservices.uasharedpasteboardaux.xpc")
+    (global-name "com.apple.coreservices.uauseractivitypasteboardclient.xpc")
+    (global-name "com.apple.coreservices.uasharedpasteboardcontroll.xpc"))'
 
 safe_path=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 cd /

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -60,6 +61,17 @@ func activateSettlementLedger(
 	amountCents int64,
 	effectiveDate string,
 ) {
+	activateSettlementLedgerForParty(t, pool, "customer", customer, amountCents, effectiveDate)
+}
+
+func activateSettlementLedgerForParty(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	partyEntity string,
+	party ReferenceInput,
+	amountCents int64,
+	effectiveDate string,
+) {
 	t.Helper()
 	generationID := newID()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO led_generations(
@@ -79,9 +91,9 @@ func activateSettlementLedger(
 			counterparty_entity,counterparty_object_id,counterparty_version_id,
 			counterparty_code,counterparty_name,currency,amount_delta_cents
 		) VALUES($1,$2,'OPENING','opening',$3,'OPENING','',0,$4::date,now(),$5,$6,
-			'customer',$7,$8,'CUSTOMER','Settlement customer','CNY',$9)`,
+			$7,$8,$9,'PARTY','Settlement party','CNY',$10)`,
 			newID(), generationID, newID(), effectiveDate, integrationActorOne,
-			"settlement-gate-opening", customer.ObjectID, customer.VersionID, amountCents); err != nil {
+			"settlement-gate-opening", partyEntity, party.ObjectID, party.VersionID, amountCents); err != nil {
 			t.Fatalf("insert settlement ledger balance: %v", err)
 		}
 	}
@@ -190,6 +202,34 @@ func TestPrepaidApprovalExcludesFutureDatedFundsIntegration(t *testing.T) {
 	}, integrationActorTwo, "prepaid-future-approve"); err == nil ||
 		!strings.Contains(err.Error(), "insufficient prepaid funds") {
 		t.Fatalf("future prepaid funds error = %v", err)
+	}
+}
+
+func TestPrepaidApprovalUsesBusinessDateInsteadOfDatabaseSessionDateIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	customer := createSettlementCustomer(
+		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "业务日期预付客户",
+	)
+	order := createCheckedSettlementSale(t, service, refs, customer, "prepaid-business-date")
+	var amount int64
+	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, order.DocumentID).Scan(&amount); err != nil {
+		t.Fatalf("read prepaid order amount: %v", err)
+	}
+	activateSettlementLedger(t, pool, customer, -amount, businessdate.Today().Format(businessdate.Layout))
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin business-date settlement transaction: %v", err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+	if _, err = tx.Exec(t.Context(), `SET LOCAL TIME ZONE 'Etc/GMT+12'`); err != nil {
+		t.Fatalf("set database session timezone: %v", err)
+	}
+	if err = service.reserveOrderSettlement(t.Context(), tx, EntitySaleOrder, order.DocumentID); err != nil {
+		t.Fatalf("business-local same-day funds were excluded: %v", err)
 	}
 }
 

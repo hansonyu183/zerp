@@ -20,6 +20,11 @@ legacy_import_complete="${runtime_root}/legacy-import-complete"
 preview_url=https://zerp-preview.bytesucceed.com
 legacy_project=zerp-fullstack-preview
 system_user_id=01JAPPSYST3MACTR0000000000
+db_admin_user=zerp_preview_admin
+db_migration_user=zerp_preview_migrator
+db_secret_root="${runtime_root}/controller-secrets"
+db_admin_password_file="${db_secret_root}/postgres-admin-password"
+db_migration_password_file="${db_secret_root}/postgres-migration-password"
 db_label=com.hansonyu.zerp-preview-db
 api_label=com.hansonyu.zerp-preview-api
 web_label=com.hansonyu.zerp-preview-web
@@ -28,7 +33,7 @@ launch_domain="gui/$(id -u)"
 build_temp=
 
 usage() {
-  echo "usage: $0 {up|build|activate|stop-app|restart-app|down|reset|rollback|status|password|reap|close|accept|promote|gc}" >&2
+  echo "usage: $0 {up|build|prepare-db|activate|stop-app|restart-app|down|reset|rollback|status|password|reap|close|accept|promote|gc}" >&2
   exit 2
 }
 
@@ -127,6 +132,7 @@ guard() {
   command -v launchctl >/dev/null
   command -v plutil >/dev/null
   command -v curl >/dev/null
+  command -v openssl >/dev/null
 
   pg_bindir=$(pg_config --bindir)
   test -x "${pg_bindir}/initdb"
@@ -136,7 +142,7 @@ guard() {
   export pg_bindir database_url
 
   mkdir -p "${runtime_root}" "${releases_root}" "${launch_agent_root}" \
-    "${backup_root}" "${attachment_root}"
+    "${backup_root}" "${attachment_root}" "${db_secret_root}"
   state_current="${runtime_root}/state/current"
   "${repo_root}/scripts/preview-state.sh" init
   preview_db="${POSTGRES_DB}"
@@ -148,7 +154,7 @@ guard() {
   database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
   export preview_db preview_attachment_root database_url
   chmod 700 "${runtime_root}" "${releases_root}" "${launch_agent_root}" \
-    "${backup_root}" "${attachment_root}"
+    "${backup_root}" "${attachment_root}" "${db_secret_root}"
 }
 
 wait_for_url() {
@@ -453,7 +459,7 @@ export HTTP_ADDRESS="127.0.0.1:${API_PORT}"
 current_file="${runtime_root}/state/current"
 preview_db=$(sed -n 's/^db=//p' "$current_file")
 preview_attachments=$(sed -n 's/^attachments=//p' "$current_file")
-sandbox_database_url="postgres://${POSTGRES_USER}@/${preview_db}?host=/tmp&port=${POSTGRES_PORT}&sslmode=disable"
+sandbox_database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
 exec "${runtime_root}/preview-runtime-sandbox.sh" api \
   "${primary_root}" "${runtime_root}" \
   "${release_root}" "${preview_attachments}" \
@@ -519,31 +525,137 @@ stop_job() {
   fi
 }
 
+ensure_database_secret() {
+  secret_file=$1
+  if [ ! -f "${secret_file}" ]; then
+    umask 077
+    openssl rand -hex 32 >"${secret_file}"
+  fi
+  chmod 600 "${secret_file}"
+}
+
+database_admin_password() {
+  cat "${db_admin_password_file}"
+}
+
+database_migration_password() {
+  cat "${db_migration_password_file}"
+}
+
 initialize_database_cluster() {
   if [ -f "${postgres_data}/PG_VERSION" ]; then
     return
   fi
+  ensure_database_secret "${db_admin_password_file}"
+  ensure_database_secret "${db_migration_password_file}"
+  admin_password=$(database_admin_password)
   password_file=$(mktemp "${runtime_root}/postgres-password.XXXXXX")
   chmod 600 "${password_file}"
-  printf '%s' "${POSTGRES_PASSWORD}" >"${password_file}"
+  printf '%s' "${admin_password}" >"${password_file}"
   if ! "${pg_bindir}/initdb" -D "${postgres_data}" \
-    --username="${POSTGRES_USER}" --pwfile="${password_file}" \
-    --auth-local=trust --auth-host=scram-sha-256 --encoding=UTF8 --locale=C; then
+    --username="${db_admin_user}" --pwfile="${password_file}" \
+    --auth-local=scram-sha-256 --auth-host=scram-sha-256 --encoding=UTF8 --locale=C; then
     rm -f "${password_file}"
     return 1
   fi
   rm -f "${password_file}"
 }
 
+ensure_database_roles() {
+  ensure_database_secret "${db_admin_password_file}"
+  ensure_database_secret "${db_migration_password_file}"
+  admin_password=$(database_admin_password)
+  migration_password=$(database_migration_password)
+
+  if ! PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -Atqc 'SELECT 1' >/dev/null 2>&1; then
+    legacy_superuser=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
+      -d postgres -Atqc "SELECT rolsuper FROM pg_roles WHERE rolname='${POSTGRES_USER}'") || return 1
+    [ "${legacy_superuser}" = t ] || {
+      echo "Preview database administrator is unavailable" >&2
+      return 1
+    }
+    PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
+      -d postgres -v ON_ERROR_STOP=1 <<EOF
+CREATE ROLE ${db_admin_user} LOGIN SUPERUSER PASSWORD '${admin_password}';
+EOF
+  fi
+
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 <<EOF
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '${db_migration_user}', '${migration_password}')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${db_migration_user}') \gexec
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '${POSTGRES_USER}', '${POSTGRES_PASSWORD}')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_USER}') \gexec
+ALTER ROLE ${db_migration_user} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${migration_password}';
+ALTER ROLE ${POSTGRES_USER} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${POSTGRES_PASSWORD}';
+EOF
+
+  hba_file="${postgres_data}/pg_hba.conf"
+  hba_new="${hba_file}.new.$$"
+  sed -E \
+    -e 's/^(local[[:space:]]+all[[:space:]]+all[[:space:]]+)trust$/\1scram-sha-256/' \
+    -e 's/^(local[[:space:]]+replication[[:space:]]+all[[:space:]]+)trust$/\1scram-sha-256/' \
+    "${hba_file}" >"${hba_new}"
+  chmod 600 "${hba_new}"
+  mv -f "${hba_new}" "${hba_file}"
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()' >/dev/null
+}
+
+grant_runtime_database_access() {
+  database=$1
+  admin_password=$(database_admin_password)
+  PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d "${database}" -v ON_ERROR_STOP=1 <<EOF
+GRANT CONNECT ON DATABASE ${database} TO ${POSTGRES_USER};
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO ${POSTGRES_USER};
+GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${POSTGRES_USER};
+GRANT USAGE,SELECT,UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${POSTGRES_USER};
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${db_migration_user} IN SCHEMA public
+  GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${db_migration_user} IN SCHEMA public
+  GRANT USAGE,SELECT,UPDATE ON SEQUENCES TO ${POSTGRES_USER};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${db_migration_user} IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO ${POSTGRES_USER};
+EOF
+}
+
 ensure_database_exists() {
-  exists=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
-    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
+  ensure_database_roles || return 1
+  admin_password=$(database_admin_password)
+  exists=$(PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
     -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'") || return 1
   if [ "${exists}" != 1 ]; then
-    PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/createdb" \
-      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
-      "${POSTGRES_DB}"
+    PGPASSWORD="${admin_password}" "${pg_bindir}/createdb" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+      --owner="${db_migration_user}" "${POSTGRES_DB}" || return 1
   fi
+  managed_databases=$(PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+    -d postgres -Atqc "SELECT datname FROM pg_database WHERE datname='${POSTGRES_DB}' OR datname LIKE 'zerp_preview_pr_%'") || return 1
+  for database in ${managed_databases}; do
+    PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+      -d "${database}" -v ON_ERROR_STOP=1 <<EOF
+REASSIGN OWNED BY ${POSTGRES_USER} TO ${db_migration_user};
+ALTER SCHEMA public OWNER TO ${db_migration_user};
+EOF
+    PGPASSWORD="${admin_password}" "${pg_bindir}/psql" \
+      -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_admin_user}" \
+      -d postgres -v ON_ERROR_STOP=1 -c \
+      "ALTER DATABASE ${database} OWNER TO ${db_migration_user}" || return 1
+    grant_runtime_database_access "${database}" || return 1
+  done
 }
 
 legacy_container_exists() {
@@ -586,8 +698,9 @@ import_legacy_preview() {
   start_job "${db_label}" || return 1
   wait_for_database || return 1
   ensure_database_exists || return 1
-  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/pg_restore" \
-    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
+  migration_password=$(database_migration_password)
+  PGPASSWORD="${migration_password}" "${pg_bindir}/pg_restore" \
+    -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${db_migration_user}" \
     -d "${POSTGRES_DB}" --no-owner --no-privileges \
     "${backup_dir}/database.dump" || return 1
   if [ -e "${attachment_root}" ]; then
@@ -624,15 +737,18 @@ prepare_database() {
 
 run_release_setup() {
   release=$1
-  sandbox_database_url="postgres://${POSTGRES_USER}@/${preview_db}?host=/tmp&port=${POSTGRES_PORT}&sslmode=disable"
+  migration_password=$(database_migration_password)
+  sandbox_database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
+  migration_database_url="postgres://${db_migration_user}:${migration_password}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
   sandbox_setup() {
     "${runtime_root}/preview-runtime-sandbox.sh" api \
       "${primary_root}" "${runtime_root}" "${release}" \
       "${preview_attachment_root:-${attachment_root}}" "$@"
   }
-  sandbox_setup /usr/bin/env DATABASE_URL="${sandbox_database_url}" \
+  sandbox_setup /usr/bin/env DATABASE_URL="${migration_database_url}" \
     "${release}/bin/goose" \
-    -dir "${release}/migrations" postgres "${sandbox_database_url}" up || return 1
+    -dir "${release}/migrations" postgres "${migration_database_url}" up || return 1
+  grant_runtime_database_access "${preview_db}" || return 1
   user_count=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
     -d "${preview_db:-${POSTGRES_DB}}" -Atqc \
@@ -958,6 +1074,12 @@ case "${1:-}" in
   build)
     [ "$#" -eq 1 ] || usage
     build_only
+    ;;
+  prepare-db)
+    [ "$#" -eq 1 ] || usage
+    guard
+    write_runtime_files
+    prepare_database
     ;;
   activate)
     [ "$#" -eq 1 ] || usage

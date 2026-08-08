@@ -45,7 +45,7 @@ chmod 700 "${runtime_root}/sandbox" "${sandbox_root}" "${sandbox_home}" \
 case "${role}" in
   api)
     network_rules='(allow network* (local ip "localhost:18082"))
-      (allow network-outbound (literal "/private/tmp/.s.PGSQL.55436"))'
+      (allow network-outbound (remote ip "localhost:55436"))'
     ;;
   web)
     network_rules='(allow network* (local ip "localhost:15176"))

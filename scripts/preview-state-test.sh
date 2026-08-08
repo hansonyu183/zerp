@@ -80,6 +80,8 @@ export MOCK_TREE_SHA="${tree_sha}"
 export MOCK_POSTGRES_PASSWORD=preview-test-password
 export ZERP_PREVIEW_STATE_ROOT="${root}/state"
 export ZERP_PREVIEW_RUNTIME_ROOT="${root}/runtime"
+mkdir -p "${ZERP_PREVIEW_RUNTIME_ROOT}/controller-secrets"
+printf '%s\n' "${MOCK_POSTGRES_PASSWORD}" >"${ZERP_PREVIEW_RUNTIME_ROOT}/controller-secrets/postgres-admin-password"
 export ZERP_BASELINE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export POSTGRES_DB=zerp_preview
 export POSTGRES_PASSWORD="${MOCK_POSTGRES_PASSWORD}"
@@ -279,9 +281,15 @@ grep -Fq '(literal (param "SECRET_FILE"))' \
 grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny network*)' "${repo_root}/scripts/preview-runtime-sandbox.sh"
-grep -Fq '/private/tmp/.s.PGSQL.55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq 'localhost:55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-runtime-sandbox.sh"
+grep -Fq 'db_admin_user=zerp_preview_admin' "${repo_root}/scripts/preview.sh"
+grep -Fq 'db_migration_user=zerp_preview_migrator' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016 # intentional literal source assertions
+grep -Fq 'ALTER ROLE ${POSTGRES_USER} LOGIN NOSUPERUSER' "${repo_root}/scripts/preview.sh"
+grep -Fq -- '--auth-local=scram-sha-256' "${repo_root}/scripts/preview.sh"
+grep -Fq 'db_user=zerp_preview_admin' "${state}"
 # shellcheck disable=SC2016 # intentional literal source assertion
 grep -Fq 'find -P "${artifact_root}" ! -type f ! -type d' "${repo_root}/scripts/preview.sh"
 grep -Fq 'sandbox_setup /usr/bin/env' "${repo_root}/scripts/preview.sh"

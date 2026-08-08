@@ -81,6 +81,7 @@ fi
 PREVIEW_ACTOR="${actor}" scripts/verify-preview-pr.sh "${pr}" "${head}"
 
 preview_env stop-app
+preview_env prepare-db
 state_claimed=0
 if ! PREVIEW_PR="${pr}" PREVIEW_REF="${head}" PREVIEW_ACTOR="${actor}" \
   PREVIEW_VERIFIED=1 ZERP_PREVIEW_RUNTIME_ROOT="${native_runtime}" \

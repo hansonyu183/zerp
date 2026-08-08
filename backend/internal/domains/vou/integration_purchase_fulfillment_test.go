@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 )
 
@@ -249,6 +250,20 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 	if err != nil || completedOrder.Status != StatusFinalized {
 		t.Fatalf("deleting last unfinished child did not complete order: status=%s err=%v", completedOrder.Status, err)
 	}
+	activateSettlementLedger(t, pool, refs.supplier, 0, "2026-07-29")
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_purchase_order_details
+		SET settlement_term_code=$1 WHERE document_id=$2`,
+		bobdomain.SettlementTermCashOnDelivery, order.DocumentID); err != nil {
+		t.Fatalf("set fulfilled order settlement term: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO vou_settlement_reservations(
+		order_id,order_entity,term_code,counterparty_entity,counterparty_object_id,
+		currency,original_amount_cents,reserved_amount_cents,active
+	) VALUES($1,$2,$3,'supplier',$4,'CNY',12000,0,false)`,
+		order.DocumentID, EntityPurchaseOrder, bobdomain.SettlementTermCashOnDelivery,
+		refs.supplier.ObjectID); err != nil {
+		t.Fatalf("prepare closed purchase settlement reservation: %v", err)
+	}
 	purchaseReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
 		ReturnReason: "供应商质量退货",
@@ -278,6 +293,13 @@ func TestPurchaseFulfillmentPartialInboundCompletionAndReopenIntegration(t *test
 		FROM vou_purchase_order_details WHERE document_id=$1`, order.DocumentID).
 		Scan(&fulfillment); err != nil || fulfillment != "OPEN" {
 		t.Fatalf("purchase return did not reopen order: %s, err=%v", fulfillment, err)
+	}
+	var reservationActive bool
+	var reservedAmount int64
+	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
+		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
+		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 2400 {
+		t.Fatalf("purchase return reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
 	}
 	replacement := createInbound("2", "replacement-inbound")
 	if _, err = service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{

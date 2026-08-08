@@ -1024,7 +1024,11 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 			complete, actorID, orderID, purchaseWorkflowType)
 	}
 	if err == nil {
-		err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntityPurchaseOrder, orderID)
+		if complete {
+			err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntityPurchaseOrder, orderID)
+		} else {
+			err = s.reopenOrderSettlement(ctx, tx, EntityPurchaseOrder, orderID)
+		}
 	}
 	return err
 }

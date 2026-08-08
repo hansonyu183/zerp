@@ -56,6 +56,7 @@ grep -Fq 'preview=1' .github/workflows/quality.yml
 grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
+# shellcheck disable=SC2016
 grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh

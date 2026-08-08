@@ -290,6 +290,7 @@ WITH active_orders AS (
                    FROM vou_sale_return_details return_detail
                    JOIN vou_documents returned ON returned.id = return_detail.document_id
                    WHERE return_detail.source_order_id = document.id
+                     AND return_detail.return_kind = 'AFTER_SALE'
                      AND returned.status IN ('APPROVED','FINALIZED')
                ), 0),
                document.total_amount_cents

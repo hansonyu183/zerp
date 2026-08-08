@@ -182,6 +182,106 @@ func TestPrepaidApprovalReservesAtomicallyAndUnapproveReleasesIntegration(t *tes
 	}
 }
 
+func TestPrepaidReopenDoesNotReserveRefusalReturnAmountIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	customer := createSettlementCustomer(
+		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付拒收客户",
+	)
+	order := createCheckedSettlementSale(t, service, refs, customer, "prepaid-refusal")
+	var orderAmount int64
+	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, order.DocumentID).
+		Scan(&orderAmount); err != nil {
+		t.Fatalf("read refusal order amount: %v", err)
+	}
+	activateSettlementLedger(t, pool, customer, -orderAmount, "2026-08-04")
+	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Revision,
+	}, integrationActorTwo, "prepaid-refusal-approve")
+	if err != nil {
+		t.Fatalf("approve refusal order: %v", err)
+	}
+	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
+	if err != nil {
+		t.Fatalf("get refusal order: %v", err)
+	}
+	outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: approved.DocumentID,
+		Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}, true)
+	delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	}, true)
+	signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
+		BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
+		SignoffLines: []SaleSignoffLineInput{{
+			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+			SignedQuantity: "0.6", RejectedQuantity: "0.4",
+		}},
+	}, true)
+
+	var refusalID string
+	var refusalRevision int64
+	if err = pool.QueryRow(t.Context(), `SELECT document.id,document.revision
+		FROM vou_documents document
+		JOIN vou_sale_return_details detail ON detail.document_id=document.id
+		WHERE detail.source_signoff_id=$1 AND detail.return_kind='REFUSAL'`, signoff.DocumentID).
+		Scan(&refusalID, &refusalRevision); err != nil {
+		t.Fatalf("load refusal return: %v", err)
+	}
+	saved, err := service.Save(t.Context(), EntitySaleReturn, SaveInput{
+		DocumentID: refusalID, Revision: refusalRevision, Data: DraftInput{
+			BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "客户拒收",
+		},
+	}, integrationActorOne, "prepaid-refusal-save")
+	if err != nil {
+		t.Fatalf("save refusal return: %v", err)
+	}
+	checked, err := service.Check(t.Context(), EntitySaleReturn, DocumentRevisionInput{
+		DocumentID: refusalID, Revision: saved.Revision,
+	}, integrationActorOne, "prepaid-refusal-check")
+	if err != nil {
+		t.Fatalf("check refusal return: %v", err)
+	}
+	if _, err = service.Approve(t.Context(), EntitySaleReturn, DocumentRevisionInput{
+		DocumentID: refusalID, Revision: checked.Revision,
+	}, integrationActorOne, "prepaid-refusal-return-approve"); err != nil {
+		t.Fatalf("approve refusal return: %v", err)
+	}
+
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin refusal settlement reopen: %v", err)
+	}
+	if err = service.reopenOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err != nil {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("reopen refusal settlement: %v", err)
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatalf("commit refusal settlement reopen: %v", err)
+	}
+	var signoffAmount, reservedAmount int64
+	if err = pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, signoff.DocumentID).
+		Scan(&signoffAmount); err != nil {
+		t.Fatalf("read signoff amount: %v", err)
+	}
+	if err = pool.QueryRow(t.Context(), `SELECT reserved_amount_cents
+		FROM vou_settlement_reservations WHERE order_id=$1`, approved.DocumentID).
+		Scan(&reservedAmount); err != nil {
+		t.Fatalf("read refusal reservation: %v", err)
+	}
+	if want := orderAmount - signoffAmount; reservedAmount != want {
+		t.Fatalf("refusal reservation = %d, want %d", reservedAmount, want)
+	}
+}
+
 func TestPrepaidApprovalExcludesFutureDatedFundsIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)

@@ -227,7 +227,8 @@ func loadOrderFulfillmentTotals(
 			COALESCE((SELECT sum(document.total_amount_cents)
 				FROM vou_sale_return_details detail
 				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status IN ('APPROVED','FINALIZED')),0)::bigint`, orderID).
+				WHERE detail.source_order_id=$1 AND detail.return_kind='AFTER_SALE'
+				  AND document.status IN ('APPROVED','FINALIZED')),0)::bigint`, orderID).
 			Scan(&fulfilledAmount, &returnedAmount)
 	case EntityPurchaseOrder:
 		err = tx.QueryRow(ctx, `SELECT

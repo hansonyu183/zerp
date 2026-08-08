@@ -47,8 +47,16 @@ case "$*" in
     if [ "${MOCK_DRAFT_ONLY:-0}" = 1 ]; then
       printf '{"check_runs":[{"name":"validation","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z"}]}\n'
     else
-      printf '{"check_runs":[{"name":"preview-required","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z"}]}\n'
+      app=github-actions
+      [ "${MOCK_UNTRUSTED_CHECK:-0}" != 1 ] || app=untrusted-app
+      printf '{"check_runs":[{"name":"preview-required","status":"completed","conclusion":"success","started_at":"2026-08-08T00:00:00Z","details_url":"https://github.com/example/zerp/actions/runs/88/job/99","app":{"slug":"%s"}}]}\n' "${app}"
     fi
+    ;;
+  *"repos/example/zerp/actions/runs/88"*)
+    printf '{"id":88,"name":"Full-stack quality","path":".github/workflows/quality.yml","event":"pull_request","status":"completed","conclusion":"success","head_sha":"%s","head_repository":{"full_name":"example/zerp"},"pull_requests":[{"number":1,"base":{"ref":"main"},"head":{"sha":"%s"}}]}\n' "${MOCK_ACCEPT_HEAD}" "${MOCK_ACCEPT_HEAD}"
+    ;;
+  *"repos/example/zerp/actions/jobs/99"*)
+    printf '{"id":99,"name":"preview-required","status":"completed","conclusion":"success","head_sha":"%s","html_url":"https://github.com/example/zerp/actions/runs/88/job/99","workflow_name":"Full-stack quality","run_url":"https://api.github.com/repos/example/zerp/actions/runs/88"}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
   *"collaborators/alice/permission"*) printf 'write\n' ;;
   *"deployments/42/statuses?per_page=100"*)
@@ -115,6 +123,11 @@ fi
 if PREVIEW_ACTOR=bob \
   "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
   echo 'Claimed preview actor did not match authenticated GitHub actor' >&2
+  exit 1
+fi
+if MOCK_UNTRUSTED_CHECK=1 PREVIEW_ACTOR=alice \
+  "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
+  echo 'Untrusted preview-required check was accepted for preview' >&2
   exit 1
 fi
 

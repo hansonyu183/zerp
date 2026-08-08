@@ -247,6 +247,12 @@ if [ -n "${changed_files}" ]; then
         containers=1
         ;;
 
+      scripts/check-run-provenance.sh)
+        mark_application
+        containers=1
+        preview=1
+        ;;
+
       scripts/production-watch.sh)
         mark_application
         containers=1

@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck source=scripts/check-run-provenance.sh
+. "${script_dir}/check-run-provenance.sh"
+
 repo_slug=${ZERP_GITHUB_REPOSITORY:-hansonyu183/zerp}
 runtime_root=${ZERP_PRODUCTION_RUNTIME_ROOT:-/Users/hansonyu/code/zerp/backend/var/production}
 repository_root="${runtime_root}/repository"
@@ -188,19 +192,31 @@ fi
 
 check_state() {
   required_check=$1
+  required_run=$(check_json "${required_check}")
+  printf '%s' "${required_run}" |
+    jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end'
+}
+
+check_json() {
+  required_check=$1
   printf '%s' "${check_runs}" |
-    jq -r --arg name "${required_check}" \
+    jq -c --arg name "${required_check}" \
       '[.check_runs[] | select(.name == $name)] | sort_by(.started_at) |
-       if length == 0 then "missing" else
-         (last | (.status + ":" + (.conclusion // "")))
-       end'
+       if length == 0 then null else last end'
 }
 
 check_ready() {
   required_check=$1
-  required_state=$(check_state "${required_check}")
+  required_run=$(check_json "${required_check}")
+  required_state=$(printf '%s' "${required_run}" |
+    jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
   if [ "${required_state}" != "completed:success" ]; then
     log "Waiting for ${required_check} on ${target_sha}: ${required_state}"
+    return 1
+  fi
+  if ! verify_actions_check_run "${repo_slug}" "${required_run}" \
+    "${required_check}" "${target_sha}" push '' gh; then
+    log "Waiting for trusted ${required_check} provenance on ${target_sha}"
     return 1
   fi
 }

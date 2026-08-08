@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck source=scripts/check-run-provenance.sh
+. "${script_dir}/check-run-provenance.sh"
+
 repo=${ZERP_GITHUB_REPOSITORY:-hansonyu183/zerp}
 pr=${1:-${PREVIEW_PR:-}}
 head=${2:-${PREVIEW_REF:-}}
@@ -69,18 +73,22 @@ git merge-base --is-ancestor "${main_sha}" "${head}" || {
 }
 
 checks=$("${gh_bin}" api "repos/${repo}/commits/${head}/check-runs?per_page=100")
-validation_state=$(
+validation_check=$(
   printf '%s' "${checks}" |
-    jq -r '
+    jq -c '
       [.check_runs[] | select(.name == "preview-required")]
       | sort_by(.started_at)
-      | if length == 0 then "missing"
-        else last | (.status + ":" + (.conclusion // ""))
-        end
+      | if length == 0 then null else last end
     '
 )
+validation_state=$(printf '%s' "${validation_check}" | jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
 test "${validation_state}" = completed:success || {
   echo "Ready preview evidence on ${head} is ${validation_state}" >&2
+  exit 1
+}
+verify_actions_check_run "${repo}" "${validation_check}" \
+  preview-required "${head}" pull_request "${pr}" "${gh_bin}" || {
+  echo "Ready preview evidence on ${head} is not a trusted GitHub Actions run" >&2
   exit 1
 }
 

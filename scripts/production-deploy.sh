@@ -22,13 +22,19 @@ dry_run=${PRODUCTION_DRY_RUN:-0}
 refresh_controller() {
   controller="${runtime_root}/production-watch.sh"
   candidate="${controller}.new"
-  if cp "${repo_root}/scripts/production-watch.sh" "${candidate}" &&
+  provenance="${runtime_root}/check-run-provenance.sh"
+  provenance_candidate="${provenance}.new"
+  if cp "${repo_root}/scripts/check-run-provenance.sh" "${provenance_candidate}" &&
+     sh -n "${provenance_candidate}" &&
+     chmod 700 "${provenance_candidate}" &&
+     mv "${provenance_candidate}" "${provenance}" &&
+     cp "${repo_root}/scripts/production-watch.sh" "${candidate}" &&
      sh -n "${candidate}" &&
      chmod 700 "${candidate}" &&
      mv "${candidate}" "${controller}"; then
     echo "Production deploy controller updated"
   else
-    rm -f "${candidate}"
+    rm -f "${candidate}" "${provenance_candidate}"
     echo "Warning: production deploy controller update failed" >&2
   fi
 }

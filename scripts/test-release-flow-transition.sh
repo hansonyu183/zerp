@@ -28,6 +28,9 @@ assert_check 'backend/db/migrations/00001_initial.sql' 1 backend_full
 assert_check 'frontend/src/main.ts' 1 e2e
 assert_check 'docs/operations/development-release.md' 0 preview
 assert_check 'scripts/test-release-flow-transition.sh' validation impact
+assert_check 'scripts/check-run-provenance.sh' application impact
+assert_check 'scripts/check-run-provenance.sh' 1 containers
+assert_check 'scripts/check-run-provenance.sh' 1 preview
 assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
@@ -51,6 +54,14 @@ grep -Fq "github.event_name == 'pull_request' &&" .github/workflows/quality.yml
 grep -Fq 'workflow_dispatch:' .github/workflows/quality.yml
 grep -Fq 'preview=1' .github/workflows/quality.yml
 grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
+# shellcheck disable=SC2016
+grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
+# shellcheck disable=SC2016
+grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
+# shellcheck disable=SC2016
+grep -Fq 'check-run-provenance.sh" "${provenance}' scripts/install-production-agent.sh
+# shellcheck disable=SC2016
+grep -Fq 'check-run-provenance.sh" "${provenance_candidate}' scripts/production-deploy.sh
 grep -Fq "github.event.action == 'ready_for_review'" .github/workflows/quality.yml
 grep -Fq "if [ \"\$READY_VALIDATION\" = \"1\" ]; then" .github/workflows/quality.yml
 grep -Fq 'needs.merge_evidence.outputs.reuse_contracts' .github/workflows/quality.yml
@@ -120,6 +131,7 @@ fi
 # Merge evidence is reusable only from the exact PR head whose tree matches main.
 mkdir -p "${tmp}/bin"
 cp scripts/verify-merged-pr.sh "${tmp}/verify-merged-pr.sh"
+cp scripts/check-run-provenance.sh "${tmp}/check-run-provenance.sh"
 cat >"${tmp}/bin/gh" <<'MOCK'
 #!/bin/sh
 case "${MOCK_SCENARIO}" in
@@ -156,10 +168,16 @@ case "$*" in
     printf ']}\n'
     ;;
   *'/actions/runs/88')
-    printf '{"name":"Full-stack quality","path":".github/workflows/quality.yml","event":"pull_request","status":"completed","conclusion":"success","head_sha":"%s","head_repository":{"full_name":"example/zerp"},"pull_requests":[{"number":7,"base":{"ref":"main"},"head":{"sha":"%s"}}]}\n' "${MOCK_HEAD_SHA}" "${MOCK_HEAD_SHA}"
+    if [ "${MOCK_SCENARIO}" = push-success ]; then
+      event=push; pulls='[]'
+    else
+      event=pull_request
+      pulls=$(printf '[{"number":7,"base":{"ref":"main"},"head":{"sha":"%s"}}]' "${MOCK_HEAD_SHA}")
+    fi
+    printf '{"id":88,"name":"Full-stack quality","path":".github/workflows/quality.yml","event":"%s","status":"completed","conclusion":"success","head_sha":"%s","head_repository":{"full_name":"example/zerp"},"pull_requests":%s}\n' "${event}" "${MOCK_HEAD_SHA}" "${pulls}"
     ;;
   *'/actions/jobs/99')
-    printf '{"name":"full-validation","status":"completed","conclusion":"success","head_sha":"%s","html_url":"https://github.com/example/zerp/actions/runs/88/job/99","workflow_name":"Full-stack quality"}\n' "${MOCK_HEAD_SHA}"
+    printf '{"id":99,"name":"full-validation","status":"completed","conclusion":"success","head_sha":"%s","html_url":"https://github.com/example/zerp/actions/runs/88/job/99","workflow_name":"Full-stack quality","run_url":"https://api.github.com/repos/example/zerp/actions/runs/88"}\n' "${MOCK_HEAD_SHA}"
     ;;
   *"commits/${MOCK_HEAD_SHA}/statuses?per_page=100"*)
     if [ "${MOCK_SCENARIO}" = status-success ]; then
@@ -210,6 +228,26 @@ assert_merge_evidence accepted-status-bracket-bot 333333333333333333333333333333
 assert_merge_evidence missing 3333333333333333333333333333333333333333 failure
 assert_merge_evidence failed 3333333333333333333333333333333333333333 failure
 assert_merge_evidence success 4444444444444444444444444444444444444444 failure
+
+# The production watcher accepts only a successful push job from the same
+# trusted workflow, repository, exact SHA, run, and job.
+# shellcheck source=scripts/check-run-provenance.sh
+. "${repo_root}/scripts/check-run-provenance.sh"
+trusted_push_check='{"name":"full-validation","status":"completed","conclusion":"success","details_url":"https://github.com/example/zerp/actions/runs/88/job/99","app":{"slug":"github-actions"}}'
+if ! PATH="${tmp}/bin:${PATH}" MOCK_SCENARIO=push-success \
+  MOCK_HEAD_SHA=2222222222222222222222222222222222222222 \
+  verify_actions_check_run example/zerp "${trusted_push_check}" full-validation \
+    2222222222222222222222222222222222222222 push '' gh; then
+  fail 'trusted production full-validation provenance was rejected'
+fi
+untrusted_push_check=$(printf '%s' "${trusted_push_check}" |
+  jq '.app.slug = "untrusted-app"')
+if PATH="${tmp}/bin:${PATH}" MOCK_SCENARIO=push-success \
+  MOCK_HEAD_SHA=2222222222222222222222222222222222222222 \
+  verify_actions_check_run example/zerp "${untrusted_push_check}" full-validation \
+    2222222222222222222222222222222222222222 push '' gh; then
+  fail 'untrusted production full-validation provenance was accepted'
+fi
 
 # Component evidence is reusable only from the same PR exact-head fingerprint.
 cat >"${tmp}/bin/gh" <<'MOCK_REUSE'

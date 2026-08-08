@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck source=scripts/check-run-provenance.sh
+. "${script_dir}/check-run-provenance.sh"
+
 repository=${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}
 merge_sha=${GITHUB_SHA:?set GITHUB_SHA}
 required_checks=${ZERP_REQUIRED_PR_CHECKS:-"full-validation"}
@@ -48,39 +52,10 @@ for required_check in ${required_checks}; do
   check_state=$(printf '%s' "${check}" | jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
   preview_required=$(printf '%s' "${check_runs}" | jq -r '[.check_runs[] | select(.name == "preview-required" and .status == "completed" and .conclusion == "success")] | length > 0')
   if [ "${check_state}" = "completed:success" ]; then
-    check_app=$(printf '%s' "${check}" | jq -r '.app.slug // ""')
-    check_details=$(printf '%s' "${check}" | jq -r '.details_url // ""')
-    actions_prefix="https://github.com/${repository}/actions/runs/"
     if [ "${required_check}" != full-validation ] || [ "${preview_required}" != true ]; then
-      case "${check_details}" in
-        "${actions_prefix}"*"/job/"*)
-          run_job=${check_details#"${actions_prefix}"}
-          run_id=${run_job%%/job/*}
-          job_id=${run_job#*/job/}
-          ;;
-        *) run_id='' job_id='' ;;
-      esac
-      case "${run_id}:${job_id}" in
-        *[!0-9:]* | :* | *:) run_id='' job_id='' ;;
-      esac
-      if [ "${check_app}" = github-actions ] && [ -n "${run_id}" ] && [ -n "${job_id}" ]; then
-        workflow_run=$(gh api "repos/${repository}/actions/runs/${run_id}")
-        workflow_job=$(gh api "repos/${repository}/actions/jobs/${job_id}")
-        trusted_check=$(jq -nr \
-          --argjson run "${workflow_run}" --argjson job "${workflow_job}" \
-          --arg repository "${repository}" --arg head_sha "${head_sha}" \
-          --arg pull_number "${pull_number}" --arg check_name "${required_check}" \
-          --arg details_url "${check_details}" \
-          '$run.name == "Full-stack quality" and $run.path == ".github/workflows/quality.yml" and
-           $run.event == "pull_request" and $run.status == "completed" and $run.conclusion == "success" and
-           $run.head_sha == $head_sha and $run.head_repository.full_name == $repository and
-           any($run.pull_requests[]?; (.number | tostring) == $pull_number and .base.ref == "main" and .head.sha == $head_sha) and
-           $job.name == $check_name and $job.status == "completed" and $job.conclusion == "success" and
-           $job.head_sha == $head_sha and $job.html_url == $details_url and
-           $job.workflow_name == "Full-stack quality"')
-        if [ "${trusted_check}" = true ]; then
-          continue
-        fi
+      if verify_actions_check_run "${repository}" "${check}" \
+        "${required_check}" "${head_sha}" pull_request "${pull_number}" gh; then
+        continue
       fi
     fi
   fi

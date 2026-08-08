@@ -88,6 +88,23 @@ describe('LED shared ledger view model', () => {
     expect(
       ledgerEntityConfigs.other.sourceEntities.map((item) => item.value),
     ).toContain('employee-loan')
+    expect(
+      ledgerEntityConfigs.fund.sourceEntities.map((item) => item.value),
+    ).toEqual(
+      expect.arrayContaining([
+        'expense-payment',
+        'bill-receipt',
+        'bill-issue',
+        'bill-discount',
+        'bill-maturity',
+      ]),
+    )
+    expect(
+      ledgerEntityConfigs.customer.sourceEntities.map((item) => item.value),
+    ).toContain('bill-receipt')
+    expect(
+      ledgerEntityConfigs.supplier.sourceEntities.map((item) => item.value),
+    ).toEqual(expect.arrayContaining(['bill-payment', 'bill-issue']))
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
       'opening',
@@ -189,10 +206,7 @@ describe('LED shared ledger view model', () => {
   })
 
   it('uses the explicit counterparty type after changing it with a reference selected', async () => {
-    useSessionStore().permissions = [
-      '/led/other/query',
-      '/led/other/balance',
-    ]
+    useSessionStore().permissions = ['/led/other/query', '/led/other/balance']
     mockedPost.mockResolvedValue({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
@@ -231,6 +245,48 @@ describe('LED shared ledger view model', () => {
       { signal: expect.any(AbortSignal) },
     )
     scope.stop()
+  })
+
+  it('loads only authorized other-ledger reference catalogs', async () => {
+    vi.useFakeTimers()
+    useSessionStore().permissions = ['/led/other/query', '/bob/supplier/query']
+    mockedPost.mockResolvedValue({
+      data: {
+        items: [
+          {
+            objectId: 'supplier-1',
+            code: 'SUP-001',
+            effectiveVersionId: 'supplier-v1',
+            currentVersion: {
+              versionId: 'supplier-v1',
+              status: 'EFFECTIVE',
+              summary: { name: '供应商一' },
+            },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const scope = effectScope()
+    const vm = scope.run(() => useLedgerViewModel(ledgerEntityConfigs.other))!
+
+    vm.references.search('供应商')
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(mockedPost).toHaveBeenCalledTimes(1)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/supplier/query',
+      expect.anything(),
+      { signal: expect.any(AbortSignal) },
+    )
+    expect(vm.references.options).toEqual([
+      expect.objectContaining({ entity: 'supplier', code: 'SUP-001' }),
+    ])
+    expect(vm.references.errorMessage).toBeNull()
+    scope.stop()
+    vi.useRealTimers()
   })
 
   it('queries a selected balance date and never calls an action without permission', async () => {

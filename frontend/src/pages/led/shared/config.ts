@@ -28,7 +28,12 @@ const fundSourceEntities: readonly LedgerOption[] = [
   { title: '员工借款', value: 'employee-loan' },
   { title: '员工还款', value: 'employee-repayment' },
   { title: '费用报销', value: 'expense-reimbursement' },
+  { title: '费用付款', value: 'expense-payment' },
   { title: '其他收入', value: 'other-income' },
+  { title: '票据收入', value: 'bill-receipt' },
+  { title: '票据开出', value: 'bill-issue' },
+  { title: '票据贴现', value: 'bill-discount' },
+  { title: '票据到期处理', value: 'bill-maturity' },
 ]
 
 const customerPartySourceEntities: readonly LedgerOption[] = [
@@ -37,6 +42,7 @@ const customerPartySourceEntities: readonly LedgerOption[] = [
   { title: '销售退货', value: 'sale-return' },
   { title: '销售收款', value: 'sales-receipt' },
   { title: '销售退款', value: 'sales-refund' },
+  { title: '票据收入', value: 'bill-receipt' },
 ]
 
 const supplierPartySourceEntities: readonly LedgerOption[] = [
@@ -45,6 +51,8 @@ const supplierPartySourceEntities: readonly LedgerOption[] = [
   { title: '采购退货', value: 'purchase-return' },
   { title: '采购退款', value: 'purchase-refund' },
   { title: '采购付款', value: 'purchase-payment' },
+  { title: '票据付出', value: 'bill-payment' },
+  { title: '票据开出', value: 'bill-issue' },
 ]
 
 const otherPartySourceEntities: readonly LedgerOption[] = [

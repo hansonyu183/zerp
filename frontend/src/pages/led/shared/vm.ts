@@ -51,7 +51,9 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
     counterpartyType: '',
   })
   const references = createLedgerReferenceSearch(
-    config.referenceSources,
+    config.referenceSources.filter((source) =>
+      session.can(`/bob/${source.entity}/query`),
+    ),
     () => [queryFilters.object, balanceFilters.object],
   )
   let controller: AbortController | undefined

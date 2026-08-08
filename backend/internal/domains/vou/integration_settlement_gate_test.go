@@ -317,9 +317,10 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	}, integrationActorOne, "cod-first-unapprove"); err != nil {
 		t.Fatalf("unapprove first COD order: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+	secondApproved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 		DocumentID: second.DocumentID, Revision: second.Revision,
-	}, integrationActorTwo, "cod-second-after-release"); err != nil {
+	}, integrationActorTwo, "cod-second-after-release")
+	if err != nil {
 		t.Fatalf("approve second COD order after release: %v", err)
 	}
 	tx, err := pool.Begin(t.Context())
@@ -335,6 +336,12 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	if err = tx.Rollback(t.Context()); err != nil {
 		t.Fatalf("rollback COD reopen transaction: %v", err)
 	}
+	if _, err = service.Unapprove(t.Context(), EntitySaleOrder, ReverseInput{
+		DocumentID: secondApproved.DocumentID, Revision: secondApproved.Revision,
+		Reason: "release second COD order",
+	}, integrationActorOne, "cod-second-unapprove"); err != nil {
+		t.Fatalf("unapprove second COD order: %v", err)
+	}
 	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
 		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
 		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
@@ -345,6 +352,19 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(),
 		integrationActorOne, "cod-debt-entry", customer.ObjectID, customer.VersionID); err != nil {
 		t.Fatalf("insert COD debt: %v", err)
+	}
+	tx, err = pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin COD debt reopen transaction: %v", err)
+	}
+	if err = service.reserveOrderSettlement(
+		t.Context(), tx, EntitySaleOrder, first.DocumentID,
+	); err == nil || !strings.Contains(err.Error(), "outstanding debt") {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("reopened COD order ignored unrelated debt: %v", err)
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback COD debt reopen transaction: %v", err)
 	}
 	third := createCheckedSettlementSale(t, service, refs, customer, "cod-debt")
 	if _, err = service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{

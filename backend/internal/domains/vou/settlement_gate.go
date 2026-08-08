@@ -49,12 +49,6 @@ func (s *Service) reserveOrderSettlementAmount(
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
 		return s.internal("lock settlement balance", err)
 	}
-	var reservationExists bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM vou_settlement_reservations WHERE order_id=$1
-	)`, gate.OrderID).Scan(&reservationExists); err != nil {
-		return s.internal("read order settlement reservation", err)
-	}
 	var activeGenerationID string
 	if err = tx.QueryRow(ctx, `SELECT active_generation_id
 		FROM led_control
@@ -101,16 +95,30 @@ func (s *Service) reserveOrderSettlementAmount(
 			}, nil)
 		}
 	} else {
-		if !reservationExists {
-			outstandingDebt := (gate.CounterpartyEntity == "customer" && balance > 0) ||
-				(gate.CounterpartyEntity == "supplier" && balance < 0)
-			if outstandingDebt {
-				return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
-					"currency":           gate.Currency,
-					"orderAmount":        formatMoney(reservedAmount),
-					"outstandingBalance": formatMoney(absInt64(balance)),
-				}, nil)
-			}
+		fulfilledAmount, returnedAmount, fulfillmentErr := loadOrderFulfillmentTotals(
+			ctx, tx, gate.OrderEntity, gate.OrderID,
+		)
+		if fulfillmentErr != nil {
+			return s.internal("read order fulfillment balance", fulfillmentErr)
+		}
+		ownFulfillmentBalance := fulfilledAmount - returnedAmount
+		if ownFulfillmentBalance < 0 {
+			ownFulfillmentBalance = 0
+		}
+		externalBalance := balance
+		if gate.CounterpartyEntity == "customer" {
+			externalBalance -= ownFulfillmentBalance
+		} else {
+			externalBalance += ownFulfillmentBalance
+		}
+		outstandingDebt := (gate.CounterpartyEntity == "customer" && externalBalance > 0) ||
+			(gate.CounterpartyEntity == "supplier" && externalBalance < 0)
+		if outstandingDebt {
+			return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
+				"currency":           gate.Currency,
+				"orderAmount":        formatMoney(reservedAmount),
+				"outstandingBalance": formatMoney(absInt64(externalBalance)),
+			}, nil)
 		}
 		var existingOrderID string
 		err = tx.QueryRow(ctx, `SELECT order_id FROM vou_settlement_reservations
@@ -158,7 +166,27 @@ func (s *Service) reopenOrderSettlement(
 	if gate.TermCode != bobSettlementPrepaid && gate.TermCode != bobSettlementCOD {
 		return nil
 	}
-	var fulfilledAmount, returnedAmount int64
+	fulfilledAmount, returnedAmount, err := loadOrderFulfillmentTotals(
+		ctx, tx, orderEntity, orderID,
+	)
+	if err != nil {
+		return err
+	}
+	remaining := gate.AmountCents - fulfilledAmount + returnedAmount
+	if remaining <= 0 {
+		return s.releaseOrderSettlement(ctx, tx, orderID)
+	}
+	if remaining > gate.AmountCents {
+		remaining = gate.AmountCents
+	}
+	return s.reserveOrderSettlementAmount(ctx, tx, orderEntity, orderID, remaining)
+}
+
+func loadOrderFulfillmentTotals(
+	ctx context.Context,
+	tx pgx.Tx,
+	orderEntity, orderID string,
+) (fulfilledAmount, returnedAmount int64, err error) {
 	switch orderEntity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT
@@ -182,20 +210,8 @@ func (s *Service) reopenOrderSettlement(
 				JOIN vou_documents document ON document.id=detail.document_id
 				WHERE detail.source_order_id=$1 AND document.status IN ('APPROVED','FINALIZED')),0)::bigint`, orderID).
 			Scan(&fulfilledAmount, &returnedAmount)
-	default:
-		return nil
 	}
-	if err != nil {
-		return err
-	}
-	remaining := gate.AmountCents - fulfilledAmount + returnedAmount
-	if remaining <= 0 {
-		return s.releaseOrderSettlement(ctx, tx, orderID)
-	}
-	if remaining > gate.AmountCents {
-		remaining = gate.AmountCents
-	}
-	return s.reserveOrderSettlementAmount(ctx, tx, orderEntity, orderID, remaining)
+	return fulfilledAmount, returnedAmount, err
 }
 
 func loadOrderSettlementGate(

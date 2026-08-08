@@ -4,13 +4,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
-    branches: [dev, main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   checks: read
   pull-requests: read
+  statuses: read
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -36,7 +38,8 @@ jobs:
       e2e: ${{ steps.change_impact.outputs.e2e }}
       local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
       preview: ${{ steps.change_impact.outputs.preview }}
-      full_validation: ${{ steps.change_impact.outputs.full_validation }}
+      ready_validation: ${{ steps.change_impact.outputs.ready_validation }}
+      reuse_contracts: ${{ steps.reuse.outputs.reuse_contracts }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -47,24 +50,11 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            if [ "$PR_BASE_REF" = "main" ]; then
-              diff_range="$BASE_SHA..$HEAD_SHA"
-            else
-              diff_range="$BASE_SHA...$HEAD_SHA"
-            fi
-            checks=$(scripts/change-impact.sh --checks "$diff_range")
-            if [ "$PR_BASE_REF" = "main" ]; then
-              checks=$(printf '%s\n' "$checks" | sed \
-                -e 's/^frontend_full=.*/frontend_full=1/' \
-                -e 's/^containers=.*/containers=1/' \
-                -e 's/^api_image=.*/api_image=1/' \
-                -e 's/^web_image=.*/web_image=1/')
-            fi
+            checks=$(scripts/change-impact.sh --checks "$BASE_SHA..$HEAD_SHA")
           else
             checks='impact=application
           contracts=1
@@ -82,14 +72,13 @@ jobs:
           preview=1'
           fi
           impact=$(printf '%s\n' "$checks" | sed -n 's/^impact=//p')
+          ready_validation=1
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ] && \
             [ "$impact" = "application" ]; then
-            full_validation=0
-          else
-            full_validation=1
+            ready_validation=0
           fi
           checks="${checks}
-          full_validation=${full_validation}"
+          ready_validation=${ready_validation}"
           printf '%s\n' "$checks"
           printf '%s\n' "$checks" >> "$GITHUB_OUTPUT"
           {
@@ -106,13 +95,25 @@ jobs:
           ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
           ZERP_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: scripts/verify-pr-base.sh
+        run: |
+          git fetch origin main --depth=1
+          ZERP_CURRENT_MAIN_SHA=$(git rev-parse FETCH_HEAD) scripts/verify-pr-base.sh
       - name: Reuse merged PR checks
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-          ZERP_MERGED_BASE_REF: ${{ github.ref_name }}
         run: scripts/verify-merged-pr.sh
+      - name: Reuse identical component evidence
+        id: reuse
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.action == 'ready_for_review'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZERP_PR_NUMBER: ${{ github.event.pull_request.number }}
+          ZERP_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ZERP_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: scripts/reusable-pr-checks.sh
 
   contracts:
     needs: merge_evidence
@@ -120,19 +121,26 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name != 'push'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1'
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
-        if: github.event_name != 'push'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1'
       - uses: actions/setup-node@v6
-        if: github.event_name != 'push'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-go@v6
         if: >-
           github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1' &&
           (needs.merge_evidence.outputs.contracts == '1' ||
           needs.merge_evidence.outputs.impact == 'validation')
         with:
@@ -140,11 +148,14 @@ jobs:
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
-      - if: github.event_name != 'push'
+      - if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1'
         run: pnpm install --frozen-lockfile
       - name: Generate contracts and reject drift
         if: >-
           github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1' &&
           needs.merge_evidence.outputs.contracts == '1'
         run: |
           make generate
@@ -154,7 +165,9 @@ jobs:
             backend/internal/database/sqlc \
             frontend/src/api/generated
       - name: Check documentation, formatting and whitespace
-        if: github.event_name != 'push'
+        if: >-
+          github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1'
         run: |
           pnpm docs:check
           pnpm format:check
@@ -162,11 +175,17 @@ jobs:
       - name: Validate development tooling
         if: >-
           github.event_name != 'push' &&
+          needs.merge_evidence.outputs.reuse_contracts != '1' &&
           needs.merge_evidence.outputs.impact == 'validation'
-        run: scripts/validation-check.sh
+        run: scripts/test-release-flow-transition.sh
       - name: Reuse successful PR contracts check
         if: github.event_name == 'push'
         run: echo "Reused merged PR contracts result"
+      - name: Reuse identical contracts evidence from this PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.merge_evidence.outputs.reuse_contracts == '1'
+        run: echo "Reused contracts for exact input fingerprint $GITHUB_SHA"
 
   frontend:
     needs: merge_evidence
@@ -199,18 +218,18 @@ jobs:
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.frontend == '1'
         env:
-          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
           FRONTEND_FULL: ${{ needs.merge_evidence.outputs.frontend_full }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ "$FULL_VALIDATION" = "1" ] || [ "$FRONTEND_FULL" = "1" ]; then
+          if [ "$READY_VALIDATION" = "1" ] && [ "$FRONTEND_FULL" = "1" ]; then
             pnpm --filter @zerp/frontend check:core
           else
             pnpm --filter @zerp/frontend lint
             pnpm --filter @zerp/frontend format:check
             pnpm --filter @zerp/frontend check:deployment-config
-            mapfile -t changed_files < <(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- \
+            mapfile -t changed_files < <(git diff --name-only "$BASE_SHA..$HEAD_SHA" -- \
               frontend/src frontend/tests/unit | sed -n 's#^frontend/##p')
             if [ "${#changed_files[@]}" -gt 0 ]; then
               pnpm --dir frontend exec vitest related --run "${changed_files[@]}"
@@ -229,6 +248,7 @@ jobs:
       - name: Audit production dependencies
         if: >-
           github.event_name != 'push' &&
+          needs.merge_evidence.outputs.ready_validation == '1' &&
           needs.merge_evidence.outputs.frontend_audit == '1'
         run: pnpm audit --prod
       - name: Skip frontend gate
@@ -257,7 +277,9 @@ jobs:
             backend/go.sum
             backend/tools/go.sum
       - name: Prepare isolated backend test environment
-        if: needs.merge_evidence.outputs.backend_full == '1'
+        if: >-
+          needs.merge_evidence.outputs.backend_full == '1' &&
+          needs.merge_evidence.outputs.ready_validation == '1'
         run: |
           install -m 600 /dev/null backend/.env.ci
           {
@@ -275,9 +297,9 @@ jobs:
       - name: Run focused or full backend gates
         env:
           BACKEND_FULL: ${{ needs.merge_evidence.outputs.backend_full }}
-          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
         run: |
-          if [ "$BACKEND_FULL" = "1" ] && [ "$FULL_VALIDATION" = "1" ]; then
+          if [ "$BACKEND_FULL" = "1" ] && [ "$READY_VALIDATION" = "1" ]; then
             make -C backend ENV_FILE=.env.ci quality-test
             make -C backend quality-vet-build
           else
@@ -290,7 +312,7 @@ jobs:
       github.event_name != 'push' &&
       needs.merge_evidence.outputs.backend == '1' &&
       needs.merge_evidence.outputs.backend_full == '1' &&
-      needs.merge_evidence.outputs.full_validation == '1'
+      needs.merge_evidence.outputs.ready_validation == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -339,8 +361,8 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BACKEND_REQUIRED: ${{ needs.merge_evidence.outputs.backend }}
-          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
           BACKEND_FULL: ${{ needs.merge_evidence.outputs.backend_full }}
+          READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
           TEST_RESULT: ${{ needs.backend_test.result }}
           RACE_RESULT: ${{ needs.backend_race.result }}
@@ -350,12 +372,8 @@ jobs:
           if [ "$EVENT_NAME" != "push" ] && [ "$BACKEND_REQUIRED" = "1" ]; then
             test "$TEST_RESULT" = "success"
             test "$STATIC_RESULT" = "success"
-            if [ "$FULL_VALIDATION" = "1" ]; then
-              if [ "$BACKEND_FULL" = "1" ]; then
-                test "$RACE_RESULT" = "success"
-              else
-                test "$RACE_RESULT" = "skipped"
-              fi
+            if [ "$BACKEND_FULL" = "1" ] && [ "$READY_VALIDATION" = "1" ]; then
+              test "$RACE_RESULT" = "success"
             else
               test "$RACE_RESULT" = "skipped"
             fi
@@ -396,7 +414,7 @@ jobs:
     if: >-
       github.event_name != 'push' &&
       needs.merge_evidence.outputs.api_image == '1' &&
-      needs.merge_evidence.outputs.full_validation == '1'
+      needs.merge_evidence.outputs.ready_validation == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -416,7 +434,7 @@ jobs:
     if: >-
       github.event_name != 'push' &&
       needs.merge_evidence.outputs.web_image == '1' &&
-      needs.merge_evidence.outputs.full_validation == '1'
+      needs.merge_evidence.outputs.ready_validation == '1'
     needs: merge_evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -445,7 +463,7 @@ jobs:
       - name: Require relevant container gates
         env:
           EVENT_NAME: ${{ github.event_name }}
-          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
+          READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
           API_IMAGE_REQUIRED: ${{ needs.merge_evidence.outputs.api_image }}
           WEB_IMAGE_REQUIRED: ${{ needs.merge_evidence.outputs.web_image }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
@@ -455,7 +473,7 @@ jobs:
         run: |
           test "$EVIDENCE_RESULT" = "success"
           test "$CONFIG_RESULT" = "success"
-          if [ "$EVENT_NAME" != "push" ] && [ "$FULL_VALIDATION" = "1" ]; then
+          if [ "$EVENT_NAME" != "push" ] && [ "$READY_VALIDATION" = "1" ]; then
             if [ "$API_IMAGE_REQUIRED" = "1" ]; then
               test "$API_IMAGE_RESULT" = "success"
             else
@@ -481,17 +499,17 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
       - uses: pnpm/action-setup@v6
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
       - uses: actions/setup-node@v6
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -499,7 +517,7 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: |
@@ -508,14 +526,14 @@ jobs:
       - if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         run: pnpm install --frozen-lockfile
       - name: Cache Playwright Chromium
         id: playwright-cache
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
@@ -524,27 +542,27 @@ jobs:
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         run: pnpm --filter @zerp/frontend exec playwright install-deps chromium
       - name: Install Chromium
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1' &&
+          needs.merge_evidence.outputs.ready_validation == '1' &&
           steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @zerp/frontend exec playwright install chromium
       - name: Run desktop and mobile against one full stack
         if: >-
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         run: make e2e
       - name: Upload Playwright failure evidence
         if: >-
           failure() &&
           github.event_name != 'push' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation == '1'
+          needs.merge_evidence.outputs.ready_validation == '1'
         uses: actions/upload-artifact@v7
         with:
           name: playwright-failure-${{ github.sha }}
@@ -562,15 +580,14 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.full_validation != '1'
-        run: |
-          echo "Draft pull request; full E2E runs when the PR is ready for review"
+          needs.merge_evidence.outputs.ready_validation != '1'
+        run: echo "Draft application PR; full E2E runs once when the PR is Ready"
       - name: Reuse successful PR E2E check
         if: github.event_name == 'push'
         run: echo "Reused merged PR E2E result"
 
-  full_validation:
-    name: full-validation
+  validation:
+    name: validation
     if: always()
     needs:
       - merge_evidence
@@ -582,9 +599,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require ready full validation
+      - name: Aggregate automated validation
         env:
-          FULL_VALIDATION: ${{ needs.merge_evidence.outputs.full_validation }}
           EVIDENCE_RESULT: ${{ needs.merge_evidence.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
@@ -593,12 +609,44 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
-          if [ "$FULL_VALIDATION" != "1" ]; then
-            echo "Draft application pull request: mark it ready to run and satisfy full validation" >&2
-            exit 1
-          fi
           test "$CONTRACTS_RESULT" = "success"
           test "$FRONTEND_RESULT" = "success"
           test "$BACKEND_RESULT" = "success"
           test "$CONTAINERS_RESULT" = "success"
           test "$E2E_RESULT" = "success"
+
+  full_validation:
+    name: >-
+      ${{
+        (github.event_name == 'pull_request' &&
+        needs.merge_evidence.outputs.ready_validation != '1') &&
+        'draft-validation' ||
+        (github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' &&
+        needs.merge_evidence.outputs.preview == '1')) &&
+        'preview-required' || 'full-validation'
+      }}
+    if: always()
+    needs:
+      - merge_evidence
+      - validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish release readiness
+        env:
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+          READY_VALIDATION: ${{ needs.merge_evidence.outputs.ready_validation }}
+          PREVIEW_REQUIRED: >-
+            ${{
+              (github.event_name == 'workflow_dispatch' ||
+              (github.event_name == 'pull_request' &&
+              needs.merge_evidence.outputs.preview == '1')) && '1' || '0'
+            }}
+        run: |
+          test "$VALIDATION_RESULT" = "success"
+          if [ "$READY_VALIDATION" != "1" ]; then
+            echo "Draft validation passed; Ready runs the final full matrix"
+          elif [ "$PREVIEW_REQUIRED" = "1" ]; then
+            echo "Automated validation passed; exact-SHA preview acceptance must publish full-validation"
+          fi

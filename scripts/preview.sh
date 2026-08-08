@@ -23,11 +23,12 @@ system_user_id=01JAPPSYST3MACTR0000000000
 db_label=com.hansonyu.zerp-preview-db
 api_label=com.hansonyu.zerp-preview-api
 web_label=com.hansonyu.zerp-preview-web
+reap_label=com.hansonyu.zerp-preview-reap
 launch_domain="gui/$(id -u)"
 build_temp=
 
 usage() {
-  echo "usage: $0 {up|down|reset|rollback|status|password}" >&2
+  echo "usage: $0 {up|build|activate|stop-app|restart-app|down|reset|rollback|status|password|reap|close|accept|promote|gc}" >&2
   exit 2
 }
 
@@ -136,6 +137,16 @@ guard() {
 
   mkdir -p "${runtime_root}" "${releases_root}" "${launch_agent_root}" \
     "${backup_root}" "${attachment_root}"
+  state_current="${runtime_root}/state/current"
+  "${repo_root}/scripts/preview-state.sh" init
+  preview_db="${POSTGRES_DB}"
+  preview_attachment_root="${attachment_root}"
+  if [ -f "${state_current}" ]; then
+    preview_db=$(sed -n 's/^db=//p' "${state_current}")
+    preview_attachment_root=$(sed -n 's/^attachments=//p' "${state_current}")
+  fi
+  database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
+  export preview_db preview_attachment_root database_url
   chmod 700 "${runtime_root}" "${releases_root}" "${launch_agent_root}" \
     "${backup_root}" "${attachment_root}"
 }
@@ -262,24 +273,29 @@ build_release() {
   build_temp=$(mktemp -d "${runtime_root}/release.${release_name}.XXXXXX")
   mkdir -p "${build_temp}/bin" "${build_temp}/web" "${build_temp}/migrations"
   echo "Building native preview release ${release_name}"
-  go -C "${source_root}/backend" build -trimpath \
+  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
+    go -C "${source_root}/backend" build -trimpath \
     -o "${build_temp}/bin/zerp-server" ./cmd/server
-  go -C "${source_root}/backend" build -trimpath \
+  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
+    go -C "${source_root}/backend" build -trimpath \
     -o "${build_temp}/bin/zerp-preview-web" ./cmd/preview-web
-  go -C "${source_root}/backend" build -trimpath \
+  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
+    go -C "${source_root}/backend" build -trimpath \
     -o "${build_temp}/bin/zerp-bootstrap-admin" ./cmd/bootstrap-admin
-  go -C "${source_root}/backend" build -trimpath \
+  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
+    go -C "${source_root}/backend" build -trimpath \
     -o "${build_temp}/bin/zerp-seed-preview" ./cmd/seed-preview
-  go -C "${source_root}/backend/tools" build -trimpath \
+  env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" GOCACHE="${GOCACHE:-}" GOPATH="${GOPATH:-}" \
+    go -C "${source_root}/backend/tools" build -trimpath \
     -o "${build_temp}/bin/goose" github.com/pressly/goose/v3/cmd/goose
 
-  (cd "${source_root}" && pnpm install --frozen-lockfile)
+  (cd "${source_root}" && env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" CI="${CI:-}" pnpm install --frozen-lockfile)
   if [ "${release_marker}" = workspace ]; then
     (cd "${source_root}" && \
-      VITE_API_BASE_URL=/api/ pnpm --filter @zerp/frontend build)
+      env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" VITE_API_BASE_URL=/api/ pnpm --filter @zerp/frontend build)
   else
     (cd "${source_root}" && \
-      VITE_API_BASE_URL=/api/ GITHUB_SHA="${release_marker}" \
+      env -i PATH="${PATH}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" VITE_API_BASE_URL=/api/ GITHUB_SHA="${release_marker}" \
         pnpm --filter @zerp/frontend build)
   fi
   cp -R "${source_root}/frontend/dist/." "${build_temp}/web/"
@@ -323,6 +339,30 @@ write_script_agent() {
   <key>StandardErrorPath</key><string>$(xml_escape "${log_file}")</string>
 </dict>
 </plist>
+EOF
+  chmod 600 "${plist}"
+  plutil -lint "${plist}" >/dev/null
+}
+
+write_reaper_agent() {
+  reap_runner="${runtime_root}/run-reap.sh"
+  cat >"${reap_runner}" <<EOF
+#!/bin/sh
+set -eu
+ZERP_PREVIEW_RUNTIME_ROOT="${runtime_root}" ZERP_PREVIEW_STATE_ROOT="${runtime_root}/state" \
+  "${repo_root}/scripts/preview.sh" reap
+EOF
+  chmod 700 "${reap_runner}"
+  plist="${launch_agent_root}/${reap_label}.plist"
+  cat >"${plist}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>${reap_label}</string>
+<key>ProgramArguments</key><array><string>/bin/sh</string><string>${reap_runner}</string></array>
+<key>RunAtLoad</key><true/><key>StartInterval</key><integer>3600</integer><key>KeepAlive</key><false/>
+<key>StandardOutPath</key><string>${runtime_root}/reap.log</string><key>StandardErrorPath</key><string>${runtime_root}/reap.log</string>
+</dict></plist>
 EOF
   chmod 600 "${plist}"
   plutil -lint "${plist}" >/dev/null
@@ -375,8 +415,11 @@ set -a
 set +a
 release_root=$(CDPATH='' cd -- "${runtime_root}/current" && pwd -P)
 export HTTP_ADDRESS="127.0.0.1:${API_PORT}"
-export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
-export ATTACHMENT_STORAGE_ROOT="${runtime_root}/attachments"
+current_file="${runtime_root}/state/current"
+preview_db=$(sed -n 's/^db=//p' "$current_file")
+preview_attachments=$(sed -n 's/^attachments=//p' "$current_file")
+export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${preview_db}?sslmode=disable"
+export ATTACHMENT_STORAGE_ROOT="${preview_attachments}"
 exec "${release_root}/bin/zerp-server"
 EOF
   cat >"${web_runner}" <<'EOF'
@@ -397,6 +440,7 @@ EOF
   chmod 700 "${api_runner}" "${web_runner}"
   write_script_agent "${api_label}" "${api_runner}" "${runtime_root}/api.log"
   write_script_agent "${web_label}" "${web_runner}" "${runtime_root}/web.log"
+  write_reaper_agent
   write_database_agent
 }
 
@@ -537,7 +581,7 @@ run_release_setup() {
     -dir "${release}/migrations" postgres "${database_url}" up || return 1
   user_count=$(PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_bindir}/psql" \
     -h 127.0.0.1 -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" \
-    -d "${POSTGRES_DB}" -Atqc \
+    -d "${preview_db:-${POSTGRES_DB}}" -Atqc \
     "SELECT count(*) FROM app_users WHERE id <> '${system_user_id}'") || return 1
   if [ "${user_count}" = 0 ]; then
     APP_BOOTSTRAP_PASSWORD="${APP_BOOTSTRAP_PASSWORD}" \
@@ -549,7 +593,7 @@ run_release_setup() {
     echo "Preview administrator already initialized"
   fi
   DATABASE_URL="${database_url}" \
-    ATTACHMENT_STORAGE_ROOT="${attachment_root}" \
+    ATTACHMENT_STORAGE_ROOT="${preview_attachment_root:-${attachment_root}}" \
     "${release}/bin/zerp-seed-preview"
 }
 
@@ -613,6 +657,7 @@ deploy_release() {
     release_activated=1 &&
     restart_job "${api_label}" &&
     restart_job "${web_label}" &&
+    start_job "${reap_label}" &&
     wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz" &&
     wait_for_url "Preview API" "http://127.0.0.1:${API_PORT}/readyz" &&
     wait_for_release_marker \
@@ -621,10 +666,20 @@ deploy_release() {
     wait_for_release_marker "Preview public" "${preview_url}" "${release_marker}" 30
 }
 
-up() {
+build_only() {
   guard
   release_identity
   build_release
+  echo "Native preview release built: ${release_marker}"
+}
+
+activate_only() {
+  guard
+  release_identity
+  test -x "${release_dir}/bin/zerp-server" || {
+    echo "Preview release ${release_marker} has not been built" >&2
+    return 1
+  }
   write_runtime_files
   native_was_ready=0
   release_activated=0
@@ -641,10 +696,51 @@ up() {
   echo "Native preview ready: ${preview_url} (${release_marker})"
 }
 
+up() {
+  build_only
+  activate_only
+}
+
+stop_apps() {
+  guard
+  stop_job "${web_label}"
+  stop_job "${api_label}"
+}
+
+restart_apps() {
+  guard
+  write_runtime_files
+  restart_job "${api_label}"
+  restart_job "${web_label}"
+  wait_for_url "Preview web" "http://127.0.0.1:${WEB_PORT}/healthz"
+  wait_for_url "Preview API" "http://127.0.0.1:${API_PORT}/readyz"
+}
+
+reap_state() {
+  guard
+  before=$(cat "${runtime_root}/state/current")
+  "${repo_root}/scripts/preview-state.sh" reap
+  after=$(cat "${runtime_root}/state/current")
+  if [ "${before}" != "${after}" ]; then
+    restart_apps
+  fi
+}
+
+close_state() {
+  stop_apps
+  if "${repo_root}/scripts/preview-state.sh" close; then
+    restart_apps
+  else
+    restart_apps || true
+    return 1
+  fi
+}
+
 down() {
   guard
   stop_job "${web_label}"
   stop_job "${api_label}"
+  stop_job "${reap_label}"
   stop_job "${db_label}"
   echo "Native preview stopped; database, attachments and releases were preserved"
 }
@@ -657,12 +753,16 @@ reset() {
   chmod 700 "${backup_dir}"
   stop_job "${web_label}"
   stop_job "${api_label}"
+  stop_job "${reap_label}"
   stop_job "${db_label}"
   if [ -e "${postgres_data}" ]; then
     mv "${postgres_data}" "${backup_dir}/postgres-data"
   fi
   if [ -e "${attachment_root}" ]; then
     mv "${attachment_root}" "${backup_dir}/attachments"
+  fi
+  if [ -e "${runtime_root}/state" ]; then
+    mv "${runtime_root}/state" "${backup_dir}/state"
   fi
   mkdir -p "${attachment_root}"
   chmod 700 "${attachment_root}"
@@ -709,6 +809,7 @@ status() {
   wait_for_release_marker \
     "Preview local" "http://127.0.0.1:${WEB_PORT}" "${release_marker}" 1
   wait_for_release_marker "Preview public" "${preview_url}" "${release_marker}" 15
+  "${repo_root}/scripts/preview-state.sh" status
   echo "Native preview local and public health checks passed: ${preview_url} (${release_marker})"
 }
 
@@ -726,6 +827,22 @@ case "${1:-}" in
   up)
     [ "$#" -eq 1 ] || usage
     up
+    ;;
+  build)
+    [ "$#" -eq 1 ] || usage
+    build_only
+    ;;
+  activate)
+    [ "$#" -eq 1 ] || usage
+    activate_only
+    ;;
+  stop-app)
+    [ "$#" -eq 1 ] || usage
+    stop_apps
+    ;;
+  restart-app)
+    [ "$#" -eq 1 ] || usage
+    restart_apps
     ;;
   down)
     [ "$#" -eq 1 ] || usage
@@ -746,6 +863,17 @@ case "${1:-}" in
   password)
     [ "$#" -eq 1 ] || usage
     password
+    ;;
+  reap)
+    [ "$#" -eq 1 ] || usage
+    reap_state
+    ;;
+  close)
+    [ "$#" -eq 1 ] || usage
+    close_state
+    ;;
+  accept|promote|gc)
+    "${repo_root}/scripts/preview-state.sh" "$1"
     ;;
   *)
     usage

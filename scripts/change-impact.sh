@@ -90,8 +90,10 @@ if [ -n "${changed_files}" ]; then
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
         Makefile | backend/Makefile | \
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
-        scripts/validation-check.sh | scripts/verify-pr-base.sh | \
-        scripts/verify-merged-pr.sh | scripts/dev.sh)
+        scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
+        scripts/preview-state-test.sh | scripts/release-metrics.sh | \
+        scripts/release-metrics-check.sh | \
+        scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi
@@ -226,15 +228,9 @@ if [ -n "${changed_files}" ]; then
         ;;
 
       compose.preview.yaml | backend/.env.preview.example | \
-        backend/scripts/init-preview-env.sh | scripts/preview.sh | scripts/preview-deploy.sh)
-        if [ "${impact}" = "docs" ]; then
-          impact=validation
-        fi
-        preview=1
-        ;;
-
-      scripts/install-preview-agent.sh | scripts/preview-watch.sh | scripts/preview-retry.sh | \
-        scripts/uninstall-preview-agent.sh)
+        backend/scripts/init-preview-env.sh | scripts/preview.sh | \
+        scripts/preview-deploy.sh | scripts/preview-state.sh | \
+        scripts/verify-preview-pr.sh | scripts/uninstall-preview-agent.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi

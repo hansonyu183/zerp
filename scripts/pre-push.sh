@@ -25,15 +25,12 @@ case "${PRE_PUSH_FULL:-0}" in
     ;;
 esac
 
-base_ref=${PRE_PUSH_BASE_REF:-origin/dev}
-case "${base_ref}" in
-  origin/dev)
-    git fetch origin dev --prune
-    ;;
-  origin/main)
-    git fetch origin main --prune
-    ;;
-esac
+base_ref=${PRE_PUSH_BASE_REF:-origin/main}
+test "${base_ref}" = origin/main || {
+  echo "pre-push must compare directly with origin/main" >&2
+  exit 2
+}
+git fetch origin main --prune
 
 if [ -n "$(git status --porcelain)" ]; then
   echo "pre-push requires a clean worktree; commit or isolate all changes first" >&2
@@ -41,25 +38,15 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 git rev-parse --verify "${base_ref}^{commit}" >/dev/null
-case "${base_ref}" in
-  origin/dev)
-    git merge-base --is-ancestor "${base_ref}" HEAD || {
-      echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
-      exit 1
-    }
-    if git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
-      echo "Development branches must be rebased onto origin/dev, not merged with it" >&2
-      exit 1
-    fi
-    diff_range="${base_ref}...HEAD"
-    ;;
-  origin/main)
-    diff_range="${base_ref}..HEAD"
-    ;;
-  *)
-    diff_range="${base_ref}...HEAD"
-    ;;
-esac
+git merge-base --is-ancestor "${base_ref}" HEAD || {
+  echo "HEAD must include the latest ${base_ref}; rebase before running pre-push" >&2
+  exit 1
+}
+if git rev-list --merges "${base_ref}..HEAD" | grep -q .; then
+  echo "Feature branches must be rebased onto origin/main, not merged with it" >&2
+  exit 1
+fi
+diff_range="${base_ref}...HEAD"
 
 changed_files=$(git diff --name-only "${diff_range}")
 if [ -z "${changed_files}" ]; then
@@ -94,7 +81,7 @@ print_plan() {
     printf '  contracts: %s\n' "${contracts}"
     printf '  frontend: %s\n' "${frontend}"
     printf '  frontend dependency audit: %s\n' "${frontend_audit}"
-    printf '  frontend full Draft gate: %s\n' "${frontend_full}"
+    printf '  frontend full gate: %s\n' "${frontend_full}"
     printf '  backend: %s\n' "${backend}"
     printf '  backend full integration/race: %s\n' "${backend_full}"
     printf '  backend dependency integrity: %s\n' "${backend_deps}"
@@ -134,7 +121,7 @@ check_docs() {
 check_validation() {
   pnpm format:check
   pnpm docs:check
-  scripts/validation-check.sh
+  scripts/test-release-flow-transition.sh
 }
 
 check_backend() {

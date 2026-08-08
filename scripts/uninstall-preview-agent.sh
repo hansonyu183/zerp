@@ -18,6 +18,9 @@ case "${runtime_root}" in
 esac
 
 launchctl bootout "gui/$(id -u)/${label}" >/dev/null 2>&1 || true
+preview_reap_label=com.hansonyu.zerp-preview-reap
+launchctl bootout "gui/$(id -u)/${preview_reap_label}" >/dev/null 2>&1 || true
+rm -f "${state_root}/backend/var/preview-native/launch-agents/${preview_reap_label}.plist"
 rm -f "${launch_agent}"
 if [ -d "${runtime_root}" ]; then
   rm -rf "${runtime_root}"

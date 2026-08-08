@@ -115,7 +115,7 @@ https://zerp-preview.bytesucceed.com
 
 首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并按 AUX、BOB、VOU/WFL、LED 顺序补齐全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
 
-临时检查可用 `make preview-up` 构建当前工作区。开发 PR 合入 `dev` 后，需要固定预览的变更使用准确的当前 `dev` SHA 执行 `make preview-deploy PREVIEW_REF=<dev-full-sha>`，随后运行 `make preview-status` 验收；正式发布仍只由 `dev` → `main` 汇总 PR 触发。完整生命周期、回退和验收方法见固定预览运维说明。
+临时检查可用 `make preview-up` 构建当前工作区。需要固定预览的 Ready PR 使用准确 head SHA 执行 `make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>`，随后运行 `make preview-status` 和 `make preview-accept PREVIEW_PR=<number> PREVIEW_ACTOR=<github-login>`；合并后的 `main` 由生产代理自动发布。完整生命周期、状态晋升、回退和验收方法见固定预览运维说明。
 
 ## 文档
 
@@ -128,6 +128,7 @@ https://zerp-preview.bytesucceed.com
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)
 - [开发、PR 与自动上线规范](docs/operations/development-release.md)
+- [测试与发布流程指标](docs/operations/release-metrics.md)
 
 ## 安全
 

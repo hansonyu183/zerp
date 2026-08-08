@@ -138,6 +138,15 @@ function costPreview(line: BillLineDraft): string | null {
     : previewInterestAmount(line.faceAmount, props.internalCostRateBps, days)
 }
 
+function billTypeLabel(value: BillLineDraft['billType']): string {
+  return billTypes.find((item) => item.value === value)?.title ?? value
+}
+
+function originatingPartyLabel(line: BillLineDraft): string {
+  const party = line.originatingParty
+  return party ? `${party.code} · ${party.name}` : '—'
+}
+
 const billTypes = [
   { title: '银行承兑', value: 'BANK_ACCEPTANCE' },
   { title: '商业承兑', value: 'COMMERCIAL_ACCEPTANCE' },
@@ -204,7 +213,15 @@ const media = [
         </thead>
         <tbody>
           <tr v-for="(line, index) in modelValue" :key="line.key">
-            <td>{{ mode === 'issue' ? '自开票据（负债）' : (line.purpose === 'PRIMARY' ? '收入' : '票据找零') }}</td>
+            <td>
+              {{
+                mode === 'issue'
+                  ? '自开票据（负债）'
+                  : line.purpose === 'PRIMARY'
+                    ? '收入'
+                    : '票据找零'
+              }}
+            </td>
             <td>
               <CompactTableField
                 v-if="line.purpose === 'PRIMARY'"
@@ -356,7 +373,13 @@ const media = [
         >
           <span
             >{{ index + 1 }}.
-            {{ mode === 'issue' ? '自开票据（负债）' : (line.purpose === 'PRIMARY' ? '收入票据' : '找零票据') }}</span
+            {{
+              mode === 'issue'
+                ? '自开票据（负债）'
+                : line.purpose === 'PRIMARY'
+                  ? '收入票据'
+                  : '找零票据'
+            }}</span
           >
           <v-btn
             v-if="editable"
@@ -374,14 +397,40 @@ const media = [
                 ><strong>号码</strong>
                 <div>{{ line.billNo }}</div></v-col
               ><v-col cols="6"
-                ><strong>票面</strong>
+                ><strong>类型</strong>
+                <div>{{ billTypeLabel(line.billType) }}</div></v-col
+              ><v-col cols="6"
+                ><strong>介质</strong>
+                <div>
+                  {{ line.medium === 'ELECTRONIC' ? '电子' : '纸质' }}
+                </div></v-col
+              ><v-col cols="6"
+                ><strong>币种</strong>
+                <div>{{ line.currency }}</div></v-col
+              ><v-col cols="6"
+                ><strong>票面金额</strong>
                 <div>{{ line.faceAmount }}</div></v-col
               ><v-col cols="6"
-                ><strong>承兑人</strong>
-                <div>{{ line.acceptor }}</div></v-col
+                ><strong>出票日</strong>
+                <div>{{ line.issueDate }}</div></v-col
               ><v-col cols="6"
                 ><strong>到期日</strong>
                 <div>{{ line.maturityDate }}</div></v-col
+              ><v-col cols="6"
+                ><strong>年利率(bps)</strong>
+                <div>{{ line.annualRateBps }}</div></v-col
+              ><v-col cols="12"
+                ><strong>出票人</strong>
+                <div>{{ line.drawer }}</div></v-col
+              ><v-col cols="6"
+                ><strong>承兑人</strong>
+                <div>{{ line.acceptor }}</div></v-col
+              ><v-col cols="12"
+                ><strong>收款人</strong>
+                <div>{{ line.payee }}</div></v-col
+              ><v-col cols="12"
+                ><strong>备注</strong>
+                <div>{{ line.remark || '—' }}</div></v-col
               ></v-row
             >
           </template>
@@ -542,8 +591,8 @@ const media = [
             <v-list-item
               v-for="line in selectableHeld"
               :key="line.billId"
-              :subtitle="`${line.acceptor} · 到期 ${line.maturityDate}`"
-              :title="`${line.billNo} · ${line.currency} ${line.faceAmount}`"
+              :subtitle="`来源 ${originatingPartyLabel(line)} · 承兑 ${line.acceptor} · 到期 ${line.maturityDate}`"
+              :title="`${billTypeLabel(line.billType)} · ${line.billNo} · ${line.currency} ${line.faceAmount}`"
             >
               <template #prepend
                 ><v-checkbox-btn

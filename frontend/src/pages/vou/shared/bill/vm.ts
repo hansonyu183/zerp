@@ -196,7 +196,16 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const session = useSessionStore()
   const permission = (action: string) => `/vou/${config.entity}/${action}`
   const canQuery = computed(() => session.can(permission('query')))
-  const canCreate = computed(() => session.can(permission('create')))
+  const requiresHeldBillAccess = ['payment', 'discount', 'maturity'].includes(
+    config.mode,
+  )
+  const canSelectHeldBills = computed(() => session.can('/led/bill/query'))
+  const hasRequiredHeldBillAccess = computed(
+    () => !requiresHeldBillAccess || canSelectHeldBills.value,
+  )
+  const canCreate = computed(
+    () => session.can(permission('create')) && hasRequiredHeldBillAccess.value,
+  )
   const rows = ref<BillListItem[]>([])
   const total = ref(0)
   const page = ref(1)
@@ -225,7 +234,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const heldDialogOpen = ref(false)
   const actionAvailability = computed<VoucherActionAvailability>(() => ({
     get: session.can(permission('get')),
-    save: session.can(permission('save')),
+    save: session.can(permission('save')) && hasRequiredHeldBillAccess.value,
     check: session.can(permission('check')),
     uncheck: session.can(permission('uncheck')),
     approve: session.can(permission('approve')),
@@ -366,7 +375,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       })
       documentView.value = data
       editing.value =
-        edit && data.status === 'DRAFT' && session.can(permission('save'))
+        edit && data.status === 'DRAFT' && actionAvailability.value.save
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {
@@ -646,6 +655,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   async function searchHeldBills(value: string) {
+    if (!canSelectHeldBills.value) {
+      heldBillOptions.value = []
+      return
+    }
     const current = ++heldSequence
     heldController?.abort()
     const requestController = new AbortController()
@@ -697,6 +710,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   async function openHeldDialog() {
+    if (!canSelectHeldBills.value) return
     heldSelection.value = form.billLines
       .map((line) => line.billId)
       .filter((billId): billId is string => Boolean(billId))
@@ -725,7 +739,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         .map((line) => [line.billId!, line]),
     )
     form.billLines = [...selected]
-      .map((billID) => optionByBillID.get(billID) ?? currentByBillID.get(billID))
+      .map(
+        (billID) => optionByBillID.get(billID) ?? currentByBillID.get(billID),
+      )
       .filter((line): line is BillLineDraft => Boolean(line))
       .slice(0, config.maxBillLines)
       .map((line) => ({
@@ -770,6 +786,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     config,
     canQuery,
     canCreate,
+    canSelectHeldBills,
     rows,
     total,
     page,

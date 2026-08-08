@@ -74,7 +74,14 @@ export function useBillLedgerViewModel() {
         filters: { keyword },
         sort: [{ field: 'code', order: 'asc' }],
       }
-      const entities = ['customer', 'supplier', 'other-party'] as const
+      const entities = (
+        ['customer', 'supplier', 'other-party'] as const
+      ).filter((entity) => session.can(`/bob/${entity}/query`))
+      if (entities.length === 0) {
+        if (current === originatingPartySequence)
+          originatingPartyOptions.value = []
+        return
+      }
       const results = await Promise.all(
         entities.map(async (entity) => ({
           entity,

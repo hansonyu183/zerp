@@ -259,31 +259,45 @@ describe('bill receipt payload', () => {
       useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
     )!
     vm.openCreate()
-    vm.form.billLines = [{
-      ...form().billLines[0]!,
-      key: 'off-page',
-      billId: 'off-page',
-      billNo: 'OFF-PAGE',
-      faceAmount: '10.00',
-      purpose: 'CHANGE',
-      direction: 'IN',
-    }]
-    vm.heldBillOptions.value = [{
-      ...form().billLines[0]!,
-      key: 'on-page',
-      billId: 'on-page',
-      billNo: 'ON-PAGE',
-      faceAmount: '20.00',
-      purpose: 'CHANGE',
-      direction: 'IN',
-    }]
+    vm.form.billLines = [
+      {
+        ...form().billLines[0]!,
+        key: 'off-page',
+        billId: 'off-page',
+        billNo: 'OFF-PAGE',
+        faceAmount: '10.00',
+        purpose: 'CHANGE',
+        direction: 'IN',
+      },
+    ]
+    vm.heldBillOptions.value = [
+      {
+        ...form().billLines[0]!,
+        key: 'on-page',
+        billId: 'on-page',
+        billNo: 'ON-PAGE',
+        faceAmount: '20.00',
+        purpose: 'CHANGE',
+        direction: 'IN',
+      },
+    ]
     vm.heldSelection.value = ['off-page', 'on-page']
 
     vm.applyHeldSelection()
 
     expect(vm.form.billLines).toMatchObject([
-      { billId: 'off-page', billNo: 'OFF-PAGE', purpose: 'PRIMARY', direction: 'OUT' },
-      { billId: 'on-page', billNo: 'ON-PAGE', purpose: 'PRIMARY', direction: 'OUT' },
+      {
+        billId: 'off-page',
+        billNo: 'OFF-PAGE',
+        purpose: 'PRIMARY',
+        direction: 'OUT',
+      },
+      {
+        billId: 'on-page',
+        billNo: 'ON-PAGE',
+        purpose: 'PRIMARY',
+        direction: 'OUT',
+      },
     ])
     scope.stop()
   })
@@ -295,12 +309,14 @@ describe('bill receipt payload', () => {
     )!
     vm.openCreate()
     vm.changeMaturityType('RECEIPT')
-    vm.form.billLines = [{
-      ...form().billLines[0]!,
-      key: 'asset-bill',
-      billId: 'asset-bill',
-      positionType: 'ASSET',
-    }]
+    vm.form.billLines = [
+      {
+        ...form().billLines[0]!,
+        key: 'asset-bill',
+        billId: 'asset-bill',
+        positionType: 'ASSET',
+      },
+    ]
     vm.heldSelection.value = ['asset-bill']
 
     vm.changeMaturityType('PAYMENT')
@@ -509,6 +525,37 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('requires bill-ledger access for held-bill create and edit actions', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-payment/create',
+        '/vou/bill-payment/get',
+        '/vou/bill-payment/save',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability.value.save).toBe(false)
+    vm.openCreate()
+    expect(vm.workspaceOpen.value).toBe(false)
+    await vm.openDocument({ documentId: 'DOC-1' }, true)
+    expect(vm.editing.value).toBe(false)
+
+    mockedPostContract.mockClear()
+    await vm.openHeldDialog()
+    expect(mockedPostContract).not.toHaveBeenCalled()
+
+    session.permissions.push('/led/bill/query')
+    expect(vm.canCreate.value).toBe(true)
+    expect(vm.actionAvailability.value.save).toBe(true)
+    scope.stop()
+  })
+
   it('covers create, references, LED selection, save, lifecycle and delete flows', async () => {
     const session = useSessionStore()
     session.$patch({
@@ -519,6 +566,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-maturity/save',
         '/vou/bill-maturity/check',
         '/vou/bill-maturity/delete',
+        '/led/bill/query',
       ],
     })
     const scope = effectScope()
@@ -623,7 +671,9 @@ describe('bill voucher view model behavior', () => {
 
   it('rejects invalid maturity form before API mutation', async () => {
     const session = useSessionStore()
-    session.$patch({ permissions: ['/vou/bill-maturity/create'] })
+    session.$patch({
+      permissions: ['/vou/bill-maturity/create', '/led/bill/query'],
+    })
     const scope = effectScope()
     const vm = scope.run(() =>
       useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
@@ -668,6 +718,8 @@ describe('bill voucher view model behavior', () => {
   })
 
   it('ignores an aborted held-bill search after a newer request starts', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/led/bill/query'] })
     let resolveLatest!: (value: unknown) => void
     mockedPostContract
       .mockImplementationOnce(
@@ -679,7 +731,10 @@ describe('bill voucher view model behavior', () => {
           }) as never,
       )
       .mockImplementationOnce(
-        () => new Promise((resolve) => { resolveLatest = resolve }) as never,
+        () =>
+          new Promise((resolve) => {
+            resolveLatest = resolve
+          }) as never,
       )
     const scope = effectScope()
     const vm = scope.run(() =>
@@ -701,7 +756,14 @@ describe('bill voucher view model behavior', () => {
 describe('bill ledger view model behavior', () => {
   it('loads ledger, searches every originating-party type and applies maturity shortcuts', async () => {
     const session = useSessionStore()
-    session.$patch({ permissions: ['/led/bill/query'] })
+    session.$patch({
+      permissions: [
+        '/led/bill/query',
+        '/bob/customer/query',
+        '/bob/supplier/query',
+        '/bob/other-party/query',
+      ],
+    })
     const scope = effectScope()
     const vm = scope.run(() => useBillLedgerViewModel())!
     await vm.load()
@@ -735,6 +797,28 @@ describe('bill ledger view model behavior', () => {
     vm.changePage(1)
     expect(vm.filters.availability).toBe('MATURED')
     expect(vm.filters.maturityDateTo).toBeTruthy()
+    scope.stop()
+  })
+
+  it('queries only originating-party catalogs granted to the user', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: ['/led/bill/query', '/bob/supplier/query'],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() => useBillLedgerViewModel())!
+
+    await vm.searchOriginatingParty('供应商')
+
+    expect(mockedPost).toHaveBeenCalledTimes(1)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/supplier/query',
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(vm.originatingPartyOptions.value).toHaveLength(1)
+    expect(vm.originatingPartyOptions.value[0]?.entity).toBe('supplier')
+    expect(vm.errorMessage.value).toBeNull()
     scope.stop()
   })
 
@@ -777,10 +861,16 @@ describe('bill ledger view model behavior', () => {
     let resolveSecond!: (value: unknown) => void
     mockedPostContract
       .mockImplementationOnce(
-        () => new Promise((resolve) => { resolveFirst = resolve }) as never,
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          }) as never,
       )
       .mockImplementationOnce(
-        () => new Promise((resolve) => { resolveSecond = resolve }) as never,
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          }) as never,
       )
     const scope = effectScope()
     const vm = scope.run(() => useBillLedgerViewModel())!

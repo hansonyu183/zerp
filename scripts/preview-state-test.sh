@@ -146,6 +146,18 @@ if [ "$(uname -s)" = Darwin ]; then
     echo 'preview sandbox reached the system pasteboard' >&2
     exit 1
   fi
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /usr/bin/open -Ra Finder >/dev/null 2>&1; then
+    echo 'preview sandbox reached LaunchServices through open' >&2
+    exit 1
+  fi
+  if "${sandbox}" "${sandbox_primary}" "${sandbox_source}" \
+    "${sandbox_output}" "${sandbox_cache}" "${sandbox_secret}" \
+    /usr/bin/osascript -e 'return 1' >/dev/null 2>&1; then
+    echo 'preview sandbox executed osascript' >&2
+    exit 1
+  fi
 
   runtime_sandbox=${repo_root}/scripts/preview-runtime-sandbox.sh
   runtime_primary=${root}/runtime-primary
@@ -319,6 +331,12 @@ grep -Fq '(literal (param "SECRET_FILE"))' \
 grep -Fq '(deny file-write*' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/env -i' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '/usr/bin/pbpaste' "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '(deny appleevent-send)' \
+  "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq 'com.apple.coreservices.launchservicesd' \
+  "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '/usr/bin/open' "${repo_root}/scripts/preview-build-sandbox.sh"
+grep -Fq '/usr/bin/osascript' "${repo_root}/scripts/preview-build-sandbox.sh"
 grep -Fq '(deny network*)' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:55436' "${repo_root}/scripts/preview-runtime-sandbox.sh"
 grep -Fq 'localhost:18082' "${repo_root}/scripts/preview-runtime-sandbox.sh"

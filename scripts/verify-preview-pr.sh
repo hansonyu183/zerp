@@ -96,7 +96,8 @@ if [ -n "${actor}" ] &&
   exit 1
 fi
 actor=${authenticated_actor}
-case "${actor}" in
+actor_key=$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')
+case "${actor_key}" in
   *'[bot]' | *-bot | bot)
     echo "bot actors cannot accept preview" >&2
     exit 1

@@ -67,8 +67,9 @@ for required_check in ${required_checks}; do
     echo "Merged PR #${pull_number} full-validation status is not trusted preview acceptance evidence" >&2
     exit 1
   fi
-  case "${accepted_actor}" in
-    *'[bot]' | *'[BOT]')
+  accepted_actor_key=$(printf '%s' "${accepted_actor}" | tr '[:upper:]' '[:lower:]')
+  case "${accepted_actor_key}" in
+    *'[bot]' | *-bot | bot)
       echo "Merged PR #${pull_number} preview acceptance actor must not be a Bot" >&2
       exit 1
       ;;

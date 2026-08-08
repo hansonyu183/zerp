@@ -24,7 +24,7 @@ generation=$6
 EOT
  chmod 600 "$tmp"; mv -f "$tmp" "$current_file"; }
 db_exists(){ command -v psql >/dev/null 2>&1 || return 1; PGPASSWORD=${POSTGRES_PASSWORD:-} psql -h "$db_host" -p "$db_port" -U "$db_user" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '$1'" 2>/dev/null | grep -qx 1; }
-clone_db(){ base=$1; target=$2; db_exists "$target" && return 0; "$createdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --template="$base" "$target"; }
+clone_db(){ base=$1; target=$2; db_exists "$target" && return 0; PGPASSWORD=${POSTGRES_PASSWORD:-} "$createdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --template="$base" "$target"; }
 copy_attachments(){ src=$1; dst=$2; mkdir -p "$dst"; chmod 700 "$dst"; if [ -d "$src" ] && [ "$src" != "$dst" ]; then cp -Rp "$src/." "$dst/"; fi; }
 baseline_sha(){ if [ -f "$current_file" ] && [ "$(read_field kind "$current_file")" = baseline ]; then read_field sha "$current_file"; else printf '%s\n' "${ZERP_BASELINE_SHA:-$(git -C "$repo_root" rev-parse origin/main 2>/dev/null || printf unknown)}"; fi; }
 init_state(){ mkdir_state; [ -f "$current_file" ] && return; sha=$(baseline_sha); safe_sha "$sha" || sha=legacy; db=${POSTGRES_DB:-zerp_preview}; att=${ZERP_PREVIEW_ATTACHMENT_ROOT:-${runtime_root}/attachments}; mkdir -p "$att"; chmod 700 "$att"; rec="$baseline_root/${sha}.state"; write_record "$rec" kind baseline id "$sha" sha "$sha" db "$db" attachments "$att" generation 0 status accepted accepted_at "$now"; atomic_current baseline "$sha" "$sha" "$db" "$att" 0; }
@@ -61,7 +61,7 @@ claim() (
         cp -p "$transaction/pr" "$pr_record"
       else
         rm -f "$pr_record"; rm -rf "$pr_root/${pr:?}"
-        if [ "$db_preexisting" = 0 ]; then "$dropdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --if-exists --force "$pr_db" >/dev/null 2>&1 || true; fi
+        if [ "$db_preexisting" = 0 ]; then PGPASSWORD=${POSTGRES_PASSWORD:-} "$dropdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --if-exists --force "$pr_db" >/dev/null 2>&1 || true; fi
       fi
       rm -f "${pr_record}.new.$$" "${current_file}.new.$$"
     fi
@@ -146,7 +146,7 @@ promote(){ pr=${PREVIEW_PR:?PREVIEW_PR is required}; merge=${PREVIEW_MERGE_SHA:?
 fail_state(){ pr=${PREVIEW_PR:?PREVIEW_PR is required}; reason=${PREVIEW_FAILURE_REASON:-failed}; mkdir_state; write_record "$failure_root/${pr}-${now}.state" pr "$pr" reason "$reason" failed_at "$now" expires_at "$((now+604800))"; if [ -f "$pr_root/${pr}.state" ]; then (sed "s/^status=.*/status=failed/" "$pr_root/${pr}.state"; printf "failed_at=%s\n" "$now") >"$pr_root/${pr}.state.new"; mv -f "$pr_root/${pr}.state.new" "$pr_root/${pr}.state"; fi; restore_baseline; rm -f "$active_file"; release_lock; }
 canonical_record(){ directory=$(dirname "$1"); printf '%s/%s\n' "$(CDPATH='' cd -- "$directory" && pwd -P)" "$(basename "$1")"; }
 resource_referenced()( field=$1; value=$2; excluded=$(canonical_record "$3"); for candidate in "$baseline_root"/*.state "$pr_root"/*.state; do [ -e "$candidate" ] || continue; [ "$(canonical_record "$candidate")" = "$excluded" ] && continue; [ "$(read_field "$field" "$candidate")" = "$value" ] && return 0; done; return 1; )
-delete_record()( record=$1; db=$(read_field db "$record"); attachments=$(read_field attachments "$record"); if [ -n "$db" ] && ! resource_referenced db "$db" "$record"; then case "$db" in zerp_preview_pr_*) "$dropdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --if-exists --force "$db";; *) echo "Refusing to drop unmanaged preview database: $db" >&2; return 1;; esac; fi; if [ -n "$attachments" ] && ! resource_referenced attachments "$attachments" "$record"; then case "$attachments" in "$pr_root"/*/attachments) rm -rf "$attachments";; *) echo "Refusing to delete unmanaged preview attachments: $attachments" >&2; return 1;; esac; fi; rm -f "$record"; )
+delete_record()( record=$1; db=$(read_field db "$record"); attachments=$(read_field attachments "$record"); if [ -n "$db" ] && ! resource_referenced db "$db" "$record"; then case "$db" in zerp_preview_pr_*) PGPASSWORD=${POSTGRES_PASSWORD:-} "$dropdb_bin" -h "$db_host" -p "$db_port" -U "$db_user" --if-exists --force "$db";; *) echo "Refusing to drop unmanaged preview database: $db" >&2; return 1;; esac; fi; if [ -n "$attachments" ] && ! resource_referenced attachments "$attachments" "$record"; then case "$attachments" in "$pr_root"/*/attachments) rm -rf "$attachments";; *) echo "Refusing to delete unmanaged preview attachments: $attachments" >&2; return 1;; esac; fi; rm -f "$record"; )
 gc(){
   mkdir_state
   current_sha=$(read_field sha "$current_file" 2>/dev/null || true)

@@ -18,11 +18,13 @@ exit 1
 EOF
 cat >"${root}/bin/createdb" <<'EOF'
 #!/bin/sh
+[ "${PGPASSWORD:-}" = "${MOCK_POSTGRES_PASSWORD}" ]
 printf '%s\n' "$*" >>"${MOCK_CREATEDB_LOG}"
 [ "${MOCK_CREATEDB_FAIL:-0}" != 1 ]
 EOF
 cat >"${root}/bin/dropdb" <<'EOF'
 #!/bin/sh
+[ "${PGPASSWORD:-}" = "${MOCK_POSTGRES_PASSWORD}" ]
 printf '%s\n' "$*" >>"${MOCK_DROPDB_LOG}"
 EOF
 cat >"${root}/bin/gh" <<'EOF'
@@ -62,10 +64,12 @@ export MOCK_DROPDB_LOG="${root}/dropdb.log"
 export MOCK_ACCEPT_HEAD="${accept_head}"
 export MOCK_MERGE_SHA="${merge_sha}"
 export MOCK_TREE_SHA="${tree_sha}"
+export MOCK_POSTGRES_PASSWORD=preview-test-password
 export ZERP_PREVIEW_STATE_ROOT="${root}/state"
 export ZERP_PREVIEW_RUNTIME_ROOT="${root}/runtime"
 export ZERP_BASELINE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export POSTGRES_DB=zerp_preview
+export POSTGRES_PASSWORD="${MOCK_POSTGRES_PASSWORD}"
 export ZERP_PREVIEW_ATTACHMENT_ROOT="${root}/attachments"
 export ZERP_PREVIEW_NOW=1000
 export ZERP_PREVIEW_MAIN_SHA="${main_sha}"

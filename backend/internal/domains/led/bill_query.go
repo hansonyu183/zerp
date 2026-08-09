@@ -41,6 +41,19 @@ func (s *Service) QueryBills(ctx context.Context, input BillQueryInput) (Page[Bi
 	}
 	items := make([]BillView, 0, len(rows))
 	var total int64
+	if len(rows) == 0 {
+		total, err = s.queries.CountLedBills(ctx, dbsqlc.CountLedBillsParams{
+			GenerationID: generationID, PositionType: query.PositionType,
+			AsOfDate:     pgtype.Date{Time: s.today(), Valid: true},
+			Availability: query.Availability, BillType: query.BillType, BillNo: query.BillNo,
+			MaturityDateFrom: query.MaturityDateFrom, MaturityDateTo: query.MaturityDateTo,
+			OriginatingPartyEntity:   query.OriginatingPartyType,
+			OriginatingPartyObjectID: query.OriginatingPartyObjectID, SourceEntity: query.SourceEntity,
+		})
+		if err != nil {
+			return Page[BillView]{}, s.internal("count bills", err)
+		}
+	}
 	for _, row := range rows {
 		total = row.TotalCount
 		items = append(items, BillView{

@@ -223,6 +223,88 @@ func (q *Queries) CountLedBillDownstreamEntries(ctx context.Context, sourceDocum
 	return count, err
 }
 
+const countLedBills = `-- name: CountLedBills :one
+WITH bill_positions AS (
+  SELECT
+    bill.id, bill.position_type, bill.bill_type, bill.bill_no, bill.medium, bill.currency, bill.face_amount_cents, bill.issue_date, bill.maturity_date, bill.drawer, bill.acceptor, bill.payee, bill.annual_rate_bps, bill.interest_days, bill.interest_amount_cents, bill.customer_cost_amount_cents, bill.origin_party_entity, bill.origin_party_object_id, bill.origin_party_version_id, bill.origin_party_code, bill.origin_party_name, bill.source_document_id, bill.source_line_id, bill.created_at,
+    document.entity AS source_entity,
+    COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint AS available_balance
+  FROM led_bills AS bill
+  JOIN vou_documents AS document ON document.id = bill.source_document_id
+  LEFT JOIN led_bill_entries AS entry
+    ON entry.bill_id = bill.id
+   AND entry.generation_id = $2
+  GROUP BY bill.id, document.entity
+), filtered AS (
+  SELECT
+    bill_positions.id, bill_positions.position_type, bill_positions.bill_type, bill_positions.bill_no, bill_positions.medium, bill_positions.currency, bill_positions.face_amount_cents, bill_positions.issue_date, bill_positions.maturity_date, bill_positions.drawer, bill_positions.acceptor, bill_positions.payee, bill_positions.annual_rate_bps, bill_positions.interest_days, bill_positions.interest_amount_cents, bill_positions.customer_cost_amount_cents, bill_positions.origin_party_entity, bill_positions.origin_party_object_id, bill_positions.origin_party_version_id, bill_positions.origin_party_code, bill_positions.origin_party_name, bill_positions.source_document_id, bill_positions.source_line_id, bill_positions.created_at, bill_positions.source_entity, bill_positions.available_balance,
+    CASE
+      WHEN available_balance = 1 AND maturity_date < $3::date THEN 'MATURED'
+      WHEN available_balance = 1 THEN 'AVAILABLE'
+      ELSE 'USED'
+    END::text AS availability
+  FROM bill_positions
+  WHERE ($4::text = '' OR position_type = $4)
+    AND ($5::text = '' OR bill_type = $5)
+    AND ($6::text = '' OR bill_no ILIKE '%' || $6 || '%')
+    AND (
+      $7::text = ''
+      OR maturity_date >= $7::date
+    )
+    AND (
+      $8::text = ''
+      OR maturity_date <= $8::date
+    )
+    AND (
+      $9::text = ''
+      OR origin_party_entity = $9
+    )
+    AND (
+      $10::text = ''
+      OR origin_party_object_id = $10
+    )
+    AND ($11::text = '' OR source_entity = $11)
+)
+SELECT count(*)::bigint
+FROM filtered
+WHERE $1::text = ''
+   OR availability = $1
+   OR ($1::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'))
+`
+
+type CountLedBillsParams struct {
+	Availability             string      `db:"availability" json:"availability"`
+	GenerationID             string      `db:"generation_id" json:"generation_id"`
+	AsOfDate                 pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	PositionType             string      `db:"position_type" json:"position_type"`
+	BillType                 string      `db:"bill_type" json:"bill_type"`
+	BillNo                   string      `db:"bill_no" json:"bill_no"`
+	MaturityDateFrom         string      `db:"maturity_date_from" json:"maturity_date_from"`
+	MaturityDateTo           string      `db:"maturity_date_to" json:"maturity_date_to"`
+	OriginatingPartyEntity   string      `db:"originating_party_entity" json:"originating_party_entity"`
+	OriginatingPartyObjectID string      `db:"originating_party_object_id" json:"originating_party_object_id"`
+	SourceEntity             string      `db:"source_entity" json:"source_entity"`
+}
+
+func (q *Queries) CountLedBills(ctx context.Context, arg CountLedBillsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedBills,
+		arg.Availability,
+		arg.GenerationID,
+		arg.AsOfDate,
+		arg.PositionType,
+		arg.BillType,
+		arg.BillNo,
+		arg.MaturityDateFrom,
+		arg.MaturityDateTo,
+		arg.OriginatingPartyEntity,
+		arg.OriginatingPartyObjectID,
+		arg.SourceEntity,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countLedFundBalances = `-- name: CountLedFundBalances :one
 SELECT count(*) FROM (
     SELECT fund_account_object_id, currency

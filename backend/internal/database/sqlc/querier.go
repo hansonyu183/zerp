@@ -64,6 +64,7 @@ type Querier interface {
 	CountLedAssets(ctx context.Context, arg CountLedAssetsParams) (int64, error)
 	CountLedAuditEvents(ctx context.Context) (int64, error)
 	CountLedBillDownstreamEntries(ctx context.Context, sourceDocumentID string) (int64, error)
+	CountLedBills(ctx context.Context, arg CountLedBillsParams) (int64, error)
 	CountLedFundBalances(ctx context.Context, arg CountLedFundBalancesParams) (int64, error)
 	CountLedFundEntries(ctx context.Context, arg CountLedFundEntriesParams) (int64, error)
 	CountLedInventoryBalances(ctx context.Context, arg CountLedInventoryBalancesParams) (int64, error)

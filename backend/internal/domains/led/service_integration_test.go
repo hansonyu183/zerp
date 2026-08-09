@@ -1490,6 +1490,13 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 		bills.Items[0].OriginatingParty.Entity != "customer" {
 		t.Fatalf("bill ledger after finalize = %+v, err=%v", bills, err)
 	}
+	beyondLastPage, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 2, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE",
+			OriginatingPartyType: "customer", OriginatingPartyObjectID: refs.customer.ObjectID},
+	})
+	if err != nil || beyondLastPage.Total != 1 || len(beyondLastPage.Items) != 0 {
+		t.Fatalf("bill ledger beyond last page = %+v, err=%v", beyondLastPage, err)
+	}
 	originalToday := ledger.today
 	ledger.today = func() time.Time { return time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC) }
 	matured, err := ledger.QueryBills(t.Context(), BillQueryInput{

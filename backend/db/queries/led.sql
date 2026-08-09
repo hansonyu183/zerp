@@ -865,3 +865,51 @@ ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'sourceDocumentNo' AND sqlc.arg(sort_order)::text = 'desc' THEN source_document_no END DESC,
   id
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: CountLedBills :one
+WITH bill_positions AS (
+  SELECT
+    bill.*,
+    document.entity AS source_entity,
+    COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint AS available_balance
+  FROM led_bills AS bill
+  JOIN vou_documents AS document ON document.id = bill.source_document_id
+  LEFT JOIN led_bill_entries AS entry
+    ON entry.bill_id = bill.id
+   AND entry.generation_id = sqlc.arg(generation_id)
+  GROUP BY bill.id, document.entity
+), filtered AS (
+  SELECT
+    bill_positions.*,
+    CASE
+      WHEN available_balance = 1 AND maturity_date < sqlc.arg(as_of_date)::date THEN 'MATURED'
+      WHEN available_balance = 1 THEN 'AVAILABLE'
+      ELSE 'USED'
+    END::text AS availability
+  FROM bill_positions
+  WHERE (sqlc.arg(position_type)::text = '' OR position_type = sqlc.arg(position_type))
+    AND (sqlc.arg(bill_type)::text = '' OR bill_type = sqlc.arg(bill_type))
+    AND (sqlc.arg(bill_no)::text = '' OR bill_no ILIKE '%' || sqlc.arg(bill_no) || '%')
+    AND (
+      sqlc.arg(maturity_date_from)::text = ''
+      OR maturity_date >= sqlc.arg(maturity_date_from)::date
+    )
+    AND (
+      sqlc.arg(maturity_date_to)::text = ''
+      OR maturity_date <= sqlc.arg(maturity_date_to)::date
+    )
+    AND (
+      sqlc.arg(originating_party_entity)::text = ''
+      OR origin_party_entity = sqlc.arg(originating_party_entity)
+    )
+    AND (
+      sqlc.arg(originating_party_object_id)::text = ''
+      OR origin_party_object_id = sqlc.arg(originating_party_object_id)
+    )
+    AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
+)
+SELECT count(*)::bigint
+FROM filtered
+WHERE sqlc.arg(availability)::text = ''
+   OR availability = sqlc.arg(availability)
+   OR (sqlc.arg(availability)::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'));

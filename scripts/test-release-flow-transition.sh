@@ -63,6 +63,7 @@ grep -Fq 'find_production_cloudflare_deployment' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_cloudflare_pages_deployment "${candidate_deployment}"' scripts/production-watch.sh
 grep -Fq 'sort_by(.started_at) | reverse | .[]' scripts/production-watch.sh
+grep -Fq 'gh api --paginate --slurp' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016
@@ -70,6 +71,10 @@ grep -Fq 'check-run-provenance.sh" "${provenance}' scripts/install-production-ag
 # shellcheck disable=SC2016
 grep -Fq 'check-run-provenance.sh" "${provenance_candidate}' scripts/production-deploy.sh
 grep -Fq 'api_token_workers_access' scripts/production-deploy.sh
+# shellcheck disable=SC2016
+grep -Fq 'load_cloudflare_pages_project' scripts/production-deploy.sh
+# shellcheck disable=SC2016
+grep -Fq 'verify_cloudflare_pages_project "${cloudflare_project_json}"' scripts/production-deploy.sh
 grep -Fq "github.event.action == 'ready_for_review'" .github/workflows/quality.yml
 grep -Fq "if [ \"\$READY_VALIDATION\" = \"1\" ]; then" .github/workflows/quality.yml
 grep -Fq 'needs.merge_evidence.outputs.reuse_contracts' .github/workflows/quality.yml
@@ -293,6 +298,18 @@ if verify_cloudflare_pages_deployment "${preview_cloudflare_deployment}" \
   12345678-abcd-4abc-8abc-1234567890ab \
   2222222222222222222222222222222222222222 zerp example zerp main; then
   fail 'preview Cloudflare Pages deployment was accepted as production'
+fi
+
+trusted_cloudflare_project='{"success":true,"result":{"name":"zerp","source":{"type":"github","config":{"owner":"example","repo_name":"zerp","production_branch":"main"}}}}'
+if ! verify_cloudflare_pages_project "${trusted_cloudflare_project}" \
+  zerp example zerp main; then
+  fail 'trusted Cloudflare Pages project was rejected'
+fi
+wrong_cloudflare_project=$(printf '%s' "${trusted_cloudflare_project}" |
+  jq '.result.source.config.owner = "attacker"')
+if verify_cloudflare_pages_project "${wrong_cloudflare_project}" \
+  zerp example zerp main; then
+  fail 'wrong Cloudflare Pages project source was accepted'
 fi
 
 # Component evidence is reusable only from the same PR exact-head fingerprint.

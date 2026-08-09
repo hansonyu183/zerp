@@ -190,8 +190,13 @@ if [ "${target_sha}" = "${current_sha}" ]; then
   exit 0
 fi
 
-if ! check_runs=$(retry 4 gh api \
-  "repos/${repo_slug}/commits/${target_sha}/check-runs?per_page=100"); then
+load_check_runs() {
+  gh api --paginate --slurp \
+    "repos/${repo_slug}/commits/${target_sha}/check-runs?per_page=100" |
+    jq -ce '{check_runs: [.[].check_runs[]]}'
+}
+
+if ! check_runs=$(retry 4 load_check_runs); then
   log "Could not load checks for ${target_sha} after retries"
   exit 0
 fi

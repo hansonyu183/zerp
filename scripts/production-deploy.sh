@@ -4,6 +4,8 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 # shellcheck source=scripts/production-lib.sh
 . "${repo_root}/scripts/production-lib.sh"
+# shellcheck source=scripts/check-run-provenance.sh
+. "${repo_root}/scripts/check-run-provenance.sh"
 
 release_sha=${1:-}
 production_validate_release_ref "${release_sha}"
@@ -24,9 +26,13 @@ refresh_controller() {
   candidate="${controller}.new"
   provenance="${runtime_root}/check-run-provenance.sh"
   provenance_candidate="${provenance}.new"
-  if [ ! -r "${HOME}/.secrets/cloudflare/account_id_bytesucceed" ] ||
-     [ ! -r "${HOME}/.secrets/cloudflare/api_token_workers_access" ]; then
-    echo "Warning: production deploy controller not updated because Cloudflare Pages credentials are missing" >&2
+  cloudflare_account_file="${HOME}/.secrets/cloudflare/account_id_bytesucceed"
+  cloudflare_token_file="${HOME}/.secrets/cloudflare/api_token_workers_access"
+  if ! cloudflare_project_json=$(load_cloudflare_pages_project \
+    "${cloudflare_account_file}" "${cloudflare_token_file}" zerp) ||
+     ! verify_cloudflare_pages_project "${cloudflare_project_json}" \
+       zerp hansonyu183 zerp main; then
+    echo "Warning: production deploy controller not updated because Cloudflare Pages credentials could not verify the expected project" >&2
     return 0
   fi
   if cp "${repo_root}/scripts/check-run-provenance.sh" "${provenance_candidate}" &&

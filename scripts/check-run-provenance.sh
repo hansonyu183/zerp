@@ -112,6 +112,40 @@ verify_cloudflare_pages_deployment() (
     ' >/dev/null
 )
 
+verify_cloudflare_pages_project() (
+  project_json=$1
+  expected_project=$2
+  expected_owner=$3
+  expected_repository=$4
+  expected_branch=$5
+
+  printf '%s' "${project_json}" | jq -e \
+    --arg project "${expected_project}" --arg owner "${expected_owner}" \
+    --arg repository "${expected_repository}" --arg branch "${expected_branch}" '
+      .success == true and
+      .result.name == $project and
+      .result.source.type == "github" and
+      .result.source.config.owner == $owner and
+      .result.source.config.repo_name == $repository and
+      .result.source.config.production_branch == $branch
+    ' >/dev/null
+)
+
+load_cloudflare_pages_project() (
+  account_file=$1
+  token_file=$2
+  project=$3
+
+  test -r "${account_file}" && test -r "${token_file}" || return 1
+  cloudflare_account=$(sed -n '1p' "${account_file}")
+  cloudflare_token=$(sed -n '1p' "${token_file}")
+  test -n "${cloudflare_account}" && test -n "${cloudflare_token}" || return 1
+  curl --silent --show-error --fail --config - <<EOF
+header = "Authorization: Bearer ${cloudflare_token}"
+url = "https://api.cloudflare.com/client/v4/accounts/${cloudflare_account}/pages/projects/${project}"
+EOF
+)
+
 load_cloudflare_pages_deployment() (
   account_file=$1
   token_file=$2

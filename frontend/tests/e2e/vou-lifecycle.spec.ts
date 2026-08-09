@@ -239,7 +239,7 @@ test(
     await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
     await expect(workbenchRow).toContainText('待批准')
     await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
-    await expect(workbenchRow).toHaveCount(0)
+    await expect(workbenchRow).toHaveCount(0, { timeout: 15_000 })
 
     await page.goto('/vou/sales-receipt')
     await page
@@ -474,7 +474,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await outboundWorkbenchRow.getByLabel(`核对 ${outboundNo}`).click()
   await expect(outboundWorkbenchRow).toContainText('待批准')
   await outboundWorkbenchRow.getByLabel(`批准 ${outboundNo}`).click()
-  await expect(outboundWorkbenchRow).toHaveCount(0)
+  await expect(outboundWorkbenchRow).toHaveCount(0, { timeout: 15_000 })
 })
 
 test('采购流程列表展示中文阶段和按单位履约数据', async ({

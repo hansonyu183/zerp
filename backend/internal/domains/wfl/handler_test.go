@@ -24,14 +24,15 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 22 {
-		t.Fatalf("route count = %d, want 22", len(routes))
+	if len(routes) != 23 {
+		t.Fatalf("route count = %d, want 23", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/process-definition/query",
 		"/wfl/process-definition/get",
 		"/wfl/process-definition/create",
 		"/wfl/process-definition/save",
+		"/wfl/process-definition/trial",
 		"/wfl/process-definition/enable",
 		"/wfl/process-definition/disable",
 		"/wfl/process-definition/delete",

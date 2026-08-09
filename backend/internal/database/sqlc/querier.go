@@ -89,6 +89,7 @@ type Querier interface {
 	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
+	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	DeleteAppBusinessMenuItems(ctx context.Context) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
@@ -369,7 +370,9 @@ type Querier interface {
 	ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error)
 	ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error)
 	ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVouItemsParams) ([]ListWorkbenchVouItemsRow, error)
+	ListWorkflowDefinitionEdgeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgeIdentitiesRow, error)
 	ListWorkflowDefinitionEdges(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgesRow, error)
+	ListWorkflowDefinitionNodeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodeIdentitiesRow, error)
 	ListWorkflowDefinitionNodes(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodesRow, error)
 	ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error)
 	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
@@ -389,6 +392,7 @@ type Querier interface {
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
 	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
 	LockVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
+	LockWorkflowDefinitionDraft(ctx context.Context, id string) (LockWorkflowDefinitionDraftRow, error)
 	MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error)
 	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
@@ -400,6 +404,7 @@ type Querier interface {
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
+	RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error)
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	ReopenLedControl(ctx context.Context, arg ReopenLedControlParams) (int64, error)
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
@@ -413,6 +418,8 @@ type Querier interface {
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
 	SaveLedDraftControl(ctx context.Context, arg SaveLedDraftControlParams) (int64, error)
+	SaveWorkflowDefinitionDraft(ctx context.Context, arg SaveWorkflowDefinitionDraftParams) error
+	SaveWorkflowDefinitionScriptDiagnostic(ctx context.Context, arg SaveWorkflowDefinitionScriptDiagnosticParams) error
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)

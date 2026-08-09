@@ -107,6 +107,173 @@ func TestDefinitionPermissionLifecycleIntegration(t *testing.T) {
 	}
 }
 
+func TestStarlarkDraftCreateSaveAndManualTrialIntegration(t *testing.T) {
+	pool := workflowIntegrationPool(t)
+	workflows, _, refs := newWorkflowIntegrationServices(t, pool)
+	code := "starlark-draft-" + strings.ToLower(ulid.Make().String()[:8])
+	script := `root_entity = "sale-order"
+
+def document_node(key, name, entity):
+    return node(key=key, name=name, entity=entity)
+
+root = document_node("sale-order", "销售订单", root_entity)
+outbound = document_node("sale-outbound", "销售出库", "sale-outbound")
+
+workflow(
+    code = "` + code + `",
+    name = "脚本草稿流程",
+    root = root,
+    edges = [
+        edge(
+            source = root,
+            target = outbound,
+            converter = "sale-order-to-outbound",
+        ),
+    ],
+)`
+	if _, err := workflows.DefinitionCreate(t.Context(), DefinitionCreateInput{
+		Script: &script,
+		Code:   code,
+	}, workflowIntegrationActor); err == nil {
+		t.Fatal("create accepted mixed script and graph source fields")
+	}
+
+	created, err := workflows.DefinitionCreate(t.Context(), DefinitionCreateInput{Script: &script}, workflowIntegrationActor)
+	if err != nil {
+		t.Fatalf("create Starlark draft: %v", err)
+	}
+	t.Cleanup(func() { deleteDefinitionForCleanup(t, pool, created.DefinitionID) })
+	if created.SourceKind != DefinitionSourceStarlark || created.Script == nil || *created.Script != script {
+		t.Fatalf("created Starlark source = kind %q script %v", created.SourceKind, created.Script)
+	}
+	if created.Status != DefinitionDraft || created.Code != code || created.Name != "脚本草稿流程" {
+		t.Fatalf("created Starlark definition = %+v", created)
+	}
+	if len(created.Nodes) != 2 || len(created.Edges) != 1 || created.RootNodeID != created.Nodes[0].ID {
+		t.Fatalf("compiled root graph = nodes %+v edges %+v root %q", created.Nodes, created.Edges, created.RootNodeID)
+	}
+	if created.Nodes[0].Key != "sale-order" || created.Nodes[0].DocumentEntity != "sale-order" {
+		t.Fatalf("compiled root node = %+v", created.Nodes[0])
+	}
+
+	updatedScript := strings.Replace(script, "脚本草稿流程", "脚本草稿流程（已保存）", 1)
+	saved, err := workflows.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionCreateInput: DefinitionCreateInput{Script: &updatedScript},
+		DefinitionID:          created.DefinitionID,
+		Revision:              created.Revision,
+	}, workflowIntegrationActor)
+	if err != nil {
+		t.Fatalf("save Starlark draft: %v", err)
+	}
+	if saved.Name != "脚本草稿流程（已保存）" || saved.Nodes[0].ID != created.Nodes[0].ID || saved.Nodes[1].ID != created.Nodes[1].ID {
+		t.Fatalf("saved Starlark definition = %+v", saved)
+	}
+	if _, err = workflows.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionCreateInput: DefinitionCreateInput{Script: &updatedScript},
+		DefinitionID:          saved.DefinitionID,
+		Revision:              created.Revision,
+	}, workflowIntegrationActor); err == nil {
+		t.Fatal("save accepted a stale Starlark draft revision")
+	}
+	invalidScript := strings.Replace(updatedScript, "target = outbound", "target = root", 1)
+	invalid, err := workflows.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionCreateInput: DefinitionCreateInput{Script: &invalidScript},
+		DefinitionID:          saved.DefinitionID,
+		Revision:              saved.Revision,
+	}, workflowIntegrationActor)
+	if err != nil {
+		t.Fatalf("save invalid workflow source and diagnostic: %v", err)
+	}
+	if invalid.Revision != saved.Revision+1 || invalid.Script == nil || *invalid.Script != invalidScript ||
+		invalid.Diagnostic == nil || !strings.Contains(*invalid.Diagnostic, "workflow.star:") {
+		t.Fatalf("persisted invalid workflow source = %+v", invalid)
+	}
+	if len(invalid.Nodes) != len(saved.Nodes) || invalid.Nodes[0].ID != saved.Nodes[0].ID || invalid.Nodes[1].ID != saved.Nodes[1].ID {
+		t.Fatalf("invalid source changed last valid graph = %+v", invalid)
+	}
+	if _, err = workflows.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: invalid.DefinitionID,
+		Revision:     invalid.Revision,
+		Source:       DefinitionTrialSource{Entity: "sale-order"},
+	}); err == nil || !strings.Contains(err.Error(), "流程脚本编译失败：") {
+		t.Fatalf("trial accepted persisted compile diagnostic: %v", err)
+	}
+	saved, err = workflows.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionCreateInput: DefinitionCreateInput{Script: &updatedScript},
+		DefinitionID:          invalid.DefinitionID,
+		Revision:              invalid.Revision,
+	}, workflowIntegrationActor)
+	if err != nil {
+		t.Fatalf("repair invalid workflow source: %v", err)
+	}
+	if saved.Diagnostic != nil || saved.Script == nil || *saved.Script != updatedScript {
+		t.Fatalf("repaired workflow source = %+v", saved)
+	}
+	if _, err = workflows.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: saved.DefinitionID,
+		Revision:     created.Revision,
+		Source:       DefinitionTrialSource{Entity: "sale-order"},
+	}); err == nil {
+		t.Fatal("trial accepted a stale revision")
+	}
+	if _, err = workflows.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: saved.DefinitionID,
+		Revision:     saved.Revision,
+		Source:       DefinitionTrialSource{Entity: "sale-order"},
+	}); err == nil {
+		t.Fatal("trial accepted a source that violates the root document contract")
+	}
+	validTrialSource := DefinitionTrialSource{
+		Entity: "sale-order",
+		Data: voudomain.DraftInput{
+			BusinessDate: "2026-08-02", Currency: "CNY", Customer: &refs.customer,
+			Warehouse:    &refs.warehouse,
+			ProductLines: []voudomain.ProductLineInput{{Product: refs.products[0], OrderedQuantity: "2", UnitPrice: "10"}},
+		},
+	}
+
+	trial, err := workflows.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: saved.DefinitionID,
+		Revision:     saved.Revision,
+		Source:       validTrialSource,
+	})
+	if err != nil {
+		t.Fatalf("trial Starlark draft: %v", err)
+	}
+	if !trial.Matched || trial.RootNodeKey != "sale-order" || len(trial.Trace) != 2 || trial.Trace[1].NodeKey != "sale-outbound" {
+		t.Fatalf("trial result = %+v", trial)
+	}
+	if _, err = workflows.DefinitionAction(t.Context(), "enable", DefinitionActionInput{
+		DefinitionID: saved.DefinitionID,
+		Revision:     saved.Revision,
+	}, workflowIntegrationActor); err == nil {
+		t.Fatal("enable accepted an unpublished Starlark draft")
+	}
+
+	if _, err = workflows.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: saved.DefinitionID,
+		Revision:     saved.Revision,
+		Source:       DefinitionTrialSource{Entity: "purchase-order"},
+	}); err == nil {
+		t.Fatal("trial accepted a source with the wrong root entity")
+	}
+
+	var instances int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM wfl_definition_instances WHERE definition_id=$1`, saved.DefinitionID).Scan(&instances); err != nil {
+		t.Fatalf("count trial instances: %v", err)
+	}
+	if instances != 0 {
+		t.Fatalf("manual trial wrote %d process instances", instances)
+	}
+	var lastTrialRevision *int64
+	if err = pool.QueryRow(t.Context(), `SELECT last_trial_revision FROM wfl_process_definitions WHERE id=$1`, saved.DefinitionID).Scan(&lastTrialRevision); err != nil {
+		t.Fatalf("get trial proof: %v", err)
+	}
+	if lastTrialRevision == nil || *lastTrialRevision != saved.Revision {
+		t.Fatalf("last trial revision = %v, want %d", lastTrialRevision, saved.Revision)
+	}
+}
+
 func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 	pool := workflowIntegrationPool(t)
 	truncateWorkflowIntegration(t, pool)

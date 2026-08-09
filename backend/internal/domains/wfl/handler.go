@@ -31,6 +31,7 @@ type genericApplicationService interface {
 	DefinitionGet(context.Context, DefinitionGetInput) (DefinitionView, error)
 	DefinitionCreate(context.Context, DefinitionCreateInput, string) (DefinitionView, error)
 	DefinitionSave(context.Context, DefinitionSaveInput, string) (DefinitionView, error)
+	DefinitionTrial(context.Context, DefinitionTrialInput) (DefinitionTrialResult, error)
 	DefinitionAction(context.Context, string, DefinitionActionInput, string) (any, error)
 	InstanceQuery(context.Context, InstanceQueryInput) (Page[InstanceListItem], error)
 	InstanceGet(context.Context, InstanceGetInput) (InstanceView, error)
@@ -136,6 +137,18 @@ func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
 		var input DefinitionSaveInput
 		if h.bind(c, &input) {
 			result, err := service.DefinitionSave(c.Request.Context(), input, h.principal(c).ActorID)
+			h.result(c, result, err)
+		}
+	})
+	definitions.POST("/trial", h.authorize("/wfl/process-definition/save"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input DefinitionTrialInput
+		if h.bind(c, &input) {
+			result, err := service.DefinitionTrial(c.Request.Context(), input)
 			h.result(c, result, err)
 		}
 	})

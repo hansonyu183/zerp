@@ -230,6 +230,7 @@ export class ApiClient {
         throw new ApiError('business', payload.message || '业务操作失败。', {
           code: payload.code,
           requestId: payload.requestId,
+          details: payload.data,
         })
       }
 

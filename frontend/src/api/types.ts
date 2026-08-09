@@ -38,6 +38,7 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind
   readonly code?: BusinessCode
   readonly requestId?: string
+  readonly details?: unknown
   readonly causeValue?: unknown
 
   constructor(
@@ -46,6 +47,7 @@ export class ApiError extends Error {
     options: {
       code?: BusinessCode
       requestId?: string
+      details?: unknown
       cause?: unknown
     } = {},
   ) {
@@ -54,6 +56,7 @@ export class ApiError extends Error {
     this.kind = kind
     this.code = options.code
     this.requestId = options.requestId
+    this.details = options.details
     this.causeValue = options.cause
   }
 }

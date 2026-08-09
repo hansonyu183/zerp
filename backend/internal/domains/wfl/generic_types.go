@@ -3,14 +3,18 @@ package wfl
 import (
 	"encoding/json"
 	"time"
+
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 )
 
 const (
-	DefinitionDraft    = "DRAFT"
-	DefinitionEnabled  = "ENABLED"
-	DefinitionDisabled = "DISABLED"
-	InstanceActive     = "ACTIVE"
-	InstanceCompleted  = "COMPLETED"
+	DefinitionDraft          = "DRAFT"
+	DefinitionEnabled        = "ENABLED"
+	DefinitionDisabled       = "DISABLED"
+	DefinitionSourceGraph    = "GRAPH"
+	DefinitionSourceStarlark = "STARLARK"
+	InstanceActive           = "ACTIVE"
+	InstanceCompleted        = "COMPLETED"
 )
 
 type DefinitionQueryInput struct {
@@ -43,6 +47,7 @@ type DefinitionEdgeInput struct {
 }
 
 type DefinitionCreateInput struct {
+	Script         *string               `json:"script,omitempty"`
 	Code           string                `json:"code"`
 	Name           string                `json:"name"`
 	RootNodeID     string                `json:"rootNodeId"`
@@ -68,6 +73,7 @@ type DefinitionListItem struct {
 	Name         string    `json:"name"`
 	Status       string    `json:"status"`
 	Revision     int64     `json:"revision"`
+	SourceKind   string    `json:"sourceKind"`
 	RootEntity   string    `json:"rootEntity"`
 	NodeCount    int       `json:"nodeCount"`
 	UpdatedAt    time.Time `json:"updatedAt"`
@@ -79,11 +85,39 @@ type DefinitionView struct {
 	Name           string                `json:"name"`
 	Status         string                `json:"status"`
 	Revision       int64                 `json:"revision"`
+	SourceKind     string                `json:"sourceKind"`
+	Script         *string               `json:"script,omitempty"`
+	Diagnostic     *string               `json:"diagnostic,omitempty"`
 	RootNodeID     string                `json:"rootNodeId"`
 	StartCondition json.RawMessage       `json:"startCondition"`
 	Nodes          []DefinitionNodeInput `json:"nodes"`
 	Edges          []DefinitionEdgeInput `json:"edges"`
 	UpdatedAt      time.Time             `json:"updatedAt"`
+}
+
+type DefinitionTrialInput struct {
+	DefinitionID string                `json:"definitionId"`
+	Revision     int64                 `json:"revision"`
+	Source       DefinitionTrialSource `json:"source"`
+}
+
+type DefinitionTrialSource struct {
+	Entity string               `json:"entity"`
+	Data   voudomain.DraftInput `json:"data"`
+}
+
+type DefinitionTrialTrace struct {
+	Kind           string `json:"kind"`
+	NodeKey        string `json:"nodeKey"`
+	DocumentEntity string `json:"documentEntity"`
+}
+
+type DefinitionTrialResult struct {
+	DefinitionID string                 `json:"definitionId"`
+	Revision     int64                  `json:"revision"`
+	Matched      bool                   `json:"matched"`
+	RootNodeKey  string                 `json:"rootNodeKey"`
+	Trace        []DefinitionTrialTrace `json:"trace"`
 }
 
 type InstanceQueryInput struct {

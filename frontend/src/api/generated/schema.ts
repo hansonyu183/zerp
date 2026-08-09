@@ -1347,6 +1347,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wfl/process-definition/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 试算流程草稿 */
+        post: operations["wflProcessDefinitionTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wfl/process-definition/enable": {
         parameters: {
             query?: never;
@@ -3359,6 +3376,9 @@ export interface components {
         WflDefinitionGetRequest: {
             definitionId: string;
         };
+        WflDefinitionScriptSource: {
+            script: string;
+        };
         WflDefinitionNodeInput: {
             id: string;
             key: string;
@@ -3379,7 +3399,7 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        WflDefinitionCreateRequest: {
+        WflDefinitionGraphSource: {
             code: string;
             name: string;
             rootNodeId: string;
@@ -3389,10 +3409,159 @@ export interface components {
             nodes: components["schemas"]["WflDefinitionNodeInput"][];
             edges: components["schemas"]["WflDefinitionEdgeInput"][];
         };
-        WflDefinitionSaveRequest: components["schemas"]["WflDefinitionCreateRequest"] & {
+        WflDefinitionCreateRequest: components["schemas"]["WflDefinitionScriptSource"] | components["schemas"]["WflDefinitionGraphSource"];
+        WflDefinitionScriptSaveRequest: {
             definitionId: string;
             /** Format: int64 */
             revision: number;
+            script: string;
+        };
+        WflDefinitionGraphSaveRequest: {
+            definitionId: string;
+            /** Format: int64 */
+            revision: number;
+            code: string;
+            name: string;
+            rootNodeId: string;
+            startCondition: {
+                [key: string]: unknown;
+            };
+            nodes: components["schemas"]["WflDefinitionNodeInput"][];
+            edges: components["schemas"]["WflDefinitionEdgeInput"][];
+        };
+        WflDefinitionSaveRequest: components["schemas"]["WflDefinitionScriptSaveRequest"] | components["schemas"]["WflDefinitionGraphSaveRequest"];
+        data: {
+            /** Format: date */
+            businessDate?: string;
+            currency?: string;
+            remark?: string;
+            returnReason?: string;
+            specialApproval?: boolean;
+            intermediaryCalculation?: components["schemas"]["VouIntermediaryCalculationInput"];
+            customer?: {
+                objectId: string;
+                versionId: string;
+            };
+            supplier?: {
+                objectId: string;
+                versionId: string;
+            };
+            counterpartyType?: string;
+            /** @enum {string} */
+            otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
+            counterparty?: {
+                objectId: string;
+                versionId: string;
+            };
+            employee?: {
+                objectId: string;
+                versionId: string;
+            };
+            salesperson?: {
+                objectId: string;
+                versionId: string;
+            };
+            purchaser?: {
+                objectId: string;
+                versionId: string;
+            };
+            handler?: {
+                objectId: string;
+                versionId: string;
+            };
+            warehouse?: {
+                objectId: string;
+                versionId: string;
+            };
+            materialWarehouse?: {
+                objectId: string;
+                versionId: string;
+            };
+            finishedWarehouse?: {
+                objectId: string;
+                versionId: string;
+            };
+            productionLines?: components["schemas"]["VouProductionOutputInput"][];
+            depreciationMonth?: string;
+            assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
+            assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
+            assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
+            assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
+            platform?: {
+                objectId: string;
+                versionId: string;
+            };
+            vehicle?: {
+                objectId: string;
+                versionId: string;
+            };
+            fundAccount?: {
+                objectId: string;
+                versionId: string;
+            };
+            sourceName?: string;
+            amount?: string;
+            internalCostRateBps?: number;
+            /** @enum {string} */
+            interestMode?: "BANK_DEDUCTED" | "THIRD_PARTY_PAYABLE";
+            /** @enum {string} */
+            maturityType?: "RECEIPT" | "PAYMENT";
+            interestParty?: {
+                objectId: string;
+                versionId: string;
+            };
+            withRecourse?: boolean;
+            billLines?: components["schemas"]["VouBillLineInput"][];
+            billCashLines?: components["schemas"]["VouBillCashLineInput"][];
+            productLines?: {
+                product: {
+                    objectId: string;
+                    versionId: string;
+                };
+                orderedQuantity: string;
+                unitPrice: string;
+                settlementSurcharge?: string | null;
+                purchaseUnitPrice?: string;
+                remark?: string;
+                containerType?: string | null;
+                quantityPerContainer?: string | null;
+                formula?: components["schemas"]["VouFormulaInput"] | null;
+            }[];
+            priceLines?: components["schemas"]["VouPriceLineInput"][];
+            expenseLines?: {
+                category: string;
+                description: string;
+                amount: string;
+                remark?: string;
+            }[];
+            inventoryCountLines?: components["schemas"]["VouInventoryCountLineInput"][];
+            sourceLines?: {
+                sourceLineId: string;
+                quantity: string;
+                remark?: string;
+            }[];
+            signoffLines?: {
+                sourceLineId: string;
+                signedQuantity: string;
+                rejectedQuantity: string;
+                remark?: string;
+            }[];
+            returnLines?: {
+                sourceLineId: string;
+                quantity: string;
+                remark?: string;
+            }[];
+        };
+        /** VouDraftInput */
+        VouDraftInput: components["schemas"]["data"];
+        WflDefinitionTrialRequest: {
+            definitionId: string;
+            /** Format: int64 */
+            revision: number;
+            source: {
+                entity: components["schemas"]["VouEntity"];
+                data: components["schemas"]["VouDraftInput"];
+            };
         };
         WflDefinitionActionRequest: {
             definitionId: string;
@@ -5159,6 +5328,22 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflDefinitionSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    wflProcessDefinitionTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WflDefinitionTrialRequest"];
             };
         };
         responses: {

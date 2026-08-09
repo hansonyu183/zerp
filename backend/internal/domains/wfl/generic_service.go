@@ -89,7 +89,8 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 	for _, row := range rows {
 		items = append(items, DefinitionListItem{
 			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Status: row.Status,
-			Revision: row.Revision, RootEntity: row.DocumentEntity, NodeCount: int(row.NodeCount),
+			Revision: row.Revision, SourceKind: row.SourceKind,
+			RootEntity: row.DocumentEntity, NodeCount: int(row.NodeCount),
 			UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
@@ -109,7 +110,8 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (
 	}
 	result := DefinitionView{
 		DefinitionID: definition.ID, Code: definition.Code, Name: definition.Name,
-		Status: definition.Status, Revision: definition.Revision, RootNodeID: definition.RootNodeID,
+		Status: definition.Status, Revision: definition.Revision,
+		SourceKind: definition.SourceKind, Script: definition.DraftScript, Diagnostic: definition.DraftDiagnostic, RootNodeID: definition.RootNodeID,
 		StartCondition: definition.StartCondition, UpdatedAt: definition.UpdatedAt.Time,
 	}
 	nodes, err := s.queries.ListWorkflowDefinitionNodes(ctx, input.DefinitionID)
@@ -138,6 +140,18 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (
 }
 
 func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateInput, actorID string) (DefinitionView, error) {
+	sourceKind := DefinitionSourceGraph
+	if input.Script != nil {
+		if hasGraphDefinitionFields(input) {
+			return DefinitionView{}, validation("definition must use exactly one source kind", nil)
+		}
+		compiled, err := compileDefinitionScript(*input.Script)
+		if err != nil {
+			return DefinitionView{}, workflowScriptValidation(err)
+		}
+		input = scriptDefinitionInput(compiled, nil, nil, input.Script)
+		sourceKind = DefinitionSourceStarlark
+	}
 	if err := validateDefinitionInput(input); err != nil {
 		return DefinitionView{}, err
 	}
@@ -147,8 +161,12 @@ func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateIn
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	id := newID()
-	if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_definitions(id,code,name,status,root_node_id,start_condition,created_by,updated_by)
-		VALUES($1,$2,$3,'DRAFT',$4,$5,$6,$6)`, id, strings.TrimSpace(input.Code), strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID); err != nil {
+	queries := s.queries.WithTx(tx)
+	if err = queries.CreateWorkflowDefinition(ctx, sqlc.CreateWorkflowDefinitionParams{
+		ID: id, Code: strings.TrimSpace(input.Code), Name: strings.TrimSpace(input.Name),
+		SourceKind: sourceKind, DraftScript: input.Script, RootNodeID: input.RootNodeID,
+		StartCondition: normalizedJSON(input.StartCondition), ActorID: actorID,
+	}); err != nil {
 		return DefinitionView{}, conflict("process definition code already exists", nil)
 	}
 	if err = writeDefinitionGraph(ctx, tx, id, input.Nodes, input.Edges); err != nil {
@@ -160,40 +178,100 @@ func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateIn
 	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: id})
 }
 
+func hasGraphDefinitionFields(input DefinitionCreateInput) bool {
+	return strings.TrimSpace(input.Code) != "" || strings.TrimSpace(input.Name) != "" ||
+		input.RootNodeID != "" || len(input.StartCondition) != 0 || len(input.Nodes) != 0 || len(input.Edges) != 0
+}
+
 func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput, actorID string) (DefinitionView, error) {
 	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
 		return DefinitionView{}, validation("invalid definition revision", nil)
-	}
-	if err := validateDefinitionInput(input.DefinitionCreateInput); err != nil {
-		return DefinitionView{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DefinitionView{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	var actual int64
-	var status string
-	var actualCode string
-	if err = tx.QueryRow(ctx, `SELECT revision,status,code FROM wfl_process_definitions WHERE id=$1 FOR UPDATE`, input.DefinitionID).Scan(&actual, &status, &actualCode); err != nil {
+	queries := s.queries.WithTx(tx)
+	locked, err := queries.LockWorkflowDefinitionDraft(ctx, input.DefinitionID)
+	if err != nil {
 		return DefinitionView{}, validation("process definition not found", nil)
 	}
-	if actual != input.Revision {
-		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": actual})
+	if locked.Revision != input.Revision {
+		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": locked.Revision})
 	}
-	if strings.TrimSpace(input.Code) != actualCode {
+	if input.Script != nil {
+		if hasGraphDefinitionFields(input.DefinitionCreateInput) {
+			return DefinitionView{}, validation("definition must use exactly one source kind", nil)
+		}
+		if locked.SourceKind != DefinitionSourceStarlark {
+			return DefinitionView{}, validation("definition source kind is immutable", nil)
+		}
+		compiled, compileErr := compileDefinitionScript(*input.Script)
+		if compileErr != nil {
+			if locked.Status != DefinitionDraft {
+				return DefinitionView{}, workflowScriptValidation(compileErr)
+			}
+			diagnostic := compileErr.Error()
+			if saveErr := queries.SaveWorkflowDefinitionScriptDiagnostic(ctx, sqlc.SaveWorkflowDefinitionScriptDiagnosticParams{
+				DraftScript: input.Script, DraftDiagnostic: &diagnostic, ActorID: actorID, ID: input.DefinitionID,
+			}); saveErr != nil {
+				return DefinitionView{}, internal("save workflow script diagnostic", saveErr)
+			}
+			if commitErr := tx.Commit(ctx); commitErr != nil {
+				return DefinitionView{}, internal("commit workflow script diagnostic", commitErr)
+			}
+			return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+		}
+		existingNodes, queryErr := queries.ListWorkflowDefinitionNodeIdentities(ctx, input.DefinitionID)
+		if queryErr != nil {
+			return DefinitionView{}, internal("read workflow node identities", queryErr)
+		}
+		nodeIDsByKey := make(map[string]string, len(existingNodes))
+		nodeKeysByID := make(map[string]string, len(existingNodes))
+		for _, node := range existingNodes {
+			if nodeIDsByKey[node.NodeKey] == "" {
+				nodeIDsByKey[node.NodeKey] = node.ID
+			}
+			nodeKeysByID[node.ID] = node.NodeKey
+		}
+		if nodeKeysByID[locked.RootNodeID] != compiled.RootKey {
+			return DefinitionView{}, validation("workflow root node key is immutable", nil)
+		}
+		existingEdges, queryErr := queries.ListWorkflowDefinitionEdgeIdentities(ctx, input.DefinitionID)
+		if queryErr != nil {
+			return DefinitionView{}, internal("read workflow edge identities", queryErr)
+		}
+		edgeIDsBySignature := make(map[string]string, len(existingEdges))
+		for _, edge := range existingEdges {
+			signature := compiledEdgeSignature(edge.SourceNodeKey, edge.TargetNodeKey, edge.ConverterKey)
+			if edgeIDsBySignature[signature] == "" {
+				edgeIDsBySignature[signature] = edge.ID
+			}
+		}
+		input.DefinitionCreateInput = scriptDefinitionInput(compiled, nodeIDsByKey, edgeIDsBySignature, input.Script)
+	} else if locked.SourceKind != DefinitionSourceGraph {
+		return DefinitionView{}, validation("workflow script is required", nil)
+	}
+	if err = validateDefinitionInput(input.DefinitionCreateInput); err != nil {
+		return DefinitionView{}, err
+	}
+	if strings.TrimSpace(input.Code) != locked.Code {
 		return DefinitionView{}, validation("process definition code is immutable", nil)
 	}
-	if status == DefinitionEnabled {
+	if locked.Status == DefinitionEnabled {
 		if err = validateRequiredDefaults(input.Nodes, input.Edges); err != nil {
 			return DefinitionView{}, err
 		}
 	}
-	if _, err = tx.Exec(ctx, `UPDATE wfl_process_definitions SET name=$1,root_node_id=$2,start_condition=$3,
-		revision=revision+1,updated_at=now(),updated_by=$4 WHERE id=$5`, strings.TrimSpace(input.Name), input.RootNodeID, normalizedJSON(input.StartCondition), actorID, input.DefinitionID); err != nil {
+	if err = queries.SaveWorkflowDefinitionDraft(ctx, sqlc.SaveWorkflowDefinitionDraftParams{
+		Name: strings.TrimSpace(input.Name), RootNodeID: input.RootNodeID,
+		StartCondition: normalizedJSON(input.StartCondition), DraftScript: input.Script,
+		ActorID: actorID, ID: input.DefinitionID,
+	}); err != nil {
 		return DefinitionView{}, internal("save process definition", err)
 	}
-	if err = syncDefinitionPermissionDescriptions(ctx, tx, actualCode, strings.TrimSpace(input.Name), actorID); err != nil {
+	if err = syncDefinitionPermissionDescriptions(ctx, tx, locked.Code, strings.TrimSpace(input.Name), actorID); err != nil {
 		return DefinitionView{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE wfl_definition_edges SET archived=true WHERE definition_id=$1`, input.DefinitionID); err != nil {
@@ -209,6 +287,63 @@ func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput,
 		return DefinitionView{}, err
 	}
 	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+}
+
+func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInput) (DefinitionTrialResult, error) {
+	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+		return DefinitionTrialResult{}, validation("invalid definition trial", nil)
+	}
+	definition, err := s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+	if err != nil {
+		return DefinitionTrialResult{}, err
+	}
+	if definition.Revision != input.Revision {
+		return DefinitionTrialResult{}, conflict("process definition changed", map[string]any{"revision": definition.Revision})
+	}
+	if definition.Status != DefinitionDraft || definition.SourceKind != DefinitionSourceStarlark || definition.Script == nil {
+		return DefinitionTrialResult{}, validation("only Starlark drafts can be trialed", nil)
+	}
+	if definition.Diagnostic != nil {
+		return DefinitionTrialResult{}, workflowScriptValidation(errors.New(*definition.Diagnostic))
+	}
+	compiled, err := compileDefinitionScript(*definition.Script)
+	if err != nil {
+		return DefinitionTrialResult{}, workflowScriptValidation(err)
+	}
+	root := compiledNodeByKey(compiled, compiled.RootKey)
+	if input.Source.Entity != root.Entity {
+		return DefinitionTrialResult{}, validation("trial source entity does not match the workflow root", map[string]any{"expectedEntity": root.Entity})
+	}
+	if err = s.validator.ValidateWorkflowDraft(root.Entity, input.Source.Data); err != nil {
+		return DefinitionTrialResult{}, err
+	}
+	rowsAffected, err := s.queries.RecordWorkflowDefinitionTrial(ctx, sqlc.RecordWorkflowDefinitionTrialParams{
+		DefinitionID: input.DefinitionID,
+		Revision:     &input.Revision,
+	})
+	if err != nil {
+		return DefinitionTrialResult{}, internal("record workflow trial", err)
+	}
+	if rowsAffected != 1 {
+		return DefinitionTrialResult{}, conflict("process definition changed", nil)
+	}
+	trace := make([]DefinitionTrialTrace, 0, len(compiled.Nodes))
+	for index, node := range compiledTraversal(compiled) {
+		kind := "GRAPH_REACHABLE"
+		if index == 0 {
+			kind = "ROOT_MATCHED"
+		}
+		trace = append(trace, DefinitionTrialTrace{Kind: kind, NodeKey: node.Key, DocumentEntity: node.Entity})
+	}
+	return DefinitionTrialResult{
+		DefinitionID: input.DefinitionID, Revision: input.Revision, Matched: true,
+		RootNodeKey: compiled.RootKey,
+		Trace:       trace,
+	}, nil
+}
+
+func workflowScriptValidation(err error) error {
+	return validation("流程脚本编译失败："+err.Error(), map[string]any{"diagnostic": err.Error()})
 }
 
 func (s *Service) DefinitionAction(ctx context.Context, action string, input DefinitionActionInput, actorID string) (any, error) {
@@ -254,6 +389,9 @@ func (s *Service) DefinitionAction(ctx context.Context, action string, input Def
 		}
 		if definition.Revision != input.Revision {
 			return nil, conflict("process definition changed", map[string]any{"revision": definition.Revision})
+		}
+		if definition.SourceKind == DefinitionSourceStarlark {
+			return nil, validation("Starlark drafts must be published before they can be enabled", nil)
 		}
 		if err = validateRequiredDefaults(definition.Nodes, definition.Edges); err != nil {
 			return nil, err

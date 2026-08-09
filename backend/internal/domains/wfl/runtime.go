@@ -18,6 +18,10 @@ type workflowDocumentConverter interface {
 	CreateWorkflowChild(context.Context, pgx.Tx, string, string, json.RawMessage, string) (voudomain.MutationResult, error)
 }
 
+type workflowDocumentValidator interface {
+	ValidateWorkflowDraft(string, voudomain.DraftInput) error
+}
+
 func (s *Service) registerGenericSubscriptions(bus *txevent.Bus) error {
 	for _, node := range workflowNodes {
 		entity := node.Entity

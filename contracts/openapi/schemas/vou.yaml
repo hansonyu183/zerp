@@ -1121,6 +1121,11 @@
       'additionalProperties': false,
       'properties': { 'documentId': { 'type': 'string' } },
     },
+  'VouDraftInput':
+    {
+      'title': 'VouDraftInput',
+      'allOf': [{ '$ref': '#/VouCreateRequest/properties/data' }],
+    },
   'VouCreateRequest':
     {
       'type': 'object',

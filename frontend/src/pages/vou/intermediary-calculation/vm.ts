@@ -70,11 +70,15 @@ export function useIntermediaryCalculationViewModel() {
   const canReadSource = computed(() =>
     session.can('/vou/intermediary-calculation/source'),
   )
+  const canCreate = computed(
+    () => base.canCreate.value && canReadSource.value && canReadScript.value,
+  )
   const canCalculate = computed(
     () => base.editing.value && canReadSource.value && canReadScript.value,
   )
 
   function openCreate(): void {
+    if (!canCreate.value) return
     calculationRequest += 1
     calculating.value = false
     base.openCreate()
@@ -289,6 +293,7 @@ export function useIntermediaryCalculationViewModel() {
     canReadScript,
     canSaveScript,
     canReadSource,
+    canCreate,
     canCalculate,
     openCreate,
     openDocument,

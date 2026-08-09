@@ -93,6 +93,27 @@ describe('intermediary calculation view model', () => {
     expect(isMonthEnd('2026-02-27')).toBe(false)
   })
 
+  it('requires source and script access before enabling creation', () => {
+    const session = useSessionStore()
+    session.permissions = ['/vou/intermediary-calculation/create']
+    const vm = useIntermediaryCalculationViewModel()
+
+    expect(vm.canCreate.value).toBe(false)
+    vm.openCreate()
+    expect(vm.editing.value).toBe(false)
+
+    session.permissions = [
+      '/vou/intermediary-calculation/create',
+      '/vou/intermediary-calculation/source',
+    ]
+    expect(vm.canCreate.value).toBe(false)
+
+    session.permissions.push('/vou/intermediary-calculation/script-get')
+    expect(vm.canCreate.value).toBe(true)
+    vm.openCreate()
+    expect(vm.editing.value).toBe(true)
+  })
+
   it('loads source and script, executes the sandbox, and stores the draft', async () => {
     grantPermissions()
     mockedPostContract

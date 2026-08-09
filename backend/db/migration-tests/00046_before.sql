@@ -62,7 +62,7 @@ INSERT INTO bob_settlement_method_versions(
 ) VALUES (
     '01J0000000000000000000470','旧 BOB 月结 60 天','MONTH_END',2,0
 ), (
-    '01J0000000000000000000484','重叠月结方式','MONTH_END',0,0
+    '01J0000000000000000000484','旧 BOB 重叠月结 60 天','MONTH_END',2,0
 );
 INSERT INTO bob_supplier_versions(
     version_id,name,supplier_type,settlement_method_id,salesperson_employee_id

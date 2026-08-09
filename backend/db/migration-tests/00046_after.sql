@@ -55,7 +55,7 @@ BEGIN
            JOIN bob_objects object ON object.id=mapping.target_object_id
            JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
            WHERE mapping.aux_object_id='01J0000000000000000000482') <> 'MONTHLY_CURRENT' THEN
-        RAISE EXCEPTION 'migration 00046 did not merge overlapping AUX and BOB settlement methods';
+        RAISE EXCEPTION 'migration 00046 did not preserve the current AUX classification for overlapping settlement methods';
     END IF;
     IF (SELECT count(*)
         FROM bob_objects object

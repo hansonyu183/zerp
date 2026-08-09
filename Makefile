@@ -8,11 +8,10 @@ PREVIEW_PR ?=
 PREVIEW_ACTOR ?=
 PREVIEW_MERGE ?=
 PRODUCTION_REF ?=
-REVIEW_PR ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan review-status preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -91,7 +90,6 @@ check-shell:
 release-check:
 	$(MAKE) check-shell
 	./scripts/test-release-flow-transition.sh
-	./scripts/review-status-test.sh
 	./scripts/preview-state-test.sh
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
@@ -121,9 +119,6 @@ pre-push:
 
 pre-push-plan:
 	@./scripts/pre-push.sh --plan
-
-review-status:
-	@./scripts/review-status.sh "$(REVIEW_PR)"
 
 preview-up:
 	@./scripts/preview.sh up

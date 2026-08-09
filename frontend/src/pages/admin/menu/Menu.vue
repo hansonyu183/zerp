@@ -213,35 +213,49 @@ void vm.load()
                 variant="outlined"
               />
               <div class="route-meta">
-                <strong>{{ item.routeKey }}</strong>
-                <span>{{ vm.routeOption(item.routeKey)?.routePath }}</span>
-                <span>{{ vm.routeOption(item.routeKey)?.permissionCode }}</span>
+                <span class="route-meta-line">
+                  <span class="route-meta-label">路由键</span>
+                  <strong>{{ item.routeKey }}</strong>
+                </span>
+                <span class="route-meta-line">
+                  <span class="route-meta-label">地址</span>
+                  <span>{{ vm.routeOption(item.routeKey)?.routePath }}</span>
+                </span>
+                <span class="route-meta-line">
+                  <span class="route-meta-label">权限</span>
+                  <span>{{ vm.routeOption(item.routeKey)?.permissionCode }}</span>
+                </span>
               </div>
-              <v-switch
-                v-model="item.enabled"
-                color="primary"
-                hide-details
-                label="启用"
-              />
-              <v-btn
-                icon="mdi-arrow-up"
-                size="small"
-                variant="text"
-                @click="vm.move(item.id, -1)"
-              />
-              <v-btn
-                icon="mdi-arrow-down"
-                size="small"
-                variant="text"
-                @click="vm.move(item.id, 1)"
-              />
-              <v-btn
-                color="error"
-                icon="mdi-delete-outline"
-                size="small"
-                variant="text"
-                @click="vm.removeRoute(item.id)"
-              />
+              <div class="route-actions">
+                <v-switch
+                  v-model="item.enabled"
+                  color="primary"
+                  hide-details
+                  label="启用"
+                />
+                <v-btn
+                  aria-label="上移路由"
+                  icon="mdi-arrow-up"
+                  size="small"
+                  variant="text"
+                  @click="vm.move(item.id, -1)"
+                />
+                <v-btn
+                  aria-label="下移路由"
+                  icon="mdi-arrow-down"
+                  size="small"
+                  variant="text"
+                  @click="vm.move(item.id, 1)"
+                />
+                <v-btn
+                  aria-label="删除路由"
+                  color="error"
+                  icon="mdi-delete-outline"
+                  size="small"
+                  variant="text"
+                  @click="vm.removeRoute(item.id)"
+                />
+              </div>
             </div>
 
             <div class="d-flex align-center ga-3 mt-3">
@@ -308,7 +322,7 @@ void vm.load()
   display: grid;
   grid-template-columns:
     auto minmax(180px, 1fr) minmax(150px, 220px) minmax(220px, 1.2fr)
-    auto auto auto auto;
+    auto;
   align-items: center;
   gap: 12px;
   padding: 10px 0;
@@ -321,11 +335,24 @@ void vm.load()
   font-size: 0.75rem;
   color: rgb(var(--v-theme-on-surface-variant));
 }
-.route-meta strong,
-.route-meta span {
+.route-meta-line {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+}
+.route-meta-label {
+  color: rgb(var(--v-theme-on-surface));
+}
+.route-meta-line > strong,
+.route-meta-line > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.route-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .route-select {
   max-width: 520px;
@@ -336,6 +363,30 @@ void vm.load()
   }
   .route-meta {
     grid-column: 2 / -1;
+  }
+  .route-actions {
+    grid-column: 2 / -1;
+  }
+}
+@media (max-width: 700px) {
+  .menu-route {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    margin-bottom: 12px;
+    padding: 14px;
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-radius: 12px;
+  }
+  .menu-route > .v-icon {
+    justify-self: start;
+  }
+  .route-meta,
+  .route-actions {
+    grid-column: auto;
+  }
+  .route-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 </style>

@@ -161,7 +161,9 @@ WITH classified AS (
 INSERT INTO bob_migration_00046_aux_map(aux_object_id, target_object_id)
 SELECT classified.legacy_object_id, methods.object_id
 FROM classified
-JOIN bob_migration_00046_fixed_methods methods USING (term_code);
+JOIN bob_migration_00046_fixed_methods methods USING (term_code)
+ON CONFLICT (aux_object_id) DO UPDATE
+SET target_object_id = EXCLUDED.target_object_id;
 
 CREATE TABLE bob_migration_00046_retired_objects (
     source_domain varchar(3) NOT NULL CHECK (source_domain IN ('aux','bob')),

@@ -48,6 +48,15 @@ BEGIN
        OR (SELECT enabled FROM bob_objects WHERE id='01J0000000000000000000469') THEN
         RAISE EXCEPTION 'migration 00046 did not retire mapped legacy settlement methods';
     END IF;
+    IF (SELECT enabled FROM aux_objects WHERE id='01J0000000000000000000482')
+       OR (SELECT enabled FROM bob_objects WHERE id='01J0000000000000000000482')
+       OR (SELECT method.term_code
+           FROM bob_migration_00046_aux_map mapping
+           JOIN bob_objects object ON object.id=mapping.target_object_id
+           JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
+           WHERE mapping.aux_object_id='01J0000000000000000000482') <> 'MONTHLY_CURRENT' THEN
+        RAISE EXCEPTION 'migration 00046 did not merge overlapping AUX and BOB settlement methods';
+    END IF;
     IF (SELECT count(*)
         FROM bob_objects object
         JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id

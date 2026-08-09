@@ -54,7 +54,7 @@ for required_check in ${required_checks}; do
   if [ "${check_state}" = "completed:success" ]; then
     if [ "${required_check}" != full-validation ] || [ "${preview_required}" != true ]; then
       if verify_actions_check_run "${repository}" "${check}" \
-        "${required_check}" "${head_sha}" pull_request "${pull_number}" gh; then
+        "${required_check}" "${head_sha}" pull_request '' gh; then
         continue
       fi
     fi

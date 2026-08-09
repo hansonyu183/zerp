@@ -45,3 +45,13 @@
 ### 发布证据来源
 
 - 当代码把 GitHub check、commit status 或 deployment 作为验证、预览、合并或生产发布证据时，必须同时核对准确仓库、提交 SHA、事件/PR 绑定、预期提供者身份和不可变运行链接。安全路径：从 GitHub API 读取结构化来源并拒绝同名但来源不可信或提交不一致的证据。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repository uses a single-context domain-documentation layout. See `docs/agents/domain.md`.

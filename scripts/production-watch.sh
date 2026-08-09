@@ -238,7 +238,7 @@ cloudflare_state=$(printf '%s' "${cloudflare_run}" |
   jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
 case "${cloudflare_state}" in
   completed:success)
-    if ! verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}"; then
+    if ! verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" zerp; then
       set_deployment_status queued "Waiting for trusted Cloudflare Pages provenance"
       log "Waiting for trusted Cloudflare Pages provenance on ${target_sha}"
       exit 0

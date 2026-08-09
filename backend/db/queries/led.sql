@@ -717,6 +717,7 @@ FROM led_bill_entries AS entry
 WHERE entry.generation_id = sqlc.arg(generation_id)
   AND entry.bill_id = sqlc.arg(bill_id)
   AND entry.position_type = sqlc.arg(position_type)
+  AND entry.effective_date <= sqlc.arg(as_of_date)::date
 ;
 
 -- name: CountLedBillDownstreamEntries :one
@@ -818,6 +819,7 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = sqlc.arg(generation_id)
+   AND entry.effective_date <= sqlc.arg(as_of_date)::date
   GROUP BY bill.id, document.entity, document.document_no
 ), filtered AS (
   SELECT
@@ -877,6 +879,7 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = sqlc.arg(generation_id)
+   AND entry.effective_date <= sqlc.arg(as_of_date)::date
   GROUP BY bill.id, document.entity
 ), filtered AS (
   SELECT

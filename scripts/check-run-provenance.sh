@@ -62,8 +62,11 @@ verify_actions_check_run() (
 verify_cloudflare_pages_check_run() (
   check_json=$1
   expected_sha=$2
+  expected_project=$3
 
-  printf '%s' "${check_json}" | jq -e --arg head_sha "${expected_sha}" '
+  printf '%s' "${check_json}" | jq -e \
+    --arg head_sha "${expected_sha}" --arg project "${expected_project}" '
+    .external_id as $deployment_id |
     .name == "Cloudflare Pages" and
     .status == "completed" and .conclusion == "success" and
     .head_sha == $head_sha and
@@ -71,8 +74,9 @@ verify_cloudflare_pages_check_run() (
     .app.slug == "cloudflare-workers-and-pages" and
     .app.name == "Cloudflare Workers and Pages" and
     .app.owner.login == "cloudflare" and
-    (.external_id | type == "string" and length > 0) and
+    ($deployment_id | type == "string" and
+      test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
     (.details_url | type == "string" and
-      startswith("https://dash.cloudflare.com/?to=/"))
+      test("^https://dash\\.cloudflare\\.com/\\?to=/[^/]+/pages/view/" + $project + "/" + $deployment_id + "$"))
   ' >/dev/null
 )

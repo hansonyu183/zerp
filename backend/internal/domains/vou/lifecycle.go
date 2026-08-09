@@ -124,7 +124,7 @@ func (s *Service) createDocument(
 		return MutationResult{}, err
 	}
 	if entity == EntityBillPayment || entity == EntityBillDiscount {
-		draft.TotalAmount, err = s.billPaymentTotal(ctx, q, draft.BillLines)
+		draft.TotalAmount, err = s.billPaymentTotal(ctx, q, draft.BillLines, draft.BusinessDate)
 		if err != nil {
 			return MutationResult{}, err
 		}

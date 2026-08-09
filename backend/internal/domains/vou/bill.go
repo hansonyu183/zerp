@@ -461,14 +461,14 @@ func validateBillMaturityDraft(input DraftInput, result validatedDraft) (validat
 	return result, nil
 }
 
-func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine) (int64, error) {
+func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine, businessDate time.Time) (int64, error) {
 	var total int64
 	for _, line := range lines {
 		bill, err := q.LockLedBill(ctx, line.BillID)
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
-		balance, err := billAvailableBalance(ctx, q, bill.ID, "ASSET")
+		balance, err := billAvailableBalance(ctx, q, bill.ID, "ASSET", businessDate)
 		if err != nil || balance != 1 || bill.PositionType != "ASSET" {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -555,7 +555,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 			if b.Currency != d.Currency {
 				return domainError(ErrorValidation, "source bill currency must match document currency", nil, nil)
 			}
-			balance, balanceErr := billAvailableBalance(ctx, q, b.ID, l.PositionType)
+			balance, balanceErr := billAvailableBalance(ctx, q, b.ID, l.PositionType, d.BusinessDate)
 			if balanceErr != nil || balance != 1 {
 				return domainError(ErrorConflict, "source bill is not available", nil, balanceErr)
 			}
@@ -707,7 +707,7 @@ func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, line
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
-		balance, err := billAvailableBalance(ctx, q, bill.ID, line.PositionType)
+		balance, err := billAvailableBalance(ctx, q, bill.ID, line.PositionType, businessDate)
 		if err != nil || balance != 1 || bill.PositionType != line.PositionType {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -722,12 +722,13 @@ func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, line
 	return total, nil
 }
 
-func billAvailableBalance(ctx context.Context, q *dbsqlc.Queries, billID, positionType string) (int64, error) {
+func billAvailableBalance(ctx context.Context, q *dbsqlc.Queries, billID, positionType string, asOfDate time.Time) (int64, error) {
 	control, err := q.GetLedControl(ctx)
 	if err != nil || control.Status != "ACTIVE" || control.ActiveGenerationID == nil {
 		return 0, err
 	}
 	return q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
 		GenerationID: *control.ActiveGenerationID, BillID: billID, PositionType: positionType,
+		AsOfDate: dateValue(asOfDate),
 	})
 }

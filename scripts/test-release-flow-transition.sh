@@ -59,7 +59,7 @@ grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
-grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}"' scripts/production-watch.sh
+grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" zerp' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016
@@ -253,16 +253,28 @@ if PATH="${tmp}/bin:${PATH}" MOCK_SCENARIO=push-success \
   fail 'untrusted production full-validation provenance was accepted'
 fi
 
-trusted_cloudflare_check='{"name":"Cloudflare Pages","status":"completed","conclusion":"success","head_sha":"2222222222222222222222222222222222222222","details_url":"https://dash.cloudflare.com/?to=/account/pages/view/zerp/deployment","external_id":"deployment","app":{"id":85455,"slug":"cloudflare-workers-and-pages","name":"Cloudflare Workers and Pages","owner":{"login":"cloudflare"}}}'
+trusted_cloudflare_check='{"name":"Cloudflare Pages","status":"completed","conclusion":"success","head_sha":"2222222222222222222222222222222222222222","details_url":"https://dash.cloudflare.com/?to=/account/pages/view/zerp/12345678-abcd-4abc-8abc-1234567890ab","external_id":"12345678-abcd-4abc-8abc-1234567890ab","app":{"id":85455,"slug":"cloudflare-workers-and-pages","name":"Cloudflare Workers and Pages","owner":{"login":"cloudflare"}}}'
 if ! verify_cloudflare_pages_check_run "${trusted_cloudflare_check}" \
-  2222222222222222222222222222222222222222; then
+  2222222222222222222222222222222222222222 zerp; then
   fail 'trusted Cloudflare Pages provenance was rejected'
 fi
 untrusted_cloudflare_check=$(printf '%s' "${trusted_cloudflare_check}" |
   jq '.app.id = 1 | .app.slug = "untrusted-app"')
 if verify_cloudflare_pages_check_run "${untrusted_cloudflare_check}" \
-  2222222222222222222222222222222222222222; then
+  2222222222222222222222222222222222222222 zerp; then
   fail 'untrusted Cloudflare Pages provenance was accepted'
+fi
+wrong_project_cloudflare_check=$(printf '%s' "${trusted_cloudflare_check}" |
+  jq '.details_url = "https://dash.cloudflare.com/?to=/account/pages/view/other/12345678-abcd-4abc-8abc-1234567890ab"')
+if verify_cloudflare_pages_check_run "${wrong_project_cloudflare_check}" \
+  2222222222222222222222222222222222222222 zerp; then
+  fail 'wrong Cloudflare Pages project was accepted'
+fi
+mismatched_deployment_cloudflare_check=$(printf '%s' "${trusted_cloudflare_check}" |
+  jq '.details_url = "https://dash.cloudflare.com/?to=/account/pages/view/zerp/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"')
+if verify_cloudflare_pages_check_run "${mismatched_deployment_cloudflare_check}" \
+  2222222222222222222222222222222222222222 zerp; then
+  fail 'mismatched Cloudflare Pages deployment was accepted'
 fi
 
 # Component evidence is reusable only from the same PR exact-head fingerprint.

@@ -234,6 +234,7 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = $2
+   AND entry.effective_date <= $3::date
   GROUP BY bill.id, document.entity
 ), filtered AS (
   SELECT
@@ -813,16 +814,23 @@ FROM led_bill_entries AS entry
 WHERE entry.generation_id = $1
   AND entry.bill_id = $2
   AND entry.position_type = $3
+  AND entry.effective_date <= $4::date
 `
 
 type GetLedBillAvailableBalanceParams struct {
-	GenerationID string `db:"generation_id" json:"generation_id"`
-	BillID       string `db:"bill_id" json:"bill_id"`
-	PositionType string `db:"position_type" json:"position_type"`
+	GenerationID string      `db:"generation_id" json:"generation_id"`
+	BillID       string      `db:"bill_id" json:"bill_id"`
+	PositionType string      `db:"position_type" json:"position_type"`
+	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
 }
 
 func (q *Queries) GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getLedBillAvailableBalance, arg.GenerationID, arg.BillID, arg.PositionType)
+	row := q.db.QueryRow(ctx, getLedBillAvailableBalance,
+		arg.GenerationID,
+		arg.BillID,
+		arg.PositionType,
+		arg.AsOfDate,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -2012,6 +2020,7 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = $6
+   AND entry.effective_date <= $7::date
   GROUP BY bill.id, document.entity, document.document_no
 ), filtered AS (
   SELECT

@@ -1750,6 +1750,21 @@ func TestBillPaymentUsesAvailableBillAndReversalRestoresAvailabilityIntegration(
 		t.Fatalf("finalize source receipt: %v", err)
 	}
 	billID := sourceView.Data.BillLines[0].BillID
+	originalToday := ledger.today
+	ledger.today = func() time.Time { return time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC) }
+	beforeReceipt, err := ledger.QueryBills(t.Context(), BillQueryInput{
+		Page: 1, PageSize: 20, Filters: BillQueryFilters{Availability: "AVAILABLE"},
+	})
+	ledger.today = originalToday
+	if err != nil || beforeReceipt.Total != 0 || len(beforeReceipt.Items) != 0 {
+		t.Fatalf("future bill receipt was available before its business date: %+v, err=%v", beforeReceipt, err)
+	}
+	if _, err = vouchers.Create(t.Context(), voudomain.EntityBillPayment, voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-07-31", Currency: "CNY", Supplier: &refs.supplier,
+		BillLines: []voudomain.BillLineInput{{BillID: billID, Purpose: "PRIMARY"}},
+	}}, integrationActorOne, "bill-payment-before-source-date"); err == nil || !strings.Contains(err.Error(), "source bill is not available") {
+		t.Fatalf("backdated bill payment error = %v, want source bill unavailable", err)
+	}
 	createPayment := func() voudomain.MutationResult {
 		checked, _ := advanceToChecked(t, vouchers, voudomain.EntityBillPayment, voudomain.DraftInput{
 			BusinessDate: "2026-08-02", Currency: "CNY", Supplier: &refs.supplier,

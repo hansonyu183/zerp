@@ -1,4 +1,9 @@
 export type VoucherEntity =
+  | 'bill-receipt'
+  | 'bill-payment'
+  | 'bill-issue'
+  | 'bill-discount'
+  | 'bill-maturity'
   | 'sale-pricing'
   | 'sale-order'
   | 'sale-outbound'
@@ -12,11 +17,11 @@ export type VoucherEntity =
   | 'purchase-inbound'
   | 'purchase-return'
   | 'purchase-inquiry'
-  | 'customer-receipt'
-  | 'supplier-receipt'
+  | 'sales-receipt'
+  | 'purchase-refund'
   | 'other-receipt'
-  | 'customer-payment'
-  | 'supplier-payment'
+  | 'sales-refund'
+  | 'purchase-payment'
   | 'other-payment'
   | 'employee-loan'
   | 'employee-repayment'
@@ -28,6 +33,7 @@ export type VoucherEntity =
   | 'asset-depreciation'
   | 'asset-sale'
   | 'asset-liquidation'
+  | 'intermediary-calculation'
 
 export type VoucherStatus =
   | 'DRAFT'
@@ -171,12 +177,15 @@ export interface VoucherDraftForm {
   businessDate: string
   currency: string
   remark: string
+  specialApproval: boolean
+  intermediaryCalculation: IntermediaryCalculationInput | null
   returnReason: string
   returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
   supplier: VoucherReference | null
   counterpartyType: '' | 'customer' | 'supplier' | 'other-party' | 'employee'
   counterparty: VoucherReference | null
+  otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee: VoucherReference | null
   salesperson: VoucherReference | null
   purchaser: VoucherReference | null
@@ -384,9 +393,12 @@ export interface VoucherDocumentData {
   remark?: string
   returnReason?: string
   returnKind?: 'REFUSAL' | 'AFTER_SALE'
+  specialApproval?: boolean
+  intermediaryCalculation?: IntermediaryCalculationInput
   customer?: VoucherReferenceView
   supplier?: VoucherReferenceView
   counterparty?: VoucherReferenceView
+  otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee?: VoucherReferenceView
   salesperson?: VoucherReferenceView
   purchaser?: VoucherReferenceView
@@ -433,6 +445,112 @@ export interface VoucherDocumentData {
   returnedSolventContainers?: number
   returnedResinContainers?: number
   containerDifferenceReason?: string
+}
+
+export interface IntermediaryReference {
+  objectId: string
+  versionId: string
+  entity: 'customer' | 'employee' | 'other-party' | 'product'
+  code: string
+  name: string
+}
+
+export interface IntermediarySourceLine {
+  sourceSignoffLineId: string
+  sourceKind: 'SALE' | 'RETURN_ADJUSTMENT'
+  signoffDocumentId: string
+  signoffDocumentNo: string
+  signoffDate: string
+  orderDocumentId: string
+  orderDocumentNo: string
+  orderDate: string
+  dueDate: string
+  collectionDate: string
+  collectionDelayDays: number
+  customer: IntermediaryReference
+  salesperson: IntermediaryReference
+  intermediary?: IntermediaryReference
+  product: IntermediaryReference
+  productKind: string
+  signedQuantity: string
+  pricingQuantity: string
+  barrelQuantity: string
+  unitPrice: string
+  referenceUnitPrice: string
+  settlementSurcharge: string
+  rebateUnitPrice: string
+  lineAmount: string
+  settlementTermCode: string
+  specialApproval: boolean
+  returnDocumentNos?: string[]
+  adjustmentEmployeeAmount: string
+  adjustmentIntermediaryAmount: string
+  adjustmentRebateAmount: string
+}
+
+export interface IntermediarySourceBill {
+  billLineId: string
+  receiptDocumentId: string
+  receiptDocumentNo: string
+  receiptDate: string
+  customer: IntermediaryReference
+  salesperson: IntermediaryReference
+  billType: 'BANK_ACCEPTANCE' | 'COMMERCIAL_ACCEPTANCE' | 'CHECK' | 'OTHER'
+  faceAmount: string
+  issueDate: string
+  maturityDate: string
+  costDays: number
+}
+
+export interface IntermediaryCalculationSource {
+  periodStart: string
+  periodEnd: string
+  currency: 'CNY'
+  lines: IntermediarySourceLine[]
+  bills: IntermediarySourceBill[]
+}
+
+export interface IntermediaryScriptSnapshot {
+  scriptId: string
+  revision: number
+  name: string
+  source: string
+  hash: string
+}
+
+export interface IntermediaryResultLine {
+  sourceSignoffLineId: string
+  premiumUnitPrice: string
+  barrelQuantity: string
+  baseCommission: string
+  premiumCommission: string
+  lowPriceCommission: string
+  marketMaintenanceSubsidy: string
+  marketDevelopmentSubsidy: string
+  billCost: string
+  billLineIds: string[]
+  employeeAmount: string
+  intermediaryAmount: string
+  rebateAmount: string
+  note?: string
+}
+
+export interface IntermediarySummary {
+  payee: IntermediaryReference
+  category: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
+  amount: string
+}
+
+export interface IntermediaryCalculationResult {
+  lines: IntermediaryResultLine[]
+  summaries: IntermediarySummary[]
+}
+
+export interface IntermediaryCalculationInput {
+  source: IntermediaryCalculationSource
+  sourceHash: string
+  script: IntermediaryScriptSnapshot
+  result: IntermediaryCalculationResult
 }
 
 export interface VoucherAssetLineView {
@@ -573,32 +691,6 @@ export interface VoucherSort {
   order: 'asc' | 'desc'
 }
 
-export interface VoucherExecutionSaleLine {
-  lineId: string
-  orderedQuantity: string
-  outboundQuantity: string
-  signedQuantity: string
-  rejectedQuantity: string
-  lossQuantity: string
-}
-
-export interface VoucherExecutionPurchaseLine {
-  lineId: string
-  orderedQuantity: string
-  inboundQuantity: string
-}
-
-export interface VoucherExecutionForm {
-  outboundDate: string
-  signoffDate: string
-  inboundDate: string
-  platform: VoucherReference | null
-  vehicle: VoucherReference | null
-  differenceReason: string
-  saleLines: VoucherExecutionSaleLine[]
-  purchaseLines: VoucherExecutionPurchaseLine[]
-}
-
 export type VoucherLineKind =
   | 'product'
   | 'price'
@@ -608,22 +700,19 @@ export type VoucherLineKind =
   | 'asset-depreciation'
   | 'asset-sale'
   | 'asset-liquidation'
+  | 'bill'
   | 'none'
-export type VoucherFinalizationKind = 'direct' | 'sale' | 'purchase'
-
 export interface VoucherLifecycleLabels {
   check: string
   uncheck: string
   approve: string
   unapprove: string
-  finalize: string
-  unfinalize: string
   checked: string
   finalized: string
 }
 
 export type VoucherLifecycleAction =
-  'check' | 'approve' | 'finalize' | 'uncheck' | 'unapprove' | 'unfinalize'
+  'check' | 'approve' | 'uncheck' | 'unapprove'
 
 export interface VoucherEntityConfig {
   entity: VoucherEntity
@@ -633,7 +722,6 @@ export interface VoucherEntityConfig {
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
   fixedCounterpartyType?: 'customer' | 'supplier' | 'other-party' | 'employee'
   lineKind: VoucherLineKind
-  finalizationKind: VoucherFinalizationKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
   parentEntity?: VoucherEntity
   usesSalesperson?: boolean
@@ -655,8 +743,6 @@ export interface VoucherActionAvailability {
   uncheck: boolean
   approve: boolean
   unapprove: boolean
-  finalize: boolean
-  unfinalize: boolean
   delete: boolean
   shortCloseRequest: boolean
   shortCloseCancel: boolean

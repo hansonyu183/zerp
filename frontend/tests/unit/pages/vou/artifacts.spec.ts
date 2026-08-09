@@ -41,7 +41,7 @@ const attachment: VoucherAttachment = {
 function documentView(): VoucherDocumentView {
   return {
     documentId: 'DOCUMENT-1',
-    entity: 'customer-receipt',
+    entity: 'sales-receipt',
     documentNo: 'REC-1',
     status: 'DRAFT',
     revision: 1,
@@ -65,8 +65,6 @@ const allowed: VoucherActionAvailability = {
   uncheck: true,
   approve: true,
   unapprove: true,
-  finalize: true,
-  unfinalize: true,
   delete: true,
   shortCloseRequest: true,
   shortCloseCancel: true,
@@ -150,7 +148,7 @@ describe('VOU attachment and audit artifacts', () => {
     const blob = new Blob(['pdf'])
     mockedFetch.mockResolvedValue(blob)
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       loadDocument,
@@ -168,7 +166,7 @@ describe('VOU attachment and audit artifacts', () => {
     } as unknown as File
     await artifacts.uploadAttachments([file])
     expect(mockedPost).toHaveBeenCalledWith(
-      'vou/customer-receipt/attachment-initiate',
+      'vou/sales-receipt/attachment-initiate',
       expect.objectContaining({
         documentId: 'DOCUMENT-1',
         revision: 1,
@@ -191,7 +189,7 @@ describe('VOU attachment and audit artifacts', () => {
 
     await artifacts.removeAttachment(attachment)
     expect(mockedPost).toHaveBeenCalledWith(
-      'vou/customer-receipt/attachment-remove',
+      'vou/sales-receipt/attachment-remove',
       {
         documentId: 'DOCUMENT-1',
         revision: 2,
@@ -207,7 +205,7 @@ describe('VOU attachment and audit artifacts', () => {
     const availability = computed(() => allowed)
     const loadDocument = vi.fn().mockResolvedValue(undefined)
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       loadDocument,
@@ -256,7 +254,7 @@ describe('VOU attachment and audit artifacts', () => {
         ) as unknown as VoucherActionAvailability,
     )
     const artifacts = useVoucherArtifacts(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
       current,
       availability,
       vi.fn(),
@@ -267,5 +265,42 @@ describe('VOU attachment and audit artifacts', () => {
     await artifacts.downloadAttachment(attachment)
     await artifacts.removeAttachment(attachment)
     expect(mockedPost).not.toHaveBeenCalled()
+  })
+
+  it('keeps the newest audit result when requests finish out of order', async () => {
+    const current = ref<VoucherDocumentView | null>(documentView())
+    const availability = computed(() => allowed)
+    const artifacts = useVoucherArtifacts(
+      voucherEntityConfigs['sales-receipt'],
+      current,
+      availability,
+      vi.fn(),
+    )
+    let resolveFirst!: (value: unknown) => void
+    let rejectSecond!: (reason: unknown) => void
+    let resolveThird!: (value: unknown) => void
+    mockedPost
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise((_, reject) => (rejectSecond = reject)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveThird = resolve)))
+
+    const first = artifacts.loadAudit(1)
+    const second = artifacts.loadAudit(2)
+    const third = artifacts.loadAudit(3)
+    resolveThird({
+      data: { items: [{ id: 'NEWEST' }], total: 1, page: 3, pageSize: 20 },
+    })
+    await third
+    rejectSecond(new Error('stale failure'))
+    await second
+    resolveFirst({
+      data: { items: [{ id: 'STALE' }], total: 1, page: 1, pageSize: 20 },
+    })
+    await first
+
+    expect(artifacts.auditEvents.value[0]?.id).toBe('NEWEST')
+    expect(artifacts.auditPage.value).toBe(3)
+    expect(artifacts.auditError.value).toBeNull()
+    expect(artifacts.auditLoading.value).toBe(false)
   })
 })

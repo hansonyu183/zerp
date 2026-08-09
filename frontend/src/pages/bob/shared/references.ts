@@ -127,7 +127,7 @@ export function useBobReferences(
                 ...resolveReferenceFilters(reference, form),
                 keyword: value,
                 ...(domain === 'bob'
-                  ? { status: ['EFFECTIVE'] }
+                  ? { status: ['EFFECTIVE'], enabled: true }
                   : { enabled: true }),
               },
               sort: [{ field: 'name', order: 'asc' }],
@@ -139,9 +139,10 @@ export function useBobReferences(
               state.options = [...state.options, { title: value, value }]
               return
             }
-            const name = domain === 'aux'
-              ? (item as AuxReferenceQueryItem).currentVersion.data.name
-              : (item as ReferenceQueryItem).currentVersion.summary.name
+            const name =
+              domain === 'aux'
+                ? (item as AuxReferenceQueryItem).currentVersion.data.name
+                : (item as ReferenceQueryItem).currentVersion.summary.name
             state.options = [
               ...state.options.filter((option) => option.value !== value),
               {
@@ -156,9 +157,10 @@ export function useBobReferences(
             BobObjectView | AuxReferenceObject,
             { objectId: string }
           >(`${domain}/${reference.entity}/get` as never, { objectId: value })
-          const name = domain === 'aux'
-            ? (data as AuxReferenceObject).currentVersion.data.name
-            : (data as BobObjectView).data.name
+          const name =
+            domain === 'aux'
+              ? (data as AuxReferenceObject).currentVersion.data.name
+              : (data as BobObjectView).data.name
           state.options = [
             ...state.options.filter((option) => option.value !== value),
             { title: formatReferenceLabel({ code: data.code, name }), value },
@@ -174,9 +176,10 @@ export function useBobReferences(
     reference: BobReferenceConfig,
     form: Readonly<BobForm>,
   ): Record<string, unknown> {
-    const values = typeof reference.filters === 'function'
-      ? reference.filters(form)
-      : reference.filters ?? {}
+    const values =
+      typeof reference.filters === 'function'
+        ? reference.filters(form)
+        : (reference.filters ?? {})
     return Object.fromEntries(
       Object.entries(values).filter(([, value]) => hasValue(value)),
     )
@@ -211,14 +214,15 @@ export function useBobReferences(
           ...resolveReferenceFilters(reference, form),
           ...(keywordFilter ? { keyword: keywordFilter } : {}),
           ...(domain === 'bob'
-            ? { status: ['EFFECTIVE'] }
+            ? { status: ['EFFECTIVE'], enabled: true }
             : { enabled: true }),
         },
         sort: [{ field: 'name', order: 'asc' }],
       })
       if (state.requestSequence !== sequence) return
       const selected = state.options.filter((option) =>
-        Object.values(form).includes(option.value))
+        Object.values(form).includes(option.value),
+      )
       state.options = [
         ...selected,
         ...(data.items ?? []).map((item) => ({
@@ -231,8 +235,10 @@ export function useBobReferences(
           }),
           value: reference.value === 'code' ? item.code : item.objectId,
         })),
-      ].filter((option, index, all) =>
-        all.findIndex((candidate) => candidate.value === option.value) === index
+      ].filter(
+        (option, index, all) =>
+          all.findIndex((candidate) => candidate.value === option.value) ===
+          index,
       )
     } catch (error) {
       if (state.requestSequence === sequence) {

@@ -4,7 +4,6 @@ AuxEntity:
     - product-category
     - department
     - position
-    - settlement-method
     - dictionary-type
     - dictionary-item
     - measurement-unit

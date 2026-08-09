@@ -20,11 +20,11 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO vou_number_counters(entity, business_date, last_value)
 		VALUES ($1, DATE '2026-07-24', 9999)
-	`, EntityReceipt); err != nil {
+	`, EntitySalesReceipt); err != nil {
 		t.Fatalf("exhaust document counter: %v", err)
 	}
 
-	_, err := newIntegrationService(t, pool).Create(t.Context(), EntityReceipt, CreateInput{
+	_, err := newIntegrationService(t, pool).Create(t.Context(), EntitySalesReceipt, CreateInput{
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
@@ -59,12 +59,12 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 			Warehouse: &refs.warehouse, ProductLines: productLine,
 		}},
-		{EntityReceipt, DraftInput{
+		{EntitySalesReceipt, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "100.00",
 		}},
-		{EntityPayment, DraftInput{
+		{EntityPurchasePayment, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "80.00",
@@ -112,17 +112,18 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				DocumentID: created.DocumentID, Revision: reviewed.Revision,
 			}, integrationActorOne, "vou-approve")
 			if err != nil {
-				t.Fatalf("approve: %v", err)
+				t.Fatalf("approve: %v (cause: %v)", err, errors.Unwrap(err))
 			}
-			execute := FinalizeInput{DocumentID: created.DocumentID, Revision: approved.Revision}
-			executed, err := service.Finalize(t.Context(), test.entity, execute,
-				integrationActorOne, "vou-execute")
-			if err != nil {
-				t.Fatalf("execute: %v", err)
+			expectedStatus := StatusFinalized
+			if test.entity == EntitySaleOrder {
+				expectedStatus = StatusApproved
+			}
+			if approved.Status != expectedStatus {
+				t.Fatalf("approved status = %s, want %s", approved.Status, expectedStatus)
 			}
 			view, err := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-			if err != nil || view.Status != StatusFinalized || view.Amount == "" {
-				t.Fatalf("executed view=%+v err=%v", view, err)
+			if err != nil || view.Status != expectedStatus || view.Amount == "" {
+				t.Fatalf("approved view=%+v err=%v", view, err)
 			}
 			if view.Data.Remark != "单据备注" {
 				t.Fatalf("header remark = %q", view.Data.Remark)
@@ -136,13 +137,12 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					view.Data.ContactPhone != "13800000000" ||
 					view.Data.DeliveryAddress != "深圳市测试路 1 号" ||
 					view.Data.SettlementMethod == nil ||
-					view.Data.SettlementMethod.RuleType != bobdomain.SettlementRuleFixedDay ||
-					view.Data.SettlementMethod.DayOfMonth == nil ||
-					*view.Data.SettlementMethod.DayOfMonth != 15 ||
+					view.Data.SettlementMethod.RuleType != bobdomain.SettlementRuleMonthEnd ||
+					view.Data.SettlementMethod.MonthOffset != 1 ||
 					view.Data.ProductLines[0].Remark != "商品明细备注" {
 					t.Fatalf("sale attribute snapshots = %+v", view.Data)
 				}
-			case EntityReceipt, EntityPayment, EntityOtherIncome:
+			case EntitySalesReceipt, EntityPurchasePayment, EntityOtherIncome:
 				if view.Data.Handler == nil {
 					t.Fatalf("handler snapshot = %+v", view.Data)
 				}
@@ -155,7 +155,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
 				Page: 1, PageSize: 20,
 				Filters: QueryFilters{
-					Keyword: created.DocumentNo, Status: []string{StatusFinalized},
+					Keyword: created.DocumentNo, Status: []string{expectedStatus},
 					DateFrom: "2026-07-24", DateTo: "2026-07-24",
 				},
 				Sort: []SortInput{{Field: "documentNo", Order: "asc"}},
@@ -177,14 +177,8 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					page.Items[0].SalesSummary.NetSignedQuantity != "0" {
 					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
 				}
-				unexecuted, reverseErr := service.Unfinalize(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: executed.Revision, Reason: "修正执行结果",
-				}, integrationActorOne, "vou-unexecute")
-				if reverseErr != nil {
-					t.Fatalf("unexecute: %v", reverseErr)
-				}
 				unapproved, reverseErr := service.Unapprove(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: unexecuted.Revision, Reason: "修正批准内容",
+					DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "修正批准内容",
 				}, integrationActorOne, "vou-unapprove")
 				if reverseErr != nil {
 					t.Fatalf("unapprove: %v", reverseErr)
@@ -198,7 +192,11 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				history, historyErr := service.AuditHistory(t.Context(), test.entity, HistoryInput{
 					DocumentID: created.DocumentID, Page: 1, PageSize: 20,
 				})
-				if historyErr != nil || history.Total != 7 {
+				expectedAudits := int64(7)
+				if test.entity == EntitySaleOrder {
+					expectedAudits = 5
+				}
+				if historyErr != nil || history.Total != expectedAudits {
 					t.Fatalf("history total=%d err=%v", history.Total, historyErr)
 				}
 			}
@@ -212,7 +210,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	parent, err := service.Create(t.Context(), EntityReceipt, CreateInput{Data: DraftInput{
+	parent, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
@@ -220,8 +218,8 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := service.Create(t.Context(), EntityPayment, CreateInput{
-		ParentEntity: EntityReceipt, ParentDocumentID: parent.DocumentID,
+	child, err := service.Create(t.Context(), EntityPurchasePayment, CreateInput{
+		ParentEntity: EntitySalesReceipt, ParentDocumentID: parent.DocumentID,
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
@@ -231,13 +229,13 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.Get(t.Context(), EntityPayment, GetInput{DocumentID: child.DocumentID})
-	if err != nil || view.ParentEntity != EntityReceipt ||
+	view, err := service.Get(t.Context(), EntityPurchasePayment, GetInput{DocumentID: child.DocumentID})
+	if err != nil || view.ParentEntity != EntitySalesReceipt ||
 		view.ParentDocumentID != parent.DocumentID ||
 		view.ParentDocumentNo != parent.DocumentNo {
 		t.Fatalf("parent view=%+v err=%v", view, err)
 	}
-	if _, err = service.Create(t.Context(), EntityPayment, CreateInput{
+	if _, err = service.Create(t.Context(), EntityPurchasePayment, CreateInput{
 		ParentEntity: EntitySaleOrder, ParentDocumentID: parent.DocumentID,
 		Data: DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
@@ -267,7 +265,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			result, err := service.Create(context.Background(), EntityReceipt, CreateInput{Data: DraftInput{
+			result, err := service.Create(context.Background(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
 				Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 				Handler: &refs.employee, Amount: "1.00",
@@ -287,7 +285,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for number := range numbers {
-		if len(number) != 17 || !strings.HasPrefix(number, "REC-20260724-") {
+		if len(number) != 17 || !strings.HasPrefix(number, "SRC-20260724-") {
 			t.Fatalf("unexpected document number %s", number)
 		}
 		if seen[number] {
@@ -302,7 +300,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 437
+	wantPermissions := 460
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -326,7 +324,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
-	if legacyPermissions != 0 || purchaseWritePermissions != 12 ||
+	if legacyPermissions != 0 || purchaseWritePermissions != 10 ||
 		purchaseWorkflowPermissions != 7 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)

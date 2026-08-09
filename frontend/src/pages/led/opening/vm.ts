@@ -1,6 +1,10 @@
 import { computed, ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import {
+  getDiagnosticErrorMessage,
+  getErrorMessage,
+  type PageResult,
+} from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import type {
   ClosingHistoryItem,
@@ -51,7 +55,7 @@ export function useOpeningViewModel() {
       const { data } = await apiClient.post<ClosingView>('led/closing/get', {})
       closing.value = data
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       loading.value = false
     }
@@ -76,7 +80,7 @@ export function useOpeningViewModel() {
       if (historyLoaded.value) await loadHistory()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
       return false
     } finally {
       saving.value = false
@@ -94,6 +98,7 @@ export function useOpeningViewModel() {
     errorMessage.value = null
     successMessage.value = null
     try {
+      const reversedClosingDate = closing.value.latestClosingDate
       await apiClient.post<
         ClosingMutationResult,
         { revision: number; reason: string }
@@ -102,13 +107,14 @@ export function useOpeningViewModel() {
         reason,
       })
       successMessage.value = '已反结最近一期。'
+      if (reversedClosingDate) closingDate.value = reversedClosingDate
       uncloseDialog.value = false
       uncloseReason.value = ''
       await load()
       if (historyLoaded.value) await loadHistory()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
       return false
     } finally {
       saving.value = false

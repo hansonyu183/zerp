@@ -25,6 +25,8 @@ type applicationService interface {
 	FundBalance(context.Context, BalanceInput) (Page[FundBalanceView], error)
 	QueryParty(context.Context, QueryInput, ...string) (Page[PartyEntryView], error)
 	PartyBalance(context.Context, BalanceInput, ...string) (Page[PartyBalanceView], error)
+	QueryOther(context.Context, QueryInput) (Page[PartyEntryView], error)
+	OtherBalance(context.Context, OtherBalanceInput) (Page[PartyBalanceView], error)
 }
 
 type containerApplicationService interface {
@@ -35,6 +37,10 @@ type containerApplicationService interface {
 type assetApplicationService interface {
 	QueryAssets(context.Context, AssetQueryInput) (Page[AssetView], error)
 	GetAsset(context.Context, AssetGetInput) (AssetDetailView, error)
+}
+
+type billApplicationService interface {
+	QueryBills(context.Context, BillQueryInput) (Page[BillView], error)
 }
 
 type Handler struct {
@@ -70,18 +76,46 @@ func (h *Handler) Register(router *gin.Engine) {
 		{EntityCustomer, "balance", h.partyBalance(EntityCustomer)},
 		{EntitySupplier, "query", h.queryParty(EntitySupplier)},
 		{EntitySupplier, "balance", h.partyBalance(EntitySupplier)},
-		{EntityOther, "query", h.queryParty("other-party")},
-		{EntityOther, "balance", h.partyBalance("other-party")},
-		{EntityEmployee, "query", h.queryParty(EntityEmployee)},
-		{EntityEmployee, "balance", h.partyBalance(EntityEmployee)},
+		{EntityOther, "query", h.queryOther},
+		{EntityOther, "balance", h.otherBalance},
 		{EntityContainer, "query", h.queryContainer},
 		{EntityContainer, "balance", h.containerBalance},
 		{EntityAsset, "query", h.queryAssets},
 		{EntityAsset, "get", h.getAsset},
+		{EntityBill, "query", h.queryBills},
 	}
 	for _, route := range routes {
 		path := "/led/" + route.entity + "/" + route.action
 		router.POST(path, h.authorize(path), route.handle)
+	}
+}
+
+func (h *Handler) queryOther(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		result, err := h.service.QueryOther(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) otherBalance(c *gin.Context) {
+	var input OtherBalanceInput
+	if h.bind(c, &input) {
+		result, err := h.service.OtherBalance(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) queryBills(c *gin.Context) {
+	var input BillQueryInput
+	if h.bind(c, &input) {
+		service, ok := h.service.(billApplicationService)
+		if !ok {
+			h.result(c, nil, domainError(ErrorInternal, "bill ledger is unavailable", nil, nil))
+			return
+		}
+		result, err := service.QueryBills(c.Request.Context(), input)
+		h.result(c, result, err)
 	}
 }
 

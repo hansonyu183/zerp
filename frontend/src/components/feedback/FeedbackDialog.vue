@@ -81,7 +81,13 @@ function sizeText(size: number): string {
           请勿填写密码、Cookie、Token 或其他敏感信息。
         </v-card-subtitle>
         <v-card-text>
-          <AppSnackbar :message="vm.errorMessage" />
+          <AppSnackbar
+            action-label="重试"
+            diagnostics
+            :message="vm.errorMessage"
+            @action="vm.submit"
+            @dismiss="vm.errorMessage = ''"
+          />
 
           <v-select
             v-model="vm.category"

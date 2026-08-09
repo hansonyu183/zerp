@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import {
   buildMenus,
+  buildServerMenus,
   hasRegisteredPage,
   normalizePermissions,
   registerMenuRoutes,
@@ -30,6 +31,54 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('系统默认菜单保留本地注册名称，业务模板保留管理员名称', () => {
+    const route = {
+      id: 'route-other-party',
+      parentId: 'default-bob',
+      type: 'ROUTE' as const,
+      order: 10,
+      displayName: '客户',
+      icon: null,
+      routeKey: 'bob/other-party',
+      routePath: '/bob/other-party',
+    }
+    const defaultMenu = buildServerMenus(
+      [
+        {
+          id: 'default-bob',
+          parentId: null,
+          type: 'GROUP',
+          order: 10,
+          displayName: '业务对象',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+        route,
+      ],
+      ['/bob/other-party/query'],
+    )
+    const businessMenu = buildServerMenus(
+      [
+        {
+          id: 'menu-group-sales',
+          parentId: null,
+          type: 'GROUP',
+          order: 10,
+          displayName: '销售',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+        { ...route, parentId: 'menu-group-sales' },
+      ],
+      ['/bob/other-party/query'],
+    )
+
+    expect(defaultMenu[0]?.children[0]?.title).toBe('其他往来单位')
+    expect(businessMenu[0]?.children[0]?.title).toBe('客户')
+  })
+
   it('只保留格式正确的完整权限路径并去重', () => {
     expect(
       normalizePermissions([
@@ -208,7 +257,7 @@ describe('permission menu registry', () => {
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })
 
-  it('为 BOB 八类实体加载真实页面组件', () => {
+  it('为 BOB 九类实体加载真实页面组件', () => {
     const entities = [
       'customer',
       'supplier',
@@ -218,6 +267,7 @@ describe('permission menu registry', () => {
       'warehouse',
       'vehicle',
       'fund-account',
+      'settlement-method',
     ]
     const titles = [
       '客户',
@@ -228,6 +278,7 @@ describe('permission menu registry', () => {
       '仓库',
       '车辆',
       '资金账户',
+      '结算方式',
     ]
     const router = createTestRouter()
     const menus = buildMenus(entities.map((entity) => `/bob/${entity}/query`))
@@ -274,12 +325,11 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 AUX 九类实体生成中文菜单并加载真实页面组件', () => {
+  it('为 AUX 八类实体生成中文菜单并加载真实页面组件', () => {
     const entities = [
       'product-category',
       'department',
       'position',
-      'settlement-method',
       'measurement-unit',
       'dictionary-type',
       'dictionary-item',
@@ -290,7 +340,6 @@ describe('permission menu registry', () => {
       '产品分类',
       '部门',
       '岗位',
-      '结算方式',
       '计量单位',
       '字典类型',
       '字典项',
@@ -324,11 +373,11 @@ describe('permission menu registry', () => {
       'sale-return',
       'purchase-order',
       'purchase-inbound',
-      'customer-receipt',
-      'supplier-receipt',
+      'sales-receipt',
+      'purchase-refund',
       'other-receipt',
-      'customer-payment',
-      'supplier-payment',
+      'sales-refund',
+      'purchase-payment',
       'other-payment',
       'expense-reimbursement',
       'expense-payment',
@@ -350,12 +399,12 @@ describe('permission menu registry', () => {
       '销售退货',
       '采购订单',
       '采购入库',
-      '往来收款-客户',
-      '往来收款-供应商',
-      '往来收款-其他',
-      '往来付款-客户',
-      '往来付款-供应商',
-      '往来付款-其他',
+      '销售收款',
+      '采购退款',
+      '其他往来收款',
+      '销售退款',
+      '采购付款',
+      '其他往来付款',
       '费用报销',
       '费用付款',
       '其他收入',

@@ -12,11 +12,7 @@ import (
 func (s *Service) preflightActivation(
 	ctx context.Context,
 	q *dbsqlc.Queries,
-	documents []dbsqlc.VouDocument,
-	cutoverDate time.Time,
 ) error {
-	_ = cutoverDate
-	_ = documents
 	incompletePricing, err := q.HasIncompleteLedDraftInventoryPricing(ctx)
 	if err != nil {
 		return s.internal("validate inventory opening pricing", err)
@@ -105,10 +101,10 @@ func (s *Service) replayVouDocuments(
 ) error {
 	for _, document := range documents {
 		postedBy := actorID
-		if document.ExecutedBy != nil {
-			postedBy = *document.ExecutedBy
+		if document.PostedBy != nil {
+			postedBy = *document.PostedBy
 		}
-		occurredAt := document.ExecutedAt
+		occurredAt := document.PostedAt
 		if !occurredAt.Valid {
 			occurredAt = document.UpdatedAt
 		}

@@ -453,15 +453,15 @@ func (s *Service) ensureAutoOutboundDraft(
 		GREATEST(l.ordered_qty_micros
 			- COALESCE((SELECT sum(sl.signed_qty_micros)
 				FROM vou_sale_signoff_lines sl
-				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status='FINALIZED'
+				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status IN ('APPROVED','FINALIZED')
 				WHERE sl.source_order_line_id=l.id),0)
 			- COALESCE((SELECT sum(ol.quantity_micros)
 				FROM vou_sale_outbound_lines ol
-				JOIN vou_documents od ON od.id=ol.document_id AND od.status='FINALIZED'
+				JOIN vou_documents od ON od.id=ol.document_id AND od.status IN ('APPROVED','FINALIZED')
 				LEFT JOIN vou_sale_signoff_lines sl2 ON sl2.source_outbound_line_id=ol.id
 				LEFT JOIN vou_documents sd2 ON sd2.id=sl2.document_id
 				WHERE ol.source_order_line_id=l.id
-				  AND (sd2.id IS NULL OR sd2.status<>'FINALIZED')),0),0)::bigint
+				  AND (sd2.id IS NULL OR sd2.status NOT IN ('APPROVED','FINALIZED'))),0),0)::bigint
 		FROM vou_product_lines l WHERE l.document_id=$1 ORDER BY l.line_no`, orderID)
 	if err != nil {
 		return MutationResult{}, s.internal("read available outbound lines", err)
@@ -765,6 +765,47 @@ func (s *Service) removeUntouchedGeneratedChildren(
 	return nil
 }
 
+func (s *Service) removeUntouchedGeneratedDraftChildren(
+	ctx context.Context, tx pgx.Tx, parentID string,
+) error {
+	rows, err := tx.Query(ctx, `SELECT id,entity,status,revision,created_by,
+		EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id)
+		FROM vou_documents WHERE parent_document_id=$1 AND status<>'FINALIZED' FOR UPDATE`, parentID)
+	if err != nil {
+		return err
+	}
+	type child struct {
+		id, entity, status, createdBy string
+		revision                      int64
+		hasAttachments                bool
+	}
+	children := make([]child, 0)
+	for rows.Next() {
+		var value child
+		if err = rows.Scan(&value.id, &value.entity, &value.status, &value.revision, &value.createdBy, &value.hasAttachments); err != nil {
+			rows.Close()
+			return err
+		}
+		children = append(children, value)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, value := range children {
+		if value.status != StatusDraft || value.revision != 1 || value.createdBy != systemidentity.UserID || value.hasAttachments {
+			return domainError(ErrorConflict, "downstream workflow document has changed", map[string]any{
+				"documentId": value.id, "entity": value.entity,
+			}, nil)
+		}
+		if err = s.deleteGeneratedSalesDocument(ctx, tx, value.id, value.entity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Service) deleteGeneratedSalesDocument(
 	ctx context.Context, tx pgx.Tx, documentID, entity string,
 ) error {
@@ -805,11 +846,11 @@ func (s *Service) deleteGeneratedSalesDocument(
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_purchase_inbound_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
-	case EntityReceipt, EntityCustomerReceipt, EntitySupplierReceipt, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_receipt_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}
-	case EntityPayment, EntityCustomerPayment, EntitySupplierPayment, EntityOtherPayment, EntityEmployeeLoan:
+	case EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan:
 		if _, err := tx.Exec(ctx, `DELETE FROM vou_payment_details WHERE document_id=$1`, documentID); err != nil {
 			return err
 		}

@@ -20,10 +20,10 @@ function monthStart(date: string): string {
 export function useLedgerViewModel(config: LedgerEntityConfig) {
   const session = useSessionStore()
   const today = localDate()
-  const canQuery = computed(() =>
-    session.can(`/led/${config.entity}/query`))
+  const canQuery = computed(() => session.can(`/led/${config.entity}/query`))
   const canBalance = computed(() =>
-    session.can(`/led/${config.entity}/balance`))
+    session.can(`/led/${config.entity}/balance`),
+  )
   const mode = ref<LedgerMode>(canQuery.value ? 'entries' : 'balances')
   const rows = ref<LedgerRecord[]>([])
   const page = ref(1)
@@ -42,28 +42,36 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
     sourceEntity: '',
     documentNo: '',
     direction: [],
+    counterpartyType: '',
+    otherCategory: '',
   })
   const balanceFilters = reactive<LedgerBalanceFilters>({
     asOfDate: today,
     object: null,
+    counterpartyType: '',
   })
   const references = createLedgerReferenceSearch(
-    config.referenceSources,
+    config.referenceSources.filter((source) =>
+      session.can(`/bob/${source.entity}/query`),
+    ),
     () => [queryFilters.object, balanceFilters.object],
   )
   let controller: AbortController | undefined
   let requestSequence = 0
 
   const columns = computed(() =>
-    mode.value === 'entries' ? config.entryColumns : config.balanceColumns)
+    mode.value === 'entries' ? config.entryColumns : config.balanceColumns,
+  )
   const pageCount = computed(() =>
-    Math.max(1, Math.ceil(total.value / pageSize.value)))
+    Math.max(1, Math.ceil(total.value / pageSize.value)),
+  )
 
   async function load(): Promise<void> {
     if (
       (mode.value === 'entries' && !canQuery.value) ||
       (mode.value === 'balances' && !canBalance.value)
-    ) return
+    )
+      return
     if (mode.value === 'entries') {
       if (!queryFilters.dateFrom || !queryFilters.dateTo) {
         errorMessage.value = '请选择完整的流水日期范围。'
@@ -84,36 +92,57 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
-      const body = mode.value === 'entries'
-        ? {
-            page: page.value,
-            pageSize: pageSize.value,
-            filters: {
-              dateFrom: queryFilters.dateFrom,
-              dateTo: queryFilters.dateTo,
-              ...(queryFilters.object
-                ? { objectId: queryFilters.object.objectId }
-                : {}),
-              ...(queryFilters.sourceEntity
-                ? { sourceEntity: queryFilters.sourceEntity }
-                : {}),
-              ...(queryFilters.documentNo.trim()
-                ? { documentNo: queryFilters.documentNo.trim() }
-                : {}),
-              direction: [...queryFilters.direction],
-            },
-            sort: [{ ...sort }],
-          }
-        : {
-            page: page.value,
-            pageSize: pageSize.value,
-            filters: {
-              asOfDate: balanceFilters.asOfDate,
-              ...(balanceFilters.object
-                ? { objectId: balanceFilters.object.objectId }
-                : {}),
-            },
-          }
+      const body =
+        mode.value === 'entries'
+          ? {
+              page: page.value,
+              pageSize: pageSize.value,
+              filters: {
+                dateFrom: queryFilters.dateFrom,
+                dateTo: queryFilters.dateTo,
+                ...(queryFilters.object
+                  ? { objectId: queryFilters.object.objectId }
+                  : {}),
+                ...(config.counterpartyTypes?.length &&
+                (queryFilters.counterpartyType || queryFilters.object?.entity)
+                  ? {
+                      counterpartyType:
+                        queryFilters.counterpartyType ||
+                        queryFilters.object?.entity,
+                    }
+                  : {}),
+                ...(queryFilters.sourceEntity
+                  ? { sourceEntity: queryFilters.sourceEntity }
+                  : {}),
+                ...(queryFilters.documentNo.trim()
+                  ? { documentNo: queryFilters.documentNo.trim() }
+                  : {}),
+                direction: [...queryFilters.direction],
+                ...(queryFilters.otherCategory
+                  ? { otherCategory: queryFilters.otherCategory }
+                  : {}),
+              },
+              sort: [{ ...sort }],
+            }
+          : {
+              page: page.value,
+              pageSize: pageSize.value,
+              filters: {
+                asOfDate: balanceFilters.asOfDate,
+                ...(balanceFilters.object
+                  ? { objectId: balanceFilters.object.objectId }
+                  : {}),
+                ...(config.counterpartyTypes?.length &&
+                (balanceFilters.counterpartyType ||
+                  balanceFilters.object?.entity)
+                  ? {
+                      counterpartyType:
+                        balanceFilters.counterpartyType ||
+                        balanceFilters.object?.entity,
+                    }
+                  : {}),
+              },
+            }
       const action = mode.value === 'entries' ? 'query' : 'balance'
       const { data } = await apiClient.post<
         PageResult<LedgerRecord>,
@@ -153,7 +182,8 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
       value === mode.value ||
       (value === 'entries' && !canQuery.value) ||
       (value === 'balances' && !canBalance.value)
-    ) return
+    )
+      return
     mode.value = value
     page.value = 1
     rows.value = []
@@ -169,11 +199,14 @@ export function useLedgerViewModel(config: LedgerEntityConfig) {
       queryFilters.sourceEntity = ''
       queryFilters.documentNo = ''
       queryFilters.direction = []
+      queryFilters.counterpartyType = ''
+      queryFilters.otherCategory = ''
       sort.field = 'effectiveDate'
       sort.order = 'desc'
     } else {
       balanceFilters.asOfDate = today
       balanceFilters.object = null
+      balanceFilters.counterpartyType = ''
     }
     search()
   }

@@ -64,7 +64,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if businessEntities != 8 {
 		t.Fatalf("preview BOB distinct entities = %d, want 8", businessEntities)
 	}
-	assertDistinctEntities(t, pool, "vou_documents", 14)
+	assertDistinctEntities(t, pool, "vou_documents", 15)
 	var completedWorkflows int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(DISTINCT process_type)
@@ -97,33 +97,33 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("find finalized receipt: %v", err)
 	}
 	receipt, err := seeder.vouchers.Get(
-		t.Context(), voudomain.EntityCustomerReceipt, voudomain.GetInput{DocumentID: receiptID},
+		t.Context(), voudomain.EntitySalesReceipt, voudomain.GetInput{DocumentID: receiptID},
 	)
 	if err != nil {
 		t.Fatalf("get finalized receipt: %v", err)
 	}
-	if _, err = seeder.vouchers.Unfinalize(
+	if _, err = seeder.vouchers.Unapprove(
 		t.Context(),
-		voudomain.EntityCustomerReceipt,
+		voudomain.EntitySalesReceipt,
 		voudomain.ReverseInput{
 			DocumentID: receipt.DocumentID, Revision: receipt.Revision, Reason: "测试人员接管",
 		},
 		actorID,
-		"tester-unfinalize-preview-receipt",
+		"tester-unapprove-preview-receipt",
 	); err != nil {
-		t.Fatalf("tester unfinalize receipt: %v", err)
+		t.Fatalf("tester unapprove receipt: %v", err)
 	}
 	if _, err = seeder.Seed(t.Context()); err != nil {
 		t.Fatalf("repeat seed after tester takeover: %v", err)
 	}
 	receipt, err = seeder.vouchers.Get(
-		t.Context(), voudomain.EntityCustomerReceipt, voudomain.GetInput{DocumentID: receiptID},
+		t.Context(), voudomain.EntitySalesReceipt, voudomain.GetInput{DocumentID: receiptID},
 	)
 	if err != nil {
 		t.Fatalf("get tester-owned receipt: %v", err)
 	}
-	if receipt.Status != voudomain.StatusApproved {
-		t.Fatalf("tester-owned receipt status = %s, want APPROVED", receipt.Status)
+	if receipt.Status != voudomain.StatusChecked {
+		t.Fatalf("tester-owned receipt status = %s, want CHECKED", receipt.Status)
 	}
 }
 

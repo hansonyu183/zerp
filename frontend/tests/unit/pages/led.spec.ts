@@ -55,14 +55,13 @@ describe('LED shared ledger view model', () => {
     vi.clearAllMocks()
   })
 
-  it('defines the seven exact query ledgers and their backend dimensions', () => {
+  it('defines the exact query ledgers and their backend dimensions', () => {
     expect(Object.keys(ledgerEntityConfigs)).toEqual([
       'inventory',
       'fund',
       'customer',
       'supplier',
       'other',
-      'employee',
       'container',
     ])
     expect(
@@ -75,18 +74,37 @@ describe('LED shared ledger view model', () => {
       { entity: 'supplier', filters: { supplierType: 'GENERAL' } },
     ])
     expect(ledgerEntityConfigs.other.referenceSources).toEqual([
+      { entity: 'customer' },
+      { entity: 'supplier' },
       { entity: 'other-party' },
-    ])
-    expect(ledgerEntityConfigs.employee.referenceSources).toEqual([
       { entity: 'employee' },
     ])
     expect(
-      ledgerEntityConfigs.employee.sourceEntities.map((item) => item.value),
-    ).toEqual([
-      'employee-loan',
-      'employee-repayment',
-      'employee-loan-writeoff',
-    ])
+      ledgerEntityConfigs.other.otherCategories?.map((item) => item.value),
+    ).toEqual(['COMMISSION', 'INTERMEDIARY', 'REBATE'])
+    expect(
+      ledgerEntityConfigs.other.counterpartyTypes?.map((item) => item.value),
+    ).toEqual(['customer', 'supplier', 'other-party', 'employee'])
+    expect(
+      ledgerEntityConfigs.other.sourceEntities.map((item) => item.value),
+    ).toContain('employee-loan')
+    expect(
+      ledgerEntityConfigs.fund.sourceEntities.map((item) => item.value),
+    ).toEqual(
+      expect.arrayContaining([
+        'expense-payment',
+        'bill-receipt',
+        'bill-issue',
+        'bill-discount',
+        'bill-maturity',
+      ]),
+    )
+    expect(
+      ledgerEntityConfigs.customer.sourceEntities.map((item) => item.value),
+    ).toContain('bill-receipt')
+    expect(
+      ledgerEntityConfigs.supplier.sourceEntities.map((item) => item.value),
+    ).toEqual(expect.arrayContaining(['bill-payment', 'bill-issue']))
     expect(ledgerEntityConfigs.container.directions).toEqual([])
     expect(ledgerSourceEntityOptions.map((item) => item.value)).toEqual([
       'opening',
@@ -185,6 +203,90 @@ describe('LED shared ledger view model', () => {
       { signal: expect.any(AbortSignal) },
     )
     scope.stop()
+  })
+
+  it('uses the explicit counterparty type after changing it with a reference selected', async () => {
+    useSessionStore().permissions = ['/led/other/query', '/led/other/balance']
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    const scope = effectScope()
+    const vm = scope.run(() => useLedgerViewModel(ledgerEntityConfigs.other))!
+    const employee = reference('employee', '2')
+    vm.queryFilters.object = employee
+    vm.queryFilters.counterpartyType = 'customer'
+
+    await vm.load()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'led/other/query',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          objectId: employee.objectId,
+          counterpartyType: 'customer',
+        }),
+      }),
+      { signal: expect.any(AbortSignal) },
+    )
+
+    vm.mode.value = 'balances'
+    vm.balanceFilters.object = employee
+    vm.balanceFilters.counterpartyType = 'supplier'
+    await vm.load()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'led/other/balance',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          objectId: employee.objectId,
+          counterpartyType: 'supplier',
+        }),
+      }),
+      { signal: expect.any(AbortSignal) },
+    )
+    scope.stop()
+  })
+
+  it('loads only authorized other-ledger reference catalogs', async () => {
+    vi.useFakeTimers()
+    useSessionStore().permissions = ['/led/other/query', '/bob/supplier/query']
+    mockedPost.mockResolvedValue({
+      data: {
+        items: [
+          {
+            objectId: 'supplier-1',
+            code: 'SUP-001',
+            effectiveVersionId: 'supplier-v1',
+            currentVersion: {
+              versionId: 'supplier-v1',
+              status: 'EFFECTIVE',
+              summary: { name: '供应商一' },
+            },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const scope = effectScope()
+    const vm = scope.run(() => useLedgerViewModel(ledgerEntityConfigs.other))!
+
+    vm.references.search('供应商')
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(mockedPost).toHaveBeenCalledTimes(1)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/supplier/query',
+      expect.anything(),
+      { signal: expect.any(AbortSignal) },
+    )
+    expect(vm.references.options).toEqual([
+      expect.objectContaining({ entity: 'supplier', code: 'SUP-001' }),
+    ])
+    expect(vm.references.errorMessage).toBeNull()
+    scope.stop()
+    vi.useRealTimers()
   })
 
   it('queries a selected balance date and never calls an action without permission', async () => {
@@ -352,6 +454,7 @@ describe('LED closing view model', () => {
       reason: '发现月末单据遗漏',
     })
     expect(vm.successMessage.value).toBe('已反结最近一期。')
+    expect(vm.closingDate.value).toBe('2026-06-30')
     expect(vm.uncloseDialog.value).toBe(false)
     expect(vm.uncloseReason.value).toBe('')
     scope.stop()

@@ -47,6 +47,9 @@ func (s *Service) resolveDraftParties(
 	if result.Employee, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee); err != nil {
 		return err
 	}
+	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherParty, draft.InterestParty); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -127,6 +130,16 @@ func (s *Service) resolveDraftAccounts(
 	if result.FundAccount != nil && result.FundAccount.Data.Currency != draft.Currency {
 		return domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
 	}
+	for _, line := range draft.BillCashLines {
+		fund, resolveErr := s.resolveReference(ctx, tx, bobdomain.EntityFundAccount, &line.FundAccount)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if fund.Data.Currency != draft.Currency {
+			return domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
+		}
+		result.BillFunds = append(result.BillFunds, *fund)
+	}
 	return nil
 }
 
@@ -134,16 +147,29 @@ func (s *Service) resolveDraftSettlements(
 	ctx context.Context,
 	tx pgx.Tx,
 	entity string,
+	preserved resolvedDraft,
 	result *resolvedDraft,
 ) error {
 	var err error
 	switch entity {
 	case EntitySaleOrder:
-		result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
+		if sameReference(result.Customer, preserved.Customer) && preserved.CustomerSettlement != nil {
+			result.CustomerSettlement = preserved.CustomerSettlement
+		} else {
+			result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
+		}
 	case EntityPurchaseOrder:
-		result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
+		if sameReference(result.Supplier, preserved.Supplier) && preserved.SupplierSettlement != nil {
+			result.SupplierSettlement = preserved.SupplierSettlement
+		} else {
+			result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
+		}
 	}
 	return err
+}
+
+func sameReference(left, right *bobdomain.EffectiveReference) bool {
+	return left != nil && right != nil && left.ObjectID == right.ObjectID && left.VersionID == right.VersionID
 }
 
 func (s *Service) resolveSettlement(

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -437,18 +438,16 @@ func (s *Service) postReceipt(ctx context.Context, q *dbsqlc.Queries, posting po
 	)); err != nil {
 		return s.writeError("post receipt fund", err)
 	}
-	if err = q.InsertLedPartyEntry(ctx, partyParams(
-		posting,
-		doc,
-		"",
-		doc.BusinessDate,
-		detail.CounterpartyObjectID,
-		detail.CounterpartyVersionID,
-		detail.CounterpartyCode,
-		detail.CounterpartyName,
-		detail.CounterpartyEntity,
-		-doc.TotalAmountCents,
-	)); err != nil {
+	if doc.Entity == voudomain.EntityOtherReceipt || doc.Entity == voudomain.EntityEmployeeRepayment {
+		err = q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, "", doc.BusinessDate,
+			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+			detail.CounterpartyName, detail.CounterpartyEntity, -doc.TotalAmountCents, detail.OtherCategory))
+	} else {
+		err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, "", doc.BusinessDate,
+			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+			detail.CounterpartyName, detail.CounterpartyEntity, -doc.TotalAmountCents))
+	}
+	if err != nil {
 		return s.writeError("post receipt party", err)
 	}
 	return nil
@@ -475,18 +474,16 @@ func (s *Service) postPayment(ctx context.Context, q *dbsqlc.Queries, posting po
 	)); err != nil {
 		return s.writeError("post payment fund", err)
 	}
-	if err = q.InsertLedPartyEntry(ctx, partyParams(
-		posting,
-		doc,
-		"",
-		doc.BusinessDate,
-		detail.CounterpartyObjectID,
-		detail.CounterpartyVersionID,
-		detail.CounterpartyCode,
-		detail.CounterpartyName,
-		detail.CounterpartyEntity,
-		doc.TotalAmountCents,
-	)); err != nil {
+	if doc.Entity == voudomain.EntityOtherPayment || doc.Entity == voudomain.EntityEmployeeLoan {
+		err = q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, "", doc.BusinessDate,
+			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+			detail.CounterpartyName, detail.CounterpartyEntity, doc.TotalAmountCents, detail.OtherCategory))
+	} else {
+		err = q.InsertLedPartyEntry(ctx, partyParams(posting, doc, "", doc.BusinessDate,
+			detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyCode,
+			detail.CounterpartyName, detail.CounterpartyEntity, doc.TotalAmountCents))
+	}
+	if err != nil {
 		return s.writeError("post payment party", err)
 	}
 	return nil
@@ -508,7 +505,7 @@ func (s *Service) postEmployeeLoanWriteoff(
 	if err = lockPartyDimension(ctx, tx, "employee", detail.EmployeeObjectID, currency); err != nil {
 		return s.writeError("lock employee loan balance", err)
 	}
-	balance, err := q.GetLedPartyBalanceAtDate(ctx, dbsqlc.GetLedPartyBalanceAtDateParams{
+	balance, err := q.GetLedOtherBalanceAtDate(ctx, dbsqlc.GetLedOtherBalanceAtDateParams{
 		GenerationID: posting.GenerationID, CounterpartyEntity: "employee",
 		CounterpartyObjectID: detail.EmployeeObjectID, Currency: currency, AsOfDate: doc.BusinessDate,
 	})
@@ -520,10 +517,10 @@ func (s *Service) postEmployeeLoanWriteoff(
 			"availableAmount": formatMoney(balance), "writeoffAmount": formatMoney(doc.TotalAmountCents),
 		}, nil)
 	}
-	if err = q.InsertLedPartyEntry(ctx, partyParams(
+	if err = q.InsertLedOtherEntry(ctx, otherPartyParams(
 		posting, doc, "", doc.BusinessDate,
 		detail.EmployeeObjectID, detail.EmployeeVersionID, detail.EmployeeCode, detail.EmployeeName,
-		"employee", -doc.TotalAmountCents,
+		"employee", -doc.TotalAmountCents, nil,
 	)); err != nil {
 		return s.writeError("post employee loan writeoff", err)
 	}
@@ -541,7 +538,9 @@ func (s *Service) postExpense(ctx context.Context, q *dbsqlc.Queries, posting po
 		return s.internal("read expense ledger detail", err)
 	}
 	if detail.SettlementMode != "LEGACY_DIRECT" {
-		return nil
+		return q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, "", doc.BusinessDate,
+			detail.EmployeeObjectID, detail.EmployeeVersionID, detail.EmployeeCode, detail.EmployeeName,
+			"employee", -doc.TotalAmountCents, nil))
 	}
 	if detail.FundAccountObjectID == nil || detail.FundAccountVersionID == nil ||
 		detail.FundAccountCode == nil || detail.FundAccountName == nil {
@@ -578,6 +577,11 @@ func (s *Service) postExpensePayment(ctx context.Context, q *dbsqlc.Queries, pos
 		-doc.TotalAmountCents,
 	)); err != nil {
 		return s.writeError("post expense payment fund", err)
+	}
+	if err = q.InsertLedOtherEntry(ctx, otherPartyParams(posting, doc, "", doc.BusinessDate,
+		detail.EmployeeObjectID, detail.EmployeeVersionID, detail.EmployeeCode, detail.EmployeeName,
+		"employee", doc.TotalAmountCents, nil)); err != nil {
+		return s.writeError("post expense payment party", err)
 	}
 	return nil
 }

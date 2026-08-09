@@ -6,6 +6,8 @@ const (
 	documentCreatedTopicPrefix         = "vou.document.created."
 	documentDeletedTopicPrefix         = "vou.document.deleted."
 	documentChangedTopicPrefix         = "vou.document.changed."
+	documentApprovedTopicPrefix        = "vou.document.approved."
+	documentUnapprovedTopicPrefix      = "vou.document.unapproved."
 	documentFinalizedDirectTopicPrefix = "vou.document.finalized."
 	documentUnfinalizedTopicPrefix     = "vou.document.unfinalized."
 )
@@ -65,6 +67,41 @@ func (event DocumentChangedEvent) Topic() string {
 
 func DocumentChangedTopic(entity string) string {
 	return documentChangedTopicPrefix + strings.TrimSpace(entity)
+}
+
+type DocumentApprovedEvent struct {
+	Entity     string
+	DocumentID string
+	DocumentNo string
+	Revision   int64
+	ActorID    string
+	RequestID  string
+}
+
+func (event DocumentApprovedEvent) Topic() string {
+	return DocumentApprovedTopic(event.Entity)
+}
+
+func DocumentApprovedTopic(entity string) string {
+	return documentApprovedTopicPrefix + strings.TrimSpace(entity)
+}
+
+type DocumentUnapprovedEvent struct {
+	Entity     string
+	DocumentID string
+	DocumentNo string
+	Revision   int64
+	ActorID    string
+	RequestID  string
+	Reason     string
+}
+
+func (event DocumentUnapprovedEvent) Topic() string {
+	return DocumentUnapprovedTopic(event.Entity)
+}
+
+func DocumentUnapprovedTopic(entity string) string {
+	return documentUnapprovedTopicPrefix + strings.TrimSpace(entity)
 }
 
 type DocumentFinalizedEvent struct {

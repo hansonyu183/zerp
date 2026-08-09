@@ -1,77 +1,27 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
-  e2eEnv,
-  readWflBootstrapState,
-  wflBootstrapEnabled,
-  wflOperatorAuthStatePath,
-} from './wfl-runtime'
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type WflWorkerState,
+} from './fixtures'
 
-const reuseBootstrapSession = wflBootstrapEnabled()
-test.use({
-  storageState: reuseBootstrapSession ? wflOperatorAuthStatePath : undefined,
-})
-
-const requiredVouFixtureNames = [
-  'E2E_VOU_CUSTOMER_KEYWORD',
-  'E2E_VOU_SUPPLIER_KEYWORD',
-  'E2E_VOU_EMPLOYEE_KEYWORD',
-  'E2E_VOU_WAREHOUSE_KEYWORD',
-  'E2E_VOU_PRODUCT_KEYWORD',
-  'E2E_VOU_PLATFORM_KEYWORD',
-  'E2E_VOU_VEHICLE_KEYWORD',
-  'E2E_VOU_FUND_ACCOUNT_KEYWORD',
-  'E2E_VOU_CURRENCY',
-] as const
-
-const missingVouFixtureNames = requiredVouFixtureNames.filter(
-  (name) => !e2eEnv(name),
-)
-
-if (!wflBootstrapEnabled() && missingVouFixtureNames.length > 0) {
-  throw new Error(
-    `VOU Playwright 用例缺少真实测试后端资料：${missingVouFixtureNames.join(', ')}`,
-  )
-}
-
-const credentials = {
-  username: e2eEnv('E2E_USERNAME'),
-  password: e2eEnv('E2E_PASSWORD'),
-}
-
-function vouFixture() {
-  if (wflBootstrapEnabled()) {
-    const state = readWflBootstrapState()
-    return {
-      customer: state.fixtures.customer,
-      supplier: state.fixtures.supplier,
-      employee: state.fixtures.employee,
-      warehouse: state.fixtures.warehouse,
-      product: state.fixtures.solventProduct,
-      platform: state.fixtures.platform,
-      vehicle: state.fixtures.vehicle,
-      fundAccount: state.fixtures.fundAccount,
-      currency: 'CNY',
-    }
-  }
+function vouFixture(workerState: WflWorkerState) {
   return {
-    customer: e2eEnv('E2E_VOU_CUSTOMER_KEYWORD'),
-    supplier: e2eEnv('E2E_VOU_SUPPLIER_KEYWORD'),
-    employee: e2eEnv('E2E_VOU_EMPLOYEE_KEYWORD'),
-    warehouse: e2eEnv('E2E_VOU_WAREHOUSE_KEYWORD'),
-    product: e2eEnv('E2E_VOU_PRODUCT_KEYWORD'),
-    platform: e2eEnv('E2E_VOU_PLATFORM_KEYWORD'),
-    vehicle: e2eEnv('E2E_VOU_VEHICLE_KEYWORD'),
-    fundAccount: e2eEnv('E2E_VOU_FUND_ACCOUNT_KEYWORD'),
-    currency: e2eEnv('E2E_VOU_CURRENCY'),
+    customer: workerState.fixtures.customer,
+    supplier: workerState.fixtures.supplier,
+    employee: workerState.fixtures.employee,
+    warehouse: workerState.fixtures.warehouse,
+    product: workerState.fixtures.solventProduct,
+    platform: workerState.fixtures.platform,
+    vehicle: workerState.fixtures.vehicle,
+    fundAccount: workerState.fixtures.fundAccount,
+    currency: 'CNY',
   }
 }
 
 async function signIn(page: Page): Promise<void> {
-  if (reuseBootstrapSession) return
-  await page.goto('/signin')
-  await page.getByLabel('用户名').fill(credentials.username)
-  await page.getByLabel('密码').fill(credentials.password)
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.goto('/home/dashboard')
   await expect(page).not.toHaveURL(/\/signin/)
 }
 
@@ -101,7 +51,11 @@ async function expectDraftCreated(
 ): Promise<void> {
   await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
   await expect(
-    workspace.locator('.voucher-document-header__number'),
+    workspace
+      .locator(
+        '.voucher-document-header__number, .voucher-workspace__title > span',
+      )
+      .first(),
   ).toHaveText(documentNo)
 }
 
@@ -119,13 +73,79 @@ async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
     })
 }
 
-async function finalizeCurrentDraft(workspace: Locator): Promise<void> {
+async function approveCurrentDraft(workspace: Locator): Promise<void> {
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成', exact: true }).click()
   await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 }
+
+function isoDateOffset(days: number): string {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+test('票据收入批准后进入真实票据台账', async ({ page, workerState }) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '桌面批量表格流程已覆盖，移动端由响应式单元测试与完整门禁覆盖。',
+  )
+  test.setTimeout(180_000)
+  const fixture = vouFixture(workerState)
+  const billNo = `E2E-${Date.now()}`
+  await signIn(page)
+  await page.goto('/vou/bill-receipt')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const workspace = page.locator('.voucher-workspace')
+  await selectReference(page, '客户', fixture.customer, workspace)
+  await selectReference(page, '经办人', fixture.employee, workspace)
+
+  const row = workspace.locator('.voucher-bill-lines__desktop tbody tr').first()
+  await row.locator('td').nth(1).locator('input').fill(billNo)
+  await row.locator('td').nth(4).locator('input').fill(fixture.currency)
+  await row.locator('td').nth(5).locator('input').fill('100.00')
+  await row.locator('td').nth(6).locator('input').fill(isoDateOffset(0))
+  await row.locator('td').nth(7).locator('input').fill(isoDateOffset(30))
+  await row.locator('td').nth(8).locator('input').fill('E2E 出票人')
+  await row.locator('td').nth(9).locator('input').fill('E2E 承兑人')
+  await row.locator('td').nth(10).locator('input').fill('E2E 收款人')
+  await row.locator('td').nth(11).locator('input').fill('365')
+  await expect(workspace.getByText('客户净结算额').locator('..')).toContainText(
+    '100.00',
+  )
+
+  const billCreateResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/bill-receipt/create'),
+  )
+  await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  const billCreate = await billCreateResponse
+  const billCreatePayload = (await billCreate.json()) as {
+    code: number | string
+    message: string
+  }
+  expect(String(billCreatePayload.code), billCreatePayload.message).toBe('0')
+  await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
+  await workspace.getByRole('button', { name: '检查', exact: true }).click()
+  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+
+  const ledgerResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/led/bill/query') &&
+      response.request().method() === 'POST',
+  )
+  await page.goto('/led/bill')
+  const ledgerPayload = (await (await ledgerResponse).json()) as {
+    code: number | string
+  }
+  expect(String(ledgerPayload.code)).toBe('0')
+  await page.getByRole('textbox', { name: '票据号码' }).fill(billNo)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: billNo }),
+  ).toContainText('100.00')
+})
 
 async function verifyEmployeeLoanLifecycle(
   page: Page,
@@ -147,7 +167,7 @@ async function verifyEmployeeLoanLifecycle(
       workspace,
       new RegExp(`^${document.prefix}-\\d{8}-\\d{4}$`),
     )
-    await finalizeCurrentDraft(workspace)
+    await approveCurrentDraft(workspace)
   }
 
   await page.goto('/vou/employee-loan-writeoff')
@@ -163,89 +183,99 @@ async function verifyEmployeeLoanLifecycle(
   await expenseInputs.nth(2).fill('50.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^ELW-\d{8}-\d{4}$/)
-  await finalizeCurrentDraft(workspace)
+  await approveCurrentDraft(workspace)
 }
 
-test('员工借还核销及收款单完成真实后端生命周期', async ({ page }) => {
+test(
+  '员工借还核销及收款单批准后入账',
+  { tag: '@mobile' },
+  async ({ page, workerState }) => {
+    test.setTimeout(180_000)
+    const fixture = vouFixture(workerState)
+    await signIn(page)
+    if (test.info().project.name !== 'mobile-chromium') {
+      await verifyEmployeeLoanLifecycle(page, fixture)
+    }
+    await page.goto('/vou/sales-receipt')
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const workspace = page.locator('.voucher-workspace')
+    await expect(workspace.getByText('币种', { exact: true })).toHaveCount(0)
+    await expect(workspace.getByText('更多设置', { exact: true })).toHaveCount(
+      0,
+    )
+
+    await selectReference(page, '客户', fixture.customer, workspace)
+    await selectReference(page, '经办人', fixture.employee, workspace)
+    await selectReference(page, '资金账户', fixture.fundAccount, workspace)
+    await page.getByLabel('金额').fill('100.00')
+    await workspace.getByRole('button', { name: '保存', exact: true }).click()
+    await expectDraftCreated(workspace, /^SRC-\d{8}-\d{4}$/)
+    const documentNo = (
+      await workspace.locator('.voucher-document-header__number').textContent()
+    )?.trim()
+    expect(documentNo).toMatch(/^SRC-\d{8}-\d{4}$/)
+
+    await page.getByRole('tab', { name: '附件' }).click()
+    await page.locator('input[type=file]').setInputFiles({
+      name: 'vou-e2e.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\nE2E\n%%EOF'),
+    })
+    await expect(workspace.getByText('已上传', { exact: true })).toBeVisible()
+    const download = page.waitForEvent('download')
+    await page.getByLabel('下载 vou-e2e.pdf').click()
+    expect((await download).suggestedFilename()).toBe('vou-e2e.pdf')
+
+    await page.getByRole('tab', { name: '单据' }).click()
+    await page.getByRole('button', { name: '取消编辑' }).click()
+    await page.goto('/home/dashboard')
+    await page.getByRole('tab', { name: '待办单据' }).click()
+    await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    const workbenchRow = page
+      .locator('tbody tr')
+      .filter({ hasText: documentNo! })
+    await expect(workbenchRow).toContainText('待核对')
+    await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+    await expect(workbenchRow).toContainText('待批准')
+    await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
+    await expect(workbenchRow).toHaveCount(0)
+
+    await page.goto('/vou/sales-receipt')
+    await page
+      .getByRole('textbox', { name: '单号或往来方关键字' })
+      .fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    const documentRow = page
+      .locator('tbody tr')
+      .filter({ hasText: documentNo! })
+    await expect(documentRow).toBeVisible()
+    await documentRow.getByLabel(`查看 ${documentNo}`).click()
+    await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+
+    await reverse(page, '反批准')
+    await reverse(page, '反核对')
+    await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
+
+    await page.getByRole('tab', { name: '审计' }).click()
+    await expect(
+      workspace.getByText('撤销完成', { exact: true }).first(),
+    ).toBeVisible()
+    await expect(
+      workspace.getByText('反核对', { exact: true }).first(),
+    ).toBeVisible()
+    await page.getByRole('tab', { name: '附件' }).click()
+    await page.getByLabel('移除 vou-e2e.pdf').click()
+    await expect(workspace.getByText('暂无附件')).toBeVisible()
+  },
+)
+
+test('库存盘点加载账面库存并按批准时差异过账', async ({
+  page,
+  workerState,
+}) => {
   test.setTimeout(180_000)
-  const fixture = vouFixture()
-  await signIn(page)
-  if (test.info().project.name !== 'mobile-chromium') {
-    await verifyEmployeeLoanLifecycle(page, fixture)
-  }
-  await page.goto('/vou/customer-receipt')
-  await page.getByRole('button', { name: '新增', exact: true }).click()
-  const workspace = page.locator('.voucher-workspace')
-  await expect(workspace.getByText('币种', { exact: true })).toHaveCount(0)
-  await expect(workspace.getByText('更多设置', { exact: true })).toHaveCount(0)
-
-  await selectReference(page, '客户', fixture.customer, workspace)
-  await selectReference(page, '经办人', fixture.employee, workspace)
-  await selectReference(page, '资金账户', fixture.fundAccount, workspace)
-  await page.getByLabel('金额').fill('100.00')
-  await workspace.getByRole('button', { name: '保存', exact: true }).click()
-  await expectDraftCreated(workspace, /^REC-\d{8}-\d{4}$/)
-  const documentNo = (
-    await workspace.locator('.voucher-document-header__number').textContent()
-  )?.trim()
-  expect(documentNo).toMatch(/^REC-\d{8}-\d{4}$/)
-
-  await page.getByRole('tab', { name: '附件' }).click()
-  await page.locator('input[type=file]').setInputFiles({
-    name: 'vou-e2e.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.4\nE2E\n%%EOF'),
-  })
-  await expect(workspace.getByText('已上传', { exact: true })).toBeVisible()
-  const download = page.waitForEvent('download')
-  await page.getByLabel('下载 vou-e2e.pdf').click()
-  expect((await download).suggestedFilename()).toBe('vou-e2e.pdf')
-
-  await page.getByRole('tab', { name: '单据' }).click()
-  await page.getByRole('button', { name: '取消编辑' }).click()
-  await page.goto('/home/dashboard')
-  await page.getByRole('tab', { name: '待处理单据' }).click()
-  await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  const workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-  await expect(workbenchRow).toContainText('待核对')
-  await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
-  await expect(workbenchRow).toContainText('待批准')
-  await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
-  await expect(workbenchRow).toContainText('待完成')
-  await workbenchRow.getByLabel(`完成 ${documentNo}`).click()
-  await expect(workbenchRow).toHaveCount(0)
-
-  await page.goto('/vou/customer-receipt')
-  await page
-    .getByRole('textbox', { name: '单号或往来方关键字' })
-    .fill(documentNo!)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  const documentRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-  await expect(documentRow).toBeVisible()
-  await documentRow.getByLabel(`查看 ${documentNo}`).click()
-  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
-
-  await reverse(page, '撤销完成')
-  await reverse(page, '反批准')
-  await reverse(page, '反核对')
-  await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
-
-  await page.getByRole('tab', { name: '审计' }).click()
-  await expect(
-    workspace.getByText('撤销完成', { exact: true }).first(),
-  ).toBeVisible()
-  await expect(
-    workspace.getByText('反核对', { exact: true }).first(),
-  ).toBeVisible()
-  await page.getByRole('tab', { name: '附件' }).click()
-  await page.getByLabel('移除 vou-e2e.pdf').click()
-  await expect(workspace.getByText('暂无附件')).toBeVisible()
-})
-
-test('库存盘点加载账面库存并按完成时差异过账', async ({ page }) => {
-  test.setTimeout(180_000)
-  const fixture = vouFixture()
+  const fixture = vouFixture(workerState)
   await signIn(page)
   await page.goto('/vou/inventory-count')
   await page.getByRole('button', { name: '新增', exact: true }).click()
@@ -277,7 +307,6 @@ test('库存盘点加载账面库存并按完成时差异过账', async ({ page 
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await workspace.getByRole('button', { name: '完成盘点', exact: true }).click()
   await expect(workspace.getByText(/^已盘点 · r\d+$/)).toBeVisible()
   await expect
     .poll(async () =>
@@ -292,16 +321,19 @@ test('库存盘点加载账面库存并按完成时差异过账', async ({ page 
     )
     .toBe(1)
 
-  await reverse(page, '撤销盘点')
+  await reverse(page, '反批准')
 })
 
-test('销售订单独立流转并由流程事件自动生成出库草稿', async ({ page }) => {
+test('销售订单独立流转并由流程事件自动生成出库草稿', async ({
+  page,
+  workerState,
+}) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',
     '该有状态用例在桌面项目内切换到 390px 验收手机布局',
   )
   test.setTimeout(180_000)
-  const fixture = vouFixture()
+  const fixture = vouFixture(workerState)
   await signIn(page)
 
   await page.goto('/vou/sale-order')
@@ -424,15 +456,13 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   ).toHaveCount(0)
 
   await page.goto('/home/dashboard')
-  await page.getByRole('tab', { name: '待处理单据' }).click()
+  await page.getByRole('tab', { name: '待办单据' }).click()
   const keyword = page.getByRole('textbox', { name: '单号或往来方' })
   await keyword.fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const orderWorkbenchRow = page
     .locator('tbody tr')
     .filter({ hasText: orderNo! })
-  await expect(orderWorkbenchRow).toContainText('待完成')
-  await orderWorkbenchRow.getByLabel(`完成 ${orderNo}`).click()
   await expect(orderWorkbenchRow).toHaveCount(0)
 
   await keyword.fill(outboundNo!)
@@ -444,18 +474,19 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await outboundWorkbenchRow.getByLabel(`核对 ${outboundNo}`).click()
   await expect(outboundWorkbenchRow).toContainText('待批准')
   await outboundWorkbenchRow.getByLabel(`批准 ${outboundNo}`).click()
-  await expect(outboundWorkbenchRow).toContainText('待完成')
-  await outboundWorkbenchRow.getByLabel(`完成 ${outboundNo}`).click()
   await expect(outboundWorkbenchRow).toHaveCount(0)
 })
 
-test('采购流程列表展示中文阶段和按单位履约数据', async ({ page }) => {
+test('采购流程列表展示中文阶段和按单位履约数据', async ({
+  page,
+  workerState,
+}) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',
     '该有状态用例在桌面项目内切换到 430px 验收手机布局',
   )
   test.setTimeout(180_000)
-  const fixture = vouFixture()
+  const fixture = vouFixture(workerState)
   await signIn(page)
 
   await page.goto('/vou/purchase-order')

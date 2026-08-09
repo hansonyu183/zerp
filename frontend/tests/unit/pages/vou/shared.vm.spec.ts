@@ -192,6 +192,27 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesFundAccount) form.fundAccount = reference('fund-account')
   if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
+  if (config.entity === 'intermediary-calculation') {
+    form.businessDate = '2026-07-31'
+    form.intermediaryCalculation = {
+      source: {
+        periodStart: '2026-07-01',
+        periodEnd: '2026-07-31',
+        currency: 'CNY',
+        lines: [],
+        bills: [],
+      },
+      sourceHash: 'source-hash',
+      script: {
+        scriptId: 'script-1',
+        revision: 1,
+        name: '测试脚本',
+        source: 'globalThis.calculate = () => ({ lines: [], summaries: [] });',
+        hash: 'script-hash',
+      },
+      result: { lines: [], summaries: [] },
+    }
+  }
   if (config.productionMode) {
     const warehouse = reference('warehouse')
     const product = {
@@ -341,9 +362,11 @@ describe('shared VOU entity view model', () => {
 
     await vm.openDocument({ documentId: 'DOCUMENT-1' }, true)
 
-    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/get', {
-      documentId: 'DOCUMENT-1',
-    })
+    expect(mockedPost).toHaveBeenCalledWith(
+      'vou/sale-order/get',
+      { documentId: 'DOCUMENT-1' },
+      { signal: expect.any(AbortSignal) },
+    )
     expect(vm.workspaceOpen.value).toBe(true)
     expect(vm.editing.value).toBe(true)
   })
@@ -393,7 +416,7 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('defines all twenty-five atomic document entities', () => {
+  it('defines all atomic document entities', () => {
     expect(Object.keys(voucherEntityConfigs)).toEqual([
       'sale-pricing',
       'sale-order',
@@ -408,11 +431,11 @@ describe('shared VOU entity view model', () => {
       'purchase-inquiry',
       'purchase-inbound',
       'purchase-return',
-      'customer-receipt',
-      'supplier-receipt',
+      'sales-receipt',
+      'purchase-refund',
       'other-receipt',
-      'customer-payment',
-      'supplier-payment',
+      'sales-refund',
+      'purchase-payment',
       'other-payment',
       'employee-loan',
       'employee-repayment',
@@ -424,6 +447,12 @@ describe('shared VOU entity view model', () => {
       'asset-depreciation',
       'asset-sale',
       'asset-liquidation',
+      'bill-receipt',
+      'bill-payment',
+      'bill-issue',
+      'bill-discount',
+      'bill-maturity',
+      'intermediary-calculation',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
     expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(
@@ -531,7 +560,10 @@ describe('shared VOU entity view model', () => {
       expect(data).not.toHaveProperty('inboundDate')
       expect(data).toHaveProperty(
         'businessDate',
-        config.entity === 'asset-depreciation' ? '2026-07-31' : '2026-07-24',
+        config.entity === 'asset-depreciation' ||
+          config.entity === 'intermediary-calculation'
+          ? '2026-07-31'
+          : '2026-07-24',
       )
       if (config.lineKind !== 'product')
         expect(data).not.toHaveProperty('productLines')
@@ -815,7 +847,7 @@ describe('shared VOU entity view model', () => {
     vi.useFakeTimers()
     useSessionStore().permissions = ['/bob/customer/query']
     const vm = useVoucherEntityViewModel(
-      voucherEntityConfigs['customer-receipt'],
+      voucherEntityConfigs['sales-receipt'],
     )
     mockedPost.mockResolvedValue({
       data: {
@@ -927,7 +959,7 @@ describe('shared VOU entity view model', () => {
   })
 
   it('derives lifecycle actions from exact status and permission paths', async () => {
-    const config = voucherEntityConfigs['supplier-payment']
+    const config = voucherEntityConfigs['purchase-payment']
     const view = documentView(config, {
       ...useVoucherEntityViewModel(config).form.value,
       counterpartyType: 'customer',
@@ -939,9 +971,9 @@ describe('shared VOU entity view model', () => {
     })
     view.status = 'CHECKED'
     useSessionStore().permissions = [
-      '/vou/supplier-payment/get',
-      '/vou/supplier-payment/approve',
-      '/vou/supplier-payment/uncheck',
+      '/vou/purchase-payment/get',
+      '/vou/purchase-payment/approve',
+      '/vou/purchase-payment/uncheck',
     ]
     mockedPost.mockResolvedValue({ data: view })
     const vm = useVoucherEntityViewModel(config)
@@ -962,7 +994,6 @@ describe('shared VOU entity view model', () => {
       approve: true,
       uncheck: true,
       check: false,
-      finalize: false,
       unapprove: false,
     })
   })
@@ -1028,15 +1059,16 @@ describe('shared VOU entity view model', () => {
       }),
       expect.any(Object),
     )
+    expect(vm.successMessage.value).toBe('SO-1 已核对。')
     expect(vm.actionLoading.value).toBeNull()
   })
 
   it('keeps list and workspace navigation behavior stable', async () => {
-    const config = voucherEntityConfigs['customer-receipt']
+    const config = voucherEntityConfigs['sales-receipt']
     useSessionStore().permissions = [
-      '/vou/customer-receipt/query',
-      '/vou/customer-receipt/get',
-      '/vou/customer-receipt/save',
+      '/vou/sales-receipt/query',
+      '/vou/sales-receipt/get',
+      '/vou/sales-receipt/save',
     ]
     const vm = useVoucherEntityViewModel(config)
     populate(config, vm.form.value)

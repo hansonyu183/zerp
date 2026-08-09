@@ -76,11 +76,11 @@ INSERT INTO led_draft_fund (
 -- name: InsertLedDraftParty :exec
 INSERT INTO led_draft_party (
     id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 ) VALUES (
     sqlc.arg(id), sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
     sqlc.arg(counterparty_version_id), sqlc.arg(counterparty_code),
-    sqlc.arg(counterparty_name), sqlc.arg(currency), sqlc.arg(amount_cents)
+    sqlc.arg(counterparty_name),sqlc.arg(currency),sqlc.arg(amount_cents),sqlc.arg(account_type)
 );
 
 -- name: InsertLedDraftContainer :exec
@@ -107,7 +107,7 @@ SELECT EXISTS (
 SELECT * FROM led_draft_fund ORDER BY fund_account_code, id;
 
 -- name: ListLedDraftParty :many
-SELECT * FROM led_draft_party ORDER BY counterparty_entity, counterparty_code, currency, id;
+SELECT * FROM led_draft_party ORDER BY account_type,counterparty_entity,counterparty_code,currency,id;
 
 -- name: ListLedDraftContainer :many
 SELECT * FROM led_draft_container ORDER BY customer_code, container_type, id;
@@ -125,7 +125,7 @@ ORDER BY fund_account_code, id;
 -- name: ListLedOpeningParty :many
 SELECT * FROM led_opening_party
 WHERE generation_id = sqlc.arg(generation_id)
-ORDER BY counterparty_entity, counterparty_code, currency, id;
+ORDER BY account_type,counterparty_entity,counterparty_code,currency,id;
 
 -- name: ListLedOpeningContainer :many
 SELECT * FROM led_opening_container
@@ -146,9 +146,12 @@ SELECT id, fund_account_object_id, fund_account_version_id, fund_account_code,
 FROM led_opening_fund WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: CopyLedOpeningToDraftParty :exec
-INSERT INTO led_draft_party
-SELECT id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+INSERT INTO led_draft_party(
+    id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
+)
+SELECT id,counterparty_entity,counterparty_object_id,counterparty_version_id,
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_opening_party WHERE generation_id = sqlc.arg(generation_id);
 
 -- name: CopyLedOpeningToDraftContainer :exec
@@ -188,10 +191,10 @@ FROM led_draft_fund;
 -- name: InsertLedOpeningPartyFromDraft :exec
 INSERT INTO led_opening_party (
     id, generation_id, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, currency, amount_cents
+    counterparty_code,counterparty_name,currency,amount_cents,account_type
 )
 SELECT id, sqlc.arg(generation_id), counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party;
 
 -- name: InsertLedOpeningContainerFromDraft :exec
@@ -234,12 +237,12 @@ FROM led_draft_fund WHERE amount_cents <> 0;
 INSERT INTO led_party_entries (
     id, generation_id, entry_type, source_entity, source_line_id, effective_date,
     occurred_at, actor_id, request_id, counterparty_entity, counterparty_object_id,
-    counterparty_version_id, counterparty_code, counterparty_name, currency, amount_delta_cents
+    counterparty_version_id,counterparty_code,counterparty_name,currency,amount_delta_cents,account_type
 )
 SELECT id, sqlc.arg(generation_id), 'OPENING', 'opening', id, sqlc.arg(cutover_date),
        sqlc.arg(occurred_at), sqlc.arg(actor_id), sqlc.arg(request_id),
        counterparty_entity, counterparty_object_id, counterparty_version_id,
-       counterparty_code, counterparty_name, currency, amount_cents
+       counterparty_code,counterparty_name,currency,amount_cents,account_type
 FROM led_draft_party WHERE amount_cents <> 0;
 
 -- name: InsertLedOpeningContainerEntries :exec
@@ -254,8 +257,22 @@ SELECT id,sqlc.arg(generation_id),'OPENING','opening',id,sqlc.arg(cutover_date),
        container_type,quantity
 FROM led_draft_container WHERE quantity <> 0;
 
--- name: ListFinalizedVouDocumentsForLed :many
-SELECT * FROM vou_documents WHERE status = 'FINALIZED' ORDER BY executed_at, id;
+-- name: ListPostedVouDocumentsForLed :many
+SELECT * FROM vou_documents
+WHERE status IN ('APPROVED', 'FINALIZED')
+  AND entity IN (
+    'sale-outbound', 'sale-signoff', 'sale-return',
+    'purchase-inbound', 'purchase-return',
+    'order-production', 'self-production', 'inventory-count',
+    'sales-receipt','sales-refund','purchase-payment','purchase-refund',
+    'other-receipt','other-payment',
+    'employee-loan', 'employee-repayment', 'employee-loan-writeoff',
+    'expense-reimbursement', 'expense-payment', 'other-income',
+    'asset-acquisition', 'asset-depreciation', 'asset-sale', 'asset-liquidation',
+    'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount', 'bill-maturity',
+    'intermediary-calculation'
+  )
+ORDER BY posted_at, id;
 
 -- name: InsertLedInventoryEntry :exec
 INSERT INTO led_inventory_entries (
@@ -451,6 +468,7 @@ SELECT (
     OR EXISTS (SELECT 1 FROM led_party_entries p WHERE p.generation_id = sqlc.arg(target_generation_id) AND p.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_container_entries c WHERE c.generation_id = sqlc.arg(target_generation_id) AND c.source_document_id = sqlc.arg(target_document_id))
     OR EXISTS (SELECT 1 FROM led_asset_entries a WHERE a.generation_id = sqlc.arg(target_generation_id) AND a.source_document_id = sqlc.arg(target_document_id))
+    OR EXISTS (SELECT 1 FROM led_bill_entries b WHERE b.generation_id = sqlc.arg(target_generation_id) AND b.source_document_id = sqlc.arg(target_document_id))
 )::boolean;
 
 -- name: HasNegativeLedInventoryTimeline :one
@@ -530,7 +548,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: CountLedPartyEntries :one
 SELECT count(*) FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -541,7 +559,7 @@ WHERE generation_id = sqlc.arg(generation_id)
 
 -- name: ListLedPartyEntries :many
 SELECT * FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date >= sqlc.arg(date_from) AND effective_date <= sqlc.arg(date_to)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -612,7 +630,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 SELECT count(*) FROM (
     SELECT counterparty_entity, counterparty_object_id, currency
     FROM led_party_entries
-    WHERE generation_id = sqlc.arg(generation_id)
+    WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
       AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
       AND effective_date <= sqlc.arg(as_of_date)
       AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -622,7 +640,16 @@ SELECT count(*) FROM (
 -- name: GetLedPartyBalanceAtDate :one
 SELECT COALESCE(sum(amount_delta_cents), 0)::bigint
 FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id)
+WHERE generation_id=sqlc.arg(generation_id) AND account_type = 'TRADE'
+  AND counterparty_entity=sqlc.arg(counterparty_entity)
+  AND counterparty_object_id=sqlc.arg(counterparty_object_id)
+  AND currency=sqlc.arg(currency)
+  AND effective_date<=sqlc.arg(as_of_date);
+
+-- name: GetLedOtherBalanceAtDate :one
+SELECT COALESCE(sum(amount_delta_cents),0)::bigint
+FROM led_party_entries
+WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
   AND counterparty_entity=sqlc.arg(counterparty_entity)
   AND counterparty_object_id=sqlc.arg(counterparty_object_id)
   AND currency=sqlc.arg(currency)
@@ -632,13 +659,13 @@ WHERE generation_id=sqlc.arg(generation_id)
 SELECT EXISTS (
     SELECT 1
     FROM led_party_entries writeoff
-    WHERE writeoff.generation_id=sqlc.arg(generation_id)
+    WHERE writeoff.generation_id=sqlc.arg(generation_id) AND writeoff.account_type='OTHER'
       AND writeoff.counterparty_entity='employee'
       AND writeoff.source_entity='employee-loan-writeoff'
       AND (
           SELECT COALESCE(sum(entry.amount_delta_cents), 0)
           FROM led_party_entries entry
-          WHERE entry.generation_id=writeoff.generation_id
+          WHERE entry.generation_id=writeoff.generation_id AND entry.account_type='OTHER'
             AND entry.counterparty_entity=writeoff.counterparty_entity
             AND entry.counterparty_object_id=writeoff.counterparty_object_id
             AND entry.currency=writeoff.currency
@@ -653,7 +680,7 @@ SELECT counterparty_entity, counterparty_object_id,
        (array_agg(counterparty_name ORDER BY effective_date DESC, occurred_at DESC, id DESC))[1]::varchar(200) AS counterparty_name,
        currency, sum(amount_delta_cents)::bigint AS balance_cents
 FROM led_party_entries
-WHERE generation_id = sqlc.arg(generation_id)
+WHERE generation_id = sqlc.arg(generation_id) AND account_type = 'TRADE'
   AND (sqlc.arg(counterparty_entity)::text = '' OR counterparty_entity = sqlc.arg(counterparty_entity))
   AND effective_date <= sqlc.arg(as_of_date)
   AND (sqlc.arg(object_id)::text = '' OR counterparty_object_id = sqlc.arg(object_id))
@@ -677,3 +704,224 @@ SELECT count(*) FROM led_audit_events;
 -- name: ListLedAuditEvents :many
 SELECT * FROM led_audit_events ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: LockLedBill :one
+SELECT *
+FROM led_bills
+WHERE id = sqlc.arg(id)
+FOR UPDATE;
+
+-- name: GetLedBillAvailableBalance :one
+SELECT COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint
+FROM led_bill_entries AS entry
+WHERE entry.generation_id = sqlc.arg(generation_id)
+  AND entry.bill_id = sqlc.arg(bill_id)
+  AND entry.position_type = sqlc.arg(position_type)
+  AND (
+    entry.direction = 'OUT'
+    OR entry.effective_date <= sqlc.arg(as_of_date)::date
+  )
+;
+
+-- name: CountLedBillDownstreamEntries :one
+WITH source AS (
+  SELECT entry.bill_id, max(entry.occurred_at) AS occurred_at
+  FROM led_bill_entries AS entry
+  JOIN led_control AS control
+    ON control.active_generation_id = entry.generation_id
+  WHERE entry.source_document_id = sqlc.arg(source_document_id)
+    AND control.status = 'ACTIVE'
+  GROUP BY entry.bill_id
+)
+SELECT count(*)
+FROM led_bill_entries AS downstream
+JOIN led_control AS control
+  ON control.active_generation_id = downstream.generation_id
+JOIN source
+  ON source.bill_id = downstream.bill_id
+WHERE downstream.source_document_id <> sqlc.arg(source_document_id)
+  AND downstream.occurred_at > source.occurred_at
+  AND control.status = 'ACTIVE';
+
+-- name: EnsureLedBill :execrows
+INSERT INTO led_bills (
+  id, position_type, bill_type, bill_no, medium, currency, face_amount_cents,
+  issue_date, maturity_date, drawer, acceptor, payee, annual_rate_bps,
+  interest_days, interest_amount_cents, customer_cost_amount_cents,
+  origin_party_entity, origin_party_object_id, origin_party_version_id,
+  origin_party_code, origin_party_name, source_document_id, source_line_id
+) VALUES (
+  sqlc.arg(id), sqlc.arg(position_type), sqlc.arg(bill_type), sqlc.arg(bill_no),
+  sqlc.arg(medium), sqlc.arg(currency), sqlc.arg(face_amount_cents),
+  sqlc.arg(issue_date), sqlc.arg(maturity_date), sqlc.arg(drawer),
+  sqlc.arg(acceptor), sqlc.arg(payee), sqlc.arg(annual_rate_bps),
+  sqlc.arg(interest_days), sqlc.arg(interest_amount_cents),
+  sqlc.arg(customer_cost_amount_cents), sqlc.narg(origin_party_entity),
+  sqlc.narg(origin_party_object_id), sqlc.narg(origin_party_version_id),
+  sqlc.narg(origin_party_code), sqlc.narg(origin_party_name),
+  sqlc.arg(source_document_id), sqlc.arg(source_line_id)
+)
+ON CONFLICT (id) DO UPDATE SET id = excluded.id
+WHERE led_bills.position_type = excluded.position_type
+  AND led_bills.bill_type = excluded.bill_type
+  AND led_bills.bill_no = excluded.bill_no
+  AND led_bills.medium = excluded.medium
+  AND led_bills.currency = excluded.currency
+  AND led_bills.face_amount_cents = excluded.face_amount_cents
+  AND led_bills.issue_date = excluded.issue_date
+  AND led_bills.maturity_date = excluded.maturity_date
+  AND led_bills.drawer = excluded.drawer
+  AND led_bills.acceptor = excluded.acceptor
+  AND led_bills.payee = excluded.payee
+  AND led_bills.annual_rate_bps = excluded.annual_rate_bps
+  AND led_bills.interest_days = excluded.interest_days
+  AND led_bills.interest_amount_cents = excluded.interest_amount_cents
+  AND led_bills.customer_cost_amount_cents = excluded.customer_cost_amount_cents
+  AND led_bills.origin_party_entity IS NOT DISTINCT FROM excluded.origin_party_entity
+  AND led_bills.origin_party_object_id IS NOT DISTINCT FROM excluded.origin_party_object_id
+  AND led_bills.origin_party_version_id IS NOT DISTINCT FROM excluded.origin_party_version_id
+  AND led_bills.origin_party_code IS NOT DISTINCT FROM excluded.origin_party_code
+  AND led_bills.origin_party_name IS NOT DISTINCT FROM excluded.origin_party_name
+  AND led_bills.source_document_id = excluded.source_document_id
+  AND led_bills.source_line_id = excluded.source_line_id;
+
+-- name: InsertLedBillEntry :exec
+INSERT INTO led_bill_entries (
+  id, generation_id, bill_id, source_entity, source_document_id, source_line_id,
+  position_type, direction, purpose, effective_date, occurred_at
+) VALUES (
+  sqlc.arg(id), sqlc.arg(generation_id), sqlc.arg(bill_id),
+  sqlc.arg(source_entity), sqlc.arg(source_document_id), sqlc.arg(source_line_id),
+  sqlc.arg(position_type), sqlc.arg(direction), sqlc.arg(purpose),
+  sqlc.arg(effective_date), sqlc.arg(occurred_at)
+);
+
+-- name: DeleteLedBillEntriesBySource :exec
+DELETE FROM led_bill_entries
+WHERE generation_id = sqlc.arg(generation_id)
+  AND source_document_id = sqlc.arg(source_document_id);
+
+-- name: DeleteLedBillsBySource :exec
+DELETE FROM led_bills AS bill
+WHERE bill.source_document_id = sqlc.arg(source_document_id)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM led_bill_entries AS entry
+    WHERE entry.bill_id = bill.id
+  );
+
+-- name: ListLedBills :many
+WITH bill_positions AS (
+  SELECT
+    bill.*,
+    document.entity AS source_entity,
+    document.document_no AS source_document_no,
+    COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint AS available_balance
+  FROM led_bills AS bill
+  JOIN vou_documents AS document ON document.id = bill.source_document_id
+  LEFT JOIN led_bill_entries AS entry
+    ON entry.bill_id = bill.id
+   AND entry.generation_id = sqlc.arg(generation_id)
+   AND (
+     entry.direction = 'OUT'
+     OR entry.effective_date <= sqlc.arg(as_of_date)::date
+   )
+  GROUP BY bill.id, document.entity, document.document_no
+), filtered AS (
+  SELECT
+    bill_positions.*,
+    CASE
+      WHEN available_balance = 1 AND maturity_date < sqlc.arg(as_of_date)::date THEN 'MATURED'
+      WHEN available_balance = 1 THEN 'AVAILABLE'
+      ELSE 'USED'
+    END::text AS availability
+  FROM bill_positions
+  WHERE (sqlc.arg(position_type)::text = '' OR position_type = sqlc.arg(position_type))
+    AND (sqlc.arg(bill_type)::text = '' OR bill_type = sqlc.arg(bill_type))
+    AND (sqlc.arg(bill_no)::text = '' OR bill_no ILIKE '%' || sqlc.arg(bill_no) || '%')
+    AND (
+      sqlc.arg(maturity_date_from)::text = ''
+      OR maturity_date >= sqlc.arg(maturity_date_from)::date
+    )
+    AND (
+      sqlc.arg(maturity_date_to)::text = ''
+      OR maturity_date <= sqlc.arg(maturity_date_to)::date
+    )
+    AND (
+      sqlc.arg(originating_party_entity)::text = ''
+      OR origin_party_entity = sqlc.arg(originating_party_entity)
+    )
+    AND (
+      sqlc.arg(originating_party_object_id)::text = ''
+      OR origin_party_object_id = sqlc.arg(originating_party_object_id)
+    )
+    AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
+)
+SELECT filtered.*, count(*) OVER()::bigint AS total_count
+FROM filtered
+WHERE sqlc.arg(availability)::text = ''
+   OR availability = sqlc.arg(availability)
+   OR (sqlc.arg(availability)::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'))
+ORDER BY
+  CASE WHEN sqlc.arg(sort_field)::text = 'maturityDate' AND sqlc.arg(sort_order)::text = 'asc' THEN maturity_date END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'maturityDate' AND sqlc.arg(sort_order)::text = 'desc' THEN maturity_date END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'billNo' AND sqlc.arg(sort_order)::text = 'asc' THEN bill_no END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'billNo' AND sqlc.arg(sort_order)::text = 'desc' THEN bill_no END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'faceAmount' AND sqlc.arg(sort_order)::text = 'asc' THEN face_amount_cents END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'faceAmount' AND sqlc.arg(sort_order)::text = 'desc' THEN face_amount_cents END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'sourceDocumentNo' AND sqlc.arg(sort_order)::text = 'asc' THEN source_document_no END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'sourceDocumentNo' AND sqlc.arg(sort_order)::text = 'desc' THEN source_document_no END DESC,
+  id
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: CountLedBills :one
+WITH bill_positions AS (
+  SELECT
+    bill.*,
+    document.entity AS source_entity,
+    COALESCE(sum(CASE entry.direction WHEN 'IN' THEN 1 ELSE -1 END), 0)::bigint AS available_balance
+  FROM led_bills AS bill
+  JOIN vou_documents AS document ON document.id = bill.source_document_id
+  LEFT JOIN led_bill_entries AS entry
+    ON entry.bill_id = bill.id
+   AND entry.generation_id = sqlc.arg(generation_id)
+   AND (
+     entry.direction = 'OUT'
+     OR entry.effective_date <= sqlc.arg(as_of_date)::date
+   )
+  GROUP BY bill.id, document.entity
+), filtered AS (
+  SELECT
+    bill_positions.*,
+    CASE
+      WHEN available_balance = 1 AND maturity_date < sqlc.arg(as_of_date)::date THEN 'MATURED'
+      WHEN available_balance = 1 THEN 'AVAILABLE'
+      ELSE 'USED'
+    END::text AS availability
+  FROM bill_positions
+  WHERE (sqlc.arg(position_type)::text = '' OR position_type = sqlc.arg(position_type))
+    AND (sqlc.arg(bill_type)::text = '' OR bill_type = sqlc.arg(bill_type))
+    AND (sqlc.arg(bill_no)::text = '' OR bill_no ILIKE '%' || sqlc.arg(bill_no) || '%')
+    AND (
+      sqlc.arg(maturity_date_from)::text = ''
+      OR maturity_date >= sqlc.arg(maturity_date_from)::date
+    )
+    AND (
+      sqlc.arg(maturity_date_to)::text = ''
+      OR maturity_date <= sqlc.arg(maturity_date_to)::date
+    )
+    AND (
+      sqlc.arg(originating_party_entity)::text = ''
+      OR origin_party_entity = sqlc.arg(originating_party_entity)
+    )
+    AND (
+      sqlc.arg(originating_party_object_id)::text = ''
+      OR origin_party_object_id = sqlc.arg(originating_party_object_id)
+    )
+    AND (sqlc.arg(source_entity)::text = '' OR source_entity = sqlc.arg(source_entity))
+)
+SELECT count(*)::bigint
+FROM filtered
+WHERE sqlc.arg(availability)::text = ''
+   OR availability = sqlc.arg(availability)
+   OR (sqlc.arg(availability)::text = 'HELD' AND availability IN ('AVAILABLE', 'MATURED'));

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -24,11 +25,11 @@ var vouEntities = [...]string{
 	voudomain.EntityOrderProduction,
 	voudomain.EntitySelfProduction,
 	voudomain.EntityInventoryCount,
-	voudomain.EntityCustomerReceipt,
-	voudomain.EntitySupplierReceipt,
+	voudomain.EntitySalesReceipt,
+	voudomain.EntityPurchaseRefund,
 	voudomain.EntityOtherReceipt,
-	voudomain.EntityCustomerPayment,
-	voudomain.EntitySupplierPayment,
+	voudomain.EntitySalesRefund,
+	voudomain.EntityPurchasePayment,
 	voudomain.EntityOtherPayment,
 	voudomain.EntityEmployeeLoan,
 	voudomain.EntityEmployeeRepayment,
@@ -40,6 +41,12 @@ var vouEntities = [...]string{
 	voudomain.EntityAssetDepreciation,
 	voudomain.EntityAssetSale,
 	voudomain.EntityAssetLiquidation,
+	voudomain.EntityBillReceipt,
+	voudomain.EntityBillPayment,
+	voudomain.EntityBillIssue,
+	voudomain.EntityBillDiscount,
+	voudomain.EntityBillMaturity,
+	voudomain.EntityIntermediaryCalculation,
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -47,10 +54,10 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 		return errors.New("LED event bus is required")
 	}
 	for _, entity := range vouEntities {
-		if err := bus.Subscribe(voudomain.DocumentFinalizedTopic(entity), "led-posting", s.HandleDocumentFinalized); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentApprovedTopic(entity), "led-posting", s.HandleDocumentApproved); err != nil {
 			return err
 		}
-		if err := bus.Subscribe(voudomain.DocumentUnfinalizedTopic(entity), "led-reversal", s.HandleDocumentUnfinalized); err != nil {
+		if err := bus.Subscribe(voudomain.DocumentUnapprovedTopic(entity), "led-reversal", s.HandleDocumentUnapproved); err != nil {
 			return err
 		}
 	}
@@ -78,11 +85,11 @@ func (s *Service) Activate(
 		!control.CutoverDate.Valid {
 		return MutationResult{}, domainError(ErrorConflict, "ledger cannot be activated", nil, nil)
 	}
-	documents, err := q.ListFinalizedVouDocumentsForLed(ctx)
+	documents, err := q.ListPostedVouDocumentsForLed(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("list executed documents", err)
 	}
-	if err = s.preflightActivation(ctx, q, documents, control.CutoverDate.Time); err != nil {
+	if err = s.preflightActivation(ctx, q); err != nil {
 		return MutationResult{}, err
 	}
 	generationID := newID()
@@ -106,10 +113,10 @@ func (s *Service) Activate(
 	return MutationResult{Status: StatusActive, Revision: revision, GenerationID: generationID}, nil
 }
 
-func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentFinalizedEvent)
+func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentApprovedEvent)
 	if !ok {
-		return fmt.Errorf("unexpected LED executed event %T", raw)
+		return fmt.Errorf("unexpected LED approved event %T", raw)
 	}
 	q := s.queries.WithTx(tx)
 	control, err := q.LockLedControl(ctx)
@@ -126,7 +133,7 @@ func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw tx
 	err = s.postDocument(ctx, tx, q, postingContext{
 		GenerationID: *control.ActiveGenerationID, CutoverDate: control.CutoverDate.Time,
 		Document: document, EntryType: "POSTING", SourceRevision: event.Revision,
-		OccurredAt: document.ExecutedAt, ActorID: systemidentity.UserID, RequestID: event.RequestID, Live: true,
+		OccurredAt: document.PostedAt, ActorID: systemidentity.UserID, RequestID: event.RequestID, Live: true,
 	})
 	if err != nil {
 		return eventFailure(err)
@@ -141,10 +148,10 @@ func (s *Service) HandleDocumentFinalized(ctx context.Context, tx pgx.Tx, raw tx
 	return nil
 }
 
-func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentUnfinalizedEvent)
+func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentUnapprovedEvent)
 	if !ok {
-		return fmt.Errorf("unexpected LED unexecuted event %T", raw)
+		return fmt.Errorf("unexpected LED unapproved event %T", raw)
 	}
 	q := s.queries.WithTx(tx)
 	control, err := q.LockLedControl(ctx)
@@ -165,15 +172,34 @@ func (s *Service) HandleDocumentUnfinalized(ctx context.Context, tx pgx.Tx, raw 
 		return err
 	}
 	if !exists {
-		if event.Entity == voudomain.EntityInventoryCount {
+		if event.Entity == voudomain.EntityInventoryCount || event.Entity == voudomain.EntityIntermediaryCalculation {
 			return nil
 		}
 		return txevent.Reject("document predates the active ledger cutover", nil)
+	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
+		count, countErr := q.CountLedBillDownstreamEntries(ctx, event.DocumentID)
+		if countErr != nil {
+			return countErr
+		}
+		if count != 0 {
+			return txevent.Reject("downstream bill operation blocks reversal", nil)
+		}
 	}
 	if event.Entity == voudomain.EntityAssetAcquisition || event.Entity == voudomain.EntityAssetDepreciation ||
 		event.Entity == voudomain.EntityAssetSale || event.Entity == voudomain.EntityAssetLiquidation {
 		if err = s.reverseAssetDocument(ctx, q, generationID, event.Entity, event.DocumentID); err != nil {
 			return eventFailure(err)
+		}
+	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillPayment || event.Entity == voudomain.EntityBillIssue || event.Entity == voudomain.EntityBillDiscount || event.Entity == voudomain.EntityBillMaturity {
+		if err = q.DeleteLedBillEntriesBySource(ctx, dbsqlc.DeleteLedBillEntriesBySourceParams{GenerationID: generationID, SourceDocumentID: event.DocumentID}); err != nil {
+			return err
+		}
+	}
+	if event.Entity == voudomain.EntityBillReceipt || event.Entity == voudomain.EntityBillIssue {
+		if err = q.DeleteLedBillsBySource(ctx, event.DocumentID); err != nil {
+			return err
 		}
 	}
 	if err = s.deleteDocumentEntries(ctx, tx, q, generationID, event.DocumentID); err != nil {
@@ -230,9 +256,9 @@ func (s *Service) postDocument(
 		return s.postProduction(ctx, tx, q, posting)
 	case voudomain.EntityInventoryCount:
 		return s.postInventoryCount(ctx, tx, q, posting)
-	case voudomain.EntityReceipt, voudomain.EntityCustomerReceipt, voudomain.EntitySupplierReceipt, voudomain.EntityOtherReceipt, voudomain.EntityEmployeeRepayment:
+	case voudomain.EntitySalesReceipt, voudomain.EntityPurchaseRefund, voudomain.EntityOtherReceipt, voudomain.EntityEmployeeRepayment:
 		return s.postReceipt(ctx, q, posting)
-	case voudomain.EntityPayment, voudomain.EntityCustomerPayment, voudomain.EntitySupplierPayment, voudomain.EntityOtherPayment, voudomain.EntityEmployeeLoan:
+	case voudomain.EntitySalesRefund, voudomain.EntityPurchasePayment, voudomain.EntityOtherPayment, voudomain.EntityEmployeeLoan:
 		return s.postPayment(ctx, q, posting)
 	case voudomain.EntityEmployeeLoanWriteoff:
 		return s.postEmployeeLoanWriteoff(ctx, tx, q, posting)
@@ -242,12 +268,58 @@ func (s *Service) postDocument(
 		return s.postExpensePayment(ctx, q, posting)
 	case voudomain.EntityOtherIncome:
 		return s.postOtherIncome(ctx, q, posting)
+	case voudomain.EntityBillReceipt:
+		return s.postBillReceipt(ctx, tx, q, posting)
+	case voudomain.EntityBillPayment:
+		return s.postBillPayment(ctx, tx, q, posting)
+	case voudomain.EntityBillIssue:
+		return s.postBillIssue(ctx, tx, q, posting)
+	case voudomain.EntityBillDiscount:
+		return s.postBillDiscount(ctx, tx, q, posting)
+	case voudomain.EntityBillMaturity:
+		return s.postBillMaturity(ctx, tx, q, posting)
+	case voudomain.EntityIntermediaryCalculation:
+		return s.postIntermediaryCalculation(ctx, q, posting)
 	case voudomain.EntityAssetAcquisition, voudomain.EntityAssetDepreciation,
 		voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return s.postAssetDocument(ctx, tx, q, posting)
 	default:
 		return domainError(ErrorValidation, "unsupported VOU entity", nil, nil)
 	}
+}
+
+func (s *Service) postIntermediaryCalculation(
+	ctx context.Context, q *dbsqlc.Queries, posting postingContext,
+) error {
+	include, err := requireEffectiveDate(posting, posting.Document.BusinessDate)
+	if err != nil || !include {
+		return err
+	}
+	summaries, err := q.ListVouIntermediaryCalculationSummaries(ctx, posting.Document.ID)
+	if err != nil {
+		return err
+	}
+	for _, summary := range summaries {
+		if summary.AmountCents == math.MinInt64 {
+			return domainError(ErrorValidation, "intermediary calculation amount is out of range", nil, nil)
+		}
+		category := summary.Category
+		if err = q.InsertLedOtherEntry(ctx, dbsqlc.InsertLedOtherEntryParams{
+			ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+			SourceEntity: posting.Document.Entity, SourceDocumentID: posting.Document.ID,
+			SourceDocumentNo: posting.Document.DocumentNo, SourceLineID: summary.ID,
+			SourceRevision: posting.SourceRevision, EffectiveDate: posting.Document.BusinessDate,
+			OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+			Remark: posting.Document.Remark, CounterpartyEntity: summary.PayeeEntity,
+			CounterpartyObjectID: summary.PayeeObjectID, CounterpartyVersionID: summary.PayeeVersionID,
+			CounterpartyCode: summary.PayeeCode, CounterpartyName: summary.PayeeName,
+			Currency: "CNY", AmountDeltaCents: -summary.AmountCents,
+			OtherCategory: &category,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func fundParams(
@@ -277,6 +349,22 @@ func partyParams(
 		Remark:             preferredRemark(nil, doc.Remark),
 		CounterpartyEntity: entity, CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
 		CounterpartyCode: code, CounterpartyName: name, Currency: deref(doc.Currency), AmountDeltaCents: delta,
+	}
+}
+
+func otherPartyParams(
+	posting postingContext, doc dbsqlc.VouDocument, lineID string, effectiveDate pgtype.Date,
+	objectID, versionID, code, name, entity string, delta int64, category *string,
+) dbsqlc.InsertLedOtherEntryParams {
+	return dbsqlc.InsertLedOtherEntryParams{
+		ID: newID(), GenerationID: posting.GenerationID, EntryType: posting.EntryType,
+		SourceEntity: doc.Entity, SourceDocumentID: doc.ID, SourceDocumentNo: doc.DocumentNo,
+		SourceLineID: lineID, SourceRevision: posting.SourceRevision, EffectiveDate: effectiveDate,
+		OccurredAt: posting.OccurredAt, ActorID: posting.ActorID, RequestID: posting.RequestID,
+		Remark: preferredRemark(nil, doc.Remark), CounterpartyEntity: entity,
+		CounterpartyObjectID: objectID, CounterpartyVersionID: versionID,
+		CounterpartyCode: code, CounterpartyName: name, Currency: deref(doc.Currency),
+		AmountDeltaCents: delta, OtherCategory: category,
 	}
 }
 

@@ -3,18 +3,86 @@
 package vou
 
 import (
+	"context"
 	"sync"
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 )
 
+func TestReconcileCompletionDoesNotReopenClosedPeriodParentIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	closingID := newID()
+	t.Cleanup(func() {
+		cleanupContext := context.Background()
+		if _, err := pool.Exec(cleanupContext, `UPDATE led_control
+			SET last_closing_id=NULL WHERE singleton=true`); err != nil {
+			t.Errorf("clear closing control: %v", err)
+		}
+		if _, err := pool.Exec(cleanupContext, `DELETE FROM led_closings WHERE id=$1`, closingID); err != nil {
+			t.Errorf("delete closing: %v", err)
+		}
+		truncateVOU(t, pool)
+	})
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+
+	order, orderView := finalizedSalesOrder(t, service, refs, "1")
+	outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-08-01", SourceDocumentID: order.DocumentID,
+		Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
+		}},
+	}, true)
+	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-08-02", SourceDocumentID: outbound.DocumentID,
+		Platform: &refs.platform, Vehicle: &refs.vehicle,
+	}}, integrationActorOne, "closed-parent-delivery-create"); err != nil {
+		t.Fatalf("create unfinished delivery: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE vou_documents
+		SET status='FINALIZED',executed_at=now(),executed_by=$1,
+			revision=revision+1,updated_at=now(),updated_by=$1
+		WHERE id IN ($2,$3)`, systemidentity.UserID, order.DocumentID, outbound.DocumentID); err != nil {
+		t.Fatalf("prepare legacy finalized chain: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO led_closings(
+		id,closing_date,opening_date,revision,closed_by,request_id
+	) VALUES($1,$2::date,$3::date,1,$4,$5)`,
+		closingID, "2026-07-31", "2026-08-01", integrationActorOne, "closed-parent-closing"); err != nil {
+		t.Fatalf("insert closing: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE led_control
+		SET last_closing_id=$1,revision=revision+1,updated_at=now(),updated_by=$2
+		WHERE singleton=true`, closingID, integrationActorOne); err != nil {
+		t.Fatalf("set closing control: %v", err)
+	}
+
+	if err := service.ReconcileCompletionStatuses(t.Context()); err != nil {
+		t.Fatalf("reconcile completion statuses: %v", err)
+	}
+	var orderStatus, outboundStatus string
+	if err := pool.QueryRow(t.Context(), `SELECT status FROM vou_documents WHERE id=$1`, order.DocumentID).
+		Scan(&orderStatus); err != nil {
+		t.Fatalf("read closed order status: %v", err)
+	}
+	if err := pool.QueryRow(t.Context(), `SELECT status FROM vou_documents WHERE id=$1`, outbound.DocumentID).
+		Scan(&outboundStatus); err != nil {
+		t.Fatalf("read open outbound status: %v", err)
+	}
+	if orderStatus != StatusFinalized || outboundStatus != StatusApproved {
+		t.Fatalf("reconciled statuses = order:%s outbound:%s", orderStatus, outboundStatus)
+	}
+}
+
 func advanceSalesDocument(
 	t *testing.T,
 	service *Service,
 	entity string,
 	data DraftInput,
-	finalize bool,
+	approve bool,
 ) (MutationResult, DocumentView) {
 	t.Helper()
 	created, err := service.Create(
@@ -29,19 +97,13 @@ func advanceSalesDocument(
 	if err != nil {
 		t.Fatalf("check %s: %v", entity, err)
 	}
-	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: checked.Revision,
-	}, integrationActorOne, "sales-chain-approve")
-	if err != nil {
-		t.Fatalf("approve %s: %v", entity, err)
-	}
-	result := approved
-	if finalize {
-		result, err = service.Finalize(t.Context(), entity, FinalizeInput{
-			DocumentID: approved.DocumentID, Revision: approved.Revision,
-		}, integrationActorOne, "sales-chain-finalize")
+	result := checked
+	if approve {
+		result, err = service.Approve(t.Context(), entity, DocumentRevisionInput{
+			DocumentID: created.DocumentID, Revision: checked.Revision,
+		}, integrationActorOne, "sales-chain-approve")
 		if err != nil {
-			t.Fatalf("finalize %s: %v", entity, err)
+			t.Fatalf("approve %s: %v", entity, err)
 		}
 	}
 	view, err := service.Get(t.Context(), entity, GetInput{DocumentID: result.DocumentID})
@@ -157,22 +219,22 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	if err != nil {
 		t.Fatalf("save refusal return header: %v", err)
 	}
-	unfinalizedSignoff, err := service.Unfinalize(t.Context(), EntitySaleSignoff, ReverseInput{
+	unapprovedSignoff, err := service.Unapprove(t.Context(), EntitySaleSignoff, ReverseInput{
 		DocumentID: signoffOne.DocumentID, Revision: signoffOne.Revision, Reason: "修正签收测试",
-	}, integrationActorOne, "signoff-unfinalize")
+	}, integrationActorOne, "signoff-unapprove")
 	if err != nil {
-		t.Fatalf("unfinalize signoff with automatic refusal draft: %v", err)
+		t.Fatalf("unapprove signoff with automatic refusal draft: %v", err)
 	}
 	var refusalCount int64
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM vou_sale_return_details
 		WHERE source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalCount); err != nil || refusalCount != 0 {
-		t.Fatalf("automatic refusal drafts after unfinalize = %d, err=%v", refusalCount, err)
+		t.Fatalf("automatic refusal drafts after unapprove = %d, err=%v", refusalCount, err)
 	}
-	signoffOne, err = service.Finalize(t.Context(), EntitySaleSignoff, FinalizeInput{
-		DocumentID: signoffOne.DocumentID, Revision: unfinalizedSignoff.Revision,
-	}, integrationActorOne, "signoff-refinalize")
+	signoffOne, err = service.Approve(t.Context(), EntitySaleSignoff, DocumentRevisionInput{
+		DocumentID: signoffOne.DocumentID, Revision: unapprovedSignoff.Revision,
+	}, integrationActorOne, "signoff-reapprove")
 	if err != nil {
-		t.Fatalf("refinalize signoff: %v", err)
+		t.Fatalf("reapprove signoff: %v", err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT d.id,d.revision
 		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
@@ -194,10 +256,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliverySignoffAndShortClose(t *testing
 	if err != nil {
 		t.Fatalf("approve refusal return: %v", err)
 	}
-	if _, err = service.Finalize(t.Context(), EntitySaleReturn, FinalizeInput{
-		DocumentID: refusalID, Revision: refusalApproved.Revision,
-	}, integrationActorOne, "refusal-finalize"); err != nil {
-		t.Fatalf("finalize refusal return: %v", err)
+	if refusalApproved.Status != StatusFinalized {
+		t.Fatalf("approved refusal return status = %s", refusalApproved.Status)
 	}
 	afterSale, err := service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "客户退回",
@@ -318,9 +378,9 @@ func TestVOUIntegrationConcurrentOutboundReservationAllowsOneWinner(t *testing.T
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			_, err := service.Finalize(t.Context(), EntitySaleOutbound, FinalizeInput{
+			_, err := service.Approve(t.Context(), EntitySaleOutbound, DocumentRevisionInput{
 				DocumentID: document.DocumentID, Revision: document.Revision,
-			}, integrationActorOne, "concurrent-outbound-finalize")
+			}, integrationActorOne, "concurrent-outbound-approve")
 			results <- err
 		}()
 	}

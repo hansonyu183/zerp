@@ -15,6 +15,9 @@ func (s *Service) Create(
 	input CreateInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediaryCalculation {
+		return s.CreateIntermediaryCalculation(ctx, input, actorID, requestID)
+	}
 	if isAssetEntity(entity) {
 		return s.CreateAssetDocument(ctx, entity, input, actorID, requestID)
 	}
@@ -120,6 +123,18 @@ func (s *Service) createDocument(
 	if err = s.applyPriceReferences(ctx, q, entity, &draft, resolved); err != nil {
 		return MutationResult{}, err
 	}
+	if entity == EntityBillPayment || entity == EntityBillDiscount {
+		draft.TotalAmount, err = s.billPaymentTotal(ctx, q, draft.BillLines, draft.BusinessDate)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
+	if entity == EntityBillMaturity {
+		draft.TotalAmount, err = s.billMaturityTotal(ctx, q, draft.BillLines, draft.BusinessDate)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
 		ID: documentID, Entity: entity, DocumentNo: documentNo,
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
@@ -160,6 +175,9 @@ func (s *Service) Save(
 	input SaveInput,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if entity == EntityIntermediaryCalculation {
+		return s.SaveIntermediaryCalculation(ctx, input, actorID, requestID)
+	}
 	if isAssetEntity(entity) {
 		return s.SaveAssetDocument(ctx, entity, input, actorID, requestID)
 	}
@@ -214,6 +232,12 @@ func (s *Service) Save(
 	}
 	if err = s.updateDetail(ctx, q, entity, input.DocumentID, draft, resolved); err != nil {
 		return MutationResult{}, s.writeError("update document detail", err)
+	}
+	if entity == EntityBillPayment || entity == EntityBillDiscount || entity == EntityBillMaturity {
+		draft.TotalAmount, err = q.SumVouBillLineFaceAmounts(ctx, input.DocumentID)
+		if err != nil {
+			return MutationResult{}, s.writeError("sum bill payment amount", err)
+		}
 	}
 	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
@@ -360,6 +384,25 @@ func (s *Service) forwardTransition(
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
+	if to == StatusApproved {
+		if err = s.reserveOrderSettlement(ctx, tx, entity, input.DocumentID); err != nil {
+			return MutationResult{}, err
+		}
+	}
+	var summary map[string]any
+	if to == StatusApproved {
+		switch entity {
+		case EntityInventoryCount:
+			summary, err = s.prepareInventoryCountFinalization(ctx, tx, q, document)
+		case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
+			summary, err = s.prepareSalesChainFinalization(ctx, tx, document)
+		default:
+			summary = map[string]any{"posted": true}
+		}
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	var revision int64
 	switch to {
 	case StatusApproved:
@@ -375,12 +418,37 @@ func (s *Service) forwardTransition(
 	event := map[string]string{StatusApproved: "APPROVED"}[to]
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: input.DocumentID, Entity: entity, Event: event,
-		From: &from, To: to, ActorID: actorID, RequestID: requestID,
+		From: &from, To: to, ActorID: actorID, RequestID: requestID, Summary: summary,
 	}); err != nil {
 		return MutationResult{}, s.writeError("audit transition", err)
 	}
-	summary, err := s.onManagedSalesApproved(ctx, tx, document, actorID, requestID)
+	managedSummary, err := s.onManagedSalesApproved(ctx, tx, document, actorID, requestID)
 	if err != nil {
+		return MutationResult{}, err
+	}
+	for key, value := range managedSummary {
+		summary[key] = value
+	}
+	if entity == EntitySaleSignoff {
+		if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, false); err != nil {
+			return MutationResult{}, s.writeError("release prepaid settlement reservation", err)
+		}
+		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
+		if err = s.ensureRefusalReturnDraft(ctx, tx, input.DocumentID, actorID, requestID); err != nil {
+			return MutationResult{}, s.writeError("create refusal return draft", err)
+		}
+	}
+	if entity == EntityPurchaseInbound {
+		if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, false); err != nil {
+			return MutationResult{}, s.writeError("release prepaid settlement reservation", err)
+		}
+		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
+	}
+	if err = s.replenishManagedOutbound(ctx, tx, document, actorID, requestID); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.touchWorkflow(
@@ -395,10 +463,20 @@ func (s *Service) forwardTransition(
 	}); err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.events.Publish(ctx, tx, DocumentApprovedEvent{
+		Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
+		Revision: revision, ActorID: actorID, RequestID: requestID,
+	}); err != nil {
+		return MutationResult{}, s.eventError("publish document approved", err)
+	}
+	current, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	if err != nil {
+		return MutationResult{}, s.internal("read approved document", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit transition", err)
 	}
-	return mutation(document, to, revision), nil
+	return mutation(current, current.Status, current.Revision), nil
 }
 
 func (s *Service) reverseTransition(
@@ -418,12 +496,38 @@ func (s *Service) reverseTransition(
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
 	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
-	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
-		return MutationResult{}, err
+	if err != nil {
+		return MutationResult{}, documentWriteConflict(err, document.Revision, input.Revision, document.Status, from)
+	}
+	if document.Revision != input.Revision {
+		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, nil)
+	}
+	if from == StatusApproved && to == StatusChecked && document.Status == StatusFinalized {
+		if err = s.ensureFinalizedLeafCanUnapprove(ctx, tx, document); err != nil {
+			return MutationResult{}, err
+		}
+		if _, err = s.systemUnfinalizeDocument(ctx, tx, document, requestID, "反批准自动重新打开"); err != nil {
+			return MutationResult{}, err
+		}
+		document, err = q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+		if err != nil {
+			return MutationResult{}, s.internal("relock reopened document", err)
+		}
+	}
+	if document.Status != from {
+		return MutationResult{}, domainError(ErrorConflict, "document status changed", map[string]any{
+			"expectedStatus": from, "actualStatus": document.Status,
+		}, nil)
 	}
 	if from == StatusApproved && to == StatusChecked {
+		if err = s.prepareUnapproval(ctx, tx, document, actorID, requestID); err != nil {
+			return MutationResult{}, err
+		}
 		if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
 			return MutationResult{}, err
+		}
+		if err = s.releaseOrderSettlement(ctx, tx, document.ID); err != nil {
+			return MutationResult{}, s.writeError("release settlement reservation", err)
 		}
 	} else if managedSalesDocument(document) {
 		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, to); err != nil {
@@ -440,7 +544,7 @@ func (s *Service) reverseTransition(
 		event = "UNCHECKED"
 	case from == StatusApproved && to == StatusChecked:
 		revision, err = q.UnapproveVouDocument(ctx, dbsqlc.UnapproveVouDocumentParams{
-			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
+			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: document.Revision,
 		})
 		event = "UNAPPROVED"
 	default:
@@ -466,6 +570,27 @@ func (s *Service) reverseTransition(
 		ActorID: actorID, RequestID: requestID, Reason: *reason,
 	}); err != nil {
 		return MutationResult{}, err
+	}
+	if from == StatusApproved && to == StatusChecked {
+		if err = s.events.Publish(ctx, tx, DocumentUnapprovedEvent{
+			Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
+			Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
+		}); err != nil {
+			return MutationResult{}, s.eventError("publish document unapproved", err)
+		}
+		if entity == EntitySaleSignoff || entity == EntityPurchaseInbound {
+			if err = s.adjustFulfillmentSettlement(ctx, tx, entity, input.DocumentID, true); err != nil {
+				return MutationResult{}, s.writeError("restore settlement reservation", err)
+			}
+		}
+		if err = s.finishUnapproval(ctx, tx, document, actorID); err != nil {
+			return MutationResult{}, err
+		}
+		if entity == EntityInventoryCount {
+			if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {
+				return MutationResult{}, s.writeError("clear inventory count result", err)
+			}
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit reverse transition", err)

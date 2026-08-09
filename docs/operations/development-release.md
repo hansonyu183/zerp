@@ -1,91 +1,54 @@
 # 开发、PR 与自动上线规范
 
-本规范覆盖从可验收提交到正式上线的完整路径。代码和配置只能从受保护的 `main` merge commit 上线；固定预览和生产发布不得构建包含未提交修改的开发工作区。
+所有变更通过独立分支直接向受保护的 `main` 提交 PR。固定预览和生产都只构建 Git 提交，不构建含未提交修改的开发工作区。
 
-## 1. 开发与推送
+## 1. 本地门禁
 
-每项工作使用独立分支或工作树，形成可验收提交后执行：
+创建 PR 前获取最新 `origin/main`，用 rebase 把提交重放到该基线。先在 Codex 中使用 `/review` 对 `origin/main` 做分支级本地审查，集中处理全部发现；工作区干净后执行：
 
 ```bash
 make pre-push-plan
 make pre-push
 ```
 
-`pre-push` 要求工作树干净，并按 `scripts/change-impact.sh` 分层：
+`scripts/change-impact.sh` 把差异分为文档、验证工具和应用三类，并为应用变更输出契约、前端、后端、后端全量、依赖、容器、镜像、E2E 和预览标记。普通前端或后端源码只运行所属端聚焦门禁；契约、迁移、依赖、运行配置、跨端和未知变更运行完整隔离门禁。需要保守复核时运行 `PRE_PUSH_FULL=1 make pre-push`。
 
-- 文档变更运行差异、格式和文档完整性检查；
-- 本地门禁和文档检查器等验证工具变更，额外运行逐文件 Shell 语法、ShellCheck、Actionlint 和门禁行为检查；CI 工作流自身发生变化时不要求固定预览，但 PR 必须实际跑完五项 CI 作业；
-- 应用影响变更继续细分契约、前端、后端、容器、E2E、本地 E2E 和预览标记，只运行能够验证当前变更的门禁；
-- 纯前端或纯后端运行代码在本地运行所属端完整质量门禁，完整 E2E 由 PR CI 执行；
-- 契约、迁移、依赖、运行配置、跨端、E2E 工具及未知变更在本地继续运行隔离全栈 E2E；
-- 单元测试-only 只运行所属端门禁，E2E-only 运行隔离 E2E，二者都不部署应用预览。
+E2E 使用一次性 PostgreSQL 容器加本机 Go API/Web，并由 Playwright 并行运行桌面和手机项目。后端集成测试使用模板数据库并行执行独立包；共享状态场景必须显式串行。测试、迁移和断言失败不自动重试，只有 GitHub、Cloudflare 和公网健康等外部瞬态步骤允许有界重试。
 
-前端生产依赖审计只在 workspace、锁文件或前端依赖清单变化时运行；普通前端源码变化继续运行 lint、覆盖率和构建，但不重复执行只依赖锁文件的审计。后端数据库门禁会从上一迁移版本加载 `backend/db/migration-tests/<version>_{before,after}.sql` 夹具后升级到最新版本；每个新迁移必须同时提供对应升级夹具，不能只证明空库可迁移。
+## 2. Draft、Ready 与证据复用
 
-`make pre-push-plan` 只显示将执行的阶段和预览要求；需要忽略细分结果并保守执行全部门禁时运行 `PRE_PUSH_FULL=1 make pre-push`。任何失败都必须修复并形成新提交，不得推送红色分支。
+本地审查和门禁通过后推送并创建目标为 `main` 的 Draft PR。对该候选 SHA 只请求一次 Codex Review，让它与 Draft checks 并行；自动 Review 已由 PR 事件触发时，不再追加同 SHA 的手工 `@codex review`。收到反馈后一次读取全部未解决线程，集中修改并重新完成本地审查和门禁，只推送一个修复候选，再请求一次聚焦于修复回归和剩余高影响问题的 Review。不得每修一条就推送并触发串行复审。应用 Draft 运行格式、静态、聚焦单元测试和构建，产出成功的 `draft-validation`；它不会用故意失败的 `full-validation` 表示未就绪。
 
-本地 E2E 按后端与 Web 的真实构建输入分别计算指纹，复用未变化一侧的已标记镜像；需要排除缓存时运行 `E2E_FORCE_REBUILD=1 make e2e`。CI 使用 BuildKit 的 GitHub Actions 层缓存，一次安装 Chromium、构建 API/Web 镜像并启动隔离全栈，然后以单 worker 依次运行桌面和手机 Playwright 项目，避免重复构建和共享数据库并发污染。CI 重试后通过的 flaky 用例按失败处理；失败时保留 Playwright HTML、trace、截图和测试结果 14 天。
+使用 `make review-status REVIEW_PR=<number>` 确认 Codex Review 覆盖准确 head 且未解决线程为零，再确认分支基于最新 `main`，最后才转为 Ready。该命令是只读状态检查：结构化 Review 使用 GitHub `commit_id`，无发现的 Review 兼容 Codex 发布的 reviewed-commit 结果；状态为 `stale` 或 `pending` 时返回失败。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race、需要的镜像验证和一次真实 E2E。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
 
-本地门禁通过后推送分支并创建草稿 PR。PR 必须直接以 `main` 为基线和目标；有依赖的后续分支等前置 PR 合并后基于最新 `main` 重放，再创建新的 PR，禁止堆叠 PR。CI 会先校验目标分支、当前 `main` ancestry、其他未合并 PR head 和检查矩阵，再决定是否启动重任务。
-
-PR 的 `contracts`、`frontend`、`backend`、`containers` 和 `e2e` 必须全部成功。需要固定预览时，在五项检查全绿后执行：
+`validation` 是自动化门禁聚合。无需预览的 Ready PR 在自动门禁成功后获得 `full-validation`。需要预览的 PR 只获得 `preview-required`，随后执行：
 
 ```bash
-make preview-deploy PREVIEW_REF=<PR-head-full-sha>
+make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>
 make preview-status
+make preview-accept PREVIEW_PR=<number>
 ```
 
-预览必须使用当前 PR head 的完整 SHA；推送新提交后，旧预览验收立即失效，必须等待新 SHA 的五项检查全绿后重新部署。运行代码、契约、迁移、依赖、构建和预览工具变更要求固定预览；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 不要求应用预览。适用的预览人工验收完成后才可人工合并，禁止直接推送、强推或自动合并 `main`。
+`preview-deploy` 在构建前后各读取一次 GitHub PR，要求 PR 为 Ready、仍打开、目标为 `main`、包含最新 `origin/main`、head SHA 未变化且 `validation` 成功。人工验收人从当前 `gh` 登录态读取，调用方不能自报或冒用其他身份，且只能由仓库 write 及以上权限的非 Bot 用户确认；成功后写入绑定 PR、SHA、状态代次和验收人的 GitHub Preview Deployment，并为同一 SHA 发布 `full-validation` 状态。合并证据会再次核对状态创建者、验收人权限、Preview Deployment 的 PR/SHA/代次/验收人及其成功状态，单独伪造同名 commit status 不能触发生产发布。新提交会使旧预览和验收失效。
 
-合并后不重复运行整套质量与 E2E。main 门禁通过 GitHub API 验证合并提交与 PR head 的 Git tree 完全一致，并复用该 PR 的五项成功检查；树不一致、不是关联 PR 合并提交或任一检查缺失时立即失败。main 仍保留原有五个检查名，兼容分支保护和现有生产发布代理。
+预览命令必须从 `HEAD == origin/main` 的受信任控制 checkout 运行，不能在 PR worktree 运行；PR checkout 只作为无密钥编译输入。
 
-## 2. 自动上线
+合并前必须再次运行 `make review-status REVIEW_PR=<number>`，并确认最新 SHA 的全部 required checks 成功。需要固定预览的变更只有在 Review 和自动门禁都就绪后才部署，避免后续 Review 修复使人工验收失效。禁止直接推送、强推或自动合并 `main`。
 
-正式环境由同一 merge commit 统一发布：
+## 3. 合并与生产
 
-1. Cloudflare Pages Git 集成构建并发布同一 `main` commit；
-2. 本机发布代理确认 `main` 已复用的五项 PR 检查和 `Cloudflare Pages` 全部成功；
-3. 从独立干净仓库构建带完整 commit SHA 的 API、migrate、Web 镜像和前端产物；
-4. 备份 PostgreSQL、附件及上一版发布清单；
-5. 运行向后兼容的 Goose migration；
-6. 更新本机 `zerp-back` API 与 Web，验证本机和公网健康；
-7. 验证 Pages 的精确 commit 标记、`https://zerp.bytesucceed.com` 与 `https://zerp-api.bytesucceed.com`，并写回 GitHub Production Deployment 状态。
+PR squash merge 后，`main` 工作流校验 merge tree 与被合并 PR 的 exact head tree 相同，并复用该 head 的 `full-validation`，而不是重复执行完整矩阵。生产发布代理只依赖合并提交上的 `full-validation`：文档和验证工具提交记录成功 no-op；应用提交等待 Cloudflare Pages 后执行备份、迁移、镜像切换、本机与公网健康检查，并写 GitHub Production Deployment。
 
-发布代理是用户级 launchd 服务，每 60 秒检查一次 `origin/main`。Mac 离线或未登录时发布保持排队，Colima 恢复后继续。代理复用 `scripts/change-impact.sh`：文档和验证工具提交不等待已跳过的 Pages 检查，直接记录为成功 no-op；应用发布成功后自动更新已安装的控制器脚本。代理单独记录已处理提交，`current-sha` 始终指向最后一次成功发布的应用版本。
-
-合并后的交付确认必须等待发布代理完整结束，不能在 API 容器刚切换时提前完成。最终运行 `make production-status`，确认 `current-sha`、API 和 Web 容器标签、Cloudflare Pages 精确 commit 标记及两个公网入口均指向同一 merge commit。若构建和容器已健康，但公网出现瞬时 TLS、`530` 或 release 标记尚未更新，应先查看发布代理日志，区分“仍在发布”“Tunnel/网络抖动”和“已写入失败标记”；仅外部入口瞬时失败时重新验证入口，只有代理明确熔断该 SHA 后才使用 `make production-retry`。
-
-## 3. 生产隔离与凭证
-
-- Production Compose 项目固定为 `zerp-back`，环境文件固定为 `backend/.env.production.local`，权限必须为 `600`。
-- 开发、E2E、固定预览和生产必须使用不同 Compose 项目、端口、数据库、卷和 Cookie。
-- Cloudflare Pages 继续复用仓库现有 Git 集成，不新增、不复制 Pages API Token。
-- 发布备份保存在被 Git 忽略的 `backend/var/production/releases/`，保留最近七次成功版本。
-
-## 4. 失败与回滚
-
-构建、备份或 migration 失败时不更新应用。Pages 失败会在本机发布前阻断流程；API rollout 或公网健康检查失败时，发布代理自动恢复上线前的应用镜像并标记 GitHub Deployment 失败。
-
-同一 main SHA 首次发布失败后，发布代理写入失败标记并停止自动重试，避免确定性错误每分钟重复构建、备份和迁移。修复外部状态并完成必要的数据确认后，运行 `make production-retry` 清除该 SHA 的熔断标记并立即重试；新的 main SHA 不受旧失败标记影响。
-
-数据库不得自动执行 down migration，也不得自动恢复备份，以免覆盖上线后的业务写入。所有 migration 必须兼容上一版应用；数据库恢复只能在明确停写和人工确认后执行。
-
-人工回滚到已验证版本：
+需要完成合并交付时，必须等待发布代理处理 merge commit，再运行：
 
 ```bash
-make production-rollback PRODUCTION_REF=<full-commit-sha>
 make production-status
 ```
 
-该命令只切换本机应用镜像，不修改 Pages 或数据库。需要回退前端时，通过 revert PR 恢复 `main`；Cloudflare Pages 与本机代理会按新 merge commit 自动完成协调发布。
+确认 API、Web、公网入口和发布 SHA 一致后才可结束。公网 `530`、TLS 或资源预热失败应先核对 Tunnel 和代理状态，不得通过清空数据库或重复改代码处理。
 
-## 5. 安装与验收
+已合并变更不改写历史。需要撤销时创建新的 revert PR，走相同的自动门禁、适用预览和生产路径。
 
-首次安装前准备生产环境文件，然后运行：
+## 4. 指标
 
-```bash
-scripts/install-production-agent.sh
-make production-status
-```
-
-验收必须覆盖：直接推送 `main` 被拒绝、失败检查阻止合并、精确 SHA 预览不包含脏工作区、合并后自动发布、数据库和附件备份、应用失败自动回滚，以及本机、公网和 `al-sz-root` 健康探测。
+使用 `scripts/release-metrics.sh` 只读统计最近 20 个合并 PR 的重复验证、系统时间和完整流转时间。指标定义、迁移前基线和第一阶段目标见[测试与发布流程指标](release-metrics.md)。

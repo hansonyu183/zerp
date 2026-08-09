@@ -44,8 +44,13 @@ impact=docs
 contracts=0
 frontend=0
 frontend_audit=0
+frontend_full=0
 backend=0
+backend_full=0
+backend_deps=0
 containers=0
+api_image=0
+web_image=0
 e2e=0
 local_e2e=0
 preview=0
@@ -58,7 +63,9 @@ mark_full() {
   mark_application
   contracts=1
   frontend=1
+  frontend_full=1
   backend=1
+  backend_full=1
   containers=1
   e2e=1
   local_e2e=1
@@ -78,17 +85,16 @@ if [ -n "${changed_files}" ]; then
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi
-        contracts=1
-        frontend=1
-        backend=1
-        containers=1
-        e2e=1
         ;;
 
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
+        Makefile | backend/Makefile | \
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
-        scripts/validation-check.sh | scripts/verify-pr-base.sh | \
-        scripts/verify-merged-pr.sh | scripts/dev.sh)
+        scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
+        scripts/preview-state-test.sh | scripts/release-metrics.sh | \
+        scripts/release-metrics-check.sh | scripts/review-status.sh | \
+        scripts/review-status-test.sh | \
+        scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi
@@ -104,6 +110,7 @@ if [ -n "${changed_files}" ]; then
         mark_application
         contracts=1
         backend=1
+        backend_full=1
         e2e=1
         preview=1
         ;;
@@ -111,7 +118,9 @@ if [ -n "${changed_files}" ]; then
       backend/db/migrations/*)
         mark_application
         backend=1
+        backend_full=1
         containers=1
+        api_image=1
         e2e=1
         local_e2e=1
         preview=1
@@ -121,6 +130,8 @@ if [ -n "${changed_files}" ]; then
         mark_application
         frontend=1
         frontend_audit=1
+        frontend_full=1
+        web_image=1
         containers=1
         e2e=1
         local_e2e=1
@@ -130,6 +141,8 @@ if [ -n "${changed_files}" ]; then
       .nvmrc | tools/typescript-native/*)
         mark_application
         frontend=1
+        frontend_full=1
+        web_image=1
         containers=1
         e2e=1
         local_e2e=1
@@ -139,13 +152,61 @@ if [ -n "${changed_files}" ]; then
       backend/go.mod | backend/go.sum | backend/tools/go.mod | backend/tools/go.sum)
         mark_application
         backend=1
+        backend_full=1
+        backend_deps=1
+        api_image=1
         containers=1
         e2e=1
         local_e2e=1
         preview=1
         ;;
 
-      compose.yaml | compose.dev.yaml | .dockerignore | frontend/Dockerfile | backend/Dockerfile)
+      backend/Dockerfile.ci)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
+        containers=1
+        ;;
+
+      backend/scripts/run-integration-tests.sh)
+        mark_application
+        backend=1
+        backend_full=1
+        ;;
+
+      .dockerignore)
+        mark_application
+        containers=1
+        api_image=1
+        web_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      frontend/Dockerfile)
+        mark_application
+        frontend=1
+        frontend_full=1
+        containers=1
+        web_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      backend/Dockerfile)
+        mark_application
+        backend=1
+        backend_full=1
+        containers=1
+        api_image=1
+        e2e=1
+        local_e2e=1
+        preview=1
+        ;;
+
+      compose.yaml | compose.dev.yaml)
         mark_application
         containers=1
         e2e=1
@@ -168,17 +229,32 @@ if [ -n "${changed_files}" ]; then
         ;;
 
       compose.preview.yaml | backend/.env.preview.example | \
-        backend/scripts/init-preview-env.sh | scripts/preview.sh | scripts/preview-deploy.sh)
-        mark_application
-        containers=1
+        backend/scripts/init-preview-env.sh | scripts/preview.sh | \
+        scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
+        scripts/preview-deploy.sh | scripts/preview-state.sh | \
+        scripts/verify-preview-pr.sh | scripts/uninstall-preview-agent.sh)
+        if [ "${impact}" = "docs" ]; then
+          impact=validation
+        fi
         preview=1
         ;;
 
       compose.production.yaml | backend/.env.production.example | \
         scripts/install-production-agent.sh | scripts/production-lib.sh | \
-        scripts/production-deploy.sh | scripts/production-watch.sh | \
+        scripts/production-deploy.sh | \
         scripts/production-status.sh | scripts/production-retry.sh | \
         scripts/production-rollback.sh)
+        mark_application
+        containers=1
+        ;;
+
+      scripts/check-run-provenance.sh)
+        mark_application
+        containers=1
+        preview=1
+        ;;
+
+      scripts/production-watch.sh)
         mark_application
         containers=1
         ;;
@@ -186,6 +262,7 @@ if [ -n "${changed_files}" ]; then
       backend/db/migration-tests/*)
         mark_application
         backend=1
+        backend_full=1
         ;;
 
       frontend/src/*.test.ts | frontend/src/*.spec.ts | frontend/tests/unit/*)
@@ -208,6 +285,7 @@ if [ -n "${changed_files}" ]; then
       frontend/vite.config.ts | frontend/nginx.conf | frontend/tsconfig*.json)
         mark_application
         frontend=1
+        frontend_full=1
         containers=1
         e2e=1
         local_e2e=1
@@ -219,19 +297,32 @@ if [ -n "${changed_files}" ]; then
         frontend=1
         ;;
 
-      backend/internal/* | backend/cmd/* | backend/db/* | backend/scripts/*)
+      backend/internal/*)
         mark_application
         backend=1
+        preview=1
+        ;;
+
+      backend/cmd/* | backend/db/* | backend/scripts/*)
+        mark_application
+        backend=1
+        backend_full=1
         e2e=1
         preview=1
         ;;
 
       backend/*)
         mark_full
+        backend_deps=1
+        api_image=1
+        web_image=1
         ;;
 
       *)
         mark_full
+        backend_deps=1
+        api_image=1
+        web_image=1
         ;;
     esac
   done
@@ -239,7 +330,9 @@ if [ -n "${changed_files}" ]; then
 fi
 
 if [ "${impact}" = "application" ] && [ "${frontend}" = "1" ] && \
-  [ "${backend}" = "1" ] && [ "${e2e}" = "1" ]; then
+  [ "${backend}" = "1" ]; then
+  backend_full=1
+  e2e=1
   local_e2e=1
 fi
 
@@ -249,8 +342,13 @@ if [ "${output}" = "checks" ]; then
     "contracts=${contracts}" \
     "frontend=${frontend}" \
     "frontend_audit=${frontend_audit}" \
+    "frontend_full=${frontend_full}" \
     "backend=${backend}" \
+    "backend_full=${backend_full}" \
+    "backend_deps=${backend_deps}" \
     "containers=${containers}" \
+    "api_image=${api_image}" \
+    "web_image=${web_image}" \
     "e2e=${e2e}" \
     "local_e2e=${local_e2e}" \
     "preview=${preview}"

@@ -1,13 +1,12 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import {
   type VoucherActionAvailability,
   type VoucherDocumentView,
   type VoucherDraftForm,
   type VoucherEntity,
   type VoucherEntityConfig,
-  type VoucherExecutionForm,
   type VoucherLifecycleAction,
   type VoucherListItem,
   type VoucherMutationResult,
@@ -20,7 +19,6 @@ import { useVoucherArtifacts } from './artifacts'
 import {
   emptyForm,
   formFromDocument,
-  inputReference,
   snapshot,
   type DraftPayload,
 } from './form'
@@ -29,7 +27,12 @@ import { buildVoucherDraftPayload } from './payload'
 import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
-import { canRunListLifecycleAction } from './lifecycle'
+import {
+  canRunListLifecycleAction,
+  createListLifecycleAction,
+  lifecycleActionSuccessLabel,
+  postVoucherLifecycleAction,
+} from './lifecycle'
 import { useVoucherProduction } from './production'
 import { useVoucherPricing } from './pricing'
 import { createVoucherReferenceChangeHandler } from './reference-change'
@@ -54,6 +57,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const selectedParty = ref<VoucherReference | null>(null)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
+  const successMessage = ref<string | null>(null)
   let querySequence = 0
   let queryController: AbortController | null = null
 
@@ -65,6 +69,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   const workspaceError = ref<string | null>(null)
   const documentView = ref<VoucherDocumentView | null>(null)
   const form = ref<VoucherDraftForm>(emptyForm(config))
+  let documentLoadSequence = 0
+  let documentLoadController: AbortController | null = null
   const {
     changeLineProduct: changeFormulaLineProduct,
     resolveLineFormula,
@@ -94,8 +100,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     refreshPriceReferences,
   )
 
-  const executionOpen = ref(false)
-  const executionError = ref<string | null>(null)
   const {
     sourceOptions,
     sourceLoading,
@@ -265,6 +269,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function openCreate(): void {
     if (!canCreate.value) return
+    invalidateDocumentLoad()
     documentView.value = null
     form.value = emptyForm(config)
     initialForm.value = snapshot(form.value)
@@ -285,25 +290,57 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     workspaceOpen.value = true
     workspaceLoading.value = true
     workspaceError.value = null
+    const request = beginDocumentLoad()
     try {
-      await loadDocument(row.documentId)
+      if (!(await applyDocument(row.documentId, request))) return
       const editable = documentView.value?.status === 'DRAFT'
       editing.value = edit && editable && session.can(permission('save'))
       if (actionAvailability.value.audit) void loadAudit(1)
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      if (isCurrentDocumentLoad(request) && !request.controller.signal.aborted)
+        workspaceError.value = getErrorMessage(error)
     } finally {
-      workspaceLoading.value = false
+      if (isCurrentDocumentLoad(request)) workspaceLoading.value = false
     }
   }
 
-  async function loadDocument(documentId?: string): Promise<void> {
-    const id = documentId ?? documentView.value?.documentId
-    if (!id) return
+  type DocumentLoadRequest = {
+    sequence: number
+    controller: AbortController
+  }
+
+  function beginDocumentLoad(): DocumentLoadRequest {
+    documentLoadController?.abort()
+    const controller = new AbortController()
+    documentLoadController = controller
+    return { sequence: ++documentLoadSequence, controller }
+  }
+
+  function isCurrentDocumentLoad(request: DocumentLoadRequest): boolean {
+    return request.sequence === documentLoadSequence
+  }
+
+  function invalidateDocumentLoad(): void {
+    documentLoadSequence += 1
+    documentLoadController?.abort()
+    documentLoadController = null
+    workspaceLoading.value = false
+  }
+
+  async function applyDocument(
+    documentId: string,
+    request: DocumentLoadRequest,
+  ): Promise<boolean> {
     const { data } = await apiClient.post<
       VoucherDocumentView,
       { documentId: string }
-    >(`vou/${config.entity}/get`, { documentId: id })
+    >(
+      `vou/${config.entity}/get`,
+      { documentId },
+      { signal: request.controller.signal },
+    )
+    if (!isCurrentDocumentLoad(request) || request.controller.signal.aborted)
+      return false
     documentView.value = data
     form.value = formFromDocument(data)
     if (data.parentDocumentId && data.parentDocumentNo) {
@@ -326,18 +363,29 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     }
     initialForm.value = snapshot(form.value)
     personnelDirty.clear()
+    if (documentLoadController === request.controller)
+      documentLoadController = null
+    return true
+  }
+
+  async function loadDocument(documentId?: string): Promise<void> {
+    const id = documentId ?? documentView.value?.documentId
+    if (!id) return
+    await applyDocument(id, beginDocumentLoad())
   }
 
   async function reloadDocument(): Promise<void> {
     if (!documentView.value) return
     workspaceLoading.value = true
     workspaceError.value = null
+    const request = beginDocumentLoad()
     try {
-      await loadDocument()
+      await applyDocument(documentView.value.documentId, request)
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      if (isCurrentDocumentLoad(request) && !request.controller.signal.aborted)
+        workspaceError.value = getErrorMessage(error)
     } finally {
-      workspaceLoading.value = false
+      if (isCurrentDocumentLoad(request)) workspaceLoading.value = false
     }
   }
 
@@ -359,11 +407,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   }
 
   function closeWorkspace(): void {
+    invalidateDocumentLoad()
     workspaceOpen.value = false
     documentView.value = null
     editing.value = false
     workspaceError.value = null
-    executionOpen.value = false
     personnelDirty.clear()
     clearReferenceSearches()
     clearSourceDocuments()
@@ -417,6 +465,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       await loadDocument(result.documentId)
       editing.value = true
       await query()
+      successMessage.value = `${result.documentNo} 已保存。`
       return true
     } catch (error) {
       workspaceError.value = getErrorMessage(error)
@@ -429,118 +478,46 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   async function lifecycleAction(
     action: VoucherLifecycleAction,
     reason?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const current = documentView.value
-    if (!current || !actionAvailability.value[action]) return
-    if (action === 'finalize' && config.finalizationKind !== 'direct') {
-      executionError.value = null
-      executionOpen.value = true
-      return
-    }
+    if (!current || !actionAvailability.value[action]) return false
     actionLoading.value = action
     workspaceError.value = null
     try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/${action}`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          ...(reason ? { reason } : {}),
-        },
+      await postVoucherLifecycleAction(
+        config,
+        action,
+        current.documentId,
+        current.revision,
+        reason,
       )
       await loadDocument(current.documentId)
       editing.value = false
-      await Promise.all([query(), loadAudit(1)])
-    } catch (error) {
-      workspaceError.value = getErrorMessage(error)
-    } finally {
-      actionLoading.value = null
-    }
-  }
-
-  async function lifecycleActionFromList(
-    row: VoucherListItem,
-    action: VoucherLifecycleAction,
-    reason?: string,
-  ): Promise<boolean> {
-    if (!canLifecycleAction(row, action)) return false
-    actionLoading.value = `${action}:${row.documentId}`
-    errorMessage.value = null
-    try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/${action}`,
-        {
-          documentId: row.documentId,
-          revision: row.revision,
-          ...(reason ? { reason } : {}),
-        },
-      )
-      await query()
-      if (documentView.value?.documentId === row.documentId) {
-        await loadDocument(row.documentId)
-        if (actionAvailability.value.audit) await loadAudit(1)
-      }
+      successMessage.value = `${current.documentNo} ${lifecycleActionSuccessLabel(action)}。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      workspaceError.value = getDiagnosticErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
+      if (documentView.value?.documentId === current.documentId) {
+        void Promise.allSettled([query(), loadAudit(1)])
+      }
     }
   }
 
-  async function finalize(execution: VoucherExecutionForm): Promise<void> {
-    const current = documentView.value
-    if (!current || !actionAvailability.value.finalize) return
-    actionLoading.value = 'finalize'
-    executionError.value = null
-    try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
-        `vou/${config.entity}/finalize`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          ...(config.finalizationKind === 'sale'
-            ? {
-                outboundDate: execution.outboundDate,
-                signoffDate: execution.signoffDate,
-                platform: inputReference(execution.platform),
-                vehicle: inputReference(execution.vehicle),
-                ...(execution.differenceReason.trim()
-                  ? { differenceReason: execution.differenceReason.trim() }
-                  : {}),
-                saleLines: execution.saleLines.map((line) => ({
-                  lineId: line.lineId,
-                  outboundQuantity: line.outboundQuantity,
-                  signedQuantity: line.signedQuantity,
-                  rejectedQuantity: line.rejectedQuantity,
-                  lossQuantity: line.lossQuantity,
-                })),
-              }
-            : {}),
-          ...(config.finalizationKind === 'purchase'
-            ? {
-                inboundDate: execution.inboundDate,
-                ...(execution.differenceReason.trim()
-                  ? { differenceReason: execution.differenceReason.trim() }
-                  : {}),
-                purchaseLines: execution.purchaseLines.map((line) => ({
-                  lineId: line.lineId,
-                  inboundQuantity: line.inboundQuantity,
-                })),
-              }
-            : {}),
-        },
-      )
-      executionOpen.value = false
-      await loadDocument(current.documentId)
-      await Promise.all([query(), loadAudit(1)])
-    } catch (error) {
-      executionError.value = getErrorMessage(error)
-    } finally {
-      actionLoading.value = null
-    }
-  }
+  const lifecycleActionFromList = createListLifecycleAction({
+    config,
+    rows,
+    documentView,
+    actionLoading,
+    errorMessage,
+    successMessage,
+    canRun: canLifecycleAction,
+    query,
+    loadDocument,
+    loadAudit,
+  })
 
   async function secondaryAction(
     action:
@@ -580,8 +557,9 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         await loadAudit(1)
       }
       await query()
+      successMessage.value = `${current.documentNo} 已删除。`
     } catch (error) {
-      workspaceError.value = getErrorMessage(error)
+      workspaceError.value = getDiagnosticErrorMessage(error)
     } finally {
       actionLoading.value = null
     }
@@ -591,6 +569,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     onScopeDispose(() => {
       querySequence += 1
       queryController?.abort()
+      invalidateDocumentLoad()
     })
   }
 
@@ -605,6 +584,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     selectedParty,
     loading,
     errorMessage,
+    successMessage,
     workspaceOpen,
     workspaceLoading,
     editing,
@@ -620,8 +600,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     canCreate,
     canQuery,
     actionAvailability,
-    executionOpen,
-    executionError,
     attachmentLoading,
     attachmentError,
     auditEvents,
@@ -656,7 +634,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     save,
     lifecycleAction,
     lifecycleActionFromList,
-    finalize,
     secondaryAction,
     uploadAttachments,
     downloadAttachment,

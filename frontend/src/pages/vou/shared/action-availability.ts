@@ -20,9 +20,9 @@ export function useVoucherActionAvailability(
       check: status === 'DRAFT' && can(permission('check')),
       uncheck: status === 'CHECKED' && can(permission('uncheck')),
       approve: status === 'CHECKED' && can(permission('approve')),
-      unapprove: status === 'APPROVED' && can(permission('unapprove')),
-      finalize: status === 'APPROVED' && can(permission('finalize')),
-      unfinalize: status === 'FINALIZED' && can(permission('unfinalize')),
+      unapprove:
+        (status === 'APPROVED' || status === 'FINALIZED') &&
+        can(permission('unapprove')),
       delete: status === 'DRAFT' && can(permission('delete')),
       shortCloseRequest: false,
       shortCloseCancel: false,

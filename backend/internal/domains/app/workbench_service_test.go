@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -11,7 +12,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		"/bob/supplier/approve",
 		"/bob/product/query", "/bob/product/reject",
 		"/vou/sale-order/query", "/vou/sale-order/check",
-		"/vou/supplier-payment/query", "/vou/supplier-payment/finalize",
+		"/vou/purchase-payment/query",
 	})
 
 	draftBob := scope.entitiesWith("bob", func(entity string) bool {
@@ -23,9 +24,6 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	draftVou := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "check")
 	})
-	approvedVou := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "finalize")
-	})
 
 	if !reflect.DeepEqual(draftBob, []string{"customer"}) {
 		t.Fatalf("draft BOB entities = %v", draftBob)
@@ -35,9 +33,6 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	}
 	if !reflect.DeepEqual(draftVou, []string{"sale-order"}) {
 		t.Fatalf("draft VOU entities = %v", draftVou)
-	}
-	if !reflect.DeepEqual(approvedVou, []string{"supplier-payment"}) {
-		t.Fatalf("approved VOU entities = %v", approvedVou)
 	}
 }
 
@@ -88,6 +83,42 @@ func TestFormatWorkbenchMoney(t *testing.T) {
 	for cents, expected := range map[int64]string{0: "0.00", 105: "1.05", -230: "-2.30"} {
 		if actual := formatWorkbenchMoney(cents); actual != expected {
 			t.Fatalf("formatWorkbenchMoney(%d) = %q, want %q", cents, actual, expected)
+		}
+	}
+}
+
+func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
+	item := WorkbenchItem{
+		Category:  WorkbenchCategoryVou,
+		PartyName: requiredWorkbenchString(""),
+		Currency:  requiredWorkbenchString(""),
+	}
+	payload, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"partyName", "currency"} {
+		value, exists := fields[field]
+		if !exists || value != "" {
+			t.Fatalf("%s = %#v, exists = %t", field, value, exists)
+		}
+	}
+
+	objectPayload, err := json.Marshal(WorkbenchItem{Category: WorkbenchCategoryBob})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields = nil
+	if err := json.Unmarshal(objectPayload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"partyName", "currency"} {
+		if _, exists := fields[field]; exists {
+			t.Fatalf("BOB item unexpectedly contains %s", field)
 		}
 	}
 }

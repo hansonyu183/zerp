@@ -89,13 +89,9 @@ describe('VOU completion labels', () => {
       expect(lifecycleLabels(config)).toMatchObject(
         config.entity === 'inventory-count'
           ? {
-              finalize: '完成盘点',
-              unfinalize: '撤销盘点',
               finalized: '已盘点',
             }
           : {
-              finalize: '完成',
-              unfinalize: '撤销完成',
               finalized: '已完成',
             },
       )

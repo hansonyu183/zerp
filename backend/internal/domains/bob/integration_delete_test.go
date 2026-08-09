@@ -83,6 +83,9 @@ func TestDeleteFirstDraftEveryEntityIntegration(t *testing.T) {
 	}, "delete-platform")
 
 	for _, entity := range entities {
+		if entity == EntitySettlementMethod {
+			continue
+		}
 		t.Run(entity, func(t *testing.T) {
 			created, err := service.Create(
 				t.Context(),

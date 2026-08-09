@@ -33,6 +33,7 @@ function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
       version: status === 'EFFECTIVE' ? 2 : 1,
       status,
       revision: 5,
+      submittedBy: null,
       summary: {
         name: '标准产品',
         unit: '件',
@@ -111,6 +112,7 @@ function supplierRow(): BobListItem {
       version: 1,
       status: 'DRAFT',
       revision: 5,
+      submittedBy: null,
       summary: {
         name: '示例供应商',
         supplierType: 'GENERAL',
@@ -184,7 +186,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.currentView.value?.version.revision).toBe(1)
   })
 
-  it('定义全部八类业务对象和完整状态筛选', () => {
+  it('定义全部九类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '状态'],
       supplier: ['编码', '名称', '类型', '状态'],
@@ -194,6 +196,13 @@ describe('shared BOB entity configuration and view model', () => {
       warehouse: ['编码', '名称', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
+      'settlement-method': [
+        '编码',
+        '名称',
+        '术语代码',
+        '销售加价（元/kg）',
+        '状态',
+      ],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {
@@ -210,14 +219,31 @@ describe('shared BOB entity configuration and view model', () => {
   })
 
   it('迁出的辅助对象不再注册为 BOB 页面', () => {
-    for (const entity of [
-      'category',
-      'department',
-      'position',
-      'settlement-method',
-    ]) {
+    for (const entity of ['category', 'department', 'position']) {
       expect(() => getBobEntityConfig(entity)).toThrow()
     }
+  })
+
+  it('阻止提交人审核自己的待审核版本并说明原因', () => {
+    grant('product', 'approve', 'reject')
+    const session = useSessionStore()
+    session.user = {
+      id: 'USER-1',
+      username: 'reviewer',
+      displayName: '审核人',
+    }
+    const pending = row('PENDING')
+    pending.currentVersion.submittedBy = 'USER-1'
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    expect(vm.actionAvailability(pending).approve).toBe(false)
+    expect(vm.actionAvailability(pending).reject).toBe(false)
+    expect(vm.actionBlockedReason(pending, 'approve')).toBe(
+      '提交人不能审核自己提交的版本，请由其他审核人处理。',
+    )
+
+    pending.currentVersion.submittedBy = 'USER-2'
+    expect(vm.actionAvailability(pending).approve).toBe(true)
   })
 
   it('供应商要求不可清空的业务员引用，并在引用不可用时阻止提交', async () => {
@@ -292,6 +318,7 @@ describe('shared BOB entity configuration and view model', () => {
       filters: {
         keyword: 'DEMO-EMP-001',
         status: ['EFFECTIVE'],
+        enabled: true,
       },
       sort: [{ field: 'name', order: 'asc' }],
     })
@@ -517,11 +544,12 @@ describe('shared BOB entity configuration and view model', () => {
     grant('product', 'create', 'query', 'get', 'save')
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce(emptyPage())
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     vm.openCreate()
-    await vm.save({
+    const savedCreated = await vm.save({
       code: ' prd-2 ',
       name: ' 新产品 ',
       unit: ' 件 ',
@@ -537,6 +565,11 @@ describe('shared BOB entity configuration and view model', () => {
       barcode: '',
       remark: '',
     })
+
+    expect(
+      savedCreated,
+      `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.post.mock.calls)}`,
+    ).toBe(true)
 
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       1,
@@ -559,9 +592,10 @@ describe('shared BOB entity configuration and view model', () => {
     mockedApiClient.post
       .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation() })
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce(emptyPage())
     await vm.openEdit(row())
-    await vm.save({
+    const savedUpdate = await vm.save({
       code: 'PRD-1',
       name: '标准产品',
       unit: '件',
@@ -577,6 +611,8 @@ describe('shared BOB entity configuration and view model', () => {
       barcode: '',
       remark: '',
     })
+
+    expect(savedUpdate, vm.editorErrorMessage.value ?? '').toBe(true)
 
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
       2,

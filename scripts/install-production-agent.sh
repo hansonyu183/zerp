@@ -10,6 +10,7 @@ env_file=${ZERP_PRODUCTION_ENV_FILE:-${state_root}/backend/.env.production.local
 label=com.hansonyu.zerp-production-deploy
 launch_agent="${HOME}/Library/LaunchAgents/${label}.plist"
 controller="${runtime_root}/production-watch.sh"
+provenance="${runtime_root}/check-run-provenance.sh"
 
 test -f "${env_file}" || {
   echo "Missing production environment: ${env_file}" >&2
@@ -19,13 +20,21 @@ test -r "${HOME}/.secrets/cloudflare/account_id_bytesucceed" || {
   echo "Missing Cloudflare account ID" >&2
   exit 1
 }
+test -r "${HOME}/.secrets/cloudflare/api_token_workers_access" || {
+  echo "Missing Cloudflare Workers API token" >&2
+  exit 1
+}
 
 chmod 600 "${env_file}" \
-  "${HOME}/.secrets/cloudflare/account_id_bytesucceed"
+  "${HOME}/.secrets/cloudflare/account_id_bytesucceed" \
+  "${HOME}/.secrets/cloudflare/api_token_workers_access"
 mkdir -p "${runtime_root}" "${HOME}/Library/LaunchAgents"
 chmod 700 "${runtime_root}"
-cp "${repo_root}/scripts/production-watch.sh" "${controller}"
-chmod 700 "${controller}"
+cp "${repo_root}/scripts/check-run-provenance.sh" "${provenance}.new"
+cp "${repo_root}/scripts/production-watch.sh" "${controller}.new"
+chmod 700 "${provenance}.new" "${controller}.new"
+mv "${provenance}.new" "${provenance}"
+mv "${controller}.new" "${controller}"
 
 cat > "${launch_agent}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

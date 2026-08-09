@@ -17,11 +17,11 @@
           'order-production',
           'self-production',
           'inventory-count',
-          'customer-receipt',
-          'supplier-receipt',
+          'sales-receipt',
+          'purchase-refund',
           'other-receipt',
-          'customer-payment',
-          'supplier-payment',
+          'sales-refund',
+          'purchase-payment',
           'other-payment',
           'employee-loan',
           'employee-repayment',
@@ -33,6 +33,12 @@
           'asset-depreciation',
           'asset-sale',
           'asset-liquidation',
+          'bill-receipt',
+          'bill-payment',
+          'bill-issue',
+          'bill-discount',
+          'bill-maturity',
+          'intermediary-calculation',
         ],
     },
   'VouCreatableEntity':
@@ -50,11 +56,11 @@
           'order-production',
           'self-production',
           'inventory-count',
-          'customer-receipt',
-          'supplier-receipt',
+          'sales-receipt',
+          'purchase-refund',
           'other-receipt',
-          'customer-payment',
-          'supplier-payment',
+          'sales-refund',
+          'purchase-payment',
           'other-payment',
           'employee-loan',
           'employee-repayment',
@@ -65,7 +71,327 @@
           'asset-depreciation',
           'asset-sale',
           'asset-liquidation',
+          'bill-receipt',
+          'bill-payment',
+          'bill-issue',
+          'bill-discount',
+          'bill-maturity',
+          'intermediary-calculation',
         ],
+    },
+  'VouIntermediaryReference':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'entity':
+            {
+              'type': 'string',
+              'enum': ['customer', 'employee', 'other-party', 'product'],
+            },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'VouIntermediarySourceLine':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceSignoffLineId',
+          'sourceKind',
+          'signoffDocumentId',
+          'signoffDocumentNo',
+          'signoffDate',
+          'orderDocumentId',
+          'orderDocumentNo',
+          'orderDate',
+          'dueDate',
+          'collectionDate',
+          'collectionDelayDays',
+          'customer',
+          'salesperson',
+          'product',
+          'productKind',
+          'signedQuantity',
+          'pricingQuantity',
+          'barrelQuantity',
+          'unitPrice',
+          'referenceUnitPrice',
+          'settlementSurcharge',
+          'rebateUnitPrice',
+          'lineAmount',
+          'settlementTermCode',
+          'specialApproval',
+          'adjustmentEmployeeAmount',
+          'adjustmentIntermediaryAmount',
+          'adjustmentRebateAmount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceSignoffLineId': { 'type': 'string' },
+          'sourceKind':
+            { 'type': 'string', 'enum': ['SALE', 'RETURN_ADJUSTMENT'] },
+          'signoffDocumentId': { 'type': 'string' },
+          'signoffDocumentNo': { 'type': 'string' },
+          'signoffDate': { 'type': 'string', 'format': 'date' },
+          'orderDocumentId': { 'type': 'string' },
+          'orderDocumentNo': { 'type': 'string' },
+          'orderDate': { 'type': 'string', 'format': 'date' },
+          'dueDate': { 'type': 'string', 'format': 'date' },
+          'collectionDate': { 'type': 'string', 'format': 'date' },
+          'collectionDelayDays': { 'type': 'integer', 'minimum': 0 },
+          'customer': { '$ref': '#/VouIntermediaryReference' },
+          'salesperson': { '$ref': '#/VouIntermediaryReference' },
+          'intermediary': { '$ref': '#/VouIntermediaryReference' },
+          'product': { '$ref': '#/VouIntermediaryReference' },
+          'productKind': { 'type': 'string' },
+          'signedQuantity': { 'type': 'string' },
+          'pricingQuantity': { 'type': 'string' },
+          'barrelQuantity': { 'type': 'string' },
+          'unitPrice': { 'type': 'string' },
+          'referenceUnitPrice': { 'type': 'string' },
+          'settlementSurcharge': { 'type': 'string' },
+          'rebateUnitPrice': { 'type': 'string' },
+          'lineAmount': { 'type': 'string' },
+          'settlementTermCode': { 'type': 'string' },
+          'specialApproval': { 'type': 'boolean' },
+          'returnDocumentNos':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
+          'adjustmentEmployeeAmount': { 'type': 'string' },
+          'adjustmentIntermediaryAmount': { 'type': 'string' },
+          'adjustmentRebateAmount': { 'type': 'string' },
+        },
+    },
+  'VouIntermediarySourceBill':
+    {
+      'type': 'object',
+      'required':
+        [
+          'billLineId',
+          'receiptDocumentId',
+          'receiptDocumentNo',
+          'receiptDate',
+          'customer',
+          'salesperson',
+          'billType',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'costDays',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billLineId': { 'type': 'string' },
+          'receiptDocumentId': { 'type': 'string' },
+          'receiptDocumentNo': { 'type': 'string' },
+          'receiptDate': { 'type': 'string', 'format': 'date' },
+          'customer': { '$ref': '#/VouIntermediaryReference' },
+          'salesperson': { '$ref': '#/VouIntermediaryReference' },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'costDays': { 'type': 'integer', 'minimum': 0 },
+        },
+    },
+  'VouIntermediaryCalculationSource':
+    {
+      'type': 'object',
+      'required': ['periodStart', 'periodEnd', 'currency', 'lines', 'bills'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'periodStart': { 'type': 'string', 'format': 'date' },
+          'periodEnd': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'enum': ['CNY'] },
+          'lines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySourceLine' },
+            },
+          'bills':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySourceBill' },
+            },
+        },
+    },
+  'VouIntermediaryResultLine':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceSignoffLineId',
+          'premiumUnitPrice',
+          'barrelQuantity',
+          'baseCommission',
+          'premiumCommission',
+          'lowPriceCommission',
+          'marketMaintenanceSubsidy',
+          'marketDevelopmentSubsidy',
+          'billCost',
+          'billLineIds',
+          'employeeAmount',
+          'intermediaryAmount',
+          'rebateAmount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceSignoffLineId': { 'type': 'string' },
+          'premiumUnitPrice': { 'type': 'string' },
+          'barrelQuantity': { 'type': 'string' },
+          'baseCommission': { 'type': 'string' },
+          'premiumCommission': { 'type': 'string' },
+          'lowPriceCommission': { 'type': 'string' },
+          'marketMaintenanceSubsidy': { 'type': 'string' },
+          'marketDevelopmentSubsidy': { 'type': 'string' },
+          'billCost': { 'type': 'string' },
+          'billLineIds':
+            {
+              'type': 'array',
+              'items': { 'type': 'string' },
+              'uniqueItems': true,
+            },
+          'employeeAmount': { 'type': 'string' },
+          'intermediaryAmount': { 'type': 'string' },
+          'rebateAmount': { 'type': 'string' },
+          'note': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouIntermediarySummary':
+    {
+      'type': 'object',
+      'required': ['payee', 'category', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'payee': { '$ref': '#/VouIntermediaryReference' },
+          'category':
+            {
+              'type': 'string',
+              'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+            },
+          'amount': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryCalculationResult':
+    {
+      'type': 'object',
+      'required': ['lines', 'summaries'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'lines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediaryResultLine' },
+            },
+          'summaries':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouIntermediarySummary' },
+            },
+        },
+    },
+  'VouIntermediaryScriptSnapshot':
+    {
+      'type': 'object',
+      'required': ['scriptId', 'revision', 'name', 'source', 'hash'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scriptId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
+          'hash': { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+        },
+    },
+  'VouIntermediaryCalculationInput':
+    {
+      'type': 'object',
+      'required': ['source', 'sourceHash', 'script', 'result'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'source': { '$ref': '#/VouIntermediaryCalculationSource' },
+          'sourceHash': { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+          'script': { '$ref': '#/VouIntermediaryScriptSnapshot' },
+          'result': { '$ref': '#/VouIntermediaryCalculationResult' },
+        },
+    },
+  'VouIntermediarySourceRequest':
+    {
+      'type': 'object',
+      'required': ['businessDate'],
+      'additionalProperties': false,
+      'properties': { 'businessDate': { 'type': 'string', 'format': 'date' } },
+    },
+  'VouIntermediarySourceResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['source', 'sourceHash'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'source': { '$ref': '#/VouIntermediaryCalculationSource' },
+                  'sourceHash':
+                    { 'type': 'string', 'pattern': '^[a-f0-9]{64}$' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryScriptGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/VouIntermediaryScriptSnapshot' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'VouIntermediaryScriptSaveRequest':
+    {
+      'type': 'object',
+      'required': ['revision', 'name', 'source'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
+        },
     },
   'VouStatus':
     {
@@ -80,6 +406,519 @@
           'CONFIRMED',
           'EXECUTED',
         ],
+    },
+  'VouBillPrimaryLineInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'positionType',
+          'direction',
+          'purpose',
+          'billType',
+          'billNo',
+          'medium',
+          'currency',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'drawer',
+          'acceptor',
+          'payee',
+          'annualRateBps',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'positionType': { 'type': 'string', 'enum': ['ASSET'] },
+          'direction': { 'type': 'string', 'enum': ['IN'] },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'billNo': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'acceptor': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'payee': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'annualRateBps':
+            { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillChangeLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['CHANGE'] },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillIssueLineInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'positionType',
+          'direction',
+          'purpose',
+          'billType',
+          'billNo',
+          'medium',
+          'currency',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'drawer',
+          'acceptor',
+          'payee',
+          'annualRateBps',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'positionType': { 'type': 'string', 'enum': ['LIABILITY'] },
+          'direction': { 'type': 'string', 'enum': ['IN'] },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'billNo': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'acceptor': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'payee': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'annualRateBps':
+            { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillIssueDataInput':
+    {
+      'type': 'object',
+      'required':
+        ['businessDate', 'currency', 'supplier', 'billLines', 'interestMode'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'supplier':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'interestMode':
+            {
+              'type': 'string',
+              'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+            },
+          'interestParty':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillIssueLineInput' },
+            },
+          'billCashLines':
+            {
+              'type': 'array',
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillIssueCashLineInput' },
+            },
+        },
+    },
+  'VouBillIssueCashLineInput':
+    {
+      'type': 'object',
+      'required': ['fundAccount', 'direction', 'amountType', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fundAccount':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'amountType':
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillPaymentLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillPaymentDataInput':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency', 'supplier', 'billLines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'supplier':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillPaymentLineInput' },
+            },
+        },
+    },
+  'VouBillDiscountLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose', 'annualRateBps'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'annualRateBps':
+            { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillDiscountCashLineInput':
+    {
+      'type': 'object',
+      'required': ['fundAccount', 'direction', 'amountType', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fundAccount':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'amountType':
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillDiscountDataInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'businessDate',
+          'currency',
+          'counterparty',
+          'counterpartyType',
+          'billLines',
+          'interestMode',
+          'withRecourse',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'counterparty':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'counterpartyType': { 'type': 'string', 'enum': ['other-party'] },
+          'interestMode':
+            {
+              'type': 'string',
+              'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+            },
+          'interestParty':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'withRecourse': { 'type': 'boolean' },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillDiscountLineInput' },
+            },
+          'billCashLines':
+            {
+              'type': 'array',
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillDiscountCashLineInput' },
+            },
+        },
+    },
+  'VouBillMaturityLineInput':
+    {
+      'type': 'object',
+      'required': ['billId', 'purpose'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string', 'minLength': 1 },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY'] },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillMaturityDataInput':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency', 'maturityType', 'billLines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string', 'minLength': 3, 'maxLength': 3 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+          'maturityType': { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
+          'billLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillMaturityLineInput' },
+            },
+          'billCashLines':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 20,
+              'items': { '$ref': '#/VouBillCashLineInput' },
+            },
+        },
+    },
+  'VouBillLineInput':
+    {
+      'oneOf':
+        [
+          { '$ref': '#/VouBillPrimaryLineInput' },
+          { '$ref': '#/VouBillChangeLineInput' },
+          { '$ref': '#/VouBillPaymentLineInput' },
+          { '$ref': '#/VouBillIssueLineInput' },
+          { '$ref': '#/VouBillDiscountLineInput' },
+          { '$ref': '#/VouBillMaturityLineInput' },
+        ],
+    },
+  'VouBillCashLineInput':
+    {
+      'type': 'object',
+      'required': ['fundAccount', 'direction', 'amountType', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billLineId': { 'type': 'string' },
+          'fundAccount':
+            {
+              'type': 'object',
+              'required': ['objectId', 'versionId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'versionId': { 'type': 'string' },
+                },
+            },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'amountType':
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'VouBillReferenceView':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+        },
+    },
+  'VouBillLineView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'lineId',
+          'lineNo',
+          'billId',
+          'positionType',
+          'direction',
+          'purpose',
+          'billType',
+          'billNo',
+          'medium',
+          'currency',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'drawer',
+          'acceptor',
+          'payee',
+          'annualRateBps',
+          'interestDays',
+          'interestAmount',
+          'customerCostAmount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer', 'minimum': 1, 'maximum': 20 },
+          'billId': { 'type': 'string' },
+          'positionType': { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'purpose': { 'type': 'string', 'enum': ['PRIMARY', 'CHANGE'] },
+          'billType':
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
+          'billNo': { 'type': 'string' },
+          'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
+          'currency': { 'type': 'string' },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string' },
+          'acceptor': { 'type': 'string' },
+          'payee': { 'type': 'string' },
+          'annualRateBps': { 'type': 'integer', 'minimum': 0 },
+          'interestDays': { 'type': 'integer', 'minimum': 0 },
+          'interestAmount': { 'type': 'string' },
+          'customerCostAmount': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouBillCashLineView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'lineId',
+          'lineNo',
+          'fundAccount',
+          'direction',
+          'amountType',
+          'amount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer', 'minimum': 1, 'maximum': 20 },
+          'billLineId': { 'type': 'string' },
+          'fundAccount': { '$ref': '#/VouBillReferenceView' },
+          'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
+          'amountType':
+            {
+              'type': 'string',
+              'enum': ['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER'],
+            },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
     },
   'VouInventoryCountLineInput':
     {
@@ -301,6 +1140,9 @@
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
                   'returnReason': { 'type': 'string' },
+                  'specialApproval': { 'type': 'boolean' },
+                  'intermediaryCalculation':
+                    { '$ref': '#/VouIntermediaryCalculationInput' },
                   'customer':
                     {
                       'type': 'object',
@@ -324,6 +1166,11 @@
                         },
                     },
                   'counterpartyType': { 'type': 'string' },
+                  'otherCategory':
+                    {
+                      'type': 'string',
+                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                    },
                   'counterparty':
                     {
                       'type': 'object',
@@ -484,6 +1331,40 @@
                     },
                   'sourceName': { 'type': 'string' },
                   'amount': { 'type': 'string' },
+                  'internalCostRateBps':
+                    { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+                  'interestMode':
+                    {
+                      'type': 'string',
+                      'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+                    },
+                  'maturityType':
+                    { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
+                  'interestParty':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'withRecourse': { 'type': 'boolean' },
+                  'billLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 20,
+                      'items': { '$ref': '#/VouBillLineInput' },
+                    },
+                  'billCashLines':
+                    {
+                      'type': 'array',
+                      'maxItems': 20,
+                      'items': { '$ref': '#/VouBillCashLineInput' },
+                    },
                   'productLines':
                     {
                       'type': 'array',
@@ -633,6 +1514,9 @@
                   'currency': { 'type': 'string' },
                   'remark': { 'type': 'string' },
                   'returnReason': { 'type': 'string' },
+                  'specialApproval': { 'type': 'boolean' },
+                  'intermediaryCalculation':
+                    { '$ref': '#/VouIntermediaryCalculationInput' },
                   'customer':
                     {
                       'type': 'object',
@@ -656,6 +1540,11 @@
                         },
                     },
                   'counterpartyType': { 'type': 'string' },
+                  'otherCategory':
+                    {
+                      'type': 'string',
+                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                    },
                   'counterparty':
                     {
                       'type': 'object',
@@ -816,6 +1705,40 @@
                     },
                   'sourceName': { 'type': 'string' },
                   'amount': { 'type': 'string' },
+                  'internalCostRateBps':
+                    { 'type': 'integer', 'minimum': 0, 'maximum': 100000 },
+                  'interestMode':
+                    {
+                      'type': 'string',
+                      'enum': ['BANK_DEDUCTED', 'THIRD_PARTY_PAYABLE'],
+                    },
+                  'maturityType':
+                    { 'type': 'string', 'enum': ['RECEIPT', 'PAYMENT'] },
+                  'interestParty':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'versionId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'versionId': { 'type': 'string' },
+                        },
+                    },
+                  'withRecourse': { 'type': 'boolean' },
+                  'billLines':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'maxItems': 20,
+                      'items': { '$ref': '#/VouBillLineInput' },
+                    },
+                  'billCashLines':
+                    {
+                      'type': 'array',
+                      'maxItems': 20,
+                      'items': { '$ref': '#/VouBillCashLineInput' },
+                    },
                   'productLines':
                     {
                       'type': 'array',
@@ -1286,63 +2209,6 @@
           'documentId': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
           'reason': { 'type': 'string' },
-        },
-    },
-  'VouFinalizeRequest':
-    {
-      'type': 'object',
-      'required': ['documentId', 'revision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'documentId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'outboundDate': { 'type': 'string', 'format': 'date' },
-          'signoffDate': { 'type': 'string', 'format': 'date' },
-          'inboundDate': { 'type': 'string', 'format': 'date' },
-          'platform':
-            {
-              'type': 'object',
-              'required': ['objectId', 'versionId'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
-            },
-          'vehicle':
-            {
-              'type': 'object',
-              'required': ['objectId', 'versionId'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
-            },
-          'differenceReason': { 'type': 'string' },
-          'saleLines':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
-          'purchaseLines':
-            {
-              'type': 'array',
-              'items':
-                {
-                  'type': 'object',
-                  'additionalProperties': true,
-                  'properties': {},
-                },
-            },
         },
     },
   'VouHistoryRequest':

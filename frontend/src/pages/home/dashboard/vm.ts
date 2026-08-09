@@ -6,8 +6,8 @@ import {
   rejectBusinessObject,
   submitBusinessObject,
 } from '@/api/bob'
-import { getErrorMessage } from '@/api/types'
-import { approveVoucher, checkVoucher, finalizeVoucher } from '@/api/vou'
+import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
+import { approveVoucher, checkVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
@@ -47,12 +47,13 @@ function emptyState(): WorkbenchListState {
 }
 
 export function useDashboardViewModel() {
-  const activeCategory = ref<WorkbenchCategory>('BOB')
+  const activeCategory = ref<WorkbenchCategory>('VOU')
   const states = reactive<Record<WorkbenchCategory, WorkbenchListState>>({
     BOB: emptyState(),
     VOU: emptyState(),
   })
   const actionLoading = ref<string | null>(null)
+  const successMessage = ref<string | null>(null)
   const activeState = computed(() => states[activeCategory.value])
 
   async function query(
@@ -146,15 +147,21 @@ export function useDashboardViewModel() {
           await checkVoucher(item.entity, request)
         } else if (action === 'approve') {
           await approveVoucher(item.entity, request)
-        } else if (action === 'finalize') {
-          await finalizeVoucher(item.entity, request)
         }
       }
       if (state.rows.length === 1 && state.page > 1) state.page -= 1
       await query(category)
+      const identity = item.category === 'BOB' ? item.code : item.documentNo
+      const label = {
+        submit: '已提交审核',
+        approve: item.category === 'BOB' ? '已审核通过' : '已批准',
+        reject: '已审核驳回',
+        check: '已核对',
+      }[action]
+      successMessage.value = `${identity} ${label}。`
       return true
     } catch (error) {
-      const message = getErrorMessage(error)
+      const message = getDiagnosticErrorMessage(error)
       await query(category)
       state.errorMessage = message
       return false
@@ -168,6 +175,7 @@ export function useDashboardViewModel() {
     states,
     activeState,
     actionLoading,
+    successMessage,
     query,
     selectCategory,
     changePage,

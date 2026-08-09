@@ -122,7 +122,38 @@ describe('ListRowActions', () => {
     })
 
     expect(
-      wrapper.findAll('button').every((button) => button.attributes('disabled') !== undefined),
+      wrapper
+        .findAll('button')
+        .every((button) => button.attributes('disabled') !== undefined),
     ).toBe(true)
+  })
+
+  it('explains why an available row action is disabled', () => {
+    const wrapper = mount(ListRowActions, {
+      props: {
+        primary: [
+          {
+            key: 'approve',
+            label: '审核通过',
+            icon: 'mdi-check',
+            disabled: true,
+            disabledReason: '提交人不能审核自己提交的版本。',
+          },
+        ],
+      },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VIcon: defineComponent({ render: () => h('span') }),
+        },
+      },
+    })
+
+    expect(
+      wrapper.get('span.list-row-actions__primary').attributes('title'),
+    ).toBe('提交人不能审核自己提交的版本。')
+    expect(wrapper.get('button').attributes('aria-label')).toBe(
+      '审核通过：提交人不能审核自己提交的版本。',
+    )
   })
 })

@@ -25,3 +25,16 @@ func TestClosingRejectsInvalidCostConsumption(t *testing.T) {
 		t.Fatal("consumeInventoryCost accepted insufficient inventory")
 	}
 }
+
+func TestClosingPartyRowIDUsesFullSnapshotDimension(t *testing.T) {
+	t.Parallel()
+	trade := closingPartyRowID("TRADE", "customer", "01JTESTCUSTOMER0000000000", "CNY")
+	other := closingPartyRowID("OTHER", "customer", "01JTESTCUSTOMER0000000000", "CNY")
+	foreign := closingPartyRowID("TRADE", "customer", "01JTESTCUSTOMER0000000000", "USD")
+	if trade != "TRADE/customer/01JTESTCUSTOMER0000000000/CNY" {
+		t.Fatalf("trade closing party row id = %q", trade)
+	}
+	if trade == other || trade == foreign || other == foreign {
+		t.Fatalf("closing party row ids are not unique: %q %q %q", trade, other, foreign)
+	}
+}

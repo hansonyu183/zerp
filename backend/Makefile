@@ -5,46 +5,17 @@ STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
 BACKEND_COVERAGE_MIN ?= 10.5
 override E2E_ENV_FILE := .env.e2e.local
-override E2E_PROJECT := zerp-api-e2e
 override TEST_PROJECT := zerp-api-test
 TEST_POSTGRES_PORT ?= 55434
+TEST_INTEGRATION_JOBS ?= 3
 TEST_DATABASE_URL_EFFECTIVE = postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:$(TEST_POSTGRES_PORT)/$(TEST_POSTGRES_DB)?sslmode=disable
 TEST_COMPOSE = POSTGRES_PORT=$(TEST_POSTGRES_PORT) docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
-E2E_CLEAN_ENV = env \
-	-u APP_ENV \
-	-u API_PORT \
-	-u POSTGRES_PORT \
-	-u POSTGRES_DB \
-	-u POSTGRES_USER \
-	-u POSTGRES_PASSWORD \
-	-u CORS_ALLOWED_ORIGINS \
-	-u DATABASE_CONNECT_TIMEOUT \
-	-u DATABASE_HEALTH_TIMEOUT \
-	-u HTTP_READ_HEADER_TIMEOUT \
-	-u HTTP_READ_TIMEOUT \
-	-u HTTP_WRITE_TIMEOUT \
-	-u HTTP_IDLE_TIMEOUT \
-	-u SHUTDOWN_TIMEOUT \
-	-u APP_SESSION_COOKIE_NAME \
-	-u APP_SESSION_COOKIE_SECURE \
-	-u APP_SESSION_COOKIE_SAME_SITE \
-	-u APP_SESSION_IDLE_TIMEOUT \
-	-u APP_SESSION_ABSOLUTE_TIMEOUT \
-	-u APP_SIGNIN_LOCK_THRESHOLD \
-	-u APP_SIGNIN_LOCK_DURATION \
-	-u APP_PASSWORD_MIN_LENGTH \
-	-u ATTACHMENT_UPLOAD_TOKEN_TTL \
-	-u ATTACHMENT_DOWNLOAD_TOKEN_TTL \
-	-u FEEDBACK_ATTACHMENT_ORPHAN_TTL \
-	-u FEEDBACK_GITHUB_ENABLED
-E2E_COMPOSE = $(E2E_CLEAN_ENV) docker compose -p $(E2E_PROJECT) -f compose.e2e.yaml --env-file $(E2E_ENV_FILE)
-
 ifneq (,$(wildcard ./$(ENV_FILE)))
 include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-generated quality-format quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard e2e-up e2e-down e2e-reset e2e-status
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -95,17 +66,8 @@ test-migration-upgrade: test-db-prepare
 		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$after_fixture"
 
 test-integration:
-	@packages="$$(git ls-files --cached --others --exclude-standard '*_test.go' | \
-		while IFS= read -r file; do \
-			if grep -q '^//go:build integration' "$$file"; then dirname "$$file"; fi; \
-		done | LC_ALL=C sort -u)"; \
-		test -n "$$packages" || { echo "no integration test packages found" >&2; exit 1; }; \
-		for package in $$packages; do \
-			echo "==> isolated integration package $$package"; \
-			$(MAKE) --no-print-directory test-migration-upgrade; \
-			TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" TEST_DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" \
-				go test -tags=integration "./$$package" -count=1 -v; \
-		done
+	@ENV_FILE="$(ENV_FILE)" TEST_INTEGRATION_JOBS="$(TEST_INTEGRATION_JOBS)" \
+		./scripts/run-integration-tests.sh
 
 generate:
 	go -C tools tool sqlc generate -f ../sqlc.yaml
@@ -125,20 +87,29 @@ quality-core:
 	@$(MAKE) quality-staticcheck
 	@$(MAKE) quality-vuln
 
+quality-fast:
+	@$(MAKE) quality-format-fast
+	@$(MAKE) test-unit
+	@$(MAKE) quality-vet-build
+
 quality-generated:
 	@before="$$(find internal/database/sqlc -type f -name '*.go' -print | LC_ALL=C sort | while IFS= read -r file; do printf '%s ' "$$file"; git hash-object "$$file"; done)"; \
 		$(MAKE) generate; \
 		after="$$(find internal/database/sqlc -type f -name '*.go' -print | LC_ALL=C sort | while IFS= read -r file; do printf '%s ' "$$file"; git hash-object "$$file"; done)"; \
 		test "$$before" = "$$after" || { echo "sqlc generated files changed; review and stage them before rerunning quality" >&2; exit 1; }
 
-quality-format:
+quality-format: quality-format-fast quality-modules
+
+quality-format-fast:
 	@test -z "$$(gofmt -l $$(git ls-files '*.go'))" || { gofmt -l $$(git ls-files '*.go'); exit 1; }
+	git diff --check
+	git diff --cached --check
+
+quality-modules:
 	go mod tidy -diff
 	go -C tools mod tidy -diff
 	go mod verify
 	go -C tools mod verify
-	git diff --check
-	git diff --cached --check
 
 quality-actionlint:
 	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) ../.github/workflows/*.yml
@@ -225,7 +196,6 @@ e2e-env-init:
 
 e2e-env-rotate: e2e-guard
 	@./scripts/init-e2e-env.sh --rotate
-	@$(MAKE) e2e-reset
 
 e2e-guard:
 	@test -f "$(E2E_ENV_FILE)" || (echo "$(E2E_ENV_FILE) is missing; run make e2e-env-init" >&2; exit 1)
@@ -240,29 +210,3 @@ e2e-guard:
 			postgres://zerp_e2e:*@127.0.0.1:55435/zerp_e2e?sslmode=disable) ;; \
 			*) echo "E2E DATABASE_URL must target 127.0.0.1:55435/zerp_e2e" >&2; exit 1 ;; \
 		esac
-
-e2e-up: e2e-guard
-	@$(E2E_COMPOSE) up -d --wait db
-	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) migrate-up
-	@user_count="$$( $(E2E_COMPOSE) exec -T db sh -eu -c \
-		'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Atqc "SELECT count(*) FROM app_users"' )"; \
-		if [ "$$user_count" = "0" ]; then \
-			$(MAKE) ENV_FILE=$(E2E_ENV_FILE) bootstrap-admin; \
-		else \
-			echo "E2E administrator already initialized"; \
-		fi
-	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) seed-preview
-	@$(E2E_COMPOSE) up --build -d --wait api
-	@echo "E2E API ready at http://127.0.0.1:18081"
-
-e2e-down: e2e-guard
-	@$(E2E_COMPOSE) down
-
-e2e-reset: e2e-guard
-	@echo "Removing only $(E2E_PROJECT) containers and volumes"
-	@$(E2E_COMPOSE) down --volumes --remove-orphans
-	@$(MAKE) e2e-up
-
-e2e-status: e2e-guard
-	@$(E2E_COMPOSE) ps
-	@$(MAKE) ENV_FILE=$(E2E_ENV_FILE) migrate-status

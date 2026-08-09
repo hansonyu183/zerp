@@ -69,15 +69,74 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('显示两个待处理 Tab 并按需查询对应类别', async () => {
+  it('业务菜单隐藏时仍按权限和页面注册表提供待办实体筛选', async () => {
+    mockedPost.mockResolvedValue(
+      page([{ ...documentItem, entity: 'runtime-voucher' }]),
+    )
     const router = createTestRouter()
     const pinia = createPinia()
-    useSessionStore(pinia).permissions = [
+    const session = useSessionStore(pinia)
+    session.permissions = [
       '/bob/customer/query',
       '/bob/customer/submit',
       '/vou/sale-order/query',
       '/vou/sale-order/check',
+      '/vou/developing-invoice/query',
+      '/vou/developing-invoice/check',
     ]
+    const navigation = {
+      revision: 1,
+      items: [
+        {
+          id: 'business',
+          parentId: null,
+          type: 'GROUP' as const,
+          level: 1,
+          order: 10,
+          displayName: '业务',
+          icon: null,
+          enabled: true,
+          routeKey: null,
+          routePath: null,
+          permissionCode: null,
+        },
+        {
+          id: 'customer',
+          parentId: 'business',
+          type: 'ROUTE' as const,
+          level: 2,
+          order: 10,
+          displayName: '客户',
+          icon: null,
+          enabled: true,
+          routeKey: 'bob/customer',
+          routePath: '/bob/customer',
+          permissionCode: '/bob/customer/query',
+        },
+        {
+          id: 'sale-order',
+          parentId: 'business',
+          type: 'ROUTE' as const,
+          level: 2,
+          order: 20,
+          displayName: '销售订单',
+          icon: null,
+          enabled: true,
+          routeKey: 'vou/sale-order',
+          routePath: '/vou/sale-order',
+          permissionCode: '/vou/sale-order/query',
+        },
+      ],
+    }
+    session.applyMenuData({
+      mode: 'DEFAULT',
+      modeRevision: 1,
+      catalogRevision: 'catalog-revision',
+      defaultMenu: navigation,
+      businessTemplate: navigation,
+      navigation,
+      availableRoutes: [],
+    })
     await router.push('/home/dashboard')
 
     const wrapper = mount(Dashboard, {
@@ -125,14 +184,59 @@ describe('Dashboard workbench', () => {
     })
 
     await flushPromises()
-    expect(wrapper.text()).toContain('待处理资料')
-    expect(wrapper.text()).toContain('待处理单据')
+    expect(wrapper.text()).toContain('待办单据')
+    expect(wrapper.text()).toContain('待办资料')
+    expect(wrapper.text().indexOf('待办单据')).toBeLessThan(
+      wrapper.text().indexOf('待办资料'),
+    )
     expect(wrapper.text()).not.toContain('集中处理')
     expect(wrapper.text()).toContain('类型')
     expect(wrapper.text()).toContain('待办状态')
+    expect(wrapper.findAll('nav button').map((tab) => tab.text())).toEqual([
+      '待办单据',
+      '待办资料',
+    ])
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '客户', value: 'customer' }])
+    ).toEqual([
+      { title: '销售订单', value: 'sale-order' },
+      { title: '开发中：Developing Invoice', value: 'developing-invoice' },
+      { title: '开发中：runtime voucher', value: 'runtime-voucher' },
+    ])
+    session.applyMenuData({
+      mode: 'DEFAULT',
+      modeRevision: 2,
+      catalogRevision: 'catalog-revision',
+      defaultMenu: { ...navigation, items: [] },
+      businessTemplate: { ...navigation, items: [] },
+      navigation: { ...navigation, items: [] },
+      availableRoutes: [],
+    })
+    await flushPromises()
+    expect(
+      wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
+    ).toEqual([
+      { title: '销售订单', value: 'sale-order' },
+      { title: '开发中：Developing Invoice', value: 'developing-invoice' },
+      { title: '开发中：runtime voucher', value: 'runtime-voucher' },
+    ])
+    expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
+    expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
+      category: 'VOU',
+      page: 1,
+      pageSize: 20,
+    })
+
+    mockedPost.mockResolvedValueOnce(page([objectItem]))
+    wrapper
+      .findComponent({ name: 'VTabs' })
+      .vm.$emit('update:modelValue', 'BOB')
+    await flushPromises()
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'BOB',
+      page: 1,
+      pageSize: 20,
+    })
     expect(wrapper.findComponent({ name: 'BusinessObjectList' }).exists()).toBe(
       true,
     )
@@ -142,37 +246,14 @@ describe('Dashboard workbench', () => {
         .props('columns')
         .map((column: { label: string }) => column.label),
     ).toEqual(['类型', '编码', '名称', '状态'])
-    expect(mockedPost).toHaveBeenCalledWith('app/workbench/query', {
-      category: 'BOB',
-      page: 1,
-      pageSize: 20,
-    })
-
-    mockedPost.mockResolvedValueOnce(page([documentItem]))
-    wrapper
-      .findComponent({ name: 'VTabs' })
-      .vm.$emit('update:modelValue', 'VOU')
-    await flushPromises()
-    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
-      category: 'VOU',
-      page: 1,
-      pageSize: 20,
-    })
-    expect(wrapper.findComponent({ name: 'VoucherList' }).exists()).toBe(true)
-    expect(
-      wrapper.findComponent({ name: 'VoucherList' }).props(),
-    ).toMatchObject({
-      filterable: true,
-      showEntity: true,
-      sortable: false,
-    })
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '销售订单', value: 'sale-order' }])
+    ).toEqual([{ title: '客户', value: 'customer' }])
   })
 
   it('按类型和待办状态进行服务端筛选并可重置', async () => {
     const vm = useDashboardViewModel()
+    vm.activeCategory.value = 'BOB'
     vm.states.BOB.keyword = ' 客户 '
     vm.states.BOB.entities = ['customer']
     vm.states.BOB.pendingStages = ['APPROVE']
@@ -261,7 +342,7 @@ describe('Dashboard workbench', () => {
 
     expect(success).toBe(false)
     expect(vm.states.BOB.errorMessage).toBe(
-      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
+      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001）',
     )
   })
 
@@ -287,7 +368,7 @@ describe('Dashboard workbench', () => {
     expect(success).toBe(false)
     expect(delivery.availableActions).toContain('check')
     expect(vm.states.VOU.errorMessage).toBe(
-      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。',
+      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。（错误码：2001）',
     )
   })
 })

@@ -10,7 +10,7 @@ export function watchSessionMenuRoutes(
   session: SessionStore,
 ): WatchStopHandle {
   return watch(
-    () => session.menus,
+    () => session.routeMenus,
     (menus) => registerMenuRoutes(router, menus),
     {
       deep: true,
@@ -27,7 +27,7 @@ export function createSessionNavigationGuard(
   return async (to) => {
     if (!session.initialized) await session.restore()
 
-    registerMenuRoutes(router, session.menus)
+    registerMenuRoutes(router, session.routeMenus)
 
     if (to.name === 'not-found') {
       const rematched = router.resolve(to.fullPath)
@@ -43,6 +43,26 @@ export function createSessionNavigationGuard(
         name: 'signin',
         query: { redirect: to.fullPath },
       }
+    }
+
+    const requiredPermission = to.meta.requiredPermission
+    if (
+      typeof requiredPermission === 'string' &&
+      !session.can(requiredPermission)
+    ) {
+      return { name: 'forbidden' }
+    }
+
+    const requiredAnyPermissions = to.meta.requiredAnyPermissions
+    if (
+      Array.isArray(requiredAnyPermissions) &&
+      requiredAnyPermissions.length > 0 &&
+      !requiredAnyPermissions.some(
+        (permission) =>
+          typeof permission === 'string' && session.can(permission),
+      )
+    ) {
+      return { name: 'forbidden' }
     }
 
     return true

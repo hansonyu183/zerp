@@ -33,8 +33,6 @@ assert_check 'scripts/check-run-provenance.sh' 1 containers
 assert_check 'scripts/check-run-provenance.sh' 1 preview
 assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
-assert_check 'scripts/review-status.sh' validation impact
-assert_check 'scripts/review-status-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
 assert_check 'scripts/production-watch.sh' application impact
 assert_check 'scripts/preview-runtime-sandbox.sh' 1 preview

@@ -59,15 +59,17 @@ grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
-grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" "${cloudflare_project}"' scripts/production-watch.sh
+grep -Fq 'find_production_cloudflare_deployment' scripts/production-watch.sh
 # shellcheck disable=SC2016
-grep -Fq 'verify_cloudflare_pages_deployment "${cloudflare_deployment}"' scripts/production-watch.sh
+grep -Fq 'verify_cloudflare_pages_deployment "${candidate_deployment}"' scripts/production-watch.sh
+grep -Fq 'sort_by(.started_at) | reverse | .[]' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016
 grep -Fq 'check-run-provenance.sh" "${provenance}' scripts/install-production-agent.sh
 # shellcheck disable=SC2016
 grep -Fq 'check-run-provenance.sh" "${provenance_candidate}' scripts/production-deploy.sh
+grep -Fq 'api_token_workers_access' scripts/production-deploy.sh
 grep -Fq "github.event.action == 'ready_for_review'" .github/workflows/quality.yml
 grep -Fq "if [ \"\$READY_VALIDATION\" = \"1\" ]; then" .github/workflows/quality.yml
 grep -Fq 'needs.merge_evidence.outputs.reuse_contracts' .github/workflows/quality.yml

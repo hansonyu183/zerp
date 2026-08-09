@@ -24,6 +24,11 @@ refresh_controller() {
   candidate="${controller}.new"
   provenance="${runtime_root}/check-run-provenance.sh"
   provenance_candidate="${provenance}.new"
+  if [ ! -r "${HOME}/.secrets/cloudflare/account_id_bytesucceed" ] ||
+     [ ! -r "${HOME}/.secrets/cloudflare/api_token_workers_access" ]; then
+    echo "Warning: production deploy controller not updated because Cloudflare Pages credentials are missing" >&2
+    return 0
+  fi
   if cp "${repo_root}/scripts/check-run-provenance.sh" "${provenance_candidate}" &&
      sh -n "${provenance_candidate}" &&
      chmod 700 "${provenance_candidate}" &&

@@ -1575,8 +1575,8 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 	if err != nil || len(fund.Items) != 0 {
 		t.Fatalf("fund balance after bill reversals = %+v, err=%v", fund, err)
 	}
-	draftAgain, err := vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
-		DocumentID: reversedSource.DocumentID, Revision: reversedSource.Revision, Reason: "退回草稿态",
+	draftAgain, err := vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: reversedSource.DocumentID, Revision: reversedSource.Revision,
 	}, integrationActorOne, "bill-receipt-uncheck-after-history")
 	if err != nil {
 		t.Fatalf("uncheck historical bill receipt: %v", err)
@@ -1611,8 +1611,8 @@ func TestBillReceiptPostingAndReversalIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unfinalize refinalized bill receipt: %v", err)
 	}
-	draftAgain, err = vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.ReverseInput{
-		DocumentID: checkedAgain.DocumentID, Revision: checkedAgain.Revision, Reason: "再次退回草稿态",
+	draftAgain, err = vouchers.Uncheck(t.Context(), voudomain.EntityBillReceipt, voudomain.DocumentRevisionInput{
+		DocumentID: checkedAgain.DocumentID, Revision: checkedAgain.Revision,
 	}, integrationActorOne, "bill-receipt-uncheck-after-refinalize")
 	if err != nil {
 		t.Fatalf("uncheck refinalized bill receipt: %v", err)
@@ -2519,8 +2519,8 @@ func TestIntermediaryCalculationCheckCollectionAndOtherBalanceIntegration(t *tes
 	}, integrationActorTwo, "unapprove-intermediary-source-return"); err != nil {
 		t.Fatalf("unapprove intermediary source return: %v", err)
 	}
-	draftCalculation, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
-		DocumentID: checkedCalculation.DocumentID, Revision: checkedCalculation.Revision, Reason: "重新计算变更来源",
+	draftCalculation, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: checkedCalculation.DocumentID, Revision: checkedCalculation.Revision,
 	}, integrationActorTwo, "uncheck-stale-intermediary-calculation")
 	if err != nil {
 		t.Fatalf("uncheck stale intermediary calculation: %v", err)
@@ -2771,8 +2771,8 @@ func TestIntermediaryCalculationCheckCollectionAndOtherBalanceIntegration(t *tes
 	if err != nil || reversed.Status != voudomain.StatusChecked {
 		t.Fatalf("unapprove intermediary calculation = %+v, err=%v", reversed, err)
 	}
-	draftOriginal, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
-		DocumentID: reversed.DocumentID, Revision: reversed.Revision, Reason: "验证后续草稿依赖",
+	draftOriginal, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: reversed.DocumentID, Revision: reversed.Revision,
 	}, integrationActorTwo, "intermediary-calculation-dependent-delete-uncheck")
 	if err != nil {
 		t.Fatalf("uncheck original intermediary calculation: %v", err)
@@ -2789,8 +2789,8 @@ func TestIntermediaryCalculationCheckCollectionAndOtherBalanceIntegration(t *tes
 		!strings.Contains(dependencyErr.Error(), "later intermediary calculations must be deleted first") {
 		t.Fatalf("save calculation used by later draft error = %v", dependencyErr)
 	}
-	draftSeptember, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.ReverseInput{
-		DocumentID: reversedSeptember.DocumentID, Revision: reversedSeptember.Revision, Reason: "先删除后续草稿",
+	draftSeptember, err := vouchers.Uncheck(t.Context(), voudomain.EntityIntermediaryCalculation, voudomain.DocumentRevisionInput{
+		DocumentID: reversedSeptember.DocumentID, Revision: reversedSeptember.Revision,
 	}, integrationActorTwo, "return-adjustment-intermediary-delete-uncheck")
 	if err != nil {
 		t.Fatalf("uncheck September return adjustment calculation: %v", err)

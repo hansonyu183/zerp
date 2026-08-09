@@ -254,7 +254,8 @@ test(
     await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
 
     await reverse(page, '反批准')
-    await reverse(page, '反核对')
+    await page.getByRole('button', { name: '反核对', exact: true }).click()
+    await expect(page.getByLabel('原因')).toHaveCount(0)
     await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: '审计' }).click()

@@ -29,14 +29,11 @@ const emit = defineEmits<{
 }>()
 
 const reverseOpen = ref(false)
-const reverseAction = ref<'uncheck' | 'unapprove'>('uncheck')
+const reverseAction = ref<'unapprove'>('unapprove')
 const reason = ref('')
 const reverseTitle = ref('')
 
-function openReverse(
-  action: 'uncheck' | 'unapprove',
-  title: string,
-): void {
+function openReverse(action: 'unapprove', title: string): void {
   reverseAction.value = action
   reverseTitle.value = title
   reason.value = ''
@@ -72,7 +69,7 @@ function confirmReverse(): void {
         :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
-        @click="openReverse('uncheck', labels.uncheck)"
+        @click="emit('action', 'uncheck')"
       >
         {{ labels.uncheck }}
       </v-btn>

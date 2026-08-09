@@ -348,15 +348,25 @@ func (s *Service) Approve(
 }
 
 func (s *Service) Uncheck(
-	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
+	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
 ) (MutationResult, error) {
-	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusDraft)
+	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
+		return MutationResult{}, err
+	}
+	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusDraft, nil)
 }
 
 func (s *Service) Unapprove(
 	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
 ) (MutationResult, error) {
-	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusApproved, StatusChecked)
+	reason, err := validateReverse(input)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return s.reverseTransition(ctx, entity, DocumentRevisionInput{
+		DocumentID: input.DocumentID,
+		Revision:   input.Revision,
+	}, actorID, requestID, StatusApproved, StatusChecked, reason)
 }
 
 func (s *Service) forwardTransition(
@@ -482,13 +492,10 @@ func (s *Service) forwardTransition(
 func (s *Service) reverseTransition(
 	ctx context.Context,
 	entity string,
-	input ReverseInput,
+	input DocumentRevisionInput,
 	actorID, requestID, from, to string,
+	reason *string,
 ) (MutationResult, error) {
-	reason, err := validateReverse(input)
-	if err != nil {
-		return MutationResult{}, err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin reverse transition", err)
@@ -567,7 +574,7 @@ func (s *Service) reverseTransition(
 	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
 		Action: event, Entity: entity, DocumentID: document.ID,
 		DocumentNo: document.DocumentNo, Status: to, Revision: revision,
-		ActorID: actorID, RequestID: requestID, Reason: *reason,
+		ActorID: actorID, RequestID: requestID, Reason: deref(reason),
 	}); err != nil {
 		return MutationResult{}, err
 	}

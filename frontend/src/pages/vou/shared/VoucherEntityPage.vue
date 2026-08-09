@@ -103,7 +103,7 @@ const secondaryTitle = ref('')
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove'>>('uncheck')
+  ref<Extract<VoucherLifecycleAction, 'unapprove'>>('unapprove')
 const listLifecycleReason = ref('')
 const listLifecycleTitle = computed(
   () => labels.value[listLifecycleAction.value],
@@ -210,7 +210,7 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (action === 'uncheck' || action === 'unapprove') {
+  if (action === 'unapprove') {
     listLifecycleTarget.value = row
     listLifecycleAction.value = action
     listLifecycleReason.value = ''

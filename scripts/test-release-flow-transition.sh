@@ -159,7 +159,7 @@ case "$*" in
   *"/git/commits/${MOCK_HEAD_SHA}"*) printf '%s\n' "${MOCK_HEAD_TREE}" ;;
   *'/check-runs?per_page=100'*)
     case "${MOCK_SCENARIO}" in
-      success) checks='full-validation:success' ;;
+      success | success-empty-pulls) checks='full-validation:success' ;;
       untrusted-check) checks='full-validation:success' ;;
       preview-check-success) checks='preview-required:success full-validation:success' ;;
       status-success | accepted-status-*) checks='validation:success' ;;
@@ -181,6 +181,8 @@ case "$*" in
   *'/actions/runs/88')
     if [ "${MOCK_SCENARIO}" = push-success ]; then
       event=push; pulls='[]'
+    elif [ "${MOCK_SCENARIO}" = success-empty-pulls ]; then
+      event=pull_request; pulls='[]'
     else
       event=pull_request
       pulls=$(printf '[{"number":7,"base":{"ref":"main"},"head":{"sha":"%s"}}]' "${MOCK_HEAD_SHA}")
@@ -229,6 +231,7 @@ assert_merge_evidence() {
 }
 
 assert_merge_evidence success 3333333333333333333333333333333333333333 success
+assert_merge_evidence success-empty-pulls 3333333333333333333333333333333333333333 success
 assert_merge_evidence untrusted-check 3333333333333333333333333333333333333333 failure
 assert_merge_evidence preview-check-success 3333333333333333333333333333333333333333 failure
 assert_merge_evidence status-success 3333333333333333333333333333333333333333 failure

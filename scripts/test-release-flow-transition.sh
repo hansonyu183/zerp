@@ -59,7 +59,9 @@ grep -Fq 'required_checks="full-validation"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo_slug}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
-grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" zerp' scripts/production-watch.sh
+grep -Fq 'verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" "${cloudflare_project}"' scripts/production-watch.sh
+# shellcheck disable=SC2016
+grep -Fq 'verify_cloudflare_pages_deployment "${cloudflare_deployment}"' scripts/production-watch.sh
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016
@@ -275,6 +277,20 @@ mismatched_deployment_cloudflare_check=$(printf '%s' "${trusted_cloudflare_check
 if verify_cloudflare_pages_check_run "${mismatched_deployment_cloudflare_check}" \
   2222222222222222222222222222222222222222 zerp; then
   fail 'mismatched Cloudflare Pages deployment was accepted'
+fi
+
+trusted_cloudflare_deployment='{"success":true,"result":{"id":"12345678-abcd-4abc-8abc-1234567890ab","project_name":"zerp","environment":"production","source":{"type":"github","config":{"owner":"example","repo_name":"zerp","production_branch":"main"}},"deployment_trigger":{"type":"github:push","metadata":{"branch":"main","commit_hash":"2222222222222222222222222222222222222222","commit_dirty":false}},"latest_stage":{"name":"deploy","status":"success"}}}'
+if ! verify_cloudflare_pages_deployment "${trusted_cloudflare_deployment}" \
+  12345678-abcd-4abc-8abc-1234567890ab \
+  2222222222222222222222222222222222222222 zerp example zerp main; then
+  fail 'trusted production Cloudflare Pages deployment was rejected'
+fi
+preview_cloudflare_deployment=$(printf '%s' "${trusted_cloudflare_deployment}" |
+  jq '.result.environment = "preview" | .result.deployment_trigger.metadata.branch = "feature"')
+if verify_cloudflare_pages_deployment "${preview_cloudflare_deployment}" \
+  12345678-abcd-4abc-8abc-1234567890ab \
+  2222222222222222222222222222222222222222 zerp example zerp main; then
+  fail 'preview Cloudflare Pages deployment was accepted as production'
 fi
 
 # Component evidence is reusable only from the same PR exact-head fingerprint.

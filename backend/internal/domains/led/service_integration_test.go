@@ -1765,6 +1765,27 @@ func TestBillPaymentUsesAvailableBillAndReversalRestoresAvailabilityIntegration(
 	}}, integrationActorOne, "bill-payment-before-source-date"); err == nil || !strings.Contains(err.Error(), "source bill is not available") {
 		t.Fatalf("backdated bill payment error = %v, want source bill unavailable", err)
 	}
+	futurePayment, _ := advanceToApproved(t, vouchers, voudomain.EntityBillPayment, voudomain.DraftInput{
+		BusinessDate: "2026-08-10", Currency: "CNY", Supplier: &refs.supplier,
+		BillLines: []voudomain.BillLineInput{{BillID: billID, Purpose: "PRIMARY"}},
+	})
+	futureFinalized, err := vouchers.AssertFinalized(t.Context(), voudomain.EntityBillPayment, voudomain.DocumentRevisionInput{
+		DocumentID: futurePayment.DocumentID, Revision: futurePayment.Revision,
+	}, integrationActorOne, "bill-payment-future-finalize")
+	if err != nil {
+		t.Fatalf("finalize future bill payment: %v", err)
+	}
+	if _, err = vouchers.Create(t.Context(), voudomain.EntityBillPayment, voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-08-05", Currency: "CNY", Supplier: &refs.supplier,
+		BillLines: []voudomain.BillLineInput{{BillID: billID, Purpose: "PRIMARY"}},
+	}}, integrationActorOne, "bill-payment-before-future-consumption"); err == nil || !strings.Contains(err.Error(), "source bill is not available") {
+		t.Fatalf("payment before future consumption error = %v, want source bill unavailable", err)
+	}
+	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityBillPayment, voudomain.ReverseInput{
+		DocumentID: futureFinalized.DocumentID, Revision: futureFinalized.Revision, Reason: "释放未来日期占用",
+	}, integrationActorOne, "bill-payment-future-unfinalize"); err != nil {
+		t.Fatalf("unfinalize future bill payment: %v", err)
+	}
 	createPayment := func() voudomain.MutationResult {
 		checked, _ := advanceToChecked(t, vouchers, voudomain.EntityBillPayment, voudomain.DraftInput{
 			BusinessDate: "2026-08-02", Currency: "CNY", Supplier: &refs.supplier,

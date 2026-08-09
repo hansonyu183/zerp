@@ -80,3 +80,50 @@ verify_cloudflare_pages_check_run() (
       test("^https://dash\\.cloudflare\\.com/\\?to=/[^/]+/pages/view/" + $project + "/" + $deployment_id + "$"))
   ' >/dev/null
 )
+
+verify_cloudflare_pages_deployment() (
+  deployment_json=$1
+  expected_deployment_id=$2
+  expected_sha=$3
+  expected_project=$4
+  expected_owner=$5
+  expected_repository=$6
+  expected_branch=$7
+
+  printf '%s' "${deployment_json}" | jq -e \
+    --arg deployment_id "${expected_deployment_id}" \
+    --arg head_sha "${expected_sha}" --arg project "${expected_project}" \
+    --arg owner "${expected_owner}" --arg repository "${expected_repository}" \
+    --arg branch "${expected_branch}" '
+      .success == true and
+      .result.id == $deployment_id and
+      .result.project_name == $project and
+      .result.environment == "production" and
+      .result.source.type == "github" and
+      .result.source.config.owner == $owner and
+      .result.source.config.repo_name == $repository and
+      .result.source.config.production_branch == $branch and
+      .result.deployment_trigger.type == "github:push" and
+      .result.deployment_trigger.metadata.branch == $branch and
+      .result.deployment_trigger.metadata.commit_hash == $head_sha and
+      .result.deployment_trigger.metadata.commit_dirty == false and
+      .result.latest_stage.name == "deploy" and
+      .result.latest_stage.status == "success"
+    ' >/dev/null
+)
+
+load_cloudflare_pages_deployment() (
+  account_file=$1
+  token_file=$2
+  project=$3
+  deployment_id=$4
+
+  test -r "${account_file}" && test -r "${token_file}" || return 1
+  cloudflare_account=$(sed -n '1p' "${account_file}")
+  cloudflare_token=$(sed -n '1p' "${token_file}")
+  test -n "${cloudflare_account}" && test -n "${cloudflare_token}" || return 1
+  curl --silent --show-error --fail --config - <<EOF
+header = "Authorization: Bearer ${cloudflare_token}"
+url = "https://api.cloudflare.com/client/v4/accounts/${cloudflare_account}/pages/projects/${project}/deployments/${deployment_id}"
+EOF
+)

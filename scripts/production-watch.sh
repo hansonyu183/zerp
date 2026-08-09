@@ -11,6 +11,10 @@ repository_root="${runtime_root}/repository"
 source_root="${runtime_root}/source"
 lock_dir="${runtime_root}/agent.lock"
 required_checks="full-validation"
+cloudflare_project=zerp
+cloudflare_production_branch=main
+cloudflare_account_file="${HOME}/.secrets/cloudflare/account_id_bytesucceed"
+cloudflare_token_file="${HOME}/.secrets/cloudflare/api_token_workers_access"
 deployment_sha_file="${runtime_root}/deployment-sha"
 deployment_id_file="${runtime_root}/deployment-id"
 deployment_status_file="${runtime_root}/deployment-status"
@@ -238,9 +242,26 @@ cloudflare_state=$(printf '%s' "${cloudflare_run}" |
   jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
 case "${cloudflare_state}" in
   completed:success)
-    if ! verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" zerp; then
+    if ! verify_cloudflare_pages_check_run "${cloudflare_run}" "${target_sha}" "${cloudflare_project}"; then
       set_deployment_status queued "Waiting for trusted Cloudflare Pages provenance"
       log "Waiting for trusted Cloudflare Pages provenance on ${target_sha}"
+      exit 0
+    fi
+    cloudflare_deployment_id=$(printf '%s' "${cloudflare_run}" | jq -r '.external_id')
+    if ! cloudflare_deployment=$(retry 4 load_cloudflare_pages_deployment \
+      "${cloudflare_account_file}" "${cloudflare_token_file}" \
+      "${cloudflare_project}" "${cloudflare_deployment_id}"); then
+      set_deployment_status queued "Waiting for Cloudflare Pages deployment metadata"
+      log "Waiting for Cloudflare Pages deployment metadata on ${target_sha}"
+      exit 0
+    fi
+    repo_owner=${repo_slug%%/*}
+    repo_name=${repo_slug#*/}
+    if ! verify_cloudflare_pages_deployment "${cloudflare_deployment}" \
+      "${cloudflare_deployment_id}" "${target_sha}" "${cloudflare_project}" \
+      "${repo_owner}" "${repo_name}" "${cloudflare_production_branch}"; then
+      set_deployment_status queued "Waiting for production Cloudflare Pages deployment"
+      log "Waiting for production Cloudflare Pages deployment on ${target_sha}"
       exit 0
     fi
     ;;

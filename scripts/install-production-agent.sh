@@ -20,9 +20,14 @@ test -r "${HOME}/.secrets/cloudflare/account_id_bytesucceed" || {
   echo "Missing Cloudflare account ID" >&2
   exit 1
 }
+test -r "${HOME}/.secrets/cloudflare/api_token_workers_access" || {
+  echo "Missing Cloudflare Workers API token" >&2
+  exit 1
+}
 
 chmod 600 "${env_file}" \
-  "${HOME}/.secrets/cloudflare/account_id_bytesucceed"
+  "${HOME}/.secrets/cloudflare/account_id_bytesucceed" \
+  "${HOME}/.secrets/cloudflare/api_token_workers_access"
 mkdir -p "${runtime_root}" "${HOME}/Library/LaunchAgents"
 chmod 700 "${runtime_root}"
 cp "${repo_root}/scripts/check-run-provenance.sh" "${provenance}.new"

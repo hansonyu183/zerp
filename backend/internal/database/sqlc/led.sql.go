@@ -234,7 +234,10 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = $2
-   AND entry.effective_date <= $3::date
+   AND (
+     entry.direction = 'OUT'
+     OR entry.effective_date <= $3::date
+   )
   GROUP BY bill.id, document.entity
 ), filtered AS (
   SELECT
@@ -814,7 +817,10 @@ FROM led_bill_entries AS entry
 WHERE entry.generation_id = $1
   AND entry.bill_id = $2
   AND entry.position_type = $3
-  AND entry.effective_date <= $4::date
+  AND (
+    entry.direction = 'OUT'
+    OR entry.effective_date <= $4::date
+  )
 `
 
 type GetLedBillAvailableBalanceParams struct {
@@ -2020,7 +2026,10 @@ WITH bill_positions AS (
   LEFT JOIN led_bill_entries AS entry
     ON entry.bill_id = bill.id
    AND entry.generation_id = $6
-   AND entry.effective_date <= $7::date
+   AND (
+     entry.direction = 'OUT'
+     OR entry.effective_date <= $7::date
+   )
   GROUP BY bill.id, document.entity, document.document_no
 ), filtered AS (
   SELECT

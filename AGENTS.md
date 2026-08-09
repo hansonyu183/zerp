@@ -28,14 +28,20 @@
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - PR 必须直接以 `main` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `main` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。
 - 形成可验收提交后先运行 `make pre-push-plan` 核对检查矩阵，再运行 `make pre-push`；门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。普通纯前端源码本地只运行前端门禁，Draft CI 延后 Playwright，Ready 后对最终版本运行一次完整 E2E；普通纯后端源码本地运行格式、普通测试、vet 和构建，PR CI 补充静态与安全检查。契约、SQL/迁移、依赖、运行配置、跨端、容器/E2E 工具和未知变更仍必须通过后端全量集成/race 及适用的隔离 E2E。需要保守复核时运行 `PRE_PUSH_FULL=1 make pre-push`。
-- 创建 PR 前必须获取最新 `origin/main`，将功能提交重放到该提交，解决冲突并保持工作区干净，再依次运行 `make pre-push-plan` 和聚焦的 `make pre-push`；禁止先创建 PR，再因分支落后而 rebase 或强推。通过后推送并创建目标为 `main` 的 Draft PR，在 Draft 阶段请求 Codex Review、处理全部可执行意见并解决所有 conversation，同时监控 review、required checks 和 `main` 同步状态；最后一次确认基于最新 `main` 后才转为 Ready。Draft 不得用人工失败伪装未就绪；只有 Ready 的最新提交才运行并满足完整自动验证。
+- 创建 PR 前必须获取最新 `origin/main`，将功能提交重放到该提交，解决冲突并保持工作区干净；先完成相对 `origin/main` 的本地分支级代码审查，集中处理发现，再依次运行 `make pre-push-plan` 和聚焦的 `make pre-push`。禁止先创建 PR，再因分支落后而 rebase 或强推。通过后推送并创建目标为 `main` 的 Draft PR；每个通过本地审查和门禁的候选 SHA 只请求一次 Codex Review，并让 Review 与 Draft checks 并行。收到反馈时一次读取并集中处理全部可执行线程，在本地重新审查和门禁通过后只推送一个修复候选，禁止边修边推导致串行复审。全部线程解决并最后一次确认基于最新 `main` 后才转为 Ready。Draft 不得用人工失败伪装未就绪；只有 Ready 的最新提交才运行并满足完整自动验证。
 - `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功；无需预览的 PR 由工作流为最新 SHA 发布 `full-validation`。需要预览的 PR 先只发布 `preview-required`，必须从 `HEAD == origin/main` 的受信任控制 checkout 使用 `make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<PR-head-full-sha>` 部署准确提交，禁止在 PR worktree 执行预览控制命令；再由具备 write 权限的非 Bot 用户完成固定预览人工验收，才允许为同一 SHA 发布 `full-validation`。新提交使之前的预览和验收证据失效。
 - 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定预览人工验收；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃 PR；状态从已验收的 `main` 基线克隆，关闭或拒绝恢复基线，合并后晋升验收状态，24 小时无活动释放占用但不删除状态。
 - 固定预览失败时必须区分构建、迁移/种子、本机原生进程健康和公网 Tunnel 四层。若本机 Web/API 已健康且运行准确 SHA，公网 `530`、TLS 或资源预热失败不得通过 `preview-reset`、清空数据或重复改代码处理；应核对 Tunnel ingress、edge 连接和准确服务实例，恢复入口后重新运行 `make preview-status`。
-- 合并前必须基于 PR 最新提交确认所有可执行 review thread 均已解决；新提交引入或重新打开的反馈必须重新处理，不得只依赖汇总 review 状态。
+- 合并前必须使用 `make review-status REVIEW_PR=<number>` 核对 Codex Review 覆盖 PR 最新提交且所有 review thread 均已解决；新提交引入或重新打开的反馈必须重新处理，不得只依赖汇总 review 状态。适用固定预览时，只有该检查和自动门禁均就绪后才部署，避免 Review 修复反复使人工验收失效。
 - 生产可见问题必须核对真实 URL、浏览器实际请求目标、已加载资源和发布 SHA；不得仅凭本地代码或健康检查推断线上版本和行为。
 - 禁止直接推送、强推或自动合并 `main`。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
 - 需要完成合并交付时，必须等待生产发布代理处理 squash 后的发布提交，并以 `make production-status` 确认 API、Web、公网入口和发布 SHA 一致后再结束；容器先切换而发布代理或公网标记尚未完成时不得提前宣称上线成功。
 - 保留用户已有修改，只改任务相关文件。
 
 运行环境、统一命令和部署方式见根目录 `README.md`；模块细则见 `frontend/AGENTS.md` 和 `backend/AGENTS.md`。
+
+## Code Review Rules
+
+### 发布证据来源
+
+- 当代码把 GitHub check、commit status 或 deployment 作为验证、预览、合并或生产发布证据时，必须同时核对准确仓库、提交 SHA、事件/PR 绑定、预期提供者身份和不可变运行链接。安全路径：从 GitHub API 读取结构化来源并拒绝同名但来源不可信或提交不一致的证据。

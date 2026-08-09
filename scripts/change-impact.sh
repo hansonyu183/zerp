@@ -92,7 +92,8 @@ if [ -n "${changed_files}" ]; then
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
         scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
-        scripts/release-metrics-check.sh | \
+        scripts/release-metrics-check.sh | scripts/review-status.sh | \
+        scripts/review-status-test.sh | \
         scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation

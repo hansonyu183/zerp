@@ -53,6 +53,7 @@ make dev-down
 | `make check`                   | 运行前端与后端质量门禁                 |
 | `make pre-push-plan`           | 显示当前提交将运行的分层门禁           |
 | `make pre-push`                | 按变更影响运行分层推送前门禁           |
+| `make review-status`           | 核对 PR 最新提交的 Codex Review 状态   |
 | `make test`                    | 运行前后端测试                         |
 | `make e2e`                     | 启动隔离全栈并运行真实 API Playwright  |
 | `make build`                   | 构建前端、后端及容器镜像               |

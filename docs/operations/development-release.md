@@ -4,7 +4,7 @@
 
 ## 1. 本地门禁
 
-创建 PR 前获取最新 `origin/main`，用 rebase 把提交重放到该基线，保持工作区干净后执行：
+创建 PR 前获取最新 `origin/main`，用 rebase 把提交重放到该基线。先在 Codex 中使用 `/review` 对 `origin/main` 做分支级本地审查，集中处理全部发现；工作区干净后执行：
 
 ```bash
 make pre-push-plan
@@ -17,9 +17,9 @@ E2E 使用一次性 PostgreSQL 容器加本机 Go API/Web，并由 Playwright �
 
 ## 2. Draft、Ready 与证据复用
 
-本地门禁通过后推送并创建目标为 `main` 的 Draft PR。Draft 立即请求 Codex Review，持续处理 required checks、review、未解决 conversation 和 `main` 同步状态。应用 Draft 运行格式、静态、聚焦单元测试和构建，产出成功的 `draft-validation`；它不会用故意失败的 `full-validation` 表示未就绪。
+本地审查和门禁通过后推送并创建目标为 `main` 的 Draft PR。对该候选 SHA 只请求一次 Codex Review，让它与 Draft checks 并行；自动 Review 已由 PR 事件触发时，不再追加同 SHA 的手工 `@codex review`。收到反馈后一次读取全部未解决线程，集中修改并重新完成本地审查和门禁，只推送一个修复候选，再请求一次聚焦于修复回归和剩余高影响问题的 Review。不得每修一条就推送并触发串行复审。应用 Draft 运行格式、静态、聚焦单元测试和构建，产出成功的 `draft-validation`；它不会用故意失败的 `full-validation` 表示未就绪。
 
-所有可执行 Review 意见解决并再次确认基于最新 `main` 后，最后才转为 Ready。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race、需要的镜像验证和一次真实 E2E。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
+使用 `make review-status REVIEW_PR=<number>` 确认 Codex Review 覆盖准确 head 且未解决线程为零，再确认分支基于最新 `main`，最后才转为 Ready。该命令是只读状态检查：结构化 Review 使用 GitHub `commit_id`，无发现的 Review 兼容 Codex 发布的 reviewed-commit 结果；状态为 `stale` 或 `pending` 时返回失败。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race、需要的镜像验证和一次真实 E2E。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
 
 `validation` 是自动化门禁聚合。无需预览的 Ready PR 在自动门禁成功后获得 `full-validation`。需要预览的 PR 只获得 `preview-required`，随后执行：
 
@@ -33,7 +33,7 @@ make preview-accept PREVIEW_PR=<number>
 
 预览命令必须从 `HEAD == origin/main` 的受信任控制 checkout 运行，不能在 PR worktree 运行；PR checkout 只作为无密钥编译输入。
 
-合并前必须确认最新 SHA 的全部 required checks 成功且所有可执行 review thread 已解决。禁止直接推送、强推或自动合并 `main`。
+合并前必须再次运行 `make review-status REVIEW_PR=<number>`，并确认最新 SHA 的全部 required checks 成功。需要固定预览的变更只有在 Review 和自动门禁都就绪后才部署，避免后续 Review 修复使人工验收失效。禁止直接推送、强推或自动合并 `main`。
 
 ## 3. 合并与生产
 

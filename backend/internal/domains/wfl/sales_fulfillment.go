@@ -21,10 +21,6 @@ type salesVoucherService interface {
 	Uncheck(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	ShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	ShortCloseCancel(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	ShortCloseConfirm(context.Context, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
-	ShortCloseUnconfirm(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 }
 
 func (s *Service) SalesCreate(
@@ -76,11 +72,9 @@ func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[SalesP
 		return Page[SalesProcessListItem]{}, internal("query sales workflows", err)
 	}
 	items := make([]SalesProcessListItem, len(rows))
-	ids := make([]string, len(rows))
 	orderIDs := make([]string, len(rows))
-	indexByID := make(map[string]int, len(rows))
 	for index, row := range rows {
-		ids[index], orderIDs[index], indexByID[row.ProcessID] = row.ProcessID, row.RootDocumentID, index
+		orderIDs[index] = row.RootDocumentID
 		items[index] = SalesProcessListItem{
 			ProcessListItem: ProcessListItem{
 				ProcessID: row.ProcessID, ProcessType: row.ProcessType, Status: row.Status,
@@ -90,11 +84,10 @@ func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[SalesP
 				Currency: row.Currency, Amount: documentLinkAmount(row.TotalAmountCents),
 				UpdatedAt: row.UpdatedAt.Time,
 			},
-			ProgressGroups: make([]SalesProgressGroup, 0),
-			Summary:        voudomain.SalesKgSummary{Unit: "KG"},
+			Summary: voudomain.SalesKgSummary{Unit: "KG"},
 		}
 	}
-	if len(ids) > 0 {
+	if len(orderIDs) > 0 {
 		summaryRows, summaryErr := s.queries.ListSalesOrderKgSummaries(ctx, orderIDs)
 		if summaryErr != nil {
 			return Page[SalesProcessListItem]{}, internal("summarize sales workflow kg progress", summaryErr)
@@ -120,32 +113,6 @@ func (s *Service) SalesQuery(ctx context.Context, input QueryInput) (Page[SalesP
 			if row.WarehouseAvailable {
 				items[index].Summary.ShortageQuantity = workflowQuantity(row.ShortageQuantityMicros)
 			}
-		}
-		progressRows, progressErr := s.queries.ListSalesWorkflowProgress(ctx, ids)
-		if progressErr != nil {
-			return Page[SalesProcessListItem]{}, internal("summarize sales workflow progress", progressErr)
-		}
-		for _, row := range progressRows {
-			index, ok := indexByID[row.ProcessID]
-			if !ok {
-				continue
-			}
-			items[index].ProgressGroups = append(items[index].ProgressGroups, SalesProgressGroup{
-				Unit: row.ProductUnit, ProductCount: row.ProductCount,
-				OrderedQuantity:                   workflowQuantity(row.OrderedQuantity),
-				OutboundProcessingQuantity:        workflowQuantity(row.OutboundProcessingQuantity),
-				FinalizedOutboundQuantity:         workflowQuantity(row.FinalizedOutboundQuantity),
-				InTransitQuantity:                 workflowQuantity(row.InTransitQuantity),
-				SignedQuantity:                    workflowQuantity(row.SignedQuantity),
-				RejectedQuantity:                  workflowQuantity(row.RejectedQuantity),
-				LossQuantity:                      workflowQuantity(row.LossQuantity),
-				RefusalReturnProcessingQuantity:   workflowQuantity(row.RefusalReturnProcessingQuantity),
-				RefusalReturnedQuantity:           workflowQuantity(row.RefusalReturnedQuantity),
-				AfterSaleReturnProcessingQuantity: workflowQuantity(row.AfterSaleReturnProcessingQuantity),
-				AfterSaleReturnedQuantity:         workflowQuantity(row.AfterSaleReturnedQuantity),
-				NetSignedQuantity:                 workflowQuantity(row.NetSignedQuantity),
-				RemainingQuantity:                 workflowQuantity(row.RemainingQuantity),
-			})
 		}
 	}
 	total, err := s.queries.CountSalesWorkflowSummaries(ctx, sqlc.CountSalesWorkflowSummariesParams{
@@ -292,22 +259,6 @@ func (s *Service) SalesAction(
 		result, err = s.sales.Unapprove(ctx, entity, voudomain.ReverseInput{
 			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
 		}, actorID, requestID)
-	case "short-close-request":
-		result, err = s.sales.ShortCloseRequest(ctx, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "short-close-cancel":
-		result, err = s.sales.ShortCloseCancel(ctx, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "short-close-confirm":
-		result, err = s.sales.ShortCloseConfirm(ctx, voudomain.DocumentRevisionInput{
-			DocumentID: documentID, Revision: input.DocumentRevision,
-		}, actorID, requestID)
-	case "short-close-unconfirm":
-		result, err = s.sales.ShortCloseUnconfirm(ctx, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
 	default:
 		return nil, validation("invalid sales workflow action", nil)
 	}
@@ -336,8 +287,6 @@ func salesActionEntity(action string) (string, string, error) {
 func salesActionParts(action string) (string, string, string, error) {
 	rootActions := map[string]bool{
 		"check": true, "uncheck": true, "approve": true, "unapprove": true,
-		"short-close-request": true, "short-close-cancel": true,
-		"short-close-confirm": true, "short-close-unconfirm": true,
 	}
 	if rootActions[action] {
 		return voudomain.EntitySaleOrder, action, StageSaleOrder, nil
@@ -409,12 +358,9 @@ func (s *Service) salesMutation(
 }
 
 func salesCurrentStage(view ProcessView) string {
-	if view.Status == StatusCompleted || view.Status == StatusShortClosed {
-		return ""
-	}
 	for index := len(view.Documents) - 1; index >= 0; index-- {
 		document := view.Documents[index]
-		if document.Status != voudomain.StatusFinalized {
+		if document.Status != voudomain.StatusApproved {
 			return document.Stage
 		}
 	}

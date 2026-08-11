@@ -184,7 +184,7 @@ func loadOrderTradeBalance(
 	return balance, err
 }
 
-func (s *Service) reopenOrderSettlement(
+func (s *Service) restoreOrderSettlement(
 	ctx context.Context,
 	tx pgx.Tx,
 	orderEntity, orderID string,
@@ -223,23 +223,23 @@ func loadOrderFulfillmentTotals(
 			COALESCE((SELECT sum(document.total_amount_cents)
 				FROM vou_sale_signoff_details detail
 				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status IN ('APPROVED','FINALIZED')),0)::bigint,
+				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint,
 			COALESCE((SELECT sum(document.total_amount_cents)
 				FROM vou_sale_return_details detail
 				JOIN vou_documents document ON document.id=detail.document_id
 				WHERE detail.source_order_id=$1 AND detail.return_kind='AFTER_SALE'
-				  AND document.status IN ('APPROVED','FINALIZED')),0)::bigint`, orderID).
+				  AND document.status = 'APPROVED'),0)::bigint`, orderID).
 			Scan(&fulfilledAmount, &returnedAmount)
 	case EntityPurchaseOrder:
 		err = tx.QueryRow(ctx, `SELECT
 			COALESCE((SELECT sum(document.total_amount_cents)
 				FROM vou_purchase_inbound_details detail
 				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status IN ('APPROVED','FINALIZED')),0)::bigint,
+				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint,
 			COALESCE((SELECT sum(document.total_amount_cents)
 				FROM vou_purchase_return_details detail
 				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status IN ('APPROVED','FINALIZED')),0)::bigint`, orderID).
+				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint`, orderID).
 			Scan(&fulfilledAmount, &returnedAmount)
 	}
 	return fulfilledAmount, returnedAmount, err
@@ -363,7 +363,7 @@ func (s *Service) closeSettlementReservationIfFulfilled(
 	if err != nil {
 		return err
 	}
-	if status == "FULFILLED" || status == "SHORT_CLOSED" {
+	if status == "FULFILLED" {
 		return s.releaseOrderSettlement(ctx, tx, orderID)
 	}
 	return nil

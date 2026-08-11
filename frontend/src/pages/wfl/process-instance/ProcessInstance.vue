@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
-import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import { VoucherReferenceAutocomplete } from '@/components/voucher'
 import {
-  documentEntityText,
   runtimeEventText,
   stageStatusText,
   workflowStageText,
@@ -19,32 +17,6 @@ function partyText(item: InstanceListItem): string {
   return [item.partyCode, item.partyName].filter(Boolean).join(' · ')
 }
 
-function progressLabels(item: InstanceListItem): string[] {
-  return item.progress.length
-    ? item.progress.map((progress) => workflowStageText(progress.nodeName))
-    : ['暂无节点']
-}
-
-function progressValues(item: InstanceListItem): string[] {
-  return item.progress.length
-    ? item.progress.map(
-        (progress) => `${progress.completedCount}/${progress.totalCount}`,
-      )
-    : ['—']
-}
-
-function progressNote(item: InstanceListItem): string | undefined {
-  if (!item.progress.length) return undefined
-  const completed = item.progress.reduce(
-    (sum, progress) => sum + progress.completedCount,
-    0,
-  )
-  const total = item.progress.reduce(
-    (sum, progress) => sum + progress.totalCount,
-    0,
-  )
-  return `已完成 ${completed}/${total} 个节点单据`
-}
 </script>
 
 <template>
@@ -60,21 +32,6 @@ function progressNote(item: InstanceListItem): string | undefined {
       @update:keyword="vm.keyword.value = $event"
     >
       <template #filters>
-        <v-select
-          v-model="vm.statuses.value"
-          chips
-          clearable
-          hide-details
-          :items="[
-            { title: '进行中', value: 'ACTIVE' },
-            { title: '已完成', value: 'COMPLETED' },
-          ]"
-          item-title="title"
-          item-value="value"
-          label="状态"
-          multiple
-          variant="outlined"
-        />
         <VoucherReferenceAutocomplete
           :error-message="vm.partyError.value"
           label="往来单位"
@@ -98,8 +55,6 @@ function progressNote(item: InstanceListItem): string | undefined {
             <th>流程</th>
             <th>根单号</th>
             <th>往来单位</th>
-            <th>当前节点</th>
-            <th>流程完成情况</th>
             <th class="text-right">操作</th>
           </tr>
         </thead>
@@ -112,47 +67,17 @@ function progressNote(item: InstanceListItem): string | undefined {
             <td>{{ item.rootDocumentNo }}</td>
             <td>{{ partyText(item) }}</td>
             <td>
-              <div
-                v-if="item.currentNodes.length"
-                class="instance-current-nodes"
-              >
-                <v-chip
-                  v-for="node in item.currentNodes"
-                  :key="node.nodeInstanceId"
-                  size="x-small"
-                  variant="tonal"
-                >
-                  {{ workflowStageText(node.nodeName) }} ·
-                  {{ node.documentNo }}
-                </v-chip>
-              </div>
-              <span v-else class="text-medium-emphasis">—</span>
-            </td>
-            <td>
-              <FulfillmentSummary
-                :labels="progressLabels(item)"
-                :note="progressNote(item)"
-                :values="progressValues(item)"
-              />
-            </td>
-            <td>
               <ListRowActions
                 :loading="vm.loading.value"
                 :primary="[
-                  {
-                    key: 'current',
-                    label: '处理当前节点',
-                    icon: 'mdi-open-in-new',
-                    disabled: item.currentNodes.length === 0,
-                  },
-                ]"
-                :more="[
                   {
                     key: 'view',
                     label: '查看流程',
                     icon: 'mdi-sitemap-outline',
                     disabled: !vm.can('get'),
                   },
+                ]"
+                :more="[
                   {
                     key: 'root',
                     label: '打开根单据',
@@ -160,17 +85,13 @@ function progressNote(item: InstanceListItem): string | undefined {
                   },
                 ]"
                 @select="
-                  $event === 'current'
-                    ? vm.processCurrent(item)
-                    : $event === 'view'
-                      ? vm.open(item)
-                      : vm.openRoot(item)
+                  $event === 'view' ? vm.open(item) : vm.openRoot(item)
                 "
               />
             </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.items.value.length === 0">
-            <td colspan="6" class="text-center py-8 text-medium-emphasis">
+            <td colspan="4" class="text-center py-8 text-medium-emphasis">
               暂无流程实例
             </td>
           </tr>
@@ -185,44 +106,18 @@ function progressNote(item: InstanceListItem): string | undefined {
           <span class="instance-card__title">{{ item.definitionName }}</span>
           <strong>{{ item.rootDocumentNo }}</strong>
           <span>往来单位：{{ partyText(item) }}</span>
-          <span>
-            当前节点：{{
-              item.currentNodes.length
-                ? item.currentNodes
-                    .map(
-                      (node) =>
-                        `${workflowStageText(node.nodeName)} · ${node.documentNo}`,
-                    )
-                    .join('、')
-                : '—'
-            }}
-          </span>
-          <div class="instance-card__progress">
-            <span>流程完成情况</span>
-            <FulfillmentSummary
-              :labels="progressLabels(item)"
-              :note="progressNote(item)"
-              :values="progressValues(item)"
-            />
-          </div>
           <ListRowActions
             class="instance-card__actions"
             :loading="vm.loading.value"
             :primary="[
-              {
-                key: 'current',
-                label: '处理当前节点',
-                icon: 'mdi-open-in-new',
-                disabled: item.currentNodes.length === 0,
-              },
-            ]"
-            :more="[
               {
                 key: 'view',
                 label: '查看流程',
                 icon: 'mdi-sitemap-outline',
                 disabled: !vm.can('get'),
               },
+            ]"
+            :more="[
               {
                 key: 'root',
                 label: '打开根单据',
@@ -230,11 +125,7 @@ function progressNote(item: InstanceListItem): string | undefined {
               },
             ]"
             @select="
-              $event === 'current'
-                ? vm.processCurrent(item)
-                : $event === 'view'
-                  ? vm.open(item)
-                  : vm.openRoot(item)
+              $event === 'view' ? vm.open(item) : vm.openRoot(item)
             "
           />
         </article>
@@ -258,25 +149,6 @@ function progressNote(item: InstanceListItem): string | undefined {
       </v-card-actions>
     </v-card>
 
-    <v-dialog v-model="vm.chooserOpen.value" max-width="560">
-      <v-card>
-        <v-card-title>选择要处理的当前节点</v-card-title>
-        <v-list lines="two">
-          <v-list-item
-            v-for="node in vm.chooserNodes.value"
-            :key="node.nodeInstanceId"
-            :subtitle="`${documentEntityText(node.documentEntity)} · ${stageStatusText(node.documentStatus)}`"
-            :title="`${workflowStageText(node.nodeName)} · ${node.documentNo}`"
-            append-icon="mdi-chevron-right"
-            @click="vm.chooseNode(node)"
-          />
-        </v-list>
-        <v-card-actions class="justify-end">
-          <v-btn @click="vm.chooserOpen.value = false">取消</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
     <v-dialog
       v-model="vm.detailOpen.value"
       fullscreen
@@ -288,16 +160,6 @@ function progressNote(item: InstanceListItem): string | undefined {
           <v-toolbar-title
             >{{ vm.selected.value.definitionName }} ·
             {{ vm.selected.value.rootDocumentNo }}</v-toolbar-title
-          >
-          <v-spacer />
-          <v-chip
-            class="mr-4"
-            :color="
-              vm.selected.value.status === 'COMPLETED' ? 'success' : 'primary'
-            "
-            >{{
-              vm.selected.value.status === 'COMPLETED' ? '已完成' : '进行中'
-            }}</v-chip
           >
         </v-toolbar>
         <v-card-text class="instance-detail">
@@ -338,7 +200,7 @@ function progressNote(item: InstanceListItem): string | undefined {
               :key="node.nodeInstanceId"
               class="instance-node"
               :class="{
-                'instance-node--done': node.documentStatus === 'FINALIZED',
+                'instance-node--done': node.documentStatus === 'APPROVED',
               }"
               :style="{ left: `${node.x}px`, top: `${node.y}px` }"
               type="button"
@@ -402,13 +264,8 @@ function progressNote(item: InstanceListItem): string | undefined {
 }
 .instance-card strong,
 .instance-card span:not(.instance-card__title),
-.instance-card__progress,
 .instance-card__actions {
   grid-column: 1 / -1;
-}
-.instance-card__progress {
-  display: grid;
-  gap: 4px;
 }
 .instance-card span:not(.instance-card__title) {
   color: rgb(var(--v-theme-on-surface-variant));
@@ -419,12 +276,6 @@ function progressNote(item: InstanceListItem): string | undefined {
 }
 .instance-table tbody tr:hover {
   background: rgb(var(--v-theme-surface-variant), 0.35);
-}
-.instance-current-nodes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-width: 180px;
 }
 .instance-table td:first-child span,
 .instance-table td:first-child small {

@@ -173,7 +173,7 @@ onMounted(() => void vm.query())
             approve: '批准',
             unapprove: '反批准',
             checked: '已检查',
-            finalized: '已完成',
+            approved: '已批准',
           }"
           @action="vm.lifecycle"
         />

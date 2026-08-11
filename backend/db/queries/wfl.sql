@@ -5,21 +5,18 @@ SELECT p.id AS process_id,
        p.revision,
        p.root_document_id,
        d.document_no AS root_document_no,
-       (CASE
-         WHEN p.status IN ('COMPLETED', 'SHORT_CLOSED') THEN ''
-         ELSE COALESCE((
+		 COALESCE((
            SELECT x.stage
            FROM wfl_process_documents x
            JOIN vou_documents child ON child.id = x.document_id
-           WHERE x.process_id = p.id AND child.status <> 'FINALIZED'
+           WHERE x.process_id = p.id AND child.status <> 'APPROVED'
            ORDER BY CASE x.stage
              WHEN 'SALE_ORDER' THEN 1 WHEN 'PRODUCTION' THEN 2
              WHEN 'OUTBOUND' THEN 3 WHEN 'DELIVERY' THEN 4
              WHEN 'SIGNOFF' THEN 5 ELSE 6 END DESC,
              x.sequence_no DESC
            LIMIT 1
-         ), 'SALE_ORDER')
-       END)::text AS current_stage,
+		 ), 'SALE_ORDER')::text AS current_stage,
        d.business_date,
        detail.customer_name AS party_name,
        COALESCE(d.currency, '')::text AS currency,
@@ -43,6 +40,220 @@ WHERE (sqlc.arg(keyword)::text = ''
        OR d.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
        OR d.status = ANY(sqlc.arg(statuses)::text[]));
+
+-- name: CountDefinitionInstances :one
+SELECT count(*)
+FROM wfl_definition_instances i
+JOIN vou_documents d ON d.id = i.root_document_id
+JOIN wfl_process_definitions f ON f.id = i.definition_id
+LEFT JOIN LATERAL (
+  SELECT party_object_id, party_code, party_name
+  FROM (
+    SELECT customer_object_id AS party_object_id,
+           customer_code AS party_code,
+           customer_name AS party_name
+    FROM vou_sale_order_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_outbound_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_delivery_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_signoff_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_return_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_inquiry_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_order_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_inbound_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_return_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
+      FROM vou_receipt_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
+      FROM vou_payment_details WHERE document_id = d.id
+    UNION ALL SELECT employee_object_id, employee_code, employee_name
+      FROM vou_expense_reimbursement_details WHERE document_id = d.id
+    UNION ALL SELECT employee_object_id, employee_code, employee_name
+      FROM vou_expense_payment_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
+      COALESCE(NULLIF(counterparty_name, ''), source_name)
+      FROM vou_other_income_details WHERE document_id = d.id
+  ) parties
+  LIMIT 1
+) party ON true
+WHERE (
+    sqlc.arg(keyword)::text = ''
+    OR party.party_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+    OR party.party_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
+    OR EXISTS (
+      SELECT 1
+      FROM wfl_node_instances search_node
+      WHERE search_node.process_id = i.id
+        AND (
+          EXISTS (SELECT 1 FROM vou_product_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1
+            FROM vou_production_material_lines material
+            JOIN vou_production_output_lines output ON output.id = material.output_line_id
+            WHERE output.document_id = search_node.document_id
+              AND (material.formula_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.formula_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.actual_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.actual_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+        )
+    )
+  )
+  AND (sqlc.arg(definition_id)::text = '' OR i.definition_id = sqlc.arg(definition_id))
+  AND (sqlc.arg(party_object_id)::text = '' OR party.party_object_id = sqlc.arg(party_object_id));
+
+-- name: ListDefinitionInstances :many
+SELECT i.id AS process_id,
+       i.definition_id,
+       f.code AS definition_code,
+       f.name AS definition_name,
+       i.revision,
+       i.root_document_id,
+       d.document_no AS root_document_no,
+       d.entity AS root_entity,
+       COALESCE(party.party_code, '')::text AS party_code,
+       COALESCE(party.party_name, '')::text AS party_name,
+       i.updated_at
+FROM wfl_definition_instances i
+JOIN vou_documents d ON d.id = i.root_document_id
+JOIN wfl_process_definitions f ON f.id = i.definition_id
+LEFT JOIN LATERAL (
+  SELECT party_object_id, party_code, party_name
+  FROM (
+    SELECT customer_object_id AS party_object_id,
+           customer_code AS party_code,
+           customer_name AS party_name
+    FROM vou_sale_order_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_outbound_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_delivery_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_signoff_details WHERE document_id = d.id
+    UNION ALL SELECT customer_object_id, customer_code, customer_name
+      FROM vou_sale_return_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_inquiry_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_order_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_inbound_details WHERE document_id = d.id
+    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
+      FROM vou_purchase_return_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
+      FROM vou_receipt_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
+      FROM vou_payment_details WHERE document_id = d.id
+    UNION ALL SELECT employee_object_id, employee_code, employee_name
+      FROM vou_expense_reimbursement_details WHERE document_id = d.id
+    UNION ALL SELECT employee_object_id, employee_code, employee_name
+      FROM vou_expense_payment_details WHERE document_id = d.id
+    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
+      COALESCE(NULLIF(counterparty_name, ''), source_name)
+      FROM vou_other_income_details WHERE document_id = d.id
+  ) parties
+  LIMIT 1
+) party ON true
+WHERE (
+    sqlc.arg(keyword)::text = ''
+    OR party.party_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+    OR party.party_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
+    OR EXISTS (
+      SELECT 1
+      FROM wfl_node_instances search_node
+      WHERE search_node.process_id = i.id
+        AND (
+          EXISTS (SELECT 1 FROM vou_product_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
+            WHERE line.document_id = search_node.document_id
+              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+          OR EXISTS (SELECT 1
+            FROM vou_production_material_lines material
+            JOIN vou_production_output_lines output ON output.id = material.output_line_id
+            WHERE output.document_id = search_node.document_id
+              AND (material.formula_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.formula_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.actual_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+                OR material.actual_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+        )
+    )
+  )
+  AND (sqlc.arg(definition_id)::text = '' OR i.definition_id = sqlc.arg(definition_id))
+  AND (sqlc.arg(party_object_id)::text = '' OR party.party_object_id = sqlc.arg(party_object_id))
+ORDER BY i.updated_at DESC, i.id DESC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetDefinitionInstance :one
+SELECT i.id AS process_id,
+       i.definition_id,
+       f.code AS definition_code,
+       f.name AS definition_name,
+       i.revision,
+       i.root_document_id,
+       d.document_no AS root_document_no,
+       d.entity AS root_entity,
+       i.updated_at,
+       i.started_definition_revision
+FROM wfl_definition_instances i
+JOIN vou_documents d ON d.id = i.root_document_id
+JOIN wfl_process_definitions f ON f.id = i.definition_id
+WHERE i.id = $1;
 
 -- name: ListWorkflowDefinitions :many
 SELECT d.id,
@@ -158,94 +369,6 @@ WHERE p.process_type = 'SALES_FULFILLMENT'
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
        OR p.status = ANY(sqlc.arg(statuses)::text[]));
 
--- name: ListSalesWorkflowProgress :many
-WITH ordered AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         count(DISTINCT line.product_object_id)::integer AS product_count,
-         sum(line.ordered_qty_micros)::bigint AS ordered_quantity
-  FROM wfl_process_instances p
-  JOIN vou_product_lines line ON line.document_id = p.root_document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-), outbound AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status <> 'FINALIZED'), 0)::bigint
-           AS processing_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status = 'FINALIZED'), 0)::bigint
-           AS finalized_quantity
-  FROM wfl_process_instances p
-  JOIN vou_sale_outbound_details detail ON detail.source_order_id = p.root_document_id
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_sale_outbound_lines line ON line.document_id = detail.document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-), signoff AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         COALESCE(sum(line.signed_qty_micros), 0)::bigint AS signed_quantity,
-         COALESCE(sum(line.rejected_qty_micros), 0)::bigint AS rejected_quantity,
-         COALESCE(sum(line.loss_qty_micros), 0)::bigint AS loss_quantity
-  FROM wfl_process_instances p
-  JOIN vou_sale_signoff_details detail ON detail.source_order_id = p.root_document_id
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'FINALIZED'
-  JOIN vou_sale_signoff_lines line ON line.document_id = detail.document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-), returns AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         COALESCE(sum(line.quantity_micros) FILTER (
-           WHERE detail.return_kind = 'REFUSAL' AND doc.status <> 'FINALIZED'), 0)::bigint
-           AS refusal_processing_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (
-           WHERE detail.return_kind = 'REFUSAL' AND doc.status = 'FINALIZED'), 0)::bigint
-           AS refusal_returned_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (
-           WHERE detail.return_kind = 'AFTER_SALE' AND doc.status <> 'FINALIZED'), 0)::bigint
-           AS after_sale_processing_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (
-           WHERE detail.return_kind = 'AFTER_SALE' AND doc.status = 'FINALIZED'), 0)::bigint
-           AS after_sale_returned_quantity
-  FROM wfl_process_instances p
-  JOIN vou_sale_return_details detail ON detail.source_order_id = p.root_document_id
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_sale_return_lines line ON line.document_id = detail.document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-)
-SELECT ordered.process_id,
-       ordered.product_unit,
-       ordered.product_count,
-       ordered.ordered_quantity,
-       COALESCE(outbound.processing_quantity, 0)::bigint AS outbound_processing_quantity,
-       COALESCE(outbound.finalized_quantity, 0)::bigint AS finalized_outbound_quantity,
-       GREATEST(COALESCE(outbound.finalized_quantity, 0)
-         - COALESCE(signoff.signed_quantity, 0)
-         - COALESCE(signoff.rejected_quantity, 0)
-         - COALESCE(signoff.loss_quantity, 0), 0)::bigint AS in_transit_quantity,
-       COALESCE(signoff.signed_quantity, 0)::bigint AS signed_quantity,
-       COALESCE(signoff.rejected_quantity, 0)::bigint AS rejected_quantity,
-       COALESCE(signoff.loss_quantity, 0)::bigint AS loss_quantity,
-       COALESCE(returns.refusal_processing_quantity, 0)::bigint AS refusal_return_processing_quantity,
-       COALESCE(returns.refusal_returned_quantity, 0)::bigint AS refusal_returned_quantity,
-       COALESCE(returns.after_sale_processing_quantity, 0)::bigint AS after_sale_return_processing_quantity,
-       COALESCE(returns.after_sale_returned_quantity, 0)::bigint AS after_sale_returned_quantity,
-       GREATEST(COALESCE(signoff.signed_quantity, 0)
-         - COALESCE(returns.after_sale_returned_quantity, 0), 0)::bigint AS net_signed_quantity,
-       GREATEST(ordered.ordered_quantity
-         - COALESCE(signoff.signed_quantity, 0)
-         - GREATEST(COALESCE(outbound.finalized_quantity, 0)
-           - COALESCE(signoff.signed_quantity, 0)
-           - COALESCE(signoff.rejected_quantity, 0)
-           - COALESCE(signoff.loss_quantity, 0), 0), 0)::bigint AS remaining_quantity
-FROM ordered
-LEFT JOIN outbound USING (process_id, product_unit)
-LEFT JOIN signoff USING (process_id, product_unit)
-LEFT JOIN returns USING (process_id, product_unit)
-ORDER BY ordered.process_id, ordered.product_unit;
-
 -- name: ListSalesOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
@@ -260,8 +383,8 @@ WITH ordered AS (
   FROM wfl_process_instances process
   JOIN vou_documents d ON d.id = process.root_document_id AND d.status = 'APPROVED'
   JOIN vou_sale_order_details detail ON detail.document_id = d.id
-  WHERE process.process_type = 'SALES_FULFILLMENT'
-    AND process.status NOT IN ('COMPLETED', 'SHORT_CLOSED')
+	WHERE process.process_type = 'SALES_FULFILLMENT'
+	  AND detail.fulfillment_status = 'OPEN'
     AND detail.warehouse_object_id IS NOT NULL
 ), target_orders AS (
   SELECT d.id AS order_id, d.business_date, d.document_no,
@@ -276,10 +399,10 @@ WITH ordered AS (
   UNION ALL
   SELECT target.* FROM target_orders target
   WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id = target.order_id)
-), finalized_outbound AS (
+), approved_outbound AS (
   SELECT line.source_order_line_id, sum(line.quantity_micros)::bigint AS quantity_micros
   FROM vou_sale_outbound_lines line
-  JOIN vou_documents doc ON doc.id = line.document_id AND doc.status = 'FINALIZED'
+  JOIN vou_documents doc ON doc.id = line.document_id AND doc.status = 'APPROVED'
   GROUP BY line.source_order_line_id
 ), demand_lines AS (
   SELECT orders.order_id, orders.business_date, orders.document_no,
@@ -289,7 +412,7 @@ WITH ordered AS (
          GREATEST(line.ordered_qty_micros - COALESCE(outbound.quantity_micros, 0), 0)::bigint AS demand_micros
   FROM demand_orders orders
   JOIN vou_product_lines line ON line.document_id = orders.order_id AND line.product_kind <> 'PACKAGING'
-  LEFT JOIN finalized_outbound outbound ON outbound.source_order_line_id = line.id
+  LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id = line.id
 ), inventory AS (
   SELECT entry.warehouse_object_id, entry.product_object_id,
          sum(entry.quantity_delta_micros)::bigint AS balance_micros
@@ -320,7 +443,7 @@ WITH ordered AS (
          COALESCE(sum(round(line.quantity_micros::numeric
            * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
   FROM vou_sale_outbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'FINALIZED'
+  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
   JOIN vou_sale_outbound_lines line ON line.document_id = detail.document_id
   JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
   WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
@@ -332,7 +455,7 @@ WITH ordered AS (
          COALESCE(sum(round((line.signed_qty_micros + line.rejected_qty_micros + line.loss_qty_micros)::numeric
            * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS resolved_micros
   FROM vou_sale_signoff_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'FINALIZED'
+  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
   JOIN vou_sale_signoff_lines line ON line.document_id = detail.document_id
   JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
   WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
@@ -342,7 +465,7 @@ WITH ordered AS (
          COALESCE(sum(round(line.quantity_micros::numeric
            * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
   FROM vou_sale_return_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'FINALIZED'
+  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
   JOIN vou_sale_return_lines line ON line.document_id = detail.document_id
   JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id = line.source_signoff_line_id
   JOIN vou_product_lines source ON source.id = signoff_line.source_order_line_id AND source.product_kind <> 'PACKAGING'
@@ -382,7 +505,7 @@ WITH ordered AS (
          COALESCE(sum(round(line.quantity_micros::numeric
            * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
   FROM vou_purchase_inbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'FINALIZED'
+  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
   JOIN vou_purchase_inbound_lines line ON line.document_id = detail.document_id
   JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
   WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
@@ -390,9 +513,9 @@ WITH ordered AS (
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
          COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status <> 'FINALIZED'), 0)::bigint AS processing_micros,
+           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status <> 'APPROVED'), 0)::bigint AS processing_micros,
          COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status = 'FINALIZED'), 0)::bigint AS finalized_micros
+           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status = 'APPROVED'), 0)::bigint AS approved_micros
   FROM vou_purchase_return_details detail
   JOIN vou_documents doc ON doc.id = detail.document_id
   JOIN vou_purchase_return_lines line ON line.document_id = detail.document_id
@@ -405,7 +528,7 @@ SELECT d.id AS order_id,
        COALESCE(ordered.quantity_micros, 0)::bigint AS ordered_quantity_micros,
        COALESCE(inbound.quantity_micros, 0)::bigint AS inbound_quantity_micros,
        COALESCE(returns.processing_micros, 0)::bigint AS return_processing_quantity_micros,
-       GREATEST(COALESCE(inbound.quantity_micros, 0) - COALESCE(returns.finalized_micros, 0), 0)::bigint AS net_inbound_quantity_micros
+       GREATEST(COALESCE(inbound.quantity_micros, 0) - COALESCE(returns.approved_micros, 0), 0)::bigint AS net_inbound_quantity_micros
 FROM vou_documents d
 LEFT JOIN ordered ON ordered.order_id = d.id
 LEFT JOIN inbound ON inbound.order_id = d.id
@@ -420,11 +543,9 @@ SELECT p.id AS process_id,
        p.revision,
        p.root_document_id,
        d.document_no AS root_document_no,
-       CASE
-         WHEN p.status IN ('COMPLETED', 'SHORT_CLOSED') THEN ''
-         WHEN p.status = 'RETURNING' THEN 'PURCHASE_RETURN'
-         WHEN p.status IN ('APPROVED', 'SHORT_CLOSE_REQUESTED') THEN 'PURCHASE_INBOUND'
-         ELSE 'PURCHASE_ORDER'
+	   CASE
+		 WHEN p.status = 'APPROVED' THEN 'PURCHASE_INBOUND'
+		 ELSE 'PURCHASE_ORDER'
        END AS current_stage,
        d.business_date,
        detail.supplier_name AS party_name,
@@ -449,59 +570,3 @@ WHERE p.process_type = 'PURCHASE_FULFILLMENT'
   AND (sqlc.arg(keyword)::text = '' OR d.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%')
   AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
        OR p.status = ANY(sqlc.arg(statuses)::text[]));
-
--- name: ListPurchaseWorkflowProgress :many
-WITH ordered AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         count(DISTINCT line.product_object_id)::integer AS product_count,
-         sum(line.ordered_qty_micros)::bigint AS ordered_quantity
-  FROM wfl_process_instances p
-  JOIN vou_product_lines line ON line.document_id = p.root_document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-), inbound AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status <> 'FINALIZED'), 0)::bigint
-           AS processing_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status = 'FINALIZED'), 0)::bigint
-           AS finalized_quantity,
-         COALESCE(sum(line.quantity_micros), 0)::bigint AS reserved_quantity
-  FROM wfl_process_instances p
-  JOIN vou_purchase_inbound_details detail ON detail.source_order_id = p.root_document_id
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_purchase_inbound_lines line ON line.document_id = detail.document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-), returns AS (
-  SELECT p.id AS process_id,
-         line.product_unit,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status <> 'FINALIZED'), 0)::bigint
-           AS processing_quantity,
-         COALESCE(sum(line.quantity_micros) FILTER (WHERE doc.status = 'FINALIZED'), 0)::bigint
-           AS returned_quantity
-  FROM wfl_process_instances p
-  JOIN vou_purchase_return_details detail ON detail.source_order_id = p.root_document_id
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_purchase_return_lines line ON line.document_id = detail.document_id
-  WHERE p.id = ANY(sqlc.arg(process_ids)::text[])
-  GROUP BY p.id, line.product_unit
-)
-SELECT ordered.process_id,
-       ordered.product_unit,
-       ordered.product_count,
-       ordered.ordered_quantity,
-       COALESCE(inbound.processing_quantity, 0)::bigint AS inbound_processing_quantity,
-       COALESCE(inbound.finalized_quantity, 0)::bigint AS finalized_inbound_quantity,
-       COALESCE(returns.processing_quantity, 0)::bigint AS return_processing_quantity,
-       COALESCE(returns.returned_quantity, 0)::bigint AS returned_quantity,
-       GREATEST(COALESCE(inbound.finalized_quantity, 0)
-         - COALESCE(returns.returned_quantity, 0), 0)::bigint AS net_inbound_quantity,
-       GREATEST(ordered.ordered_quantity
-         - COALESCE(inbound.reserved_quantity, 0)
-         + COALESCE(returns.returned_quantity, 0), 0)::bigint AS remaining_quantity
-FROM ordered
-LEFT JOIN inbound USING (process_id, product_unit)
-LEFT JOIN returns USING (process_id, product_unit)
-ORDER BY ordered.process_id, ordered.product_unit;

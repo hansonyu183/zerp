@@ -73,9 +73,6 @@ func New(
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)
 	}
-	if err = vouchers.RegisterCompletionSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register VOU completion subscriptions: %w", err)
-	}
 	return &Seeder{pool: pool, bob: bobService, ledger: ledger, vouchers: vouchers}, nil
 }
 
@@ -222,7 +219,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 				}},
 			}}, actorID, requestID("purchase-inbound-create"))
 		},
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("seed production purchase inbound: %w", err)
@@ -275,22 +272,22 @@ func (s *Seeder) seedCompletedSelfProduction(
 	_, outcome, err := s.ensureDocument(
 		ctx,
 		voudomain.EntitySelfProduction,
-		"self-production-finalized",
+		"self-production-approved",
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySelfProduction, voudomain.CreateInput{
 				Data: productionDraft(
 					refs,
-					"生产自制品固定测试：已完成，材料领料与成品入库已记账",
+					"生产自制品固定测试：已批准，材料领料与成品入库已记账",
 					"10",
 					"5",
 					"21",
 				),
-			}, actorID, requestID("self-production-finalized-create"))
+			}, actorID, requestID("self-production-approved-create"))
 		},
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("seed finalized self production: %w", err)
+		return 0, fmt.Errorf("seed approved self production: %w", err)
 	}
 	return outcome, nil
 }
@@ -508,8 +505,6 @@ func productionStatusRank(status string) (int, bool) {
 		return 1, true
 	case voudomain.StatusApproved:
 		return 2, true
-	case voudomain.StatusFinalized:
-		return 3, true
 	default:
 		return 0, false
 	}

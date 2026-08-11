@@ -204,7 +204,7 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if source.Status != StatusApproved && source.Status != StatusFinalized {
+	if source.Status != StatusApproved {
 		return MutationResult{}, domainError(ErrorConflict, "expense reimbursement is not approved", nil, nil)
 	}
 	fund, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityFundAccount, defaults.FundAccountObjectID, "fundAccount")

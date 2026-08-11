@@ -622,8 +622,7 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
 	}
 	allowedStatuses := map[string]bool{
-		StatusDraft: true, StatusChecked: true, StatusApproved: true, StatusFinalized: true,
-		"ORDERED": true, "CONFIRMED": true, "EXECUTED": true,
+		StatusDraft: true, StatusChecked: true, StatusApproved: true,
 	}
 	seen := map[string]bool{}
 	for _, status := range input.Filters.Status {

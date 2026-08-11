@@ -39,10 +39,6 @@ export type VoucherStatus =
   | 'DRAFT'
   | 'CHECKED'
   | 'APPROVED'
-  | 'FINALIZED'
-  | 'ORDERED'
-  | 'CONFIRMED'
-  | 'EXECUTED'
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -380,10 +376,6 @@ export interface VouAtomicDocument<
   reviewedBy?: string
   approvedAt?: string
   approvedBy?: string
-  finalizedAt?: string
-  finalizedBy?: string
-  executedAt?: string
-  executedBy?: string
 }
 
 export interface VoucherDocumentData {
@@ -430,13 +422,10 @@ export interface VoucherDocumentData {
   differenceReason?: string
   settlementMode?: 'LEGACY_DIRECT' | 'FLOW_PAYMENT'
   signoffLines?: VoucherSaleSignoffLineView[]
-  fulfillmentStatus?:
-    'OPEN' | 'FULFILLED' | 'SHORT_CLOSE_REQUESTED' | 'SHORT_CLOSED'
+  fulfillmentStatus?: 'OPEN' | 'FULFILLED'
   signedQuantity?: string
   inTransitQuantity?: string
   remainingQuantity?: string
-  shortCloseRequestedBy?: string
-  shortCloseReason?: string
   lines?: VoucherManagedLineView[]
   productionLines?: VoucherProductionOutputView[]
   inventoryCountLines?: VoucherInventoryCountLineView[]
@@ -616,8 +605,6 @@ export interface VoucherDocumentView {
   checkedBy?: string
   approvedAt?: string
   approvedBy?: string
-  finalizedAt?: string
-  finalizedBy?: string
   parentEntity?: VoucherEntity
   parentDocumentId?: string
   parentDocumentNo?: string
@@ -708,7 +695,7 @@ export interface VoucherLifecycleLabels {
   approve: string
   unapprove: string
   checked: string
-  finalized: string
+  approved: string
 }
 
 export type VoucherLifecycleAction =
@@ -744,10 +731,6 @@ export interface VoucherActionAvailability {
   approve: boolean
   unapprove: boolean
   delete: boolean
-  shortCloseRequest: boolean
-  shortCloseCancel: boolean
-  shortCloseConfirm: boolean
-  shortCloseUnconfirm: boolean
   audit: boolean
   attachmentInitiate: boolean
   attachmentDownload: boolean

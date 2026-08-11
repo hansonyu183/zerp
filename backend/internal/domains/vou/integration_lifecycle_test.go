@@ -114,10 +114,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("approve: %v (cause: %v)", err, errors.Unwrap(err))
 			}
-			expectedStatus := StatusFinalized
-			if test.entity == EntitySaleOrder {
-				expectedStatus = StatusApproved
-			}
+			expectedStatus := StatusApproved
 			if approved.Status != expectedStatus {
 				t.Fatalf("approved status = %s, want %s", approved.Status, expectedStatus)
 			}
@@ -192,10 +189,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 				history, historyErr := service.AuditHistory(t.Context(), test.entity, HistoryInput{
 					DocumentID: created.DocumentID, Page: 1, PageSize: 20,
 				})
-				expectedAudits := int64(7)
-				if test.entity == EntitySaleOrder {
-					expectedAudits = 5
-				}
+				expectedAudits := int64(5)
 				if historyErr != nil || history.Total != expectedAudits {
 					t.Fatalf("history total=%d err=%v", history.Total, historyErr)
 				}
@@ -325,7 +319,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
 	if legacyPermissions != 0 || purchaseWritePermissions != 10 ||
-		purchaseWorkflowPermissions != 7 {
+		purchaseWorkflowPermissions != 3 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)
 	}

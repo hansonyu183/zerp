@@ -248,7 +248,7 @@ WHERE line.document_entity='sale-pricing'
   AND line.product_object_id=sqlc.arg(product_object_id)
   AND document.currency=sqlc.arg(currency)
   AND document.business_date <= sqlc.arg(business_date)
-  AND document.status IN ('APPROVED','FINALIZED')
+  AND document.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1;
 
@@ -264,7 +264,7 @@ WHERE line.document_entity='purchase-inquiry'
   AND inquiry.supplier_object_id=sqlc.arg(supplier_object_id)
   AND document.currency=sqlc.arg(currency)
   AND document.business_date <= sqlc.arg(business_date)
-  AND document.status IN ('APPROVED','FINALIZED')
+  AND document.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1;
 
@@ -336,41 +336,6 @@ SET status = 'CHECKED', revision = revision + 1,
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision) AND status = 'APPROVED'
 RETURNING revision;
-
--- name: FinalizeVouDocument :one
-UPDATE vou_documents
-SET status = 'FINALIZED', revision = revision + 1,
-    executed_at = now(), executed_by = sqlc.arg(actor_id),
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'APPROVED'
-RETURNING revision;
-
--- name: UnfinalizeVouDocument :one
-UPDATE vou_documents
-SET status = 'APPROVED', revision = revision + 1,
-    executed_at = NULL, executed_by = NULL,
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'FINALIZED'
-RETURNING revision;
-
--- name: ListApprovedVouDocumentsForCompletion :many
-SELECT * FROM vou_documents
-WHERE status = 'APPROVED'
-ORDER BY business_date, document_no, id;
-
--- name: ListOpenPeriodFinalizedVouDocumentsForCompletion :many
-SELECT document.*
-FROM vou_documents document
-WHERE document.status = 'FINALIZED'
-  AND document.business_date > COALESCE((
-      SELECT closing_date FROM led_closings
-      WHERE status = 'ACTIVE'
-      ORDER BY closing_date DESC
-      LIMIT 1
-  ), DATE '0001-01-01')
-ORDER BY document.business_date DESC, document.document_no DESC, document.id DESC;
 
 -- name: IsVouDocumentInClosedPeriod :one
 SELECT EXISTS(
@@ -922,7 +887,7 @@ JOIN vou_sale_order_details detail ON detail.document_id = document.id
 JOIN vou_product_lines product_line ON product_line.document_id = document.id
 JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
 WHERE document.entity = 'sale-order'
-  AND document.status IN ('CHECKED', 'APPROVED', 'FINALIZED')
+  AND document.status IN ('CHECKED', 'APPROVED')
   AND detail.customer_object_id = sqlc.arg(customer_object_id)
   AND product_line.product_object_id = sqlc.arg(product_object_id)
 ORDER BY document.business_date DESC, document.document_no DESC

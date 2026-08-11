@@ -82,8 +82,6 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	}
 	allowed := map[string]bool{
 		StatusDraft: true, StatusChecked: true, StatusApproved: true,
-		StatusCompleted: true, StatusShortRequested: true, StatusShortClosed: true,
-		StatusReturning: true,
 	}
 	statuses := make([]string, 0, len(input.Statuses))
 	for _, status := range input.Statuses {

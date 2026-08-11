@@ -146,7 +146,7 @@ func (s *Seeder) seedZeroIntermediaryCalculation(ctx context.Context, businessDa
 		ctx,
 		"ledger-intermediary-calculation",
 		voudomain.EntityIntermediaryCalculation,
-		voudomain.StatusFinalized,
+		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntityIntermediaryCalculation, voudomain.CreateInput{
 				Data: voudomain.DraftInput{

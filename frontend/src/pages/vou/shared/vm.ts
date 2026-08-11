@@ -2,7 +2,6 @@ import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import {
-  type VoucherActionAvailability,
   type VoucherDocumentView,
   type VoucherDraftForm,
   type VoucherEntity,
@@ -349,7 +348,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           documentId: data.parentDocumentId,
           entity: data.parentEntity ?? config.parentEntity ?? config.entity,
           documentNo: data.parentDocumentNo,
-          status: 'FINALIZED',
+          status: 'APPROVED',
           revision: 0,
           businessDate: data.data.businessDate,
           currency: data.data.currency,
@@ -520,25 +519,12 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
   })
 
   async function secondaryAction(
-    action:
-      | 'delete'
-      | 'short-close-request'
-      | 'short-close-cancel'
-      | 'short-close-confirm'
-      | 'short-close-unconfirm',
+    action: 'delete',
     reason?: string,
   ): Promise<void> {
     const current = documentView.value
     if (!current) return
-    const availabilityKey = {
-      delete: 'delete',
-      'short-close-request': 'shortCloseRequest',
-      'short-close-cancel': 'shortCloseCancel',
-      'short-close-confirm': 'shortCloseConfirm',
-      'short-close-unconfirm': 'shortCloseUnconfirm',
-    }[action] as keyof VoucherActionAvailability
-    if (!actionAvailability.value[availabilityKey]) return
-    if (action !== 'delete') return
+    if (!actionAvailability.value.delete) return
     actionLoading.value = action
     workspaceError.value = null
     try {

@@ -90,8 +90,6 @@ func (s *Service) loadData(
 		}
 		data.FulfillmentStatus = detail.FulfillmentStatus
 		data.SpecialApproval = detail.SpecialApproval
-		data.ShortCloseRequestedBy = deref(detail.ShortCloseRequestedBy)
-		data.ShortCloseReason = deref(detail.ShortCloseReason)
 		if err = s.setSaleOrderBalances(ctx, document.ID, &data); err != nil {
 			return data, err
 		}
@@ -449,7 +447,6 @@ func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachment
 		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,
 		CheckedAt: optionalTime(document.ReviewedAt), CheckedBy: document.ReviewedBy,
 		ApprovedAt: optionalTime(document.ApprovedAt), ApprovedBy: document.ApprovedBy,
-		FinalizedAt: optionalTime(document.ExecutedAt), FinalizedBy: document.ExecutedBy,
 	}
 }
 

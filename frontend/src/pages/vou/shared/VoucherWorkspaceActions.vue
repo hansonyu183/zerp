@@ -13,14 +13,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   save: []
-  secondary: [
-    action:
-      | 'delete'
-      | 'short-close-request'
-      | 'short-close-cancel'
-      | 'short-close-unconfirm',
-    title: string,
-  ]
+  secondary: [action: 'delete', title: string]
 }>()
 
 const vm = reactive(props.model)
@@ -82,7 +75,7 @@ const lifecycleDisabledReason = computed(() => {
       v-if="
         vm.documentView &&
         vm.config.entity === 'sale-signoff' &&
-        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
+        ['APPROVED'].includes(vm.documentView.status) &&
         session.can('/vou/sale-return/create')
       "
       :to="{
@@ -98,7 +91,7 @@ const lifecycleDisabledReason = computed(() => {
       v-if="
         vm.documentView &&
         vm.config.entity === 'purchase-inbound' &&
-        ['APPROVED', 'FINALIZED'].includes(vm.documentView.status) &&
+        ['APPROVED'].includes(vm.documentView.status) &&
         session.can('/vou/purchase-return/create')
       "
       :to="{
@@ -118,35 +111,6 @@ const lifecycleDisabledReason = computed(() => {
       @click="emit('secondary', 'delete', '删除草稿')"
     >
       删除草稿
-    </v-btn>
-    <v-btn
-      v-if="!vm.editing && vm.actionAvailability.shortCloseRequest"
-      color="warning"
-      variant="tonal"
-      @click="emit('secondary', 'short-close-request', '申请短结')"
-    >
-      申请短结
-    </v-btn>
-    <v-btn
-      v-if="!vm.editing && vm.actionAvailability.shortCloseCancel"
-      variant="tonal"
-      @click="emit('secondary', 'short-close-cancel', '取消短结申请')"
-    >
-      取消短结申请
-    </v-btn>
-    <v-btn
-      v-if="!vm.editing && vm.actionAvailability.shortCloseConfirm"
-      color="warning"
-      @click="vm.secondaryAction('short-close-confirm')"
-    >
-      确认短结
-    </v-btn>
-    <v-btn
-      v-if="!vm.editing && vm.actionAvailability.shortCloseUnconfirm"
-      variant="tonal"
-      @click="emit('secondary', 'short-close-unconfirm', '撤销短结')"
-    >
-      撤销短结
     </v-btn>
   </div>
 </template>

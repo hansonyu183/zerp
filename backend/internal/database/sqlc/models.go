@@ -1392,11 +1392,8 @@ type VouDocument struct {
 	ReviewedBy       *string            `db:"reviewed_by" json:"reviewed_by"`
 	ApprovedAt       pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
 	ApprovedBy       *string            `db:"approved_by" json:"approved_by"`
-	ExecutedAt       pgtype.Timestamptz `db:"executed_at" json:"executed_at"`
-	ExecutedBy       *string            `db:"executed_by" json:"executed_by"`
 	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
 	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
-	CompletedAt      pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
 	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
 	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
@@ -1772,8 +1769,6 @@ type VouPurchaseOrderDetail struct {
 	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 	FulfillmentStatus                    string  `db:"fulfillment_status" json:"fulfillment_status"`
-	ShortCloseRequestedBy                *string `db:"short_close_requested_by" json:"short_close_requested_by"`
-	ShortCloseReason                     *string `db:"short_close_reason" json:"short_close_reason"`
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
@@ -1875,8 +1870,6 @@ type VouSaleOrderDetail struct {
 	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
 	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
 	FulfillmentStatus                    string  `db:"fulfillment_status" json:"fulfillment_status"`
-	ShortCloseRequestedBy                *string `db:"short_close_requested_by" json:"short_close_requested_by"`
-	ShortCloseReason                     *string `db:"short_close_reason" json:"short_close_reason"`
 	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
 	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
@@ -2057,14 +2050,12 @@ type WflDefinitionInstance struct {
 	ID                        string             `db:"id" json:"id"`
 	DefinitionID              string             `db:"definition_id" json:"definition_id"`
 	RootDocumentID            string             `db:"root_document_id" json:"root_document_id"`
-	Status                    string             `db:"status" json:"status"`
 	Revision                  int64              `db:"revision" json:"revision"`
 	StartedDefinitionRevision int64              `db:"started_definition_revision" json:"started_definition_revision"`
 	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy                 string             `db:"created_by" json:"created_by"`
 	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
-	CompletedAt               pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 }
 
 type WflDefinitionNode struct {
@@ -2143,7 +2134,6 @@ type WflProcessInstance struct {
 	CreatedBy         string             `db:"created_by" json:"created_by"`
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
-	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 }
 
 type WflRuntimeAuditEvent struct {

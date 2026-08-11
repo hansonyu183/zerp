@@ -56,7 +56,7 @@ func (s *Service) validateManagedSalesParentStatus(
 		return s.internal("read sales workflow parent status", err)
 	}
 	rank := map[string]int{
-		StatusDraft: 0, StatusChecked: 1, StatusApproved: 2, StatusFinalized: 3,
+		StatusDraft: 0, StatusChecked: 1, StatusApproved: 2,
 	}
 	required, ok := rank[targetStatus]
 	if !ok || rank[parentStatus] < required {
@@ -157,7 +157,7 @@ func (s *Service) validateManagedSalesChildrenAtMost(
 		return nil
 	}
 	targetRank := map[string]int{
-		StatusDraft: 0, StatusChecked: 1, StatusApproved: 2, StatusFinalized: 3,
+		StatusDraft: 0, StatusChecked: 1, StatusApproved: 2,
 	}[targetStatus]
 	rows, err := tx.Query(ctx, `SELECT id,entity,status FROM vou_documents
 		WHERE parent_document_id=$1 FOR SHARE`, document.ID)
@@ -179,7 +179,7 @@ func (s *Service) validateManagedSalesChildrenAtMost(
 			)
 		}
 		childRank, ok := map[string]int{
-			StatusDraft: 0, StatusChecked: 1, StatusApproved: 2, StatusFinalized: 3,
+			StatusDraft: 0, StatusChecked: 1, StatusApproved: 2,
 		}[status]
 		if !ok || childRank > targetRank {
 			return domainError(
@@ -223,42 +223,13 @@ func (s *Service) salesProcessForDocument(
 func (s *Service) salesWorkflowStatus(
 	ctx context.Context, tx pgx.Tx, processID string,
 ) (string, error) {
-	var documentStatus, fulfillment string
-	err := tx.QueryRow(ctx, `SELECT d.status,o.fulfillment_status
+	var documentStatus string
+	err := tx.QueryRow(ctx, `SELECT d.status
 		FROM wfl_process_instances p
 		JOIN vou_documents d ON d.id=p.root_document_id
-		JOIN vou_sale_order_details o ON o.document_id=d.id
-		WHERE p.id=$1`, processID).Scan(&documentStatus, &fulfillment)
+		WHERE p.id=$1`, processID).Scan(&documentStatus)
 	if err != nil {
 		return "", err
-	}
-	switch fulfillment {
-	case "FULFILLED":
-		var pending bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(
-			SELECT 1 FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
-			WHERE x.process_id=$1 AND x.stage='RETURN' AND d.status<>'FINALIZED'
-		)`, processID).Scan(&pending); err != nil {
-			return "", err
-		}
-		if pending {
-			return "RETURNING", nil
-		}
-		return StatusCompleted, nil
-	case "SHORT_CLOSE_REQUESTED":
-		return StatusShortCloseRequested, nil
-	case "SHORT_CLOSED":
-		var pending bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(
-			SELECT 1 FROM wfl_process_documents x JOIN vou_documents d ON d.id=x.document_id
-			WHERE x.process_id=$1 AND x.stage='RETURN' AND d.status<>'FINALIZED'
-		)`, processID).Scan(&pending); err != nil {
-			return "", err
-		}
-		if pending {
-			return "RETURNING", nil
-		}
-		return StatusShortClosed, nil
 	}
 	switch documentStatus {
 	case StatusDraft, StatusChecked:
@@ -290,8 +261,7 @@ func (s *Service) touchSalesWorkflow(
 		return s.internal("derive sales workflow status", err)
 	}
 	if _, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET
-		status=$1::text,revision=revision+1,updated_at=now(),updated_by=$2,
-		completed_at=CASE WHEN $1::text IN ('COMPLETED','SHORT_CLOSED') THEN now() ELSE NULL END
+		status=$1::text,revision=revision+1,updated_at=now(),updated_by=$2
 		WHERE id=$3`, next, actorID, processID); err != nil {
 		return s.writeError("touch sales workflow", err)
 	}
@@ -445,7 +415,7 @@ func (s *Service) ensureAutoOutboundDraft(
 	); err != nil {
 		return MutationResult{}, s.internal("lock generated outbound source", err)
 	}
-	if orderStatus != StatusApproved && orderStatus != StatusFinalized {
+	if orderStatus != StatusApproved {
 		return MutationResult{}, nil
 	}
 	rows, err := tx.Query(ctx, `SELECT l.id,l.product_object_id,l.product_version_id,
@@ -453,15 +423,15 @@ func (s *Service) ensureAutoOutboundDraft(
 		GREATEST(l.ordered_qty_micros
 			- COALESCE((SELECT sum(sl.signed_qty_micros)
 				FROM vou_sale_signoff_lines sl
-				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status IN ('APPROVED','FINALIZED')
+				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status = 'APPROVED'
 				WHERE sl.source_order_line_id=l.id),0)
 			- COALESCE((SELECT sum(ol.quantity_micros)
 				FROM vou_sale_outbound_lines ol
-				JOIN vou_documents od ON od.id=ol.document_id AND od.status IN ('APPROVED','FINALIZED')
+				JOIN vou_documents od ON od.id=ol.document_id AND od.status = 'APPROVED'
 				LEFT JOIN vou_sale_signoff_lines sl2 ON sl2.source_outbound_line_id=ol.id
 				LEFT JOIN vou_documents sd2 ON sd2.id=sl2.document_id
 				WHERE ol.source_order_line_id=l.id
-				  AND (sd2.id IS NULL OR sd2.status NOT IN ('APPROVED','FINALIZED'))),0),0)::bigint
+				  AND (sd2.id IS NULL OR sd2.status <> 'APPROVED')),0),0)::bigint
 		FROM vou_product_lines l WHERE l.document_id=$1 ORDER BY l.line_no`, orderID)
 	if err != nil {
 		return MutationResult{}, s.internal("read available outbound lines", err)
@@ -605,7 +575,7 @@ func (s *Service) ensureAutoDeliveryDraft(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if status != StatusApproved && status != StatusFinalized {
+	if status != StatusApproved {
 		return MutationResult{}, nil
 	}
 	id, number, err := s.insertAutoSalesDocument(
@@ -659,7 +629,7 @@ func (s *Service) ensureAutoSignoffDraft(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if status != StatusApproved && status != StatusFinalized {
+	if status != StatusApproved {
 		return MutationResult{}, nil
 	}
 	type sourceLine struct {
@@ -750,47 +720,6 @@ func (s *Service) removeUntouchedGeneratedChildren(
 			return err
 		}
 		children = append(children, value)
-	}
-	rows.Close()
-	for _, value := range children {
-		if value.status != StatusDraft || value.revision != 1 || value.createdBy != systemidentity.UserID || value.hasAttachments {
-			return domainError(ErrorConflict, "downstream workflow document has changed", map[string]any{
-				"documentId": value.id, "entity": value.entity,
-			}, nil)
-		}
-		if err = s.deleteGeneratedSalesDocument(ctx, tx, value.id, value.entity); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Service) removeUntouchedGeneratedDraftChildren(
-	ctx context.Context, tx pgx.Tx, parentID string,
-) error {
-	rows, err := tx.Query(ctx, `SELECT id,entity,status,revision,created_by,
-		EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id)
-		FROM vou_documents WHERE parent_document_id=$1 AND status<>'FINALIZED' FOR UPDATE`, parentID)
-	if err != nil {
-		return err
-	}
-	type child struct {
-		id, entity, status, createdBy string
-		revision                      int64
-		hasAttachments                bool
-	}
-	children := make([]child, 0)
-	for rows.Next() {
-		var value child
-		if err = rows.Scan(&value.id, &value.entity, &value.status, &value.revision, &value.createdBy, &value.hasAttachments); err != nil {
-			rows.Close()
-			return err
-		}
-		children = append(children, value)
-	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
-		return err
 	}
 	rows.Close()
 	for _, value := range children {

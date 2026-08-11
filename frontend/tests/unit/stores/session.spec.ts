@@ -165,7 +165,7 @@ describe('useSessionStore permissions', () => {
             '/wfl/process-instance/query',
             '/wfl/sales-fulfillment/query',
             '/wfl/sales-fulfillment/get',
-            '/wfl/purchase-fulfillment/short-close-request',
+            '/wfl/purchase-fulfillment/get',
           ],
         },
       })

@@ -446,7 +446,6 @@ describe('VoucherList', () => {
       row('DRAFT', 'SO-DRAFT'),
       row('CHECKED', 'SO-CHECKED'),
       row('APPROVED', 'SO-APPROVED'),
-      row('FINALIZED', 'SO-FINALIZED'),
     ]
     const allowed = new Set<VoucherLifecycleAction>([
       'check',
@@ -464,7 +463,6 @@ describe('VoucherList', () => {
       '反核对 SO-CHECKED',
       '批准 SO-CHECKED',
       '反批准 SO-APPROVED',
-      '反批准 SO-FINALIZED',
     ]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true)
     }

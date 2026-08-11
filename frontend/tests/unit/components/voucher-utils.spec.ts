@@ -20,10 +20,6 @@ describe('VOU decimal and settlement helpers', () => {
       'DRAFT',
       'CHECKED',
       'APPROVED',
-      'FINALIZED',
-      'ORDERED',
-      'CONFIRMED',
-      'EXECUTED',
     ])
   })
 

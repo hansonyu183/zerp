@@ -8,10 +8,6 @@ ZERP uses shared business terms across its auxiliary-data, business-object, vouc
 会产生业务台账流水的 VOU 单据进入 `APPROVED` 时，将业务事实写入库存、资金、往来、空桶等 LED 台账；`unapprove` 撤销同一批台账流水。没有台账流水的单据仍可进入 `APPROVED`。
 _Avoid_: 最终处理、业务完成
 
-**Voucher Completion（单据完成）**:
-VOU 单据进入 `FINALIZED`，表示业务事实已经全部履约；完成状态由系统根据末端审批或下游履约自动维护，不写入或撤销 LED 台账。
-_Avoid_: 审批入账、人工完成
-
 ## Other Dealings
 
 **Other Dealings Ledger（其他往来台账）**:

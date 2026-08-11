@@ -63,7 +63,7 @@ const atomicStatusLabel = computed(() => {
   return status
     ? formatVoucherStatus(status, {
         CHECKED: labels.value.checked,
-        FINALIZED: labels.value.finalized,
+        APPROVED: labels.value.approved,
       })
     : ''
 })
@@ -93,12 +93,7 @@ const parentDocumentNo = computed(
     '由系统生成',
 )
 const secondaryOpen = ref(false)
-const secondaryAction = ref<
-  | 'delete'
-  | 'short-close-request'
-  | 'short-close-cancel'
-  | 'short-close-unconfirm'
->('delete')
+const secondaryAction = ref<'delete'>('delete')
 const secondaryTitle = ref('')
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)

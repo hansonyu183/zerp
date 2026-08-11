@@ -708,7 +708,7 @@ describe('shared VOU entity view model', () => {
     ).not.toHaveProperty('returnLines')
   })
 
-  it('loads a finalized order and creates an outbound batch with source lines', async () => {
+  it('loads an approved order and creates an outbound batch with source lines', async () => {
     const config = voucherEntityConfigs['sale-outbound']
     const orderConfig = voucherEntityConfigs['sale-order']
     const orderForm = useVoucherEntityViewModel(orderConfig).form.value
@@ -716,7 +716,7 @@ describe('shared VOU entity view model', () => {
     const order = documentView(orderConfig, orderForm)
     order.documentId = 'ORDER-1'
     order.documentNo = 'SOR-20260724-0001'
-    order.status = 'FINALIZED'
+    order.status = 'APPROVED'
     order.data.productLines![0].availableQuantity = '6.0'
 
     useSessionStore().permissions = ['/vou/sale-outbound/create']

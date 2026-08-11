@@ -405,7 +405,7 @@ func (s *Service) forwardTransition(
 		case EntityInventoryCount:
 			summary, err = s.prepareInventoryCountFinalization(ctx, tx, q, document)
 		case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
-			summary, err = s.prepareSalesChainFinalization(ctx, tx, document)
+			summary, err = s.prepareSalesChainApproval(ctx, tx, document)
 		default:
 			summary = map[string]any{"posted": true}
 		}
@@ -479,6 +479,11 @@ func (s *Service) forwardTransition(
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document approved", err)
 	}
+	if entity == EntityPurchaseReturn {
+		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	current, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
 	if err != nil {
 		return MutationResult{}, s.internal("read approved document", err)
@@ -508,18 +513,6 @@ func (s *Service) reverseTransition(
 	}
 	if document.Revision != input.Revision {
 		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, nil)
-	}
-	if from == StatusApproved && to == StatusChecked && document.Status == StatusFinalized {
-		if err = s.ensureFinalizedLeafCanUnapprove(ctx, tx, document); err != nil {
-			return MutationResult{}, err
-		}
-		if _, err = s.systemUnfinalizeDocument(ctx, tx, document, requestID, "反批准自动重新打开"); err != nil {
-			return MutationResult{}, err
-		}
-		document, err = q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
-		if err != nil {
-			return MutationResult{}, s.internal("relock reopened document", err)
-		}
 	}
 	if document.Status != from {
 		return MutationResult{}, domainError(ErrorConflict, "document status changed", map[string]any{

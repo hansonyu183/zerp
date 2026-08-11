@@ -44,11 +44,6 @@ const (
 	StatusDraft                   = "DRAFT"
 	StatusChecked                 = "CHECKED"
 	StatusApproved                = "APPROVED"
-	StatusFinalized               = "FINALIZED"
-	StatusCompleted               = "COMPLETED"
-	StatusReturning               = "RETURNING"
-	StatusShortCloseRequested     = "SHORT_CLOSE_REQUESTED"
-	StatusShortClosed             = "SHORT_CLOSED"
 )
 
 var entities = [...]string{
@@ -877,8 +872,6 @@ type DocumentDataView struct {
 	SignedQuantity            string                        `json:"signedQuantity,omitempty"`
 	InTransitQuantity         string                        `json:"inTransitQuantity,omitempty"`
 	RemainingQuantity         string                        `json:"remainingQuantity,omitempty"`
-	ShortCloseRequestedBy     string                        `json:"shortCloseRequestedBy,omitempty"`
-	ShortCloseReason          string                        `json:"shortCloseReason,omitempty"`
 	Lines                     []ManagedLineView             `json:"lines,omitempty"`
 	ProductionLines           []ProductionOutputLineView    `json:"productionLines,omitempty"`
 	InventoryCountLines       []InventoryCountLineView      `json:"inventoryCountLines,omitempty"`
@@ -920,8 +913,6 @@ type DocumentView struct {
 	CheckedBy        *string          `json:"checkedBy,omitempty"`
 	ApprovedAt       *time.Time       `json:"approvedAt,omitempty"`
 	ApprovedBy       *string          `json:"approvedBy,omitempty"`
-	FinalizedAt      *time.Time       `json:"finalizedAt,omitempty"`
-	FinalizedBy      *string          `json:"finalizedBy,omitempty"`
 	ParentEntity     string           `json:"parentEntity,omitempty"`
 	ParentDocumentID string           `json:"parentDocumentId,omitempty"`
 	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`

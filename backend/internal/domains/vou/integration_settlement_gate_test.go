@@ -260,7 +260,7 @@ func TestPrepaidReopenDoesNotReserveRefusalReturnAmountIntegration(t *testing.T)
 	if err != nil {
 		t.Fatalf("begin refusal settlement reopen: %v", err)
 	}
-	if err = service.reopenOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err != nil {
+	if err = service.restoreOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err != nil {
 		_ = tx.Rollback(t.Context())
 		t.Fatalf("reopen refusal settlement: %v", err)
 	}

@@ -21,13 +21,9 @@ export function useVoucherActionAvailability(
       uncheck: status === 'CHECKED' && can(permission('uncheck')),
       approve: status === 'CHECKED' && can(permission('approve')),
       unapprove:
-        (status === 'APPROVED' || status === 'FINALIZED') &&
+        status === 'APPROVED' &&
         can(permission('unapprove')),
       delete: status === 'DRAFT' && can(permission('delete')),
-      shortCloseRequest: false,
-      shortCloseCancel: false,
-      shortCloseConfirm: false,
-      shortCloseUnconfirm: false,
       audit: Boolean(documentView.value) && can(permission('audit-history')),
       attachmentInitiate:
         status === 'DRAFT' && can(permission('attachment-initiate')),

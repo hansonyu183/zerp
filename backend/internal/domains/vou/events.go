@@ -3,13 +3,11 @@ package vou
 import "strings"
 
 const (
-	documentCreatedTopicPrefix         = "vou.document.created."
-	documentDeletedTopicPrefix         = "vou.document.deleted."
-	documentChangedTopicPrefix         = "vou.document.changed."
-	documentApprovedTopicPrefix        = "vou.document.approved."
-	documentUnapprovedTopicPrefix      = "vou.document.unapproved."
-	documentFinalizedDirectTopicPrefix = "vou.document.finalized."
-	documentUnfinalizedTopicPrefix     = "vou.document.unfinalized."
+	documentCreatedTopicPrefix    = "vou.document.created."
+	documentDeletedTopicPrefix    = "vou.document.deleted."
+	documentChangedTopicPrefix    = "vou.document.changed."
+	documentApprovedTopicPrefix   = "vou.document.approved."
+	documentUnapprovedTopicPrefix = "vou.document.unapproved."
 )
 
 type DocumentCreatedEvent struct {
@@ -102,39 +100,4 @@ func (event DocumentUnapprovedEvent) Topic() string {
 
 func DocumentUnapprovedTopic(entity string) string {
 	return documentUnapprovedTopicPrefix + strings.TrimSpace(entity)
-}
-
-type DocumentFinalizedEvent struct {
-	Entity     string
-	DocumentID string
-	DocumentNo string
-	Revision   int64
-	ActorID    string
-	RequestID  string
-}
-
-func (event DocumentFinalizedEvent) Topic() string {
-	return DocumentFinalizedTopic(event.Entity)
-}
-
-type DocumentUnfinalizedEvent struct {
-	Entity     string
-	DocumentID string
-	DocumentNo string
-	Revision   int64
-	ActorID    string
-	RequestID  string
-	Reason     string
-}
-
-func (event DocumentUnfinalizedEvent) Topic() string {
-	return DocumentUnfinalizedTopic(event.Entity)
-}
-
-func DocumentFinalizedTopic(entity string) string {
-	return documentFinalizedDirectTopicPrefix + strings.TrimSpace(entity)
-}
-
-func DocumentUnfinalizedTopic(entity string) string {
-	return documentUnfinalizedTopicPrefix + strings.TrimSpace(entity)
 }

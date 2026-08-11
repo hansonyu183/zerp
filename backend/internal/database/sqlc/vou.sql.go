@@ -463,35 +463,6 @@ func (q *Queries) DeleteVouPurchaseInboundLines(ctx context.Context, documentID 
 	return err
 }
 
-const finalizeVouDocument = `-- name: FinalizeVouDocument :one
-UPDATE vou_documents
-SET status = 'FINALIZED', revision = revision + 1,
-    executed_at = now(), executed_by = $1,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'APPROVED'
-RETURNING revision
-`
-
-type FinalizeVouDocumentParams struct {
-	ActorID  *string `db:"actor_id" json:"actor_id"`
-	ID       string  `db:"id" json:"id"`
-	Entity   string  `db:"entity" json:"entity"`
-	Revision int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) FinalizeVouDocument(ctx context.Context, arg FinalizeVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, finalizeVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
 const findLatestCustomerSaleOrderFormula = `-- name: FindLatestCustomerSaleOrderFormula :one
 SELECT formula.product_line_id, formula.base_output_quantity_micros,
        document.id AS source_document_id, document.document_no AS source_document_no
@@ -500,7 +471,7 @@ JOIN vou_sale_order_details detail ON detail.document_id = document.id
 JOIN vou_product_lines product_line ON product_line.document_id = document.id
 JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
 WHERE document.entity = 'sale-order'
-  AND document.status IN ('CHECKED', 'APPROVED', 'FINALIZED')
+  AND document.status IN ('CHECKED', 'APPROVED')
   AND detail.customer_object_id = $1
   AND product_line.product_object_id = $2
 ORDER BY document.business_date DESC, document.document_no DESC
@@ -543,7 +514,7 @@ WHERE line.document_entity='purchase-inquiry'
   AND inquiry.supplier_object_id=$2
   AND document.currency=$3
   AND document.business_date <= $4
-  AND document.status IN ('APPROVED','FINALIZED')
+  AND document.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1
 `
@@ -591,7 +562,7 @@ WHERE line.document_entity='sale-pricing'
   AND line.product_object_id=$1
   AND document.currency=$2
   AND document.business_date <= $3
-  AND document.status IN ('APPROVED','FINALIZED')
+  AND document.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1
 `
@@ -812,7 +783,7 @@ func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouB
 }
 
 const getVouDocument = `-- name: GetVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, checked_at, checked_by, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 `
@@ -843,11 +814,8 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 		&i.ReviewedBy,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
-		&i.ExecutedAt,
-		&i.ExecutedBy,
 		&i.CheckedAt,
 		&i.CheckedBy,
-		&i.CompletedAt,
 		&i.ParentDocumentID,
 		&i.ParentEntity,
 		&i.DueDate,
@@ -1079,7 +1047,7 @@ func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID st
 }
 
 const getVouPurchaseOrderDetail = `-- name: GetVouPurchaseOrderDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, settlement_term_code FROM vou_purchase_order_details WHERE document_id = $1
+SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, settlement_term_code FROM vou_purchase_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error) {
@@ -1112,8 +1080,6 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 		&i.SettlementDayOffset,
 		&i.SettlementDescription,
 		&i.FulfillmentStatus,
-		&i.ShortCloseRequestedBy,
-		&i.ShortCloseReason,
 		&i.SettlementDueDays,
 		&i.SettlementCutoffDay,
 		&i.SettlementDefaultSalesSurchargeCents,
@@ -1151,7 +1117,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, short_close_requested_by, short_close_reason, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -1181,8 +1147,6 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.SettlementDayOffset,
 		&i.SettlementDescription,
 		&i.FulfillmentStatus,
-		&i.ShortCloseRequestedBy,
-		&i.ShortCloseReason,
 		&i.SettlementDueDays,
 		&i.SettlementCutoffDay,
 		&i.SettlementDefaultSalesSurchargeCents,
@@ -2706,61 +2670,6 @@ func (q *Queries) ListAllVouStorageKeys(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
-const listApprovedVouDocumentsForCompletion = `-- name: ListApprovedVouDocumentsForCompletion :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by FROM vou_documents
-WHERE status = 'APPROVED'
-ORDER BY business_date, document_no, id
-`
-
-func (q *Queries) ListApprovedVouDocumentsForCompletion(ctx context.Context) ([]VouDocument, error) {
-	rows, err := q.db.Query(ctx, listApprovedVouDocumentsForCompletion)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouDocument{}
-	for rows.Next() {
-		var i VouDocument
-		if err := rows.Scan(
-			&i.ID,
-			&i.Entity,
-			&i.DocumentNo,
-			&i.Status,
-			&i.Revision,
-			&i.BusinessDate,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.Remark,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-			&i.ReviewedAt,
-			&i.ReviewedBy,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
-			&i.CheckedAt,
-			&i.CheckedBy,
-			&i.CompletedAt,
-			&i.ParentDocumentID,
-			&i.ParentEntity,
-			&i.DueDate,
-			&i.OitID,
-			&i.PostedAt,
-			&i.PostedBy,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDepreciableLedAssetsForVou = `-- name: ListDepreciableLedAssetsForVou :many
 SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
 WHERE c.singleton=true AND c.status='ACTIVE' AND a.status='ACTIVE'
@@ -2853,68 +2762,6 @@ func (q *Queries) ListExpiredPendingVouFiles(ctx context.Context, batchSize int3
 	for rows.Next() {
 		var i ListExpiredPendingVouFilesRow
 		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listOpenPeriodFinalizedVouDocumentsForCompletion = `-- name: ListOpenPeriodFinalizedVouDocumentsForCompletion :many
-SELECT document.id, document.entity, document.document_no, document.status, document.revision, document.business_date, document.currency, document.total_amount_cents, document.remark, document.created_at, document.created_by, document.updated_at, document.updated_by, document.reviewed_at, document.reviewed_by, document.approved_at, document.approved_by, document.executed_at, document.executed_by, document.checked_at, document.checked_by, document.completed_at, document.parent_document_id, document.parent_entity, document.due_date, document.oit_id, document.posted_at, document.posted_by
-FROM vou_documents document
-WHERE document.status = 'FINALIZED'
-  AND document.business_date > COALESCE((
-      SELECT closing_date FROM led_closings
-      WHERE status = 'ACTIVE'
-      ORDER BY closing_date DESC
-      LIMIT 1
-  ), DATE '0001-01-01')
-ORDER BY document.business_date DESC, document.document_no DESC, document.id DESC
-`
-
-func (q *Queries) ListOpenPeriodFinalizedVouDocumentsForCompletion(ctx context.Context) ([]VouDocument, error) {
-	rows, err := q.db.Query(ctx, listOpenPeriodFinalizedVouDocumentsForCompletion)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouDocument{}
-	for rows.Next() {
-		var i VouDocument
-		if err := rows.Scan(
-			&i.ID,
-			&i.Entity,
-			&i.DocumentNo,
-			&i.Status,
-			&i.Revision,
-			&i.BusinessDate,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.Remark,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-			&i.ReviewedAt,
-			&i.ReviewedBy,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
-			&i.CheckedAt,
-			&i.CheckedBy,
-			&i.CompletedAt,
-			&i.ParentDocumentID,
-			&i.ParentEntity,
-			&i.DueDate,
-			&i.OitID,
-			&i.PostedAt,
-			&i.PostedBy,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3268,7 +3115,7 @@ func (q *Queries) ListVouBillLines(ctx context.Context, documentID string) ([]Vo
 }
 
 const listVouDocuments = `-- name: ListVouDocuments :many
-SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.executed_at, d.executed_by, d.checked_at, d.checked_by, d.completed_at, d.parent_document_id, d.parent_entity, d.due_date, d.oit_id, d.posted_at, d.posted_by,
+SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.checked_at, d.checked_by, d.parent_document_id, d.parent_entity, d.due_date, d.oit_id, d.posted_at, d.posted_by,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
@@ -3381,11 +3228,8 @@ type ListVouDocumentsRow struct {
 	ReviewedBy       *string            `db:"reviewed_by" json:"reviewed_by"`
 	ApprovedAt       pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
 	ApprovedBy       *string            `db:"approved_by" json:"approved_by"`
-	ExecutedAt       pgtype.Timestamptz `db:"executed_at" json:"executed_at"`
-	ExecutedBy       *string            `db:"executed_by" json:"executed_by"`
 	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
 	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
-	CompletedAt      pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
 	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
 	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
@@ -3433,11 +3277,8 @@ func (q *Queries) ListVouDocuments(ctx context.Context, arg ListVouDocumentsPara
 			&i.ReviewedBy,
 			&i.ApprovedAt,
 			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
 			&i.CheckedAt,
 			&i.CheckedBy,
-			&i.CompletedAt,
 			&i.ParentDocumentID,
 			&i.ParentEntity,
 			&i.DueDate,
@@ -3901,7 +3742,7 @@ func (q *Queries) LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAt
 }
 
 const lockVouDocument = `-- name: LockVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, checked_at, checked_by, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by
 FROM vou_documents
 WHERE id = $1 AND entity = $2
 FOR UPDATE
@@ -3933,11 +3774,8 @@ func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams
 		&i.ReviewedBy,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
-		&i.ExecutedAt,
-		&i.ExecutedBy,
 		&i.CheckedAt,
 		&i.CheckedBy,
-		&i.CompletedAt,
 		&i.ParentDocumentID,
 		&i.ParentEntity,
 		&i.DueDate,
@@ -4131,35 +3969,6 @@ type UncheckVouDocumentParams struct {
 
 func (q *Queries) UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error) {
 	row := q.db.QueryRow(ctx, uncheckVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const unfinalizeVouDocument = `-- name: UnfinalizeVouDocument :one
-UPDATE vou_documents
-SET status = 'APPROVED', revision = revision + 1,
-    executed_at = NULL, executed_by = NULL,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'FINALIZED'
-RETURNING revision
-`
-
-type UnfinalizeVouDocumentParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ID       string `db:"id" json:"id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) UnfinalizeVouDocument(ctx context.Context, arg UnfinalizeVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unfinalizeVouDocument,
 		arg.ActorID,
 		arg.ID,
 		arg.Entity,

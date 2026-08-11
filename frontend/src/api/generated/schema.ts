@@ -1534,142 +1534,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/wfl/sales-fulfillment/short-close-request": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 申请销售履约短结 */
-        post: operations["wflSalesFulfillmentShortCloseRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/short-close-cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 取消销售履约短结申请 */
-        post: operations["wflSalesFulfillmentShortCloseCancel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/short-close-confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 确认销售履约短结 */
-        post: operations["wflSalesFulfillmentShortCloseConfirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/sales-fulfillment/short-close-unconfirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 撤销销售履约短结 */
-        post: operations["wflSalesFulfillmentShortCloseUnconfirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/short-close-request": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 申请采购履约短结 */
-        post: operations["wflPurchaseFulfillmentShortCloseRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/short-close-cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 取消采购履约短结申请 */
-        post: operations["wflPurchaseFulfillmentShortCloseCancel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/short-close-confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 确认采购履约短结 */
-        post: operations["wflPurchaseFulfillmentShortCloseConfirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/wfl/purchase-fulfillment/short-close-unconfirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 撤销采购履约短结 */
-        post: operations["wflPurchaseFulfillmentShortCloseUnconfirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/led/closing/get": {
         parameters: {
             query?: never;
@@ -2642,7 +2506,7 @@ export interface components {
             pageSize: number;
         };
         /** @enum {string} */
-        VouStatus: "DRAFT" | "CHECKED" | "APPROVED" | "FINALIZED" | "ORDERED" | "CONFIRMED" | "EXECUTED";
+        VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
         VouQueryRequest: {
             page: number;
             pageSize: number;
@@ -3371,7 +3235,6 @@ export interface components {
             page: number;
             pageSize: number;
             keyword?: string;
-            statuses?: string[];
         };
         WflDefinitionGetRequest: {
             definitionId: string;
@@ -3574,32 +3437,12 @@ export interface components {
             keyword?: string;
             definitionId?: string;
             partyObjectId?: string;
-            statuses?: string[];
-        };
-        WflCurrentNode: {
-            nodeInstanceId: string;
-            nodeName: string;
-            documentId: string;
-            documentNo: string;
-            documentEntity: string;
-            documentStatus: string;
-        };
-        WflInstanceProgressItem: {
-            nodeKey: string;
-            nodeName: string;
-            documentEntity: string;
-            /** Format: int64 */
-            totalCount: number;
-            /** Format: int64 */
-            completedCount: number;
         };
         WflInstanceListItem: {
             processId: string;
             definitionId: string;
             definitionCode: string;
             definitionName: string;
-            /** @enum {string} */
-            status: "ACTIVE" | "COMPLETED";
             /** Format: int64 */
             revision: number;
             rootDocumentId: string;
@@ -3607,8 +3450,6 @@ export interface components {
             rootEntity: string;
             partyCode: string;
             partyName: string;
-            currentNodes: components["schemas"]["WflCurrentNode"][];
-            progress: components["schemas"]["WflInstanceProgressItem"][];
             /** Format: date-time */
             updatedAt: string;
         };
@@ -3633,18 +3474,6 @@ export interface components {
             processId: string;
             page: number;
             pageSize: number;
-        };
-        WflActionRequest: {
-            processId: string;
-            /** Format: int64 */
-            processRevision: number;
-            documentId?: string;
-            /** Format: int64 */
-            documentRevision?: number;
-            data?: {
-                [key: string]: unknown;
-            };
-            reason?: string;
         };
         LedClosingRequest: {
             /** Format: int64 */
@@ -5526,134 +5355,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflInstanceHistoryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentShortCloseRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentShortCloseCancel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentShortCloseConfirm: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflSalesFulfillmentShortCloseUnconfirm: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentShortCloseRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentShortCloseCancel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentShortCloseConfirm: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    wflPurchaseFulfillmentShortCloseUnconfirm: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WflActionRequest"];
             };
         };
         responses: {

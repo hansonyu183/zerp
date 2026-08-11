@@ -91,7 +91,7 @@ func (s *Service) resolveReturnSource(
 		if err != nil {
 			return result, s.internal("lock return source", err)
 		}
-		if status != StatusApproved && status != StatusFinalized || date.Before(line.signoffDate) {
+		if status != StatusApproved || date.Before(line.signoffDate) {
 			return result, domainError(ErrorConflict, "source signoff is not returnable", nil, nil)
 		}
 		if result.orderID == "" {
@@ -532,7 +532,7 @@ func (s *Service) removeSignoffReturnDrafts(
 		}
 		if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{Entity: EntitySaleReturn,
 			DocumentID: item.id, DocumentNo: item.number, ParentDocumentID: item.orderID,
-			ActorID: actorID, RequestID: requestID, Reason: "source signoff unfinalized"}); err != nil {
+			ActorID: actorID, RequestID: requestID, Reason: "source signoff unapproved"}); err != nil {
 			return err
 		}
 	}

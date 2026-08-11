@@ -277,7 +277,7 @@ func (s *Service) lockSalesSource(
 		return source, s.internal("lock sales source", err)
 	}
 	source.BusinessDate = date
-	ready := source.Status == StatusApproved || source.Status == StatusFinalized
+	ready := source.Status == StatusApproved
 	if !ready {
 		return source, domainError(ErrorConflict, "source document is not approved", nil, nil)
 	}
@@ -363,7 +363,7 @@ func (s *Service) writeSaleOutbound(
 		source.ID).Scan(&fulfillment); err != nil {
 		return MutationResult{}, s.internal("read order fulfillment", err)
 	}
-	if fulfillment == "FULFILLED" || fulfillment == "SHORT_CLOSED" {
+	if fulfillment == "FULFILLED" {
 		return MutationResult{}, domainError(ErrorConflict, "order is closed for outbound", nil, nil)
 	}
 	if err = validateReference(data.Warehouse, "warehouse", true); err != nil {

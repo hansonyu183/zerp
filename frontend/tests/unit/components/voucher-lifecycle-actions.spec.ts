@@ -66,10 +66,6 @@ function mountActions() {
         finalize: false,
         unfinalize: false,
         delete: false,
-        shortCloseRequest: false,
-        shortCloseCancel: false,
-        shortCloseConfirm: false,
-        shortCloseUnconfirm: false,
         audit: false,
       },
       labels: {

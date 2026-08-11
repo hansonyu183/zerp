@@ -167,7 +167,7 @@ SELECT EXISTS(
     JOIN vou_documents dependent_document
       ON dependent_document.id=dependent_line.document_id
      AND dependent_document.entity='intermediary-calculation'
-     AND dependent_document.status IN ('APPROVED','FINALIZED')
+     AND dependent_document.status = 'APPROVED'
     WHERE dependent_line.source_calculation_document_id=$1
 )
 `
@@ -433,7 +433,7 @@ LEFT JOIN bob_objects employee_object
 LEFT JOIN bob_employee_versions employee_version
   ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
-  AND document.status IN ('APPROVED','FINALIZED')
+  AND document.status = 'APPROVED'
   AND document.business_date >= $1
   AND (CASE WHEN bill_line.bill_type='CHECK'
         THEN bill_line.maturity_date ELSE document.business_date END)
@@ -448,7 +448,7 @@ WHERE document.entity='bill-receipt'
       JOIN vou_documents allocation_document
         ON allocation_document.id=allocation.document_id
        AND allocation_document.entity='intermediary-calculation'
-       AND allocation_document.status IN ('APPROVED','FINALIZED')
+       AND allocation_document.status = 'APPROVED'
       WHERE allocation.bill_line_id=bill_line.id
         AND allocation_document.business_date <> $2::date
   )
@@ -535,7 +535,7 @@ WITH trade AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status IN ('APPROVED','FINALIZED')
+     AND return_document.status = 'APPROVED'
     WHERE return_document.business_date < $3
     GROUP BY return_line.source_signoff_line_id
 ), precutover_daily_return AS (
@@ -553,13 +553,13 @@ WITH trade AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status IN ('APPROVED','FINALIZED')
+     AND return_document.status = 'APPROVED'
     JOIN vou_sale_signoff_lines signoff_line
       ON signoff_line.id=return_line.source_signoff_line_id
     JOIN vou_documents signoff
       ON signoff.id=signoff_line.document_id
      AND signoff.entity='sale-signoff'
-     AND signoff.status IN ('APPROVED','FINALIZED')
+     AND signoff.status = 'APPROVED'
      AND signoff.currency='CNY'
     WHERE signoff.business_date < $3
       AND return_document.business_date >= $3
@@ -695,7 +695,7 @@ JOIN vou_sale_return_details return_detail
 JOIN vou_documents return_document
   ON return_document.id=return_line.document_id
  AND return_document.entity='sale-return'
- AND return_document.status IN ('APPROVED','FINALIZED')
+ AND return_document.status = 'APPROVED'
 JOIN LATERAL (
     SELECT calculation_document.id AS document_id,
            calculation_document.business_date,
@@ -707,7 +707,7 @@ JOIN LATERAL (
     JOIN vou_documents calculation_document
       ON calculation_document.id=calculation_line.document_id
      AND calculation_document.entity='intermediary-calculation'
-     AND calculation_document.status IN ('APPROVED','FINALIZED')
+     AND calculation_document.status = 'APPROVED'
     WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
       AND calculation_document.business_date < return_document.business_date
       AND (calculation_line.employee_amount_cents>0
@@ -790,13 +790,13 @@ WITH daily_return AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status IN ('APPROVED','FINALIZED')
+     AND return_document.status = 'APPROVED'
     JOIN vou_sale_signoff_lines signoff_line
       ON signoff_line.id=return_line.source_signoff_line_id
     JOIN vou_documents signoff
       ON signoff.id=signoff_line.document_id
      AND signoff.entity='sale-signoff'
-     AND signoff.status IN ('APPROVED','FINALIZED')
+     AND signoff.status = 'APPROVED'
     JOIN vou_sale_signoff_details signoff_detail
       ON signoff_detail.document_id=signoff.id
     WHERE signoff.business_date >= $1
@@ -882,7 +882,7 @@ WITH returned AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status IN ('APPROVED','FINALIZED')
+     AND return_document.status = 'APPROVED'
      AND return_document.business_date <= $2
     GROUP BY return_line.source_signoff_line_id
 )
@@ -940,7 +940,7 @@ LEFT JOIN bob_customer_versions intermediary_version
   ON intermediary_version.version_id=intermediary_object.effective_version_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
-  AND signoff.status IN ('APPROVED','FINALIZED')
+  AND signoff.status = 'APPROVED'
   AND signoff.business_date >= $1
   AND signoff.business_date <= $2
   AND signoff.currency='CNY'

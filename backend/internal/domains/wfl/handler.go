@@ -17,14 +17,6 @@ const principalContextKey = "wflPrincipal"
 
 type applicationService interface{}
 
-type salesApplicationService interface {
-	SalesAction(context.Context, string, ActionInput, string, string) (any, error)
-}
-
-type purchaseApplicationService interface {
-	PurchaseAction(context.Context, string, ActionInput, string, string) (any, error)
-}
-
 type genericApplicationService interface {
 	DefinitionCatalog(context.Context) (DefinitionCatalog, error)
 	DefinitionQuery(context.Context, DefinitionQueryInput) (Page[DefinitionListItem], error)
@@ -41,24 +33,12 @@ type genericApplicationService interface {
 	InstanceHistoryByDefinitionCode(context.Context, string, InstanceHistoryInput) (Page[RuntimeAuditView], error)
 }
 
-var (
-	_ salesApplicationService    = (*Service)(nil)
-	_ purchaseApplicationService = (*Service)(nil)
-	_ genericApplicationService  = (*Service)(nil)
-)
+var _ genericApplicationService = (*Service)(nil)
 
 type Handler struct {
 	service    applicationService
 	authorizer authorization.Authorizer
 	logger     *slog.Logger
-}
-
-var salesWorkflowActions = [...]string{
-	"short-close-request", "short-close-cancel", "short-close-confirm", "short-close-unconfirm",
-}
-
-var purchaseWorkflowActions = [...]string{
-	"short-close-request", "short-close-cancel", "short-close-confirm", "short-close-unconfirm",
 }
 
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
@@ -73,8 +53,6 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 
 func (h *Handler) Register(router *gin.Engine) {
 	h.registerGenericWorkflow(router)
-	h.registerSalesWorkflow(router)
-	h.registerPurchaseWorkflow(router)
 	h.registerDynamicWorkflow(router)
 }
 
@@ -204,50 +182,6 @@ func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
 			h.result(c, result, err)
 		}
 	})
-}
-
-func (h *Handler) registerPurchaseWorkflow(router *gin.Engine) {
-	group := router.Group("/wfl/purchase-fulfillment")
-	for _, value := range purchaseWorkflowActions {
-		action := value
-		group.POST("/"+action, h.authorize("/wfl/purchase-fulfillment/"+action), func(c *gin.Context) {
-			var input ActionInput
-			if h.bind(c, &input) {
-				service, ok := h.service.(purchaseApplicationService)
-				if !ok {
-					h.writeError(c, internal("purchase workflow service is unavailable", nil))
-					return
-				}
-				principal := h.principal(c)
-				result, err := service.PurchaseAction(
-					c.Request.Context(), action, input, principal.ActorID, response.RequestID(c),
-				)
-				h.result(c, result, err)
-			}
-		})
-	}
-}
-
-func (h *Handler) registerSalesWorkflow(router *gin.Engine) {
-	group := router.Group("/wfl/sales-fulfillment")
-	for _, value := range salesWorkflowActions {
-		action := value
-		group.POST("/"+action, h.authorize("/wfl/sales-fulfillment/"+action), func(c *gin.Context) {
-			var input ActionInput
-			if h.bind(c, &input) {
-				principal := h.principal(c)
-				service, ok := h.service.(salesApplicationService)
-				if !ok {
-					h.writeError(c, internal("sales workflow service is unavailable", nil))
-					return
-				}
-				result, err := service.SalesAction(
-					c.Request.Context(), action, input, principal.ActorID, response.RequestID(c),
-				)
-				h.result(c, result, err)
-			}
-		})
-	}
 }
 
 func (h *Handler) registerDynamicWorkflow(router *gin.Engine) {

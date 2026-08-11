@@ -57,7 +57,7 @@ func (s *Service) prepareUnapproval(
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents d ON d.id=r.document_id
 				WHERE r.source_order_line_id=o.id
-				  AND d.status IN ('APPROVED','FINALIZED') AND r.document_id<>$2
+				  AND d.status = 'APPROVED' AND r.document_id<>$2
 			) > o.ordered_qty_micros
 		)`, deref(document.ParentDocumentID), document.ID).Scan(&overbooked); err != nil {
 			return err

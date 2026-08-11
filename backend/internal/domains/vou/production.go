@@ -303,7 +303,7 @@ func (s *Service) prepareProductionDraft(
 				ErrorConflict, "production source order is unavailable", nil, err,
 			)
 		}
-		if status != StatusApproved && status != StatusFinalized {
+		if status != StatusApproved {
 			return fixedProductionDraft{}, domainError(
 				ErrorConflict, "production source order is not approved", nil, nil,
 			)

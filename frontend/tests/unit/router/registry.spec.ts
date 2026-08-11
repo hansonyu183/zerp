@@ -483,7 +483,7 @@ describe('permission menu registry', () => {
   it('没有 query 权限的流程专用动作不生成菜单', () => {
     expect(
       buildMenus([
-        '/wfl/sales-fulfillment/short-close-request',
+        '/wfl/sales-fulfillment/get',
         '/wfl/custom-flow/get',
       ]),
     ).toEqual([])

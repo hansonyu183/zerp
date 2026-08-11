@@ -33,12 +33,6 @@ const eventText: Record<string, string> = {
   UNCHECKED: '反核对',
   APPROVED: '批准',
   UNAPPROVED: '反批准',
-  FINALIZED: '完成',
-  UNFINALIZED: '撤销完成',
-  SHORT_CLOSE_REQUESTED: '申请短结',
-  SHORT_CLOSE_CANCELLED: '取消短结申请',
-  SHORT_CLOSED: '确认短结',
-  SHORT_CLOSE_REOPENED: '撤销短结',
   ATTACHMENT_INITIATED: '发起附件',
   ATTACHMENT_UPLOADED: '上传附件',
   ATTACHMENT_REMOVED: '移除附件',
@@ -69,7 +63,7 @@ const eventText: Record<string, string> = {
       >
         <v-card variant="outlined">
           <v-card-title class="text-body-1">
-            {{ eventText[event.eventType] ?? event.eventType }}
+            {{ eventText[event.eventType] ?? '未知审计事件' }}
           </v-card-title>
           <v-card-subtitle>
             {{ formatMediumDateTime(event.occurredAt) }} · {{ event.actorId }}

@@ -259,7 +259,7 @@ FROM led_draft_container WHERE quantity <> 0;
 
 -- name: ListPostedVouDocumentsForLed :many
 SELECT * FROM vou_documents
-WHERE status IN ('APPROVED', 'FINALIZED')
+WHERE status = 'APPROVED'
   AND entity IN (
     'sale-outbound', 'sale-signoff', 'sale-return',
     'purchase-inbound', 'purchase-return',

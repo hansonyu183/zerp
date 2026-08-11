@@ -65,16 +65,16 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("preview BOB distinct entities = %d, want 8", businessEntities)
 	}
 	assertDistinctEntities(t, pool, "vou_documents", 15)
-	var completedWorkflows int
+	var approvedWorkflows int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(DISTINCT process_type)
 		FROM wfl_process_instances
-		WHERE status='COMPLETED'
-	`).Scan(&completedWorkflows); err != nil {
-		t.Fatalf("count completed workflows: %v", err)
+		WHERE status='APPROVED'
+	`).Scan(&approvedWorkflows); err != nil {
+		t.Fatalf("count approved workflows: %v", err)
 	}
-	if completedWorkflows != 2 {
-		t.Fatalf("completed workflow types = %d, want 2", completedWorkflows)
+	if approvedWorkflows != 2 {
+		t.Fatalf("approved workflow types = %d, want 2", approvedWorkflows)
 	}
 	for _, table := range []string{
 		"led_inventory_entries", "led_fund_entries", "led_party_entries", "led_container_entries",
@@ -93,14 +93,14 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		SELECT document_id
 		FROM vou_audit_events
 		WHERE request_id=$1 AND event_type='CREATED'
-	`, requestID("receipt-finalized", "create")).Scan(&receiptID); err != nil {
-		t.Fatalf("find finalized receipt: %v", err)
+	`, requestID("receipt-approved", "create")).Scan(&receiptID); err != nil {
+		t.Fatalf("find approved receipt: %v", err)
 	}
 	receipt, err := seeder.vouchers.Get(
 		t.Context(), voudomain.EntitySalesReceipt, voudomain.GetInput{DocumentID: receiptID},
 	)
 	if err != nil {
-		t.Fatalf("get finalized receipt: %v", err)
+		t.Fatalf("get approved receipt: %v", err)
 	}
 	if _, err = seeder.vouchers.Unapprove(
 		t.Context(),

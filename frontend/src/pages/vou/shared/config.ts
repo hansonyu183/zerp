@@ -10,7 +10,7 @@ const defaultLifecycleLabels: VoucherLifecycleLabels = {
   approve: '批准',
   unapprove: '反批准',
   checked: '已核对',
-  finalized: '已完成',
+  approved: '已批准',
 }
 
 export function lifecycleLabels(
@@ -106,7 +106,7 @@ export const voucherEntityConfigs: Readonly<
     lineKind: 'inventory-count',
     usesWarehouse: true,
     lifecycleLabels: {
-      finalized: '已盘点',
+      approved: '已盘点',
     },
   },
   'purchase-order': {

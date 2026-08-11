@@ -85,7 +85,7 @@ function confirmReverse(): void {
         {{ labels.approve }}
       </v-btn>
     </template>
-    <template v-if="status === 'APPROVED' || status === 'FINALIZED'">
+    <template v-if="status === 'APPROVED'">
       <v-btn
         v-if="availability.unapprove"
         :disabled="disabled"

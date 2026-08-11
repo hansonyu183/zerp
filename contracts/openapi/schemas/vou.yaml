@@ -393,20 +393,7 @@
           'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
         },
     },
-  'VouStatus':
-    {
-      'type': 'string',
-      'enum':
-        [
-          'DRAFT',
-          'CHECKED',
-          'APPROVED',
-          'FINALIZED',
-          'ORDERED',
-          'CONFIRMED',
-          'EXECUTED',
-        ],
-    },
+  'VouStatus': { 'type': 'string', 'enum': ['DRAFT', 'CHECKED', 'APPROVED'] },
   'VouBillPrimaryLineInput':
     {
       'type': 'object',

@@ -205,8 +205,5 @@ func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
-	if err = service.RegisterCompletionSubscriptions(bus); err != nil {
-		t.Fatalf("register VOU completion subscriptions: %v", err)
-	}
 	return service
 }

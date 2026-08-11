@@ -15,28 +15,12 @@ import {
 describe('WFL Chinese labels', () => {
   it('translates every workflow status and preserves unknown values', () => {
     expect(
-      [
-        'DRAFT',
-        'CHECKED',
-        'APPROVED',
-        'COMPLETED',
-        'SHORT_CLOSE_REQUESTED',
-        'SHORT_CLOSED',
-        'RETURNING',
-      ].map(workflowStatusText),
-    ).toEqual([
-      '草稿',
-      '已核对',
-      '已批准',
-      '已完成',
-      '短结待确认',
-      '已短结',
-      '退货处理中',
-    ])
+      ['DRAFT', 'CHECKED', 'APPROVED'].map(workflowStatusText),
+    ).toEqual(['草稿', '已核对', '已批准'])
     expect(workflowStatusText('FUTURE_STATUS')).toBe('FUTURE_STATUS')
   })
 
-  it('translates workflow stages and finalized document status', () => {
+  it('translates workflow stages and approved document status', () => {
     expect(
       [
         'SALE_ORDER',
@@ -58,7 +42,7 @@ describe('WFL Chinese labels', () => {
       '采购订单',
       '采购入库',
     ])
-    expect(stageStatusText('FINALIZED')).toBe('已完成')
+    expect(stageStatusText('APPROVED')).toBe('已批准')
     expect(workflowStageText('FUTURE_STAGE')).toBe('FUTURE_STAGE')
   })
 
@@ -83,16 +67,16 @@ describe('WFL Chinese labels', () => {
   })
 })
 
-describe('VOU completion labels', () => {
-  it('uses completion wording with inventory count business labels', () => {
+describe('VOU approval labels', () => {
+  it('uses approval wording with inventory count business labels', () => {
     for (const config of Object.values(voucherEntityConfigs)) {
       expect(lifecycleLabels(config)).toMatchObject(
         config.entity === 'inventory-count'
           ? {
-              finalized: '已盘点',
+              approved: '已盘点',
             }
           : {
-              finalized: '已完成',
+              approved: '已批准',
             },
       )
     }

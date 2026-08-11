@@ -57,18 +57,6 @@ func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, stri
 func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) ShortCloseRequest(context.Context, ReverseInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerServiceStub) ShortCloseCancel(context.Context, ReverseInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerServiceStub) ShortCloseConfirm(context.Context, DocumentRevisionInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
-func (*handlerServiceStub) ShortCloseUnconfirm(context.Context, ReverseInput, string, string) (MutationResult, error) {
-	return MutationResult{}, nil
-}
 func (*handlerServiceStub) AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error) {
 	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
 }

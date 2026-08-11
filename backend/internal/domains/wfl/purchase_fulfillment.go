@@ -24,10 +24,6 @@ type purchaseVoucherService interface {
 	Uncheck(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Approve(context.Context, string, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
 	Unapprove(context.Context, string, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	PurchaseShortCloseRequest(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	PurchaseShortCloseCancel(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
-	PurchaseShortCloseConfirm(context.Context, voudomain.DocumentRevisionInput, string, string) (voudomain.MutationResult, error)
-	PurchaseShortCloseUnconfirm(context.Context, voudomain.ReverseInput, string, string) (voudomain.MutationResult, error)
 }
 
 func (s *Service) PurchaseCreate(
@@ -75,11 +71,9 @@ func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[Pur
 		return Page[PurchaseProcessListItem]{}, internal("query purchase workflows", err)
 	}
 	items := make([]PurchaseProcessListItem, len(rows))
-	ids := make([]string, len(rows))
 	orderIDs := make([]string, len(rows))
-	indexByID := make(map[string]int, len(rows))
 	for index, row := range rows {
-		ids[index], orderIDs[index], indexByID[row.ProcessID] = row.ProcessID, row.RootDocumentID, index
+		orderIDs[index] = row.RootDocumentID
 		items[index] = PurchaseProcessListItem{
 			ProcessListItem: ProcessListItem{
 				ProcessID: row.ProcessID, ProcessType: row.ProcessType, Status: row.Status,
@@ -89,11 +83,10 @@ func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[Pur
 				Currency: row.Currency, Amount: documentLinkAmount(row.TotalAmountCents),
 				UpdatedAt: row.UpdatedAt.Time,
 			},
-			ProgressGroups: make([]PurchaseProgressGroup, 0),
-			Summary:        voudomain.PurchaseKgSummary{Unit: "KG"},
+			Summary: voudomain.PurchaseKgSummary{Unit: "KG"},
 		}
 	}
-	if len(ids) > 0 {
+	if len(orderIDs) > 0 {
 		summaryRows, summaryErr := s.queries.ListPurchaseOrderKgSummaries(ctx, orderIDs)
 		if summaryErr != nil {
 			return Page[PurchaseProcessListItem]{}, internal("summarize purchase workflow kg progress", summaryErr)
@@ -114,26 +107,6 @@ func (s *Service) PurchaseQuery(ctx context.Context, input QueryInput) (Page[Pur
 				ReturnProcessingQuantity: workflowQuantity(row.ReturnProcessingQuantityMicros),
 				NetInboundQuantity:       workflowQuantity(row.NetInboundQuantityMicros),
 			}
-		}
-		progressRows, progressErr := s.queries.ListPurchaseWorkflowProgress(ctx, ids)
-		if progressErr != nil {
-			return Page[PurchaseProcessListItem]{}, internal("summarize purchase workflow progress", progressErr)
-		}
-		for _, row := range progressRows {
-			index, ok := indexByID[row.ProcessID]
-			if !ok {
-				continue
-			}
-			items[index].ProgressGroups = append(items[index].ProgressGroups, PurchaseProgressGroup{
-				Unit: row.ProductUnit, ProductCount: row.ProductCount,
-				OrderedQuantity:           workflowQuantity(row.OrderedQuantity),
-				InboundProcessingQuantity: workflowQuantity(row.InboundProcessingQuantity),
-				FinalizedInboundQuantity:  workflowQuantity(row.FinalizedInboundQuantity),
-				ReturnProcessingQuantity:  workflowQuantity(row.ReturnProcessingQuantity),
-				ReturnedQuantity:          workflowQuantity(row.ReturnedQuantity),
-				NetInboundQuantity:        workflowQuantity(row.NetInboundQuantity),
-				RemainingQuantity:         workflowQuantity(row.RemainingQuantity),
-			})
 		}
 	}
 	total, err := s.queries.CountPurchaseWorkflowSummaries(ctx, sqlc.CountPurchaseWorkflowSummariesParams{
@@ -199,9 +172,6 @@ func (s *Service) PurchaseGet(ctx context.Context, input GetInput) (ProcessView,
 	view.CurrentStage = StagePurchaseOrder
 	if view.Status == StatusApproved {
 		view.CurrentStage = StagePurchaseInbound
-	}
-	if view.Status == StatusCompleted || view.Status == StatusShortClosed {
-		view.CurrentStage = ""
 	}
 	return view, rows.Err()
 }
@@ -283,22 +253,6 @@ func (s *Service) PurchaseAction(
 		}, actorID, requestID)
 	case "unapprove":
 		result, err = s.purchase.Unapprove(ctx, entity, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "short-close-request":
-		result, err = s.purchase.PurchaseShortCloseRequest(ctx, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "short-close-cancel":
-		result, err = s.purchase.PurchaseShortCloseCancel(ctx, voudomain.ReverseInput{
-			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
-		}, actorID, requestID)
-	case "short-close-confirm":
-		result, err = s.purchase.PurchaseShortCloseConfirm(ctx, voudomain.DocumentRevisionInput{
-			DocumentID: documentID, Revision: input.DocumentRevision,
-		}, actorID, requestID)
-	case "short-close-unconfirm":
-		result, err = s.purchase.PurchaseShortCloseUnconfirm(ctx, voudomain.ReverseInput{
 			DocumentID: documentID, Revision: input.DocumentRevision, Reason: input.Reason,
 		}, actorID, requestID)
 	default:

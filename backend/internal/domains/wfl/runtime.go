@@ -28,12 +28,6 @@ func (s *Service) registerGenericSubscriptions(bus *txevent.Bus) error {
 		if err := bus.Subscribe(voudomain.DocumentChangedTopic(entity), "wfl-generic-approved", s.handleGenericApproved); err != nil {
 			return err
 		}
-		if err := bus.Subscribe(voudomain.DocumentFinalizedTopic(entity), "wfl-generic-completion", s.handleGenericCompletion); err != nil {
-			return err
-		}
-		if err := bus.Subscribe(voudomain.DocumentUnfinalizedTopic(entity), "wfl-generic-completion", s.handleGenericCompletion); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -125,8 +119,8 @@ func (s *Service) startMatchingInstances(
 		processID = newID()
 		nodeInstanceID := newID()
 		if _, err = tx.Exec(ctx, `INSERT INTO wfl_definition_instances(
-			id,definition_id,root_document_id,status,revision,started_definition_revision,created_by,updated_by
-		) VALUES($1,$2,$3,'ACTIVE',1,$4,$5,$5)`, processID, definition.id, event.DocumentID, definition.revision, systemidentity.UserID); err != nil {
+			id,definition_id,root_document_id,revision,started_definition_revision,created_by,updated_by
+		) VALUES($1,$2,$3,1,$4,$5,$5)`, processID, definition.id, event.DocumentID, definition.revision, systemidentity.UserID); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO wfl_node_instances(
@@ -224,54 +218,6 @@ func (s *Service) executeOutgoingEdges(
 	}
 	_, err = tx.Exec(ctx, `UPDATE wfl_node_instances SET evaluated_definition_revision=$1,evaluated_at=now() WHERE id=$2`, revision, source.id)
 	return err
-}
-
-func (s *Service) handleGenericCompletion(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	var documentID string
-	switch event := raw.(type) {
-	case voudomain.DocumentFinalizedEvent:
-		documentID = event.DocumentID
-	case voudomain.DocumentUnfinalizedEvent:
-		documentID = event.DocumentID
-	default:
-		return nil
-	}
-	rows, err := tx.Query(ctx, `SELECT DISTINCT process_id FROM wfl_node_instances WHERE document_id=$1`, documentID)
-	if err != nil {
-		return err
-	}
-	processes := make([]string, 0)
-	for rows.Next() {
-		var processID string
-		if err = rows.Scan(&processID); err != nil {
-			rows.Close()
-			return err
-		}
-		processes = append(processes, processID)
-	}
-	rows.Close()
-	for _, processID := range processes {
-		var incomplete bool
-		err = tx.QueryRow(ctx, `SELECT EXISTS(
-			SELECT 1 FROM wfl_node_instances n JOIN vou_documents d ON d.id=n.document_id
-			WHERE n.process_id=$1 AND NOT n.legacy
-			  AND NOT EXISTS(SELECT 1 FROM wfl_node_instances child WHERE child.parent_node_instance_id=n.id)
-			  AND d.status<>'FINALIZED'
-		)`, processID).Scan(&incomplete)
-		if err != nil {
-			return err
-		}
-		status := InstanceCompleted
-		if incomplete {
-			status = InstanceActive
-		}
-		if _, err = tx.Exec(ctx, `UPDATE wfl_definition_instances SET status=$1,revision=revision+1,
-			updated_at=now(),updated_by=$2,completed_at=CASE WHEN $1='COMPLETED' THEN now() ELSE NULL END
-			WHERE id=$3 AND status<>$1`, status, systemidentity.UserID, processID); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func insertRuntimeAudit(ctx context.Context, tx pgx.Tx, processID, eventType, nodeID string, event voudomain.DocumentChangedEvent, summary map[string]any) error {

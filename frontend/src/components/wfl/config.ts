@@ -11,10 +11,6 @@ export function stageStatusText(value: string): string {
       DRAFT: '草稿',
       CHECKED: '已核对',
       APPROVED: '已批准',
-      ORDERED: '已下单',
-      CONFIRMED: '已确认',
-      EXECUTED: '已执行',
-      FINALIZED: '已完成',
     }[value] ?? value
   )
 }
@@ -70,10 +66,6 @@ export function workflowStatusText(value?: string): string {
       DRAFT: '草稿',
       CHECKED: '已核对',
       APPROVED: '已批准',
-      COMPLETED: '已完成',
-      SHORT_CLOSE_REQUESTED: '短结待确认',
-      SHORT_CLOSED: '已短结',
-      RETURNING: '退货处理中',
     },
     value,
   )

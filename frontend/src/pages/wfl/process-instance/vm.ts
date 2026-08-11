@@ -19,24 +19,13 @@ export interface InstanceListItem {
   definitionId: string
   definitionCode: string
   definitionName: string
-  status: 'ACTIVE' | 'COMPLETED'
   revision: number
   rootDocumentId: string
   rootDocumentNo: string
   rootEntity: string
   partyCode: string
   partyName: string
-  currentNodes: CurrentNode[]
-  progress: InstanceProgressItem[]
   updatedAt: string
-}
-
-export interface InstanceProgressItem {
-  nodeKey: string
-  nodeName: string
-  documentEntity: string
-  totalCount: number
-  completedCount: number
 }
 
 interface ReferenceListItem {
@@ -82,7 +71,6 @@ export function useProcessInstanceViewModel() {
   const selected = ref<InstanceView | null>(null)
   const history = ref<AuditEvent[]>([])
   const keyword = ref('')
-  const statuses = ref<string[]>([])
   const selectedParty = ref<VoucherReference | null>(null)
   const partyOptions = ref<VoucherReference[]>([])
   const partyLoading = ref(false)
@@ -92,8 +80,6 @@ export function useProcessInstanceViewModel() {
   const total = ref(0)
   const loading = ref(false)
   const detailOpen = ref(false)
-  const chooserOpen = ref(false)
-  const chooserNodes = ref<CurrentNode[]>([])
   const errorMessage = ref<string | null>(null)
   let partySearchTimer: ReturnType<typeof setTimeout> | null = null
   let partySearchSequence = 0
@@ -141,7 +127,6 @@ export function useProcessInstanceViewModel() {
           page: page.value,
           pageSize: pageSize.value,
           ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-          ...(statuses.value.length ? { statuses: statuses.value } : {}),
           ...(selectedParty.value
             ? { partyObjectId: selectedParty.value.objectId }
             : {}),
@@ -228,7 +213,6 @@ export function useProcessInstanceViewModel() {
 
   async function resetFilters(): Promise<void> {
     keyword.value = ''
-    statuses.value = []
     selectedParty.value = null
     await query({ resetPage: true })
   }
@@ -285,22 +269,6 @@ export function useProcessInstanceViewModel() {
     })
   }
 
-  function processCurrent(item: InstanceListItem): void {
-    if (item.currentNodes.length === 1 && item.currentNodes[0]) {
-      openDocument(item.currentNodes[0])
-      return
-    }
-    if (item.currentNodes.length > 1) {
-      chooserNodes.value = item.currentNodes
-      chooserOpen.value = true
-    }
-  }
-
-  function chooseNode(node: CurrentNode): void {
-    chooserOpen.value = false
-    openDocument(node)
-  }
-
   async function changePage(value: number): Promise<void> {
     page.value = value
     await query()
@@ -321,7 +289,6 @@ export function useProcessInstanceViewModel() {
     selected,
     history,
     keyword,
-    statuses,
     selectedParty,
     partyOptions,
     partyLoading,
@@ -332,8 +299,6 @@ export function useProcessInstanceViewModel() {
     pageCount,
     loading,
     detailOpen,
-    chooserOpen,
-    chooserNodes,
     errorMessage,
     positionedNodes,
     nodeMap,
@@ -343,8 +308,6 @@ export function useProcessInstanceViewModel() {
     searchParty,
     open,
     openRoot,
-    processCurrent,
-    chooseNode,
     changePage,
     openDocument,
   }

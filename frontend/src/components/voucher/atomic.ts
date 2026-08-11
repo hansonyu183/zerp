@@ -39,10 +39,8 @@ export function toVouAtomicDocument(
     updatedBy: view.updatedBy,
     checkedAt: view.checkedAt,
     checkedBy: view.checkedBy,
-    approvedAt: view.approvedAt,
-    approvedBy: view.approvedBy,
-    finalizedAt: view.finalizedAt,
-    finalizedBy: view.finalizedBy,
+	approvedAt: view.approvedAt,
+	approvedBy: view.approvedBy,
     parentDocumentId: view.parentDocumentId,
   }
 }

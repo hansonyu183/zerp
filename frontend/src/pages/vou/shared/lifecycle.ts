@@ -54,7 +54,7 @@ export function canRunListLifecycleAction(
 ): boolean {
   return (
     (row.status === lifecycleStatuses[action] ||
-      (action === 'unapprove' && row.status === 'FINALIZED')) &&
+      (action === 'unapprove' && row.status === 'APPROVED')) &&
     can(`/vou/${config.entity}/${action}`)
   )
 }

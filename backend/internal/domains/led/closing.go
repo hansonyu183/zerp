@@ -281,7 +281,7 @@ func (s *Service) Close(
 	}
 	var pendingCount int64
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM vou_documents
-		WHERE business_date <= $1 AND status <> 'FINALIZED'`, closingDate).Scan(&pendingCount); err != nil {
+		WHERE business_date <= $1 AND status <> 'APPROVED'`, closingDate).Scan(&pendingCount); err != nil {
 		return ClosingMutationResult{}, s.internal("check unfinished documents", err)
 	}
 	if pendingCount != 0 {
@@ -298,7 +298,7 @@ func (s *Service) Close(
 		if cutoverDate.Year() == 1 {
 			var firstActivityDate pgtype.Date
 			if err = tx.QueryRow(ctx, `SELECT min(business_date) FROM vou_documents
-				WHERE status='FINALIZED' AND business_date <= $1`, closingDate).Scan(&firstActivityDate); err != nil {
+				WHERE status='APPROVED' AND business_date <= $1`, closingDate).Scan(&firstActivityDate); err != nil {
 				return ClosingMutationResult{}, s.internal("find first document month for closing", err)
 			}
 			if firstActivityDate.Valid {
@@ -321,7 +321,7 @@ func (s *Service) Close(
 		SELECT 1 FROM vou_documents document
 		WHERE document.entity='intermediary-calculation'
 		  AND document.business_date=required_months.month_end
-		  AND document.status='FINALIZED'
+		  AND document.status='APPROVED'
 	)`, calculationStart, closingDate).Scan(&missingCalculationCount, &firstMissingCalculationDate); err != nil {
 		return ClosingMutationResult{}, s.internal("check intermediary calculations", err)
 	}
@@ -337,7 +337,7 @@ func (s *Service) Close(
 	}
 	calculationRows, err := tx.Query(ctx, `SELECT id,document_no,business_date
 		FROM vou_documents
-		WHERE entity='intermediary-calculation' AND status='FINALIZED'
+		WHERE entity='intermediary-calculation' AND status='APPROVED'
 		  AND business_date BETWEEN date_trunc('month',$1::date)::date AND $2::date
 		ORDER BY business_date,document_no`, calculationStart, closingDate)
 	if err != nil {

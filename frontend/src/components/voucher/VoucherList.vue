@@ -144,7 +144,7 @@ const lifecycleActionDefinitions: ReadonlyArray<{
   },
   {
     action: 'unapprove',
-    statuses: ['APPROVED', 'FINALIZED'],
+    statuses: ['APPROVED'],
     icon: 'mdi-undo-variant',
   },
 ]

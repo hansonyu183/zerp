@@ -344,12 +344,10 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 		t.Fatalf("find generated expense payment: %v", err)
 	}
 	page, err := workflows.InstanceQueryByDefinitionCode(t.Context(), "expense-payment", InstanceQueryInput{Page: 1, PageSize: 20})
-	if err != nil || len(page.Items) != 1 || len(page.Items[0].CurrentNodes) != 1 || page.Items[0].CurrentNodes[0].DocumentID != paymentID {
-		t.Fatalf("current payment node = %+v, err=%v", page.Items, err)
+	if err != nil || len(page.Items) != 1 || page.Items[0].ProcessID != processID {
+		t.Fatalf("expense instance = %+v, err=%v", page.Items, err)
 	}
-	if page.Items[0].PartyName != "流程员工" || len(page.Items[0].Progress) != 2 ||
-		page.Items[0].Progress[0].CompletedCount != 1 || page.Items[0].Progress[0].TotalCount != 1 ||
-		page.Items[0].Progress[1].CompletedCount != 0 || page.Items[0].Progress[1].TotalCount != 1 {
+	if page.Items[0].PartyName != "流程员工" {
 		t.Fatalf("expense instance summary = %+v", page.Items[0])
 	}
 	checked, err := vouchers.Check(t.Context(), voudomain.EntityExpensePayment, voudomain.DocumentRevisionInput{DocumentID: paymentID, Revision: paymentRevision}, workflowIntegrationActor, "expense-payment-check")
@@ -360,24 +358,23 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve expense payment: %v", err)
 	}
-	if approvedPayment.Status != voudomain.StatusFinalized {
+	if approvedPayment.Status != voudomain.StatusApproved {
 		t.Fatalf("approved expense payment status = %s", approvedPayment.Status)
 	}
 	instance, err := workflows.InstanceGet(t.Context(), InstanceGetInput{ProcessID: processID})
-	if err != nil || instance.Status != InstanceCompleted {
-		t.Fatalf("completed instance = %+v, err=%v", instance, err)
+	if err != nil || len(instance.Nodes) != 2 || instance.Nodes[1].DocumentStatus != voudomain.StatusApproved {
+		t.Fatalf("approved payment instance = %+v, err=%v", instance, err)
 	}
 	page, err = workflows.InstanceQueryByDefinitionCode(t.Context(), "expense-payment", InstanceQueryInput{Page: 1, PageSize: 20})
-	if err != nil || len(page.Items) != 1 || len(page.Items[0].CurrentNodes) != 0 ||
-		len(page.Items[0].Progress) != 2 || page.Items[0].Progress[1].CompletedCount != 1 {
-		t.Fatalf("completed current nodes = %+v, err=%v", page.Items, err)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("approved payment instance query = %+v, err=%v", page.Items, err)
 	}
 	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityExpensePayment, voudomain.ReverseInput{DocumentID: paymentID, Revision: approvedPayment.Revision, Reason: "重新处理"}, workflowIntegrationActor, "expense-payment-unapprove"); err != nil {
 		t.Fatalf("unapprove expense payment: %v", err)
 	}
 	instance, err = workflows.InstanceGet(t.Context(), InstanceGetInput{ProcessID: processID})
-	if err != nil || instance.Status != InstanceActive {
-		t.Fatalf("reopened instance = %+v, err=%v", instance, err)
+	if err != nil || len(instance.Nodes) != 2 || instance.Nodes[1].DocumentStatus != voudomain.StatusChecked {
+		t.Fatalf("unapproved payment instance = %+v, err=%v", instance, err)
 	}
 
 	untouched := createReimbursement("expense-reverse")
@@ -390,7 +387,7 @@ func TestGenericExpensePaymentWorkflowIntegration(t *testing.T) {
 	}
 }
 
-func TestDynamicWorkflowMultipleCurrentNodesAndIsolationIntegration(t *testing.T) {
+func TestDynamicWorkflowMultipleBranchesAndIsolationIntegration(t *testing.T) {
 	pool := workflowIntegrationPool(t)
 	truncateWorkflowIntegration(t, pool)
 	workflows, vouchers, refs := newWorkflowIntegrationServices(t, pool)
@@ -433,21 +430,16 @@ func TestDynamicWorkflowMultipleCurrentNodesAndIsolationIntegration(t *testing.T
 		t.Fatalf("approve branch order: %v", err)
 	}
 	page, err := workflows.InstanceQueryByDefinitionCode(t.Context(), code, InstanceQueryInput{Page: 1, PageSize: 20})
-	if err != nil || len(page.Items) != 1 || len(page.Items[0].CurrentNodes) != 2 {
-		t.Fatalf("branch current nodes = %+v, err=%v", page.Items, err)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("branch instance = %+v, err=%v", page.Items, err)
 	}
 	item := page.Items[0]
 	if item.PartyCode == "" || item.PartyName != "流程客户" {
 		t.Fatalf("branch party = %q · %q", item.PartyCode, item.PartyName)
 	}
-	progress := make(map[string]InstanceProgressItem, len(item.Progress))
-	for _, value := range item.Progress {
-		progress[value.NodeKey] = value
-	}
-	if progress["order"].CompletedCount != 1 || progress["order"].TotalCount != 1 ||
-		progress["outbound-a"].CompletedCount != 0 || progress["outbound-a"].TotalCount != 1 ||
-		progress["outbound-b"].CompletedCount != 0 || progress["outbound-b"].TotalCount != 1 {
-		t.Fatalf("branch progress = %+v", item.Progress)
+	instance, err := workflows.InstanceGet(t.Context(), InstanceGetInput{ProcessID: item.ProcessID})
+	if err != nil || len(instance.Nodes) != 3 {
+		t.Fatalf("branch nodes = %+v, err=%v", instance.Nodes, err)
 	}
 	partyPage, err := workflows.InstanceQueryByDefinitionCode(t.Context(), code, InstanceQueryInput{
 		Page: 1, PageSize: 20, PartyObjectID: refs.customer.ObjectID,

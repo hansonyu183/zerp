@@ -24,8 +24,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 23 {
-		t.Fatalf("route count = %d, want 23", len(routes))
+	if len(routes) != 15 {
+		t.Fatalf("route count = %d, want 15", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/process-definition/query",
@@ -43,8 +43,6 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		"/wfl/:processName/query",
 		"/wfl/:processName/get",
 		"/wfl/:processName/audit-history",
-		"/wfl/sales-fulfillment/short-close-request",
-		"/wfl/purchase-fulfillment/short-close-confirm",
 	} {
 		if routes[path] != http.MethodPost {
 			t.Fatalf("missing POST %s", path)
@@ -56,6 +54,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		"/wfl/sales-fulfillment/outbound-save",
 		"/wfl/purchase-fulfillment/create",
 		"/wfl/purchase-fulfillment/inbound-create",
+		"/wfl/sales-fulfillment/short-close-request",
+		"/wfl/purchase-fulfillment/short-close-confirm",
 	} {
 		if _, exists := routes[path]; exists {
 			t.Fatalf("removed workflow route is still registered: %s", path)

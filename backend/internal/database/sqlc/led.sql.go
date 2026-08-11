@@ -3133,8 +3133,8 @@ func (q *Queries) ListLedPartyEntriesBySource(ctx context.Context, arg ListLedPa
 }
 
 const listPostedVouDocumentsForLed = `-- name: ListPostedVouDocumentsForLed :many
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, executed_at, executed_by, checked_at, checked_by, completed_at, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by FROM vou_documents
-WHERE status IN ('APPROVED', 'FINALIZED')
+SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, checked_at, checked_by, parent_document_id, parent_entity, due_date, oit_id, posted_at, posted_by FROM vou_documents
+WHERE status = 'APPROVED'
   AND entity IN (
     'sale-outbound', 'sale-signoff', 'sale-return',
     'purchase-inbound', 'purchase-return',
@@ -3177,11 +3177,8 @@ func (q *Queries) ListPostedVouDocumentsForLed(ctx context.Context) ([]VouDocume
 			&i.ReviewedBy,
 			&i.ApprovedAt,
 			&i.ApprovedBy,
-			&i.ExecutedAt,
-			&i.ExecutedBy,
 			&i.CheckedAt,
 			&i.CheckedBy,
-			&i.CompletedAt,
 			&i.ParentDocumentID,
 			&i.ParentEntity,
 			&i.DueDate,

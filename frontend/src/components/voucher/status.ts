@@ -4,10 +4,6 @@ export const voucherStatusLabels: Readonly<Record<VoucherStatus, string>> = {
   DRAFT: '草稿',
   CHECKED: '已核对',
   APPROVED: '已批准',
-  FINALIZED: '已完成',
-  ORDERED: '已下单',
-  CONFIRMED: '已确认',
-  EXECUTED: '已执行',
 }
 
 export const voucherStatusOptions: readonly {

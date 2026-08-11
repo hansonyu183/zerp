@@ -118,7 +118,7 @@ const documentLifecycleLabels: VoucherLifecycleLabels = {
   approve: '批准',
   unapprove: '反批准',
   checked: '已核对',
-  finalized: '已完成',
+  approved: '已批准',
 }
 
 const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {

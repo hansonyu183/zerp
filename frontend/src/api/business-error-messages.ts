@@ -109,32 +109,25 @@ const exactMessages: Readonly<Record<string, string>> = {
     '下游流程单据已变化，请刷新后重试。',
   'downstream documents must be reversed first':
     '已有下游单据，请先反向处理下游单据。',
-  'closed period parent cannot be reopened':
-    '上级单据已进入结账期间，不能新增或撤回会重新打开它的后续单据。',
-  'sales-chain source is not finalized': '销售来源单据尚未完成。',
+  'sales-chain source is not approved': '销售来源单据尚未批准。',
   'sales-chain source is not ready': '销售来源资料尚未准备完成。',
   'sales fulfillment cannot be changed': '销售履约已生成后续单据，不能修改。',
   'purchase fulfillment cannot be changed':
     '采购履约已生成后续单据，不能修改。',
-  'sale order is closed': '销售订单已关闭。',
-  'sale order is not finalized': '销售订单尚未完成审核。',
-  'order is closed for outbound': '订单已关闭出库。',
-  'order still has in-transit quantity': '订单仍有在途数量，不能完成当前操作。',
-  'order has unfinished return documents': '订单仍有未完成的退货单。',
-  'order cannot perform short-close action': '当前订单不能执行短关闭操作。',
-  'short close is not requested': '订单未申请短关闭。',
-  'purchase order cannot request short close': '当前采购订单不能申请短关闭。',
+  'sale order is closed': '销售订单已无可执行数量。',
+  'sale order is not approved': '销售订单尚未批准。',
+  'order is closed for outbound': '订单已无可出库数量。',
+  'order still has in-transit quantity': '订单仍有在途数量，不能执行当前操作。',
+  'order has unfinished return documents': '订单仍有尚未批准的退货单。',
   'purchase order has no remaining inbound quantity':
     '采购订单没有剩余可入库数量。',
   'purchase order has no remaining quantity': '采购订单没有剩余数量。',
-  'purchase order is not open':
-    '采购订单当前未开放执行，请先在采购订单中撤销完成后重试。',
+  'purchase order is not open': '采购订单当前没有可执行数量。',
   'unfinished documents exist on or before the closing date':
-    '结账日及以前仍有未完成单据，请先处理这些单据，或选择更早的结账月末。',
+    '结账日及以前仍有尚未批准的单据，请先处理这些单据，或选择更早的结账月末。',
   'closingDate cannot predate the ledger cutover':
     '结账日期不能早于业务账簿切换日期。',
   'purchase order is not returnable': '采购订单当前不能退货。',
-  'purchase order is not short closed': '采购订单尚未短关闭。',
   'purchase document has no source order': '采购单据缺少来源订单。',
   'purchase inbound has return documents':
     '采购入库单已有退货单，不能执行该操作。',
@@ -346,7 +339,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'source pricing quantity is invalid':
     '销售签收来源的计价数量无效，请检查产品单位换算。',
   'every unclosed month must have an approved intermediary calculation before closing':
-    '结账范围内存在尚未完成的月度居间计算单，请逐月处理后再结账。',
+    '结账范围内存在尚未批准的月度居间计算单，请逐月处理后再结账。',
   'other transaction filters only apply to other ledger':
     '主体类型和分类筛选仅适用于其他往来。',
   'otherCategory only applies to other transactions':
@@ -369,7 +362,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'asset liquidation requires 1-200 lines':
     '固定资产清理单必须包含 1 至 200 条明细。',
   'asset must be depreciated through the disposal month':
-    '固定资产必须先完成至处置月份的折旧。',
+    '固定资产必须先批准至处置月份的折旧。',
   'asset sale requires 1-200 lines': '固定资产出售单必须包含 1 至 200 条明细。',
   'assetId is invalid or duplicated': '固定资产无效或重复，请重新选择。',
   'attachment limit reached': '附件数量已达到上限。',
@@ -460,8 +453,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'saleAmount is invalid': '销售金额不正确，请检查后重试。',
   'salvageIncome is invalid': '残值收入不正确，请检查后重试。',
   'settlement surcharge is invalid': '结算附加费不正确，请检查后重试。',
-  'short close must be confirmed by another user':
-    '短关闭必须由另一名用户确认。',
   'sourceLines are required': '请选择来源明细。',
   'unsupported VOU entity': '当前单据类型不受支持。',
   'unsupported product kind': '当前产品类型不受支持。',

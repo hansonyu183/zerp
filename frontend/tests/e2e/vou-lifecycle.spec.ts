@@ -77,7 +77,7 @@ async function approveCurrentDraft(workspace: Locator): Promise<void> {
   await workspace.getByRole('button', { name: '取消编辑' }).click()
   await workspace.getByRole('button', { name: '核对', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 }
 
 function isoDateOffset(days: number): string {
@@ -128,7 +128,7 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
   await workspace.getByRole('button', { name: '检查', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
   const ledgerResponse = page.waitForResponse(
     (response) =>
@@ -251,7 +251,7 @@ test(
       .filter({ hasText: documentNo! })
     await expect(documentRow).toBeVisible()
     await documentRow.getByLabel(`查看 ${documentNo}`).click()
-    await expect(workspace.getByText('已完成', { exact: true })).toBeVisible()
+    await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
     await reverse(page, '反批准')
     await page.getByRole('button', { name: '反核对', exact: true }).click()
@@ -260,7 +260,7 @@ test(
 
     await page.getByRole('tab', { name: '审计' }).click()
     await expect(
-      workspace.getByText('撤销完成', { exact: true }).first(),
+      workspace.getByText('反批准', { exact: true }).first(),
     ).toBeVisible()
     await expect(
       workspace.getByText('反核对', { exact: true }).first(),
@@ -388,11 +388,9 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('销售履约')
   await expect(processRow).toContainText(fixture.customer)
-  await expect(processRow).toContainText('销售订单 / 销售出库')
-  await expect(processRow).toContainText('1/1 / 0/1')
   await expect(
     page.getByRole('columnheader', { name: '流程完成情况' }),
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(
     page.getByRole('columnheader', { name: '往来单位' }),
   ).toBeVisible()
@@ -418,7 +416,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     .filter({ hasText: orderNo! })
   await expect(mobileProcess).toBeVisible()
   await expect(mobileProcess).toContainText('销售履约')
-  await expect(mobileProcess).toContainText('流程完成情况')
+  await expect(mobileProcess).not.toContainText('流程完成情况')
   await expect(mobileProcess).not.toContainText('根单据：')
   await expect(mobileProcess).not.toContainText('更新时间')
   await expect(mobileProcess).not.toContainText('进行中')
@@ -432,8 +430,9 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   const desktopProcessRow = page
     .locator('tbody tr')
     .filter({ hasText: orderNo! })
-  await desktopProcessRow.getByRole('button', { name: '更多操作' }).click()
-  await page.getByText('查看流程', { exact: true }).click()
+  await desktopProcessRow
+    .getByRole('button', { name: '查看流程', exact: true })
+    .click()
   const composition = page.getByRole('dialog')
   await expect(composition).toContainText(orderNo!)
   const outbound = composition
@@ -530,10 +529,9 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toContainText('采购履约')
   await expect(processRow).toContainText(fixture.supplier)
-  await expect(processRow).toContainText('采购订单 / 采购入库')
-  await expect(processRow).toContainText('1/1 / 0/1')
-  await processRow.getByRole('button', { name: '更多操作' }).click()
-  await page.getByText('查看流程', { exact: true }).click()
+  await processRow
+    .getByRole('button', { name: '查看流程', exact: true })
+    .click()
   const processDialog = page.getByRole('dialog')
   await expect(processDialog).toContainText('采购订单')
   await expect(processDialog).toContainText('采购入库')

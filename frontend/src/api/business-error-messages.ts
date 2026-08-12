@@ -2,6 +2,13 @@ const exactMessages: Readonly<Record<string, string>> = {
   'authentication failed': '用户名或密码错误。',
   'session expired': '登录状态已过期，请重新登录。',
   'permission denied': '没有权限执行此操作，请联系管理员。',
+  'approved report cannot be deleted': '已批准过的报表不能删除，请停用该报表。',
+  'report already has a draft': '该报表已有草稿版本，请先处理现有草稿。',
+  'report code already exists': '报表编码已存在，请使用其他编码。',
+  'report is invalid':
+    '报表依赖的结构已变化，当前版本已失效，请联系管理员修复。',
+  'report not found or draft exists':
+    '报表不存在或已有草稿版本，请刷新后重试。',
   'account has no safe signout permission': '账号权限配置异常，请联系管理员。',
   'current password is incorrect': '当前密码错误，请重新输入。',
   'new password must differ from current password':

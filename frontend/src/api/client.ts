@@ -18,11 +18,13 @@ type ConcretePostPath<Path extends string> =
       ? `aux/${AuxApiEntity}/${Action}`
       : Path extends `/vou/{entity}/${infer Action}`
         ? `vou/${VouApiEntity}/${Action}`
-        : Path extends `/wfl/{processName}/${infer Action}`
-          ? `wfl/${string}/${Action}`
-          : Path extends `/${infer Concrete}`
-            ? Concrete
-            : never
+        : Path extends `/rpt/{report}/${infer Action}`
+          ? `rpt/${string}/${Action}`
+          : Path extends `/wfl/{processName}/${infer Action}`
+            ? `wfl/${string}/${Action}`
+            : Path extends `/${infer Concrete}`
+              ? Concrete
+              : never
 
 export type ApiPostPath = ConcretePostPath<ContractPostPath>
 
@@ -35,11 +37,15 @@ type ContractPathFor<Path extends ApiPostPath> =
         ? `/aux/{entity}/${Action}`
         : Path extends `vou/${VouApiEntity}/${infer Action}`
           ? `/vou/{entity}/${Action}`
-          : Path extends `wfl/${string}/${infer Action}`
-            ? `/wfl/{processName}/${Action}` extends ContractPostPath
-              ? `/wfl/{processName}/${Action}`
+          : Path extends `rpt/${string}/${infer Action}`
+            ? `/rpt/{report}/${Action}` extends ContractPostPath
+              ? `/rpt/{report}/${Action}`
               : never
-            : never
+            : Path extends `wfl/${string}/${infer Action}`
+              ? `/wfl/{processName}/${Action}` extends ContractPostPath
+                ? `/wfl/{processName}/${Action}`
+                : never
+              : never
 
 type ContractPostOperation<Path extends ApiPostPath> =
   paths[ContractPathFor<Path>] extends {
@@ -78,6 +84,12 @@ interface PostOptions {
 interface FileRequestOptions {
   signal?: AbortSignal
   timeoutMs?: number
+}
+
+export interface CsvDownload {
+  blob: Blob
+  filename: string
+  requestId?: string
 }
 
 interface ContractPostResult {
@@ -174,7 +186,9 @@ export class ApiClient {
           body: unknown
           credentials: RequestCredentials
           headers: Headers
-          params?: { path: { entity?: string; processName?: string } }
+          params?: {
+            path: { entity?: string; processName?: string; report?: string }
+          }
           parseAs: 'text'
           signal: AbortSignal
         },
@@ -183,7 +197,9 @@ export class ApiClient {
         body,
         credentials: 'include',
         headers,
-        ...(contractRequest.entity || contractRequest.processName
+        ...(contractRequest.entity ||
+        contractRequest.processName ||
+        contractRequest.report
           ? {
               params: {
                 path: {
@@ -192,6 +208,9 @@ export class ApiClient {
                     : {}),
                   ...(contractRequest.processName
                     ? { processName: contractRequest.processName }
+                    : {}),
+                  ...(contractRequest.report
+                    ? { report: contractRequest.report }
                     : {}),
                 },
               },
@@ -277,8 +296,19 @@ export class ApiClient {
     path: ContractPostPath
     entity?: string
     processName?: string
+    report?: string
   } {
     const segments = path.split('/')
+    if (
+      segments.length === 3 &&
+      segments[0] === 'rpt' &&
+      segments[1] !== 'definition'
+    ) {
+      return {
+        path: `/rpt/{report}/${segments[2]}` as ContractPostPath,
+        report: segments[1],
+      }
+    }
     if (
       segments.length === 3 &&
       (segments[0] === 'bob' || segments[0] === 'aux' || segments[0] === 'vou')
@@ -373,6 +403,57 @@ export class ApiClient {
     return response.blob()
   }
 
+  async exportReportCsv(
+    report: string,
+    body: components['schemas']['RptExecuteRequest'],
+    options: FileRequestOptions = {},
+  ): Promise<CsvDownload> {
+    if (!/^[a-z][a-z0-9-]{1,62}[a-z0-9]$/.test(report)) {
+      throw new ApiError('configuration', '报表编码不符合接口约定。')
+    }
+    const response = await this.fileRequest(
+      this.resolveApiUrl(`rpt/${report}/export`),
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: new Headers({
+          Accept: 'text/csv, application/json',
+          'Content-Type': 'application/json',
+          ...(this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {}),
+        }),
+        body: JSON.stringify(body),
+      },
+      options,
+    )
+    if (response.status !== 200) await this.throwFileResponseError(response)
+
+    const requestId = response.headers.get('X-Request-ID') ?? undefined
+    const contentType = response.headers.get('Content-Type') ?? ''
+    if (contentType.toLowerCase().includes('application/json')) {
+      const payload = await this.readBusinessResponse(response)
+      if (payload.code === 0 || payload.code === '0') {
+        throw new ApiError('protocol', 'CSV 导出端点返回了非 CSV 成功响应。', {
+          requestId: payload.requestId ?? requestId,
+        })
+      }
+      throw new ApiError('business', payload.message || '业务操作失败。', {
+        code: payload.code,
+        requestId: payload.requestId ?? requestId,
+        details: payload.data,
+      })
+    }
+    if (!contentType.toLowerCase().includes('text/csv')) {
+      throw new ApiError('protocol', '导出响应不是 CSV 文件。', { requestId })
+    }
+    return {
+      blob: await response.blob(),
+      filename:
+        csvFilename(response.headers.get('Content-Disposition')) ??
+        `${report}.csv`,
+      requestId,
+    }
+  }
+
   private resolveFileUrl(value: string, requiredPrefix: string): URL {
     if (!this.baseUrl) {
       throw new ApiError(
@@ -391,6 +472,30 @@ export class ApiClient {
       !resolved.pathname.startsWith(requiredPrefix)
     ) {
       throw new ApiError('configuration', '附件地址不符合后端文件端点约定。')
+    }
+    return resolved
+  }
+
+  private resolveApiUrl(path: string): URL {
+    if (!this.baseUrl) {
+      throw new ApiError(
+        'configuration',
+        '未配置真实后端 API，请设置 VITE_API_BASE_URL。',
+      )
+    }
+    const normalizedBaseUrl = normalizeBaseUrl(this.baseUrl)
+    const base = normalizedBaseUrl.startsWith('/')
+      ? new URL(normalizedBaseUrl, window.location.origin)
+      : new URL(normalizedBaseUrl)
+    const resolved = new URL(path, base)
+    if (
+      resolved.origin !== base.origin ||
+      !resolved.pathname.startsWith(base.pathname)
+    ) {
+      throw new ApiError(
+        'configuration',
+        '报表导出地址不符合后端 API 端点约定。',
+      )
     }
     return resolved
   }
@@ -435,19 +540,36 @@ export class ApiClient {
   private async throwFileResponseError(response: Response): Promise<never> {
     let message = `附件服务返回了 HTTP ${response.status}。`
     let requestId = response.headers.get('X-Request-ID') ?? undefined
+    let payload:
+      | {
+          error?: unknown
+          requestId?: unknown
+          code?: unknown
+          message?: unknown
+          data?: unknown
+        }
+      | undefined
     try {
-      const payload = (await response.json()) as {
-        error?: unknown
-        requestId?: unknown
-      }
-      if (typeof payload.error === 'string' && payload.error) {
-        message = payload.error
-      }
-      if (typeof payload.requestId === 'string' && payload.requestId) {
-        requestId = payload.requestId
-      }
+      payload = (await response.json()) as typeof payload
     } catch {
       // Technical file endpoints may return an empty/non-JSON proxy response.
+    }
+    if (payload && isApiResponse(payload)) {
+      throw new ApiError(
+        payload.code === 0 || payload.code === '0' ? 'protocol' : 'business',
+        payload.message || message,
+        {
+          code: payload.code,
+          requestId: payload.requestId ?? requestId,
+          details: payload.data,
+        },
+      )
+    }
+    if (typeof payload?.error === 'string' && payload.error) {
+      message = payload.error
+    }
+    if (typeof payload?.requestId === 'string' && payload.requestId) {
+      requestId = payload.requestId
     }
 
     if (response.status === 400 || response.status === 409) {
@@ -460,6 +582,36 @@ export class ApiClient {
       code: response.status,
       requestId,
     })
+  }
+
+  private async readBusinessResponse(
+    response: Response,
+  ): Promise<ApiResponse<unknown>> {
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch (error) {
+      throw new ApiError('protocol', '后端响应不是有效的 JSON。', {
+        cause: error,
+      })
+    }
+    if (!isApiResponse(payload)) {
+      throw new ApiError('protocol', '后端响应不符合统一响应包络。')
+    }
+    return payload
+  }
+}
+
+function csvFilename(contentDisposition: string | null): string | undefined {
+  if (!contentDisposition) return undefined
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)?.[1]
+  const plain = /filename="?([^";]+)"?/i.exec(contentDisposition)?.[1]
+  const value = utf8 ?? plain
+  if (!value) return undefined
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
   }
 }
 

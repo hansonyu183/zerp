@@ -1,0 +1,159 @@
+RptParameterType:
+  type: string
+  enum: [TEXT, INTEGER, DECIMAL, BOOLEAN, DATE, DATE_RANGE, ENUM, REFERENCE]
+
+RptReferenceType:
+  type: string
+  enum:
+    [
+      ACCOUNTING_BOOK,
+      ACCOUNT_SUBJECT,
+      CUSTOMER,
+      SUPPLIER,
+      OTHER_PARTY,
+      EMPLOYEE,
+      DEPARTMENT,
+      PRODUCT,
+      WAREHOUSE,
+      FUND_ACCOUNT,
+      ASSET,
+      BILL,
+    ]
+
+RptResultType:
+  type: string
+  enum: [TEXT, INTEGER, DECIMAL, BOOLEAN, DATE, DATETIME, ID]
+
+RptParameter:
+  type: object
+  additionalProperties: false
+  required: [key, name, type, required]
+  properties:
+    key: { type: string, pattern: '^[a-z][a-zA-Z0-9]{0,63}$' }
+    name: { type: string, minLength: 1, maxLength: 100 }
+    type: { $ref: '#/RptParameterType' }
+    required: { type: boolean }
+    defaultValue: {}
+    enumValues:
+      type: array
+      uniqueItems: true
+      items: { type: string, maxLength: 200 }
+    referenceType: { $ref: '#/RptReferenceType' }
+
+RptResultColumn:
+  type: object
+  additionalProperties: false
+  required: [alias, name, order, type, width, visible]
+  properties:
+    alias: { type: string, pattern: '^[a-z][a-z0-9_]{0,62}[a-z0-9]$' }
+    name: { type: string, minLength: 1, maxLength: 100 }
+    order: { type: integer, minimum: 1 }
+    type: { $ref: '#/RptResultType' }
+    width: { type: integer, minimum: 60, maximum: 1000 }
+    visible: { type: boolean }
+    format: { type: string, maxLength: 100 }
+    drilldownEntity: { type: string, enum: [VOU] }
+
+RptVersionData:
+  type: object
+  additionalProperties: false
+  required: [sql, parameters, columns]
+  properties:
+    sql: { type: string, minLength: 1, maxLength: 100000 }
+    parameters:
+      type: array
+      items: { $ref: '#/RptParameter' }
+    columns:
+      type: array
+      minItems: 1
+      items: { $ref: '#/RptResultColumn' }
+
+RptDefinitionCreateRequest:
+  type: object
+  additionalProperties: false
+  required: [code, name, data]
+  properties:
+    code: { type: string, pattern: '^[a-z][a-z0-9-]{1,62}[a-z0-9]$' }
+    name: { type: string, minLength: 1, maxLength: 200 }
+    description: { type: string, maxLength: 1000 }
+    data: { $ref: '#/RptVersionData' }
+
+RptDefinitionQueryRequest:
+  type: object
+  additionalProperties: false
+  required: [page, pageSize]
+  properties:
+    page: { type: integer, minimum: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 200 }
+    keyword: { type: string, maxLength: 200 }
+    includeDisabled: { type: boolean }
+
+RptDefinitionGetRequest:
+  type: object
+  additionalProperties: false
+  required: [code]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    versionId: { type: string, minLength: 26, maxLength: 26 }
+
+RptVersionCreateRequest:
+  type: object
+  additionalProperties: false
+  required: [code, data]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    data: { $ref: '#/RptVersionData' }
+
+RptVersionSaveRequest:
+  type: object
+  additionalProperties: false
+  required: [code, versionId, revision, data]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    versionId: { type: string, minLength: 26, maxLength: 26 }
+    revision: { type: integer, format: int64, minimum: 1 }
+    name: { type: string, minLength: 1, maxLength: 200 }
+    description: { type: string, maxLength: 1000 }
+    data: { $ref: '#/RptVersionData' }
+
+RptVersionRevisionRequest:
+  type: object
+  additionalProperties: false
+  required: [code, versionId, revision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    versionId: { type: string, minLength: 26, maxLength: 26 }
+    revision: { type: integer, format: int64, minimum: 1 }
+    validationParameters:
+      type: object
+      additionalProperties: true
+
+RptDefinitionRevisionRequest:
+  type: object
+  additionalProperties: false
+  required: [code, revision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    revision: { type: integer, format: int64, minimum: 1 }
+
+RptExecuteRequest:
+  type: object
+  additionalProperties: false
+  required: [parameters]
+  properties:
+    parameters:
+      type: object
+      additionalProperties: true
+    page: { type: integer, minimum: 1, default: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 100, default: 50 }
+
+RptReferenceQueryRequest:
+  type: object
+  additionalProperties: false
+  required: [parameterKey]
+  properties:
+    parameterKey: { type: string, minLength: 1, maxLength: 64 }
+    keyword: { type: string, maxLength: 200 }
+    selectedId: { type: string, maxLength: 64 }
+    page: { type: integer, minimum: 1, default: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 50, default: 20 }

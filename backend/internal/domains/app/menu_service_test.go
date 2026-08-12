@@ -109,6 +109,21 @@ func TestFilterMenuForPrincipalRequiresEnabledParentAndRoutePermission(t *testin
 	}
 }
 
+func TestReportCenterRouteAcceptsAnyReportUsePermission(t *testing.T) {
+	route := registeredMenuRoute{
+		RouteKey: "rpt/report-center", RoutePath: "/rpt/report-center",
+		PermissionCode: "/rpt/definition/query", PermissionRoot: "/rpt/",
+	}
+	for _, permission := range []string{"/rpt/account-journal/query", "/rpt/account-journal/export", "/rpt/definition/query"} {
+		if !routeAllowed(route, []string{permission}) {
+			t.Fatalf("permission %q did not reveal report center", permission)
+		}
+	}
+	if routeAllowed(route, []string{"/acc/book/query"}) {
+		t.Fatal("unrelated permission revealed report center")
+	}
+}
+
 func TestMenuCatalogRevisionIncludesRegisteredCatalogContentAndOrder(t *testing.T) {
 	catalog := []registeredMenuRoute{
 		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", PermissionRoot: "/bob/customer/", Order: 10},

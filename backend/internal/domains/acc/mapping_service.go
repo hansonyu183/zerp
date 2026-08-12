@@ -41,17 +41,34 @@ var mappingHeaderFields = []string{
 	"warehouse.objectId",
 }
 
-var mappingLineFields = []string{
-	"actualQuantity", "amount", "assetId", "billId", "billLineId", "category", "description", "direction",
-	"disposalExpense", "faceAmount", "interestAmount", "lineAmount", "lineId", "orderedQuantity", "originalValue",
-	"outputQuantity", "quantity", "rejectedQuantity", "saleAmount", "salvageIncome", "signedQuantity", "unitPrice",
-	"actualMaterial.objectId", "category.objectId", "custodian.objectId", "department.objectId", "fundAccount.objectId",
-	"formulaMaterial.objectId", "material.objectId", "product.objectId",
+var mappingCollectionFields = map[string][]string{
+	"assetAcquisitionLines": {"lineId", "assetName", "originalValue", "category.objectId", "department.objectId", "custodian.objectId"},
+	"assetLiquidationLines": {"lineId", "assetId", "salvageIncome", "disposalExpense"},
+	"assetSaleLines":        {"lineId", "assetId", "saleAmount"},
+	"billCashLines":         {"lineId", "billLineId", "fundAccount.objectId", "direction", "amount"},
+	"billLines":             {"lineId", "billId", "direction", "faceAmount", "interestAmount"},
+	"expenseLines":          {"lineId", "category", "description", "amount"},
+	"inventoryCountLines":   {"lineId", "product.objectId", "actualQuantity", "bookQuantity", "differenceQuantity"},
+	"lines":                 {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"priceLines":            {"lineId", "product.objectId", "unitPrice"},
+	"productLines":          {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"productionLines":       {"lineId", "product.objectId", "outputQuantity"},
+	"signoffLines":          {"lineId", "product.objectId", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
 }
 
-var mappingCollections = []string{
-	"assetAcquisitionLines", "assetLiquidationLines", "assetSaleLines", "billCashLines",
-	"billLines", "expenseLines", "inventoryCountLines", "lines", "priceLines", "productLines", "productionLines", "signoffLines",
+var mappingEntityCollections = map[string][]string{
+	"sale-pricing": {"priceLines"}, "purchase-inquiry": {"priceLines"},
+	"sale-order": {"productLines"}, "purchase-order": {"productLines"}, "purchase-inbound": {"productLines"},
+	"sale-outbound": {"productLines", "lines"}, "sale-delivery": {"productLines", "lines"},
+	"sale-signoff": {"productLines", "signoffLines", "lines"}, "sale-return": {"productLines", "lines"},
+	"purchase-return":  {"productLines", "lines"},
+	"order-production": {"lines", "productionLines"}, "self-production": {"lines", "productionLines"},
+	"inventory-count":       {"inventoryCountLines"},
+	"expense-reimbursement": {"expenseLines"}, "employee-loan-writeoff": {"expenseLines"},
+	"asset-acquisition": {"assetAcquisitionLines"}, "asset-sale": {"assetSaleLines"}, "asset-liquidation": {"assetLiquidationLines"},
+	"bill-receipt": {"billLines", "billCashLines"}, "bill-payment": {"billLines", "billCashLines"},
+	"bill-issue": {"billLines", "billCashLines"}, "bill-discount": {"billLines", "billCashLines"},
+	"bill-maturity": {"billLines", "billCashLines"},
 }
 
 func SupportedMappingEntities() []string {
@@ -68,9 +85,10 @@ func MappingFieldCatalog(entity string) (MappingCatalog, error) {
 	if _, ok := supportedMappingEntitySet[entity]; !ok {
 		return MappingCatalog{}, domainError(ErrorValidation, "unsupported VOU entity", nil)
 	}
-	collections := make(map[string][]string, len(mappingCollections))
-	for _, collection := range mappingCollections {
-		collections[collection] = append([]string(nil), mappingLineFields...)
+	entityCollections := mappingEntityCollections[entity]
+	collections := make(map[string][]string, len(entityCollections))
+	for _, collection := range entityCollections {
+		collections[collection] = append([]string(nil), mappingCollectionFields[collection]...)
 	}
 	return MappingCatalog{VouEntity: entity, HeaderFields: append([]string(nil), mappingHeaderFields...), Collections: collections}, nil
 }
@@ -97,7 +115,11 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 	if defaultResult != MappingResultPost && defaultResult != MappingResultUnpost {
 		return domainError(ErrorValidation, "invalid mapping default result", nil)
 	}
-	if catalog.VouEntity == "asset-acquisition" && definition.AssetConfiguration == nil {
+	requiresAssetConfiguration := defaultResult == MappingResultPost
+	for _, rule := range definition.Rules {
+		requiresAssetConfiguration = requiresAssetConfiguration || rule.Result == MappingResultPost
+	}
+	if catalog.VouEntity == "asset-acquisition" && requiresAssetConfiguration && definition.AssetConfiguration == nil {
 		return domainError(ErrorValidation, "asset acquisition mapping requires asset accounting configuration", nil)
 	}
 	if definition.AssetConfiguration != nil {

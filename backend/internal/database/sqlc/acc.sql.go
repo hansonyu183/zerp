@@ -11,6 +11,50 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const accountingAssetExists = `-- name: AccountingAssetExists :one
+SELECT EXISTS(SELECT 1 FROM acc_assets WHERE id=$1)
+`
+
+func (q *Queries) AccountingAssetExists(ctx context.Context, assetID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingAssetExists, assetID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const accountingAssetIsActive = `-- name: AccountingAssetIsActive :one
+SELECT state='ACTIVE' FROM acc_assets WHERE id=$1
+`
+
+func (q *Queries) AccountingAssetIsActive(ctx context.Context, assetID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingAssetIsActive, assetID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const accountingBillExists = `-- name: AccountingBillExists :one
+SELECT EXISTS(SELECT 1 FROM acc_bills WHERE id=$1)
+`
+
+func (q *Queries) AccountingBillExists(ctx context.Context, billID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingBillExists, billID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const accountingBillIsAvailable = `-- name: AccountingBillIsAvailable :one
+SELECT state='AVAILABLE' FROM acc_bills WHERE id=$1
+`
+
+func (q *Queries) AccountingBillIsAvailable(ctx context.Context, billID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingBillIsAvailable, billID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const accountingBookExists = `-- name: AccountingBookExists :one
 SELECT EXISTS(SELECT 1 FROM acc_books)
 `
@@ -34,6 +78,130 @@ func (q *Queries) AccountingBookHasLaterFacts(ctx context.Context, bookID string
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const accountingOpeningObjectsReferencedByOtherBooks = `-- name: AccountingOpeningObjectsReferencedByOtherBooks :one
+SELECT (EXISTS(
+  SELECT 1 FROM acc_opening_assets opening
+  JOIN acc_asset_book_values value ON value.asset_id=opening.asset_id
+  WHERE opening.book_id=$1 AND opening.create_object AND value.book_id<>$1
+) OR EXISTS(
+  SELECT 1 FROM acc_opening_bills opening
+  JOIN acc_bill_book_values value ON value.bill_id=opening.bill_id
+  WHERE opening.book_id=$1 AND opening.create_object AND value.book_id<>$1
+))::boolean AS referenced
+`
+
+func (q *Queries) AccountingOpeningObjectsReferencedByOtherBooks(ctx context.Context, bookID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingOpeningObjectsReferencedByOtherBooks, bookID)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
+}
+
+const accountingPeriodHasMissingMappings = `-- name: AccountingPeriodHasMissingMappings :one
+SELECT EXISTS(
+  SELECT 1 FROM vou_documents document
+  WHERE document.business_date >= $1
+    AND document.business_date < $2
+    AND document.status = 'APPROVED'
+    AND NOT EXISTS (
+      SELECT 1 FROM acc_mapping_versions mapping
+      WHERE mapping.book_id=$3
+        AND mapping.vou_entity=document.entity AND mapping.state='APPROVED'
+    )
+)
+`
+
+type AccountingPeriodHasMissingMappingsParams struct {
+	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+	BookID      string      `db:"book_id" json:"book_id"`
+}
+
+func (q *Queries) AccountingPeriodHasMissingMappings(ctx context.Context, arg AccountingPeriodHasMissingMappingsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingPeriodHasMissingMappings, arg.PeriodStart, arg.PeriodEnd, arg.BookID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const accountingPeriodHasNegativeInventory = `-- name: AccountingPeriodHasNegativeInventory :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_inventory_entries WHERE book_id=$1
+  GROUP BY subject_id, product_id, warehouse_id
+  HAVING sum(quantity_delta_micros) FILTER (WHERE business_date < $2) < 0
+)
+`
+
+type AccountingPeriodHasNegativeInventoryParams struct {
+	BookID    string      `db:"book_id" json:"book_id"`
+	PeriodEnd pgtype.Date `db:"period_end" json:"period_end"`
+}
+
+func (q *Queries) AccountingPeriodHasNegativeInventory(ctx context.Context, arg AccountingPeriodHasNegativeInventoryParams) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingPeriodHasNegativeInventory, arg.BookID, arg.PeriodEnd)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const accountingPeriodHasUnfinishedVOU = `-- name: AccountingPeriodHasUnfinishedVOU :one
+SELECT EXISTS(
+  SELECT 1 FROM vou_documents
+  WHERE business_date >= $1 AND business_date < $2
+    AND status <> 'APPROVED'
+)
+`
+
+type AccountingPeriodHasUnfinishedVOUParams struct {
+	PeriodStart pgtype.Date `db:"period_start" json:"period_start"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+}
+
+func (q *Queries) AccountingPeriodHasUnfinishedVOU(ctx context.Context, arg AccountingPeriodHasUnfinishedVOUParams) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingPeriodHasUnfinishedVOU, arg.PeriodStart, arg.PeriodEnd)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const accountingTrialBalanceFails = `-- name: AccountingTrialBalanceFails :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_voucher_lines line
+  JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
+  WHERE voucher.book_id=$1 AND voucher.business_date < $2
+  GROUP BY line.currency HAVING sum(line.debit_minor) <> sum(line.credit_minor)
+)
+`
+
+type AccountingTrialBalanceFailsParams struct {
+	BookID     string      `db:"book_id" json:"book_id"`
+	BeforeDate pgtype.Date `db:"before_date" json:"before_date"`
+}
+
+func (q *Queries) AccountingTrialBalanceFails(ctx context.Context, arg AccountingTrialBalanceFailsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingTrialBalanceFails, arg.BookID, arg.BeforeDate)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const addAccountingAssetDepreciation = `-- name: AddAccountingAssetDepreciation :exec
+UPDATE acc_asset_book_values
+SET accumulated_depreciation_minor=accumulated_depreciation_minor+$1
+WHERE book_id=$2 AND asset_id=$3
+`
+
+type AddAccountingAssetDepreciationParams struct {
+	AmountMinor int64  `db:"amount_minor" json:"amount_minor"`
+	BookID      string `db:"book_id" json:"book_id"`
+	AssetID     string `db:"asset_id" json:"asset_id"`
+}
+
+func (q *Queries) AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error {
+	_, err := q.db.Exec(ctx, addAccountingAssetDepreciation, arg.AmountMinor, arg.BookID, arg.AssetID)
+	return err
 }
 
 const approveAccountingMapping = `-- name: ApproveAccountingMapping :one
@@ -90,6 +258,206 @@ func (q *Queries) ApproveAccountingOpening(ctx context.Context, arg ApproveAccou
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
+}
+
+const buildAccountingPeriodBalances = `-- name: BuildAccountingPeriodBalances :exec
+INSERT INTO acc_period_balances(
+  id,book_id,period_month,subject_id,currency,dimensions,dimension_key,
+  opening_balance_minor,debit_turnover_minor,credit_turnover_minor,closing_balance_minor)
+SELECT substr(md5($1||':'||$2::date::text||':'||line.subject_id||':'||line.currency||':'||line.dimensions::text),1,26),
+  $1,$2::date,line.subject_id,line.currency,line.dimensions,line.dimensions::text,
+  COALESCE(sum(line.debit_minor-line.credit_minor) FILTER(WHERE voucher.business_date<$2::date),0)::bigint,
+  COALESCE(sum(line.debit_minor) FILTER(WHERE voucher.business_date>=$2::date AND voucher.business_date<$3::date),0)::bigint,
+  COALESCE(sum(line.credit_minor) FILTER(WHERE voucher.business_date>=$2::date AND voucher.business_date<$3::date),0)::bigint,
+  sum(line.debit_minor-line.credit_minor)::bigint
+FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+WHERE line.book_id=$1 AND voucher.business_date<$3::date
+GROUP BY line.subject_id,line.currency,line.dimensions
+`
+
+type BuildAccountingPeriodBalancesParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+	PeriodEnd   pgtype.Date `db:"period_end" json:"period_end"`
+}
+
+func (q *Queries) BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error {
+	_, err := q.db.Exec(ctx, buildAccountingPeriodBalances, arg.BookID, arg.PeriodMonth, arg.PeriodEnd)
+	return err
+}
+
+const createAccountingAsset = `-- name: CreateAccountingAsset :exec
+INSERT INTO acc_assets (
+  id,asset_no,source_document_id,source_line_id,name,category_id,department_id,
+  useful_life_months,residual_rate_bps,acquired_on,state
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6,$7,
+  $8,$9,$10,'ACTIVE'
+)
+`
+
+type CreateAccountingAssetParams struct {
+	ID               string      `db:"id" json:"id"`
+	AssetNo          string      `db:"asset_no" json:"asset_no"`
+	SourceDocumentID string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID     string      `db:"source_line_id" json:"source_line_id"`
+	Name             string      `db:"name" json:"name"`
+	CategoryID       string      `db:"category_id" json:"category_id"`
+	DepartmentID     string      `db:"department_id" json:"department_id"`
+	UsefulLifeMonths int32       `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps  int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn       pgtype.Date `db:"acquired_on" json:"acquired_on"`
+}
+
+func (q *Queries) CreateAccountingAsset(ctx context.Context, arg CreateAccountingAssetParams) error {
+	_, err := q.db.Exec(ctx, createAccountingAsset,
+		arg.ID,
+		arg.AssetNo,
+		arg.SourceDocumentID,
+		arg.SourceLineID,
+		arg.Name,
+		arg.CategoryID,
+		arg.DepartmentID,
+		arg.UsefulLifeMonths,
+		arg.ResidualRateBps,
+		arg.AcquiredOn,
+	)
+	return err
+}
+
+const createAccountingAssetBookValue = `-- name: CreateAccountingAssetBookValue :exec
+INSERT INTO acc_asset_book_values (
+  book_id,asset_id,currency,original_minor,accumulated_depreciation_minor,
+  asset_subject_id,asset_dimensions,accumulated_subject_id,accumulated_dimensions,
+  expense_subject_id,expense_dimensions
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6,$7,
+  $8,$9,
+  $10,$11
+)
+`
+
+type CreateAccountingAssetBookValueParams struct {
+	BookID                string  `db:"book_id" json:"book_id"`
+	AssetID               string  `db:"asset_id" json:"asset_id"`
+	Currency              string  `db:"currency" json:"currency"`
+	OriginalMinor         int64   `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor      int64   `db:"accumulated_minor" json:"accumulated_minor"`
+	AssetSubjectID        *string `db:"asset_subject_id" json:"asset_subject_id"`
+	AssetDimensions       []byte  `db:"asset_dimensions" json:"asset_dimensions"`
+	AccumulatedSubjectID  *string `db:"accumulated_subject_id" json:"accumulated_subject_id"`
+	AccumulatedDimensions []byte  `db:"accumulated_dimensions" json:"accumulated_dimensions"`
+	ExpenseSubjectID      *string `db:"expense_subject_id" json:"expense_subject_id"`
+	ExpenseDimensions     []byte  `db:"expense_dimensions" json:"expense_dimensions"`
+}
+
+func (q *Queries) CreateAccountingAssetBookValue(ctx context.Context, arg CreateAccountingAssetBookValueParams) error {
+	_, err := q.db.Exec(ctx, createAccountingAssetBookValue,
+		arg.BookID,
+		arg.AssetID,
+		arg.Currency,
+		arg.OriginalMinor,
+		arg.AccumulatedMinor,
+		arg.AssetSubjectID,
+		arg.AssetDimensions,
+		arg.AccumulatedSubjectID,
+		arg.AccumulatedDimensions,
+		arg.ExpenseSubjectID,
+		arg.ExpenseDimensions,
+	)
+	return err
+}
+
+const createAccountingBill = `-- name: CreateAccountingBill :exec
+INSERT INTO acc_bills (
+  id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
+  issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
+  interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
+  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,
+  state,source_document_id,source_line_id
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6,$7,$8,
+  $9,$10,$11,$12,
+  $13,$14,$15,
+  $16,$17,
+  $18,$19,
+  $20,$21,'AVAILABLE',
+  $22,$23
+)
+`
+
+type CreateAccountingBillParams struct {
+	ID                      string      `db:"id" json:"id"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Currency                string      `db:"currency" json:"currency"`
+	Medium                  string      `db:"medium" json:"medium"`
+	FaceAmountMinor         int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	SourceDocumentID        string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID            string      `db:"source_line_id" json:"source_line_id"`
+}
+
+func (q *Queries) CreateAccountingBill(ctx context.Context, arg CreateAccountingBillParams) error {
+	_, err := q.db.Exec(ctx, createAccountingBill,
+		arg.ID,
+		arg.BillNo,
+		arg.BillType,
+		arg.PositionType,
+		arg.Currency,
+		arg.Medium,
+		arg.FaceAmountMinor,
+		arg.IssueDate,
+		arg.MaturityDate,
+		arg.Drawer,
+		arg.Acceptor,
+		arg.Payee,
+		arg.AnnualRateBps,
+		arg.InterestDays,
+		arg.InterestAmountMinor,
+		arg.CustomerCostAmountMinor,
+		arg.OriginPartyEntity,
+		arg.OriginPartyObjectID,
+		arg.OriginPartyVersionID,
+		arg.OriginPartyCode,
+		arg.OriginPartyName,
+		arg.SourceDocumentID,
+		arg.SourceLineID,
+	)
+	return err
+}
+
+const createAccountingBillBookValue = `-- name: CreateAccountingBillBookValue :exec
+INSERT INTO acc_bill_book_values (book_id,bill_id,value_minor)
+VALUES ($1,$2,$3)
+`
+
+type CreateAccountingBillBookValueParams struct {
+	BookID     string `db:"book_id" json:"book_id"`
+	BillID     string `db:"bill_id" json:"bill_id"`
+	ValueMinor int64  `db:"value_minor" json:"value_minor"`
+}
+
+func (q *Queries) CreateAccountingBillBookValue(ctx context.Context, arg CreateAccountingBillBookValueParams) error {
+	_, err := q.db.Exec(ctx, createAccountingBillBookValue, arg.BookID, arg.BillID, arg.ValueMinor)
+	return err
 }
 
 const createAccountingBook = `-- name: CreateAccountingBook :exec
@@ -159,6 +527,36 @@ func (q *Queries) CreateAccountingBookScope(ctx context.Context, arg CreateAccou
 	return err
 }
 
+const createAccountingContainerEntry = `-- name: CreateAccountingContainerEntry :exec
+INSERT INTO acc_container_entries (
+  id,customer_id,container_type,quantity_delta,source_document_id,source_revision
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6
+)
+`
+
+type CreateAccountingContainerEntryParams struct {
+	ID               string `db:"id" json:"id"`
+	CustomerID       string `db:"customer_id" json:"customer_id"`
+	ContainerType    string `db:"container_type" json:"container_type"`
+	QuantityDelta    int64  `db:"quantity_delta" json:"quantity_delta"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) CreateAccountingContainerEntry(ctx context.Context, arg CreateAccountingContainerEntryParams) error {
+	_, err := q.db.Exec(ctx, createAccountingContainerEntry,
+		arg.ID,
+		arg.CustomerID,
+		arg.ContainerType,
+		arg.QuantityDelta,
+		arg.SourceDocumentID,
+		arg.SourceRevision,
+	)
+	return err
+}
+
 const createAccountingMappingVersion = `-- name: CreateAccountingMappingVersion :exec
 INSERT INTO acc_mapping_versions (
   id, book_id, vou_entity, version, state, default_result, definition,
@@ -205,6 +603,17 @@ type CreateAccountingOpeningParams struct {
 
 func (q *Queries) CreateAccountingOpening(ctx context.Context, arg CreateAccountingOpeningParams) error {
 	_, err := q.db.Exec(ctx, createAccountingOpening, arg.BookID, arg.ActorID)
+	return err
+}
+
+const createAccountingOpeningContainerBalances = `-- name: CreateAccountingOpeningContainerBalances :exec
+INSERT INTO acc_container_entries(id,customer_id,container_type,quantity_delta,source_document_id,source_revision)
+SELECT substr(md5(book_id||customer_id||container_type),1,26),customer_id,container_type,quantity,book_id,0
+FROM acc_opening_containers WHERE book_id=$1
+`
+
+func (q *Queries) CreateAccountingOpeningContainerBalances(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, createAccountingOpeningContainerBalances, bookID)
 	return err
 }
 
@@ -296,6 +705,24 @@ func (q *Queries) CreateAutomaticAccountingVoucher(ctx context.Context, arg Crea
 	return err
 }
 
+const deleteAccountingAssetBookValues = `-- name: DeleteAccountingAssetBookValues :exec
+DELETE FROM acc_asset_book_values WHERE book_id=$1
+`
+
+func (q *Queries) DeleteAccountingAssetBookValues(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingAssetBookValues, bookID)
+	return err
+}
+
+const deleteAccountingBillBookValues = `-- name: DeleteAccountingBillBookValues :exec
+DELETE FROM acc_bill_book_values WHERE book_id=$1
+`
+
+func (q *Queries) DeleteAccountingBillBookValues(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingBillBookValues, bookID)
+	return err
+}
+
 const deleteAccountingBook = `-- name: DeleteAccountingBook :exec
 DELETE FROM acc_books WHERE id = $1
 `
@@ -314,12 +741,163 @@ func (q *Queries) DeleteAccountingBookScopes(ctx context.Context, bookID string)
 	return err
 }
 
+const deleteAccountingContainerEntriesBySource = `-- name: DeleteAccountingContainerEntriesBySource :exec
+DELETE FROM acc_container_entries
+WHERE source_document_id=$1 AND source_revision=$2
+`
+
+type DeleteAccountingContainerEntriesBySourceParams struct {
+	DocumentID     string `db:"document_id" json:"document_id"`
+	SourceRevision int64  `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) DeleteAccountingContainerEntriesBySource(ctx context.Context, arg DeleteAccountingContainerEntriesBySourceParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingContainerEntriesBySource, arg.DocumentID, arg.SourceRevision)
+	return err
+}
+
+const deleteAccountingDepreciationEntries = `-- name: DeleteAccountingDepreciationEntries :exec
+DELETE FROM acc_depreciation_entries WHERE book_id=$1 AND period_month=$2
+`
+
+type DeleteAccountingDepreciationEntriesParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+}
+
+func (q *Queries) DeleteAccountingDepreciationEntries(ctx context.Context, arg DeleteAccountingDepreciationEntriesParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingDepreciationEntries, arg.BookID, arg.PeriodMonth)
+	return err
+}
+
+const deleteAccountingGlobalEvent = `-- name: DeleteAccountingGlobalEvent :execrows
+DELETE FROM acc_register_events
+WHERE source_entity=$1
+  AND source_document_id=$2
+  AND source_revision=$3
+`
+
+type DeleteAccountingGlobalEventParams struct {
+	SourceEntity     string `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) DeleteAccountingGlobalEvent(ctx context.Context, arg DeleteAccountingGlobalEventParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAccountingGlobalEvent, arg.SourceEntity, arg.SourceDocumentID, arg.SourceRevision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteAccountingInventoryCostAllocations = `-- name: DeleteAccountingInventoryCostAllocations :exec
+DELETE FROM acc_inventory_cost_allocations
+WHERE book_id=$1 AND period_month=$2
+`
+
+type DeleteAccountingInventoryCostAllocationsParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+}
+
+func (q *Queries) DeleteAccountingInventoryCostAllocations(ctx context.Context, arg DeleteAccountingInventoryCostAllocationsParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingInventoryCostAllocations, arg.BookID, arg.PeriodMonth)
+	return err
+}
+
+const deleteAccountingOpeningAssets = `-- name: DeleteAccountingOpeningAssets :exec
+DELETE FROM acc_opening_assets WHERE book_id=$1
+`
+
+func (q *Queries) DeleteAccountingOpeningAssets(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningAssets, bookID)
+	return err
+}
+
+const deleteAccountingOpeningBills = `-- name: DeleteAccountingOpeningBills :exec
+DELETE FROM acc_opening_bills WHERE book_id=$1
+`
+
+func (q *Queries) DeleteAccountingOpeningBills(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningBills, bookID)
+	return err
+}
+
+const deleteAccountingOpeningContainerBalances = `-- name: DeleteAccountingOpeningContainerBalances :exec
+DELETE FROM acc_container_entries WHERE source_document_id=$1 AND source_revision=0
+`
+
+func (q *Queries) DeleteAccountingOpeningContainerBalances(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningContainerBalances, bookID)
+	return err
+}
+
+const deleteAccountingOpeningContainers = `-- name: DeleteAccountingOpeningContainers :exec
+DELETE FROM acc_opening_containers WHERE book_id=$1
+`
+
+func (q *Queries) DeleteAccountingOpeningContainers(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningContainers, bookID)
+	return err
+}
+
+const deleteAccountingOpeningCreatedAssets = `-- name: DeleteAccountingOpeningCreatedAssets :exec
+DELETE FROM acc_assets WHERE source_document_id=$1
+  AND id IN(SELECT asset_id FROM acc_opening_assets WHERE book_id=$1 AND create_object)
+`
+
+func (q *Queries) DeleteAccountingOpeningCreatedAssets(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningCreatedAssets, bookID)
+	return err
+}
+
+const deleteAccountingOpeningCreatedBills = `-- name: DeleteAccountingOpeningCreatedBills :exec
+DELETE FROM acc_bills WHERE source_document_id=$1
+  AND id IN(SELECT bill_id FROM acc_opening_bills WHERE book_id=$1 AND create_object)
+`
+
+func (q *Queries) DeleteAccountingOpeningCreatedBills(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningCreatedBills, bookID)
+	return err
+}
+
 const deleteAccountingOpeningLines = `-- name: DeleteAccountingOpeningLines :exec
 DELETE FROM acc_opening_lines WHERE book_id = $1
 `
 
 func (q *Queries) DeleteAccountingOpeningLines(ctx context.Context, bookID string) error {
 	_, err := q.db.Exec(ctx, deleteAccountingOpeningLines, bookID)
+	return err
+}
+
+const deleteAccountingPeriodBalances = `-- name: DeleteAccountingPeriodBalances :exec
+DELETE FROM acc_period_balances WHERE book_id=$1 AND period_month=$2
+`
+
+type DeleteAccountingPeriodBalancesParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+}
+
+func (q *Queries) DeleteAccountingPeriodBalances(ctx context.Context, arg DeleteAccountingPeriodBalancesParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingPeriodBalances, arg.BookID, arg.PeriodMonth)
+	return err
+}
+
+const deleteAccountingPeriodSystemVouchers = `-- name: DeleteAccountingPeriodSystemVouchers :exec
+DELETE FROM acc_vouchers
+WHERE book_id=$1 AND source_type IN ('COST_SETTLEMENT','DEPRECIATION')
+  AND source_id=$2
+`
+
+type DeleteAccountingPeriodSystemVouchersParams struct {
+	BookID   string `db:"book_id" json:"book_id"`
+	SourceID string `db:"source_id" json:"source_id"`
+}
+
+func (q *Queries) DeleteAccountingPeriodSystemVouchers(ctx context.Context, arg DeleteAccountingPeriodSystemVouchersParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingPeriodSystemVouchers, arg.BookID, arg.SourceID)
 	return err
 }
 
@@ -376,6 +954,15 @@ func (q *Queries) DeleteAccountingVoucher(ctx context.Context, arg DeleteAccount
 	return err
 }
 
+const deleteActiveAccountingAssetsBySource = `-- name: DeleteActiveAccountingAssetsBySource :exec
+DELETE FROM acc_assets WHERE source_document_id=$1 AND state='ACTIVE'
+`
+
+func (q *Queries) DeleteActiveAccountingAssetsBySource(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteActiveAccountingAssetsBySource, documentID)
+	return err
+}
+
 const deleteAutomaticAccountingVoucher = `-- name: DeleteAutomaticAccountingVoucher :many
 DELETE FROM acc_vouchers
 WHERE source_type = 'VOU'
@@ -409,6 +996,41 @@ func (q *Queries) DeleteAutomaticAccountingVoucher(ctx context.Context, arg Dele
 		return nil, err
 	}
 	return items, nil
+}
+
+const deleteAvailableAccountingBillsBySource = `-- name: DeleteAvailableAccountingBillsBySource :exec
+DELETE FROM acc_bills WHERE source_document_id=$1 AND state='AVAILABLE'
+`
+
+func (q *Queries) DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteAvailableAccountingBillsBySource, documentID)
+	return err
+}
+
+const disposeAccountingAsset = `-- name: DisposeAccountingAsset :execrows
+UPDATE acc_assets SET state=$1,disposed_by_document_id=$2,
+  disposed_on=$3
+WHERE id=$4 AND state='ACTIVE'
+`
+
+type DisposeAccountingAssetParams struct {
+	State      string      `db:"state" json:"state"`
+	DocumentID *string     `db:"document_id" json:"document_id"`
+	DisposedOn pgtype.Date `db:"disposed_on" json:"disposed_on"`
+	AssetID    string      `db:"asset_id" json:"asset_id"`
+}
+
+func (q *Queries) DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disposeAccountingAsset,
+		arg.State,
+		arg.DocumentID,
+		arg.DisposedOn,
+		arg.AssetID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAccountingAccessUserEnabled = `-- name: GetAccountingAccessUserEnabled :one
@@ -681,6 +1303,47 @@ func (q *Queries) GetAccountingOpeningForUpdate(ctx context.Context, bookID stri
 	return i, err
 }
 
+const getAccountingPartyBalance = `-- name: GetAccountingPartyBalance :one
+SELECT COALESCE(sum(($1::bigint) * (line.debit_minor-line.credit_minor)),0)::bigint
+FROM acc_voucher_lines line
+JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
+WHERE line.book_id=$2
+  AND subject.settlement_purpose=$3
+  AND line.currency=$4
+  AND line.dimensions->>($5::text)=$6::text
+  AND voucher.business_date<=$7::date
+  AND (COALESCE(cardinality($8::text[]),0)=0
+       OR voucher.source_id=ANY($8::text[]))
+`
+
+type GetAccountingPartyBalanceParams struct {
+	DebitMultiplier   int64       `db:"debit_multiplier" json:"debit_multiplier"`
+	BookID            string      `db:"book_id" json:"book_id"`
+	SettlementPurpose string      `db:"settlement_purpose" json:"settlement_purpose"`
+	Currency          string      `db:"currency" json:"currency"`
+	Dimension         string      `db:"dimension" json:"dimension"`
+	ObjectID          string      `db:"object_id" json:"object_id"`
+	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	SourceDocumentIds []string    `db:"source_document_ids" json:"source_document_ids"`
+}
+
+func (q *Queries) GetAccountingPartyBalance(ctx context.Context, arg GetAccountingPartyBalanceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getAccountingPartyBalance,
+		arg.DebitMultiplier,
+		arg.BookID,
+		arg.SettlementPurpose,
+		arg.Currency,
+		arg.Dimension,
+		arg.ObjectID,
+		arg.AsOfDate,
+		arg.SourceDocumentIds,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getAccountingSubject = `-- name: GetAccountingSubject :one
 SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
        s.balance_direction, s.enabled, s.inventory_quantity,
@@ -902,6 +1565,35 @@ func (q *Queries) GetLatestLockedAccountingPeriod(ctx context.Context, bookID st
 	return i, err
 }
 
+const getMinimumAccountingFundBalance = `-- name: GetMinimumAccountingFundBalance :one
+WITH daily AS (
+  SELECT voucher.business_date,
+         sum(line.debit_minor-line.credit_minor)::bigint AS delta
+  FROM acc_voucher_lines line
+  JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+  WHERE line.book_id=$1 AND line.currency=$2
+    AND line.dimensions->>'FUND_ACCOUNT'=$3::text
+  GROUP BY voucher.business_date
+), running AS (
+  SELECT sum(delta) OVER (ORDER BY business_date ROWS UNBOUNDED PRECEDING)::bigint AS balance
+  FROM daily
+)
+SELECT COALESCE(min(balance),0)::bigint FROM running
+`
+
+type GetMinimumAccountingFundBalanceParams struct {
+	BookID        string `db:"book_id" json:"book_id"`
+	Currency      string `db:"currency" json:"currency"`
+	FundAccountID string `db:"fund_account_id" json:"fund_account_id"`
+}
+
+func (q *Queries) GetMinimumAccountingFundBalance(ctx context.Context, arg GetMinimumAccountingFundBalanceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getMinimumAccountingFundBalance, arg.BookID, arg.Currency, arg.FundAccountID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getMinimumAccountingInventoryQuantity = `-- name: GetMinimumAccountingInventoryQuantity :one
 SELECT COALESCE(min(running_quantity), 0)::bigint
 FROM (
@@ -932,6 +1624,21 @@ func (q *Queries) GetMinimumAccountingInventoryQuantity(ctx context.Context, arg
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const getReadyControlAccountingBookID = `-- name: GetReadyControlAccountingBookID :one
+SELECT book.id
+FROM acc_books book
+JOIN acc_openings opening ON opening.book_id = book.id AND opening.state = 'APPROVED'
+WHERE book.control_book
+FOR SHARE OF book
+`
+
+func (q *Queries) GetReadyControlAccountingBookID(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, getReadyControlAccountingBookID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const hasAccountingBookOperateAccess = `-- name: HasAccountingBookOperateAccess :one
@@ -974,6 +1681,66 @@ func (q *Queries) HasAccountingBookQueryAccess(ctx context.Context, arg HasAccou
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const insertAccountingDepreciationEntry = `-- name: InsertAccountingDepreciationEntry :exec
+INSERT INTO acc_depreciation_entries(id,book_id,asset_id,period_month,amount_minor,system_voucher_id)
+VALUES($1,$2,$3,$4,$5,$6)
+`
+
+type InsertAccountingDepreciationEntryParams struct {
+	ID              string      `db:"id" json:"id"`
+	BookID          string      `db:"book_id" json:"book_id"`
+	AssetID         string      `db:"asset_id" json:"asset_id"`
+	PeriodMonth     pgtype.Date `db:"period_month" json:"period_month"`
+	AmountMinor     int64       `db:"amount_minor" json:"amount_minor"`
+	SystemVoucherID string      `db:"system_voucher_id" json:"system_voucher_id"`
+}
+
+func (q *Queries) InsertAccountingDepreciationEntry(ctx context.Context, arg InsertAccountingDepreciationEntryParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingDepreciationEntry,
+		arg.ID,
+		arg.BookID,
+		arg.AssetID,
+		arg.PeriodMonth,
+		arg.AmountMinor,
+		arg.SystemVoucherID,
+	)
+	return err
+}
+
+const insertAccountingInventoryCostAllocation = `-- name: InsertAccountingInventoryCostAllocation :exec
+INSERT INTO acc_inventory_cost_allocations(
+  entry_id,book_id,period_month,quantity_micros,cost_minor,
+  source_cost_entry_id,system_voucher_id
+) VALUES (
+  $1,$2,$3,
+  $4,$5,$6,
+  $7
+)
+`
+
+type InsertAccountingInventoryCostAllocationParams struct {
+	EntryID           string      `db:"entry_id" json:"entry_id"`
+	BookID            string      `db:"book_id" json:"book_id"`
+	PeriodMonth       pgtype.Date `db:"period_month" json:"period_month"`
+	QuantityMicros    int64       `db:"quantity_micros" json:"quantity_micros"`
+	CostMinor         int64       `db:"cost_minor" json:"cost_minor"`
+	SourceCostEntryID *string     `db:"source_cost_entry_id" json:"source_cost_entry_id"`
+	SystemVoucherID   *string     `db:"system_voucher_id" json:"system_voucher_id"`
+}
+
+func (q *Queries) InsertAccountingInventoryCostAllocation(ctx context.Context, arg InsertAccountingInventoryCostAllocationParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingInventoryCostAllocation,
+		arg.EntryID,
+		arg.BookID,
+		arg.PeriodMonth,
+		arg.QuantityMicros,
+		arg.CostMinor,
+		arg.SourceCostEntryID,
+		arg.SystemVoucherID,
+	)
+	return err
 }
 
 const insertAccountingInventoryEntry = `-- name: InsertAccountingInventoryEntry :exec
@@ -1024,6 +1791,155 @@ func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg Insert
 		arg.CostCounterpartDimensions,
 		arg.OriginSourceDocumentID,
 		arg.OriginSourceLineID,
+	)
+	return err
+}
+
+const insertAccountingOpeningAsset = `-- name: InsertAccountingOpeningAsset :exec
+INSERT INTO acc_opening_assets(
+  book_id,line_order,asset_id,create_object,asset_no,name,category_id,department_id,
+  useful_life_months,residual_rate_bps,acquired_on,currency,original_minor,accumulated_minor
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6,$7,$8,
+  $9,$10,$11,
+  $12,$13,$14
+)
+`
+
+type InsertAccountingOpeningAssetParams struct {
+	BookID           string      `db:"book_id" json:"book_id"`
+	LineOrder        int32       `db:"line_order" json:"line_order"`
+	AssetID          string      `db:"asset_id" json:"asset_id"`
+	CreateObject     bool        `db:"create_object" json:"create_object"`
+	AssetNo          *string     `db:"asset_no" json:"asset_no"`
+	Name             *string     `db:"name" json:"name"`
+	CategoryID       *string     `db:"category_id" json:"category_id"`
+	DepartmentID     *string     `db:"department_id" json:"department_id"`
+	UsefulLifeMonths *int32      `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps  *int32      `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn       pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	Currency         string      `db:"currency" json:"currency"`
+	OriginalMinor    int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor int64       `db:"accumulated_minor" json:"accumulated_minor"`
+}
+
+func (q *Queries) InsertAccountingOpeningAsset(ctx context.Context, arg InsertAccountingOpeningAssetParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingOpeningAsset,
+		arg.BookID,
+		arg.LineOrder,
+		arg.AssetID,
+		arg.CreateObject,
+		arg.AssetNo,
+		arg.Name,
+		arg.CategoryID,
+		arg.DepartmentID,
+		arg.UsefulLifeMonths,
+		arg.ResidualRateBps,
+		arg.AcquiredOn,
+		arg.Currency,
+		arg.OriginalMinor,
+		arg.AccumulatedMinor,
+	)
+	return err
+}
+
+const insertAccountingOpeningBill = `-- name: InsertAccountingOpeningBill :exec
+INSERT INTO acc_opening_bills(
+  book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
+  face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
+  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+) VALUES (
+  $1,$2,$3,$4,
+  $5,$6,$7,$8,
+  $9,$10,$11,$12,
+  $13,$14,$15,$16,
+  $17,$18,$19,
+  $20,$21,$22,
+  $23,$24,$25
+)
+`
+
+type InsertAccountingOpeningBillParams struct {
+	BookID                  string      `db:"book_id" json:"book_id"`
+	LineOrder               int32       `db:"line_order" json:"line_order"`
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	CreateObject            bool        `db:"create_object" json:"create_object"`
+	BillNo                  *string     `db:"bill_no" json:"bill_no"`
+	BillType                *string     `db:"bill_type" json:"bill_type"`
+	PositionType            *string     `db:"position_type" json:"position_type"`
+	Medium                  *string     `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountMinor         *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  *string     `db:"drawer" json:"drawer"`
+	Acceptor                *string     `db:"acceptor" json:"acceptor"`
+	Payee                   *string     `db:"payee" json:"payee"`
+	AnnualRateBps           *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+}
+
+func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAccountingOpeningBillParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingOpeningBill,
+		arg.BookID,
+		arg.LineOrder,
+		arg.BillID,
+		arg.CreateObject,
+		arg.BillNo,
+		arg.BillType,
+		arg.PositionType,
+		arg.Medium,
+		arg.Currency,
+		arg.FaceAmountMinor,
+		arg.IssueDate,
+		arg.MaturityDate,
+		arg.Drawer,
+		arg.Acceptor,
+		arg.Payee,
+		arg.AnnualRateBps,
+		arg.InterestDays,
+		arg.InterestAmountMinor,
+		arg.CustomerCostAmountMinor,
+		arg.OriginPartyEntity,
+		arg.OriginPartyObjectID,
+		arg.OriginPartyVersionID,
+		arg.OriginPartyCode,
+		arg.OriginPartyName,
+		arg.ValueMinor,
+	)
+	return err
+}
+
+const insertAccountingOpeningContainer = `-- name: InsertAccountingOpeningContainer :exec
+INSERT INTO acc_opening_containers(book_id,line_order,customer_id,container_type,quantity)
+VALUES($1,$2,$3,$4,$5)
+`
+
+type InsertAccountingOpeningContainerParams struct {
+	BookID        string `db:"book_id" json:"book_id"`
+	LineOrder     int32  `db:"line_order" json:"line_order"`
+	CustomerID    string `db:"customer_id" json:"customer_id"`
+	ContainerType string `db:"container_type" json:"container_type"`
+	Quantity      int64  `db:"quantity" json:"quantity"`
+}
+
+func (q *Queries) InsertAccountingOpeningContainer(ctx context.Context, arg InsertAccountingOpeningContainerParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingOpeningContainer,
+		arg.BookID,
+		arg.LineOrder,
+		arg.CustomerID,
+		arg.ContainerType,
+		arg.Quantity,
 	)
 	return err
 }
@@ -1285,6 +2201,151 @@ func (q *Queries) ListAccountingBooks(ctx context.Context, arg ListAccountingBoo
 	return items, nil
 }
 
+const listAccountingDepreciationCandidates = `-- name: ListAccountingDepreciationCandidates :many
+SELECT value.asset_id,value.currency,value.original_minor,value.accumulated_depreciation_minor,
+  asset.residual_rate_bps,asset.useful_life_months,asset.acquired_on,
+  COALESCE(value.accumulated_subject_id,'')::text AS accumulated_subject_id,
+  value.accumulated_dimensions,COALESCE(value.expense_subject_id,'')::text AS expense_subject_id,
+  value.expense_dimensions
+FROM acc_asset_book_values value JOIN acc_assets asset ON asset.id=value.asset_id
+WHERE value.book_id=$1 AND asset.acquired_on<$2
+  AND (asset.disposed_on IS NULL OR asset.disposed_on>=$2)
+  AND value.accumulated_subject_id IS NOT NULL AND value.expense_subject_id IS NOT NULL
+ORDER BY asset.acquired_on,asset.id FOR UPDATE OF value
+`
+
+type ListAccountingDepreciationCandidatesParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+}
+
+type ListAccountingDepreciationCandidatesRow struct {
+	AssetID                      string      `db:"asset_id" json:"asset_id"`
+	Currency                     string      `db:"currency" json:"currency"`
+	OriginalMinor                int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedDepreciationMinor int64       `db:"accumulated_depreciation_minor" json:"accumulated_depreciation_minor"`
+	ResidualRateBps              int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
+	UsefulLifeMonths             int32       `db:"useful_life_months" json:"useful_life_months"`
+	AcquiredOn                   pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	AccumulatedSubjectID         string      `db:"accumulated_subject_id" json:"accumulated_subject_id"`
+	AccumulatedDimensions        []byte      `db:"accumulated_dimensions" json:"accumulated_dimensions"`
+	ExpenseSubjectID             string      `db:"expense_subject_id" json:"expense_subject_id"`
+	ExpenseDimensions            []byte      `db:"expense_dimensions" json:"expense_dimensions"`
+}
+
+func (q *Queries) ListAccountingDepreciationCandidates(ctx context.Context, arg ListAccountingDepreciationCandidatesParams) ([]ListAccountingDepreciationCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingDepreciationCandidates, arg.BookID, arg.PeriodMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingDepreciationCandidatesRow{}
+	for rows.Next() {
+		var i ListAccountingDepreciationCandidatesRow
+		if err := rows.Scan(
+			&i.AssetID,
+			&i.Currency,
+			&i.OriginalMinor,
+			&i.AccumulatedDepreciationMinor,
+			&i.ResidualRateBps,
+			&i.UsefulLifeMonths,
+			&i.AcquiredOn,
+			&i.AccumulatedSubjectID,
+			&i.AccumulatedDimensions,
+			&i.ExpenseSubjectID,
+			&i.ExpenseDimensions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingInventoryCostFacts = `-- name: ListAccountingInventoryCostFacts :many
+SELECT entry.id,entry.voucher_id,entry.subject_id,entry.product_id,entry.warehouse_id,
+       entry.quantity_delta_micros,voucher.business_date,line.currency,
+       (line.debit_minor-line.credit_minor)::bigint AS direct_value,
+       COALESCE(voucher.source_entity,'') AS source_entity,voucher.source_id,
+       entry.source_line_id,line.dimensions,entry.cost_counterpart_subject_id,
+       entry.cost_counterpart_dimensions,entry.origin_source_document_id,
+       entry.origin_source_line_id
+FROM acc_inventory_entries entry
+JOIN acc_vouchers voucher ON voucher.book_id=entry.book_id AND voucher.id=entry.voucher_id
+JOIN acc_voucher_lines line ON line.id=entry.voucher_line_id
+WHERE entry.book_id=$1 AND voucher.business_date<$2
+ORDER BY voucher.business_date,
+  CASE WHEN COALESCE(voucher.source_entity,'') IN ('order-production','self-production')
+            AND entry.quantity_delta_micros<0 THEN 0 ELSE 1 END,
+  voucher.created_at,voucher.id,line.line_order,entry.id
+`
+
+type ListAccountingInventoryCostFactsParams struct {
+	BookID     string      `db:"book_id" json:"book_id"`
+	BeforeDate pgtype.Date `db:"before_date" json:"before_date"`
+}
+
+type ListAccountingInventoryCostFactsRow struct {
+	ID                        string      `db:"id" json:"id"`
+	VoucherID                 string      `db:"voucher_id" json:"voucher_id"`
+	SubjectID                 string      `db:"subject_id" json:"subject_id"`
+	ProductID                 string      `db:"product_id" json:"product_id"`
+	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
+	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
+	Currency                  string      `db:"currency" json:"currency"`
+	DirectValue               int64       `db:"direct_value" json:"direct_value"`
+	SourceEntity              string      `db:"source_entity" json:"source_entity"`
+	SourceID                  string      `db:"source_id" json:"source_id"`
+	SourceLineID              string      `db:"source_line_id" json:"source_line_id"`
+	Dimensions                []byte      `db:"dimensions" json:"dimensions"`
+	CostCounterpartSubjectID  *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
+	CostCounterpartDimensions []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
+	OriginSourceDocumentID    *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
+	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
+}
+
+func (q *Queries) ListAccountingInventoryCostFacts(ctx context.Context, arg ListAccountingInventoryCostFactsParams) ([]ListAccountingInventoryCostFactsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingInventoryCostFacts, arg.BookID, arg.BeforeDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingInventoryCostFactsRow{}
+	for rows.Next() {
+		var i ListAccountingInventoryCostFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.VoucherID,
+			&i.SubjectID,
+			&i.ProductID,
+			&i.WarehouseID,
+			&i.QuantityDeltaMicros,
+			&i.BusinessDate,
+			&i.Currency,
+			&i.DirectValue,
+			&i.SourceEntity,
+			&i.SourceID,
+			&i.SourceLineID,
+			&i.Dimensions,
+			&i.CostCounterpartSubjectID,
+			&i.CostCounterpartDimensions,
+			&i.OriginSourceDocumentID,
+			&i.OriginSourceLineID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAccountingMappings = `-- name: ListAccountingMappings :many
 SELECT id, book_id, vou_entity, version, state, default_result, definition,
        revision, approved_at, approved_by, count(*) OVER() AS total
@@ -1343,6 +2404,313 @@ func (q *Queries) ListAccountingMappings(ctx context.Context, arg ListAccounting
 			&i.ApprovedBy,
 			&i.Total,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningAssets = `-- name: ListAccountingOpeningAssets :many
+SELECT asset_id,create_object,COALESCE(asset_no,'') AS asset_no,COALESCE(name,'') AS name,
+  COALESCE(category_id,'') AS category_id,COALESCE(department_id,'') AS department_id,
+  COALESCE(useful_life_months,0)::integer AS useful_life_months,
+  COALESCE(residual_rate_bps,0)::integer AS residual_rate_bps,acquired_on,currency,
+  original_minor,accumulated_minor
+FROM acc_opening_assets WHERE book_id=$1 ORDER BY line_order
+`
+
+type ListAccountingOpeningAssetsRow struct {
+	AssetID          string      `db:"asset_id" json:"asset_id"`
+	CreateObject     bool        `db:"create_object" json:"create_object"`
+	AssetNo          string      `db:"asset_no" json:"asset_no"`
+	Name             string      `db:"name" json:"name"`
+	CategoryID       string      `db:"category_id" json:"category_id"`
+	DepartmentID     string      `db:"department_id" json:"department_id"`
+	UsefulLifeMonths int32       `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps  int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn       pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	Currency         string      `db:"currency" json:"currency"`
+	OriginalMinor    int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor int64       `db:"accumulated_minor" json:"accumulated_minor"`
+}
+
+func (q *Queries) ListAccountingOpeningAssets(ctx context.Context, bookID string) ([]ListAccountingOpeningAssetsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningAssets, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingOpeningAssetsRow{}
+	for rows.Next() {
+		var i ListAccountingOpeningAssetsRow
+		if err := rows.Scan(
+			&i.AssetID,
+			&i.CreateObject,
+			&i.AssetNo,
+			&i.Name,
+			&i.CategoryID,
+			&i.DepartmentID,
+			&i.UsefulLifeMonths,
+			&i.ResidualRateBps,
+			&i.AcquiredOn,
+			&i.Currency,
+			&i.OriginalMinor,
+			&i.AccumulatedMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningAssetsForApproval = `-- name: ListAccountingOpeningAssetsForApproval :many
+SELECT asset_id,create_object,asset_no,name,category_id,department_id,useful_life_months,
+  residual_rate_bps,acquired_on,currency,original_minor,accumulated_minor
+FROM acc_opening_assets WHERE book_id=$1
+`
+
+type ListAccountingOpeningAssetsForApprovalRow struct {
+	AssetID          string      `db:"asset_id" json:"asset_id"`
+	CreateObject     bool        `db:"create_object" json:"create_object"`
+	AssetNo          *string     `db:"asset_no" json:"asset_no"`
+	Name             *string     `db:"name" json:"name"`
+	CategoryID       *string     `db:"category_id" json:"category_id"`
+	DepartmentID     *string     `db:"department_id" json:"department_id"`
+	UsefulLifeMonths *int32      `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps  *int32      `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn       pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	Currency         string      `db:"currency" json:"currency"`
+	OriginalMinor    int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor int64       `db:"accumulated_minor" json:"accumulated_minor"`
+}
+
+func (q *Queries) ListAccountingOpeningAssetsForApproval(ctx context.Context, bookID string) ([]ListAccountingOpeningAssetsForApprovalRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningAssetsForApproval, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingOpeningAssetsForApprovalRow{}
+	for rows.Next() {
+		var i ListAccountingOpeningAssetsForApprovalRow
+		if err := rows.Scan(
+			&i.AssetID,
+			&i.CreateObject,
+			&i.AssetNo,
+			&i.Name,
+			&i.CategoryID,
+			&i.DepartmentID,
+			&i.UsefulLifeMonths,
+			&i.ResidualRateBps,
+			&i.AcquiredOn,
+			&i.Currency,
+			&i.OriginalMinor,
+			&i.AccumulatedMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningBills = `-- name: ListAccountingOpeningBills :many
+SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,'') AS bill_type,
+  COALESCE(position_type,'') AS position_type,COALESCE(medium,'') AS medium,currency,
+  COALESCE(face_amount_minor,0)::bigint AS face_amount_minor,issue_date,maturity_date,
+  COALESCE(drawer,'') AS drawer,COALESCE(acceptor,'') AS acceptor,COALESCE(payee,'') AS payee,
+  COALESCE(annual_rate_bps,0)::integer AS annual_rate_bps,
+  COALESCE(interest_days,0)::integer AS interest_days,
+  COALESCE(interest_amount_minor,0)::bigint AS interest_amount_minor,
+  COALESCE(customer_cost_amount_minor,0)::bigint AS customer_cost_amount_minor,
+  COALESCE(origin_party_entity,'') AS origin_party_entity,
+  COALESCE(origin_party_object_id,'') AS origin_party_object_id,
+  COALESCE(origin_party_version_id,'') AS origin_party_version_id,
+  COALESCE(origin_party_code,'') AS origin_party_code,COALESCE(origin_party_name,'') AS origin_party_name,
+  value_minor
+FROM acc_opening_bills WHERE book_id=$1 ORDER BY line_order
+`
+
+type ListAccountingOpeningBillsRow struct {
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	CreateObject            bool        `db:"create_object" json:"create_object"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Medium                  string      `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountMinor         int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       string      `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     string      `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    string      `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         string      `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         string      `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+}
+
+func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningBills, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingOpeningBillsRow{}
+	for rows.Next() {
+		var i ListAccountingOpeningBillsRow
+		if err := rows.Scan(
+			&i.BillID,
+			&i.CreateObject,
+			&i.BillNo,
+			&i.BillType,
+			&i.PositionType,
+			&i.Medium,
+			&i.Currency,
+			&i.FaceAmountMinor,
+			&i.IssueDate,
+			&i.MaturityDate,
+			&i.Drawer,
+			&i.Acceptor,
+			&i.Payee,
+			&i.AnnualRateBps,
+			&i.InterestDays,
+			&i.InterestAmountMinor,
+			&i.CustomerCostAmountMinor,
+			&i.OriginPartyEntity,
+			&i.OriginPartyObjectID,
+			&i.OriginPartyVersionID,
+			&i.OriginPartyCode,
+			&i.OriginPartyName,
+			&i.ValueMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningBillsForApproval = `-- name: ListAccountingOpeningBillsForApproval :many
+SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
+  face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
+  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+FROM acc_opening_bills WHERE book_id=$1
+`
+
+type ListAccountingOpeningBillsForApprovalRow struct {
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	CreateObject            bool        `db:"create_object" json:"create_object"`
+	BillNo                  *string     `db:"bill_no" json:"bill_no"`
+	BillType                *string     `db:"bill_type" json:"bill_type"`
+	PositionType            *string     `db:"position_type" json:"position_type"`
+	Medium                  *string     `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountMinor         *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  *string     `db:"drawer" json:"drawer"`
+	Acceptor                *string     `db:"acceptor" json:"acceptor"`
+	Payee                   *string     `db:"payee" json:"payee"`
+	AnnualRateBps           *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+}
+
+func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsForApprovalRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningBillsForApproval, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingOpeningBillsForApprovalRow{}
+	for rows.Next() {
+		var i ListAccountingOpeningBillsForApprovalRow
+		if err := rows.Scan(
+			&i.BillID,
+			&i.CreateObject,
+			&i.BillNo,
+			&i.BillType,
+			&i.PositionType,
+			&i.Medium,
+			&i.Currency,
+			&i.FaceAmountMinor,
+			&i.IssueDate,
+			&i.MaturityDate,
+			&i.Drawer,
+			&i.Acceptor,
+			&i.Payee,
+			&i.AnnualRateBps,
+			&i.InterestDays,
+			&i.InterestAmountMinor,
+			&i.CustomerCostAmountMinor,
+			&i.OriginPartyEntity,
+			&i.OriginPartyObjectID,
+			&i.OriginPartyVersionID,
+			&i.OriginPartyCode,
+			&i.OriginPartyName,
+			&i.ValueMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningContainers = `-- name: ListAccountingOpeningContainers :many
+SELECT customer_id,container_type,quantity
+FROM acc_opening_containers WHERE book_id=$1 ORDER BY line_order
+`
+
+type ListAccountingOpeningContainersRow struct {
+	CustomerID    string `db:"customer_id" json:"customer_id"`
+	ContainerType string `db:"container_type" json:"container_type"`
+	Quantity      int64  `db:"quantity" json:"quantity"`
+}
+
+func (q *Queries) ListAccountingOpeningContainers(ctx context.Context, bookID string) ([]ListAccountingOpeningContainersRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningContainers, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingOpeningContainersRow{}
+	for rows.Next() {
+		var i ListAccountingOpeningContainersRow
+		if err := rows.Scan(&i.CustomerID, &i.ContainerType, &i.Quantity); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1577,6 +2945,56 @@ func (q *Queries) ListAccountingSubjects(ctx context.Context, arg ListAccounting
 	return items, nil
 }
 
+const listAffectedAccountingFunds = `-- name: ListAffectedAccountingFunds :many
+SELECT (line.dimensions->>'FUND_ACCOUNT')::text AS fund_account_id,
+       line.currency, sum(line.debit_minor-line.credit_minor)::bigint AS delta
+FROM acc_voucher_lines line
+WHERE line.book_id=$1 AND line.voucher_id=$2
+  AND line.dimensions ? 'FUND_ACCOUNT'
+GROUP BY line.dimensions->>'FUND_ACCOUNT',line.currency
+HAVING sum(line.debit_minor-line.credit_minor)<0
+`
+
+type ListAffectedAccountingFundsParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	VoucherID string `db:"voucher_id" json:"voucher_id"`
+}
+
+type ListAffectedAccountingFundsRow struct {
+	FundAccountID string `db:"fund_account_id" json:"fund_account_id"`
+	Currency      string `db:"currency" json:"currency"`
+	Delta         int64  `db:"delta" json:"delta"`
+}
+
+func (q *Queries) ListAffectedAccountingFunds(ctx context.Context, arg ListAffectedAccountingFundsParams) ([]ListAffectedAccountingFundsRow, error) {
+	rows, err := q.db.Query(ctx, listAffectedAccountingFunds, arg.BookID, arg.VoucherID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAffectedAccountingFundsRow{}
+	for rows.Next() {
+		var i ListAffectedAccountingFundsRow
+		if err := rows.Scan(&i.FundAccountID, &i.Currency, &i.Delta); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockAccountingBalanceKey = `-- name: LockAccountingBalanceKey :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
+`
+
+func (q *Queries) LockAccountingBalanceKey(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, lockAccountingBalanceKey, lockKey)
+	return err
+}
+
 const lockAccountingBooksForCreate = `-- name: LockAccountingBooksForCreate :exec
 LOCK TABLE acc_books IN SHARE ROW EXCLUSIVE MODE
 `
@@ -1667,6 +3085,25 @@ func (q *Queries) NextAccountingMappingVersion(ctx context.Context, arg NextAcco
 	return column_1, err
 }
 
+const registerAccountingGlobalEvent = `-- name: RegisterAccountingGlobalEvent :one
+INSERT INTO acc_register_events (source_entity, source_document_id, source_revision)
+VALUES ($1,$2,$3)
+ON CONFLICT DO NOTHING RETURNING true
+`
+
+type RegisterAccountingGlobalEventParams struct {
+	SourceEntity     string `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error) {
+	row := q.db.QueryRow(ctx, registerAccountingGlobalEvent, arg.SourceEntity, arg.SourceDocumentID, arg.SourceRevision)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const registerAccountingSubjectUsage = `-- name: RegisterAccountingSubjectUsage :exec
 INSERT INTO acc_subject_usages (subject_id, usage_type, usage_id)
 VALUES ($1, $2, $3)
@@ -1682,6 +3119,64 @@ type RegisterAccountingSubjectUsageParams struct {
 func (q *Queries) RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error {
 	_, err := q.db.Exec(ctx, registerAccountingSubjectUsage, arg.SubjectID, arg.UsageType, arg.UsageID)
 	return err
+}
+
+const restoreAccountingAssetsByDisposal = `-- name: RestoreAccountingAssetsByDisposal :exec
+UPDATE acc_assets SET state='ACTIVE',disposed_by_document_id=NULL,disposed_on=NULL
+WHERE disposed_by_document_id=$1
+`
+
+func (q *Queries) RestoreAccountingAssetsByDisposal(ctx context.Context, documentID *string) error {
+	_, err := q.db.Exec(ctx, restoreAccountingAssetsByDisposal, documentID)
+	return err
+}
+
+const restoreAccountingBillsBySettlement = `-- name: RestoreAccountingBillsBySettlement :exec
+UPDATE acc_bills SET state='AVAILABLE',settled_by_document_id=NULL
+WHERE settled_by_document_id=$1
+`
+
+func (q *Queries) RestoreAccountingBillsBySettlement(ctx context.Context, documentID *string) error {
+	_, err := q.db.Exec(ctx, restoreAccountingBillsBySettlement, documentID)
+	return err
+}
+
+const reverseAccountingAssetDepreciation = `-- name: ReverseAccountingAssetDepreciation :exec
+UPDATE acc_asset_book_values value
+SET accumulated_depreciation_minor=value.accumulated_depreciation_minor-source.amount
+FROM (
+  SELECT asset_id,sum(amount_minor)::bigint amount FROM acc_depreciation_entries
+  WHERE book_id=$1 AND period_month=$2 GROUP BY asset_id
+) source
+WHERE value.book_id=$1 AND value.asset_id=source.asset_id
+`
+
+type ReverseAccountingAssetDepreciationParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+}
+
+func (q *Queries) ReverseAccountingAssetDepreciation(ctx context.Context, arg ReverseAccountingAssetDepreciationParams) error {
+	_, err := q.db.Exec(ctx, reverseAccountingAssetDepreciation, arg.BookID, arg.PeriodMonth)
+	return err
+}
+
+const settleAccountingBill = `-- name: SettleAccountingBill :execrows
+UPDATE acc_bills SET state='SETTLED',settled_by_document_id=$1
+WHERE id=$2 AND state='AVAILABLE'
+`
+
+type SettleAccountingBillParams struct {
+	DocumentID *string `db:"document_id" json:"document_id"`
+	BillID     string  `db:"bill_id" json:"bill_id"`
+}
+
+func (q *Queries) SettleAccountingBill(ctx context.Context, arg SettleAccountingBillParams) (int64, error) {
+	result, err := q.db.Exec(ctx, settleAccountingBill, arg.DocumentID, arg.BillID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const touchAccountingOpeningDraft = `-- name: TouchAccountingOpeningDraft :one

@@ -20,23 +20,11 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 			t.Fatal(err)
 		}
 		createApprovedZeroOpening(t, service, book)
-		asset, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "1601", Name: "固定资产", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionAsset}, SettlementPurpose: SettlementPurposeNone}, adminID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		accumulated, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "1602", Name: "累计折旧", BalanceDirection: BalanceDirectionCredit, Enabled: true, RequiredDimensions: []string{DimensionAsset}, SettlementPurpose: SettlementPurposeNone}, adminID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		expense, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "660201", Name: "折旧费", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionDepartment}, SettlementPurpose: SettlementPurposeNone}, adminID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition, DefaultResult: MappingResultUnpost, Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}, AssetConfiguration: &AssetAccountingConfiguration{
-			AssetSubjectID: asset.ID, AssetDimensions: map[string]string{DimensionAsset: "lineId"},
-			AccumulatedDepreciationSubjectID: accumulated.ID, AccumulatedDepreciationDimensions: map[string]string{DimensionAsset: "lineId"},
-			DepreciationExpenseSubjectID: expense.ID, DepreciationExpenseDimensions: map[string]string{DimensionDepartment: "department.objectId"},
-		}}}, adminID)
+		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{
+			BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition,
+			DefaultResult: MappingResultUnpost,
+			Definition:    MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
+		}, adminID)
 		if err != nil {
 			t.Fatal(err)
 		}

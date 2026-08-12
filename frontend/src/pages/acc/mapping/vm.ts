@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
@@ -74,6 +74,18 @@ export function createAccountingMappingViewModel() {
   const catalog = ref<AccountingMappingCatalog | null>(null)
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
+  let listSequence = 0
+  let detailSequence = 0
+  let catalogSequence = 0
+  let active = true
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      active = false
+      listSequence += 1
+      detailSequence += 1
+      catalogSequence += 1
+    })
+  }
   const form = reactive({
     vouEntity: 'sale-order',
     defaultResult: 'UN_POST' as AccountingMapping['defaultResult'],
@@ -84,7 +96,24 @@ export function createAccountingMappingViewModel() {
     () => session.can('/acc/book/query') && session.can('/acc/mapping/query'),
   )
   const canCreate = computed(
-    () => Boolean(selectedBookId.value) && session.can('/acc/mapping/create'),
+    () =>
+      canQuery.value &&
+      Boolean(selectedBookId.value) &&
+      session.can('/acc/mapping/create') &&
+      session.can('/acc/mapping/catalog'),
+  )
+  const canEdit = computed(
+    () =>
+      canQuery.value &&
+      session.can('/acc/mapping/get') &&
+      session.can('/acc/mapping/save') &&
+      session.can('/acc/mapping/catalog'),
+  )
+  const canApprove = computed(
+    () => canQuery.value && session.can('/acc/mapping/approve'),
+  )
+  const canUnapprove = computed(
+    () => canQuery.value && session.can('/acc/mapping/unapprove'),
   )
   const parsedDefinition = computed<AccountingMappingDefinition | null>(() => {
     try {
@@ -110,7 +139,7 @@ export function createAccountingMappingViewModel() {
       !saving.value &&
       !validationError.value &&
       (editing.value
-        ? editing.value.state === 'DRAFT' && session.can('/acc/mapping/save')
+        ? editing.value.state === 'DRAFT' && canEdit.value
         : canCreate.value),
   )
   const bookOptions = computed(() =>
@@ -122,23 +151,33 @@ export function createAccountingMappingViewModel() {
 
   async function initialize(): Promise<void> {
     if (!canQuery.value) return
+    const current = ++listSequence
     loading.value = true
+    errorMessage.value = null
     try {
       const result = await queryAccountingBooks({ page: 1, pageSize: 200 })
+      if (!active || current !== listSequence) return
       books.value = result.data.items
       if (!selectedBookId.value && books.value.length)
         selectedBookId.value = books.value[0].bookId
-      await query()
+      await query(current)
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active && current === listSequence)
+        errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (active && current === listSequence) loading.value = false
     }
   }
 
-  async function query(): Promise<void> {
-    if (!canQuery.value || !selectedBookId.value) return
+  async function query(existingSequence?: number): Promise<void> {
+    if (!canQuery.value || !selectedBookId.value) {
+      rows.value = []
+      total.value = 0
+      return
+    }
+    const current = existingSequence ?? ++listSequence
     loading.value = true
+    errorMessage.value = null
     try {
       const result = await queryAccountingMappings({
         bookId: selectedBookId.value,
@@ -146,21 +185,29 @@ export function createAccountingMappingViewModel() {
         pageSize: pageSize.value,
         ...(entityFilter.value ? { vouEntity: entityFilter.value } : {}),
       })
+      if (!active || current !== listSequence) return
       rows.value = result.data.items
       total.value = result.data.total
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active && current === listSequence)
+        errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (active && current === listSequence) loading.value = false
     }
   }
 
   async function loadCatalog(): Promise<void> {
     if (!session.can('/acc/mapping/catalog')) return
+    const current = ++catalogSequence
+    const entity = form.vouEntity
     try {
-      catalog.value = (await getAccountingMappingCatalog(form.vouEntity)).data
+      const result = await getAccountingMappingCatalog(entity)
+      if (!active || current !== catalogSequence || entity !== form.vouEntity)
+        return
+      catalog.value = result.data
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active && current === catalogSequence)
+        errorMessage.value = getErrorMessage(error)
     }
   }
 
@@ -183,26 +230,34 @@ export function createAccountingMappingViewModel() {
   }
 
   async function openEdit(mapping: AccountingMapping): Promise<void> {
-    if (!session.can('/acc/mapping/get') || !session.can('/acc/mapping/save'))
+    if (!canEdit.value) {
+      errorMessage.value = '没有权限编辑会计映射。'
       return
+    }
+    const current = ++detailSequence
     loading.value = true
+    errorMessage.value = null
     try {
       const result = await getAccountingMapping(
         mapping.bookId,
         mapping.mappingId,
       )
+      if (!active || current !== detailSequence) return
       editing.value = result.data
       setForm(result.data)
       editorOpen.value = true
       await loadCatalog()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active && current === detailSequence)
+        errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (active && current === detailSequence) loading.value = false
     }
   }
 
   function closeEditor(): void {
+    detailSequence += 1
+    catalogSequence += 1
     editorOpen.value = false
     editing.value = null
     catalog.value = null
@@ -214,6 +269,7 @@ export function createAccountingMappingViewModel() {
       return
     }
     saving.value = true
+    errorMessage.value = null
     try {
       if (editing.value) {
         await saveAccountingMapping({
@@ -231,15 +287,16 @@ export function createAccountingMappingViewModel() {
           definition: parsedDefinition.value,
         })
       }
+      if (!active) return
       successMessage.value = editing.value
         ? '映射草稿已保存。'
         : '映射版本已创建。'
       closeEditor()
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active) errorMessage.value = getErrorMessage(error)
     } finally {
-      saving.value = false
+      if (active) saving.value = false
     }
   }
 
@@ -247,9 +304,12 @@ export function createAccountingMappingViewModel() {
     mapping: AccountingMapping,
     approve: boolean,
   ): Promise<void> {
-    const path = approve ? '/acc/mapping/approve' : '/acc/mapping/unapprove'
-    if (!session.can(path)) return
+    if (approve ? !canApprove.value : !canUnapprove.value) {
+      errorMessage.value = '没有权限变更会计映射状态。'
+      return
+    }
     loading.value = true
+    errorMessage.value = null
     try {
       if (approve)
         await approveAccountingMapping(
@@ -263,12 +323,13 @@ export function createAccountingMappingViewModel() {
           mapping.mappingId,
           mapping.revision,
         )
+      if (!active) return
       successMessage.value = approve ? '映射版本已批准。' : '映射版本已反批准。'
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (active) errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (active) loading.value = false
     }
   }
 
@@ -301,6 +362,9 @@ export function createAccountingMappingViewModel() {
     form,
     canQuery,
     canCreate,
+    canEdit,
+    canApprove,
+    canUnapprove,
     canSubmit,
     validationError,
     bookOptions,

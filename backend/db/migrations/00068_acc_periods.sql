@@ -38,6 +38,30 @@ CREATE TRIGGER vou_documents_locked_period_guard
 BEFORE INSERT OR UPDATE OR DELETE ON vou_documents
 FOR EACH ROW EXECUTE FUNCTION reject_locked_vou_period();
 
+-- +goose StatementBegin
+CREATE OR REPLACE FUNCTION reject_locked_vou_attachment_period() RETURNS trigger AS $$
+DECLARE
+    target_document_id varchar(26);
+    target_date date;
+BEGIN
+    target_document_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.document_id ELSE NEW.document_id END;
+    SELECT business_date INTO target_date FROM vou_documents WHERE id = target_document_id;
+    IF target_date IS NOT NULL AND EXISTS (
+        SELECT 1 FROM acc_periods
+        WHERE state = 'LOCKED'
+          AND period_month = date_trunc('month', target_date)::date
+    ) THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'accounting period is locked';
+    END IF;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END
+$$ LANGUAGE plpgsql;
+-- +goose StatementEnd
+
+CREATE TRIGGER vou_document_attachments_locked_period_guard
+BEFORE INSERT OR DELETE ON vou_document_attachments
+FOR EACH ROW EXECUTE FUNCTION reject_locked_vou_attachment_period();
+
 INSERT INTO app_permissions (
     id, path, domain, entity, action, description, status, menu_order
 ) VALUES
@@ -48,6 +72,8 @@ INSERT INTO app_permissions (
 -- +goose Down
 
 DELETE FROM app_permissions WHERE domain = 'acc' AND entity = 'period';
+DROP TRIGGER vou_document_attachments_locked_period_guard ON vou_document_attachments;
+DROP FUNCTION reject_locked_vou_attachment_period();
 DROP TRIGGER vou_documents_locked_period_guard ON vou_documents;
 DROP FUNCTION reject_locked_vou_period();
 DROP TABLE acc_periods;

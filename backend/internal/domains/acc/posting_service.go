@@ -72,7 +72,7 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txe
 	if err != nil {
 		return databaseError("list accounting posting books", err)
 	}
-	if err = s.applyGlobalRegisters(ctx, tx, event, books); err != nil {
+	if err = s.applyGlobalRegisters(ctx, q, event, books, snapshot); err != nil {
 		return postingDeliveryError(err)
 	}
 	for _, book := range books {
@@ -201,50 +201,24 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 	return nil
 }
 
-func validateControlBookFunds(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID, voucherID string) error {
-	rows, err := tx.Query(ctx, `SELECT line.dimensions->>'FUND_ACCOUNT' AS fund_account_id,
-		line.currency, sum(line.debit_minor-line.credit_minor)::bigint
-		FROM acc_voucher_lines line
-		WHERE line.book_id=$1 AND line.voucher_id=$2
-		  AND line.dimensions ? 'FUND_ACCOUNT'
-		GROUP BY line.dimensions->>'FUND_ACCOUNT',line.currency
-		HAVING sum(line.debit_minor-line.credit_minor)<0`, bookID, voucherID)
+func validateControlBookFunds(ctx context.Context, _ pgx.Tx, q *dbsqlc.Queries, bookID, voucherID string) error {
+	rows, err := q.ListAffectedAccountingFunds(ctx, dbsqlc.ListAffectedAccountingFundsParams{BookID: bookID, VoucherID: voucherID})
 	if err != nil {
 		return databaseError("list affected control book funds", err)
 	}
-	defer rows.Close()
 	type affectedFund struct{ id, currency string }
-	var affected []affectedFund
-	for rows.Next() {
-		var fund affectedFund
-		var delta int64
-		if err = rows.Scan(&fund.id, &fund.currency, &delta); err != nil {
-			return databaseError("scan affected control book fund", err)
-		}
-		affected = append(affected, fund)
-	}
-	if err = rows.Err(); err != nil {
-		return databaseError("list affected control book funds", err)
+	affected := make([]affectedFund, 0, len(rows))
+	for _, row := range rows {
+		affected = append(affected, affectedFund{id: row.FundAccountID, currency: row.Currency})
 	}
 	for _, fund := range affected {
 		lockKey := "acc-fund:" + bookID + ":" + fund.id + ":" + fund.currency
 		if err = q.LockAccountingInventory(ctx, lockKey); err != nil {
 			return databaseError("lock control book fund", err)
 		}
-		var minimum int64
-		err = tx.QueryRow(ctx, `WITH daily AS (
-			SELECT voucher.business_date,
-			       sum(line.debit_minor-line.credit_minor)::bigint AS delta
-			FROM acc_voucher_lines line
-			JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
-			WHERE line.book_id=$1 AND line.currency=$2
-			  AND line.dimensions->>'FUND_ACCOUNT'=$3
-			GROUP BY voucher.business_date
-		), running AS (
-			SELECT sum(delta) OVER (ORDER BY business_date ROWS UNBOUNDED PRECEDING)::bigint AS balance
-			FROM daily
-		)
-		SELECT COALESCE(min(balance),0)::bigint FROM running`, bookID, fund.currency, fund.id).Scan(&minimum)
+		minimum, err := q.GetMinimumAccountingFundBalance(ctx, dbsqlc.GetMinimumAccountingFundBalanceParams{
+			BookID: bookID, Currency: fund.currency, FundAccountID: fund.id,
+		})
 		if err != nil {
 			return databaseError("read control book fund balance", err)
 		}

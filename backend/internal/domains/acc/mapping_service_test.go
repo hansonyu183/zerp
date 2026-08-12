@@ -27,6 +27,27 @@ func TestValidateMappingRejectsUnknownFieldsAndOverlappingRules(t *testing.T) {
 	}
 }
 
+func TestMappingFieldCatalogOnlyExposesEntityCollections(t *testing.T) {
+	catalog, err := MappingFieldCatalog("sale-pricing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := catalog.Collections["priceLines"]; !ok {
+		t.Fatal("sale-pricing catalog is missing priceLines")
+	}
+	if _, ok := catalog.Collections["assetAcquisitionLines"]; ok {
+		t.Fatal("sale-pricing catalog exposes asset acquisition fields")
+	}
+	collection := "assetAcquisitionLines"
+	definition := MappingDefinition{Templates: []PostingTemplate{{
+		ID: "invalid", Collection: &collection,
+		Lines: []PostingLineTemplate{{SubjectSource: "FIXED", SubjectValue: ulid.Make().String(), Direction: BalanceDirectionDebit, AmountField: "originalValue", CurrencyField: "currency"}, {SubjectSource: "FIXED", SubjectValue: ulid.Make().String(), Direction: BalanceDirectionCredit, AmountField: "originalValue", CurrencyField: "currency"}},
+	}}}
+	if err = validateMapping(MappingResultUnpost, definition, catalog); !IsKind(err, ErrorValidation) {
+		t.Fatalf("invalid entity collection error = %v", err)
+	}
+}
+
 func TestValidateMappingAcceptsDisjointPostingRules(t *testing.T) {
 	catalog, _ := MappingFieldCatalog("sale-order")
 	templateID := "standard"

@@ -60,7 +60,7 @@ void vm.initialize()
         >
           期初已批准并生成系统凭证 {{ vm.opening.voucherId }}，当前内容只读。
         </v-alert>
-        <div class="opening-lines overflow-x-auto">
+        <div class="opening-lines">
           <v-table density="compact">
             <thead>
               <tr>
@@ -75,7 +75,7 @@ void vm.initialize()
             </thead>
             <tbody>
               <tr v-for="(line, index) in vm.lines" :key="line.key">
-                <td class="opening-lines__subject">
+                <td class="opening-lines__subject" data-label="会计科目">
                   <v-autocomplete
                     density="compact"
                     :disabled="vm.opening?.state === 'APPROVED'"
@@ -88,7 +88,7 @@ void vm.initialize()
                     @update:model-value="vm.changeSubject(line, $event)"
                   />
                 </td>
-                <td>
+                <td data-label="原币">
                   <v-text-field
                     v-model="line.currency"
                     density="compact"
@@ -99,7 +99,7 @@ void vm.initialize()
                     @update:model-value="vm.markDirty"
                   />
                 </td>
-                <td>
+                <td data-label="借方金额">
                   <v-text-field
                     v-model="line.debitAmount"
                     density="compact"
@@ -110,7 +110,7 @@ void vm.initialize()
                     @update:model-value="vm.markDirty"
                   />
                 </td>
-                <td>
+                <td data-label="贷方金额">
                   <v-text-field
                     v-model="line.creditAmount"
                     density="compact"
@@ -121,7 +121,7 @@ void vm.initialize()
                     @update:model-value="vm.markDirty"
                   />
                 </td>
-                <td>
+                <td data-label="数量">
                   <v-text-field
                     v-if="subjectFor(line)?.inventoryQuantity"
                     v-model="line.quantity"
@@ -134,7 +134,10 @@ void vm.initialize()
                   />
                   <span v-else>—</span>
                 </td>
-                <td class="opening-lines__dimensions">
+                <td
+                  class="opening-lines__dimensions"
+                  data-label="辅助核算对象 ID"
+                >
                   <v-text-field
                     v-for="dimension in subjectFor(line)?.requiredDimensions ??
                     []"
@@ -156,7 +159,7 @@ void vm.initialize()
                     —
                   </span>
                 </td>
-                <td>
+                <td data-label="操作">
                   <v-btn
                     v-if="vm.opening?.state === 'DRAFT'"
                     aria-label="删除期初行"
@@ -679,15 +682,50 @@ void vm.initialize()
   min-width: min(360px, 80vw);
 }
 
-.opening-lines {
-  min-width: 1100px;
-}
-
 .opening-lines__subject {
   min-width: 220px;
 }
 
 .opening-lines__dimensions {
   min-width: 240px;
+}
+
+@media (max-width: 700px) {
+  .opening-lines :deep(thead) {
+    display: none;
+  }
+  .opening-lines :deep(tbody),
+  .opening-lines :deep(tr),
+  .opening-lines :deep(td) {
+    display: block;
+    width: 100%;
+  }
+  .opening-lines :deep(tr) {
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+  }
+  .opening-lines :deep(td) {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    align-items: start;
+    border: 0;
+    min-width: 0;
+    padding: 6px 0;
+  }
+  .opening-lines :deep(td::before) {
+    content: attr(data-label);
+    color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+    font-weight: 600;
+    padding-top: 8px;
+  }
+  .opening-lines :deep(td[colspan]) {
+    display: block;
+    text-align: center;
+  }
+  .opening-lines :deep(td[colspan]::before) {
+    content: none;
+  }
 }
 </style>

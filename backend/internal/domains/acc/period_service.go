@@ -77,19 +77,19 @@ func (s *Service) LockPeriod(ctx context.Context, input PeriodActionInput, actor
 	if !month.Equal(expected) {
 		return PeriodView{}, domainError(ErrorConflict, "accounting periods must be locked continuously", nil)
 	}
-	if err = validatePeriodReady(ctx, tx, input.BookID, month); err != nil {
+	if err = validatePeriodReady(ctx, q, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
-	if err = settleInventoryCosts(ctx, tx, input.BookID, month); err != nil {
+	if err = settleInventoryCosts(ctx, q, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
-	if err = settleDepreciation(ctx, tx, input.BookID, month); err != nil {
+	if err = settleDepreciation(ctx, q, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
-	if err = buildPeriodBalances(ctx, tx, input.BookID, month); err != nil {
+	if err = buildPeriodBalances(ctx, q, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
-	if err = validateAccountingTrialBalance(ctx, tx, input.BookID, month.AddDate(0, 1, 0)); err != nil {
+	if err = validateAccountingTrialBalance(ctx, q, input.BookID, month.AddDate(0, 1, 0)); err != nil {
 		return PeriodView{}, err
 	}
 	actor := actorID
@@ -109,50 +109,43 @@ func (s *Service) LockPeriod(ctx context.Context, input PeriodActionInput, actor
 	return PeriodView{BookID: input.BookID, Month: input.Month, State: PeriodStateLocked, Revision: locked.Revision, LockedAt: &lockedAt, LockedBy: &actor}, nil
 }
 
-func validatePeriodReady(ctx context.Context, tx pgx.Tx, bookID string, month time.Time) error {
+func validatePeriodReady(ctx context.Context, q *dbsqlc.Queries, bookID string, month time.Time) error {
 	next := month.AddDate(0, 1, 0)
-	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM vou_documents WHERE business_date >= $1 AND business_date < $2 AND status <> 'APPROVED'
-	)`, month, next).Scan(&exists); err != nil {
+	exists, err := q.AccountingPeriodHasUnfinishedVOU(ctx, dbsqlc.AccountingPeriodHasUnfinishedVOUParams{
+		PeriodStart: pgtype.Date{Time: month, Valid: true}, PeriodEnd: pgtype.Date{Time: next, Valid: true},
+	})
+	if err != nil {
 		return databaseError("check unfinished VOU documents", err)
 	}
 	if exists {
 		return domainError(ErrorConflict, "accounting period has unfinished VOU documents", nil)
 	}
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM vou_documents document
-		WHERE document.business_date >= $1 AND document.business_date < $2 AND document.status = 'APPROVED'
-		  AND NOT EXISTS (
-		    SELECT 1 FROM acc_mapping_versions mapping
-		    WHERE mapping.book_id=$3 AND mapping.vou_entity=document.entity AND mapping.state='APPROVED'
-		  )
-	)`, month, next, bookID).Scan(&exists); err != nil {
+	exists, err = q.AccountingPeriodHasMissingMappings(ctx, dbsqlc.AccountingPeriodHasMissingMappingsParams{
+		PeriodStart: pgtype.Date{Time: month, Valid: true}, PeriodEnd: pgtype.Date{Time: next, Valid: true}, BookID: bookID,
+	})
+	if err != nil {
 		return databaseError("check accounting period mappings", err)
 	}
 	if exists {
 		return domainError(ErrorConflict, "accounting period has missing VOU mappings", nil)
 	}
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM acc_inventory_entries WHERE book_id=$1
-		GROUP BY subject_id, product_id, warehouse_id
-		HAVING sum(quantity_delta_micros) FILTER (WHERE business_date < $2) < 0
-	)`, bookID, next).Scan(&exists); err != nil {
+	exists, err = q.AccountingPeriodHasNegativeInventory(ctx, dbsqlc.AccountingPeriodHasNegativeInventoryParams{
+		BookID: bookID, PeriodEnd: pgtype.Date{Time: next, Valid: true},
+	})
+	if err != nil {
 		return databaseError("check accounting period inventory", err)
 	}
 	if exists {
 		return domainError(ErrorConflict, "accounting period inventory is negative", nil)
 	}
-	return validateAccountingTrialBalance(ctx, tx, bookID, next)
+	return validateAccountingTrialBalance(ctx, q, bookID, next)
 }
 
-func validateAccountingTrialBalance(ctx context.Context, tx pgx.Tx, bookID string, before time.Time) error {
-	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
-		WHERE voucher.book_id=$1 AND voucher.business_date < $2
-		GROUP BY line.currency HAVING sum(line.debit_minor) <> sum(line.credit_minor)
-	)`, bookID, before).Scan(&exists); err != nil {
+func validateAccountingTrialBalance(ctx context.Context, q *dbsqlc.Queries, bookID string, before time.Time) error {
+	exists, err := q.AccountingTrialBalanceFails(ctx, dbsqlc.AccountingTrialBalanceFailsParams{
+		BookID: bookID, BeforeDate: pgtype.Date{Time: before, Valid: true},
+	})
+	if err != nil {
 		return databaseError("check accounting period trial balance", err)
 	}
 	if exists {
@@ -179,7 +172,7 @@ func (s *Service) UnlockPeriod(ctx context.Context, input PeriodActionInput, act
 	if err != nil || !latest.PeriodMonth.Time.Equal(month) || latest.Revision != input.Revision {
 		return PeriodView{}, domainError(ErrorConflict, "only the latest accounting period can be unlocked", err)
 	}
-	if err = reversePeriodDerivedFacts(ctx, tx, input.BookID, month); err != nil {
+	if err = reversePeriodDerivedFacts(ctx, q, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
 	revision, err := q.UnlockAccountingPeriodRow(ctx, dbsqlc.UnlockAccountingPeriodRowParams{

@@ -8,14 +8,20 @@ const vm = createAccountingMappingViewModel()
 function actions(mapping: AccountingMapping) {
   if (mapping.state === 'DRAFT') {
     return [
-      { title: '编辑', action: () => vm.openEdit(mapping) },
-      { title: '批准', action: () => vm.changeState(mapping, true) },
-    ]
+      vm.canEdit ? { title: '编辑', action: () => vm.openEdit(mapping) } : null,
+      vm.canApprove
+        ? { title: '批准', action: () => vm.changeState(mapping, true) }
+        : null,
+    ].filter((action) => action !== null)
   }
   return [
-    { title: '基于此版本新建', action: () => vm.openCreate(mapping) },
-    { title: '反批准', action: () => vm.changeState(mapping, false) },
-  ]
+    vm.canCreate
+      ? { title: '基于此版本新建', action: () => vm.openCreate(mapping) }
+      : null,
+    vm.canUnapprove
+      ? { title: '反批准', action: () => vm.changeState(mapping, false) }
+      : null,
+  ].filter((action) => action !== null)
 }
 
 void vm.initialize()
@@ -54,7 +60,7 @@ void vm.initialize()
           :items="mappingEntities"
           label="VOU 类型"
           variant="outlined"
-          @update:model-value="vm.query"
+          @update:model-value="vm.query()"
         />
         <v-btn
           color="primary"
@@ -66,6 +72,7 @@ void vm.initialize()
         </v-btn>
       </v-card-title>
       <v-data-table-server
+        class="mapping-table"
         :headers="[
           { title: 'VOU 类型', key: 'vouEntity' },
           { title: '版本', key: 'version' },
@@ -76,6 +83,7 @@ void vm.initialize()
         :items="vm.rows"
         :items-length="vm.total"
         :loading="vm.loading"
+        :mobile-breakpoint="700"
         :page="vm.page"
         :items-per-page="vm.pageSize"
         @update:page="vm.changePage"

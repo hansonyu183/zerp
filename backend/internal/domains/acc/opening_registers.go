@@ -5,14 +5,15 @@ import (
 	"strings"
 	"time"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oklog/ulid/v2"
 )
 
-func saveOpeningRegisters(ctx context.Context, tx pgx.Tx, input SaveOpeningInput) error {
-	for _, table := range []string{"acc_opening_assets", "acc_opening_bills", "acc_opening_containers"} {
-		if _, err := tx.Exec(ctx, `DELETE FROM `+table+` WHERE book_id=$1`, input.BookID); err != nil {
+func saveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, input SaveOpeningInput) error {
+	for _, remove := range []func(context.Context, string) error{q.DeleteAccountingOpeningAssets, q.DeleteAccountingOpeningBills, q.DeleteAccountingOpeningContainers} {
+		if err := remove(ctx, input.BookID); err != nil {
 			return databaseError("replace accounting opening registers", err)
 		}
 	}
@@ -24,9 +25,9 @@ func saveOpeningRegisters(ctx context.Context, tx pgx.Tx, input SaveOpeningInput
 		} else if _, err := ulid.ParseStrict(asset.AssetID); err != nil {
 			return domainError(ErrorValidation, "invalid opening asset id", err)
 		} else {
-			var exists bool
-			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM acc_assets WHERE id=$1)`, asset.AssetID).Scan(&exists); err != nil {
-				return databaseError("check opening asset", err)
+			exists, existsErr := q.AccountingAssetExists(ctx, asset.AssetID)
+			if existsErr != nil {
+				return databaseError("check opening asset", existsErr)
 			}
 			createObject = !exists
 		}
@@ -39,7 +40,7 @@ func saveOpeningRegisters(ctx context.Context, tx pgx.Tx, input SaveOpeningInput
 			return domainError(ErrorValidation, "invalid opening accumulated depreciation", err)
 		}
 		currency := strings.ToUpper(strings.TrimSpace(asset.Currency))
-		var acquired any
+		var acquired pgtype.Date
 		var residual int64
 		if createObject {
 			acquiredDate, dateErr := time.Parse("2006-01-02", asset.AcquiredOn)
@@ -49,24 +50,23 @@ func saveOpeningRegisters(ctx context.Context, tx pgx.Tx, input SaveOpeningInput
 				!validID(asset.CategoryID) || !validID(asset.DepartmentID) {
 				return domainError(ErrorValidation, "invalid opening asset facts", firstError(dateErr, err))
 			}
-			acquired = acquiredDate
+			acquired = pgtype.Date{Time: acquiredDate, Valid: true}
 		}
 		if !currencyPattern.MatchString(currency) {
 			return domainError(ErrorValidation, "invalid opening asset currency", nil)
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO acc_opening_assets(
-			book_id,line_order,asset_id,create_object,asset_no,name,category_id,department_id,
-			useful_life_months,residual_rate_bps,acquired_on,currency,original_minor,accumulated_minor
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, input.BookID, index,
-			asset.AssetID, createObject, optionalRegisterText(asset.AssetNo), optionalRegisterText(asset.Name),
-			optionalRegisterText(asset.CategoryID), optionalRegisterText(asset.DepartmentID),
-			optionalPositiveInt(asset.UsefulLifeMonths), optionalResidual(createObject, residual), acquired,
-			currency, original, accumulated); err != nil {
+		if err = q.InsertAccountingOpeningAsset(ctx, dbsqlc.InsertAccountingOpeningAssetParams{
+			BookID: input.BookID, LineOrder: int32(index), AssetID: asset.AssetID, CreateObject: createObject,
+			AssetNo: optionalRegisterText(asset.AssetNo), Name: optionalRegisterText(asset.Name),
+			CategoryID: optionalRegisterText(asset.CategoryID), DepartmentID: optionalRegisterText(asset.DepartmentID),
+			UsefulLifeMonths: optionalPositiveInt(asset.UsefulLifeMonths), ResidualRateBps: optionalResidualInt32(createObject, residual),
+			AcquiredOn: acquired, Currency: currency, OriginalMinor: original, AccumulatedMinor: accumulated,
+		}); err != nil {
 			return databaseError("save accounting opening asset", err)
 		}
 	}
 	for index, bill := range input.Bills {
-		if err := saveOpeningBill(ctx, tx, input.BookID, index, bill); err != nil {
+		if err := saveOpeningBill(ctx, q, input.BookID, index, bill); err != nil {
 			return err
 		}
 	}
@@ -74,15 +74,17 @@ func saveOpeningRegisters(ctx context.Context, tx pgx.Tx, input SaveOpeningInput
 		if !validID(container.CustomerID) || (container.ContainerType != "SOLVENT" && container.ContainerType != "RESIN") || container.Quantity == 0 {
 			return domainError(ErrorValidation, "invalid opening container balance", nil)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO acc_opening_containers(book_id,line_order,customer_id,container_type,quantity)
-			VALUES($1,$2,$3,$4,$5)`, input.BookID, index, container.CustomerID, container.ContainerType, container.Quantity); err != nil {
+		if err := q.InsertAccountingOpeningContainer(ctx, dbsqlc.InsertAccountingOpeningContainerParams{
+			BookID: input.BookID, LineOrder: int32(index), CustomerID: container.CustomerID,
+			ContainerType: container.ContainerType, Quantity: container.Quantity,
+		}); err != nil {
 			return databaseError("save accounting opening container", err)
 		}
 	}
 	return nil
 }
 
-func saveOpeningBill(ctx context.Context, tx pgx.Tx, bookID string, index int, bill OpeningBillInput) error {
+func saveOpeningBill(ctx context.Context, q *dbsqlc.Queries, bookID string, index int, bill OpeningBillInput) error {
 	bill.BillID = strings.TrimSpace(bill.BillID)
 	createObject := bill.BillID == ""
 	if createObject {
@@ -90,9 +92,9 @@ func saveOpeningBill(ctx context.Context, tx pgx.Tx, bookID string, index int, b
 	} else if _, err := ulid.ParseStrict(bill.BillID); err != nil {
 		return domainError(ErrorValidation, "invalid opening bill id", err)
 	} else {
-		var exists bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM acc_bills WHERE id=$1)`, bill.BillID).Scan(&exists); err != nil {
-			return databaseError("check opening bill", err)
+		exists, existsErr := q.AccountingBillExists(ctx, bill.BillID)
+		if existsErr != nil {
+			return databaseError("check opening bill", existsErr)
 		}
 		createObject = !exists
 	}
@@ -101,7 +103,7 @@ func saveOpeningBill(ctx context.Context, tx pgx.Tx, bookID string, index int, b
 		return domainError(ErrorValidation, "invalid opening bill value", err)
 	}
 	var face, interest, cost int64
-	var issue, maturity any
+	var issue, maturity pgtype.Date
 	if createObject {
 		face, err = fixeddecimal.ParsePositive(bill.FaceAmount, 2, false)
 		var interestErr, costErr error
@@ -115,220 +117,188 @@ func saveOpeningBill(ctx context.Context, tx pgx.Tx, bookID string, index int, b
 			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingParty.ObjectID) || !validID(bill.OriginatingParty.VersionID) {
 			return domainError(ErrorValidation, "invalid opening bill facts", firstError(err, interestErr, costErr, issueErr, maturityErr))
 		}
-		issue, maturity = issueDate, maturityDate
+		issue = pgtype.Date{Time: issueDate, Valid: true}
+		maturity = pgtype.Date{Time: maturityDate, Valid: true}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO acc_opening_bills(
-		book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
-		face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
-		interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-		origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
-		bookID, index, bill.BillID, createObject, optionalRegisterText(bill.BillNo), optionalRegisterText(bill.BillType),
-		optionalRegisterText(bill.PositionType), optionalRegisterText(bill.Medium), strings.ToUpper(strings.TrimSpace(bill.Currency)),
-		optionalRegisterMoney(createObject, face), issue, maturity, optionalRegisterText(bill.Drawer), optionalRegisterText(bill.Acceptor), optionalRegisterText(bill.Payee),
-		optionalRegisterInt(createObject, bill.AnnualRateBps), optionalRegisterInt(createObject, bill.InterestDays), optionalRegisterMoney(createObject, interest),
-		optionalRegisterMoney(createObject, cost), optionalRegisterText(bill.OriginatingParty.Entity), optionalRegisterText(bill.OriginatingParty.ObjectID),
-		optionalRegisterText(bill.OriginatingParty.VersionID), optionalRegisterText(bill.OriginatingParty.Code), optionalRegisterText(bill.OriginatingParty.Name), value)
+	err = q.InsertAccountingOpeningBill(ctx, dbsqlc.InsertAccountingOpeningBillParams{
+		BookID: bookID, LineOrder: int32(index), BillID: bill.BillID, CreateObject: createObject,
+		BillNo: optionalRegisterText(bill.BillNo), BillType: optionalRegisterText(bill.BillType),
+		PositionType: optionalRegisterText(bill.PositionType), Medium: optionalRegisterText(bill.Medium),
+		Currency: strings.ToUpper(strings.TrimSpace(bill.Currency)), FaceAmountMinor: optionalRegisterMoney(createObject, face),
+		IssueDate: issue, MaturityDate: maturity, Drawer: optionalRegisterText(bill.Drawer), Acceptor: optionalRegisterText(bill.Acceptor), Payee: optionalRegisterText(bill.Payee),
+		AnnualRateBps: optionalRegisterInt(createObject, bill.AnnualRateBps), InterestDays: optionalRegisterInt(createObject, bill.InterestDays),
+		InterestAmountMinor: optionalRegisterMoney(createObject, interest), CustomerCostAmountMinor: optionalRegisterMoney(createObject, cost),
+		OriginPartyEntity: optionalRegisterText(bill.OriginatingParty.Entity), OriginPartyObjectID: optionalRegisterText(bill.OriginatingParty.ObjectID),
+		OriginPartyVersionID: optionalRegisterText(bill.OriginatingParty.VersionID), OriginPartyCode: optionalRegisterText(bill.OriginatingParty.Code),
+		OriginPartyName: optionalRegisterText(bill.OriginatingParty.Name), ValueMinor: value,
+	})
 	if err != nil {
 		return databaseError("save accounting opening bill", err)
 	}
 	return nil
 }
 
-func loadOpeningRegisters(ctx context.Context, q interface {
-	Query(context.Context, string, ...any) (pgx.Rows, error)
-}, view *OpeningView) error {
+func loadOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, view *OpeningView) error {
 	view.Assets, view.Bills, view.Containers = []OpeningAssetView{}, []OpeningBillView{}, []OpeningContainerView{}
-	rows, err := q.Query(ctx, `SELECT asset_id,create_object,COALESCE(asset_no,''),COALESCE(name,''),
-		COALESCE(category_id,''),COALESCE(department_id,''),COALESCE(useful_life_months,0),
-		COALESCE(residual_rate_bps,0),acquired_on,currency,original_minor,accumulated_minor
-		FROM acc_opening_assets WHERE book_id=$1 ORDER BY line_order`, view.BookID)
+	assets, err := q.ListAccountingOpeningAssets(ctx, view.BookID)
 	if err != nil {
 		return databaseError("load accounting opening assets", err)
 	}
-	for rows.Next() {
-		var item OpeningAssetView
-		var residual, original, accumulated int64
-		var acquired *time.Time
-		if err = rows.Scan(&item.AssetID, &item.CreateObject, &item.AssetNo, &item.Name, &item.CategoryID, &item.DepartmentID, &item.UsefulLifeMonths, &residual, &acquired, &item.Currency, &original, &accumulated); err != nil {
-			rows.Close()
-			return err
+	for _, row := range assets {
+		item := OpeningAssetView{
+			OpeningAssetInput: OpeningAssetInput{
+				AssetID: row.AssetID, AssetNo: row.AssetNo, Name: row.Name,
+				CategoryID: row.CategoryID, DepartmentID: row.DepartmentID,
+				UsefulLifeMonths: row.UsefulLifeMonths, Currency: row.Currency,
+				ResidualRate:            fixeddecimal.Format(int64(row.ResidualRateBps), 4, true),
+				OriginalValue:           fixeddecimal.Format(row.OriginalMinor, 2, false),
+				AccumulatedDepreciation: fixeddecimal.Format(row.AccumulatedMinor, 2, false),
+			},
+			CreateObject: row.CreateObject,
 		}
-		item.ResidualRate = fixeddecimal.Format(residual, 4, true)
-		item.OriginalValue = fixeddecimal.Format(original, 2, false)
-		item.AccumulatedDepreciation = fixeddecimal.Format(accumulated, 2, false)
-		if acquired != nil {
-			item.AcquiredOn = acquired.Format("2006-01-02")
+		if row.AcquiredOn.Valid {
+			item.AcquiredOn = row.AcquiredOn.Time.Format("2006-01-02")
 		}
 		view.Assets = append(view.Assets, item)
 	}
-	rows.Close()
-	rows, err = q.Query(ctx, `SELECT bill_id,create_object,COALESCE(bill_no,''),COALESCE(bill_type,''),COALESCE(position_type,''),COALESCE(medium,''),currency,
-		COALESCE(face_amount_minor,0),issue_date,maturity_date,COALESCE(drawer,''),COALESCE(acceptor,''),COALESCE(payee,''),COALESCE(annual_rate_bps,0),COALESCE(interest_days,0),
-		COALESCE(interest_amount_minor,0),COALESCE(customer_cost_amount_minor,0),COALESCE(origin_party_entity,''),COALESCE(origin_party_object_id,''),COALESCE(origin_party_version_id,''),COALESCE(origin_party_code,''),COALESCE(origin_party_name,''),value_minor
-		FROM acc_opening_bills WHERE book_id=$1 ORDER BY line_order`, view.BookID)
+	bills, err := q.ListAccountingOpeningBills(ctx, view.BookID)
 	if err != nil {
 		return databaseError("load accounting opening bills", err)
 	}
-	for rows.Next() {
-		var item OpeningBillView
-		var face, interest, cost, value int64
-		var issue, maturity *time.Time
-		if err = rows.Scan(&item.BillID, &item.CreateObject, &item.BillNo, &item.BillType, &item.PositionType, &item.Medium, &item.Currency, &face, &issue, &maturity, &item.Drawer, &item.Acceptor, &item.Payee, &item.AnnualRateBps, &item.InterestDays, &interest, &cost, &item.OriginatingParty.Entity, &item.OriginatingParty.ObjectID, &item.OriginatingParty.VersionID, &item.OriginatingParty.Code, &item.OriginatingParty.Name, &value); err != nil {
-			rows.Close()
-			return err
+	for _, row := range bills {
+		item := OpeningBillView{
+			OpeningBillInput: OpeningBillInput{
+				BillID: row.BillID, BillNo: row.BillNo, BillType: row.BillType,
+				PositionType: row.PositionType, Medium: row.Medium, Currency: row.Currency,
+				Drawer: row.Drawer, Acceptor: row.Acceptor, Payee: row.Payee,
+				AnnualRateBps: row.AnnualRateBps, InterestDays: row.InterestDays,
+				FaceAmount:         fixeddecimal.Format(row.FaceAmountMinor, 2, false),
+				InterestAmount:     fixeddecimal.Format(row.InterestAmountMinor, 2, false),
+				CustomerCostAmount: fixeddecimal.Format(row.CustomerCostAmountMinor, 2, false),
+				ValueAmount:        fixeddecimal.Format(row.ValueMinor, 2, false),
+				OriginatingParty:   OpeningPartyInput{Entity: row.OriginPartyEntity, ObjectID: row.OriginPartyObjectID, VersionID: row.OriginPartyVersionID, Code: row.OriginPartyCode, Name: row.OriginPartyName},
+			},
+			CreateObject: row.CreateObject,
 		}
-		item.FaceAmount = fixeddecimal.Format(face, 2, false)
-		item.InterestAmount = fixeddecimal.Format(interest, 2, false)
-		item.CustomerCostAmount = fixeddecimal.Format(cost, 2, false)
-		item.ValueAmount = fixeddecimal.Format(value, 2, false)
-		if issue != nil {
-			item.IssueDate = issue.Format("2006-01-02")
+		if row.IssueDate.Valid {
+			item.IssueDate = row.IssueDate.Time.Format("2006-01-02")
 		}
-		if maturity != nil {
-			item.MaturityDate = maturity.Format("2006-01-02")
+		if row.MaturityDate.Valid {
+			item.MaturityDate = row.MaturityDate.Time.Format("2006-01-02")
 		}
 		view.Bills = append(view.Bills, item)
 	}
-	rows.Close()
-	rows, err = q.Query(ctx, `SELECT customer_id,container_type,quantity FROM acc_opening_containers WHERE book_id=$1 ORDER BY line_order`, view.BookID)
+	containers, err := q.ListAccountingOpeningContainers(ctx, view.BookID)
 	if err != nil {
 		return databaseError("load accounting opening containers", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var item OpeningContainerView
-		if err = rows.Scan(&item.CustomerID, &item.ContainerType, &item.Quantity); err != nil {
-			return err
-		}
-		view.Containers = append(view.Containers, item)
+	for _, row := range containers {
+		view.Containers = append(view.Containers, OpeningContainerView{CustomerID: row.CustomerID, ContainerType: row.ContainerType, Quantity: row.Quantity})
 	}
-	return rows.Err()
+	return nil
 }
 
-func approveOpeningRegisters(ctx context.Context, tx pgx.Tx, bookID string, lines []normalizedOpeningLine) error {
-	type openingAssetRow struct {
-		id                             string
-		create                         bool
-		no, name, category, department *string
-		life, residual                 *int32
-		acquired                       *time.Time
-		currency                       string
-		original, accumulated          int64
-	}
-	assetRows, err := tx.Query(ctx, `SELECT asset_id,create_object,asset_no,name,category_id,department_id,useful_life_months,residual_rate_bps,acquired_on,currency,original_minor,accumulated_minor FROM acc_opening_assets WHERE book_id=$1`, bookID)
+func approveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, bookID string, lines []normalizedOpeningLine) error {
+	assets, err := q.ListAccountingOpeningAssetsForApproval(ctx, bookID)
 	if err != nil {
 		return err
 	}
-	assets := []openingAssetRow{}
-	for assetRows.Next() {
-		var asset openingAssetRow
-		if err = assetRows.Scan(&asset.id, &asset.create, &asset.no, &asset.name, &asset.category, &asset.department, &asset.life, &asset.residual, &asset.acquired, &asset.currency, &asset.original, &asset.accumulated); err != nil {
-			assetRows.Close()
-			return err
-		}
-		assets = append(assets, asset)
-	}
-	assetRows.Close()
 	var config AssetAccountingConfiguration
 	if len(assets) > 0 {
-		config, err = loadAssetAccountingConfiguration(ctx, tx, bookID)
+		config, err = requireAssetAccountingConfiguration(ctx, q, bookID)
 		if err != nil {
 			return err
 		}
 	}
 	for _, asset := range assets {
-		if !openingLineMatches(lines, config.AssetSubjectID, DimensionAsset, asset.id, asset.currency, asset.original, 0) || (asset.accumulated > 0 && !openingLineMatches(lines, config.AccumulatedDepreciationSubjectID, DimensionAsset, asset.id, asset.currency, 0, asset.accumulated)) {
+		if !openingLineMatches(lines, config.AssetSubjectID, DimensionAsset, asset.AssetID, asset.Currency, asset.OriginalMinor, 0) || (asset.AccumulatedMinor > 0 && !openingLineMatches(lines, config.AccumulatedDepreciationSubjectID, DimensionAsset, asset.AssetID, asset.Currency, 0, asset.AccumulatedMinor)) {
 			return domainError(ErrorConflict, "opening asset values do not reconcile", nil)
 		}
-		if asset.create {
-			if _, err = tx.Exec(ctx, `INSERT INTO acc_assets(id,asset_no,source_document_id,source_line_id,name,category_id,department_id,useful_life_months,residual_rate_bps,acquired_on,state) VALUES($1,$2,$3,$1,$4,$5,$6,$7,$8,$9,'ACTIVE')`, asset.id, *asset.no, bookID, *asset.name, *asset.category, *asset.department, *asset.life, *asset.residual, *asset.acquired); err != nil {
+		if asset.CreateObject {
+			if err = q.CreateAccountingAsset(ctx, dbsqlc.CreateAccountingAssetParams{
+				ID: asset.AssetID, AssetNo: *asset.AssetNo, SourceDocumentID: bookID, SourceLineID: asset.AssetID,
+				Name: *asset.Name, CategoryID: *asset.CategoryID, DepartmentID: *asset.DepartmentID,
+				UsefulLifeMonths: *asset.UsefulLifeMonths, ResidualRateBps: *asset.ResidualRateBps, AcquiredOn: asset.AcquiredOn,
+			}); err != nil {
 				return databaseError("create opening asset", err)
 			}
 		} else {
-			var active bool
-			if err = tx.QueryRow(ctx, `SELECT state='ACTIVE' FROM acc_assets WHERE id=$1`, asset.id).Scan(&active); err != nil || !active {
-				return domainError(ErrorConflict, "opening asset is not available", err)
+			active, activeErr := q.AccountingAssetIsActive(ctx, asset.AssetID)
+			if activeErr != nil || !active {
+				return domainError(ErrorConflict, "opening asset is not available", activeErr)
 			}
 		}
-		assetDimensions := []byte(`{"ASSET":"` + asset.id + `"}`)
-		if _, err = tx.Exec(ctx, `INSERT INTO acc_asset_book_values(book_id,asset_id,currency,original_minor,accumulated_depreciation_minor,asset_subject_id,asset_dimensions,accumulated_subject_id,accumulated_dimensions,expense_subject_id,expense_dimensions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$7,$9,'{}')`, bookID, asset.id, asset.currency, asset.original, asset.accumulated, config.AssetSubjectID, assetDimensions, config.AccumulatedDepreciationSubjectID, config.DepreciationExpenseSubjectID); err != nil {
+		assetDimensions := []byte(`{"ASSET":"` + asset.AssetID + `"}`)
+		assetSubjectID, accumulatedSubjectID, expenseSubjectID := config.AssetSubjectID, config.AccumulatedDepreciationSubjectID, config.DepreciationExpenseSubjectID
+		if err = q.CreateAccountingAssetBookValue(ctx, dbsqlc.CreateAccountingAssetBookValueParams{
+			BookID: bookID, AssetID: asset.AssetID, Currency: asset.Currency,
+			OriginalMinor: asset.OriginalMinor, AccumulatedMinor: asset.AccumulatedMinor,
+			AssetSubjectID: &assetSubjectID, AssetDimensions: assetDimensions,
+			AccumulatedSubjectID: &accumulatedSubjectID, AccumulatedDimensions: assetDimensions,
+			ExpenseSubjectID: &expenseSubjectID, ExpenseDimensions: []byte(`{}`),
+		}); err != nil {
 			return databaseError("create opening asset book value", err)
 		}
 	}
-	type openingBillRow struct {
-		id                             string
-		create                         bool
-		no, billType, position, medium *string
-		currency                       string
-		face                           *int64
-		issue, maturity                *time.Time
-		drawer, acceptor, payee        *string
-		rate, days                     *int32
-		interest, cost                 *int64
-		pe, pid, pvid, pcode, pname    *string
-		value                          int64
-	}
-	billRows, err := tx.Query(ctx, `SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor FROM acc_opening_bills WHERE book_id=$1`, bookID)
+	bills, err := q.ListAccountingOpeningBillsForApproval(ctx, bookID)
 	if err != nil {
 		return err
 	}
-	bills := []openingBillRow{}
-	for billRows.Next() {
-		var bill openingBillRow
-		if err = billRows.Scan(&bill.id, &bill.create, &bill.no, &bill.billType, &bill.position, &bill.medium, &bill.currency, &bill.face, &bill.issue, &bill.maturity, &bill.drawer, &bill.acceptor, &bill.payee, &bill.rate, &bill.days, &bill.interest, &bill.cost, &bill.pe, &bill.pid, &bill.pvid, &bill.pcode, &bill.pname, &bill.value); err != nil {
-			billRows.Close()
-			return err
-		}
-		bills = append(bills, bill)
-	}
-	billRows.Close()
 	for _, bill := range bills {
-		debit, credit := bill.value, int64(0)
-		if bill.position != nil && *bill.position == "LIABILITY" {
-			debit, credit = 0, bill.value
+		debit, credit := bill.ValueMinor, int64(0)
+		if bill.PositionType != nil && *bill.PositionType == "LIABILITY" {
+			debit, credit = 0, bill.ValueMinor
 		}
-		if !openingAnyBillLineMatches(lines, bill.id, bill.currency, debit, credit) {
+		if !openingAnyBillLineMatches(lines, bill.BillID, bill.Currency, debit, credit) {
 			return domainError(ErrorConflict, "opening bill value does not reconcile", nil)
 		}
-		if bill.create {
-			if _, err = tx.Exec(ctx, `INSERT INTO acc_bills(id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,state,source_document_id,source_line_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'AVAILABLE',$22,$1)`, bill.id, *bill.no, *bill.billType, *bill.position, bill.currency, *bill.medium, *bill.face, *bill.issue, *bill.maturity, *bill.drawer, *bill.acceptor, *bill.payee, *bill.rate, *bill.days, *bill.interest, *bill.cost, *bill.pe, *bill.pid, *bill.pvid, *bill.pcode, *bill.pname, bookID); err != nil {
+		if bill.CreateObject {
+			if err = q.CreateAccountingBill(ctx, dbsqlc.CreateAccountingBillParams{
+				ID: bill.BillID, BillNo: *bill.BillNo, BillType: *bill.BillType, PositionType: *bill.PositionType,
+				Currency: bill.Currency, Medium: *bill.Medium, FaceAmountMinor: *bill.FaceAmountMinor,
+				IssueDate: bill.IssueDate, MaturityDate: bill.MaturityDate, Drawer: *bill.Drawer, Acceptor: *bill.Acceptor, Payee: *bill.Payee,
+				AnnualRateBps: *bill.AnnualRateBps, InterestDays: *bill.InterestDays,
+				InterestAmountMinor: *bill.InterestAmountMinor, CustomerCostAmountMinor: *bill.CustomerCostAmountMinor,
+				OriginPartyEntity: bill.OriginPartyEntity, OriginPartyObjectID: bill.OriginPartyObjectID,
+				OriginPartyVersionID: bill.OriginPartyVersionID, OriginPartyCode: bill.OriginPartyCode, OriginPartyName: bill.OriginPartyName,
+				SourceDocumentID: bookID, SourceLineID: bill.BillID,
+			}); err != nil {
 				return databaseError("create opening bill", err)
 			}
 		} else {
-			var available bool
-			if err = tx.QueryRow(ctx, `SELECT state='AVAILABLE' FROM acc_bills WHERE id=$1`, bill.id).Scan(&available); err != nil || !available {
-				return domainError(ErrorConflict, "opening bill is not available", err)
+			available, availableErr := q.AccountingBillIsAvailable(ctx, bill.BillID)
+			if availableErr != nil || !available {
+				return domainError(ErrorConflict, "opening bill is not available", availableErr)
 			}
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO acc_bill_book_values(book_id,bill_id,value_minor) VALUES($1,$2,$3)`, bookID, bill.id, bill.value); err != nil {
+		if err = q.CreateAccountingBillBookValue(ctx, dbsqlc.CreateAccountingBillBookValueParams{BookID: bookID, BillID: bill.BillID, ValueMinor: bill.ValueMinor}); err != nil {
 			return databaseError("create opening bill book value", err)
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO acc_container_entries(id,customer_id,container_type,quantity_delta,source_document_id,source_revision) SELECT substr(md5(book_id||customer_id||container_type),1,26),customer_id,container_type,quantity,book_id,0 FROM acc_opening_containers WHERE book_id=$1`, bookID)
+	err = q.CreateAccountingOpeningContainerBalances(ctx, bookID)
 	if err != nil {
 		return databaseError("create opening container balances", err)
 	}
 	return nil
 }
 
-func unapproveOpeningRegisters(ctx context.Context, tx pgx.Tx, bookID string) error {
-	var referenced bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM acc_opening_assets opening JOIN acc_asset_book_values value ON value.asset_id=opening.asset_id WHERE opening.book_id=$1 AND opening.create_object AND value.book_id<>$1) OR EXISTS(SELECT 1 FROM acc_opening_bills opening JOIN acc_bill_book_values value ON value.bill_id=opening.bill_id WHERE opening.book_id=$1 AND opening.create_object AND value.book_id<>$1)`, bookID).Scan(&referenced); err != nil {
+func unapproveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, bookID string) error {
+	referenced, err := q.AccountingOpeningObjectsReferencedByOtherBooks(ctx, bookID)
+	if err != nil {
 		return err
 	}
 	if referenced {
 		return domainError(ErrorConflict, "opening global object is used by another book", nil)
 	}
-	statements := []string{
-		`DELETE FROM acc_container_entries WHERE source_document_id=$1 AND source_revision=0`,
-		`DELETE FROM acc_asset_book_values WHERE book_id=$1`,
-		`DELETE FROM acc_bill_book_values WHERE book_id=$1`,
-		`DELETE FROM acc_assets WHERE source_document_id=$1 AND id IN(SELECT asset_id FROM acc_opening_assets WHERE book_id=$1 AND create_object)`,
-		`DELETE FROM acc_bills WHERE source_document_id=$1 AND id IN(SELECT bill_id FROM acc_opening_bills WHERE book_id=$1 AND create_object)`,
+	operations := []func(context.Context, string) error{
+		q.DeleteAccountingOpeningContainerBalances,
+		q.DeleteAccountingAssetBookValues,
+		q.DeleteAccountingBillBookValues,
+		q.DeleteAccountingOpeningCreatedAssets,
+		q.DeleteAccountingOpeningCreatedBills,
 	}
-	for _, statement := range statements {
-		if _, err := tx.Exec(ctx, statement, bookID); err != nil {
+	for _, operation := range operations {
+		if err := operation(ctx, bookID); err != nil {
 			return databaseError("reverse opening registers", err)
 		}
 	}
@@ -364,11 +334,12 @@ func optionalPositiveInt(value int32) *int32 {
 	}
 	return &value
 }
-func optionalResidual(enabled bool, value int64) *int64 {
+func optionalResidualInt32(enabled bool, value int64) *int32 {
 	if !enabled {
 		return nil
 	}
-	return &value
+	result := int32(value)
+	return &result
 }
 func optionalRegisterMoney(enabled bool, value int64) *int64 {
 	if !enabled {

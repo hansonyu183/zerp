@@ -28,12 +28,10 @@ func (s *Service) GetOpening(ctx context.Context, bookID, actorID string) (Openi
 	if err := s.requireAccess(ctx, s.queries, bookID, actorID, false); err != nil {
 		return OpeningView{}, err
 	}
-	return loadOpening(ctx, s.queries, s.pool, bookID)
+	return loadOpening(ctx, s.queries, bookID)
 }
 
-func loadOpening(ctx context.Context, q *dbsqlc.Queries, registers interface {
-	Query(context.Context, string, ...any) (pgx.Rows, error)
-}, bookID string) (OpeningView, error) {
+func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (OpeningView, error) {
 	row, err := q.GetAccountingOpening(ctx, bookID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if _, bookErr := q.GetAccountingBook(ctx, bookID); errors.Is(bookErr, pgx.ErrNoRows) {
@@ -75,7 +73,7 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, registers interface {
 		}
 		result.Lines = append(result.Lines, view)
 	}
-	if err = loadOpeningRegisters(ctx, registers, &result); err != nil {
+	if err = loadOpeningRegisters(ctx, q, &result); err != nil {
 		return OpeningView{}, err
 	}
 	return result, nil
@@ -134,10 +132,10 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 			return OpeningView{}, databaseError("accounting opening line cannot be saved", err)
 		}
 	}
-	if err = saveOpeningRegisters(ctx, tx, input); err != nil {
+	if err = saveOpeningRegisters(ctx, qtx, input); err != nil {
 		return OpeningView{}, err
 	}
-	result, err := loadOpening(ctx, qtx, tx, input.BookID)
+	result, err := loadOpening(ctx, qtx, input.BookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -358,7 +356,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 			return OpeningView{}, databaseError("register accounting opening subject usage", err)
 		}
 	}
-	if err = approveOpeningRegisters(ctx, tx, bookID, lines); err != nil {
+	if err = approveOpeningRegisters(ctx, qtx, bookID, lines); err != nil {
 		return OpeningView{}, err
 	}
 	if errors.Is(stateErr, pgx.ErrNoRows) {
@@ -376,7 +374,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	if err != nil {
 		return OpeningView{}, databaseError("accounting opening cannot be approved", err)
 	}
-	result, err := loadOpening(ctx, qtx, tx, bookID)
+	result, err := loadOpening(ctx, qtx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -416,7 +414,7 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	if hasLaterFacts {
 		return OpeningView{}, domainError(ErrorConflict, "账簿已有后续会计事实，不能反批准期初", nil)
 	}
-	if err = unapproveOpeningRegisters(ctx, tx, bookID); err != nil {
+	if err = unapproveOpeningRegisters(ctx, qtx, bookID); err != nil {
 		return OpeningView{}, err
 	}
 	if err = qtx.DeleteAccountingSubjectUsages(ctx, dbsqlc.DeleteAccountingSubjectUsagesParams{
@@ -436,7 +434,7 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	}); err != nil {
 		return OpeningView{}, databaseError("delete accounting opening voucher", err)
 	}
-	result, err := loadOpening(ctx, qtx, tx, bookID)
+	result, err := loadOpening(ctx, qtx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}

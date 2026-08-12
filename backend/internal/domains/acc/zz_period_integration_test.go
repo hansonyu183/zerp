@@ -4,6 +4,7 @@ package acc
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -19,6 +20,52 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 		t.Fatal(err)
 	}
 	createApprovedZeroOpening(t, service, book)
+	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{
+		BookID: book.ID, VouEntity: "other-income", DefaultResult: MappingResultUnpost,
+		Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
+	}, adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
+		t.Fatal(err)
+	}
+	documentID, attachedFileID, pendingFileID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	setupTx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = setupTx.Exec(t.Context(), `INSERT INTO vou_documents (
+		id, entity, document_no, status, business_date, currency, total_amount_cents,
+		reviewed_at,reviewed_by,approved_at,approved_by,posted_at,posted_by,created_by,updated_by
+	) VALUES ($1, 'other-income', $2, 'APPROVED', DATE '2025-07-20', 'CNY', 100,
+		now(),$3,now(),$3,now(),$3,$3,$3)`, documentID, "OIN-20250720-0000", adminID)
+	if err != nil {
+		_ = setupTx.Rollback(t.Context())
+		t.Fatal(err)
+	}
+	_, err = setupTx.Exec(t.Context(), `INSERT INTO vou_other_income_details(
+		document_id,source_name,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name
+	) VALUES($1,'期间附件测试',$2,$3,'CASH','现金')`, documentID, ulid.Make().String(), ulid.Make().String())
+	if err != nil {
+		_ = setupTx.Rollback(t.Context())
+		t.Fatal(err)
+	}
+	if err = setupTx.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for index, fileID := range []string{attachedFileID, pendingFileID} {
+		letter := string(rune('a' + index))
+		_, err = pool.Exec(t.Context(), `INSERT INTO vou_files(
+			id,storage_key,original_name,content_type,declared_size,sha256_hex,upload_token_hash,upload_expires_at,created_by
+		) VALUES($1,$2,$3,'application/pdf',1,$4,$5,now()+interval '1 hour',$6)`, fileID, "period-lock/"+fileID, "period.pdf", strings.Repeat(letter, 64), strings.Repeat(string(rune('c'+index)), 64), adminID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO vou_document_attachments(document_id,file_id,created_by) VALUES($1,$2,$3)`, documentID, attachedFileID, adminID); err != nil {
+		t.Fatal(err)
+	}
 
 	locked, err := service.LockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2025-07", Revision: 0}, adminID)
 	if err != nil || locked.State != PeriodStateLocked || locked.Revision != 1 {
@@ -35,6 +82,14 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Message != "accounting period is locked" {
 		t.Fatalf("locked VOU write error = %#v", err)
+	}
+	_, err = pool.Exec(t.Context(), `INSERT INTO vou_document_attachments(document_id,file_id,created_by) VALUES($1,$2,$3)`, documentID, pendingFileID, adminID)
+	if !errors.As(err, &pgErr) || pgErr.Message != "accounting period is locked" {
+		t.Fatalf("locked VOU attachment insert error = %#v", err)
+	}
+	_, err = pool.Exec(t.Context(), `DELETE FROM vou_document_attachments WHERE document_id=$1 AND file_id=$2`, documentID, attachedFileID)
+	if !errors.As(err, &pgErr) || pgErr.Message != "accounting period is locked" {
+		t.Fatalf("locked VOU attachment delete error = %#v", err)
 	}
 
 	unlocked, err := service.UnlockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2025-07", Revision: locked.Revision}, adminID)

@@ -7,8 +7,9 @@ import (
 	"sort"
 	"time"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -31,40 +32,27 @@ type inventoryCostResult struct {
 
 type inventoryCostState struct{ quantity, value int64 }
 
-func settleInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month time.Time) error {
+func settleInventoryCosts(ctx context.Context, q *dbsqlc.Queries, bookID string, month time.Time) error {
 	next := month.AddDate(0, 1, 0)
-	if _, err := tx.Exec(ctx, `DELETE FROM acc_inventory_cost_allocations WHERE book_id=$1 AND period_month=$2`, bookID, month); err != nil {
+	if err := q.DeleteAccountingInventoryCostAllocations(ctx, dbsqlc.DeleteAccountingInventoryCostAllocationsParams{BookID: bookID, PeriodMonth: pgtype.Date{Time: month, Valid: true}}); err != nil {
 		return databaseError("clear inventory cost retry", err)
 	}
-	rows, err := tx.Query(ctx, `SELECT entry.id,entry.voucher_id,entry.subject_id,entry.product_id,entry.warehouse_id,
-		entry.quantity_delta_micros,voucher.business_date,line.currency,line.debit_minor-line.credit_minor,
-		COALESCE(voucher.source_entity,''),voucher.source_id,entry.source_line_id,line.dimensions,
-		entry.cost_counterpart_subject_id,entry.cost_counterpart_dimensions,
-		entry.origin_source_document_id,entry.origin_source_line_id
-		FROM acc_inventory_entries entry
-		JOIN acc_vouchers voucher ON voucher.book_id=entry.book_id AND voucher.id=entry.voucher_id
-		JOIN acc_voucher_lines line ON line.id=entry.voucher_line_id
-		WHERE entry.book_id=$1 AND voucher.business_date<$2
-		ORDER BY voucher.business_date,
-		  CASE WHEN COALESCE(voucher.source_entity,'') IN ('order-production','self-production') AND entry.quantity_delta_micros<0 THEN 0 ELSE 1 END,
-		  voucher.created_at,voucher.id,line.line_order,entry.id`, bookID, next)
+	rows, err := q.ListAccountingInventoryCostFacts(ctx, dbsqlc.ListAccountingInventoryCostFactsParams{BookID: bookID, BeforeDate: pgtype.Date{Time: next, Valid: true}})
 	if err != nil {
 		return databaseError("list inventory cost facts", err)
 	}
-	defer rows.Close()
-	entries := make([]inventoryCostEntry, 0)
-	for rows.Next() {
-		var item inventoryCostEntry
-		if err = rows.Scan(&item.id, &item.voucherID, &item.subjectID, &item.productID, &item.warehouseID,
-			&item.quantity, &item.businessDate, &item.currency, &item.directValue, &item.sourceEntity,
-			&item.sourceDocumentID, &item.sourceLineID, &item.dimensions, &item.counterpartSubjectID,
-			&item.counterpartDimensions, &item.originDocumentID, &item.originLineID); err != nil {
-			return databaseError("scan inventory cost fact", err)
-		}
-		entries = append(entries, item)
-	}
-	if err = rows.Err(); err != nil {
-		return databaseError("list inventory cost facts", err)
+	entries := make([]inventoryCostEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, inventoryCostEntry{
+			id: row.ID, voucherID: row.VoucherID, subjectID: row.SubjectID,
+			productID: row.ProductID, warehouseID: row.WarehouseID,
+			quantity: row.QuantityDeltaMicros, businessDate: row.BusinessDate.Time,
+			currency: row.Currency, directValue: row.DirectValue, sourceEntity: row.SourceEntity,
+			sourceDocumentID: row.SourceID, sourceLineID: row.SourceLineID,
+			dimensions: row.Dimensions, counterpartSubjectID: row.CostCounterpartSubjectID,
+			counterpartDimensions: row.CostCounterpartDimensions,
+			originDocumentID:      row.OriginSourceDocumentID, originLineID: row.OriginSourceLineID,
+		})
 	}
 
 	states := map[string]inventoryCostState{}
@@ -132,10 +120,13 @@ func settleInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month t
 				result.requiresSystemEntry = true
 			case "inventory-count":
 				if result.cost == 0 {
-					if state.quantity <= 0 || state.value <= 0 {
+					if state.quantity > 0 && state.value > 0 {
+						result.cost = proportionalCost(state.value, entry.quantity, state.quantity)
+					} else if purchaseCost, found := latestPurchaseCost(results, entry); found {
+						result.cost = purchaseCost
+					} else {
 						return domainError(ErrorConflict, "inventory gain cost is unavailable", nil)
 					}
-					result.cost = proportionalCost(state.value, entry.quantity, state.quantity)
 					result.requiresSystemEntry = true
 				}
 			}
@@ -156,7 +147,21 @@ func settleInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month t
 			monthResults = append(monthResults, result)
 		}
 	}
-	return persistInventoryCosts(ctx, tx, bookID, month, monthResults)
+	return persistInventoryCosts(ctx, q, bookID, month, monthResults)
+}
+
+func latestPurchaseCost(results []inventoryCostResult, entry inventoryCostEntry) (int64, bool) {
+	for index := len(results) - 1; index >= 0; index-- {
+		candidate := results[index]
+		if candidate.entry.sourceEntity != "purchase-inbound" || candidate.entry.quantity <= 0 || candidate.cost <= 0 {
+			continue
+		}
+		if candidate.entry.subjectID != entry.subjectID || candidate.entry.productID != entry.productID || candidate.entry.warehouseID != entry.warehouseID {
+			continue
+		}
+		return proportionalCost(candidate.cost, entry.quantity, candidate.entry.quantity), true
+	}
+	return 0, false
 }
 
 func proportionalCost(value, part, total int64) int64 {
@@ -193,7 +198,7 @@ func findOriginCost(results map[string]inventoryCostResult, entry inventoryCostE
 	return candidates[0], true
 }
 
-func persistInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month time.Time, results []inventoryCostResult) error {
+func persistInventoryCosts(ctx context.Context, q *dbsqlc.Queries, bookID string, month time.Time, results []inventoryCostResult) error {
 	derived := make([]inventoryCostResult, 0)
 	for _, result := range results {
 		if result.requiresSystemEntry {
@@ -208,8 +213,10 @@ func persistInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month 
 		id := ulid.Make().String()
 		voucherID = &id
 		businessDate := month.AddDate(0, 1, -1)
-		if _, err := tx.Exec(ctx, `INSERT INTO acc_vouchers(id,book_id,source_type,source_id,business_date,created_by)
-			VALUES($1,$2,'COST_SETTLEMENT',$3,$4,$5)`, id, bookID, bookID+":"+month.Format("2006-01"), businessDate, systemidentity.UserID); err != nil {
+		if err := q.CreateAccountingVoucher(ctx, dbsqlc.CreateAccountingVoucherParams{
+			ID: id, BookID: bookID, SourceType: "COST_SETTLEMENT", SourceID: bookID + ":" + month.Format("2006-01"),
+			BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, ActorID: systemidentity.UserID,
+		}); err != nil {
 			return databaseError("create system cost voucher", err)
 		}
 		lineOrder := 0
@@ -232,8 +239,11 @@ func persistInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month 
 				if !json.Valid(line.dimensions) {
 					return domainError(ErrorInternal, "invalid stored cost dimensions", nil)
 				}
-				if _, err := tx.Exec(ctx, `INSERT INTO acc_voucher_lines(id,book_id,voucher_id,subject_id,currency,debit_minor,credit_minor,dimensions,source_line_id,line_order)
-					VALUES($1,$2,$3,$4,'CNY',$5,$6,$7,$8,$9)`, ulid.Make().String(), bookID, id, line.subjectID, debit, credit, line.dimensions, result.entry.id, lineOrder); err != nil {
+				if err := q.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
+					ID: ulid.Make().String(), BookID: bookID, VoucherID: id, SubjectID: line.subjectID,
+					Currency: "CNY", DebitMinor: debit, CreditMinor: credit, Dimensions: line.dimensions,
+					SourceLineID: result.entry.id, LineOrder: int32(lineOrder),
+				}); err != nil {
 					return databaseError("create system cost voucher line", err)
 				}
 				lineOrder++
@@ -248,8 +258,11 @@ func persistInventoryCosts(ctx context.Context, tx pgx.Tx, bookID string, month 
 		if result.requiresSystemEntry {
 			allocationVoucherID = voucherID
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO acc_inventory_cost_allocations(entry_id,book_id,period_month,quantity_micros,cost_minor,source_cost_entry_id,system_voucher_id)
-			VALUES($1,$2,$3,$4,$5,$6,$7)`, result.entry.id, bookID, month, absCostQuantity(result.entry.quantity), result.cost, result.sourceCostEntryID, allocationVoucherID); err != nil {
+		if err := q.InsertAccountingInventoryCostAllocation(ctx, dbsqlc.InsertAccountingInventoryCostAllocationParams{
+			EntryID: result.entry.id, BookID: bookID, PeriodMonth: pgtype.Date{Time: month, Valid: true},
+			QuantityMicros: absCostQuantity(result.entry.quantity), CostMinor: result.cost,
+			SourceCostEntryID: result.sourceCostEntryID, SystemVoucherID: allocationVoucherID,
+		}); err != nil {
 			return databaseError("create inventory cost allocation", err)
 		}
 	}

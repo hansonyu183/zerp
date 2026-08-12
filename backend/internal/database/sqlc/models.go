@@ -39,17 +39,31 @@ type AccAssetBookValue struct {
 }
 
 type AccBill struct {
-	ID                  string      `db:"id" json:"id"`
-	BillNo              string      `db:"bill_no" json:"bill_no"`
-	BillType            string      `db:"bill_type" json:"bill_type"`
-	PositionType        string      `db:"position_type" json:"position_type"`
-	Currency            string      `db:"currency" json:"currency"`
-	FaceAmountMinor     int64       `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate           pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate        pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	State               string      `db:"state" json:"state"`
-	SourceDocumentID    string      `db:"source_document_id" json:"source_document_id"`
-	SettledByDocumentID *string     `db:"settled_by_document_id" json:"settled_by_document_id"`
+	ID                      string      `db:"id" json:"id"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Currency                string      `db:"currency" json:"currency"`
+	Medium                  string      `db:"medium" json:"medium"`
+	FaceAmountMinor         int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	State                   string      `db:"state" json:"state"`
+	SourceDocumentID        string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID            string      `db:"source_line_id" json:"source_line_id"`
+	SettledByDocumentID     *string     `db:"settled_by_document_id" json:"settled_by_document_id"`
 }
 
 type AccBillBookValue struct {
@@ -158,6 +172,59 @@ type AccOpening struct {
 	CreatedBy  string             `db:"created_by" json:"created_by"`
 	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy  string             `db:"updated_by" json:"updated_by"`
+}
+
+type AccOpeningAsset struct {
+	BookID           string      `db:"book_id" json:"book_id"`
+	LineOrder        int32       `db:"line_order" json:"line_order"`
+	AssetID          string      `db:"asset_id" json:"asset_id"`
+	CreateObject     bool        `db:"create_object" json:"create_object"`
+	AssetNo          *string     `db:"asset_no" json:"asset_no"`
+	Name             *string     `db:"name" json:"name"`
+	CategoryID       *string     `db:"category_id" json:"category_id"`
+	DepartmentID     *string     `db:"department_id" json:"department_id"`
+	UsefulLifeMonths *int32      `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps  *int32      `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn       pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	Currency         string      `db:"currency" json:"currency"`
+	OriginalMinor    int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor int64       `db:"accumulated_minor" json:"accumulated_minor"`
+}
+
+type AccOpeningBill struct {
+	BookID                  string      `db:"book_id" json:"book_id"`
+	LineOrder               int32       `db:"line_order" json:"line_order"`
+	BillID                  string      `db:"bill_id" json:"bill_id"`
+	CreateObject            bool        `db:"create_object" json:"create_object"`
+	BillNo                  *string     `db:"bill_no" json:"bill_no"`
+	BillType                *string     `db:"bill_type" json:"bill_type"`
+	PositionType            *string     `db:"position_type" json:"position_type"`
+	Medium                  *string     `db:"medium" json:"medium"`
+	Currency                string      `db:"currency" json:"currency"`
+	FaceAmountMinor         *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  *string     `db:"drawer" json:"drawer"`
+	Acceptor                *string     `db:"acceptor" json:"acceptor"`
+	Payee                   *string     `db:"payee" json:"payee"`
+	AnnualRateBps           *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor     *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
+	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+}
+
+type AccOpeningContainer struct {
+	BookID        string `db:"book_id" json:"book_id"`
+	LineOrder     int32  `db:"line_order" json:"line_order"`
+	CustomerID    string `db:"customer_id" json:"customer_id"`
+	ContainerType string `db:"container_type" json:"container_type"`
+	Quantity      int64  `db:"quantity" json:"quantity"`
 }
 
 type AccOpeningLine struct {
@@ -1017,420 +1084,6 @@ type IdentifierObjectRenumberHistory struct {
 	NewCode  string `db:"new_code" json:"new_code"`
 }
 
-type LedAsset struct {
-	GenerationID                 string      `db:"generation_id" json:"generation_id"`
-	ID                           string      `db:"id" json:"id"`
-	AssetNo                      string      `db:"asset_no" json:"asset_no"`
-	AssetName                    string      `db:"asset_name" json:"asset_name"`
-	Specification                string      `db:"specification" json:"specification"`
-	CategoryObjectID             string      `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID            string      `db:"category_version_id" json:"category_version_id"`
-	CategoryCode                 string      `db:"category_code" json:"category_code"`
-	CategoryName                 string      `db:"category_name" json:"category_name"`
-	DepartmentObjectID           string      `db:"department_object_id" json:"department_object_id"`
-	DepartmentVersionID          string      `db:"department_version_id" json:"department_version_id"`
-	DepartmentCode               string      `db:"department_code" json:"department_code"`
-	DepartmentName               string      `db:"department_name" json:"department_name"`
-	CustodianObjectID            *string     `db:"custodian_object_id" json:"custodian_object_id"`
-	CustodianVersionID           *string     `db:"custodian_version_id" json:"custodian_version_id"`
-	CustodianCode                *string     `db:"custodian_code" json:"custodian_code"`
-	CustodianName                *string     `db:"custodian_name" json:"custodian_name"`
-	Location                     string      `db:"location" json:"location"`
-	AcquisitionDate              pgtype.Date `db:"acquisition_date" json:"acquisition_date"`
-	DepreciationStartMonth       pgtype.Date `db:"depreciation_start_month" json:"depreciation_start_month"`
-	OriginalValueCents           int64       `db:"original_value_cents" json:"original_value_cents"`
-	ResidualValueCents           int64       `db:"residual_value_cents" json:"residual_value_cents"`
-	UsefulLifeMonths             int32       `db:"useful_life_months" json:"useful_life_months"`
-	AccumulatedDepreciationCents int64       `db:"accumulated_depreciation_cents" json:"accumulated_depreciation_cents"`
-	LastDepreciationMonth        pgtype.Date `db:"last_depreciation_month" json:"last_depreciation_month"`
-	Status                       string      `db:"status" json:"status"`
-	SourceDocumentID             string      `db:"source_document_id" json:"source_document_id"`
-	SourceLineID                 string      `db:"source_line_id" json:"source_line_id"`
-	SourceRevision               int64       `db:"source_revision" json:"source_revision"`
-	Remark                       *string     `db:"remark" json:"remark"`
-}
-
-type LedAssetEntry struct {
-	ID               string             `db:"id" json:"id"`
-	GenerationID     string             `db:"generation_id" json:"generation_id"`
-	AssetID          string             `db:"asset_id" json:"asset_id"`
-	EntryType        string             `db:"entry_type" json:"entry_type"`
-	SourceEntity     string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo string             `db:"source_document_no" json:"source_document_no"`
-	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
-	SourceRevision   int64              `db:"source_revision" json:"source_revision"`
-	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	AmountCents      int64              `db:"amount_cents" json:"amount_cents"`
-	StatusFrom       *string            `db:"status_from" json:"status_from"`
-	StatusTo         string             `db:"status_to" json:"status_to"`
-	ActorID          string             `db:"actor_id" json:"actor_id"`
-	RequestID        string             `db:"request_id" json:"request_id"`
-	Summary          []byte             `db:"summary" json:"summary"`
-}
-
-type LedAssetNumberAssignment struct {
-	SourceLineID string `db:"source_line_id" json:"source_line_id"`
-	AssetNo      string `db:"asset_no" json:"asset_no"`
-}
-
-type LedAssetNumberCounter struct {
-	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
-	LastValue    int32       `db:"last_value" json:"last_value"`
-}
-
-type LedAuditEvent struct {
-	ID           string             `db:"id" json:"id"`
-	EventType    string             `db:"event_type" json:"event_type"`
-	FromStatus   *string            `db:"from_status" json:"from_status"`
-	ToStatus     string             `db:"to_status" json:"to_status"`
-	GenerationID *string            `db:"generation_id" json:"generation_id"`
-	Revision     int64              `db:"revision" json:"revision"`
-	ActorID      string             `db:"actor_id" json:"actor_id"`
-	OccurredAt   pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	Reason       *string            `db:"reason" json:"reason"`
-	RequestID    string             `db:"request_id" json:"request_id"`
-	Summary      []byte             `db:"summary" json:"summary"`
-}
-
-type LedBill struct {
-	ID                      string             `db:"id" json:"id"`
-	PositionType            string             `db:"position_type" json:"position_type"`
-	BillType                string             `db:"bill_type" json:"bill_type"`
-	BillNo                  string             `db:"bill_no" json:"bill_no"`
-	Medium                  string             `db:"medium" json:"medium"`
-	Currency                string             `db:"currency" json:"currency"`
-	FaceAmountCents         int64              `db:"face_amount_cents" json:"face_amount_cents"`
-	IssueDate               pgtype.Date        `db:"issue_date" json:"issue_date"`
-	MaturityDate            pgtype.Date        `db:"maturity_date" json:"maturity_date"`
-	Drawer                  string             `db:"drawer" json:"drawer"`
-	Acceptor                string             `db:"acceptor" json:"acceptor"`
-	Payee                   string             `db:"payee" json:"payee"`
-	AnnualRateBps           int32              `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays            int32              `db:"interest_days" json:"interest_days"`
-	InterestAmountCents     int64              `db:"interest_amount_cents" json:"interest_amount_cents"`
-	CustomerCostAmountCents int64              `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
-	OriginPartyEntity       *string            `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID     *string            `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyVersionID    *string            `db:"origin_party_version_id" json:"origin_party_version_id"`
-	OriginPartyCode         *string            `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName         *string            `db:"origin_party_name" json:"origin_party_name"`
-	SourceDocumentID        string             `db:"source_document_id" json:"source_document_id"`
-	SourceLineID            string             `db:"source_line_id" json:"source_line_id"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type LedBillEntry struct {
-	ID               string             `db:"id" json:"id"`
-	GenerationID     string             `db:"generation_id" json:"generation_id"`
-	BillID           string             `db:"bill_id" json:"bill_id"`
-	SourceEntity     string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID string             `db:"source_document_id" json:"source_document_id"`
-	SourceLineID     string             `db:"source_line_id" json:"source_line_id"`
-	PositionType     string             `db:"position_type" json:"position_type"`
-	Direction        string             `db:"direction" json:"direction"`
-	Purpose          string             `db:"purpose" json:"purpose"`
-	EffectiveDate    pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt       pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-}
-
-type LedClosing struct {
-	ID               string             `db:"id" json:"id"`
-	ClosingDate      pgtype.Date        `db:"closing_date" json:"closing_date"`
-	OpeningDate      pgtype.Date        `db:"opening_date" json:"opening_date"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
-	ClosedAt         pgtype.Timestamptz `db:"closed_at" json:"closed_at"`
-	ClosedBy         string             `db:"closed_by" json:"closed_by"`
-	RequestID        string             `db:"request_id" json:"request_id"`
-	ReversedAt       pgtype.Timestamptz `db:"reversed_at" json:"reversed_at"`
-	ReversedBy       *string            `db:"reversed_by" json:"reversed_by"`
-	ReverseReason    *string            `db:"reverse_reason" json:"reverse_reason"`
-	ReverseRequestID *string            `db:"reverse_request_id" json:"reverse_request_id"`
-}
-
-type LedClosingContainer struct {
-	ClosingID         string `db:"closing_id" json:"closing_id"`
-	CustomerObjectID  string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID string `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode      string `db:"customer_code" json:"customer_code"`
-	CustomerName      string `db:"customer_name" json:"customer_name"`
-	ContainerType     string `db:"container_type" json:"container_type"`
-	Quantity          int64  `db:"quantity" json:"quantity"`
-}
-
-type LedClosingFund struct {
-	ClosingID            string `db:"closing_id" json:"closing_id"`
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
-	Currency             string `db:"currency" json:"currency"`
-	AmountCents          int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedClosingInventory struct {
-	ClosingID          string `db:"closing_id" json:"closing_id"`
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
-	ProductObjectID    string `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string `db:"product_code" json:"product_code"`
-	ProductName        string `db:"product_name" json:"product_name"`
-	ProductUnit        string `db:"product_unit" json:"product_unit"`
-	QuantityMicros     int64  `db:"quantity_micros" json:"quantity_micros"`
-	Currency           string `db:"currency" json:"currency"`
-	CostAmountCents    int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
-}
-
-type LedClosingParty struct {
-	ClosingID             string `db:"closing_id" json:"closing_id"`
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string `db:"currency" json:"currency"`
-	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
-	AccountType           string `db:"account_type" json:"account_type"`
-}
-
-type LedContainerEntry struct {
-	ID                string             `db:"id" json:"id"`
-	GenerationID      string             `db:"generation_id" json:"generation_id"`
-	EntryType         string             `db:"entry_type" json:"entry_type"`
-	SourceEntity      string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID  string             `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo  string             `db:"source_document_no" json:"source_document_no"`
-	SourceLineID      string             `db:"source_line_id" json:"source_line_id"`
-	SourceRevision    int64              `db:"source_revision" json:"source_revision"`
-	RootDocumentID    string             `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo    string             `db:"root_document_no" json:"root_document_no"`
-	EffectiveDate     pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt        pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	ActorID           string             `db:"actor_id" json:"actor_id"`
-	RequestID         string             `db:"request_id" json:"request_id"`
-	Remark            *string            `db:"remark" json:"remark"`
-	CustomerObjectID  string             `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID string             `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode      string             `db:"customer_code" json:"customer_code"`
-	CustomerName      string             `db:"customer_name" json:"customer_name"`
-	ContainerType     string             `db:"container_type" json:"container_type"`
-	QuantityDelta     int64              `db:"quantity_delta" json:"quantity_delta"`
-}
-
-type LedControl struct {
-	Singleton          bool               `db:"singleton" json:"singleton"`
-	Status             string             `db:"status" json:"status"`
-	CutoverDate        pgtype.Date        `db:"cutover_date" json:"cutover_date"`
-	ActiveGenerationID *string            `db:"active_generation_id" json:"active_generation_id"`
-	Revision           int64              `db:"revision" json:"revision"`
-	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy          *string            `db:"updated_by" json:"updated_by"`
-	LastClosingID      *string            `db:"last_closing_id" json:"last_closing_id"`
-	RebuildRequired    bool               `db:"rebuild_required" json:"rebuild_required"`
-}
-
-type LedDraftContainer struct {
-	ID                string `db:"id" json:"id"`
-	CustomerObjectID  string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID string `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode      string `db:"customer_code" json:"customer_code"`
-	CustomerName      string `db:"customer_name" json:"customer_name"`
-	ContainerType     string `db:"container_type" json:"container_type"`
-	Quantity          int64  `db:"quantity" json:"quantity"`
-}
-
-type LedDraftFund struct {
-	ID                   string `db:"id" json:"id"`
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
-	Currency             string `db:"currency" json:"currency"`
-	AmountCents          int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedDraftInventory struct {
-	ID                 string  `db:"id" json:"id"`
-	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
-	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string  `db:"product_code" json:"product_code"`
-	ProductName        string  `db:"product_name" json:"product_name"`
-	ProductUnit        string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros     int64   `db:"quantity_micros" json:"quantity_micros"`
-	Currency           *string `db:"currency" json:"currency"`
-	UnitPriceCents     *int64  `db:"unit_price_cents" json:"unit_price_cents"`
-	AmountCents        *int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedDraftParty struct {
-	ID                    string `db:"id" json:"id"`
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string `db:"currency" json:"currency"`
-	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
-	AccountType           string `db:"account_type" json:"account_type"`
-}
-
-type LedFundEntry struct {
-	ID                   string             `db:"id" json:"id"`
-	GenerationID         string             `db:"generation_id" json:"generation_id"`
-	EntryType            string             `db:"entry_type" json:"entry_type"`
-	SourceEntity         string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID     string             `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo     string             `db:"source_document_no" json:"source_document_no"`
-	SourceLineID         string             `db:"source_line_id" json:"source_line_id"`
-	SourceRevision       int64              `db:"source_revision" json:"source_revision"`
-	EffectiveDate        pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt           pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	ActorID              string             `db:"actor_id" json:"actor_id"`
-	RequestID            string             `db:"request_id" json:"request_id"`
-	Remark               *string            `db:"remark" json:"remark"`
-	FundAccountObjectID  string             `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string             `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string             `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string             `db:"fund_account_name" json:"fund_account_name"`
-	Currency             string             `db:"currency" json:"currency"`
-	AmountDeltaCents     int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
-}
-
-type LedGeneration struct {
-	ID          string             `db:"id" json:"id"`
-	CutoverDate pgtype.Date        `db:"cutover_date" json:"cutover_date"`
-	Status      string             `db:"status" json:"status"`
-	ActivatedAt pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
-	ActivatedBy string             `db:"activated_by" json:"activated_by"`
-	RequestID   string             `db:"request_id" json:"request_id"`
-}
-
-type LedInventoryCostAllocation struct {
-	ClosingID        string `db:"closing_id" json:"closing_id"`
-	EntryID          string `db:"entry_id" json:"entry_id"`
-	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
-	SourceLineID     string `db:"source_line_id" json:"source_line_id"`
-	QuantityMicros   int64  `db:"quantity_micros" json:"quantity_micros"`
-	CostAmountCents  int64  `db:"cost_amount_cents" json:"cost_amount_cents"`
-	Currency         string `db:"currency" json:"currency"`
-}
-
-type LedInventoryEntry struct {
-	ID                  string             `db:"id" json:"id"`
-	GenerationID        string             `db:"generation_id" json:"generation_id"`
-	EntryType           string             `db:"entry_type" json:"entry_type"`
-	SourceEntity        string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID    string             `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo    string             `db:"source_document_no" json:"source_document_no"`
-	SourceLineID        string             `db:"source_line_id" json:"source_line_id"`
-	SourceRevision      int64              `db:"source_revision" json:"source_revision"`
-	EffectiveDate       pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt          pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	ActorID             string             `db:"actor_id" json:"actor_id"`
-	RequestID           string             `db:"request_id" json:"request_id"`
-	Remark              *string            `db:"remark" json:"remark"`
-	WarehouseObjectID   string             `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID  string             `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode       string             `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName       string             `db:"warehouse_name" json:"warehouse_name"`
-	ProductObjectID     string             `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID    string             `db:"product_version_id" json:"product_version_id"`
-	ProductCode         string             `db:"product_code" json:"product_code"`
-	ProductName         string             `db:"product_name" json:"product_name"`
-	ProductUnit         string             `db:"product_unit" json:"product_unit"`
-	QuantityDeltaMicros int64              `db:"quantity_delta_micros" json:"quantity_delta_micros"`
-	Currency            *string            `db:"currency" json:"currency"`
-	UnitPriceCents      *int64             `db:"unit_price_cents" json:"unit_price_cents"`
-	AmountCents         *int64             `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedOpeningContainer struct {
-	ID                string `db:"id" json:"id"`
-	GenerationID      string `db:"generation_id" json:"generation_id"`
-	CustomerObjectID  string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID string `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode      string `db:"customer_code" json:"customer_code"`
-	CustomerName      string `db:"customer_name" json:"customer_name"`
-	ContainerType     string `db:"container_type" json:"container_type"`
-	Quantity          int64  `db:"quantity" json:"quantity"`
-}
-
-type LedOpeningFund struct {
-	ID                   string `db:"id" json:"id"`
-	GenerationID         string `db:"generation_id" json:"generation_id"`
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
-	Currency             string `db:"currency" json:"currency"`
-	AmountCents          int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedOpeningInventory struct {
-	ID                 string  `db:"id" json:"id"`
-	GenerationID       string  `db:"generation_id" json:"generation_id"`
-	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
-	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string  `db:"product_code" json:"product_code"`
-	ProductName        string  `db:"product_name" json:"product_name"`
-	ProductUnit        string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros     int64   `db:"quantity_micros" json:"quantity_micros"`
-	Currency           *string `db:"currency" json:"currency"`
-	UnitPriceCents     *int64  `db:"unit_price_cents" json:"unit_price_cents"`
-	AmountCents        *int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type LedOpeningParty struct {
-	ID                    string `db:"id" json:"id"`
-	GenerationID          string `db:"generation_id" json:"generation_id"`
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string `db:"currency" json:"currency"`
-	AmountCents           int64  `db:"amount_cents" json:"amount_cents"`
-	AccountType           string `db:"account_type" json:"account_type"`
-}
-
-type LedPartyEntry struct {
-	ID                    string             `db:"id" json:"id"`
-	GenerationID          string             `db:"generation_id" json:"generation_id"`
-	EntryType             string             `db:"entry_type" json:"entry_type"`
-	SourceEntity          string             `db:"source_entity" json:"source_entity"`
-	SourceDocumentID      string             `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo      string             `db:"source_document_no" json:"source_document_no"`
-	SourceLineID          string             `db:"source_line_id" json:"source_line_id"`
-	SourceRevision        int64              `db:"source_revision" json:"source_revision"`
-	EffectiveDate         pgtype.Date        `db:"effective_date" json:"effective_date"`
-	OccurredAt            pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	ActorID               string             `db:"actor_id" json:"actor_id"`
-	RequestID             string             `db:"request_id" json:"request_id"`
-	Remark                *string            `db:"remark" json:"remark"`
-	CounterpartyEntity    string             `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string             `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string             `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string             `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string             `db:"counterparty_name" json:"counterparty_name"`
-	Currency              string             `db:"currency" json:"currency"`
-	AmountDeltaCents      int64              `db:"amount_delta_cents" json:"amount_delta_cents"`
-	AccountType           string             `db:"account_type" json:"account_type"`
-	OtherCategory         *string            `db:"other_category" json:"other_category"`
-}
-
 type MigrationWflRolePermission struct {
 	RoleID    string  `db:"role_id" json:"role_id"`
 	Entity    string  `db:"entity" json:"entity"`
@@ -1482,26 +1135,6 @@ type VouAssetAcquisitionLine struct {
 	CustodianName       *string `db:"custodian_name" json:"custodian_name"`
 	Location            string  `db:"location" json:"location"`
 	Remark              *string `db:"remark" json:"remark"`
-}
-
-type VouAssetDepreciationDetail struct {
-	DocumentID        string      `db:"document_id" json:"document_id"`
-	Entity            string      `db:"entity" json:"entity"`
-	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-}
-
-type VouAssetDepreciationLine struct {
-	ID                      string      `db:"id" json:"id"`
-	DocumentID              string      `db:"document_id" json:"document_id"`
-	LineNo                  int32       `db:"line_no" json:"line_no"`
-	DepreciationMonth       pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-	AssetID                 string      `db:"asset_id" json:"asset_id"`
-	AssetNo                 string      `db:"asset_no" json:"asset_no"`
-	AssetName               string      `db:"asset_name" json:"asset_name"`
-	AmountCents             int64       `db:"amount_cents" json:"amount_cents"`
-	OpeningAccumulatedCents int64       `db:"opening_accumulated_cents" json:"opening_accumulated_cents"`
-	ClosingAccumulatedCents int64       `db:"closing_accumulated_cents" json:"closing_accumulated_cents"`
-	Remark                  *string     `db:"remark" json:"remark"`
 }
 
 type VouAssetLiquidationDetail struct {

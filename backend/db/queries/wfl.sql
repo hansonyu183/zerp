@@ -414,11 +414,11 @@ WITH ordered AS (
   JOIN vou_product_lines line ON line.document_id = orders.order_id AND line.product_kind <> 'PACKAGING'
   LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id = line.id
 ), inventory AS (
-  SELECT entry.warehouse_object_id, entry.product_object_id,
+  SELECT entry.warehouse_id AS warehouse_object_id, entry.product_id AS product_object_id,
          sum(entry.quantity_delta_micros)::bigint AS balance_micros
-  FROM led_inventory_entries entry
-  JOIN led_control control ON control.singleton AND control.active_generation_id = entry.generation_id
-  GROUP BY entry.warehouse_object_id, entry.product_object_id
+  FROM acc_inventory_entries entry
+  JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+  GROUP BY entry.warehouse_id, entry.product_id
 ), allocated AS (
   SELECT demand.*,
          COALESCE(inventory.balance_micros, 0)::bigint AS balance_micros,

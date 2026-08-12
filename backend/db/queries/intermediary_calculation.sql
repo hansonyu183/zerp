@@ -288,12 +288,20 @@ ORDER BY return_line.source_signoff_line_id,return_document.business_date,
 
 -- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
-    SELECT entry.*
-    FROM led_party_entries entry
-    WHERE entry.generation_id=sqlc.arg(generation_id)
-      AND entry.account_type='TRADE'
-      AND entry.counterparty_entity='customer'
-      AND entry.currency='CNY'
+    SELECT line.id,
+           (line.dimensions->>'CUSTOMER')::text AS counterparty_object_id,
+           voucher.business_date AS effective_date,
+           (line.debit_minor-line.credit_minor)::bigint AS amount_delta_cents,
+           voucher.source_entity,
+           voucher.source_id AS source_document_id
+    FROM acc_voucher_lines line
+    JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+    JOIN acc_books book ON book.id=line.book_id AND book.control_book
+    JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
+    WHERE subject.settlement_purpose='CUSTOMER_RECEIVABLE'
+      AND line.dimensions ? 'CUSTOMER'
+      AND line.currency='CNY'
+      AND voucher.business_date<=sqlc.arg(period_end)
 ), precutover_return_baseline AS (
     SELECT return_line.source_signoff_line_id,
            sum(return_line.quantity_micros)::bigint AS returned_quantity_micros,
@@ -366,7 +374,7 @@ WITH trade AS (
                PARTITION BY source_signoff_line_id ORDER BY return_date
            ),baseline_amount_cents))::bigint AS amount_cents
     FROM precutover_rounded_return
-), mapped AS (
+), mapped(counterparty_object_id,effective_date,amount_delta_cents) AS (
     -- In-scope after-sale returns are applied to their source signoff by the
     -- dedicated return timeline. Excluding them here prevents a return from
     -- becoming collection capacity for another signoff.
@@ -408,7 +416,6 @@ WITH trade AS (
 )
 SELECT counterparty_object_id,effective_date,sum(amount_delta_cents)::bigint AS amount_delta_cents
 FROM mapped
-WHERE effective_date <= sqlc.arg(period_end)
 GROUP BY counterparty_object_id,effective_date
 ORDER BY counterparty_object_id,effective_date;
 
@@ -461,83 +468,3 @@ WHERE document.entity='bill-receipt'
         AND allocation_document.business_date <> sqlc.arg(period_end)::date
   )
 ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
-
--- name: InsertLedOtherEntry :exec
-INSERT INTO led_party_entries(
-    id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-    source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,remark,
-    counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,
-    counterparty_name,currency,amount_delta_cents,account_type,other_category
-) VALUES (
-    sqlc.arg(id),sqlc.arg(generation_id),sqlc.arg(entry_type),sqlc.arg(source_entity),
-    sqlc.arg(source_document_id),sqlc.arg(source_document_no),sqlc.arg(source_line_id),
-    sqlc.arg(source_revision),sqlc.arg(effective_date),sqlc.arg(occurred_at),
-    sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.narg(remark),
-    sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),
-    sqlc.arg(counterparty_version_id),sqlc.arg(counterparty_code),
-    sqlc.arg(counterparty_name),sqlc.arg(currency),sqlc.arg(amount_delta_cents),
-    'OTHER',sqlc.narg(other_category)
-) ON CONFLICT DO NOTHING;
-
--- name: CountLedOtherEntries :one
-SELECT count(*) FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
-  AND effective_date BETWEEN sqlc.arg(date_from) AND sqlc.arg(date_to)
-  AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-  AND (sqlc.arg(source_entity)::text='' OR source_entity=sqlc.arg(source_entity))
-  AND (sqlc.arg(document_no)::text='' OR source_document_no ILIKE '%'||sqlc.arg(document_no)||'%')
-  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
-  AND (sqlc.arg(other_category)::text='' OR other_category=sqlc.arg(other_category))
-  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]),0)=0
-       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY(sqlc.arg(directions)::text[]));
-
--- name: ListLedOtherEntries :many
-SELECT * FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
-  AND effective_date BETWEEN sqlc.arg(date_from) AND sqlc.arg(date_to)
-  AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-  AND (sqlc.arg(source_entity)::text='' OR source_entity=sqlc.arg(source_entity))
-  AND (sqlc.arg(document_no)::text='' OR source_document_no ILIKE '%'||sqlc.arg(document_no)||'%')
-  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
-  AND (sqlc.arg(other_category)::text='' OR other_category=sqlc.arg(other_category))
-  AND (COALESCE(cardinality(sqlc.arg(directions)::text[]),0)=0
-       OR (CASE WHEN amount_delta_cents<0 THEN 'CREDIT' ELSE 'DEBIT' END)=ANY(sqlc.arg(directions)::text[]))
-ORDER BY
-  CASE WHEN sqlc.arg(sort_field)::text='effectiveDate' AND sqlc.arg(sort_order)::text='asc' THEN effective_date END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='effectiveDate' AND sqlc.arg(sort_order)::text='desc' THEN effective_date END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='occurredAt' AND sqlc.arg(sort_order)::text='asc' THEN occurred_at END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='occurredAt' AND sqlc.arg(sort_order)::text='desc' THEN occurred_at END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='documentNo' AND sqlc.arg(sort_order)::text='asc' THEN source_document_no END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='documentNo' AND sqlc.arg(sort_order)::text='desc' THEN source_document_no END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='amount' AND sqlc.arg(sort_order)::text='asc' THEN abs(amount_delta_cents) END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='amount' AND sqlc.arg(sort_order)::text='desc' THEN abs(amount_delta_cents) END DESC,
-  effective_date DESC,occurred_at DESC,id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
--- name: CountLedOtherBalances :one
-SELECT count(*) FROM (
-  SELECT counterparty_entity,counterparty_object_id,currency
-  FROM led_party_entries
-  WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
-    AND effective_date<=sqlc.arg(as_of_date)
-    AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-    AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
-  GROUP BY counterparty_entity,counterparty_object_id,currency
-  HAVING sum(amount_delta_cents)<>0
-) balances;
-
--- name: ListLedOtherBalances :many
-SELECT counterparty_entity,counterparty_object_id,
-       (array_agg(counterparty_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS counterparty_version_id,
-       max(counterparty_code)::varchar(64) AS counterparty_code,
-       (array_agg(counterparty_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS counterparty_name,
-       currency,sum(amount_delta_cents)::bigint AS balance_cents
-FROM led_party_entries
-WHERE generation_id=sqlc.arg(generation_id) AND account_type='OTHER'
-  AND effective_date<=sqlc.arg(as_of_date)
-  AND (sqlc.arg(object_id)::text='' OR counterparty_object_id=sqlc.arg(object_id))
-  AND (sqlc.arg(counterparty_entity)::text='' OR counterparty_entity=sqlc.arg(counterparty_entity))
-GROUP BY counterparty_entity,counterparty_object_id,currency
-HAVING sum(amount_delta_cents)<>0
-ORDER BY counterparty_entity,counterparty_code,currency
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);

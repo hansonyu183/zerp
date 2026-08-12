@@ -23,7 +23,6 @@ import (
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 )
@@ -159,7 +158,6 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
-		leddomain.NewHandler(nil, nil, testLogger()).Register(router)
 	})
 	swagger, err := generated.GetSpec()
 	if err != nil {
@@ -209,8 +207,7 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 			!strings.HasPrefix(contractPath, "/aux/") &&
 			!strings.HasPrefix(contractPath, "/bob/") &&
 			!strings.HasPrefix(contractPath, "/vou/") &&
-			!strings.HasPrefix(contractPath, "/wfl/") &&
-			!strings.HasPrefix(contractPath, "/led/") {
+			!strings.HasPrefix(contractPath, "/wfl/") {
 			continue
 		}
 		for method, operation := range pathItem.Operations() {

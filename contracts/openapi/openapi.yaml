@@ -16,7 +16,6 @@
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
       { 'name': 'acc', 'description': '内部会计' },
-      { 'name': 'led', 'description': '业务账簿' },
       { 'name': 'files', 'description': '二进制附件端点' },
       { 'name': 'operations', 'description': '运行状态端点' },
     ],
@@ -2607,6 +2606,82 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/bill-source':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '选择 ACC 登记的可用票据',
+              'operationId': 'vouAvailableBillQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouAvailableBillQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '可用票据分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/vou.yaml#/VouAvailableBillQueryResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/vou/{entity}/asset-source':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '选择 ACC 登记的在用资产',
+              'operationId': 'vouAvailableAssetQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '在用资产分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/vou/{entity}/formula-default':
         {
           'post':
@@ -2695,33 +2770,6 @@
                         {
                           'schema':
                             { '$ref': './schemas/vou.yaml#/VouCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/preview':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '预览固定资产折旧',
-              'operationId': 'vouassetdepreciationpreview',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/vou.yaml#/VouAssetDepreciationPreviewRequest',
-                            },
                         },
                     },
                 },
@@ -3428,487 +3476,6 @@
                           'schema':
                             {
                               '$ref': './schemas/wfl.yaml#/WflInstanceHistoryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/get':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '读取最近结账与期初余额',
-              'operationId': 'ledclosingget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/common.yaml#/EmptyObject' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/close':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '执行月末结账',
-              'operationId': 'ledclosingclose',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedClosingRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/unclose':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '反结最近一期',
-              'operationId': 'ledclosingunclose',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedUncloseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/history':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询月末结账历史',
-              'operationId': 'ledclosinghistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/inventory/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询库存流水',
-              'operationId': 'ledinventoryquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/bill/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询票据台账',
-              'operationId': 'ledbillquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedBillQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '票据台账分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/led.yaml#/LedBillQueryResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/led/inventory/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询库存余额',
-              'operationId': 'ledinventorybalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/fund/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询资金流水',
-              'operationId': 'ledfundquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/fund/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询资金余额',
-              'operationId': 'ledfundbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/customer/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询客户往来流水',
-              'operationId': 'ledcustomerquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/customer/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询客户往来余额',
-              'operationId': 'ledcustomerbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/supplier/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询供应商往来流水',
-              'operationId': 'ledsupplierquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/supplier/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询供应商往来余额',
-              'operationId': 'ledsupplierbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询其他往来流水',
-              'operationId': 'ledotherquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedOtherQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询其他往来余额',
-              'operationId': 'ledotherbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedOtherBalanceRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/container/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询容器流水',
-              'operationId': 'ledcontainerquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/container/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询容器余额',
-              'operationId': 'ledcontainerbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/asset/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询固定资产台账',
-              'operationId': 'ledassetquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedAssetQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/asset/get':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查看固定资产台账',
-              'operationId': 'ledassetget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedAssetGetRequest',
                             },
                         },
                     },

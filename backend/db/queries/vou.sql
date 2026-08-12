@@ -54,42 +54,46 @@ WHERE document_id=sqlc.arg(document_id);
 
 -- name: CountVouInventoryCountBookBalances :one
 SELECT count(*) FROM (
-    SELECT product_object_id
-    FROM led_inventory_entries
-    WHERE generation_id=sqlc.arg(generation_id)
-      AND warehouse_object_id=sqlc.arg(warehouse_object_id)
-      AND effective_date <= sqlc.arg(as_of_date)
-    GROUP BY product_object_id
+    SELECT entry.product_id
+    FROM acc_inventory_entries entry
+    JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+    WHERE entry.warehouse_id=sqlc.arg(warehouse_object_id)
+      AND entry.business_date <= sqlc.arg(as_of_date)
+    GROUP BY entry.product_id
     HAVING sum(quantity_delta_micros) <> 0
 ) balances;
 
 -- name: ListVouInventoryCountBookBalances :many
-SELECT product_object_id,
-       (array_agg(product_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS product_version_id,
-       max(product_code)::varchar(64) AS product_code,
-       (array_agg(product_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS product_name,
-       (array_agg(product_unit ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(32) AS product_unit,
-       sum(quantity_delta_micros)::bigint AS quantity_micros
-FROM led_inventory_entries
-WHERE generation_id=sqlc.arg(generation_id)
-  AND warehouse_object_id=sqlc.arg(warehouse_object_id)
-  AND effective_date <= sqlc.arg(as_of_date)
-GROUP BY product_object_id
-HAVING sum(quantity_delta_micros) <> 0
-ORDER BY max(product_code),product_object_id
+SELECT entry.product_id AS product_object_id,
+       object.effective_version_id AS product_version_id,
+       object.code AS product_code,
+       version.name AS product_name,
+       version.unit AS product_unit,
+       sum(entry.quantity_delta_micros)::bigint AS quantity_micros
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
+JOIN bob_product_versions version ON version.version_id=object.effective_version_id
+WHERE entry.warehouse_id=sqlc.arg(warehouse_object_id)
+  AND entry.business_date <= sqlc.arg(as_of_date)
+GROUP BY entry.product_id,object.effective_version_id,object.code,version.name,version.unit
+HAVING sum(entry.quantity_delta_micros) <> 0
+ORDER BY object.code,entry.product_id
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetVouInventoryCountBookQuantity :one
 SELECT COALESCE(sum(quantity_delta_micros),0)::bigint
-FROM led_inventory_entries
-WHERE generation_id=sqlc.arg(generation_id)
-  AND warehouse_object_id=sqlc.arg(warehouse_object_id)
-  AND product_object_id=sqlc.arg(product_object_id)
-  AND effective_date <= sqlc.arg(as_of_date);
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+WHERE entry.warehouse_id=sqlc.arg(warehouse_object_id)
+  AND entry.product_id=sqlc.arg(product_object_id)
+  AND entry.business_date <= sqlc.arg(as_of_date);
 
--- name: GetVouInventoryCountClosingDate :one
-SELECT closing_date FROM led_closings
-WHERE id=sqlc.arg(id) AND status='ACTIVE';
+-- name: GetAccountingControlBookForVou :one
+SELECT id,start_month FROM acc_books WHERE control_book;
+
+-- name: LockAccountingControlBookForVou :one
+SELECT id,start_month FROM acc_books WHERE control_book FOR UPDATE;
 
 -- name: InsertVouAssetAcquisitionDetail :exec
 INSERT INTO vou_asset_acquisition_details(document_id,entity,supplier_object_id,supplier_version_id,supplier_code,supplier_name)
@@ -117,26 +121,6 @@ VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_name)
 
 -- name: ListVouAssetAcquisitionLines :many
 SELECT * FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
-
--- name: InsertVouAssetDepreciationDetail :exec
-INSERT INTO vou_asset_depreciation_details(document_id,entity,depreciation_month)
-VALUES(sqlc.arg(document_id),'asset-depreciation',sqlc.arg(depreciation_month));
-
--- name: UpdateVouAssetDepreciationDetail :execrows
-UPDATE vou_asset_depreciation_details SET depreciation_month=sqlc.arg(depreciation_month) WHERE document_id=sqlc.arg(document_id);
-
--- name: GetVouAssetDepreciationDetail :one
-SELECT * FROM vou_asset_depreciation_details WHERE document_id=sqlc.arg(document_id);
-
--- name: DeleteVouAssetDepreciationLines :exec
-DELETE FROM vou_asset_depreciation_lines WHERE document_id=sqlc.arg(document_id);
-
--- name: InsertVouAssetDepreciationLine :exec
-INSERT INTO vou_asset_depreciation_lines(id,document_id,line_no,depreciation_month,asset_id,asset_no,asset_name,amount_cents,opening_accumulated_cents,closing_accumulated_cents,remark)
-VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(depreciation_month),sqlc.arg(asset_id),sqlc.arg(asset_no),sqlc.arg(asset_name),sqlc.arg(amount_cents),sqlc.arg(opening_accumulated_cents),sqlc.arg(closing_accumulated_cents),sqlc.narg(remark));
-
--- name: ListVouAssetDepreciationLines :many
-SELECT * FROM vou_asset_depreciation_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
 -- name: InsertVouAssetSaleDetail :exec
 INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name)
@@ -175,20 +159,31 @@ VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_id),s
 -- name: ListVouAssetLiquidationLines :many
 SELECT * FROM vou_asset_liquidation_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
--- name: GetActiveLedAssetForVou :one
-SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
-WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=sqlc.arg(asset_id);
+-- name: GetActiveAccountingAssetForVou :one
+SELECT id,asset_no,name,acquired_on,state,disposed_on
+FROM acc_assets
+WHERE id=sqlc.arg(asset_id) AND state='ACTIVE';
 
--- name: ListDepreciableLedAssetsForVou :many
-SELECT a.* FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
-WHERE c.singleton=true AND c.status='ACTIVE' AND a.status='ACTIVE'
-  AND a.depreciation_start_month<=sqlc.arg(depreciation_month)
-  AND ((a.last_depreciation_month IS NULL AND a.depreciation_start_month=sqlc.arg(depreciation_month))
-    OR a.last_depreciation_month + interval '1 month'=sqlc.arg(depreciation_month))
-  AND a.accumulated_depreciation_cents<a.original_value_cents-a.residual_value_cents
-  AND (sqlc.arg(category_object_id)::text='' OR a.category_object_id=sqlc.arg(category_object_id))
-  AND (sqlc.arg(department_object_id)::text='' OR a.department_object_id=sqlc.arg(department_object_id))
-ORDER BY a.asset_no;
+-- name: LockAccountingBillForVou :one
+SELECT bill.id,bill.bill_no,bill.bill_type,bill.position_type,bill.currency,
+       bill.medium,bill.face_amount_minor AS face_amount_cents,
+       bill.issue_date,bill.maturity_date,bill.drawer,bill.acceptor,bill.payee,
+       bill.annual_rate_bps,bill.interest_days,bill.interest_amount_minor AS interest_amount_cents,
+       bill.customer_cost_amount_minor AS customer_cost_amount_cents,bill.state,bill.source_document_id,
+       bill.settled_by_document_id
+FROM acc_bills bill
+WHERE bill.id=sqlc.arg(bill_id)
+FOR UPDATE OF bill;
+
+-- name: GetAccountingBillAvailableBalance :one
+SELECT CASE WHEN EXISTS (
+  SELECT 1 FROM acc_bills bill
+  LEFT JOIN vou_documents settlement ON settlement.id=bill.settled_by_document_id
+  WHERE bill.id=sqlc.arg(bill_id)
+    AND bill.position_type=sqlc.arg(position_type)
+    AND bill.issue_date<=sqlc.arg(as_of_date)
+    AND (bill.state='AVAILABLE' OR settlement.business_date>sqlc.arg(as_of_date))
+) THEN 1::bigint ELSE 0::bigint END;
 
 -- name: CountVouProductionAttributes :one
 SELECT
@@ -341,11 +336,10 @@ RETURNING revision;
 SELECT EXISTS(
     SELECT 1
     FROM vou_documents document
-    JOIN led_control control ON control.singleton = true
-    JOIN led_closings closing
-      ON closing.id = control.last_closing_id AND closing.status = 'ACTIVE'
+    JOIN acc_periods period
+      ON period.period_month=date_trunc('month',document.business_date)::date
+     AND period.state='LOCKED'
     WHERE document.id = $1
-      AND document.business_date <= closing.closing_date
 );
 
 -- name: CountVouDocuments :one

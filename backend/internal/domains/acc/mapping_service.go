@@ -20,7 +20,7 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 		"order-production", "self-production", "inventory-count",
 		"sales-receipt", "purchase-refund", "other-receipt", "sales-refund", "purchase-payment", "other-payment",
 		"employee-loan", "employee-repayment", "employee-loan-writeoff", "expense-reimbursement", "expense-payment", "other-income",
-		"asset-acquisition", "asset-depreciation", "asset-sale", "asset-liquidation",
+		"asset-acquisition", "asset-sale", "asset-liquidation",
 		"bill-receipt", "bill-payment", "bill-issue", "bill-discount", "bill-maturity", "intermediary-calculation",
 	}
 	result := make(map[string]struct{}, len(entities))
@@ -31,7 +31,7 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 }()
 
 var mappingHeaderFields = []string{
-	"amount", "businessDate", "containerDifferenceReason", "currency", "depreciationMonth", "differenceReason",
+	"amount", "businessDate", "containerDifferenceReason", "currency", "differenceReason",
 	"documentId", "documentNo", "dueDate", "entity", "fulfillmentStatus", "interestMode", "maturityType",
 	"otherCategory", "parentDocumentId", "parentEntity", "remark", "returnKind", "returnReason", "revision",
 	"settlementMode", "sourceName", "specialApproval", "status", "totalAmount", "withRecourse",
@@ -50,7 +50,7 @@ var mappingLineFields = []string{
 }
 
 var mappingCollections = []string{
-	"assetAcquisitionLines", "assetDepreciationLines", "assetLiquidationLines", "assetSaleLines", "billCashLines",
+	"assetAcquisitionLines", "assetLiquidationLines", "assetSaleLines", "billCashLines",
 	"billLines", "expenseLines", "inventoryCountLines", "lines", "priceLines", "productLines", "productionLines", "signoffLines",
 }
 

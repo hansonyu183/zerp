@@ -8,7 +8,6 @@ import (
 
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -49,7 +48,6 @@ type Result struct {
 	Auxiliary Counts
 	Business  Counts
 	Vouchers  Counts
-	Ledger    Counts
 }
 
 type outcome int
@@ -64,7 +62,6 @@ type Seeder struct {
 	pool      *pgxpool.Pool
 	auxiliary *auxdomain.Service
 	business  *bobdomain.Service
-	ledger    *leddomain.Service
 	vouchers  *voudomain.Service
 	auxRefs   map[string]auxdomain.ObjectView
 	bobRefs   map[string]bobdomain.ObjectView
@@ -96,18 +93,11 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	ledger, err := leddomain.NewService(pool, business, vouchers)
-	if err != nil {
-		return nil, fmt.Errorf("create ledger service: %w", err)
-	}
-	if err = ledger.RegisterSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register ledger subscriptions: %w", err)
-	}
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}
 	return &Seeder{
-		pool: pool, auxiliary: auxiliary, business: business, ledger: ledger,
+		pool: pool, auxiliary: auxiliary, business: business,
 		vouchers: vouchers, auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),
 	}, nil
@@ -121,17 +111,8 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	if err := s.seedBusiness(ctx, &result.Business); err != nil {
 		return result, fmt.Errorf("seed business data: %w", err)
 	}
-	if err := s.seedLedgerBaseline(ctx, &result.Ledger); err != nil {
-		return result, fmt.Errorf("seed ledger baseline: %w", err)
-	}
-	if err := s.seedInventoryBalance(ctx, &result.Ledger); err != nil {
-		return result, fmt.Errorf("seed inventory balance: %w", err)
-	}
 	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed voucher data: %w", err)
-	}
-	if err := s.seedContainerBalance(ctx, &result.Ledger); err != nil {
-		return result, fmt.Errorf("seed container ledger: %w", err)
 	}
 	return result, nil
 }

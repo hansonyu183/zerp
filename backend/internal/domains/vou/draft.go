@@ -534,12 +534,6 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read asset acquisition lines", err)
 		}
 		missing = len(lines) == 0
-	case EntityAssetDepreciation:
-		lines, err := q.ListVouAssetDepreciationLines(ctx, documentID)
-		if err != nil {
-			return s.internal("read asset depreciation lines", err)
-		}
-		missing = len(lines) == 0
 	case EntityAssetSale:
 		lines, err := q.ListVouAssetSaleLines(ctx, documentID)
 		if err != nil {

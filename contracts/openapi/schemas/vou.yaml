@@ -30,7 +30,6 @@
           'expense-payment',
           'other-income',
           'asset-acquisition',
-          'asset-depreciation',
           'asset-sale',
           'asset-liquidation',
           'bill-receipt',
@@ -68,7 +67,6 @@
           'expense-reimbursement',
           'other-income',
           'asset-acquisition',
-          'asset-depreciation',
           'asset-sale',
           'asset-liquidation',
           'bill-receipt',
@@ -942,6 +940,162 @@
           'asOfDate': { 'type': 'string', 'format': 'date' },
         },
     },
+  'VouAvailableBillQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'positionType'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'positionType':
+            { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+          'billNo': { 'type': 'string', 'maxLength': 200 },
+        },
+    },
+  'VouAvailableAssetQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+  'VouAvailableAssetItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'assetId',
+          'assetNo',
+          'assetName',
+          'originalValue',
+          'accumulatedDepreciation',
+          'netValue',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'assetId': { 'type': 'string' },
+          'assetNo': { 'type': 'string' },
+          'assetName': { 'type': 'string' },
+          'originalValue': { 'type': 'string' },
+          'accumulatedDepreciation': { 'type': 'string' },
+          'netValue': { 'type': 'string' },
+        },
+    },
+  'VouAvailableAssetQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/VouAvailableAssetItem' },
+                    },
+                  'total': { 'type': 'integer' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'VouAvailableBillItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'billId',
+          'positionType',
+          'billType',
+          'billNo',
+          'medium',
+          'currency',
+          'faceAmount',
+          'issueDate',
+          'maturityDate',
+          'drawer',
+          'acceptor',
+          'payee',
+          'annualRateBps',
+          'interestDays',
+          'interestAmount',
+          'customerCostAmount',
+          'originatingParty',
+          'sourceEntity',
+          'sourceDocumentNo',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'billId': { 'type': 'string' },
+          'positionType': { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+          'billType':
+            { 'type': 'string', 'enum': ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'] },
+          'billNo': { 'type': 'string' },
+          'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
+          'currency': { 'type': 'string' },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string' },
+          'acceptor': { 'type': 'string' },
+          'payee': { 'type': 'string' },
+          'annualRateBps': { 'type': 'integer' },
+          'interestDays': { 'type': 'integer' },
+          'interestAmount': { 'type': 'string' },
+          'customerCostAmount': { 'type': 'string' },
+          'originatingParty': { '$ref': '#/VouBillReferenceView' },
+          'sourceEntity': { 'type': 'string' },
+          'sourceDocumentNo': { 'type': 'string' },
+        },
+    },
+  'VouAvailableBillQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/VouAvailableBillItem' },
+                    },
+                  'total': { 'type': 'integer' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'VouQueryRequest':
     {
       'type': 'object',
@@ -1258,21 +1412,12 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouProductionOutputInput' },
                     },
-                  'depreciationMonth':
-                    { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
                   'assetAcquisitionLines':
                     {
                       'type': 'array',
                       'minItems': 1,
                       'maxItems': 200,
                       'items': { '$ref': '#/VouAssetAcquisitionLineInput' },
-                    },
-                  'assetDepreciationLines':
-                    {
-                      'type': 'array',
-                      'minItems': 1,
-                      'maxItems': 500,
-                      'items': { '$ref': '#/VouAssetDepreciationLineInput' },
                     },
                   'assetSaleLines':
                     {
@@ -1632,21 +1777,12 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouProductionOutputInput' },
                     },
-                  'depreciationMonth':
-                    { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
                   'assetAcquisitionLines':
                     {
                       'type': 'array',
                       'minItems': 1,
                       'maxItems': 200,
                       'items': { '$ref': '#/VouAssetAcquisitionLineInput' },
-                    },
-                  'assetDepreciationLines':
-                    {
-                      'type': 'array',
-                      'minItems': 1,
-                      'maxItems': 500,
-                      'items': { '$ref': '#/VouAssetDepreciationLineInput' },
                     },
                   'assetSaleLines':
                     {
@@ -2030,17 +2166,6 @@
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
-  'VouAssetDepreciationLineInput':
-    {
-      'type': 'object',
-      'required': ['assetId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'assetId': { 'type': 'string' },
-          'remark': { 'type': 'string', 'maxLength': 1000 },
-        },
-    },
   'VouAssetSaleLineInput':
     {
       'type': 'object',
@@ -2065,19 +2190,6 @@
           'salvageIncome': { 'type': 'string' },
           'disposalExpense': { 'type': 'string' },
           'remark': { 'type': 'string', 'maxLength': 1000 },
-        },
-    },
-  'VouAssetDepreciationPreviewRequest':
-    {
-      'type': 'object',
-      'required': ['depreciationMonth'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'depreciationMonth':
-            { 'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}$' },
-          'categoryObjectId': { 'type': 'string' },
-          'departmentObjectId': { 'type': 'string' },
         },
     },
   'VouProductionMaterialInput':

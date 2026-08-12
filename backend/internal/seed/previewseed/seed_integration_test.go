@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,14 +40,13 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("repeat preview seed: %v", err)
 	}
 	if created := second.Auxiliary.Created + second.Business.Created +
-		second.Vouchers.Created + second.Ledger.Created; created != 0 {
+		second.Vouchers.Created; created != 0 {
 		t.Fatalf("repeat seed created %d rows: %+v", created, second)
 	}
 	if resumed := second.Auxiliary.Resumed + second.Business.Resumed +
-		second.Vouchers.Resumed + second.Ledger.Resumed; resumed != 0 {
+		second.Vouchers.Resumed; resumed != 0 {
 		t.Fatalf("repeat seed resumed %d rows: %+v", resumed, second)
 	}
-	assertInventoryBalanceRepairIdempotent(t, seeder, pool)
 	assertDistinctEntities(t, pool, "aux_objects", 9)
 	var businessEntities int
 	if err = pool.QueryRow(t.Context(), `
@@ -64,7 +62,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if businessEntities != 8 {
 		t.Fatalf("preview BOB distinct entities = %d, want 8", businessEntities)
 	}
-	assertDistinctEntities(t, pool, "vou_documents", 15)
+	assertDistinctEntities(t, pool, "vou_documents", 14)
 	var approvedWorkflows int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(DISTINCT process_type)
@@ -76,18 +74,6 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if approvedWorkflows != 2 {
 		t.Fatalf("approved workflow types = %d, want 2", approvedWorkflows)
 	}
-	for _, table := range []string{
-		"led_inventory_entries", "led_fund_entries", "led_party_entries", "led_container_entries",
-	} {
-		var count int
-		if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil {
-			t.Fatalf("count %s: %v", table, err)
-		}
-		if count == 0 {
-			t.Fatalf("%s is empty", table)
-		}
-	}
-
 	var receiptID string
 	if err = pool.QueryRow(t.Context(), `
 		SELECT document_id
@@ -124,52 +110,6 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	}
 	if receipt.Status != voudomain.StatusChecked {
 		t.Fatalf("tester-owned receipt status = %s, want CHECKED", receipt.Status)
-	}
-}
-
-func assertInventoryBalanceRepairIdempotent(
-	t *testing.T,
-	seeder *Seeder,
-	pool *pgxpool.Pool,
-) {
-	t.Helper()
-	warehouse := seeder.bobRefs["warehouse-effective"]
-	products := []bobdomain.ObjectView{
-		seeder.bobRefs["raw-effective"],
-		seeder.bobRefs["finished-effective"],
-	}
-	productIDs := []string{products[0].ObjectID, products[1].ObjectID}
-	if _, err := pool.Exec(t.Context(), `
-		DELETE FROM led_inventory_entries
-		WHERE entry_type='OPENING' AND warehouse_object_id=$1
-		  AND product_object_id=ANY($2::text[])
-	`, warehouse.ObjectID, productIDs); err != nil {
-		t.Fatalf("remove preview inventory balances: %v", err)
-	}
-	var first Counts
-	if err := seeder.seedInventoryBalance(t.Context(), &first); err != nil {
-		t.Fatalf("repair preview inventory balances: %v", err)
-	}
-	if first.Created != 1 {
-		t.Fatalf("inventory repair counts = %+v, want one created task", first)
-	}
-	var count int
-	if err := pool.QueryRow(t.Context(), `
-		SELECT count(*) FROM led_inventory_entries
-		WHERE entry_type='OPENING' AND warehouse_object_id=$1
-		  AND product_object_id=ANY($2::text[])
-	`, warehouse.ObjectID, productIDs).Scan(&count); err != nil {
-		t.Fatalf("count repaired preview inventory balances: %v", err)
-	}
-	if count != len(products) {
-		t.Fatalf("repaired preview inventory balances = %d, want %d", count, len(products))
-	}
-	var second Counts
-	if err := seeder.seedInventoryBalance(t.Context(), &second); err != nil {
-		t.Fatalf("repeat preview inventory repair: %v", err)
-	}
-	if second.Skipped != 1 {
-		t.Fatalf("repeat inventory repair counts = %+v, want one skipped task", second)
 	}
 }
 

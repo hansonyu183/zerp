@@ -296,417 +296,6 @@ func (e FeedbackCreateRequestCategory) Valid() bool {
 	}
 }
 
-// Defines values for LedAssetQueryRequestFiltersStatus.
-const (
-	ACTIVE  LedAssetQueryRequestFiltersStatus = "ACTIVE"
-	RETIRED LedAssetQueryRequestFiltersStatus = "RETIRED"
-	SOLD    LedAssetQueryRequestFiltersStatus = "SOLD"
-)
-
-// Valid indicates whether the value is a known member of the LedAssetQueryRequestFiltersStatus enum.
-func (e LedAssetQueryRequestFiltersStatus) Valid() bool {
-	switch e {
-	case ACTIVE:
-		return true
-	case RETIRED:
-		return true
-	case SOLD:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemAvailability.
-const (
-	LedBillListItemAvailabilityAVAILABLE LedBillListItemAvailability = "AVAILABLE"
-	LedBillListItemAvailabilityMATURED   LedBillListItemAvailability = "MATURED"
-	LedBillListItemAvailabilityUSED      LedBillListItemAvailability = "USED"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemAvailability enum.
-func (e LedBillListItemAvailability) Valid() bool {
-	switch e {
-	case LedBillListItemAvailabilityAVAILABLE:
-		return true
-	case LedBillListItemAvailabilityMATURED:
-		return true
-	case LedBillListItemAvailabilityUSED:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemBillType.
-const (
-	LedBillListItemBillTypeBANKACCEPTANCE       LedBillListItemBillType = "BANK_ACCEPTANCE"
-	LedBillListItemBillTypeCHECK                LedBillListItemBillType = "CHECK"
-	LedBillListItemBillTypeCOMMERCIALACCEPTANCE LedBillListItemBillType = "COMMERCIAL_ACCEPTANCE"
-	LedBillListItemBillTypeOTHER                LedBillListItemBillType = "OTHER"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemBillType enum.
-func (e LedBillListItemBillType) Valid() bool {
-	switch e {
-	case LedBillListItemBillTypeBANKACCEPTANCE:
-		return true
-	case LedBillListItemBillTypeCHECK:
-		return true
-	case LedBillListItemBillTypeCOMMERCIALACCEPTANCE:
-		return true
-	case LedBillListItemBillTypeOTHER:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemMedium.
-const (
-	LedBillListItemMediumELECTRONIC LedBillListItemMedium = "ELECTRONIC"
-	LedBillListItemMediumPAPER      LedBillListItemMedium = "PAPER"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemMedium enum.
-func (e LedBillListItemMedium) Valid() bool {
-	switch e {
-	case LedBillListItemMediumELECTRONIC:
-		return true
-	case LedBillListItemMediumPAPER:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemOriginatingPartyEntity.
-const (
-	LedBillListItemOriginatingPartyEntityCustomer   LedBillListItemOriginatingPartyEntity = "customer"
-	LedBillListItemOriginatingPartyEntityOtherParty LedBillListItemOriginatingPartyEntity = "other-party"
-	LedBillListItemOriginatingPartyEntitySupplier   LedBillListItemOriginatingPartyEntity = "supplier"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemOriginatingPartyEntity enum.
-func (e LedBillListItemOriginatingPartyEntity) Valid() bool {
-	switch e {
-	case LedBillListItemOriginatingPartyEntityCustomer:
-		return true
-	case LedBillListItemOriginatingPartyEntityOtherParty:
-		return true
-	case LedBillListItemOriginatingPartyEntitySupplier:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemPositionType.
-const (
-	LedBillListItemPositionTypeASSET     LedBillListItemPositionType = "ASSET"
-	LedBillListItemPositionTypeLIABILITY LedBillListItemPositionType = "LIABILITY"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemPositionType enum.
-func (e LedBillListItemPositionType) Valid() bool {
-	switch e {
-	case LedBillListItemPositionTypeASSET:
-		return true
-	case LedBillListItemPositionTypeLIABILITY:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillListItemSourceEntity.
-const (
-	LedBillListItemSourceEntityBillDiscount LedBillListItemSourceEntity = "bill-discount"
-	LedBillListItemSourceEntityBillIssue    LedBillListItemSourceEntity = "bill-issue"
-	LedBillListItemSourceEntityBillMaturity LedBillListItemSourceEntity = "bill-maturity"
-	LedBillListItemSourceEntityBillPayment  LedBillListItemSourceEntity = "bill-payment"
-	LedBillListItemSourceEntityBillReceipt  LedBillListItemSourceEntity = "bill-receipt"
-)
-
-// Valid indicates whether the value is a known member of the LedBillListItemSourceEntity enum.
-func (e LedBillListItemSourceEntity) Valid() bool {
-	switch e {
-	case LedBillListItemSourceEntityBillDiscount:
-		return true
-	case LedBillListItemSourceEntityBillIssue:
-		return true
-	case LedBillListItemSourceEntityBillMaturity:
-		return true
-	case LedBillListItemSourceEntityBillPayment:
-		return true
-	case LedBillListItemSourceEntityBillReceipt:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestFiltersAvailability.
-const (
-	LedBillQueryRequestFiltersAvailabilityAVAILABLE LedBillQueryRequestFiltersAvailability = "AVAILABLE"
-	LedBillQueryRequestFiltersAvailabilityHELD      LedBillQueryRequestFiltersAvailability = "HELD"
-	LedBillQueryRequestFiltersAvailabilityMATURED   LedBillQueryRequestFiltersAvailability = "MATURED"
-	LedBillQueryRequestFiltersAvailabilityUSED      LedBillQueryRequestFiltersAvailability = "USED"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersAvailability enum.
-func (e LedBillQueryRequestFiltersAvailability) Valid() bool {
-	switch e {
-	case LedBillQueryRequestFiltersAvailabilityAVAILABLE:
-		return true
-	case LedBillQueryRequestFiltersAvailabilityHELD:
-		return true
-	case LedBillQueryRequestFiltersAvailabilityMATURED:
-		return true
-	case LedBillQueryRequestFiltersAvailabilityUSED:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestFiltersBillType.
-const (
-	LedBillQueryRequestFiltersBillTypeBANKACCEPTANCE       LedBillQueryRequestFiltersBillType = "BANK_ACCEPTANCE"
-	LedBillQueryRequestFiltersBillTypeCHECK                LedBillQueryRequestFiltersBillType = "CHECK"
-	LedBillQueryRequestFiltersBillTypeCOMMERCIALACCEPTANCE LedBillQueryRequestFiltersBillType = "COMMERCIAL_ACCEPTANCE"
-	LedBillQueryRequestFiltersBillTypeOTHER                LedBillQueryRequestFiltersBillType = "OTHER"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersBillType enum.
-func (e LedBillQueryRequestFiltersBillType) Valid() bool {
-	switch e {
-	case LedBillQueryRequestFiltersBillTypeBANKACCEPTANCE:
-		return true
-	case LedBillQueryRequestFiltersBillTypeCHECK:
-		return true
-	case LedBillQueryRequestFiltersBillTypeCOMMERCIALACCEPTANCE:
-		return true
-	case LedBillQueryRequestFiltersBillTypeOTHER:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestFiltersOriginatingPartyType.
-const (
-	LedBillQueryRequestFiltersOriginatingPartyTypeCustomer   LedBillQueryRequestFiltersOriginatingPartyType = "customer"
-	LedBillQueryRequestFiltersOriginatingPartyTypeOtherParty LedBillQueryRequestFiltersOriginatingPartyType = "other-party"
-	LedBillQueryRequestFiltersOriginatingPartyTypeSupplier   LedBillQueryRequestFiltersOriginatingPartyType = "supplier"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersOriginatingPartyType enum.
-func (e LedBillQueryRequestFiltersOriginatingPartyType) Valid() bool {
-	switch e {
-	case LedBillQueryRequestFiltersOriginatingPartyTypeCustomer:
-		return true
-	case LedBillQueryRequestFiltersOriginatingPartyTypeOtherParty:
-		return true
-	case LedBillQueryRequestFiltersOriginatingPartyTypeSupplier:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestFiltersPositionType.
-const (
-	LedBillQueryRequestFiltersPositionTypeASSET     LedBillQueryRequestFiltersPositionType = "ASSET"
-	LedBillQueryRequestFiltersPositionTypeLIABILITY LedBillQueryRequestFiltersPositionType = "LIABILITY"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersPositionType enum.
-func (e LedBillQueryRequestFiltersPositionType) Valid() bool {
-	switch e {
-	case LedBillQueryRequestFiltersPositionTypeASSET:
-		return true
-	case LedBillQueryRequestFiltersPositionTypeLIABILITY:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestFiltersSourceEntity.
-const (
-	LedBillQueryRequestFiltersSourceEntityBillDiscount LedBillQueryRequestFiltersSourceEntity = "bill-discount"
-	LedBillQueryRequestFiltersSourceEntityBillIssue    LedBillQueryRequestFiltersSourceEntity = "bill-issue"
-	LedBillQueryRequestFiltersSourceEntityBillMaturity LedBillQueryRequestFiltersSourceEntity = "bill-maturity"
-	LedBillQueryRequestFiltersSourceEntityBillPayment  LedBillQueryRequestFiltersSourceEntity = "bill-payment"
-	LedBillQueryRequestFiltersSourceEntityBillReceipt  LedBillQueryRequestFiltersSourceEntity = "bill-receipt"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestFiltersSourceEntity enum.
-func (e LedBillQueryRequestFiltersSourceEntity) Valid() bool {
-	switch e {
-	case LedBillQueryRequestFiltersSourceEntityBillDiscount:
-		return true
-	case LedBillQueryRequestFiltersSourceEntityBillIssue:
-		return true
-	case LedBillQueryRequestFiltersSourceEntityBillMaturity:
-		return true
-	case LedBillQueryRequestFiltersSourceEntityBillPayment:
-		return true
-	case LedBillQueryRequestFiltersSourceEntityBillReceipt:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestSortField.
-const (
-	BillNo           LedBillQueryRequestSortField = "billNo"
-	FaceAmount       LedBillQueryRequestSortField = "faceAmount"
-	MaturityDate     LedBillQueryRequestSortField = "maturityDate"
-	SourceDocumentNo LedBillQueryRequestSortField = "sourceDocumentNo"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestSortField enum.
-func (e LedBillQueryRequestSortField) Valid() bool {
-	switch e {
-	case BillNo:
-		return true
-	case FaceAmount:
-		return true
-	case MaturityDate:
-		return true
-	case SourceDocumentNo:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedBillQueryRequestSortOrder.
-const (
-	LedBillQueryRequestSortOrderAsc  LedBillQueryRequestSortOrder = "asc"
-	LedBillQueryRequestSortOrderDesc LedBillQueryRequestSortOrder = "desc"
-)
-
-// Valid indicates whether the value is a known member of the LedBillQueryRequestSortOrder enum.
-func (e LedBillQueryRequestSortOrder) Valid() bool {
-	switch e {
-	case LedBillQueryRequestSortOrderAsc:
-		return true
-	case LedBillQueryRequestSortOrderDesc:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedOtherBalanceRequestFiltersCounterpartyType.
-const (
-	LedOtherBalanceRequestFiltersCounterpartyTypeCustomer   LedOtherBalanceRequestFiltersCounterpartyType = "customer"
-	LedOtherBalanceRequestFiltersCounterpartyTypeEmployee   LedOtherBalanceRequestFiltersCounterpartyType = "employee"
-	LedOtherBalanceRequestFiltersCounterpartyTypeOtherParty LedOtherBalanceRequestFiltersCounterpartyType = "other-party"
-	LedOtherBalanceRequestFiltersCounterpartyTypeSupplier   LedOtherBalanceRequestFiltersCounterpartyType = "supplier"
-)
-
-// Valid indicates whether the value is a known member of the LedOtherBalanceRequestFiltersCounterpartyType enum.
-func (e LedOtherBalanceRequestFiltersCounterpartyType) Valid() bool {
-	switch e {
-	case LedOtherBalanceRequestFiltersCounterpartyTypeCustomer:
-		return true
-	case LedOtherBalanceRequestFiltersCounterpartyTypeEmployee:
-		return true
-	case LedOtherBalanceRequestFiltersCounterpartyTypeOtherParty:
-		return true
-	case LedOtherBalanceRequestFiltersCounterpartyTypeSupplier:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedOtherQueryRequestFiltersCounterpartyType.
-const (
-	LedOtherQueryRequestFiltersCounterpartyTypeCustomer   LedOtherQueryRequestFiltersCounterpartyType = "customer"
-	LedOtherQueryRequestFiltersCounterpartyTypeEmployee   LedOtherQueryRequestFiltersCounterpartyType = "employee"
-	LedOtherQueryRequestFiltersCounterpartyTypeOtherParty LedOtherQueryRequestFiltersCounterpartyType = "other-party"
-	LedOtherQueryRequestFiltersCounterpartyTypeSupplier   LedOtherQueryRequestFiltersCounterpartyType = "supplier"
-)
-
-// Valid indicates whether the value is a known member of the LedOtherQueryRequestFiltersCounterpartyType enum.
-func (e LedOtherQueryRequestFiltersCounterpartyType) Valid() bool {
-	switch e {
-	case LedOtherQueryRequestFiltersCounterpartyTypeCustomer:
-		return true
-	case LedOtherQueryRequestFiltersCounterpartyTypeEmployee:
-		return true
-	case LedOtherQueryRequestFiltersCounterpartyTypeOtherParty:
-		return true
-	case LedOtherQueryRequestFiltersCounterpartyTypeSupplier:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedOtherQueryRequestFiltersOtherCategory.
-const (
-	LedOtherQueryRequestFiltersOtherCategoryCOMMISSION   LedOtherQueryRequestFiltersOtherCategory = "COMMISSION"
-	LedOtherQueryRequestFiltersOtherCategoryINTERMEDIARY LedOtherQueryRequestFiltersOtherCategory = "INTERMEDIARY"
-	LedOtherQueryRequestFiltersOtherCategoryREBATE       LedOtherQueryRequestFiltersOtherCategory = "REBATE"
-)
-
-// Valid indicates whether the value is a known member of the LedOtherQueryRequestFiltersOtherCategory enum.
-func (e LedOtherQueryRequestFiltersOtherCategory) Valid() bool {
-	switch e {
-	case LedOtherQueryRequestFiltersOtherCategoryCOMMISSION:
-		return true
-	case LedOtherQueryRequestFiltersOtherCategoryINTERMEDIARY:
-		return true
-	case LedOtherQueryRequestFiltersOtherCategoryREBATE:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedOtherQueryRequestSortOrder.
-const (
-	LedOtherQueryRequestSortOrderAsc  LedOtherQueryRequestSortOrder = "asc"
-	LedOtherQueryRequestSortOrderDesc LedOtherQueryRequestSortOrder = "desc"
-)
-
-// Valid indicates whether the value is a known member of the LedOtherQueryRequestSortOrder enum.
-func (e LedOtherQueryRequestSortOrder) Valid() bool {
-	switch e {
-	case LedOtherQueryRequestSortOrderAsc:
-		return true
-	case LedOtherQueryRequestSortOrderDesc:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LedQueryRequestSortOrder.
-const (
-	LedQueryRequestSortOrderAsc  LedQueryRequestSortOrder = "asc"
-	LedQueryRequestSortOrderDesc LedQueryRequestSortOrder = "desc"
-)
-
-// Valid indicates whether the value is a known member of the LedQueryRequestSortOrder enum.
-func (e LedQueryRequestSortOrder) Valid() bool {
-	switch e {
-	case LedQueryRequestSortOrderAsc:
-		return true
-	case LedQueryRequestSortOrderDesc:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for MappingConditionOperator.
 const (
 	MappingConditionOperatorEQ         MappingConditionOperator = "EQ"
@@ -803,6 +392,24 @@ func (e MenuMode) Valid() bool {
 	case BUSINESSTEMPLATE:
 		return true
 	case DEFAULT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OpeningContainerInputContainerType.
+const (
+	RESIN   OpeningContainerInputContainerType = "RESIN"
+	SOLVENT OpeningContainerInputContainerType = "SOLVENT"
+)
+
+// Valid indicates whether the value is a known member of the OpeningContainerInputContainerType enum.
+func (e OpeningContainerInputContainerType) Valid() bool {
+	switch e {
+	case RESIN:
+		return true
+	case SOLVENT:
 		return true
 	default:
 		return false
@@ -992,6 +599,84 @@ func (e SystemParameterValueType) Valid() bool {
 	case INTEGER:
 		return true
 	case STRING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouAvailableBillItemBillType.
+const (
+	VouAvailableBillItemBillTypeBANKACCEPTANCE       VouAvailableBillItemBillType = "BANK_ACCEPTANCE"
+	VouAvailableBillItemBillTypeCHECK                VouAvailableBillItemBillType = "CHECK"
+	VouAvailableBillItemBillTypeCOMMERCIALACCEPTANCE VouAvailableBillItemBillType = "COMMERCIAL_ACCEPTANCE"
+	VouAvailableBillItemBillTypeOTHER                VouAvailableBillItemBillType = "OTHER"
+)
+
+// Valid indicates whether the value is a known member of the VouAvailableBillItemBillType enum.
+func (e VouAvailableBillItemBillType) Valid() bool {
+	switch e {
+	case VouAvailableBillItemBillTypeBANKACCEPTANCE:
+		return true
+	case VouAvailableBillItemBillTypeCHECK:
+		return true
+	case VouAvailableBillItemBillTypeCOMMERCIALACCEPTANCE:
+		return true
+	case VouAvailableBillItemBillTypeOTHER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouAvailableBillItemMedium.
+const (
+	VouAvailableBillItemMediumELECTRONIC VouAvailableBillItemMedium = "ELECTRONIC"
+	VouAvailableBillItemMediumPAPER      VouAvailableBillItemMedium = "PAPER"
+)
+
+// Valid indicates whether the value is a known member of the VouAvailableBillItemMedium enum.
+func (e VouAvailableBillItemMedium) Valid() bool {
+	switch e {
+	case VouAvailableBillItemMediumELECTRONIC:
+		return true
+	case VouAvailableBillItemMediumPAPER:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouAvailableBillItemPositionType.
+const (
+	VouAvailableBillItemPositionTypeASSET     VouAvailableBillItemPositionType = "ASSET"
+	VouAvailableBillItemPositionTypeLIABILITY VouAvailableBillItemPositionType = "LIABILITY"
+)
+
+// Valid indicates whether the value is a known member of the VouAvailableBillItemPositionType enum.
+func (e VouAvailableBillItemPositionType) Valid() bool {
+	switch e {
+	case VouAvailableBillItemPositionTypeASSET:
+		return true
+	case VouAvailableBillItemPositionTypeLIABILITY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouAvailableBillQueryRequestPositionType.
+const (
+	VouAvailableBillQueryRequestPositionTypeASSET     VouAvailableBillQueryRequestPositionType = "ASSET"
+	VouAvailableBillQueryRequestPositionTypeLIABILITY VouAvailableBillQueryRequestPositionType = "LIABILITY"
+)
+
+// Valid indicates whether the value is a known member of the VouAvailableBillQueryRequestPositionType enum.
+func (e VouAvailableBillQueryRequestPositionType) Valid() bool {
+	switch e {
+	case VouAvailableBillQueryRequestPositionTypeASSET:
+		return true
+	case VouAvailableBillQueryRequestPositionTypeLIABILITY:
 		return true
 	default:
 		return false
@@ -1280,7 +965,6 @@ func (e VouBillPrimaryLineInputPurpose) Valid() bool {
 // Defines values for VouCreatableEntity.
 const (
 	VouCreatableEntityAssetAcquisition        VouCreatableEntity = "asset-acquisition"
-	VouCreatableEntityAssetDepreciation       VouCreatableEntity = "asset-depreciation"
 	VouCreatableEntityAssetLiquidation        VouCreatableEntity = "asset-liquidation"
 	VouCreatableEntityAssetSale               VouCreatableEntity = "asset-sale"
 	VouCreatableEntityBillDiscount            VouCreatableEntity = "bill-discount"
@@ -1316,8 +1000,6 @@ const (
 func (e VouCreatableEntity) Valid() bool {
 	switch e {
 	case VouCreatableEntityAssetAcquisition:
-		return true
-	case VouCreatableEntityAssetDepreciation:
 		return true
 	case VouCreatableEntityAssetLiquidation:
 		return true
@@ -1442,7 +1124,6 @@ func (e VouCreateRequestDataOtherCategory) Valid() bool {
 // Defines values for VouEntity.
 const (
 	VouEntityAssetAcquisition        VouEntity = "asset-acquisition"
-	VouEntityAssetDepreciation       VouEntity = "asset-depreciation"
 	VouEntityAssetLiquidation        VouEntity = "asset-liquidation"
 	VouEntityAssetSale               VouEntity = "asset-sale"
 	VouEntityBillDiscount            VouEntity = "bill-discount"
@@ -1482,8 +1163,6 @@ const (
 func (e VouEntity) Valid() bool {
 	switch e {
 	case VouEntityAssetAcquisition:
-		return true
-	case VouEntityAssetDepreciation:
 		return true
 	case VouEntityAssetLiquidation:
 		return true
@@ -2517,222 +2196,6 @@ type IdRequest struct {
 	Id string `json:"id"`
 }
 
-// LedAssetGetRequest defines model for LedAssetGetRequest.
-type LedAssetGetRequest struct {
-	AssetId string `json:"assetId"`
-}
-
-// LedAssetQueryRequest defines model for LedAssetQueryRequest.
-type LedAssetQueryRequest struct {
-	Filters struct {
-		CategoryObjectId   *string                              `json:"categoryObjectId,omitempty"`
-		CustodianObjectId  *string                              `json:"custodianObjectId,omitempty"`
-		DepartmentObjectId *string                              `json:"departmentObjectId,omitempty"`
-		Keyword            *string                              `json:"keyword,omitempty"`
-		Status             *[]LedAssetQueryRequestFiltersStatus `json:"status,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-}
-
-// LedAssetQueryRequestFiltersStatus defines model for LedAssetQueryRequest.Filters.Status.
-type LedAssetQueryRequestFiltersStatus string
-
-// LedBalanceRequest defines model for LedBalanceRequest.
-type LedBalanceRequest struct {
-	Filters struct {
-		AsOfDate openapi_types.Date `json:"asOfDate"`
-		ObjectId *string            `json:"objectId,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-}
-
-// LedBillListItem defines model for LedBillListItem.
-type LedBillListItem struct {
-	Acceptor           string                      `json:"acceptor"`
-	AnnualRateBps      int                         `json:"annualRateBps"`
-	Availability       LedBillListItemAvailability `json:"availability"`
-	BillId             string                      `json:"billId"`
-	BillNo             string                      `json:"billNo"`
-	BillType           LedBillListItemBillType     `json:"billType"`
-	Currency           string                      `json:"currency"`
-	CustomerCostAmount string                      `json:"customerCostAmount"`
-	Drawer             string                      `json:"drawer"`
-	FaceAmount         string                      `json:"faceAmount"`
-	InterestAmount     string                      `json:"interestAmount"`
-	InterestDays       int                         `json:"interestDays"`
-	IssueDate          openapi_types.Date          `json:"issueDate"`
-	MaturityDate       openapi_types.Date          `json:"maturityDate"`
-	Medium             LedBillListItemMedium       `json:"medium"`
-	OriginatingParty   struct {
-		Code      string                                `json:"code"`
-		Entity    LedBillListItemOriginatingPartyEntity `json:"entity"`
-		Name      string                                `json:"name"`
-		ObjectId  string                                `json:"objectId"`
-		VersionId string                                `json:"versionId"`
-	} `json:"originatingParty"`
-	Payee            string                      `json:"payee"`
-	PositionType     LedBillListItemPositionType `json:"positionType"`
-	SourceDocumentNo string                      `json:"sourceDocumentNo"`
-	SourceEntity     LedBillListItemSourceEntity `json:"sourceEntity"`
-}
-
-// LedBillListItemAvailability defines model for LedBillListItem.Availability.
-type LedBillListItemAvailability string
-
-// LedBillListItemBillType defines model for LedBillListItem.BillType.
-type LedBillListItemBillType string
-
-// LedBillListItemMedium defines model for LedBillListItem.Medium.
-type LedBillListItemMedium string
-
-// LedBillListItemOriginatingPartyEntity defines model for LedBillListItem.OriginatingParty.Entity.
-type LedBillListItemOriginatingPartyEntity string
-
-// LedBillListItemPositionType defines model for LedBillListItem.PositionType.
-type LedBillListItemPositionType string
-
-// LedBillListItemSourceEntity defines model for LedBillListItem.SourceEntity.
-type LedBillListItemSourceEntity string
-
-// LedBillQueryRequest defines model for LedBillQueryRequest.
-type LedBillQueryRequest struct {
-	Filters struct {
-		Availability             *LedBillQueryRequestFiltersAvailability         `json:"availability,omitempty"`
-		BillNo                   *string                                         `json:"billNo,omitempty"`
-		BillType                 *LedBillQueryRequestFiltersBillType             `json:"billType,omitempty"`
-		MaturityDateFrom         *openapi_types.Date                             `json:"maturityDateFrom,omitempty"`
-		MaturityDateTo           *openapi_types.Date                             `json:"maturityDateTo,omitempty"`
-		OriginatingPartyObjectId *string                                         `json:"originatingPartyObjectId,omitempty"`
-		OriginatingPartyType     *LedBillQueryRequestFiltersOriginatingPartyType `json:"originatingPartyType,omitempty"`
-		PositionType             *LedBillQueryRequestFiltersPositionType         `json:"positionType,omitempty"`
-		SourceEntity             *LedBillQueryRequestFiltersSourceEntity         `json:"sourceEntity,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-	Sort     []struct {
-		Field LedBillQueryRequestSortField `json:"field"`
-		Order LedBillQueryRequestSortOrder `json:"order"`
-	} `json:"sort"`
-}
-
-// LedBillQueryRequestFiltersAvailability defines model for LedBillQueryRequest.Filters.Availability.
-type LedBillQueryRequestFiltersAvailability string
-
-// LedBillQueryRequestFiltersBillType defines model for LedBillQueryRequest.Filters.BillType.
-type LedBillQueryRequestFiltersBillType string
-
-// LedBillQueryRequestFiltersOriginatingPartyType defines model for LedBillQueryRequest.Filters.OriginatingPartyType.
-type LedBillQueryRequestFiltersOriginatingPartyType string
-
-// LedBillQueryRequestFiltersPositionType defines model for LedBillQueryRequest.Filters.PositionType.
-type LedBillQueryRequestFiltersPositionType string
-
-// LedBillQueryRequestFiltersSourceEntity defines model for LedBillQueryRequest.Filters.SourceEntity.
-type LedBillQueryRequestFiltersSourceEntity string
-
-// LedBillQueryRequestSortField defines model for LedBillQueryRequest.Sort.Field.
-type LedBillQueryRequestSortField string
-
-// LedBillQueryRequestSortOrder defines model for LedBillQueryRequest.Sort.Order.
-type LedBillQueryRequestSortOrder string
-
-// LedBillQueryResponse defines model for LedBillQueryResponse.
-type LedBillQueryResponse struct {
-	Code int32 `json:"code"`
-	Data struct {
-		Items    []LedBillListItem `json:"items"`
-		Page     int               `json:"page"`
-		PageSize int               `json:"pageSize"`
-		Total    int64             `json:"total"`
-	} `json:"data"`
-	Message   string `json:"message"`
-	RequestId string `json:"requestId"`
-}
-
-// LedClosingRequest defines model for LedClosingRequest.
-type LedClosingRequest struct {
-	ClosingDate openapi_types.Date `json:"closingDate"`
-	Revision    int64              `json:"revision"`
-}
-
-// LedHistoryRequest defines model for LedHistoryRequest.
-type LedHistoryRequest struct {
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-}
-
-// LedOtherBalanceRequest defines model for LedOtherBalanceRequest.
-type LedOtherBalanceRequest struct {
-	Filters struct {
-		AsOfDate         openapi_types.Date                             `json:"asOfDate"`
-		CounterpartyType *LedOtherBalanceRequestFiltersCounterpartyType `json:"counterpartyType,omitempty"`
-		ObjectId         *string                                        `json:"objectId,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-}
-
-// LedOtherBalanceRequestFiltersCounterpartyType defines model for LedOtherBalanceRequest.Filters.CounterpartyType.
-type LedOtherBalanceRequestFiltersCounterpartyType string
-
-// LedOtherQueryRequest defines model for LedOtherQueryRequest.
-type LedOtherQueryRequest struct {
-	Filters struct {
-		CounterpartyType *LedOtherQueryRequestFiltersCounterpartyType `json:"counterpartyType,omitempty"`
-		DateFrom         openapi_types.Date                           `json:"dateFrom"`
-		DateTo           openapi_types.Date                           `json:"dateTo"`
-		Direction        *[]string                                    `json:"direction,omitempty"`
-		DocumentNo       *string                                      `json:"documentNo,omitempty"`
-		ObjectId         *string                                      `json:"objectId,omitempty"`
-		OtherCategory    *LedOtherQueryRequestFiltersOtherCategory    `json:"otherCategory,omitempty"`
-		SourceEntity     *string                                      `json:"sourceEntity,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-	Sort     []struct {
-		Field string                        `json:"field"`
-		Order LedOtherQueryRequestSortOrder `json:"order"`
-	} `json:"sort"`
-}
-
-// LedOtherQueryRequestFiltersCounterpartyType defines model for LedOtherQueryRequest.Filters.CounterpartyType.
-type LedOtherQueryRequestFiltersCounterpartyType string
-
-// LedOtherQueryRequestFiltersOtherCategory defines model for LedOtherQueryRequest.Filters.OtherCategory.
-type LedOtherQueryRequestFiltersOtherCategory string
-
-// LedOtherQueryRequestSortOrder defines model for LedOtherQueryRequest.Sort.Order.
-type LedOtherQueryRequestSortOrder string
-
-// LedQueryRequest defines model for LedQueryRequest.
-type LedQueryRequest struct {
-	Filters struct {
-		DateFrom     openapi_types.Date `json:"dateFrom"`
-		DateTo       openapi_types.Date `json:"dateTo"`
-		Direction    *[]string          `json:"direction,omitempty"`
-		DocumentNo   *string            `json:"documentNo,omitempty"`
-		ObjectId     *string            `json:"objectId,omitempty"`
-		SourceEntity *string            `json:"sourceEntity,omitempty"`
-	} `json:"filters"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-	Sort     []struct {
-		Field string                   `json:"field"`
-		Order LedQueryRequestSortOrder `json:"order"`
-	} `json:"sort"`
-}
-
-// LedQueryRequestSortOrder defines model for LedQueryRequest.Sort.Order.
-type LedQueryRequestSortOrder string
-
-// LedUncloseRequest defines model for LedUncloseRequest.
-type LedUncloseRequest struct {
-	Reason   string `json:"reason"`
-	Revision int64  `json:"revision"`
-}
-
 // Mapping defines model for Mapping.
 type Mapping struct {
 	ApprovedAt    *time.Time        `json:"approvedAt"`
@@ -2916,13 +2379,16 @@ type MenuTree struct {
 
 // Opening defines model for Opening.
 type Opening struct {
-	ApprovedAt *time.Time    `json:"approvedAt"`
-	ApprovedBy *string       `json:"approvedBy"`
-	BookId     string        `json:"bookId"`
-	Lines      []OpeningLine `json:"lines"`
-	Revision   int64         `json:"revision"`
-	State      OpeningState  `json:"state"`
-	VoucherId  *string       `json:"voucherId"`
+	ApprovedAt *time.Time              `json:"approvedAt"`
+	ApprovedBy *string                 `json:"approvedBy"`
+	Assets     []OpeningAsset          `json:"assets"`
+	Bills      []OpeningBill           `json:"bills"`
+	BookId     string                  `json:"bookId"`
+	Containers []OpeningContainerInput `json:"containers"`
+	Lines      []OpeningLine           `json:"lines"`
+	Revision   int64                   `json:"revision"`
+	State      OpeningState            `json:"state"`
+	VoucherId  *string                 `json:"voucherId"`
 }
 
 // OpeningActionRequest defines model for OpeningActionRequest.
@@ -2930,6 +2396,92 @@ type OpeningActionRequest struct {
 	BookId   string `json:"bookId"`
 	Revision int64  `json:"revision"`
 }
+
+// OpeningAsset defines model for OpeningAsset.
+type OpeningAsset struct {
+	AccumulatedDepreciation string  `json:"accumulatedDepreciation"`
+	AcquiredOn              *string `json:"acquiredOn,omitempty"`
+	AssetId                 string  `json:"assetId"`
+	AssetNo                 *string `json:"assetNo,omitempty"`
+	CategoryId              *string `json:"categoryId,omitempty"`
+	CreateObject            bool    `json:"createObject"`
+	Currency                string  `json:"currency"`
+	DepartmentId            *string `json:"departmentId,omitempty"`
+	Name                    *string `json:"name,omitempty"`
+	OriginalValue           string  `json:"originalValue"`
+	ResidualRate            *string `json:"residualRate,omitempty"`
+	UsefulLifeMonths        *int    `json:"usefulLifeMonths,omitempty"`
+}
+
+// OpeningAssetInput defines model for OpeningAssetInput.
+type OpeningAssetInput struct {
+	AccumulatedDepreciation string              `json:"accumulatedDepreciation"`
+	AcquiredOn              *openapi_types.Date `json:"acquiredOn,omitempty"`
+	AssetId                 *string             `json:"assetId,omitempty"`
+	AssetNo                 *string             `json:"assetNo,omitempty"`
+	CategoryId              *string             `json:"categoryId,omitempty"`
+	Currency                string              `json:"currency"`
+	DepartmentId            *string             `json:"departmentId,omitempty"`
+	Name                    *string             `json:"name,omitempty"`
+	OriginalValue           string              `json:"originalValue"`
+	ResidualRate            *string             `json:"residualRate,omitempty"`
+	UsefulLifeMonths        *int                `json:"usefulLifeMonths,omitempty"`
+}
+
+// OpeningBill defines model for OpeningBill.
+type OpeningBill struct {
+	Acceptor           *string            `json:"acceptor,omitempty"`
+	AnnualRateBps      *int               `json:"annualRateBps,omitempty"`
+	BillId             string             `json:"billId"`
+	BillNo             *string            `json:"billNo,omitempty"`
+	BillType           *string            `json:"billType,omitempty"`
+	CreateObject       bool               `json:"createObject"`
+	Currency           string             `json:"currency"`
+	CustomerCostAmount *string            `json:"customerCostAmount,omitempty"`
+	Drawer             *string            `json:"drawer,omitempty"`
+	FaceAmount         *string            `json:"faceAmount,omitempty"`
+	InterestAmount     *string            `json:"interestAmount,omitempty"`
+	InterestDays       *int               `json:"interestDays,omitempty"`
+	IssueDate          *string            `json:"issueDate,omitempty"`
+	MaturityDate       *string            `json:"maturityDate,omitempty"`
+	Medium             *string            `json:"medium,omitempty"`
+	OriginatingParty   *OpeningPartyInput `json:"originatingParty,omitempty"`
+	Payee              *string            `json:"payee,omitempty"`
+	PositionType       *string            `json:"positionType,omitempty"`
+	ValueAmount        string             `json:"valueAmount"`
+}
+
+// OpeningBillInput defines model for OpeningBillInput.
+type OpeningBillInput struct {
+	Acceptor           *string             `json:"acceptor,omitempty"`
+	AnnualRateBps      *int                `json:"annualRateBps,omitempty"`
+	BillId             *string             `json:"billId,omitempty"`
+	BillNo             *string             `json:"billNo,omitempty"`
+	BillType           *string             `json:"billType,omitempty"`
+	Currency           string              `json:"currency"`
+	CustomerCostAmount *string             `json:"customerCostAmount,omitempty"`
+	Drawer             *string             `json:"drawer,omitempty"`
+	FaceAmount         *string             `json:"faceAmount,omitempty"`
+	InterestAmount     *string             `json:"interestAmount,omitempty"`
+	InterestDays       *int                `json:"interestDays,omitempty"`
+	IssueDate          *openapi_types.Date `json:"issueDate,omitempty"`
+	MaturityDate       *openapi_types.Date `json:"maturityDate,omitempty"`
+	Medium             *string             `json:"medium,omitempty"`
+	OriginatingParty   *OpeningPartyInput  `json:"originatingParty,omitempty"`
+	Payee              *string             `json:"payee,omitempty"`
+	PositionType       *string             `json:"positionType,omitempty"`
+	ValueAmount        string              `json:"valueAmount"`
+}
+
+// OpeningContainerInput defines model for OpeningContainerInput.
+type OpeningContainerInput struct {
+	ContainerType OpeningContainerInputContainerType `json:"containerType"`
+	CustomerId    string                             `json:"customerId"`
+	Quantity      int                                `json:"quantity"`
+}
+
+// OpeningContainerInputContainerType defines model for OpeningContainerInput.ContainerType.
+type OpeningContainerInputContainerType string
 
 // OpeningEnvelope defines model for OpeningEnvelope.
 type OpeningEnvelope struct {
@@ -2960,6 +2512,15 @@ type OpeningLineInput struct {
 	SubjectId    string            `json:"subjectId"`
 }
 
+// OpeningPartyInput defines model for OpeningPartyInput.
+type OpeningPartyInput struct {
+	Code      string `json:"code"`
+	Entity    string `json:"entity"`
+	Name      string `json:"name"`
+	ObjectId  string `json:"objectId"`
+	VersionId string `json:"versionId"`
+}
+
 // OpeningQueryRequest defines model for OpeningQueryRequest.
 type OpeningQueryRequest struct {
 	BookId string `json:"bookId"`
@@ -2967,9 +2528,12 @@ type OpeningQueryRequest struct {
 
 // OpeningSaveRequest defines model for OpeningSaveRequest.
 type OpeningSaveRequest struct {
-	BookId   string             `json:"bookId"`
-	Lines    []OpeningLineInput `json:"lines"`
-	Revision int64              `json:"revision"`
+	Assets     []OpeningAssetInput     `json:"assets"`
+	Bills      []OpeningBillInput      `json:"bills"`
+	BookId     string                  `json:"bookId"`
+	Containers []OpeningContainerInput `json:"containers"`
+	Lines      []OpeningLineInput      `json:"lines"`
+	Revision   int64                   `json:"revision"`
 }
 
 // OpeningState defines model for OpeningState.
@@ -3290,19 +2854,6 @@ type VouAssetAcquisitionLineInput struct {
 	UsefulLifeMonths int                     `json:"usefulLifeMonths"`
 }
 
-// VouAssetDepreciationLineInput defines model for VouAssetDepreciationLineInput.
-type VouAssetDepreciationLineInput struct {
-	AssetId string  `json:"assetId"`
-	Remark  *string `json:"remark,omitempty"`
-}
-
-// VouAssetDepreciationPreviewRequest defines model for VouAssetDepreciationPreviewRequest.
-type VouAssetDepreciationPreviewRequest struct {
-	CategoryObjectId   *string `json:"categoryObjectId,omitempty"`
-	DepartmentObjectId *string `json:"departmentObjectId,omitempty"`
-	DepreciationMonth  string  `json:"depreciationMonth"`
-}
-
 // VouAssetLiquidationLineInput defines model for VouAssetLiquidationLineInput.
 type VouAssetLiquidationLineInput struct {
 	AssetId         string  `json:"assetId"`
@@ -3346,6 +2897,91 @@ type VouAttachmentRemoveRequest struct {
 	DocumentId string `json:"documentId"`
 	FileId     string `json:"fileId"`
 	Revision   int64  `json:"revision"`
+}
+
+// VouAvailableAssetItem defines model for VouAvailableAssetItem.
+type VouAvailableAssetItem struct {
+	AccumulatedDepreciation string `json:"accumulatedDepreciation"`
+	AssetId                 string `json:"assetId"`
+	AssetName               string `json:"assetName"`
+	AssetNo                 string `json:"assetNo"`
+	NetValue                string `json:"netValue"`
+	OriginalValue           string `json:"originalValue"`
+}
+
+// VouAvailableAssetQueryRequest defines model for VouAvailableAssetQueryRequest.
+type VouAvailableAssetQueryRequest struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+// VouAvailableAssetQueryResponse defines model for VouAvailableAssetQueryResponse.
+type VouAvailableAssetQueryResponse struct {
+	Code int `json:"code"`
+	Data struct {
+		Items    []VouAvailableAssetItem `json:"items"`
+		Page     int                     `json:"page"`
+		PageSize int                     `json:"pageSize"`
+		Total    int                     `json:"total"`
+	} `json:"data"`
+	Message   string `json:"message"`
+	RequestId string `json:"requestId"`
+}
+
+// VouAvailableBillItem defines model for VouAvailableBillItem.
+type VouAvailableBillItem struct {
+	Acceptor           string                           `json:"acceptor"`
+	AnnualRateBps      int                              `json:"annualRateBps"`
+	BillId             string                           `json:"billId"`
+	BillNo             string                           `json:"billNo"`
+	BillType           VouAvailableBillItemBillType     `json:"billType"`
+	Currency           string                           `json:"currency"`
+	CustomerCostAmount string                           `json:"customerCostAmount"`
+	Drawer             string                           `json:"drawer"`
+	FaceAmount         string                           `json:"faceAmount"`
+	InterestAmount     string                           `json:"interestAmount"`
+	InterestDays       int                              `json:"interestDays"`
+	IssueDate          openapi_types.Date               `json:"issueDate"`
+	MaturityDate       openapi_types.Date               `json:"maturityDate"`
+	Medium             VouAvailableBillItemMedium       `json:"medium"`
+	OriginatingParty   VouBillReferenceView             `json:"originatingParty"`
+	Payee              string                           `json:"payee"`
+	PositionType       VouAvailableBillItemPositionType `json:"positionType"`
+	SourceDocumentNo   string                           `json:"sourceDocumentNo"`
+	SourceEntity       string                           `json:"sourceEntity"`
+}
+
+// VouAvailableBillItemBillType defines model for VouAvailableBillItem.BillType.
+type VouAvailableBillItemBillType string
+
+// VouAvailableBillItemMedium defines model for VouAvailableBillItem.Medium.
+type VouAvailableBillItemMedium string
+
+// VouAvailableBillItemPositionType defines model for VouAvailableBillItem.PositionType.
+type VouAvailableBillItemPositionType string
+
+// VouAvailableBillQueryRequest defines model for VouAvailableBillQueryRequest.
+type VouAvailableBillQueryRequest struct {
+	BillNo       *string                                  `json:"billNo,omitempty"`
+	Page         int                                      `json:"page"`
+	PageSize     int                                      `json:"pageSize"`
+	PositionType VouAvailableBillQueryRequestPositionType `json:"positionType"`
+}
+
+// VouAvailableBillQueryRequestPositionType defines model for VouAvailableBillQueryRequest.PositionType.
+type VouAvailableBillQueryRequestPositionType string
+
+// VouAvailableBillQueryResponse defines model for VouAvailableBillQueryResponse.
+type VouAvailableBillQueryResponse struct {
+	Code int `json:"code"`
+	Data struct {
+		Items    []VouAvailableBillItem `json:"items"`
+		Page     int                    `json:"page"`
+		PageSize int                    `json:"pageSize"`
+		Total    int                    `json:"total"`
+	} `json:"data"`
+	Message   string `json:"message"`
+	RequestId string `json:"requestId"`
 }
 
 // VouBillCashLineInput defines model for VouBillCashLineInput.
@@ -3481,21 +3117,30 @@ type VouBillPrimaryLineInputPositionType string
 // VouBillPrimaryLineInputPurpose defines model for VouBillPrimaryLineInput.Purpose.
 type VouBillPrimaryLineInputPurpose string
 
+// VouBillReferenceView defines model for VouBillReferenceView.
+type VouBillReferenceView struct {
+	Code      string  `json:"code"`
+	Currency  *string `json:"currency,omitempty"`
+	Entity    *string `json:"entity,omitempty"`
+	Name      string  `json:"name"`
+	ObjectId  string  `json:"objectId"`
+	VersionId string  `json:"versionId"`
+}
+
 // VouCreatableEntity defines model for VouCreatableEntity.
 type VouCreatableEntity string
 
 // VouCreateRequest defines model for VouCreateRequest.
 type VouCreateRequest struct {
 	Data struct {
-		Amount                 *string                          `json:"amount,omitempty"`
-		AssetAcquisitionLines  *[]VouAssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
-		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
-		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
-		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
-		BillCashLines          *[]VouBillCashLineInput          `json:"billCashLines,omitempty"`
-		BillLines              *[]VouBillLineInput              `json:"billLines,omitempty"`
-		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
-		Counterparty           *struct {
+		Amount                *string                         `json:"amount,omitempty"`
+		AssetAcquisitionLines *[]VouAssetAcquisitionLineInput `json:"assetAcquisitionLines,omitempty"`
+		AssetLiquidationLines *[]VouAssetLiquidationLineInput `json:"assetLiquidationLines,omitempty"`
+		AssetSaleLines        *[]VouAssetSaleLineInput        `json:"assetSaleLines,omitempty"`
+		BillCashLines         *[]VouBillCashLineInput         `json:"billCashLines,omitempty"`
+		BillLines             *[]VouBillLineInput             `json:"billLines,omitempty"`
+		BusinessDate          *openapi_types.Date             `json:"businessDate,omitempty"`
+		Counterparty          *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
@@ -3505,8 +3150,7 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"customer,omitempty"`
-		DepreciationMonth *string `json:"depreciationMonth,omitempty"`
-		Employee          *struct {
+		Employee *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"employee,omitempty"`
@@ -4008,15 +3652,14 @@ type VouSalesKgSummaryUnit string
 // VouSaveRequest defines model for VouSaveRequest.
 type VouSaveRequest struct {
 	Data struct {
-		Amount                 *string                          `json:"amount,omitempty"`
-		AssetAcquisitionLines  *[]VouAssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
-		AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
-		AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
-		AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
-		BillCashLines          *[]VouBillCashLineInput          `json:"billCashLines,omitempty"`
-		BillLines              *[]VouBillLineInput              `json:"billLines,omitempty"`
-		BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
-		Counterparty           *struct {
+		Amount                *string                         `json:"amount,omitempty"`
+		AssetAcquisitionLines *[]VouAssetAcquisitionLineInput `json:"assetAcquisitionLines,omitempty"`
+		AssetLiquidationLines *[]VouAssetLiquidationLineInput `json:"assetLiquidationLines,omitempty"`
+		AssetSaleLines        *[]VouAssetSaleLineInput        `json:"assetSaleLines,omitempty"`
+		BillCashLines         *[]VouBillCashLineInput         `json:"billCashLines,omitempty"`
+		BillLines             *[]VouBillLineInput             `json:"billLines,omitempty"`
+		BusinessDate          *openapi_types.Date             `json:"businessDate,omitempty"`
+		Counterparty          *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
@@ -4026,8 +3669,7 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"customer,omitempty"`
-		DepreciationMonth *string `json:"depreciationMonth,omitempty"`
-		Employee          *struct {
+		Employee *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"employee,omitempty"`
@@ -4375,15 +4017,14 @@ type WorkbenchQueryResponse struct {
 
 // Data defines model for data.
 type Data struct {
-	Amount                 *string                          `json:"amount,omitempty"`
-	AssetAcquisitionLines  *[]VouAssetAcquisitionLineInput  `json:"assetAcquisitionLines,omitempty"`
-	AssetDepreciationLines *[]VouAssetDepreciationLineInput `json:"assetDepreciationLines,omitempty"`
-	AssetLiquidationLines  *[]VouAssetLiquidationLineInput  `json:"assetLiquidationLines,omitempty"`
-	AssetSaleLines         *[]VouAssetSaleLineInput         `json:"assetSaleLines,omitempty"`
-	BillCashLines          *[]VouBillCashLineInput          `json:"billCashLines,omitempty"`
-	BillLines              *[]VouBillLineInput              `json:"billLines,omitempty"`
-	BusinessDate           *openapi_types.Date              `json:"businessDate,omitempty"`
-	Counterparty           *struct {
+	Amount                *string                         `json:"amount,omitempty"`
+	AssetAcquisitionLines *[]VouAssetAcquisitionLineInput `json:"assetAcquisitionLines,omitempty"`
+	AssetLiquidationLines *[]VouAssetLiquidationLineInput `json:"assetLiquidationLines,omitempty"`
+	AssetSaleLines        *[]VouAssetSaleLineInput        `json:"assetSaleLines,omitempty"`
+	BillCashLines         *[]VouBillCashLineInput         `json:"billCashLines,omitempty"`
+	BillLines             *[]VouBillLineInput             `json:"billLines,omitempty"`
+	BusinessDate          *openapi_types.Date             `json:"businessDate,omitempty"`
+	Counterparty          *struct {
 		ObjectId  string `json:"objectId"`
 		VersionId string `json:"versionId"`
 	} `json:"counterparty,omitempty"`
@@ -4393,8 +4034,7 @@ type Data struct {
 		ObjectId  string `json:"objectId"`
 		VersionId string `json:"versionId"`
 	} `json:"customer,omitempty"`
-	DepreciationMonth *string `json:"depreciationMonth,omitempty"`
-	Employee          *struct {
+	Employee *struct {
 		ObjectId  string `json:"objectId"`
 		VersionId string `json:"versionId"`
 	} `json:"employee,omitempty"`
@@ -4748,65 +4388,11 @@ type BobunsubmitJSONRequestBody = BobReverseRequest
 // BobversionsJSONRequestBody defines body for Bobversions for application/json ContentType.
 type BobversionsJSONRequestBody = BobHistoryRequest
 
-// LedassetgetJSONRequestBody defines body for Ledassetget for application/json ContentType.
-type LedassetgetJSONRequestBody = LedAssetGetRequest
-
-// LedassetqueryJSONRequestBody defines body for Ledassetquery for application/json ContentType.
-type LedassetqueryJSONRequestBody = LedAssetQueryRequest
-
-// LedbillqueryJSONRequestBody defines body for Ledbillquery for application/json ContentType.
-type LedbillqueryJSONRequestBody = LedBillQueryRequest
-
-// LedclosingcloseJSONRequestBody defines body for Ledclosingclose for application/json ContentType.
-type LedclosingcloseJSONRequestBody = LedClosingRequest
-
-// LedclosinggetJSONRequestBody defines body for Ledclosingget for application/json ContentType.
-type LedclosinggetJSONRequestBody = EmptyObject
-
-// LedclosinghistoryJSONRequestBody defines body for Ledclosinghistory for application/json ContentType.
-type LedclosinghistoryJSONRequestBody = LedHistoryRequest
-
-// LedclosinguncloseJSONRequestBody defines body for Ledclosingunclose for application/json ContentType.
-type LedclosinguncloseJSONRequestBody = LedUncloseRequest
-
-// LedcontainerbalanceJSONRequestBody defines body for Ledcontainerbalance for application/json ContentType.
-type LedcontainerbalanceJSONRequestBody = LedBalanceRequest
-
-// LedcontainerqueryJSONRequestBody defines body for Ledcontainerquery for application/json ContentType.
-type LedcontainerqueryJSONRequestBody = LedQueryRequest
-
-// LedcustomerbalanceJSONRequestBody defines body for Ledcustomerbalance for application/json ContentType.
-type LedcustomerbalanceJSONRequestBody = LedBalanceRequest
-
-// LedcustomerqueryJSONRequestBody defines body for Ledcustomerquery for application/json ContentType.
-type LedcustomerqueryJSONRequestBody = LedQueryRequest
-
-// LedfundbalanceJSONRequestBody defines body for Ledfundbalance for application/json ContentType.
-type LedfundbalanceJSONRequestBody = LedBalanceRequest
-
-// LedfundqueryJSONRequestBody defines body for Ledfundquery for application/json ContentType.
-type LedfundqueryJSONRequestBody = LedQueryRequest
-
-// LedinventorybalanceJSONRequestBody defines body for Ledinventorybalance for application/json ContentType.
-type LedinventorybalanceJSONRequestBody = LedBalanceRequest
-
-// LedinventoryqueryJSONRequestBody defines body for Ledinventoryquery for application/json ContentType.
-type LedinventoryqueryJSONRequestBody = LedQueryRequest
-
-// LedotherbalanceJSONRequestBody defines body for Ledotherbalance for application/json ContentType.
-type LedotherbalanceJSONRequestBody = LedOtherBalanceRequest
-
-// LedotherqueryJSONRequestBody defines body for Ledotherquery for application/json ContentType.
-type LedotherqueryJSONRequestBody = LedOtherQueryRequest
-
-// LedsupplierbalanceJSONRequestBody defines body for Ledsupplierbalance for application/json ContentType.
-type LedsupplierbalanceJSONRequestBody = LedBalanceRequest
-
-// LedsupplierqueryJSONRequestBody defines body for Ledsupplierquery for application/json ContentType.
-type LedsupplierqueryJSONRequestBody = LedQueryRequest
-
 // VouapproveJSONRequestBody defines body for Vouapprove for application/json ContentType.
 type VouapproveJSONRequestBody = VouDocumentRevisionRequest
+
+// VouAvailableAssetQueryJSONRequestBody defines body for VouAvailableAssetQuery for application/json ContentType.
+type VouAvailableAssetQueryJSONRequestBody = VouAvailableAssetQueryRequest
 
 // VouattachmentdownloadJSONRequestBody defines body for Vouattachmentdownload for application/json ContentType.
 type VouattachmentdownloadJSONRequestBody = VouAttachmentDownloadRequest
@@ -4819,6 +4405,9 @@ type VouattachmentremoveJSONRequestBody = VouAttachmentRemoveRequest
 
 // VouaudithistoryJSONRequestBody defines body for Vouaudithistory for application/json ContentType.
 type VouaudithistoryJSONRequestBody = VouHistoryRequest
+
+// VouAvailableBillQueryJSONRequestBody defines body for VouAvailableBillQuery for application/json ContentType.
+type VouAvailableBillQueryJSONRequestBody = VouAvailableBillQueryRequest
 
 // VouInventoryCountBookBalanceJSONRequestBody defines body for VouInventoryCountBookBalance for application/json ContentType.
 type VouInventoryCountBookBalanceJSONRequestBody = VouInventoryCountBalanceRequest
@@ -4837,9 +4426,6 @@ type VouSaleOrderFormulaDefaultJSONRequestBody = VouFormulaDefaultRequest
 
 // VougetJSONRequestBody defines body for Vouget for application/json ContentType.
 type VougetJSONRequestBody = VouGetRequest
-
-// VouassetdepreciationpreviewJSONRequestBody defines body for Vouassetdepreciationpreview for application/json ContentType.
-type VouassetdepreciationpreviewJSONRequestBody = VouAssetDepreciationPreviewRequest
 
 // VouPriceReferenceJSONRequestBody defines body for VouPriceReference for application/json ContentType.
 type VouPriceReferenceJSONRequestBody = VouPriceReferenceRequest
@@ -5579,69 +5165,15 @@ type ServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(c *gin.Context)
-	// Ledassetget 查看固定资产台账
-	// (POST /led/asset/get)
-	Ledassetget(c *gin.Context)
-	// Ledassetquery 查询固定资产台账
-	// (POST /led/asset/query)
-	Ledassetquery(c *gin.Context)
-	// Ledbillquery 查询票据台账
-	// (POST /led/bill/query)
-	Ledbillquery(c *gin.Context)
-	// Ledclosingclose 执行月末结账
-	// (POST /led/closing/close)
-	Ledclosingclose(c *gin.Context)
-	// Ledclosingget 读取最近结账与期初余额
-	// (POST /led/closing/get)
-	Ledclosingget(c *gin.Context)
-	// Ledclosinghistory 查询月末结账历史
-	// (POST /led/closing/history)
-	Ledclosinghistory(c *gin.Context)
-	// Ledclosingunclose 反结最近一期
-	// (POST /led/closing/unclose)
-	Ledclosingunclose(c *gin.Context)
-	// Ledcontainerbalance 查询容器余额
-	// (POST /led/container/balance)
-	Ledcontainerbalance(c *gin.Context)
-	// Ledcontainerquery 查询容器流水
-	// (POST /led/container/query)
-	Ledcontainerquery(c *gin.Context)
-	// Ledcustomerbalance 查询客户往来余额
-	// (POST /led/customer/balance)
-	Ledcustomerbalance(c *gin.Context)
-	// Ledcustomerquery 查询客户往来流水
-	// (POST /led/customer/query)
-	Ledcustomerquery(c *gin.Context)
-	// Ledfundbalance 查询资金余额
-	// (POST /led/fund/balance)
-	Ledfundbalance(c *gin.Context)
-	// Ledfundquery 查询资金流水
-	// (POST /led/fund/query)
-	Ledfundquery(c *gin.Context)
-	// Ledinventorybalance 查询库存余额
-	// (POST /led/inventory/balance)
-	Ledinventorybalance(c *gin.Context)
-	// Ledinventoryquery 查询库存流水
-	// (POST /led/inventory/query)
-	Ledinventoryquery(c *gin.Context)
-	// Ledotherbalance 查询其他往来余额
-	// (POST /led/other/balance)
-	Ledotherbalance(c *gin.Context)
-	// Ledotherquery 查询其他往来流水
-	// (POST /led/other/query)
-	Ledotherquery(c *gin.Context)
-	// Ledsupplierbalance 查询供应商往来余额
-	// (POST /led/supplier/balance)
-	Ledsupplierbalance(c *gin.Context)
-	// Ledsupplierquery 查询供应商往来流水
-	// (POST /led/supplier/query)
-	Ledsupplierquery(c *gin.Context)
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(c *gin.Context)
 	// Vouapprove 批准业务单据
 	// (POST /vou/{entity}/approve)
 	Vouapprove(c *gin.Context, entity VouEntity)
+	// VouAvailableAssetQuery 选择 ACC 登记的在用资产
+	// (POST /vou/{entity}/asset-source)
+	VouAvailableAssetQuery(c *gin.Context, entity VouEntity)
 	// Vouattachmentdownload 申请业务单据附件下载
 	// (POST /vou/{entity}/attachment-download)
 	Vouattachmentdownload(c *gin.Context, entity VouEntity)
@@ -5654,6 +5186,9 @@ type ServerInterface interface {
 	// Vouaudithistory 查询业务单据审计历史
 	// (POST /vou/{entity}/audit-history)
 	Vouaudithistory(c *gin.Context, entity VouEntity)
+	// VouAvailableBillQuery 选择 ACC 登记的可用票据
+	// (POST /vou/{entity}/bill-source)
+	VouAvailableBillQuery(c *gin.Context, entity VouEntity)
 	// VouInventoryCountBookBalance 读取库存盘点账面数量
 	// (POST /vou/{entity}/book-balance)
 	VouInventoryCountBookBalance(c *gin.Context, entity VouEntity)
@@ -5672,9 +5207,6 @@ type ServerInterface interface {
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(c *gin.Context, entity VouEntity)
-	// Vouassetdepreciationpreview 预览固定资产折旧
-	// (POST /vou/{entity}/preview)
-	Vouassetdepreciationpreview(c *gin.Context, entity VouEntity)
 	// VouPriceReference 解析订单产品参考价
 	// (POST /vou/{entity}/price-reference)
 	VouPriceReference(c *gin.Context, entity VouEntity)
@@ -7146,253 +6678,6 @@ func (siw *ServerInterfaceWrapper) Health(c *gin.Context) {
 	siw.Handler.Health(c)
 }
 
-// Ledassetget operation middleware
-func (siw *ServerInterfaceWrapper) Ledassetget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledassetget(c)
-}
-
-// Ledassetquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledassetquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledassetquery(c)
-}
-
-// Ledbillquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledbillquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledbillquery(c)
-}
-
-// Ledclosingclose operation middleware
-func (siw *ServerInterfaceWrapper) Ledclosingclose(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledclosingclose(c)
-}
-
-// Ledclosingget operation middleware
-func (siw *ServerInterfaceWrapper) Ledclosingget(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledclosingget(c)
-}
-
-// Ledclosinghistory operation middleware
-func (siw *ServerInterfaceWrapper) Ledclosinghistory(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledclosinghistory(c)
-}
-
-// Ledclosingunclose operation middleware
-func (siw *ServerInterfaceWrapper) Ledclosingunclose(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledclosingunclose(c)
-}
-
-// Ledcontainerbalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledcontainerbalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledcontainerbalance(c)
-}
-
-// Ledcontainerquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledcontainerquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledcontainerquery(c)
-}
-
-// Ledcustomerbalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledcustomerbalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledcustomerbalance(c)
-}
-
-// Ledcustomerquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledcustomerquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledcustomerquery(c)
-}
-
-// Ledfundbalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledfundbalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledfundbalance(c)
-}
-
-// Ledfundquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledfundquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledfundquery(c)
-}
-
-// Ledinventorybalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledinventorybalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledinventorybalance(c)
-}
-
-// Ledinventoryquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledinventoryquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledinventoryquery(c)
-}
-
-// Ledotherbalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledotherbalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledotherbalance(c)
-}
-
-// Ledotherquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledotherquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledotherquery(c)
-}
-
-// Ledsupplierbalance operation middleware
-func (siw *ServerInterfaceWrapper) Ledsupplierbalance(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledsupplierbalance(c)
-}
-
-// Ledsupplierquery operation middleware
-func (siw *ServerInterfaceWrapper) Ledsupplierquery(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Ledsupplierquery(c)
-}
-
 // Readiness operation middleware
 func (siw *ServerInterfaceWrapper) Readiness(c *gin.Context) {
 
@@ -7429,6 +6714,31 @@ func (siw *ServerInterfaceWrapper) Vouapprove(c *gin.Context) {
 	}
 
 	siw.Handler.Vouapprove(c, entity)
+}
+
+// VouAvailableAssetQuery operation middleware
+func (siw *ServerInterfaceWrapper) VouAvailableAssetQuery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouAvailableAssetQuery(c, entity)
 }
 
 // Vouattachmentdownload operation middleware
@@ -7529,6 +6839,31 @@ func (siw *ServerInterfaceWrapper) Vouaudithistory(c *gin.Context) {
 	}
 
 	siw.Handler.Vouaudithistory(c, entity)
+}
+
+// VouAvailableBillQuery operation middleware
+func (siw *ServerInterfaceWrapper) VouAvailableBillQuery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "entity" -------------
+	var entity VouEntity
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VouAvailableBillQuery(c, entity)
 }
 
 // VouInventoryCountBookBalance operation middleware
@@ -7679,31 +7014,6 @@ func (siw *ServerInterfaceWrapper) Vouget(c *gin.Context) {
 	}
 
 	siw.Handler.Vouget(c, entity)
-}
-
-// Vouassetdepreciationpreview operation middleware
-func (siw *ServerInterfaceWrapper) Vouassetdepreciationpreview(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "entity" -------------
-	var entity VouEntity
-
-	err = runtime.BindStyledParameterWithOptions("simple", "entity", c.Param("entity"), &entity, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Vouassetdepreciationpreview(c, entity)
 }
 
 // VouPriceReference operation middleware
@@ -8249,10 +7559,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/vou/:entity/script-get", wrapper.VouIntermediaryCalculationScriptGet)
 	router.POST(options.BaseURL+"/vou/:entity/script-save", wrapper.VouIntermediaryCalculationScriptSave)
 	router.POST(options.BaseURL+"/vou/:entity/book-balance", wrapper.VouInventoryCountBookBalance)
+	router.POST(options.BaseURL+"/vou/:entity/bill-source", wrapper.VouAvailableBillQuery)
+	router.POST(options.BaseURL+"/vou/:entity/asset-source", wrapper.VouAvailableAssetQuery)
 	router.POST(options.BaseURL+"/vou/:entity/formula-default", wrapper.VouSaleOrderFormulaDefault)
 	router.POST(options.BaseURL+"/vou/:entity/price-reference", wrapper.VouPriceReference)
 	router.POST(options.BaseURL+"/vou/:entity/create", wrapper.Voucreate)
-	router.POST(options.BaseURL+"/vou/:entity/preview", wrapper.Vouassetdepreciationpreview)
 	router.POST(options.BaseURL+"/vou/:entity/save", wrapper.Vousave)
 	router.POST(options.BaseURL+"/vou/:entity/delete", wrapper.Voudelete)
 	router.POST(options.BaseURL+"/vou/:entity/check", wrapper.Voucheck)
@@ -8278,25 +7589,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/wfl/:processName/audit-history", wrapper.WflDynamicProcessAuditHistory)
 	router.POST(options.BaseURL+"/wfl/process-instance/get", wrapper.WflProcessInstanceGet)
 	router.POST(options.BaseURL+"/wfl/process-instance/audit-history", wrapper.WflProcessInstanceAuditHistory)
-	router.POST(options.BaseURL+"/led/closing/get", wrapper.Ledclosingget)
-	router.POST(options.BaseURL+"/led/closing/close", wrapper.Ledclosingclose)
-	router.POST(options.BaseURL+"/led/closing/unclose", wrapper.Ledclosingunclose)
-	router.POST(options.BaseURL+"/led/closing/history", wrapper.Ledclosinghistory)
-	router.POST(options.BaseURL+"/led/inventory/query", wrapper.Ledinventoryquery)
-	router.POST(options.BaseURL+"/led/bill/query", wrapper.Ledbillquery)
-	router.POST(options.BaseURL+"/led/inventory/balance", wrapper.Ledinventorybalance)
-	router.POST(options.BaseURL+"/led/fund/query", wrapper.Ledfundquery)
-	router.POST(options.BaseURL+"/led/fund/balance", wrapper.Ledfundbalance)
-	router.POST(options.BaseURL+"/led/customer/query", wrapper.Ledcustomerquery)
-	router.POST(options.BaseURL+"/led/customer/balance", wrapper.Ledcustomerbalance)
-	router.POST(options.BaseURL+"/led/supplier/query", wrapper.Ledsupplierquery)
-	router.POST(options.BaseURL+"/led/supplier/balance", wrapper.Ledsupplierbalance)
-	router.POST(options.BaseURL+"/led/other/query", wrapper.Ledotherquery)
-	router.POST(options.BaseURL+"/led/other/balance", wrapper.Ledotherbalance)
-	router.POST(options.BaseURL+"/led/container/query", wrapper.Ledcontainerquery)
-	router.POST(options.BaseURL+"/led/container/balance", wrapper.Ledcontainerbalance)
-	router.POST(options.BaseURL+"/led/asset/query", wrapper.Ledassetquery)
-	router.POST(options.BaseURL+"/led/asset/get", wrapper.Ledassetget)
 	router.PUT(options.BaseURL+"/files/feedback/attachments/upload/:token", wrapper.UploadFeedbackAttachment)
 	router.PUT(options.BaseURL+"/files/attachments/upload/:token", wrapper.UploadAttachment)
 	router.GET(options.BaseURL+"/files/attachments/download/:token", wrapper.DownloadAttachment)
@@ -10212,424 +9504,6 @@ func (response Health200JSONResponse) VisitHealthResponse(w http.ResponseWriter)
 	return err
 }
 
-type LedassetgetRequestObject struct {
-	Body *LedassetgetJSONRequestBody
-}
-
-type LedassetgetResponseObject interface {
-	VisitLedassetgetResponse(w http.ResponseWriter) error
-}
-
-type Ledassetget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledassetget200JSONResponse) VisitLedassetgetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedassetqueryRequestObject struct {
-	Body *LedassetqueryJSONRequestBody
-}
-
-type LedassetqueryResponseObject interface {
-	VisitLedassetqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledassetquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledassetquery200JSONResponse) VisitLedassetqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedbillqueryRequestObject struct {
-	Body *LedbillqueryJSONRequestBody
-}
-
-type LedbillqueryResponseObject interface {
-	VisitLedbillqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledbillquery200JSONResponse LedBillQueryResponse
-
-func (response Ledbillquery200JSONResponse) VisitLedbillqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedclosingcloseRequestObject struct {
-	Body *LedclosingcloseJSONRequestBody
-}
-
-type LedclosingcloseResponseObject interface {
-	VisitLedclosingcloseResponse(w http.ResponseWriter) error
-}
-
-type Ledclosingclose200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledclosingclose200JSONResponse) VisitLedclosingcloseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedclosinggetRequestObject struct {
-	Body *LedclosinggetJSONRequestBody
-}
-
-type LedclosinggetResponseObject interface {
-	VisitLedclosinggetResponse(w http.ResponseWriter) error
-}
-
-type Ledclosingget200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledclosingget200JSONResponse) VisitLedclosinggetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedclosinghistoryRequestObject struct {
-	Body *LedclosinghistoryJSONRequestBody
-}
-
-type LedclosinghistoryResponseObject interface {
-	VisitLedclosinghistoryResponse(w http.ResponseWriter) error
-}
-
-type Ledclosinghistory200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledclosinghistory200JSONResponse) VisitLedclosinghistoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedclosinguncloseRequestObject struct {
-	Body *LedclosinguncloseJSONRequestBody
-}
-
-type LedclosinguncloseResponseObject interface {
-	VisitLedclosinguncloseResponse(w http.ResponseWriter) error
-}
-
-type Ledclosingunclose200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledclosingunclose200JSONResponse) VisitLedclosinguncloseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedcontainerbalanceRequestObject struct {
-	Body *LedcontainerbalanceJSONRequestBody
-}
-
-type LedcontainerbalanceResponseObject interface {
-	VisitLedcontainerbalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledcontainerbalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledcontainerbalance200JSONResponse) VisitLedcontainerbalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedcontainerqueryRequestObject struct {
-	Body *LedcontainerqueryJSONRequestBody
-}
-
-type LedcontainerqueryResponseObject interface {
-	VisitLedcontainerqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledcontainerquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledcontainerquery200JSONResponse) VisitLedcontainerqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedcustomerbalanceRequestObject struct {
-	Body *LedcustomerbalanceJSONRequestBody
-}
-
-type LedcustomerbalanceResponseObject interface {
-	VisitLedcustomerbalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledcustomerbalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledcustomerbalance200JSONResponse) VisitLedcustomerbalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedcustomerqueryRequestObject struct {
-	Body *LedcustomerqueryJSONRequestBody
-}
-
-type LedcustomerqueryResponseObject interface {
-	VisitLedcustomerqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledcustomerquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledcustomerquery200JSONResponse) VisitLedcustomerqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedfundbalanceRequestObject struct {
-	Body *LedfundbalanceJSONRequestBody
-}
-
-type LedfundbalanceResponseObject interface {
-	VisitLedfundbalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledfundbalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledfundbalance200JSONResponse) VisitLedfundbalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedfundqueryRequestObject struct {
-	Body *LedfundqueryJSONRequestBody
-}
-
-type LedfundqueryResponseObject interface {
-	VisitLedfundqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledfundquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledfundquery200JSONResponse) VisitLedfundqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedinventorybalanceRequestObject struct {
-	Body *LedinventorybalanceJSONRequestBody
-}
-
-type LedinventorybalanceResponseObject interface {
-	VisitLedinventorybalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledinventorybalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledinventorybalance200JSONResponse) VisitLedinventorybalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedinventoryqueryRequestObject struct {
-	Body *LedinventoryqueryJSONRequestBody
-}
-
-type LedinventoryqueryResponseObject interface {
-	VisitLedinventoryqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledinventoryquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledinventoryquery200JSONResponse) VisitLedinventoryqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedotherbalanceRequestObject struct {
-	Body *LedotherbalanceJSONRequestBody
-}
-
-type LedotherbalanceResponseObject interface {
-	VisitLedotherbalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledotherbalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledotherbalance200JSONResponse) VisitLedotherbalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedotherqueryRequestObject struct {
-	Body *LedotherqueryJSONRequestBody
-}
-
-type LedotherqueryResponseObject interface {
-	VisitLedotherqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledotherquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledotherquery200JSONResponse) VisitLedotherqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedsupplierbalanceRequestObject struct {
-	Body *LedsupplierbalanceJSONRequestBody
-}
-
-type LedsupplierbalanceResponseObject interface {
-	VisitLedsupplierbalanceResponse(w http.ResponseWriter) error
-}
-
-type Ledsupplierbalance200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledsupplierbalance200JSONResponse) VisitLedsupplierbalanceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LedsupplierqueryRequestObject struct {
-	Body *LedsupplierqueryJSONRequestBody
-}
-
-type LedsupplierqueryResponseObject interface {
-	VisitLedsupplierqueryResponse(w http.ResponseWriter) error
-}
-
-type Ledsupplierquery200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Ledsupplierquery200JSONResponse) VisitLedsupplierqueryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type ReadinessRequestObject struct {
 }
 
@@ -10677,6 +9551,29 @@ type VouapproveResponseObject interface {
 type Vouapprove200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Vouapprove200JSONResponse) VisitVouapproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouAvailableAssetQueryRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouAvailableAssetQueryJSONRequestBody
+}
+
+type VouAvailableAssetQueryResponseObject interface {
+	VisitVouAvailableAssetQueryResponse(w http.ResponseWriter) error
+}
+
+type VouAvailableAssetQuery200JSONResponse VouAvailableAssetQueryResponse
+
+func (response VouAvailableAssetQuery200JSONResponse) VisitVouAvailableAssetQueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -10769,6 +9666,29 @@ type VouaudithistoryResponseObject interface {
 type Vouaudithistory200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Vouaudithistory200JSONResponse) VisitVouaudithistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VouAvailableBillQueryRequestObject struct {
+	Entity VouEntity `json:"entity"`
+	Body   *VouAvailableBillQueryJSONRequestBody
+}
+
+type VouAvailableBillQueryResponseObject interface {
+	VisitVouAvailableBillQueryResponse(w http.ResponseWriter) error
+}
+
+type VouAvailableBillQuery200JSONResponse VouAvailableBillQueryResponse
+
+func (response VouAvailableBillQuery200JSONResponse) VisitVouAvailableBillQueryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -10907,29 +9827,6 @@ type VougetResponseObject interface {
 type Vouget200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Vouget200JSONResponse) VisitVougetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VouassetdepreciationpreviewRequestObject struct {
-	Entity VouEntity `json:"entity"`
-	Body   *VouassetdepreciationpreviewJSONRequestBody
-}
-
-type VouassetdepreciationpreviewResponseObject interface {
-	VisitVouassetdepreciationpreviewResponse(w http.ResponseWriter) error
-}
-
-type Vouassetdepreciationpreview200JSONResponse struct{ BusinessJSONResponse }
-
-func (response Vouassetdepreciationpreview200JSONResponse) VisitVouassetdepreciationpreviewResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -11709,69 +10606,15 @@ type StrictServerInterface interface {
 	// Health 进程健康检查
 	// (GET /healthz)
 	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
-	// Ledassetget 查看固定资产台账
-	// (POST /led/asset/get)
-	Ledassetget(ctx context.Context, request LedassetgetRequestObject) (LedassetgetResponseObject, error)
-	// Ledassetquery 查询固定资产台账
-	// (POST /led/asset/query)
-	Ledassetquery(ctx context.Context, request LedassetqueryRequestObject) (LedassetqueryResponseObject, error)
-	// Ledbillquery 查询票据台账
-	// (POST /led/bill/query)
-	Ledbillquery(ctx context.Context, request LedbillqueryRequestObject) (LedbillqueryResponseObject, error)
-	// Ledclosingclose 执行月末结账
-	// (POST /led/closing/close)
-	Ledclosingclose(ctx context.Context, request LedclosingcloseRequestObject) (LedclosingcloseResponseObject, error)
-	// Ledclosingget 读取最近结账与期初余额
-	// (POST /led/closing/get)
-	Ledclosingget(ctx context.Context, request LedclosinggetRequestObject) (LedclosinggetResponseObject, error)
-	// Ledclosinghistory 查询月末结账历史
-	// (POST /led/closing/history)
-	Ledclosinghistory(ctx context.Context, request LedclosinghistoryRequestObject) (LedclosinghistoryResponseObject, error)
-	// Ledclosingunclose 反结最近一期
-	// (POST /led/closing/unclose)
-	Ledclosingunclose(ctx context.Context, request LedclosinguncloseRequestObject) (LedclosinguncloseResponseObject, error)
-	// Ledcontainerbalance 查询容器余额
-	// (POST /led/container/balance)
-	Ledcontainerbalance(ctx context.Context, request LedcontainerbalanceRequestObject) (LedcontainerbalanceResponseObject, error)
-	// Ledcontainerquery 查询容器流水
-	// (POST /led/container/query)
-	Ledcontainerquery(ctx context.Context, request LedcontainerqueryRequestObject) (LedcontainerqueryResponseObject, error)
-	// Ledcustomerbalance 查询客户往来余额
-	// (POST /led/customer/balance)
-	Ledcustomerbalance(ctx context.Context, request LedcustomerbalanceRequestObject) (LedcustomerbalanceResponseObject, error)
-	// Ledcustomerquery 查询客户往来流水
-	// (POST /led/customer/query)
-	Ledcustomerquery(ctx context.Context, request LedcustomerqueryRequestObject) (LedcustomerqueryResponseObject, error)
-	// Ledfundbalance 查询资金余额
-	// (POST /led/fund/balance)
-	Ledfundbalance(ctx context.Context, request LedfundbalanceRequestObject) (LedfundbalanceResponseObject, error)
-	// Ledfundquery 查询资金流水
-	// (POST /led/fund/query)
-	Ledfundquery(ctx context.Context, request LedfundqueryRequestObject) (LedfundqueryResponseObject, error)
-	// Ledinventorybalance 查询库存余额
-	// (POST /led/inventory/balance)
-	Ledinventorybalance(ctx context.Context, request LedinventorybalanceRequestObject) (LedinventorybalanceResponseObject, error)
-	// Ledinventoryquery 查询库存流水
-	// (POST /led/inventory/query)
-	Ledinventoryquery(ctx context.Context, request LedinventoryqueryRequestObject) (LedinventoryqueryResponseObject, error)
-	// Ledotherbalance 查询其他往来余额
-	// (POST /led/other/balance)
-	Ledotherbalance(ctx context.Context, request LedotherbalanceRequestObject) (LedotherbalanceResponseObject, error)
-	// Ledotherquery 查询其他往来流水
-	// (POST /led/other/query)
-	Ledotherquery(ctx context.Context, request LedotherqueryRequestObject) (LedotherqueryResponseObject, error)
-	// Ledsupplierbalance 查询供应商往来余额
-	// (POST /led/supplier/balance)
-	Ledsupplierbalance(ctx context.Context, request LedsupplierbalanceRequestObject) (LedsupplierbalanceResponseObject, error)
-	// Ledsupplierquery 查询供应商往来流水
-	// (POST /led/supplier/query)
-	Ledsupplierquery(ctx context.Context, request LedsupplierqueryRequestObject) (LedsupplierqueryResponseObject, error)
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(ctx context.Context, request ReadinessRequestObject) (ReadinessResponseObject, error)
 	// Vouapprove 批准业务单据
 	// (POST /vou/{entity}/approve)
 	Vouapprove(ctx context.Context, request VouapproveRequestObject) (VouapproveResponseObject, error)
+	// VouAvailableAssetQuery 选择 ACC 登记的在用资产
+	// (POST /vou/{entity}/asset-source)
+	VouAvailableAssetQuery(ctx context.Context, request VouAvailableAssetQueryRequestObject) (VouAvailableAssetQueryResponseObject, error)
 	// Vouattachmentdownload 申请业务单据附件下载
 	// (POST /vou/{entity}/attachment-download)
 	Vouattachmentdownload(ctx context.Context, request VouattachmentdownloadRequestObject) (VouattachmentdownloadResponseObject, error)
@@ -11784,6 +10627,9 @@ type StrictServerInterface interface {
 	// Vouaudithistory 查询业务单据审计历史
 	// (POST /vou/{entity}/audit-history)
 	Vouaudithistory(ctx context.Context, request VouaudithistoryRequestObject) (VouaudithistoryResponseObject, error)
+	// VouAvailableBillQuery 选择 ACC 登记的可用票据
+	// (POST /vou/{entity}/bill-source)
+	VouAvailableBillQuery(ctx context.Context, request VouAvailableBillQueryRequestObject) (VouAvailableBillQueryResponseObject, error)
 	// VouInventoryCountBookBalance 读取库存盘点账面数量
 	// (POST /vou/{entity}/book-balance)
 	VouInventoryCountBookBalance(ctx context.Context, request VouInventoryCountBookBalanceRequestObject) (VouInventoryCountBookBalanceResponseObject, error)
@@ -11802,9 +10648,6 @@ type StrictServerInterface interface {
 	// Vouget 读取业务单据
 	// (POST /vou/{entity}/get)
 	Vouget(ctx context.Context, request VougetRequestObject) (VougetResponseObject, error)
-	// Vouassetdepreciationpreview 预览固定资产折旧
-	// (POST /vou/{entity}/preview)
-	Vouassetdepreciationpreview(ctx context.Context, request VouassetdepreciationpreviewRequestObject) (VouassetdepreciationpreviewResponseObject, error)
 	// VouPriceReference 解析订单产品参考价
 	// (POST /vou/{entity}/price-reference)
 	VouPriceReference(ctx context.Context, request VouPriceReferenceRequestObject) (VouPriceReferenceResponseObject, error)
@@ -14536,595 +13379,6 @@ func (sh *strictHandler) Health(ctx *gin.Context) {
 	}
 }
 
-// Ledassetget operation middleware
-func (sh *strictHandler) Ledassetget(ctx *gin.Context) {
-	var request LedassetgetRequestObject
-
-	var body LedassetgetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledassetget(ctx, request.(LedassetgetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledassetget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedassetgetResponseObject); ok {
-		if err := validResponse.VisitLedassetgetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledassetquery operation middleware
-func (sh *strictHandler) Ledassetquery(ctx *gin.Context) {
-	var request LedassetqueryRequestObject
-
-	var body LedassetqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledassetquery(ctx, request.(LedassetqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledassetquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedassetqueryResponseObject); ok {
-		if err := validResponse.VisitLedassetqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledbillquery operation middleware
-func (sh *strictHandler) Ledbillquery(ctx *gin.Context) {
-	var request LedbillqueryRequestObject
-
-	var body LedbillqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledbillquery(ctx, request.(LedbillqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledbillquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedbillqueryResponseObject); ok {
-		if err := validResponse.VisitLedbillqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledclosingclose operation middleware
-func (sh *strictHandler) Ledclosingclose(ctx *gin.Context) {
-	var request LedclosingcloseRequestObject
-
-	var body LedclosingcloseJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledclosingclose(ctx, request.(LedclosingcloseRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledclosingclose")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedclosingcloseResponseObject); ok {
-		if err := validResponse.VisitLedclosingcloseResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledclosingget operation middleware
-func (sh *strictHandler) Ledclosingget(ctx *gin.Context) {
-	var request LedclosinggetRequestObject
-
-	var body LedclosinggetJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledclosingget(ctx, request.(LedclosinggetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledclosingget")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedclosinggetResponseObject); ok {
-		if err := validResponse.VisitLedclosinggetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledclosinghistory operation middleware
-func (sh *strictHandler) Ledclosinghistory(ctx *gin.Context) {
-	var request LedclosinghistoryRequestObject
-
-	var body LedclosinghistoryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledclosinghistory(ctx, request.(LedclosinghistoryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledclosinghistory")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedclosinghistoryResponseObject); ok {
-		if err := validResponse.VisitLedclosinghistoryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledclosingunclose operation middleware
-func (sh *strictHandler) Ledclosingunclose(ctx *gin.Context) {
-	var request LedclosinguncloseRequestObject
-
-	var body LedclosinguncloseJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledclosingunclose(ctx, request.(LedclosinguncloseRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledclosingunclose")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedclosinguncloseResponseObject); ok {
-		if err := validResponse.VisitLedclosinguncloseResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledcontainerbalance operation middleware
-func (sh *strictHandler) Ledcontainerbalance(ctx *gin.Context) {
-	var request LedcontainerbalanceRequestObject
-
-	var body LedcontainerbalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledcontainerbalance(ctx, request.(LedcontainerbalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledcontainerbalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedcontainerbalanceResponseObject); ok {
-		if err := validResponse.VisitLedcontainerbalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledcontainerquery operation middleware
-func (sh *strictHandler) Ledcontainerquery(ctx *gin.Context) {
-	var request LedcontainerqueryRequestObject
-
-	var body LedcontainerqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledcontainerquery(ctx, request.(LedcontainerqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledcontainerquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedcontainerqueryResponseObject); ok {
-		if err := validResponse.VisitLedcontainerqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledcustomerbalance operation middleware
-func (sh *strictHandler) Ledcustomerbalance(ctx *gin.Context) {
-	var request LedcustomerbalanceRequestObject
-
-	var body LedcustomerbalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledcustomerbalance(ctx, request.(LedcustomerbalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledcustomerbalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedcustomerbalanceResponseObject); ok {
-		if err := validResponse.VisitLedcustomerbalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledcustomerquery operation middleware
-func (sh *strictHandler) Ledcustomerquery(ctx *gin.Context) {
-	var request LedcustomerqueryRequestObject
-
-	var body LedcustomerqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledcustomerquery(ctx, request.(LedcustomerqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledcustomerquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedcustomerqueryResponseObject); ok {
-		if err := validResponse.VisitLedcustomerqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledfundbalance operation middleware
-func (sh *strictHandler) Ledfundbalance(ctx *gin.Context) {
-	var request LedfundbalanceRequestObject
-
-	var body LedfundbalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledfundbalance(ctx, request.(LedfundbalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledfundbalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedfundbalanceResponseObject); ok {
-		if err := validResponse.VisitLedfundbalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledfundquery operation middleware
-func (sh *strictHandler) Ledfundquery(ctx *gin.Context) {
-	var request LedfundqueryRequestObject
-
-	var body LedfundqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledfundquery(ctx, request.(LedfundqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledfundquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedfundqueryResponseObject); ok {
-		if err := validResponse.VisitLedfundqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledinventorybalance operation middleware
-func (sh *strictHandler) Ledinventorybalance(ctx *gin.Context) {
-	var request LedinventorybalanceRequestObject
-
-	var body LedinventorybalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledinventorybalance(ctx, request.(LedinventorybalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledinventorybalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedinventorybalanceResponseObject); ok {
-		if err := validResponse.VisitLedinventorybalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledinventoryquery operation middleware
-func (sh *strictHandler) Ledinventoryquery(ctx *gin.Context) {
-	var request LedinventoryqueryRequestObject
-
-	var body LedinventoryqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledinventoryquery(ctx, request.(LedinventoryqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledinventoryquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedinventoryqueryResponseObject); ok {
-		if err := validResponse.VisitLedinventoryqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledotherbalance operation middleware
-func (sh *strictHandler) Ledotherbalance(ctx *gin.Context) {
-	var request LedotherbalanceRequestObject
-
-	var body LedotherbalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledotherbalance(ctx, request.(LedotherbalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledotherbalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedotherbalanceResponseObject); ok {
-		if err := validResponse.VisitLedotherbalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledotherquery operation middleware
-func (sh *strictHandler) Ledotherquery(ctx *gin.Context) {
-	var request LedotherqueryRequestObject
-
-	var body LedotherqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledotherquery(ctx, request.(LedotherqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledotherquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedotherqueryResponseObject); ok {
-		if err := validResponse.VisitLedotherqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledsupplierbalance operation middleware
-func (sh *strictHandler) Ledsupplierbalance(ctx *gin.Context) {
-	var request LedsupplierbalanceRequestObject
-
-	var body LedsupplierbalanceJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledsupplierbalance(ctx, request.(LedsupplierbalanceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledsupplierbalance")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedsupplierbalanceResponseObject); ok {
-		if err := validResponse.VisitLedsupplierbalanceResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Ledsupplierquery operation middleware
-func (sh *strictHandler) Ledsupplierquery(ctx *gin.Context) {
-	var request LedsupplierqueryRequestObject
-
-	var body LedsupplierqueryJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Ledsupplierquery(ctx, request.(LedsupplierqueryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Ledsupplierquery")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(LedsupplierqueryResponseObject); ok {
-		if err := validResponse.VisitLedsupplierqueryResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // Readiness operation middleware
 func (sh *strictHandler) Readiness(ctx *gin.Context) {
 	var request ReadinessRequestObject
@@ -15175,6 +13429,39 @@ func (sh *strictHandler) Vouapprove(ctx *gin.Context, entity VouEntity) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(VouapproveResponseObject); ok {
 		if err := validResponse.VisitVouapproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouAvailableAssetQuery operation middleware
+func (sh *strictHandler) VouAvailableAssetQuery(ctx *gin.Context, entity VouEntity) {
+	var request VouAvailableAssetQueryRequestObject
+
+	request.Entity = entity
+
+	var body VouAvailableAssetQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouAvailableAssetQuery(ctx, request.(VouAvailableAssetQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouAvailableAssetQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouAvailableAssetQueryResponseObject); ok {
+		if err := validResponse.VisitVouAvailableAssetQueryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -15307,6 +13594,39 @@ func (sh *strictHandler) Vouaudithistory(ctx *gin.Context, entity VouEntity) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(VouaudithistoryResponseObject); ok {
 		if err := validResponse.VisitVouaudithistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VouAvailableBillQuery operation middleware
+func (sh *strictHandler) VouAvailableBillQuery(ctx *gin.Context, entity VouEntity) {
+	var request VouAvailableBillQueryRequestObject
+
+	request.Entity = entity
+
+	var body VouAvailableBillQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VouAvailableBillQuery(ctx, request.(VouAvailableBillQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VouAvailableBillQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VouAvailableBillQueryResponseObject); ok {
+		if err := validResponse.VisitVouAvailableBillQueryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -15505,39 +13825,6 @@ func (sh *strictHandler) Vouget(ctx *gin.Context, entity VouEntity) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(VougetResponseObject); ok {
 		if err := validResponse.VisitVougetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// Vouassetdepreciationpreview operation middleware
-func (sh *strictHandler) Vouassetdepreciationpreview(ctx *gin.Context, entity VouEntity) {
-	var request VouassetdepreciationpreviewRequestObject
-
-	request.Entity = entity
-
-	var body VouassetdepreciationpreviewJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Vouassetdepreciationpreview(ctx, request.(VouassetdepreciationpreviewRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Vouassetdepreciationpreview")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(VouassetdepreciationpreviewResponseObject); ok {
-		if err := validResponse.VisitVouassetdepreciationpreviewResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -16285,265 +14572,254 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"CwAA//8=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

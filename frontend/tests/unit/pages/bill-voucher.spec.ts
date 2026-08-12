@@ -20,13 +20,11 @@ import type { BillVoucherForm } from '@/pages/vou/shared/bill/vm'
 import { billVoucherConfigs } from '@/pages/vou/shared/bill/config'
 import { useBillVoucherViewModel } from '@/pages/vou/shared/bill/vm'
 import { useSessionStore } from '@/stores/session'
-import { useBillLedgerViewModel } from '@/pages/led/bill/vm'
 import BillReceipt from '@/pages/vou/bill-receipt/BillReceipt.vue'
 import BillPayment from '@/pages/vou/bill-payment/BillPayment.vue'
 import BillIssue from '@/pages/vou/bill-issue/BillIssue.vue'
 import BillDiscount from '@/pages/vou/bill-discount/BillDiscount.vue'
 import BillMaturity from '@/pages/vou/bill-maturity/BillMaturity.vue'
-import BillLedgerPage from '@/pages/led/bill/Bill.vue'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
@@ -40,12 +38,44 @@ vi.mock('@/api/client', () => ({
 
 const mockedPost = vi.mocked(apiClient.post)
 const mockedPostContract = vi.mocked(apiClient.postContract)
+const availableBillPage = {
+  data: {
+    items: [
+      {
+        billId: 'bill-1',
+        positionType: 'ASSET',
+        billType: 'BANK_ACCEPTANCE',
+        billNo: 'B-1',
+        medium: 'ELECTRONIC',
+        currency: 'CNY',
+        faceAmount: '10.00',
+        issueDate: '2026-01-01',
+        maturityDate: '2026-09-01',
+        drawer: 'D',
+        acceptor: 'A',
+        payee: 'P',
+        originatingParty: {
+          objectId: 'customer-1',
+          versionId: 'customer-v1',
+          entity: 'customer',
+          code: 'CUS-001',
+          name: '客户一',
+        },
+        annualRateBps: 100,
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  },
+}
 
 beforeEach(() => {
   setActivePinia(createPinia())
   mockedPost.mockReset()
   mockedPostContract.mockReset()
   mockedPost.mockImplementation(async (path: string) => {
+    if (path.endsWith('/bill-source')) return availableBillPage as never
     if (path.startsWith('bob/'))
       return {
         data: {
@@ -140,37 +170,7 @@ beforeEach(() => {
       },
     } as never
   })
-  mockedPostContract.mockResolvedValue({
-    data: {
-      items: [
-        {
-          billId: 'bill-1',
-          positionType: 'ASSET',
-          billType: 'BANK_ACCEPTANCE',
-          billNo: 'B-1',
-          medium: 'ELECTRONIC',
-          currency: 'CNY',
-          faceAmount: '10.00',
-          issueDate: '2026-01-01',
-          maturityDate: '2026-09-01',
-          drawer: 'D',
-          acceptor: 'A',
-          payee: 'P',
-          originatingParty: {
-            objectId: 'customer-1',
-            versionId: 'customer-v1',
-            entity: 'customer',
-            code: 'CUS-001',
-            name: '客户一',
-          },
-          annualRateBps: 100,
-        },
-      ],
-      total: 1,
-      page: 1,
-      pageSize: 20,
-    },
-  } as never)
+  mockedPostContract.mockResolvedValue(availableBillPage as never)
 })
 
 function form(): BillVoucherForm {
@@ -307,7 +307,7 @@ describe('bill receipt payload', () => {
     session.$patch({
       permissions: [
         '/vou/bill-payment/create',
-        '/led/bill/query',
+        '/vou/bill-payment/query',
         '/bob/supplier/query',
       ],
     })
@@ -325,7 +325,7 @@ describe('bill receipt payload', () => {
       },
     ]
     vm.heldSelection.value = ['bill-a']
-    mockedPostContract.mockResolvedValueOnce({
+    mockedPost.mockResolvedValueOnce({
       data: {
         items: [
           {
@@ -590,7 +590,7 @@ describe('bill voucher view model behavior', () => {
       permissions: [
         '/vou/bill-payment/create',
         '/vou/bill-payment/get',
-        '/led/bill/query',
+        '/vou/bill-payment/query',
         '/bob/supplier/query',
       ],
     })
@@ -662,7 +662,7 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
-  it('requires bill-ledger access for held-bill create and edit actions', async () => {
+  it('requires bill query access for held-bill create and edit actions', async () => {
     const session = useSessionStore()
     session.$patch({
       permissions: [
@@ -684,11 +684,11 @@ describe('bill voucher view model behavior', () => {
     await vm.openDocument({ documentId: 'DOC-1' }, true)
     expect(vm.editing.value).toBe(false)
 
-    mockedPostContract.mockClear()
+    mockedPost.mockClear()
     await vm.openHeldDialog()
-    expect(mockedPostContract).not.toHaveBeenCalled()
+    expect(mockedPost).not.toHaveBeenCalled()
 
-    session.permissions.push('/led/bill/query')
+    session.permissions.push('/vou/bill-payment/query')
     expect(vm.canCreate.value).toBe(true)
     expect(vm.actionAvailability.value.save).toBe(true)
     scope.stop()
@@ -702,7 +702,7 @@ describe('bill voucher view model behavior', () => {
       },
       {
         entity: 'bill-payment' as const,
-        permissions: ['/led/bill/query', '/bob/supplier/query'],
+        permissions: ['/vou/bill-payment/query', '/bob/supplier/query'],
       },
       {
         entity: 'bill-issue' as const,
@@ -710,11 +710,11 @@ describe('bill voucher view model behavior', () => {
       },
       {
         entity: 'bill-discount' as const,
-        permissions: ['/led/bill/query', '/bob/other-party/query'],
+        permissions: ['/vou/bill-discount/query', '/bob/other-party/query'],
       },
       {
         entity: 'bill-maturity' as const,
-        permissions: ['/led/bill/query', '/bob/fund-account/query'],
+        permissions: ['/vou/bill-maturity/query', '/bob/fund-account/query'],
       },
     ]
     const session = useSessionStore()
@@ -733,7 +733,7 @@ describe('bill voucher view model behavior', () => {
     }
   })
 
-  it('covers create, references, LED selection, save, lifecycle and delete flows', async () => {
+  it('covers create, references, ACC selection, save, lifecycle and delete flows', async () => {
     const session = useSessionStore()
     session.$patch({
       permissions: [
@@ -743,7 +743,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-maturity/save',
         '/vou/bill-maturity/check',
         '/vou/bill-maturity/delete',
-        '/led/bill/query',
+        '/vou/bill-maturity/query',
         '/bob/fund-account/query',
       ],
     })
@@ -771,10 +771,10 @@ describe('bill voucher view model behavior', () => {
       name: '引用',
     })
     await vm.openHeldDialog()
-    expect(mockedPostContract).toHaveBeenLastCalledWith(
-      'led/bill/query',
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-maturity/bill-source',
       expect.objectContaining({
-        filters: expect.objectContaining({ availability: 'HELD' }),
+        positionType: 'ASSET',
       }),
       expect.anything(),
     )
@@ -852,7 +852,7 @@ describe('bill voucher view model behavior', () => {
     session.$patch({
       permissions: [
         '/vou/bill-maturity/create',
-        '/led/bill/query',
+        '/vou/bill-maturity/query',
         '/bob/fund-account/query',
       ],
     })
@@ -901,9 +901,9 @@ describe('bill voucher view model behavior', () => {
 
   it('ignores an aborted held-bill search after a newer request starts', async () => {
     const session = useSessionStore()
-    session.$patch({ permissions: ['/led/bill/query'] })
+    session.$patch({ permissions: ['/vou/bill-payment/query'] })
     let resolveLatest!: (value: unknown) => void
-    mockedPostContract
+    mockedPost
       .mockImplementationOnce(
         (_path, _body, options) =>
           new Promise((_resolve, reject) => {
@@ -935,141 +935,6 @@ describe('bill voucher view model behavior', () => {
   })
 })
 
-describe('bill ledger view model behavior', () => {
-  it('loads ledger, searches every originating-party type and applies maturity shortcuts', async () => {
-    const session = useSessionStore()
-    session.$patch({
-      permissions: [
-        '/led/bill/query',
-        '/bob/customer/query',
-        '/bob/supplier/query',
-        '/bob/other-party/query',
-      ],
-    })
-    const scope = effectScope()
-    const vm = scope.run(() => useBillLedgerViewModel())!
-    await vm.load()
-    vm.search()
-    await vm.searchOriginatingParty('往来方')
-    expect(vm.originatingPartyOptions.value).toHaveLength(3)
-    expect(vm.originatingPartyOptions.value[0]).toMatchObject({
-      objectId: 'r',
-      versionId: 'rv',
-      code: 'R',
-      name: '引用',
-      entity: 'customer',
-    })
-    expect(vm.originatingPartyOptions.value.map((item) => item.entity)).toEqual(
-      ['customer', 'supplier', 'other-party'],
-    )
-    vm.selectOriginatingParty(vm.originatingPartyOptions.value[1]!)
-    vm.originatingPartyOptions.value = []
-    expect(vm.selectedOriginatingParty.value).toMatchObject({
-      objectId: 'r',
-      name: '引用',
-      entity: 'supplier',
-    })
-    expect(vm.filters.originatingPartyType).toBe('supplier')
-    expect(vm.filters.originatingPartyObjectId).toBe('r')
-    vm.maturityShortcut('30d')
-    expect(vm.filters.availability).toBeUndefined()
-    vm.maturityShortcut('7d')
-    vm.maturityShortcut('today')
-    vm.maturityShortcut('overdue')
-    vm.changePage(1)
-    expect(vm.filters.availability).toBe('MATURED')
-    expect(vm.filters.maturityDateTo).toBeTruthy()
-    scope.stop()
-  })
-
-  it('queries only originating-party catalogs granted to the user', async () => {
-    const session = useSessionStore()
-    session.$patch({
-      permissions: ['/led/bill/query', '/bob/supplier/query'],
-    })
-    const scope = effectScope()
-    const vm = scope.run(() => useBillLedgerViewModel())!
-
-    await vm.searchOriginatingParty('供应商')
-
-    expect(mockedPost).toHaveBeenCalledTimes(1)
-    expect(mockedPost).toHaveBeenCalledWith(
-      'bob/supplier/query',
-      expect.anything(),
-      expect.anything(),
-    )
-    expect(vm.originatingPartyOptions.value).toHaveLength(1)
-    expect(vm.originatingPartyOptions.value[0]?.entity).toBe('supplier')
-    expect(vm.errorMessage.value).toBeNull()
-    scope.stop()
-  })
-
-  it('clears the maturity status filter when leaving the overdue shortcut', () => {
-    const session = useSessionStore()
-    session.$patch({ permissions: ['/led/bill/query'] })
-    const scope = effectScope()
-    const vm = scope.run(() => useBillLedgerViewModel())!
-
-    vm.maturityShortcut('overdue')
-    expect(vm.filters.availability).toBe('MATURED')
-    vm.maturityShortcut('today')
-    expect(vm.filters.availability).toBeUndefined()
-    scope.stop()
-  })
-
-  it('builds maturity shortcuts from the Asia/Shanghai business date', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-08T16:30:00Z'))
-    const session = useSessionStore()
-    session.$patch({ permissions: ['/led/bill/query'] })
-    const scope = effectScope()
-    const vm = scope.run(() => useBillLedgerViewModel())!
-
-    vm.maturityShortcut('today')
-    expect(vm.filters.maturityDateFrom).toBe('2026-08-09')
-    expect(vm.filters.maturityDateTo).toBe('2026-08-09')
-    vm.maturityShortcut('overdue')
-    expect(vm.filters.maturityDateFrom).toBeUndefined()
-    expect(vm.filters.maturityDateTo).toBe('2026-08-08')
-
-    scope.stop()
-    vi.useRealTimers()
-  })
-
-  it('keeps the latest bill ledger load while an older request settles late', async () => {
-    const session = useSessionStore()
-    session.$patch({ permissions: ['/led/bill/query'] })
-    let resolveFirst!: (value: unknown) => void
-    let resolveSecond!: (value: unknown) => void
-    mockedPostContract
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveFirst = resolve
-          }) as never,
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSecond = resolve
-          }) as never,
-      )
-    const scope = effectScope()
-    const vm = scope.run(() => useBillLedgerViewModel())!
-
-    const first = vm.load()
-    const second = vm.load()
-    resolveSecond({ data: { items: [{ billId: 'new' }], total: 1 } })
-    await second
-    resolveFirst({ data: { items: [{ billId: 'old' }], total: 1 } })
-    await first
-
-    expect(vm.rows.value).toEqual([{ billId: 'new' }])
-    expect(vm.loading.value).toBe(false)
-    scope.stop()
-  })
-})
-
 describe('bill voucher route wrappers', () => {
   it('binds every entity wrapper to the shared bill page', () => {
     for (const component of [
@@ -1087,11 +952,5 @@ describe('bill voucher route wrappers', () => {
       )
       wrapper.unmount()
     }
-  })
-
-  it('mounts the bill ledger page', () => {
-    const wrapper = shallowMount(BillLedgerPage)
-    expect(wrapper.exists()).toBe(true)
-    wrapper.unmount()
   })
 })

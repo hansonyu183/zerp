@@ -4,12 +4,15 @@ package vou
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -73,45 +76,83 @@ func activateSettlementLedgerForParty(
 	effectiveDate string,
 ) {
 	t.Helper()
-	generationID := newID()
-	if _, err := pool.Exec(t.Context(), `INSERT INTO led_generations(
-		id,cutover_date,status,activated_by,request_id
-	) VALUES($1,CURRENT_DATE,'ACTIVE',$2,$3)`, generationID, integrationActorOne, "settlement-gate-ledger"); err != nil {
-		t.Fatalf("insert settlement ledger generation: %v", err)
+	bookID, openingVoucherID := newID(), newID()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO acc_books(
+		id,code,name,start_month,base_currency,control_book,subject_template,created_by,updated_by
+	) VALUES($1,$2,'VOU settlement control','2020-01-01','CNY',true,'EMPTY',$3,$3)`,
+		bookID, "VOU-"+bookID, integrationActorOne); err != nil {
+		t.Fatalf("insert accounting control book: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `UPDATE led_control SET
-		status='ACTIVE',cutover_date=CURRENT_DATE,active_generation_id=$1,
-		revision=revision+1,updated_by=$2`, generationID, integrationActorOne); err != nil {
-		t.Fatalf("activate settlement ledger: %v", err)
+	for index, definition := range []struct{ purpose, dimension, direction string }{
+		{"RECEIVABLE", "CUSTOMER", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER", "CREDIT"},
+		{"PAYABLE", "SUPPLIER", "CREDIT"}, {"PREPAID", "SUPPLIER", "DEBIT"},
+		{"OTHER", "CUSTOMER", "DEBIT"},
+	} {
+		subjectID := newID()
+		if _, err := pool.Exec(t.Context(), `INSERT INTO acc_subjects(
+			id,book_id,code,name,balance_direction,settlement_purpose,created_by,updated_by
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$7)`, subjectID, bookID,
+			fmt.Sprintf("S%02d", index+1), definition.purpose, definition.direction,
+			definition.purpose, integrationActorOne); err != nil {
+			t.Fatalf("insert accounting settlement subject: %v", err)
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO acc_subject_dimensions(subject_id,dimension) VALUES($1,$2)`,
+			subjectID, definition.dimension); err != nil {
+			t.Fatalf("insert accounting subject dimension: %v", err)
+		}
+	}
+	if _, err := pool.Exec(t.Context(), `WITH inserted_voucher AS (INSERT INTO acc_vouchers(
+		id,book_id,source_type,source_id,business_date,created_by
+	) VALUES($1,$2,'OPENING','OPENING','2020-01-01',$3) RETURNING id)
+	INSERT INTO acc_openings(book_id,state,voucher_id,approved_at,approved_by,created_by,updated_by)
+	VALUES($2,'APPROVED',$1,now(),$3,$3,$3)`, openingVoucherID, bookID, integrationActorOne); err != nil {
+		t.Fatalf("approve accounting control opening: %v", err)
 	}
 	if amountCents != 0 {
-		if _, err := pool.Exec(t.Context(), `INSERT INTO led_party_entries(
-			id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-			source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-			counterparty_entity,counterparty_object_id,counterparty_version_id,
-			counterparty_code,counterparty_name,currency,amount_delta_cents
-		) VALUES($1,$2,'OPENING','opening',$3,'OPENING','',0,$4::date,now(),$5,$6,
-			$7,$8,$9,'PARTY','Settlement party','CNY',$10)`,
-			newID(), generationID, newID(), effectiveDate, integrationActorOne,
-			"settlement-gate-opening", partyEntity, party.ObjectID, party.VersionID, amountCents); err != nil {
-			t.Fatalf("insert settlement ledger balance: %v", err)
+		purpose := "ADVANCE_RECEIPT"
+		if partyEntity == "supplier" {
+			purpose = "PREPAID"
+		}
+		if err := insertAccountingPartyEntry(t.Context(), pool, partyEntity, party.ObjectID,
+			purpose, absInt64(amountCents), effectiveDate, newID()); err != nil {
+			t.Fatalf("insert accounting settlement balance: %v", err)
 		}
 	}
-	t.Cleanup(func() {
-		cleanupContext := context.Background()
-		if _, err := pool.Exec(cleanupContext, `UPDATE led_control SET
-			status='DRAFT',cutover_date=NULL,active_generation_id=NULL,
-			revision=revision+1,updated_by=$1`, integrationActorOne); err != nil {
-			t.Errorf("reset settlement ledger control: %v", err)
-			return
-		}
-		if _, err := pool.Exec(cleanupContext, `DELETE FROM led_party_entries WHERE generation_id=$1`, generationID); err != nil {
-			t.Errorf("delete settlement ledger entries: %v", err)
-		}
-		if _, err := pool.Exec(cleanupContext, `DELETE FROM led_generations WHERE id=$1`, generationID); err != nil {
-			t.Errorf("delete settlement ledger generation: %v", err)
-		}
-	})
+}
+
+type accountingEntryExecutor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func insertAccountingPartyEntry(
+	ctx context.Context, executor accountingEntryExecutor, partyEntity, partyObjectID,
+	purpose string, naturalAmount int64, effectiveDate, sourceID string,
+) error {
+	dimension := "CUSTOMER"
+	if partyEntity == "supplier" {
+		dimension = "SUPPLIER"
+	}
+	var bookID, subjectID, direction string
+	if err := executor.QueryRow(ctx, `SELECT subject.book_id,subject.id,subject.balance_direction
+		FROM acc_subjects subject JOIN acc_books book ON book.id=subject.book_id AND book.control_book
+		WHERE subject.settlement_purpose=$1 LIMIT 1`, purpose).Scan(&bookID, &subjectID, &direction); err != nil {
+		return err
+	}
+	debit, credit := int64(0), int64(0)
+	if (direction == "DEBIT" && naturalAmount >= 0) || (direction == "CREDIT" && naturalAmount < 0) {
+		debit = absInt64(naturalAmount)
+	} else {
+		credit = absInt64(naturalAmount)
+	}
+	voucherID := newID()
+	_, err := executor.Exec(ctx, `WITH inserted_voucher AS (INSERT INTO acc_vouchers(id,book_id,source_type,source_id,business_date,created_by)
+		VALUES($1,$2,'OPENING',$3,$4::date,$5) RETURNING id)
+	INSERT INTO acc_voucher_lines(id,book_id,voucher_id,subject_id,currency,debit_minor,credit_minor,dimensions,source_line_id,line_order)
+		VALUES($6,$2,$1,$7,'CNY',$8,$9,jsonb_build_object($10::text,$11::text),$6,0)`,
+		voucherID, bookID, sourceID, effectiveDate, integrationActorOne, newID(), subjectID,
+		debit, credit, dimension, partyObjectID)
+	return err
 }
 
 func TestPrepaidApprovalReservesAtomicallyAndUnapproveReleasesIntegration(t *testing.T) {
@@ -348,17 +389,8 @@ func TestPrepaidApprovalExcludesCustomerOtherBalanceIntegration(t *testing.T) {
 		t.Fatalf("read other prepaid order amount: %v", err)
 	}
 	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
-	if _, err := pool.Exec(t.Context(), `INSERT INTO led_party_entries(
-		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-		counterparty_entity,counterparty_object_id,counterparty_version_id,
-		counterparty_code,counterparty_name,currency,amount_delta_cents,
-		account_type,other_category
-	) SELECT $1,active_generation_id,'POSTING','intermediary-calculation',$2,'ICL-REBATE','',1,
-		CURRENT_DATE,now(),$3,'prepaid-other-entry','customer',$4,$5,'CUSTOMER',
-		'Rebate customer','CNY',$6,'OTHER','REBATE'
-		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(),
-		integrationActorOne, customer.ObjectID, customer.VersionID, -amount); err != nil {
+	if err := insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+		"OTHER", amount, "2026-08-04", newID()); err != nil {
 		t.Fatalf("insert customer rebate other balance: %v", err)
 	}
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
@@ -383,7 +415,7 @@ func TestSettlementApprovalRequiresActiveLedgerIntegration(t *testing.T) {
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 		DocumentID: order.DocumentID, Revision: order.Revision,
 	}, integrationActorTwo, "inactive-ledger-approve"); err == nil ||
-		!strings.Contains(err.Error(), "settlement ledger is not active") {
+		!strings.Contains(err.Error(), "accounting settlement balance is unavailable") {
 		t.Fatalf("inactive settlement ledger error = %v", err)
 	}
 }
@@ -442,15 +474,8 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	}, integrationActorOne, "cod-second-unapprove"); err != nil {
 		t.Fatalf("unapprove second COD order: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
-		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-		counterparty_entity,counterparty_object_id,counterparty_version_id,
-		counterparty_code,counterparty_name,currency,amount_delta_cents
-	) SELECT $1,active_generation_id,'POSTING','receipt',$2,'DEBT','',1,CURRENT_DATE,
-		now(),$3,$4,'customer',$5,$6,'CUSTOMER','COD customer','CNY',1
-		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(),
-		integrationActorOne, "cod-debt-entry", customer.ObjectID, customer.VersionID); err != nil {
+	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+		"RECEIVABLE", 1, "2026-08-04", newID()); err != nil {
 		t.Fatalf("insert COD debt: %v", err)
 	}
 	tx, err = pool.Begin(t.Context())
@@ -515,38 +540,12 @@ func TestCashOnDeliveryReopenExcludesOnlyOrderAttributedTradeBalanceIntegration(
 		}},
 	}, true)
 
-	var attributedBalance int64
-	if err = pool.QueryRow(t.Context(), `SELECT COALESCE(sum(amount_delta_cents),0)::bigint
-		FROM led_party_entries
-		WHERE generation_id=(SELECT active_generation_id FROM led_control WHERE singleton)
-		  AND counterparty_entity='customer' AND counterparty_object_id=$1
-		  AND source_document_id=$2 AND account_type='TRADE'`,
-		customer.ObjectID, signoff.DocumentID).Scan(&attributedBalance); err != nil {
-		t.Fatalf("read attributed COD balance: %v", err)
-	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
-		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-		counterparty_entity,counterparty_object_id,counterparty_version_id,
-		counterparty_code,counterparty_name,currency,amount_delta_cents
-	) SELECT $1,active_generation_id,'POSTING','sale-signoff',$2,'ATTRIBUTED',$3,99,
-		CURRENT_DATE,now(),$4,'cod-attributed-credit','customer',$5,$6,'CUSTOMER',
-		'COD customer','CNY',$7
-		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), signoff.DocumentID,
-		newID(), integrationActorOne, customer.ObjectID, customer.VersionID,
-		-200-attributedBalance); err != nil {
+	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+		"RECEIVABLE", -200, "2026-08-05", signoff.DocumentID); err != nil {
 		t.Fatalf("insert attributed COD credit: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO led_party_entries(
-		id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-		source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-		counterparty_entity,counterparty_object_id,counterparty_version_id,
-		counterparty_code,counterparty_name,currency,amount_delta_cents
-	) SELECT $1,active_generation_id,'POSTING','receipt',$2,'UNRELATED',$3,1,
-		CURRENT_DATE,now(),$4,'cod-unrelated-debt','customer',$5,$6,'CUSTOMER',
-		'COD customer','CNY',500
-		FROM led_control WHERE singleton AND status='ACTIVE'`, newID(), newID(), newID(),
-		integrationActorOne, customer.ObjectID, customer.VersionID); err != nil {
+	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+		"RECEIVABLE", 500, "2026-08-05", newID()); err != nil {
 		t.Fatalf("insert unrelated COD debt: %v", err)
 	}
 

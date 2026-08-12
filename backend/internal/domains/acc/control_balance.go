@@ -38,6 +38,9 @@ func (s *Service) PartyBalance(ctx context.Context, tx pgx.Tx, input voudomain.P
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
 		return 0, databaseError("lock accounting party balance", err)
 	}
+	if input.SourceDocumentIDs != nil && len(input.SourceDocumentIDs) == 0 {
+		return 0, nil
+	}
 	debitMultiplier := int64(1)
 	if creditNature {
 		debitMultiplier = -1

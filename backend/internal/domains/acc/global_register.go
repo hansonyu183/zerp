@@ -149,6 +149,13 @@ func registerAssetDisposal(ctx context.Context, tx pgx.Tx, event voudomain.Docum
 }
 
 func registerBillChanges(ctx context.Context, tx pgx.Tx, event voudomain.DocumentApprovedEvent, books []dbsqlc.ListAccountingPostingBooksRow) error {
+	origin := event.Snapshot.Data.Customer
+	if origin == nil {
+		origin = event.Snapshot.Data.Supplier
+	}
+	if origin == nil {
+		origin = event.Snapshot.Data.Counterparty
+	}
 	for _, line := range event.Snapshot.Data.BillLines {
 		if line.Direction == "IN" {
 			amount, err := fixeddecimal.ParsePositive(line.FaceAmount, 2, false)
@@ -157,9 +164,25 @@ func registerBillChanges(ctx context.Context, tx pgx.Tx, event voudomain.Documen
 			}
 			issueDate, _ := time.Parse("2006-01-02", line.IssueDate)
 			maturityDate, _ := time.Parse("2006-01-02", line.MaturityDate)
-			if _, err = tx.Exec(ctx, `INSERT INTO acc_bills (id,bill_no,bill_type,position_type,currency,face_amount_minor,issue_date,maturity_date,state,source_document_id)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'AVAILABLE',$9)`, line.BillID, line.BillNo, line.BillType, line.PositionType,
-				line.Currency, amount, issueDate, maturityDate, event.DocumentID); err != nil {
+			interest, _ := fixeddecimal.ParsePositive(line.InterestAmount, 2, true)
+			customerCost, _ := fixeddecimal.ParsePositive(line.CustomerCostAmount, 2, true)
+			var originEntity, originID, originVersion, originCode, originName *string
+			if origin != nil {
+				originEntity, originID, originVersion = &origin.Entity, &origin.ObjectID, &origin.VersionID
+				originCode, originName = &origin.Code, &origin.Name
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO acc_bills (
+				id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
+				issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
+				interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
+				origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,
+				state,source_document_id,source_line_id
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+				$17,$18,$19,$20,$21,'AVAILABLE',$22,$23)`, line.BillID, line.BillNo, line.BillType,
+				line.PositionType, line.Currency, line.Medium, amount, issueDate, maturityDate,
+				line.Drawer, line.Acceptor, line.Payee, line.AnnualRateBps, line.InterestDays,
+				interest, customerCost, originEntity, originID, originVersion, originCode, originName,
+				event.DocumentID, line.LineID); err != nil {
 				return databaseError("create global bill", err)
 			}
 			for _, book := range books {

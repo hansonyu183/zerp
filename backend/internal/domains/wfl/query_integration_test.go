@@ -51,13 +51,13 @@ func workflowIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateWorkflowIntegration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE led_bill_entries, led_bills,
+		TRUNCATE acc_books CASCADE;
+		TRUNCATE
 			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_settlement_reservations, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
-			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
 			vou_intermediary_calculation_bill_allocations,
 			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,

@@ -139,7 +139,8 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_vouchers WHERE source_type='VOU' AND source_id=$1`, created.DocumentID).Scan(&remaining); err != nil || remaining != 1 {
 		t.Fatalf("facts after duplicate approval = %d, err=%v", remaining, err)
 	}
-	if _, err = vouchers.Unapprove(t.Context(), voudomain.EntityOtherIncome, voudomain.ReverseInput{DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "测试反批准"}, adminID, "acc-posting-vou-unapprove"); err != nil {
+	unapproved, err := vouchers.Unapprove(t.Context(), voudomain.EntityOtherIncome, voudomain.ReverseInput{DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "测试反批准"}, adminID, "acc-posting-vou-unapprove")
+	if err != nil {
 		t.Fatalf("unapprove VOU with ACC deletion: %v", err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_vouchers WHERE source_type='VOU' AND source_id=$1`, created.DocumentID).Scan(&remaining); err != nil || remaining != 0 {
@@ -158,6 +159,13 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	if err = duplicateTx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit duplicate unapproval delivery: %v", err)
+	}
+	reopenedApproved, err := vouchers.Uncheck(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: unapproved.Revision}, adminID, "acc-posting-vou-uncheck")
+	if err != nil {
+		t.Fatalf("uncheck reversed VOU: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: created.DocumentID, Revision: reopenedApproved.Revision, Reason: "测试清理"}, adminID, "acc-posting-vou-delete"); err != nil {
+		t.Fatalf("delete reversed VOU: %v", err)
 	}
 
 	secondBook, err := accounting.CreateBook(t.Context(), CreateBookInput{Name: "缺失映射账簿", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
@@ -184,5 +192,12 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_vouchers WHERE source_type='VOU' AND source_id=$1`, failed.DocumentID).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("rolled back automatic facts = %d, err=%v", remaining, err)
+	}
+	reopened, err := vouchers.Uncheck(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Revision}, adminID, "acc-posting-failure-uncheck")
+	if err != nil {
+		t.Fatalf("uncheck failed VOU: %v", err)
+	}
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: failed.DocumentID, Revision: reopened.Revision, Reason: "测试清理"}, adminID, "acc-posting-failure-delete"); err != nil {
+		t.Fatalf("delete failed VOU: %v", err)
 	}
 }

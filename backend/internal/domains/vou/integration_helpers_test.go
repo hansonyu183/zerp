@@ -15,6 +15,7 @@ import (
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -55,14 +56,14 @@ func vouIntegrationPool(t *testing.T) *pgxpool.Pool {
 func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		TRUNCATE led_bill_entries, led_bills,
+		TRUNCATE acc_books CASCADE;
+		TRUNCATE
 			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
 			vou_settlement_reservations,
 			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
-			vou_asset_depreciation_lines,vou_asset_depreciation_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,
 			vou_intermediary_calculation_bill_allocations,
 			vou_bill_cash_lines,vou_bill_lines,vou_bill_details,
@@ -79,7 +80,12 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_product_lines, vou_other_income_details,
 			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
 			vou_purchase_order_details,
-			vou_sale_order_details, vou_documents, vou_number_counters`)
+			vou_sale_order_details, vou_documents, vou_number_counters;
+		INSERT INTO app_users(id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by)
+		VALUES
+			('01J00000000000000000000000','vou-test-one','VOU 测试用户一','hash','ENABLED',now(),'01J00000000000000000000000','01J00000000000000000000000'),
+			('01J00000000000000000000001','vou-test-two','VOU 测试用户二','hash','ENABLED',now(),'01J00000000000000000000000','01J00000000000000000000000')
+		ON CONFLICT(id) DO NOTHING`)
 	if err != nil {
 		t.Fatalf("truncate VOU: %v", err)
 	}
@@ -201,9 +207,45 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
 	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
-		slog.New(slog.NewTextHandler(io.Discard, nil)))
+		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
 	return service
+}
+
+type integrationAccountingControl struct{}
+
+func (integrationAccountingControl) PartyBalance(ctx context.Context, tx pgx.Tx, input PartyBalanceQuery) (int64, error) {
+	var ready bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM acc_books book JOIN acc_openings opening ON opening.book_id=book.id
+		WHERE book.control_book AND opening.state='APPROVED'
+	)`).Scan(&ready); err != nil {
+		return 0, err
+	}
+	if !ready {
+		return 0, errors.New("accounting control book is not ready")
+	}
+	if input.SourceDocumentIDs != nil && len(input.SourceDocumentIDs) == 0 {
+		return 0, nil
+	}
+	creditNature := input.SettlementPurpose == "PAYABLE" || input.SettlementPurpose == "ADVANCE_RECEIPT"
+	multiplier := int64(1)
+	if creditNature {
+		multiplier = -1
+	}
+	var balance int64
+	err := tx.QueryRow(ctx, `SELECT COALESCE(sum($1::bigint*(line.debit_minor-line.credit_minor)),0)::bigint
+		FROM acc_voucher_lines line
+		JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+		JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
+		JOIN acc_books book ON book.id=line.book_id AND book.control_book
+		JOIN acc_openings opening ON opening.book_id=book.id AND opening.state='APPROVED'
+		WHERE subject.settlement_purpose=$2 AND line.currency=$3
+		  AND line.dimensions->>$4=$5 AND voucher.business_date<=$6::date
+		  AND (COALESCE(cardinality($7::text[]),0)=0 OR voucher.source_id=ANY($7::text[]))`,
+		multiplier, input.SettlementPurpose, input.Currency, input.CounterpartyDimension,
+		input.CounterpartyObjectID, input.AsOfDate, input.SourceDocumentIDs).Scan(&balance)
+	return balance, err
 }

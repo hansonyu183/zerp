@@ -146,8 +146,7 @@ func shouldValidateJSONResponse(path string) bool {
 		strings.HasPrefix(path, "/aux/") ||
 		strings.HasPrefix(path, "/bob/") ||
 		strings.HasPrefix(path, "/vou/") ||
-		strings.HasPrefix(path, "/wfl/") ||
-		strings.HasPrefix(path, "/led/")
+		strings.HasPrefix(path, "/wfl/")
 }
 
 func replaceInvalidResponse(context *gin.Context, writer *bufferedResponseWriter) {
@@ -175,6 +174,5 @@ func isBusinessPath(path string) bool {
 		strings.HasPrefix(path, "/aux/") ||
 		strings.HasPrefix(path, "/bob/") ||
 		strings.HasPrefix(path, "/vou/") ||
-		strings.HasPrefix(path, "/wfl/") ||
-		strings.HasPrefix(path, "/led/")
+		strings.HasPrefix(path, "/wfl/")
 }

@@ -196,6 +196,438 @@ void vm.initialize()
             {{ total.currency }} 借 {{ total.debit }} / 贷 {{ total.credit }}
           </v-chip>
         </div>
+
+        <v-expansion-panels class="mt-5" multiple>
+          <v-expansion-panel title="期初资产">
+            <v-expansion-panel-text>
+              <v-alert
+                class="mb-3"
+                density="compact"
+                type="info"
+                variant="tonal"
+              >
+                资产 ID 留空表示创建全局资产；填写已有 ID
+                表示仅为本账簿登记价值。
+              </v-alert>
+              <v-card
+                v-for="(asset, index) in vm.assets"
+                :key="asset.key"
+                class="mb-3"
+                variant="outlined"
+              >
+                <v-card-text>
+                  <v-row dense>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="asset.assetId"
+                        label="已有资产 ID（可空）"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="asset.assetNo"
+                        label="资产编号"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="asset.name"
+                        label="资产名称"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="asset.categoryId"
+                        label="资产类别 ID"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="asset.departmentId"
+                        label="部门 ID"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="2"
+                      ><v-text-field
+                        v-model.number="asset.usefulLifeMonths"
+                        label="使用月数"
+                        type="number"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="2"
+                      ><v-text-field
+                        v-model="asset.residualRate"
+                        label="残值率"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="3"
+                      ><v-text-field
+                        v-model="asset.acquiredOn"
+                        label="取得日期"
+                        type="date"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' ||
+                          !asset.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="4" md="2"
+                      ><v-text-field
+                        v-model="asset.currency"
+                        label="币种"
+                        maxlength="3"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="8" md="3"
+                      ><v-text-field
+                        v-model="asset.originalValue"
+                        label="原值"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="10" md="3"
+                      ><v-text-field
+                        v-model="asset.accumulatedDepreciation"
+                        label="累计折旧"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                      ><v-btn
+                        aria-label="删除期初资产"
+                        color="error"
+                        icon="mdi-delete-outline"
+                        variant="text"
+                        @click="vm.removeRegister(vm.assets, index)"
+                    /></v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+              <v-btn
+                v-if="vm.opening?.state === 'DRAFT'"
+                prepend-icon="mdi-plus"
+                variant="tonal"
+                @click="vm.addAsset"
+                >新增资产</v-btn
+              >
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+
+          <v-expansion-panel title="期初票据">
+            <v-expansion-panel-text>
+              <v-alert
+                class="mb-3"
+                density="compact"
+                type="info"
+                variant="tonal"
+              >
+                票据 ID 留空表示创建全局票据；填写已有 ID
+                表示仅为本账簿登记价值。
+              </v-alert>
+              <v-card
+                v-for="(bill, index) in vm.bills"
+                :key="bill.key"
+                class="mb-3"
+                variant="outlined"
+              >
+                <v-card-text>
+                  <v-row dense>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="bill.billId"
+                        label="已有票据 ID（可空）"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="bill.billNo"
+                        label="票据编号"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="2"
+                      ><v-select
+                        v-model="bill.positionType"
+                        :items="[
+                          { title: '应收', value: 'ASSET' },
+                          { title: '应付', value: 'LIABILITY' },
+                        ]"
+                        label="头寸"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="2"
+                      ><v-select
+                        v-model="bill.medium"
+                        :items="[
+                          { title: '电子', value: 'ELECTRONIC' },
+                          { title: '纸质', value: 'PAPER' },
+                        ]"
+                        label="介质"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="3"
+                      ><v-text-field
+                        v-model="bill.billType"
+                        label="票据类型"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="4" md="2"
+                      ><v-text-field
+                        v-model="bill.currency"
+                        label="币种"
+                        maxlength="3"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="8" md="3"
+                      ><v-text-field
+                        v-model="bill.faceAmount"
+                        label="票面金额"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="4"
+                      ><v-text-field
+                        v-model="bill.valueAmount"
+                        label="本账簿价值"
+                        :disabled="vm.opening?.state === 'APPROVED'"
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model="bill.issueDate"
+                        label="出票日"
+                        type="date"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model="bill.maturityDate"
+                        label="到期日"
+                        type="date"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="3"
+                      ><v-text-field
+                        v-model="bill.drawer"
+                        label="出票人"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="3"
+                      ><v-text-field
+                        v-model="bill.acceptor"
+                        label="承兑人"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="12" md="3"
+                      ><v-text-field
+                        v-model="bill.payee"
+                        label="收款人"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model.number="bill.annualRateBps"
+                        label="年利率基点"
+                        type="number"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model.number="bill.interestDays"
+                        label="计息天数"
+                        type="number"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model="bill.interestAmount"
+                        label="利息"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <v-col cols="6" md="3"
+                      ><v-text-field
+                        v-model="bill.customerCostAmount"
+                        label="客户成本"
+                        :disabled="
+                          vm.opening?.state === 'APPROVED' || !bill.createObject
+                        "
+                        @update:model-value="vm.markDirty"
+                    /></v-col>
+                    <template v-if="bill.createObject">
+                      <v-col cols="12" md="3"
+                        ><v-text-field
+                          v-model="bill.partyEntity"
+                          label="来源对象类型"
+                          :disabled="vm.opening?.state === 'APPROVED'"
+                          @update:model-value="vm.markDirty"
+                      /></v-col>
+                      <v-col cols="12" md="3"
+                        ><v-text-field
+                          v-model="bill.partyObjectId"
+                          label="来源对象 ID"
+                          :disabled="vm.opening?.state === 'APPROVED'"
+                          @update:model-value="vm.markDirty"
+                      /></v-col>
+                      <v-col cols="12" md="3"
+                        ><v-text-field
+                          v-model="bill.partyVersionId"
+                          label="来源版本 ID"
+                          :disabled="vm.opening?.state === 'APPROVED'"
+                          @update:model-value="vm.markDirty"
+                      /></v-col>
+                      <v-col cols="6" md="2"
+                        ><v-text-field
+                          v-model="bill.partyCode"
+                          label="来源编码"
+                          :disabled="vm.opening?.state === 'APPROVED'"
+                          @update:model-value="vm.markDirty"
+                      /></v-col>
+                      <v-col cols="6" md="2"
+                        ><v-text-field
+                          v-model="bill.partyName"
+                          label="来源名称"
+                          :disabled="vm.opening?.state === 'APPROVED'"
+                          @update:model-value="vm.markDirty"
+                      /></v-col>
+                    </template>
+                    <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                      ><v-btn
+                        aria-label="删除期初票据"
+                        color="error"
+                        icon="mdi-delete-outline"
+                        variant="text"
+                        @click="vm.removeRegister(vm.bills, index)"
+                    /></v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+              <v-btn
+                v-if="vm.opening?.state === 'DRAFT'"
+                prepend-icon="mdi-plus"
+                variant="tonal"
+                @click="vm.addBill"
+                >新增票据</v-btn
+              >
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+
+          <v-expansion-panel title="期初空桶">
+            <v-expansion-panel-text>
+              <v-row
+                v-for="(item, index) in vm.containers"
+                :key="item.key"
+                dense
+              >
+                <v-col cols="12" md="6"
+                  ><v-text-field
+                    v-model="item.customerId"
+                    label="客户 ID"
+                    :disabled="vm.opening?.state === 'APPROVED'"
+                    @update:model-value="vm.markDirty"
+                /></v-col>
+                <v-col cols="6" md="3"
+                  ><v-select
+                    v-model="item.containerType"
+                    :items="[
+                      { title: '溶剂桶', value: 'SOLVENT' },
+                      { title: '树脂桶', value: 'RESIN' },
+                    ]"
+                    label="空桶类型"
+                    :disabled="vm.opening?.state === 'APPROVED'"
+                    @update:model-value="vm.markDirty"
+                /></v-col>
+                <v-col cols="4" md="2"
+                  ><v-text-field
+                    v-model.number="item.quantity"
+                    label="数量"
+                    type="number"
+                    :disabled="vm.opening?.state === 'APPROVED'"
+                    @update:model-value="vm.markDirty"
+                /></v-col>
+                <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                  ><v-btn
+                    aria-label="删除期初空桶"
+                    color="error"
+                    icon="mdi-delete-outline"
+                    variant="text"
+                    @click="vm.removeRegister(vm.containers, index)"
+                /></v-col>
+              </v-row>
+              <v-btn
+                v-if="vm.opening?.state === 'DRAFT'"
+                prepend-icon="mdi-plus"
+                variant="tonal"
+                @click="vm.addContainer"
+                >新增空桶</v-btn
+              >
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
         <v-alert
           v-if="vm.validationError"
           class="mt-4"

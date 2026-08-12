@@ -42,7 +42,7 @@ func (s *Service) loadData(
 		return data, nil
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return s.loadBillData(ctx, q, document, data)
-	case EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
+	case EntityAssetAcquisition, EntityAssetSale, EntityAssetLiquidation:
 		return s.loadAssetData(ctx, q, document, data)
 	case EntitySalePricing:
 		lines, err := loadPriceLines(ctx, q, document.ID)

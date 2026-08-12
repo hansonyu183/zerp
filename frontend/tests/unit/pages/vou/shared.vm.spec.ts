@@ -98,22 +98,12 @@ function documentView(
         amount: line.amount,
         remark: line.remark,
       })),
-      depreciationMonth: form.depreciationMonth,
       assetAcquisitionLines:
         config.lineKind === 'asset-acquisition'
           ? form.assetLines.map((line, index) => ({
               ...line,
               lineId: `ASSET-${index}`,
               lineNo: index + 1,
-            }))
-          : [],
-      assetDepreciationLines:
-        config.lineKind === 'asset-depreciation'
-          ? form.assetLines.map((line, index) => ({
-              ...line,
-              lineId: `ASSET-${index}`,
-              lineNo: index + 1,
-              amount: line.depreciationAmount,
             }))
           : [],
       assetSaleLines:
@@ -314,7 +304,6 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
     ]
   }
   if (config.lineKind.startsWith('asset-')) {
-    form.depreciationMonth = '2026-07'
     form.assetLines = [
       {
         key: 'asset-line',
@@ -330,7 +319,6 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
         residualRate: '10.00',
         location: '',
         accumulatedDepreciation: '100.00',
-        depreciationAmount: '90.00',
         netValue: '1010.00',
         saleAmount: '900.00',
         reason: '正常报废',
@@ -444,7 +432,6 @@ describe('shared VOU entity view model', () => {
       'expense-payment',
       'other-income',
       'asset-acquisition',
-      'asset-depreciation',
       'asset-sale',
       'asset-liquidation',
       'bill-receipt',
@@ -560,8 +547,7 @@ describe('shared VOU entity view model', () => {
       expect(data).not.toHaveProperty('inboundDate')
       expect(data).toHaveProperty(
         'businessDate',
-        config.entity === 'asset-depreciation' ||
-          config.entity === 'intermediary-calculation'
+        config.entity === 'intermediary-calculation'
           ? '2026-07-31'
           : '2026-07-24',
       )

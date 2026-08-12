@@ -28,10 +28,12 @@ func (s *Service) GetOpening(ctx context.Context, bookID, actorID string) (Openi
 	if err := s.requireAccess(ctx, s.queries, bookID, actorID, false); err != nil {
 		return OpeningView{}, err
 	}
-	return loadOpening(ctx, s.queries, bookID)
+	return loadOpening(ctx, s.queries, s.pool, bookID)
 }
 
-func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (OpeningView, error) {
+func loadOpening(ctx context.Context, q *dbsqlc.Queries, registers interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}, bookID string) (OpeningView, error) {
 	row, err := q.GetAccountingOpening(ctx, bookID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if _, bookErr := q.GetAccountingBook(ctx, bookID); errors.Is(bookErr, pgx.ErrNoRows) {
@@ -39,7 +41,7 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (Opening
 		} else if bookErr != nil {
 			return OpeningView{}, databaseError("get accounting book", bookErr)
 		}
-		return OpeningView{BookID: bookID, State: OpeningStateDraft, Revision: 0, Lines: []OpeningLineView{}}, nil
+		return OpeningView{BookID: bookID, State: OpeningStateDraft, Revision: 0, Lines: []OpeningLineView{}, Assets: []OpeningAssetView{}, Bills: []OpeningBillView{}, Containers: []OpeningContainerView{}}, nil
 	}
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening", err)
@@ -73,11 +75,14 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (Opening
 		}
 		result.Lines = append(result.Lines, view)
 	}
+	if err = loadOpeningRegisters(ctx, registers, &result); err != nil {
+		return OpeningView{}, err
+	}
 	return result, nil
 }
 
 func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actorID string) (OpeningView, error) {
-	if input.Revision < 0 || len(input.Lines) > 2000 {
+	if input.Revision < 0 || len(input.Lines) > 2000 || len(input.Assets) > 1000 || len(input.Bills) > 1000 || len(input.Containers) > 1000 {
 		return OpeningView{}, domainError(ErrorValidation, "invalid accounting opening", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -129,7 +134,10 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 			return OpeningView{}, databaseError("accounting opening line cannot be saved", err)
 		}
 	}
-	result, err := loadOpening(ctx, qtx, input.BookID)
+	if err = saveOpeningRegisters(ctx, tx, input); err != nil {
+		return OpeningView{}, err
+	}
+	result, err := loadOpening(ctx, qtx, tx, input.BookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -350,6 +358,9 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 			return OpeningView{}, databaseError("register accounting opening subject usage", err)
 		}
 	}
+	if err = approveOpeningRegisters(ctx, tx, bookID, lines); err != nil {
+		return OpeningView{}, err
+	}
 	if errors.Is(stateErr, pgx.ErrNoRows) {
 		err = qtx.CreateApprovedZeroAccountingOpening(ctx, dbsqlc.CreateApprovedZeroAccountingOpeningParams{
 			BookID: bookID, VoucherID: &voucherID, ActorID: &actorID,
@@ -365,7 +376,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	if err != nil {
 		return OpeningView{}, databaseError("accounting opening cannot be approved", err)
 	}
-	result, err := loadOpening(ctx, qtx, bookID)
+	result, err := loadOpening(ctx, qtx, tx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -405,6 +416,9 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	if hasLaterFacts {
 		return OpeningView{}, domainError(ErrorConflict, "账簿已有后续会计事实，不能反批准期初", nil)
 	}
+	if err = unapproveOpeningRegisters(ctx, tx, bookID); err != nil {
+		return OpeningView{}, err
+	}
 	if err = qtx.DeleteAccountingSubjectUsages(ctx, dbsqlc.DeleteAccountingSubjectUsagesParams{
 		UsageType: "OPENING", UsageID: bookID,
 	}); err != nil {
@@ -422,7 +436,7 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	}); err != nil {
 		return OpeningView{}, databaseError("delete accounting opening voucher", err)
 	}
-	result, err := loadOpening(ctx, qtx, bookID)
+	result, err := loadOpening(ctx, qtx, tx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}

@@ -16,8 +16,8 @@ func (s *Service) prepareUnapproval(
 ) error {
 	if document.Entity == EntityIntermediaryCalculation {
 		q := s.queries.WithTx(tx)
-		if _, err := q.LockLedControl(ctx); err != nil {
-			return s.internal("lock ledger control for intermediary calculation reversal", err)
+		if _, err := q.LockAccountingControlBookForVou(ctx); err != nil {
+			return domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 		}
 		hasDependents, err := q.HasApprovedIntermediaryCalculationDependents(ctx, stringPtr(document.ID))
 		if err != nil {

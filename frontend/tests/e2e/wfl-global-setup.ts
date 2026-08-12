@@ -3,7 +3,6 @@ import { mkdir, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { request, type APIRequestContext } from '@playwright/test'
-import type { ClosingView } from '../../src/pages/led/opening/types'
 
 interface Envelope<T> {
   code: number | string
@@ -80,10 +79,6 @@ export interface WflWorkerState {
   reviewer: E2ECredentials
   fixtures: WflFixtures
   storageState: Awaited<ReturnType<APIRequestContext['storageState']>>
-}
-
-async function ensureLedgerReady(api: RealApi): Promise<void> {
-  await api.post<ClosingView>('led/closing/get', {})
 }
 
 class RealApi {
@@ -488,7 +483,6 @@ export async function createWflWorkerState(options: {
     )
 
     await withLedgerProvisioningLock(async () => {
-      await ensureLedgerReady(operatorSession.api)
       await seedInventoryThroughLifecycle(
         operatorSession.api,
         supplier,

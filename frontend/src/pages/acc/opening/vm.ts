@@ -21,6 +21,56 @@ interface OpeningLineForm {
   dimensions: Record<string, string>
 }
 
+interface OpeningAssetForm {
+  key: number
+  createObject: boolean
+  assetId: string
+  assetNo: string
+  name: string
+  categoryId: string
+  departmentId: string
+  usefulLifeMonths: number
+  residualRate: string
+  acquiredOn: string
+  currency: string
+  originalValue: string
+  accumulatedDepreciation: string
+}
+
+interface OpeningBillForm {
+  key: number
+  createObject: boolean
+  billId: string
+  billNo: string
+  billType: string
+  positionType: string
+  medium: string
+  currency: string
+  faceAmount: string
+  issueDate: string
+  maturityDate: string
+  drawer: string
+  acceptor: string
+  payee: string
+  annualRateBps: number
+  interestDays: number
+  interestAmount: string
+  customerCostAmount: string
+  valueAmount: string
+  partyEntity: string
+  partyObjectId: string
+  partyVersionId: string
+  partyCode: string
+  partyName: string
+}
+
+interface OpeningContainerForm {
+  key: number
+  customerId: string
+  containerType: 'SOLVENT' | 'RESIN'
+  quantity: number
+}
+
 export const openingDimensionLabels: Readonly<Record<string, string>> = {
   CUSTOMER: '客户',
   SUPPLIER: '供应商',
@@ -41,6 +91,9 @@ export function createAccountingOpeningViewModel() {
   const selectedBookId = ref('')
   const opening = ref<AccountingOpening | null>(null)
   const lines = reactive<OpeningLineForm[]>([])
+  const assets = reactive<OpeningAssetForm[]>([])
+  const bills = reactive<OpeningBillForm[]>([])
+  const containers = reactive<OpeningContainerForm[]>([])
   const loading = ref(false)
   const saving = ref(false)
   const dirty = ref(false)
@@ -139,8 +192,55 @@ export function createAccountingOpeningViewModel() {
         return '请填写科目要求的全部辅助核算对象。'
       }
     }
+    for (const asset of assets) {
+      if (!currencyAndAmountValid(asset.currency, asset.originalValue)) {
+        return '资产期初必须填写有效币种和原值。'
+      }
+      if (
+        !asset.assetId.trim() &&
+        (!asset.assetNo.trim() ||
+          !asset.name.trim() ||
+          !asset.categoryId.trim() ||
+          !asset.departmentId.trim() ||
+          asset.usefulLifeMonths < 1 ||
+          !asset.acquiredOn)
+      ) {
+        return '新建期初资产必须填写完整资产事实。'
+      }
+    }
+    for (const bill of bills) {
+      if (!currencyAndAmountValid(bill.currency, bill.valueAmount)) {
+        return '票据期初必须填写有效币种和账面价值。'
+      }
+      if (
+        !bill.billId.trim() &&
+        (!bill.billNo.trim() ||
+          !bill.billType ||
+          !bill.positionType ||
+          !bill.medium ||
+          !bill.faceAmount.trim() ||
+          !bill.issueDate ||
+          !bill.maturityDate ||
+          !bill.drawer.trim() ||
+          !bill.acceptor.trim() ||
+          !bill.payee.trim() ||
+          !bill.partyObjectId.trim() ||
+          !bill.partyVersionId.trim())
+      ) {
+        return '新建期初票据必须填写完整票据事实。'
+      }
+    }
+    if (
+      containers.some((item) => !item.customerId.trim() || item.quantity === 0)
+    ) {
+      return '空桶期初必须填写客户和非零数量。'
+    }
     return ''
   })
+
+  function currencyAndAmountValid(currency: string, amount: string): boolean {
+    return /^[A-Za-z]{3}$/.test(currency.trim()) && decimalMinor(amount) > 0
+  }
 
   function decimalMinor(value: string): number {
     if (!/^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$/.test(value.trim())) return 0
@@ -208,6 +308,60 @@ export function createAccountingOpeningViewModel() {
         dimensions: { ...line.dimensions },
       })),
     )
+    assets.splice(
+      0,
+      assets.length,
+      ...(value.assets ?? []).map((asset) => ({
+        key: nextKey++,
+        createObject: asset.createObject,
+        assetId: asset.assetId,
+        assetNo: asset.assetNo ?? '',
+        name: asset.name ?? '',
+        categoryId: asset.categoryId ?? '',
+        departmentId: asset.departmentId ?? '',
+        usefulLifeMonths: asset.usefulLifeMonths ?? 0,
+        residualRate: asset.residualRate ?? '0',
+        acquiredOn: asset.acquiredOn ?? '',
+        currency: asset.currency,
+        originalValue: asset.originalValue,
+        accumulatedDepreciation: asset.accumulatedDepreciation,
+      })),
+    )
+    bills.splice(
+      0,
+      bills.length,
+      ...(value.bills ?? []).map((bill) => ({
+        key: nextKey++,
+        createObject: bill.createObject,
+        billId: bill.billId,
+        billNo: bill.billNo ?? '',
+        billType: bill.billType ?? 'BANK_ACCEPTANCE',
+        positionType: bill.positionType ?? 'ASSET',
+        medium: bill.medium ?? 'ELECTRONIC',
+        currency: bill.currency,
+        faceAmount: bill.faceAmount ?? '',
+        issueDate: bill.issueDate ?? '',
+        maturityDate: bill.maturityDate ?? '',
+        drawer: bill.drawer ?? '',
+        acceptor: bill.acceptor ?? '',
+        payee: bill.payee ?? '',
+        annualRateBps: bill.annualRateBps ?? 0,
+        interestDays: bill.interestDays ?? 0,
+        interestAmount: bill.interestAmount ?? '0',
+        customerCostAmount: bill.customerCostAmount ?? '0',
+        valueAmount: bill.valueAmount,
+        partyEntity: bill.originatingParty?.entity ?? '',
+        partyObjectId: bill.originatingParty?.objectId ?? '',
+        partyVersionId: bill.originatingParty?.versionId ?? '',
+        partyCode: bill.originatingParty?.code ?? '',
+        partyName: bill.originatingParty?.name ?? '',
+      })),
+    )
+    containers.splice(
+      0,
+      containers.length,
+      ...(value.containers ?? []).map((item) => ({ key: nextKey++, ...item })),
+    )
     dirty.value = false
   }
 
@@ -234,6 +388,77 @@ export function createAccountingOpeningViewModel() {
   function removeLine(index: number): void {
     lines.splice(index, 1)
     dirty.value = true
+  }
+
+  function addAsset(): void {
+    assets.push({
+      key: nextKey++,
+      createObject: true,
+      assetId: '',
+      assetNo: '',
+      name: '',
+      categoryId: '',
+      departmentId: '',
+      usefulLifeMonths: 1,
+      residualRate: '0',
+      acquiredOn: '',
+      currency: selectedCurrency(),
+      originalValue: '0.00',
+      accumulatedDepreciation: '0.00',
+    })
+    dirty.value = true
+  }
+
+  function addBill(): void {
+    bills.push({
+      key: nextKey++,
+      createObject: true,
+      billId: '',
+      billNo: '',
+      billType: 'BANK_ACCEPTANCE',
+      positionType: 'ASSET',
+      medium: 'ELECTRONIC',
+      currency: selectedCurrency(),
+      faceAmount: '0.00',
+      issueDate: '',
+      maturityDate: '',
+      drawer: '',
+      acceptor: '',
+      payee: '',
+      annualRateBps: 0,
+      interestDays: 0,
+      interestAmount: '0.00',
+      customerCostAmount: '0.00',
+      valueAmount: '0.00',
+      partyEntity: '',
+      partyObjectId: '',
+      partyVersionId: '',
+      partyCode: '',
+      partyName: '',
+    })
+    dirty.value = true
+  }
+
+  function addContainer(): void {
+    containers.push({
+      key: nextKey++,
+      customerId: '',
+      containerType: 'SOLVENT',
+      quantity: 0,
+    })
+    dirty.value = true
+  }
+
+  function removeRegister(items: unknown[], index: number): void {
+    items.splice(index, 1)
+    dirty.value = true
+  }
+
+  function selectedCurrency(): string {
+    return (
+      books.value.find((book) => book.bookId === selectedBookId.value)
+        ?.baseCurrency ?? 'CNY'
+    )
   }
 
   function changeSubject(line: OpeningLineForm, subjectId: string): void {
@@ -273,6 +498,44 @@ export function createAccountingOpeningViewModel() {
               value.trim(),
             ]),
           ),
+        })),
+        assets: assets.map(
+          ({ key: _key, createObject: _create, ...asset }) => ({
+            ...asset,
+            currency: asset.currency.trim().toUpperCase(),
+            ...(asset.assetId.trim() ? { assetId: asset.assetId.trim() } : {}),
+          }),
+        ),
+        bills: bills.map(
+          ({
+            key: _key,
+            createObject: _create,
+            partyEntity,
+            partyObjectId,
+            partyVersionId,
+            partyCode,
+            partyName,
+            ...bill
+          }) => ({
+            ...bill,
+            currency: bill.currency.trim().toUpperCase(),
+            ...(bill.billId.trim() ? { billId: bill.billId.trim() } : {}),
+            ...(_create
+              ? {
+                  originatingParty: {
+                    entity: partyEntity.trim(),
+                    objectId: partyObjectId.trim(),
+                    versionId: partyVersionId.trim(),
+                    code: partyCode.trim(),
+                    name: partyName.trim(),
+                  },
+                }
+              : {}),
+          }),
+        ),
+        containers: containers.map(({ key: _key, ...item }) => ({
+          ...item,
+          customerId: item.customerId.trim(),
         })),
       })
       if (!active) return
@@ -337,6 +600,9 @@ export function createAccountingOpeningViewModel() {
     selectedBookId,
     opening,
     lines,
+    assets,
+    bills,
+    containers,
     loading,
     saving,
     dirty,
@@ -357,6 +623,10 @@ export function createAccountingOpeningViewModel() {
     selectBook,
     addLine,
     removeLine,
+    addAsset,
+    addBill,
+    addContainer,
+    removeRegister,
     changeSubject,
     markDirty,
     save,

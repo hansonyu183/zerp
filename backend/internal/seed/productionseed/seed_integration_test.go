@@ -98,15 +98,4 @@ func TestProductionDemoSeedIsIdempotentAndPostsInventoryIntegration(t *testing.T
 	if productionDocuments != 3 {
 		t.Fatalf("production document count = %d, want 3", productionDocuments)
 	}
-	var productionEntries int
-	if err = pool.QueryRow(t.Context(), `
-		SELECT count(*)
-		FROM led_inventory_entries
-		WHERE actor_id=$1 AND source_entity='self-production'
-	`, actorID).Scan(&productionEntries); err != nil {
-		t.Fatalf("count production ledger entries: %v", err)
-	}
-	if productionEntries != 2 {
-		t.Fatalf("production ledger entry count = %d, want 2", productionEntries)
-	}
 }

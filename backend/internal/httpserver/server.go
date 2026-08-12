@@ -18,7 +18,6 @@ import (
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -57,16 +56,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}
-	ledService, err := leddomain.NewService(db, bobService, vouService)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = ledService.RegisterSubscriptions(eventBus); err != nil {
-		return nil, nil, err
-	}
-	if err = ledService.EnsureReady(context.Background()); err != nil {
-		return nil, nil, err
-	}
 	var publisher *appdomain.FeedbackPublisher
 	if cfg.FeedbackGitHubEnabled {
 		issueClient, clientErr := githubissues.New(cfg.FeedbackGitHubRepository, cfg.FeedbackGitHubToken)
@@ -83,7 +72,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)
-		leddomain.NewHandler(ledService, authorizer, logger).Register(router)
 	})
 	return router, publisher, nil
 }

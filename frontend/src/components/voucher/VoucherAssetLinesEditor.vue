@@ -41,18 +41,15 @@ interface PageRequest {
 interface AssetQueryRequest {
   page: number
   pageSize: number
-  filters: { status: string[] }
 }
 
 const props = defineProps<{
   modelValue: VoucherAssetLineDraft[]
   editable: boolean
   kind: Extract<VoucherLineKind, `asset-${string}`>
-  depreciationMonth: string
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: VoucherAssetLineDraft[]]
-  'update:depreciationMonth': [value: string]
 }>()
 
 const loading = ref(false)
@@ -61,8 +58,6 @@ const categories = ref<SelectReference[]>([])
 const departments = ref<VoucherReference[]>([])
 const custodians = ref<VoucherReference[]>([])
 const assets = ref<AssetRow[]>([])
-const categoryFilter = ref<SelectReference | null>(null)
-const departmentFilter = ref<VoucherReference | null>(null)
 const acquisition = computed(() => props.kind === 'asset-acquisition')
 const initialized = ref(false)
 
@@ -124,14 +119,13 @@ async function loadAssets() {
   const items: AssetRow[] = []
   const pageSize = 200
   for (let page = 1; ; page += 1) {
-    const { data } = await apiClient.post<
-      PageResult<AssetRow>,
-      AssetQueryRequest
-    >('led/asset/query', {
+    const { data } = await apiClient.post<PageResult<AssetRow>, AssetQueryRequest>(
+      `vou/${props.kind}/asset-source` as ApiPostPath,
+      {
       page,
       pageSize,
-      filters: { status: ['ACTIVE'] },
-    })
+      },
+    )
     items.push(...data.items)
     if (items.length >= data.total) break
   }
@@ -149,55 +143,8 @@ async function initialize() {
           loadReference('department'),
           loadReference('employee'),
         ])
-    } else if (props.kind === 'asset-depreciation') {
-      const [categoryItems, departmentItems] = await Promise.all([
-        loadReference('asset-category'),
-        loadReference('department'),
-      ])
-      categories.value = categoryItems
-      departments.value = departmentItems
     } else await loadAssets()
     initialized.value = true
-  } catch (error) {
-    errorMessage.value = getErrorMessage(error)
-  } finally {
-    loading.value = false
-  }
-}
-async function preview() {
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    const { data } = await apiClient.post<
-      { items: Array<AssetRow & { depreciationAmount: string }> },
-      {
-        depreciationMonth: string
-        categoryObjectId?: string
-        departmentObjectId?: string
-      }
-    >('vou/asset-depreciation/preview', {
-      depreciationMonth: props.depreciationMonth,
-      ...(categoryFilter.value
-        ? { categoryObjectId: categoryFilter.value.objectId }
-        : {}),
-      ...(departmentFilter.value
-        ? { departmentObjectId: departmentFilter.value.objectId }
-        : {}),
-    })
-    emit(
-      'update:modelValue',
-      data.items.map((asset) => ({
-        ...emptyAssetLine(),
-        key: crypto.randomUUID(),
-        assetId: asset.assetId,
-        assetNo: asset.assetNo,
-        assetName: asset.assetName,
-        originalValue: asset.originalValue,
-        accumulatedDepreciation: asset.accumulatedDepreciation,
-        depreciationAmount: asset.depreciationAmount,
-        netValue: asset.netValue,
-      })),
-    )
   } catch (error) {
     errorMessage.value = getErrorMessage(error)
   } finally {
@@ -232,48 +179,8 @@ watch(
   <section class="asset-lines">
     <div class="asset-lines__header">
       <h3>资产明细</h3>
-      <div v-if="kind === 'asset-depreciation'" class="asset-lines__period">
-        <v-text-field
-          :disabled="!editable"
-          hide-details
-          label="折旧月份"
-          :model-value="depreciationMonth"
-          type="month"
-          variant="outlined"
-          @update:model-value="
-            $emit('update:depreciationMonth', String($event))
-          "
-        />
-        <v-autocomplete
-          v-model="categoryFilter"
-          :disabled="!editable"
-          hide-details
-          item-title="name"
-          :items="categories"
-          label="资产类别"
-          return-object
-          variant="outlined"
-        />
-        <v-autocomplete
-          v-model="departmentFilter"
-          :disabled="!editable"
-          hide-details
-          item-title="name"
-          :items="departments"
-          label="使用部门"
-          return-object
-          variant="outlined"
-        />
-        <v-btn
-          :disabled="!editable || !depreciationMonth"
-          :loading="loading"
-          variant="tonal"
-          @click="preview"
-          >生成折旧明细</v-btn
-        >
-      </div>
       <v-btn
-        v-else-if="editable"
+        v-if="editable"
         prepend-icon="mdi-plus"
         variant="tonal"
         @click="addLine"
@@ -307,7 +214,6 @@ watch(
               <th>累计折旧</th>
               <th>净值</th></template
             >
-            <th v-if="kind === 'asset-depreciation'">本月折旧</th>
             <th v-if="kind === 'asset-sale'">出让金额</th>
             <template v-if="kind === 'asset-liquidation'"
               ><th>清算原因</th>
@@ -315,7 +221,7 @@ watch(
               <th>处置费用</th></template
             >
             <th>备注</th>
-            <th v-if="editable && kind !== 'asset-depreciation'">操作</th>
+            <th v-if="editable">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -421,7 +327,6 @@ watch(
             <template v-else>
               <td data-label="资产">
                 <v-autocomplete
-                  v-if="kind !== 'asset-depreciation'"
                   :disabled="!editable"
                   hide-details
                   item-title="assetName"
@@ -432,16 +337,13 @@ watch(
                   ><template #item="{ props: itemProps, item }"
                     ><v-list-item
                       v-bind="itemProps"
-                      :subtitle="item.assetNo" /></template></v-autocomplete
-                ><span v-else>{{ line.assetNo }} · {{ line.assetName }}</span>
+                      :subtitle="item.assetNo" /></template
+                ></v-autocomplete>
               </td>
               <td data-label="原值">{{ line.originalValue }}</td>
               <td data-label="累计折旧">{{ line.accumulatedDepreciation }}</td>
               <td data-label="净值">{{ line.netValue }}</td>
             </template>
-            <td v-if="kind === 'asset-depreciation'" data-label="本月折旧">
-              {{ line.depreciationAmount }}
-            </td>
             <td v-if="kind === 'asset-sale'" data-label="出让金额">
               <v-text-field
                 :disabled="!editable"
@@ -495,7 +397,7 @@ watch(
               />
             </td>
             <td
-              v-if="editable && kind !== 'asset-depreciation'"
+              v-if="editable"
               class="responsive-table__actions"
               data-label="操作"
             >

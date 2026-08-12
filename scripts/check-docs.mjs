@@ -281,35 +281,6 @@ for (const schemaName of ['BobQueryRequest', 'BobHistoryRequest']) {
   )
 }
 
-const ledSchemaSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'schemas', 'led.yaml'),
-  'utf8',
-)
-for (const schemaName of [
-  'LedHistoryRequest',
-  'LedQueryRequest',
-  'LedBalanceRequest',
-]) {
-  requirePageSizeMaximum(
-    ledSchemaSource,
-    schemaName,
-    100,
-    'contracts/openapi/schemas/led.yaml',
-  )
-}
-
-const ledDocumentSource = fs.readFileSync(
-  path.join(root, 'docs', 'domains', 'led.md'),
-  'utf8',
-)
-const ledContractPaths = [
-  ...openapiSource.matchAll(/^\s+'(\/led\/[^']+)':/gm),
-].map((match) => match[1])
-const ledDocumentPaths = [
-  ...ledDocumentSource.matchAll(/^POST (\/led\/\S+)$/gm),
-].map((match) => match[1])
-compareSets('docs/domains/led.md 动作清单', ledDocumentPaths, ledContractPaths)
-
 const vouEntities = extractSchemaEnum(vouSchemaSource, 'VouEntity')
 const vouCreatableEntities = extractSchemaEnum(
   vouSchemaSource,

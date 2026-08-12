@@ -2,7 +2,14 @@
 
 package acc
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
+	"github.com/oklog/ulid/v2"
+)
 
 func TestAccountingOpeningTrialApprovalAndReversalIntegration(t *testing.T) {
 	pool := integrationPool(t)
@@ -128,6 +135,81 @@ func TestAccountingOpeningInventoryValidationZeroApprovalAndLaterFactGuardIntegr
 	if _, err = service.UnapproveOpening(t.Context(), book.ID, approved.Revision, adminID); !IsKind(err, ErrorConflict) {
 		t.Fatalf("unapprove with later fact error = %v", err)
 	}
+}
+
+func TestAccountingOpeningCreatesAndAssociatesGlobalRegistersIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	seedUsers(t, pool)
+	service := NewService(pool)
+	assetID, billID, customerID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	partyID, partyVersionID := ulid.Make().String(), ulid.Make().String()
+
+	createBookOpening := func(name string, createObjects bool, assetValue, billValue string) OpeningView {
+		book, err := service.CreateBook(t.Context(), CreateBookInput{Name: name, StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		asset := createOpeningSubject(t, service, book.ID, "1601", "固定资产", BalanceDirectionDebit, []string{DimensionAsset})
+		accumulated := createOpeningSubject(t, service, book.ID, "1602", "累计折旧", BalanceDirectionCredit, []string{DimensionAsset})
+		expense := createOpeningSubject(t, service, book.ID, "660201", "折旧费", BalanceDirectionDebit, []string{DimensionDepartment})
+		bill := createOpeningSubject(t, service, book.ID, "1121", "应收票据", BalanceDirectionDebit, []string{DimensionBill})
+		equity := createOpeningSubject(t, service, book.ID, "4001", "实收资本", BalanceDirectionCredit, nil)
+		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition, DefaultResult: MappingResultUnpost, Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}, AssetConfiguration: &AssetAccountingConfiguration{
+			AssetSubjectID: asset.ID, AssetDimensions: map[string]string{DimensionAsset: "lineId"}, AccumulatedDepreciationSubjectID: accumulated.ID, AccumulatedDepreciationDimensions: map[string]string{DimensionAsset: "lineId"}, DepreciationExpenseSubjectID: expense.ID, DepreciationExpenseDimensions: map[string]string{DimensionDepartment: "department.objectId"},
+		}}}, adminID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
+			t.Fatal(err)
+		}
+		assets := []OpeningAssetInput{{AssetID: assetID, Currency: "CNY", OriginalValue: assetValue, AccumulatedDepreciation: "0.00"}}
+		bills := []OpeningBillInput{{BillID: billID, Currency: "CNY", ValueAmount: billValue}}
+		containers := []OpeningContainerInput{}
+		if createObjects {
+			assets[0].AssetNo, assets[0].Name, assets[0].CategoryID, assets[0].DepartmentID = "FA-OPEN-001", "期初设备", ulid.Make().String(), ulid.Make().String()
+			assets[0].UsefulLifeMonths, assets[0].ResidualRate, assets[0].AcquiredOn = 60, "0.05", "2026-08-01"
+			bills[0] = OpeningBillInput{BillID: billID, BillNo: "BILL-OPEN-001", BillType: "BANK_ACCEPTANCE", PositionType: "ASSET", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "50.00", IssueDate: "2026-08-01", MaturityDate: "2026-12-01", Drawer: "出票人", Acceptor: "承兑人", Payee: "收款人", InterestAmount: "0.00", CustomerCostAmount: "0.00", ValueAmount: billValue, OriginatingParty: OpeningPartyInput{Entity: "CUSTOMER", ObjectID: partyID, VersionID: partyVersionID, Code: "C001", Name: "期初客户"}}
+			containers = []OpeningContainerInput{{CustomerID: customerID, ContainerType: "SOLVENT", Quantity: 8}}
+		}
+		assetMinor, _ := fixeddecimal.ParsePositive(assetValue, 2, false)
+		billMinor, _ := fixeddecimal.ParsePositive(billValue, 2, false)
+		opening, err := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Revision: 0, Lines: []OpeningLineInput{
+			{SubjectID: asset.ID, Currency: "CNY", DebitAmount: fixeddecimal.Format(assetMinor, 2, false), CreditAmount: "0.00", Dimensions: map[string]string{DimensionAsset: assetID}},
+			{SubjectID: bill.ID, Currency: "CNY", DebitAmount: fixeddecimal.Format(billMinor, 2, false), CreditAmount: "0.00", Dimensions: map[string]string{DimensionBill: billID}},
+			{SubjectID: equity.ID, Currency: "CNY", DebitAmount: "0.00", CreditAmount: fixeddecimal.Format(assetMinor+billMinor, 2, false), Dimensions: map[string]string{}},
+		}, Assets: assets, Bills: bills, Containers: containers}, adminID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		approved, err := service.ApproveOpening(t.Context(), book.ID, opening.Revision, adminID)
+		if err != nil {
+			t.Fatalf("approve %s opening: %v cause=%v", name, err, errors.Unwrap(err))
+		}
+		return approved
+	}
+
+	first := createBookOpening("全局对象期初一", true, "100.00", "50.00")
+	_ = createBookOpening("全局对象期初二", false, "80.00", "40.00")
+	var assets, assetValues, bills, billValues, containers int
+	if err := pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM acc_assets WHERE id=$1),(SELECT count(*) FROM acc_asset_book_values WHERE asset_id=$1),(SELECT count(*) FROM acc_bills WHERE id=$2),(SELECT count(*) FROM acc_bill_book_values WHERE bill_id=$2),(SELECT count(*) FROM acc_container_entries WHERE customer_id=$3)`, assetID, billID, customerID).Scan(&assets, &assetValues, &bills, &billValues, &containers); err != nil {
+		t.Fatal(err)
+	}
+	if assets != 1 || assetValues != 2 || bills != 1 || billValues != 2 || containers != 1 {
+		t.Fatalf("opening registers assets=%d assetValues=%d bills=%d billValues=%d containers=%d", assets, assetValues, bills, billValues, containers)
+	}
+	if _, err := service.UnapproveOpening(t.Context(), first.BookID, first.Revision, adminID); !IsKind(err, ErrorConflict) {
+		t.Fatalf("unapprove shared opening error = %v", err)
+	}
+}
+
+func createOpeningSubject(t *testing.T, service *Service, bookID, code, name, direction string, dimensions []string) SubjectView {
+	t.Helper()
+	subject, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: bookID, Code: code, Name: name, BalanceDirection: direction, Enabled: true, RequiredDimensions: dimensions, SettlementPurpose: SettlementPurposeNone}, adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return subject
 }
 
 func strptr(value string) *string { return &value }

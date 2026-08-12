@@ -30,7 +30,6 @@ export type VoucherEntity =
   | 'expense-payment'
   | 'other-income'
   | 'asset-acquisition'
-  | 'asset-depreciation'
   | 'asset-sale'
   | 'asset-liquidation'
   | 'intermediary-calculation'
@@ -119,7 +118,6 @@ export interface VoucherAssetLineDraft {
   residualRate: string
   location: string
   accumulatedDepreciation: string
-  depreciationAmount: string
   netValue: string
   saleAmount: string
   reason: string
@@ -199,7 +197,6 @@ export interface VoucherDraftForm {
   productLines: VoucherProductLineDraft[]
   priceLines: VoucherPriceLineDraft[]
   expenseLines: VoucherExpenseLineDraft[]
-  depreciationMonth: string
   assetLines: VoucherAssetLineDraft[]
   salesChainLines: VoucherSalesChainLineDraft[]
   productionLines: VoucherProductionOutputDraft[]
@@ -409,9 +406,7 @@ export interface VoucherDocumentData {
   productLines?: VoucherProductLineView[]
   priceLines?: VoucherPriceLineView[]
   expenseLines?: VoucherExpenseLineView[]
-  depreciationMonth?: string
   assetAcquisitionLines?: VoucherAssetLineView[]
-  assetDepreciationLines?: VoucherAssetLineView[]
   assetSaleLines?: VoucherAssetLineView[]
   assetLiquidationLines?: VoucherAssetLineView[]
   outboundDate?: string
@@ -556,10 +551,6 @@ export interface VoucherAssetLineView {
   residualRate?: string
   location?: string
   accumulatedDepreciation?: string
-  depreciationAmount?: string
-  amount?: string
-  openingAccumulated?: string
-  closingAccumulated?: string
   netValue?: string
   saleAmount?: string
   reason?: string
@@ -684,7 +675,6 @@ export type VoucherLineKind =
   | 'expense'
   | 'inventory-count'
   | 'asset-acquisition'
-  | 'asset-depreciation'
   | 'asset-sale'
   | 'asset-liquidation'
   | 'bill'

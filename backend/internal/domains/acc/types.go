@@ -121,19 +121,83 @@ const (
 )
 
 type OpeningLineInput struct {
-	SubjectID    string
-	Currency     string
-	DebitAmount  string
-	CreditAmount string
-	Quantity     *string
-	Dimensions   map[string]string
+	SubjectID    string            `json:"subjectId"`
+	Currency     string            `json:"currency"`
+	DebitAmount  string            `json:"debitAmount"`
+	CreditAmount string            `json:"creditAmount"`
+	Quantity     *string           `json:"quantity,omitempty"`
+	Dimensions   map[string]string `json:"dimensions"`
+}
+
+type OpeningAssetInput struct {
+	AssetID                 string `json:"assetId,omitempty"`
+	AssetNo                 string `json:"assetNo,omitempty"`
+	Name                    string `json:"name,omitempty"`
+	CategoryID              string `json:"categoryId,omitempty"`
+	DepartmentID            string `json:"departmentId,omitempty"`
+	UsefulLifeMonths        int32  `json:"usefulLifeMonths,omitempty"`
+	ResidualRate            string `json:"residualRate,omitempty"`
+	AcquiredOn              string `json:"acquiredOn,omitempty"`
+	Currency                string `json:"currency"`
+	OriginalValue           string `json:"originalValue"`
+	AccumulatedDepreciation string `json:"accumulatedDepreciation"`
+}
+
+type OpeningBillInput struct {
+	BillID             string            `json:"billId,omitempty"`
+	BillNo             string            `json:"billNo,omitempty"`
+	BillType           string            `json:"billType,omitempty"`
+	PositionType       string            `json:"positionType,omitempty"`
+	Medium             string            `json:"medium,omitempty"`
+	Currency           string            `json:"currency"`
+	FaceAmount         string            `json:"faceAmount,omitempty"`
+	IssueDate          string            `json:"issueDate,omitempty"`
+	MaturityDate       string            `json:"maturityDate,omitempty"`
+	Drawer             string            `json:"drawer,omitempty"`
+	Acceptor           string            `json:"acceptor,omitempty"`
+	Payee              string            `json:"payee,omitempty"`
+	AnnualRateBps      int32             `json:"annualRateBps,omitempty"`
+	InterestDays       int32             `json:"interestDays,omitempty"`
+	InterestAmount     string            `json:"interestAmount,omitempty"`
+	CustomerCostAmount string            `json:"customerCostAmount,omitempty"`
+	ValueAmount        string            `json:"valueAmount"`
+	OriginatingParty   OpeningPartyInput `json:"originatingParty,omitempty"`
+}
+
+type OpeningPartyInput struct {
+	Entity    string `json:"entity"`
+	ObjectID  string `json:"objectId"`
+	VersionID string `json:"versionId"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+}
+
+type OpeningContainerInput struct {
+	CustomerID    string `json:"customerId"`
+	ContainerType string `json:"containerType"`
+	Quantity      int64  `json:"quantity"`
 }
 
 type SaveOpeningInput struct {
-	BookID   string
-	Revision int64
-	Lines    []OpeningLineInput
+	BookID     string                  `json:"bookId"`
+	Revision   int64                   `json:"revision"`
+	Lines      []OpeningLineInput      `json:"lines"`
+	Assets     []OpeningAssetInput     `json:"assets"`
+	Bills      []OpeningBillInput      `json:"bills"`
+	Containers []OpeningContainerInput `json:"containers"`
 }
+
+type OpeningAssetView struct {
+	OpeningAssetInput
+	CreateObject bool `json:"createObject"`
+}
+
+type OpeningBillView struct {
+	OpeningBillInput
+	CreateObject bool `json:"createObject"`
+}
+
+type OpeningContainerView = OpeningContainerInput
 
 type OpeningLineView struct {
 	ID           string            `json:"lineId"`
@@ -146,13 +210,16 @@ type OpeningLineView struct {
 }
 
 type OpeningView struct {
-	BookID     string            `json:"bookId"`
-	State      string            `json:"state"`
-	VoucherID  *string           `json:"voucherId"`
-	Revision   int64             `json:"revision"`
-	ApprovedAt *string           `json:"approvedAt"`
-	ApprovedBy *string           `json:"approvedBy"`
-	Lines      []OpeningLineView `json:"lines"`
+	BookID     string                 `json:"bookId"`
+	State      string                 `json:"state"`
+	VoucherID  *string                `json:"voucherId"`
+	Revision   int64                  `json:"revision"`
+	ApprovedAt *string                `json:"approvedAt"`
+	ApprovedBy *string                `json:"approvedBy"`
+	Lines      []OpeningLineView      `json:"lines"`
+	Assets     []OpeningAssetView     `json:"assets"`
+	Bills      []OpeningBillView      `json:"bills"`
+	Containers []OpeningContainerView `json:"containers"`
 }
 
 const (

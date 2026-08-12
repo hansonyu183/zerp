@@ -19,7 +19,7 @@
 - 领域包保留业务规则和自身模型。两个领域之间稳定、无业务决策的类型映射或引用解析放在 `internal/integrations/<purpose>/`，由适配器明确依赖方向；不得在 `httpserver`、seed 或多个领域包中复制同一转换逻辑。
 - `internal/platform/` 只接收确定为领域无关的基础能力。公共工具应具备稳定语义、清晰边界并至少被多个领域复用；金额精度、状态含义、默认值等领域决策不得为了消除少量重复而下沉成通用函数。
 - 固定形状、可命名的查询必须写入 `db/queries/` 并通过 sqlc 调用；只有确实需要动态组合条件、排序或结构的查询才可在实现中构造 SQL，并必须集中封装、参数化和测试。
-- 预览与 E2E seed 必须沿用当前 AUX → BOB → VOU/WFL → LED 领域边界且保持幂等；生产演示的历史兼容路径必须隔离在专用 seed 中，不得反向决定运行时依赖或公共适配器设计。
+- 预览与 E2E seed 必须沿用当前 AUX → BOB → VOU/WFL → ACC 领域边界且保持幂等；生产演示数据不得反向决定运行时依赖或公共适配器设计。
 
 ## 业务域文档
 
@@ -28,7 +28,6 @@
 - [AUX：辅助对象](../docs/domains/aux.md)
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
-- [LED：业务账簿](../docs/domains/led.md)
 - [ACC：内部会计](../docs/domains/acc.md)
 
 新增业务域时，先补充根目录 `docs/domains/<domain>.md`，再实现对应路由、权限、迁移和领域代码。

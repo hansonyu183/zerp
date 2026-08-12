@@ -45,6 +45,9 @@ const draft = {
   approvedAt: null,
   approvedBy: null,
   lines: [],
+  assets: [],
+  bills: [],
+  containers: [],
 }
 
 describe('ACC opening view model', () => {
@@ -117,6 +120,40 @@ describe('ACC opening view model', () => {
           },
         },
       ],
+      assets: [],
+      bills: [],
+      containers: [],
     })
+  })
+
+  it('saves opening global register values with the draft', async () => {
+    mockedPost
+      .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
+      .mockResolvedValueOnce({ data: { items: subjects, total: 1 } })
+      .mockResolvedValueOnce({ data: draft })
+      .mockResolvedValueOnce({ data: { ...draft, revision: 1 } })
+    const vm = createAccountingOpeningViewModel()
+    await vm.initialize()
+    vm.addContainer()
+    vm.containers[0]!.customerId = '01JACC00000000000000000901'
+    vm.containers[0]!.quantity = 8
+
+    await vm.save()
+
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      4,
+      'acc/opening/save',
+      expect.objectContaining({
+        assets: [],
+        bills: [],
+        containers: [
+          {
+            customerId: '01JACC00000000000000000901',
+            containerType: 'SOLVENT',
+            quantity: 8,
+          },
+        ],
+      }),
+    )
   })
 })

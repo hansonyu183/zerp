@@ -506,9 +506,6 @@ func (s *Service) Delete(
 	case EntityAssetAcquisition:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_acquisition_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_acquisition_details WHERE document_id=$1`, input.DocumentID)
-	case EntityAssetDepreciation:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_depreciation_lines WHERE document_id=$1;
-			DELETE FROM vou_asset_depreciation_details WHERE document_id=$1`, input.DocumentID)
 	case EntityAssetSale:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_sale_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_sale_details WHERE document_id=$1`, input.DocumentID)
@@ -516,15 +513,15 @@ func (s *Service) Delete(
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_liquidation_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_liquidation_details WHERE document_id=$1`, input.DocumentID)
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
-		var hasLedgerHistory bool
+		var hasAccountingHistory bool
 		if entity == EntityBillReceipt || entity == EntityBillIssue {
 			err = tx.QueryRow(ctx, `SELECT EXISTS(
-				SELECT 1 FROM led_bills WHERE source_document_id=$1
-			)`, input.DocumentID).Scan(&hasLedgerHistory)
+				SELECT 1 FROM acc_bills WHERE source_document_id=$1
+			)`, input.DocumentID).Scan(&hasAccountingHistory)
 		}
-		if err == nil && hasLedgerHistory {
+		if err == nil && hasAccountingHistory {
 			return MutationResult{}, domainError(
-				ErrorConflict, "bill document with ledger history cannot be deleted", nil, nil,
+				ErrorConflict, "bill document with accounting history cannot be deleted", nil, nil,
 			)
 		}
 		if err == nil {

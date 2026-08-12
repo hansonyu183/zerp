@@ -4,6 +4,8 @@ import type { components } from '@/api/generated/schema'
 export type AccountingOpening = components['schemas']['Opening']
 export type AccountingOpeningLineInput =
   components['schemas']['OpeningLineInput']
+export type AccountingOpeningSaveInput =
+  components['schemas']['OpeningSaveRequest']
 
 export function queryAccountingOpening(bookId: string) {
   return apiClient.post<AccountingOpening, { bookId: string }>(
@@ -12,12 +14,8 @@ export function queryAccountingOpening(bookId: string) {
   )
 }
 
-export function saveAccountingOpening(input: {
-  bookId: string
-  revision: number
-  lines: AccountingOpeningLineInput[]
-}) {
-  return apiClient.post<AccountingOpening, typeof input>(
+export function saveAccountingOpening(input: AccountingOpeningSaveInput) {
+  return apiClient.post<AccountingOpening, AccountingOpeningSaveInput>(
     'acc/opening/save',
     input,
   )

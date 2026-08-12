@@ -57,7 +57,7 @@ const developingPage: PageLoader = () =>
 const workflowInstancePage: PageLoader = () =>
   import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
-type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'led'
+type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -92,11 +92,6 @@ const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
     domainTitle: '内部会计',
     domainIcon: 'mdi-calculator-variant-outline',
     domainOrder: 40,
-  },
-  led: {
-    domainTitle: '业务账簿',
-    domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 50,
   },
 }
 
@@ -512,14 +507,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
       import('@/pages/vou/asset-acquisition/AssetAcquisition.vue'),
   }),
   registerPage('vou', {
-    entity: 'asset-depreciation',
-    entityTitle: '资产折旧',
-    icon: 'mdi-chart-timeline-variant-shimmer',
-    order: 121,
-    component: () =>
-      import('@/pages/vou/asset-depreciation/AssetDepreciation.vue'),
-  }),
-  registerPage('vou', {
     entity: 'asset-sale',
     entityTitle: '资产出让',
     icon: 'mdi-office-building-minus-outline',
@@ -548,69 +535,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-sitemap-outline',
     order: 20,
     component: () => import('@/pages/wfl/process-instance/ProcessInstance.vue'),
-  }),
-  registerPage('led', {
-    entity: 'closing',
-    entityTitle: '期初与结账',
-    icon: 'mdi-calendar-check-outline',
-    order: 10,
-    component: () => import('@/pages/led/opening/Opening.vue'),
-  }),
-  registerPage('led', {
-    entity: 'inventory',
-    entityTitle: '库存台账',
-    icon: 'mdi-warehouse',
-    order: 20,
-    component: () => import('@/pages/led/inventory/Inventory.vue'),
-  }),
-  registerPage('led', {
-    entity: 'fund',
-    entityTitle: '资金台账',
-    icon: 'mdi-bank-outline',
-    order: 30,
-    component: () => import('@/pages/led/fund/Fund.vue'),
-  }),
-  registerPage('led', {
-    entity: 'customer',
-    entityTitle: '往来台账-客户',
-    icon: 'mdi-account-cash-outline',
-    order: 40,
-    component: () => import('@/pages/led/customer/Customer.vue'),
-  }),
-  registerPage('led', {
-    entity: 'supplier',
-    entityTitle: '往来台账-供应商',
-    icon: 'mdi-account-cash-outline',
-    order: 41,
-    component: () => import('@/pages/led/supplier/Supplier.vue'),
-  }),
-  registerPage('led', {
-    entity: 'other',
-    entityTitle: '其他往来',
-    icon: 'mdi-account-cash-outline',
-    order: 42,
-    component: () => import('@/pages/led/other/Other.vue'),
-  }),
-  registerPage('led', {
-    entity: 'container',
-    entityTitle: '空桶台账',
-    icon: 'mdi-barrel',
-    order: 50,
-    component: () => import('@/pages/led/container/Container.vue'),
-  }),
-  registerPage('led', {
-    entity: 'bill',
-    entityTitle: '票据台账',
-    icon: 'mdi-receipt-text-outline',
-    order: 70,
-    component: () => import('@/pages/led/bill/Bill.vue'),
-  }),
-  registerPage('led', {
-    entity: 'asset',
-    entityTitle: '固定资产台账',
-    icon: 'mdi-office-building-cog-outline',
-    order: 60,
-    component: () => import('@/pages/led/asset/Asset.vue'),
   }),
 ]
 

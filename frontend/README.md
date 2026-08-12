@@ -112,7 +112,6 @@ Cookie、CSRF、统一响应和文件令牌均由 API 客户端处理。页面�
 - [AUX：辅助对象](../docs/domains/aux.md)
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
-- [LED：业务账簿](../docs/domains/led.md)
 - [ACC：内部会计](../docs/domains/acc.md)
 
 ## 测试

@@ -41,15 +41,14 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf(
-		"Preview test data ready: auxiliary=%d business=%d vouchers=%d ledger=%d "+
+		"Preview test data ready: auxiliary=%d business=%d vouchers=%d "+
 			"created=%d resumed=%d skipped=%d\n",
 		result.Auxiliary.Total(),
 		result.Business.Total(),
 		result.Vouchers.Total(),
-		result.Ledger.Total(),
-		result.Auxiliary.Created+result.Business.Created+result.Vouchers.Created+result.Ledger.Created,
-		result.Auxiliary.Resumed+result.Business.Resumed+result.Vouchers.Resumed+result.Ledger.Resumed,
-		result.Auxiliary.Skipped+result.Business.Skipped+result.Vouchers.Skipped+result.Ledger.Skipped,
+		result.Auxiliary.Created+result.Business.Created+result.Vouchers.Created,
+		result.Auxiliary.Resumed+result.Business.Resumed+result.Vouchers.Resumed,
+		result.Auxiliary.Skipped+result.Business.Skipped+result.Vouchers.Skipped,
 	)
 }
 

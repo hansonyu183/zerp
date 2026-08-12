@@ -9,7 +9,6 @@ import (
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -33,7 +32,6 @@ type Result struct {
 type Seeder struct {
 	pool     *pgxpool.Pool
 	bob      *bobdomain.Service
-	ledger   *leddomain.Service
 	vouchers *voudomain.Service
 }
 
@@ -63,25 +61,15 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
 	}
-	ledger, err := leddomain.NewService(pool, bobService, vouchers)
-	if err != nil {
-		return nil, err
-	}
-	if err = ledger.RegisterSubscriptions(events); err != nil {
-		return nil, fmt.Errorf("register LED subscriptions: %w", err)
-	}
 	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)
 	}
-	return &Seeder{pool: pool, bob: bobService, ledger: ledger, vouchers: vouchers}, nil
+	return &Seeder{pool: pool, bob: bobService, vouchers: vouchers}, nil
 }
 
 func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	refs, err := s.references(ctx)
 	if err != nil {
-		return Result{}, err
-	}
-	if err = s.ensureLedgerActive(ctx); err != nil {
 		return Result{}, err
 	}
 	var result Result
@@ -152,13 +140,6 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		*value.target = ref
 	}
 	return refs, nil
-}
-
-func (s *Seeder) ensureLedgerActive(ctx context.Context) error {
-	if err := s.ledger.EnsureReady(ctx); err != nil {
-		return fmt.Errorf("initialize zero-opening preview ledger: %w", err)
-	}
-	return nil
 }
 
 type seedOutcome int

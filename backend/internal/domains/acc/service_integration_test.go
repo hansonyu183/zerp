@@ -43,6 +43,12 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 func seedUsers(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
+		DELETE FROM acc_container_entries;
+		DELETE FROM acc_bill_book_values;
+		DELETE FROM acc_bills;
+		DELETE FROM acc_asset_book_values;
+		DELETE FROM acc_assets;
+		DELETE FROM acc_register_events;
 		DELETE FROM acc_openings;
 		DELETE FROM acc_vouchers;
 		DELETE FROM acc_subject_usages;

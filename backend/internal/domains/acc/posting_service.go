@@ -68,6 +68,9 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txe
 	if err != nil {
 		return databaseError("list accounting posting books", err)
 	}
+	if err = s.applyGlobalRegisters(ctx, tx, event, books); err != nil {
+		return postingDeliveryError(err)
+	}
 	for _, book := range books {
 		if err = s.postSnapshotToBook(ctx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
 			return postingDeliveryError(err)
@@ -433,6 +436,9 @@ func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, raw t
 		return txevent.Reject("invalid VOU unapproval snapshot", nil)
 	}
 	q := s.queries.WithTx(tx)
+	if err := s.reverseGlobalRegisters(ctx, tx, event); err != nil {
+		return postingDeliveryError(err)
+	}
 	entity, revision := event.Entity, event.Snapshot.Revision
 	voucherIDs, err := q.DeleteAutomaticAccountingVoucher(ctx, dbsqlc.DeleteAutomaticAccountingVoucherParams{SourceEntity: &entity, SourceID: event.DocumentID, SourceRevision: &revision})
 	if err != nil {

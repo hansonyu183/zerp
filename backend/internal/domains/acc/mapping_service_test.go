@@ -38,6 +38,11 @@ func TestMappingFieldCatalogOnlyExposesEntityCollections(t *testing.T) {
 	if _, ok := catalog.Collections["assetAcquisitionLines"]; ok {
 		t.Fatal("sale-pricing catalog exposes asset acquisition fields")
 	}
+	for _, field := range catalog.HeaderFields {
+		if field == "fundAccount.objectId" {
+			t.Fatal("sale-pricing catalog exposes an inapplicable fund account field")
+		}
+	}
 	collection := "assetAcquisitionLines"
 	definition := MappingDefinition{Templates: []PostingTemplate{{
 		ID: "invalid", Collection: &collection,
@@ -45,6 +50,24 @@ func TestMappingFieldCatalogOnlyExposesEntityCollections(t *testing.T) {
 	}}}
 	if err = validateMapping(MappingResultUnpost, definition, catalog); !IsKind(err, ErrorValidation) {
 		t.Fatalf("invalid entity collection error = %v", err)
+	}
+}
+
+func TestValidateMappingRejectsFieldsFromAnotherAllowedCollection(t *testing.T) {
+	catalog, err := MappingFieldCatalog("sale-signoff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection := "signoffLines"
+	definition := MappingDefinition{Templates: []PostingTemplate{{
+		ID: "invalid", Collection: &collection,
+		Lines: []PostingLineTemplate{
+			{SubjectSource: "FIXED", SubjectValue: ulid.Make().String(), Direction: BalanceDirectionDebit, AmountField: "quantity", CurrencyField: "currency"},
+			{SubjectSource: "FIXED", SubjectValue: ulid.Make().String(), Direction: BalanceDirectionCredit, AmountField: "quantity", CurrencyField: "currency"},
+		},
+	}}}
+	if err = validateMapping(MappingResultUnpost, definition, catalog); !IsKind(err, ErrorValidation) {
+		t.Fatalf("cross-collection field error = %v", err)
 	}
 }
 

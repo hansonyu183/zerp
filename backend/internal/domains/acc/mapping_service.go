@@ -30,15 +30,43 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 	return result
 }()
 
-var mappingHeaderFields = []string{
-	"amount", "businessDate", "containerDifferenceReason", "currency", "differenceReason",
-	"documentId", "documentNo", "dueDate", "entity", "fulfillmentStatus", "interestMode", "maturityType",
-	"otherCategory", "parentDocumentId", "parentEntity", "remark", "returnKind", "returnReason", "revision",
-	"settlementMode", "sourceName", "specialApproval", "status", "totalAmount", "withRecourse",
-	"counterparty.objectId", "customer.objectId", "employee.objectId", "finishedWarehouse.objectId",
-	"fundAccount.objectId", "handler.objectId", "interestParty.objectId", "materialWarehouse.objectId",
-	"platform.objectId", "purchaser.objectId", "salesperson.objectId", "supplier.objectId", "vehicle.objectId",
-	"warehouse.objectId",
+var mappingCommonHeaderFields = []string{
+	"amount", "businessDate", "currency", "documentId", "documentNo", "entity",
+	"parentDocumentId", "parentEntity", "remark", "revision", "status", "totalAmount",
+}
+
+var mappingEntityHeaderFields = map[string][]string{
+	"purchase-inquiry":       {"supplier.objectId"},
+	"sale-order":             {"customer.objectId", "fulfillmentStatus", "salesperson.objectId", "specialApproval", "warehouse.objectId"},
+	"purchase-order":         {"purchaser.objectId", "supplier.objectId", "warehouse.objectId"},
+	"purchase-inbound":       {"dueDate", "supplier.objectId", "warehouse.objectId"},
+	"sale-outbound":          {"customer.objectId", "warehouse.objectId"},
+	"sale-delivery":          {"customer.objectId", "platform.objectId", "vehicle.objectId"},
+	"sale-signoff":           {"customer.objectId", "dueDate", "warehouse.objectId"},
+	"sale-return":            {"customer.objectId", "returnKind", "returnReason", "warehouse.objectId"},
+	"purchase-return":        {"returnReason", "supplier.objectId", "warehouse.objectId"},
+	"order-production":       {"finishedWarehouse.objectId", "materialWarehouse.objectId"},
+	"self-production":        {"finishedWarehouse.objectId", "materialWarehouse.objectId"},
+	"inventory-count":        {"warehouse.objectId"},
+	"sales-receipt":          {"counterparty.objectId", "dueDate", "fundAccount.objectId", "handler.objectId"},
+	"purchase-refund":        {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
+	"other-receipt":          {"counterparty.objectId", "fundAccount.objectId", "handler.objectId", "otherCategory"},
+	"sales-refund":           {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
+	"purchase-payment":       {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
+	"other-payment":          {"counterparty.objectId", "fundAccount.objectId", "handler.objectId", "otherCategory"},
+	"employee-loan":          {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
+	"employee-repayment":     {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
+	"employee-loan-writeoff": {"employee.objectId"},
+	"expense-reimbursement":  {"employee.objectId", "fundAccount.objectId", "settlementMode"},
+	"expense-payment":        {"employee.objectId", "fundAccount.objectId"},
+	"other-income":           {"counterparty.objectId", "fundAccount.objectId", "handler.objectId", "sourceName"},
+	"asset-acquisition":      {"supplier.objectId"},
+	"asset-sale":             {"counterparty.objectId"},
+	"bill-receipt":           {"counterparty.objectId", "handler.objectId", "interestMode", "interestParty.objectId", "maturityType", "withRecourse"},
+	"bill-payment":           {"interestMode", "interestParty.objectId", "maturityType", "supplier.objectId", "withRecourse"},
+	"bill-issue":             {"interestMode", "interestParty.objectId", "maturityType", "supplier.objectId", "withRecourse"},
+	"bill-discount":          {"counterparty.objectId", "handler.objectId", "interestMode", "interestParty.objectId", "maturityType", "withRecourse"},
+	"bill-maturity":          {"interestMode", "interestParty.objectId", "maturityType", "withRecourse"},
 }
 
 var mappingCollectionFields = map[string][]string{
@@ -59,10 +87,10 @@ var mappingCollectionFields = map[string][]string{
 var mappingEntityCollections = map[string][]string{
 	"sale-pricing": {"priceLines"}, "purchase-inquiry": {"priceLines"},
 	"sale-order": {"productLines"}, "purchase-order": {"productLines"}, "purchase-inbound": {"productLines"},
-	"sale-outbound": {"productLines", "lines"}, "sale-delivery": {"productLines", "lines"},
-	"sale-signoff": {"productLines", "signoffLines", "lines"}, "sale-return": {"productLines", "lines"},
-	"purchase-return":  {"productLines", "lines"},
-	"order-production": {"lines", "productionLines"}, "self-production": {"lines", "productionLines"},
+	"sale-outbound": {"productLines"}, "sale-delivery": {"productLines"},
+	"sale-signoff": {"signoffLines"}, "sale-return": {"lines"},
+	"purchase-return":  {"lines"},
+	"order-production": {"productionLines"}, "self-production": {"productionLines"},
 	"inventory-count":       {"inventoryCountLines"},
 	"expense-reimbursement": {"expenseLines"}, "employee-loan-writeoff": {"expenseLines"},
 	"asset-acquisition": {"assetAcquisitionLines"}, "asset-sale": {"assetSaleLines"}, "asset-liquidation": {"assetLiquidationLines"},
@@ -90,21 +118,22 @@ func MappingFieldCatalog(entity string) (MappingCatalog, error) {
 	for _, collection := range entityCollections {
 		collections[collection] = append([]string(nil), mappingCollectionFields[collection]...)
 	}
-	return MappingCatalog{VouEntity: entity, HeaderFields: append([]string(nil), mappingHeaderFields...), Collections: collections}, nil
+	headerFields := append([]string(nil), mappingCommonHeaderFields...)
+	headerFields = append(headerFields, mappingEntityHeaderFields[entity]...)
+	sort.Strings(headerFields)
+	return MappingCatalog{VouEntity: entity, HeaderFields: headerFields, Collections: collections}, nil
 }
 
-func mappingFieldExists(catalog MappingCatalog, field string, allowLine bool) bool {
+func mappingFieldExists(catalog MappingCatalog, field string, collection *string) bool {
 	for _, candidate := range catalog.HeaderFields {
 		if candidate == field {
 			return true
 		}
 	}
-	if allowLine {
-		for _, fields := range catalog.Collections {
-			for _, candidate := range fields {
-				if candidate == field {
-					return true
-				}
+	if collection != nil {
+		for _, candidate := range catalog.Collections[*collection] {
+			if candidate == field {
+				return true
 			}
 		}
 	}
@@ -123,9 +152,10 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 		return domainError(ErrorValidation, "asset acquisition mapping requires asset accounting configuration", nil)
 	}
 	if definition.AssetConfiguration != nil {
+		assetCollection := "assetAcquisitionLines"
 		for _, dimensions := range []map[string]string{definition.AssetConfiguration.AssetDimensions, definition.AssetConfiguration.AccumulatedDepreciationDimensions, definition.AssetConfiguration.DepreciationExpenseDimensions} {
 			for _, field := range dimensions {
-				if !mappingFieldExists(catalog, field, true) {
+				if !mappingFieldExists(catalog, field, &assetCollection) {
 					return domainError(ErrorValidation, "unknown asset accounting dimension field", nil)
 				}
 			}
@@ -149,28 +179,28 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 			if line.SubjectSource != "FIXED" && line.SubjectSource != "FIELD" {
 				return domainError(ErrorValidation, "invalid posting subject source", nil)
 			}
-			if strings.TrimSpace(line.SubjectValue) == "" || (line.SubjectSource == "FIELD" && !mappingFieldExists(catalog, line.SubjectValue, template.Collection != nil)) {
+			if strings.TrimSpace(line.SubjectValue) == "" || (line.SubjectSource == "FIELD" && !mappingFieldExists(catalog, line.SubjectValue, template.Collection)) {
 				return domainError(ErrorValidation, "invalid posting subject value", nil)
 			}
 			if line.Direction != BalanceDirectionDebit && line.Direction != BalanceDirectionCredit {
 				return domainError(ErrorValidation, "invalid posting direction", nil)
 			}
-			if !mappingFieldExists(catalog, line.AmountField, template.Collection != nil) || !mappingFieldExists(catalog, line.CurrencyField, template.Collection != nil) {
+			if !mappingFieldExists(catalog, line.AmountField, template.Collection) || !mappingFieldExists(catalog, line.CurrencyField, template.Collection) {
 				return domainError(ErrorValidation, "unknown posting amount or currency field", nil)
 			}
 			for _, field := range line.Dimensions {
-				if !mappingFieldExists(catalog, field, template.Collection != nil) {
+				if !mappingFieldExists(catalog, field, template.Collection) {
 					return domainError(ErrorValidation, "unknown posting dimension field", nil)
 				}
 			}
-			if line.QuantityField != nil && !mappingFieldExists(catalog, *line.QuantityField, template.Collection != nil) {
+			if line.QuantityField != nil && !mappingFieldExists(catalog, *line.QuantityField, template.Collection) {
 				return domainError(ErrorValidation, "unknown posting quantity field", nil)
 			}
 			if line.CostCounterpartSubjectID == nil && len(line.CostCounterpartDimensions) != 0 {
 				return domainError(ErrorValidation, "cost dimensions require a cost counterpart subject", nil)
 			}
 			for _, field := range line.CostCounterpartDimensions {
-				if !mappingFieldExists(catalog, field, template.Collection != nil) {
+				if !mappingFieldExists(catalog, field, template.Collection) {
 					return domainError(ErrorValidation, "unknown cost counterpart dimension field", nil)
 				}
 			}
@@ -205,7 +235,7 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 			return err
 		}
 		for _, condition := range rule.Conditions {
-			if !mappingFieldExists(catalog, condition.Field, false) {
+			if !mappingFieldExists(catalog, condition.Field, nil) {
 				return domainError(ErrorValidation, "unknown mapping condition field", nil)
 			}
 			if _, ok := allowedOperators[condition.Operator]; !ok {

@@ -113,6 +113,7 @@ Cookie、CSRF、统一响应和文件令牌均由 API 客户端处理。页面�
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
 - [ACC：内部会计](../docs/domains/acc.md)
+- [RPT：报表](../docs/domains/rpt.md)
 
 ## 测试
 

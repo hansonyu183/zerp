@@ -249,8 +249,8 @@ type PostingLineTemplate struct {
 	CurrencyField             string            `json:"currencyField"`
 	Dimensions                map[string]string `json:"dimensions"`
 	QuantityField             *string           `json:"quantityField"`
-	CostCounterpartSubjectID  *string           `json:"costCounterpartSubjectId,omitempty"`
-	CostCounterpartDimensions map[string]string `json:"costCounterpartDimensions,omitempty"`
+	CostCounterpartSubjectID  *string           `json:"costCounterpartSubjectId"`
+	CostCounterpartDimensions map[string]string `json:"costCounterpartDimensions"`
 }
 
 type PostingTemplate struct {

@@ -76,6 +76,23 @@ export function reportActions(permissions: ReportPermissionSet): {
   }
 }
 
+export const reportDefinitionActions = [
+  'create',
+  'create-version',
+  'save',
+  'approve',
+  'unapprove',
+  'enable',
+  'disable',
+  'delete',
+] as const
+
+export type ReportDefinitionAction = (typeof reportDefinitionActions)[number]
+
+export function reportPageCount(total: number, pageSize: number): number {
+  return Math.max(1, Math.ceil(total / pageSize))
+}
+
 export function formatResultValue(
   value: unknown,
   column: RptResultColumn,

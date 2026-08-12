@@ -83,14 +83,15 @@ func TestRPTDefinitionApprovalAndUnapprovalIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unapprove report definition: %v", err)
 	}
-	if unapproved.Status != "DRAFT" || unapproved.Revision != 3 {
+	if unapproved.Status != "APPROVED" || unapproved.Revision != 2 {
 		t.Fatalf("unapproved report = %+v", unapproved)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT coalesce(current_version_id,''),revision FROM rpt_definitions WHERE code=$1`, code).
-		Scan(&currentVersion, new(int64)); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT coalesce(d.current_version_id,''),v.status
+		FROM rpt_definitions d JOIN rpt_versions v ON v.id=$2 WHERE d.code=$1`, code, created.ID).
+		Scan(&currentVersion, &status); err != nil {
 		t.Fatalf("read unapproved report: %v", err)
 	}
-	if currentVersion != "" {
+	if currentVersion != "" || status != "APPROVED" {
 		t.Fatalf("unapproved current version = %q, want empty", currentVersion)
 	}
 	_, queryStatus = rptPermission(t, pool, code, "query")
@@ -163,7 +164,7 @@ func TestRPTVersionCreateAndAtomicSwitchIntegration(t *testing.T) {
 		Scan(&currentVersion, &firstStatus, &secondStatus); err != nil {
 		t.Fatalf("read unapproved version switch: %v", err)
 	}
-	if currentVersion != "" || firstStatus != "APPROVED" || secondStatus != "DRAFT" {
+	if currentVersion != "" || firstStatus != "APPROVED" || secondStatus != "APPROVED" {
 		t.Fatalf("unapproved version state = current %q first %q second %q", currentVersion, firstStatus, secondStatus)
 	}
 }
@@ -297,6 +298,16 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 	tooLarge := 101
 	if _, err = service.Execute(t.Context(), code, generated.RptExecuteRequest{PageSize: &tooLarge, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-too-large"); !rptErrorKind(err, ErrorValidation) {
 		t.Fatalf("page size 101 error = %v", err)
+	}
+	zero, negative := 0, -1
+	for _, request := range []generated.RptExecuteRequest{
+		{Page: &zero, Parameters: map[string]any{}},
+		{Page: &negative, Parameters: map[string]any{}},
+		{PageSize: &zero, Parameters: map[string]any{}},
+	} {
+		if _, err = service.Execute(t.Context(), code, request, rptIntegrationActor, "rpt-page-invalid"); !rptErrorKind(err, ErrorValidation) {
+			t.Fatalf("invalid pagination request %+v error = %v", request, err)
+		}
 	}
 	_ = approved
 }

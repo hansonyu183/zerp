@@ -65,8 +65,8 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in generated
 	if in.PageSize != nil {
 		pageSize = *in.PageSize
 	}
-	if pageSize > 50 {
-		return Page{}, validation("reference page size exceeds limit", nil)
+	if page < 1 || pageSize < 1 || pageSize > 50 {
+		return Page{}, validation("invalid reference pagination", nil)
 	}
 	keyword, selectedID := "", ""
 	if in.Keyword != nil {
@@ -222,7 +222,9 @@ func (s *Service) CreateDefinition(ctx context.Context, in generated.RptDefiniti
 	if _, err = tx.Exec(ctx, `INSERT INTO rpt_versions(id,definition_id,version_no,status,validity,sql_text,parameters,columns,created_by,updated_by)VALUES($1,$2,1,'DRAFT','VALID',$3,$4,$5,$6,$6)`, versionID, definitionID, in.Data.Sql, parameters, columns, actorID); err != nil {
 		return MutationResult{}, err
 	}
-	_ = audit(ctx, tx, definitionID, in.Code, versionID, "CREATED", actorID, requestID, nil)
+	if err = audit(ctx, tx, definitionID, in.Code, versionID, "CREATED", actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report creation", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -251,7 +253,9 @@ func (s *Service) CreateVersion(ctx context.Context, in generated.RptVersionCrea
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report already has a draft", nil, err)
 	}
-	_ = audit(ctx, tx, definitionID, in.Code, id, "VERSION_CREATED", actorID, requestID, nil)
+	if err = audit(ctx, tx, definitionID, in.Code, id, "VERSION_CREATED", actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report version creation", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -303,7 +307,9 @@ func (s *Service) SaveVersion(ctx context.Context, in generated.RptVersionSaveRe
 			return MutationResult{}, err
 		}
 	}
-	_ = audit(ctx, tx, id, in.Code, in.VersionId, "SAVED", actorID, requestID, nil)
+	if err = audit(ctx, tx, id, in.Code, in.VersionId, "SAVED", actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report save", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -365,7 +371,9 @@ func (s *Service) ApproveVersion(ctx context.Context, in generated.RptVersionRev
 			return MutationResult{}, err
 		}
 	}
-	_ = audit(ctx, tx, id, in.Code, in.VersionId, "APPROVED", actorID, requestID, nil)
+	if err = audit(ctx, tx, id, in.Code, in.VersionId, "APPROVED", actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report approval", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -383,10 +391,6 @@ func (s *Service) UnapproveVersion(ctx context.Context, in generated.RptVersionR
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report version changed", nil, err)
 	}
-	_, err = tx.Exec(ctx, `UPDATE rpt_versions SET status='DRAFT',revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2`, actorID, in.VersionId)
-	if err != nil {
-		return MutationResult{}, err
-	}
 	_, err = tx.Exec(ctx, `UPDATE rpt_definitions SET current_version_id=NULL,revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND current_version_id=$3`, actorID, id, in.VersionId)
 	if err != nil {
 		return MutationResult{}, err
@@ -394,11 +398,13 @@ func (s *Service) UnapproveVersion(ctx context.Context, in generated.RptVersionR
 	if err = disablePermissions(ctx, tx, in.Code, actorID); err != nil {
 		return MutationResult{}, err
 	}
-	_ = audit(ctx, tx, id, in.Code, in.VersionId, "UNAPPROVED", actorID, requestID, nil)
+	if err = audit(ctx, tx, id, in.Code, in.VersionId, "UNAPPROVED", actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report unapproval", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{ID: in.VersionId, Status: "DRAFT", Revision: in.Revision + 1}, nil
+	return MutationResult{ID: in.VersionId, Status: "APPROVED", Revision: in.Revision}, nil
 }
 
 func (s *Service) SetEnabled(ctx context.Context, in generated.RptDefinitionRevisionRequest, enabled bool, actorID, requestID string) (MutationResult, error) {
@@ -427,7 +433,9 @@ func (s *Service) SetEnabled(ctx context.Context, in generated.RptDefinitionRevi
 	if enabled {
 		event = "ENABLED"
 	}
-	_ = audit(ctx, tx, id, in.Code, "", event, actorID, requestID, nil)
+	if err = audit(ctx, tx, id, in.Code, "", event, actorID, requestID, nil); err != nil {
+		return MutationResult{}, internal("audit report state change", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -480,7 +488,9 @@ func (s *Service) markInvalid(ctx context.Context, definitionID, code, versionID
 	if err = disablePermissions(ctx, tx, code, actorID); err != nil {
 		return err
 	}
-	_ = audit(ctx, tx, definitionID, code, versionID, "INVALIDATED", actorID, requestID, nil)
+	if err = audit(ctx, tx, definitionID, code, versionID, "INVALIDATED", actorID, requestID, nil); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -661,8 +671,8 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 	if in.PageSize != nil {
 		pageSize = *in.PageSize
 	}
-	if pageSize > 100 {
-		return QueryResult{}, validation("report page size exceeds limit", nil)
+	if page < 1 || pageSize < 1 || pageSize > 100 {
+		return QueryResult{}, validation("invalid report pagination", nil)
 	}
 	definition, err := s.loadActive(ctx, code)
 	if err != nil {
@@ -685,7 +695,9 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 	var total int64
 	if err = tx.QueryRow(runCtx, `SELECT count(*) FROM (`+definition.Data.Sql+`) rpt_count`, args...).Scan(&total); err != nil {
 		if isStructuralError(err) {
-			_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID)
+			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
+				return QueryResult{}, internal("invalidate report", invalidErr)
+			}
 			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
 		}
 		return QueryResult{}, internal("count report rows", err)
@@ -694,7 +706,9 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 	rows, err := tx.Query(runCtx, sql, args...)
 	if err != nil {
 		if isStructuralError(err) {
-			_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID)
+			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
+				return QueryResult{}, internal("invalidate report", invalidErr)
+			}
 			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
 		}
 		return QueryResult{}, internal("run report query", err)
@@ -702,7 +716,9 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 	defer rows.Close()
 	fields := rows.FieldDescriptions()
 	if !fieldsMatchContract(fields, definition.Data.Columns) {
-		_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID)
+		if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
+			return QueryResult{}, internal("invalidate report", invalidErr)
+		}
 		return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
 	}
 	items := []map[string]any{}
@@ -722,7 +738,9 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 	}
 	if err = rows.Err(); err != nil {
 		if isStructuralError(err) {
-			_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID)
+			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
+				return QueryResult{}, internal("invalidate report", invalidErr)
+			}
 			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
 		}
 		return QueryResult{}, internal("read report rows", err)
@@ -768,7 +786,9 @@ func (s *Service) StreamExport(
 	}
 	defer rows.Close()
 	if !fieldsMatchContract(rows.FieldDescriptions(), definition.Data.Columns) {
-		_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID)
+		if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID); invalidErr != nil {
+			return internal("invalidate report", invalidErr)
+		}
 		return domainError(ErrorConflict, "report is invalid", nil, nil)
 	}
 	if err = consume(definition.Data.Columns, rows); err != nil {
@@ -782,7 +802,9 @@ func (s *Service) StreamExport(
 
 func (s *Service) handleExecutionError(ctx context.Context, definition DefinitionView, actorID, requestID, operation string, err error) error {
 	if isStructuralError(err) {
-		_ = s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID)
+		if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID); invalidErr != nil {
+			return internal("invalidate report", invalidErr)
+		}
 		return domainError(ErrorConflict, "report is invalid", nil, nil)
 	}
 	return internal(operation, err)

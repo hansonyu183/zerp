@@ -89,11 +89,14 @@ func TestCSVCellNeutralizesSpreadsheetFormula(t *testing.T) {
 
 func TestCSVCellFormatsDatabaseTypes(t *testing.T) {
 	var decimal pgtype.Numeric
-	if err := decimal.Scan("12.34"); err != nil {
+	if err := decimal.Scan("-12.34"); err != nil {
 		t.Fatal(err)
 	}
-	if got := csvCell(decimal, generated.RptResultTypeDECIMAL); got != "12.34" {
+	if got := csvCell(decimal, generated.RptResultTypeDECIMAL); got != "-12.34" {
 		t.Fatalf("decimal = %q", got)
+	}
+	if got := csvCell("-12.34", generated.RptResultTypeDECIMAL); got != "-12.34" {
+		t.Fatalf("decimal string = %q", got)
 	}
 	date := time.Date(2026, time.August, 12, 0, 0, 0, 0, time.UTC)
 	if got := csvCell(date, generated.RptResultTypeDATE); got != "2026-08-12" {

@@ -10,10 +10,13 @@ import {
   executeParameters,
   formatResultValue,
   reportActions,
+  reportDefinitionActions,
+  reportPageCount,
   visibleColumns,
   vouDrilldown,
   type RptParameter,
   type RptResultColumn,
+  type ReportDefinitionAction,
 } from './shared/vm'
 
 type Definition = {
@@ -43,6 +46,8 @@ const selected = ref<Definition | null>(null)
 const parameters = ref<Record<string, unknown>>({})
 const rows = ref<ResultRow[]>([])
 const total = ref(0)
+const page = ref(1)
+const pageSize = 50
 const executedColumns = ref<RptResultColumn[]>([])
 const loading = ref(false)
 const exporting = ref(false)
@@ -68,7 +73,19 @@ const reportPermissions = computed(() =>
   }),
 )
 const resultColumns = computed(() => visibleColumns(executedColumns.value))
-const managementAllowed = computed(() => session.can('/rpt/definition/query'))
+const managementPermissions = computed(
+  () =>
+    Object.fromEntries(
+      reportDefinitionActions.map((action) => [
+        action,
+        session.can(`/rpt/definition/${action}`),
+      ]),
+    ) as Record<ReportDefinitionAction, boolean>,
+)
+const managementAllowed = computed(() =>
+  reportDefinitionActions.some((action) => managementPermissions.value[action]),
+)
+const pageCount = computed(() => reportPageCount(total.value, pageSize))
 const definitionOptions = computed(() =>
   definitions.value.map((definition) => ({
     title: `${definition.name}（${definition.code}）`,
@@ -145,6 +162,7 @@ function setSelected(code: string): void {
   parameters.value = initialParameters(selected.value?.parameters ?? [])
   rows.value = []
   total.value = 0
+  page.value = 1
   executedColumns.value = selected.value?.columns ?? []
   referenceOptions.value = {}
   void router.replace({ params: { ...route.params, code } })
@@ -192,8 +210,8 @@ async function query(): Promise<void> {
           selected.value?.parameters ?? [],
           parameters.value,
         ),
-        page: 1,
-        pageSize: 50,
+        page: page.value,
+        pageSize,
       } as never,
     )
     rows.value = resultRows(response.data as unknown)
@@ -208,6 +226,11 @@ async function query(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+function queryFirstPage(): void {
+  page.value = 1
+  void query()
 }
 
 async function loadReference(
@@ -306,17 +329,8 @@ function parseManagementData(): components['schemas']['RptVersionData'] | null {
   }
 }
 
-async function manage(
-  action:
-    | 'create'
-    | 'create-version'
-    | 'save'
-    | 'approve'
-    | 'unapprove'
-    | 'enable'
-    | 'disable'
-    | 'delete',
-): Promise<void> {
+async function manage(action: ReportDefinitionAction): Promise<void> {
+  if (!managementPermissions.value[action]) return
   const code = managementCode.value.trim()
   if (!code) {
     errorMessage.value = '请填写报表编码。'
@@ -497,7 +511,7 @@ onMounted(loadDefinitions)
                 v-if="reportPermissions.canQuery"
                 color="primary"
                 :loading="loading"
-                @click="query"
+                @click="queryFirstPage"
                 >查询</v-btn
               >
               <v-btn
@@ -579,6 +593,15 @@ onMounted(loadDefinitions)
               </v-list>
             </v-card>
           </div>
+          <v-pagination
+            v-if="total > pageSize"
+            v-model="page"
+            class="mt-3"
+            :length="pageCount"
+            :total-visible="5"
+            aria-label="报表结果分页"
+            @update:model-value="query"
+          />
         </v-card>
       </v-col>
     </v-row>
@@ -605,15 +628,46 @@ onMounted(loadDefinitions)
             auto-grow
           />
           <div class="d-flex flex-wrap ga-2">
-            <v-btn size="small" @click="manage('create')">新建定义</v-btn
-            ><v-btn size="small" @click="manage('create-version')"
+            <v-btn
+              v-if="managementPermissions.create"
+              size="small"
+              @click="manage('create')"
+              >新建定义</v-btn
+            ><v-btn
+              v-if="managementPermissions['create-version']"
+              size="small"
+              @click="manage('create-version')"
               >新建版本</v-btn
-            ><v-btn size="small" @click="manage('save')">保存版本</v-btn
-            ><v-btn size="small" @click="manage('approve')">批准</v-btn
-            ><v-btn size="small" @click="manage('unapprove')">反批准</v-btn
-            ><v-btn size="small" @click="manage('enable')">启用</v-btn
-            ><v-btn size="small" @click="manage('disable')">停用</v-btn
-            ><v-btn size="small" color="error" @click="manage('delete')"
+            ><v-btn
+              v-if="managementPermissions.save"
+              size="small"
+              @click="manage('save')"
+              >保存版本</v-btn
+            ><v-btn
+              v-if="managementPermissions.approve"
+              size="small"
+              @click="manage('approve')"
+              >批准</v-btn
+            ><v-btn
+              v-if="managementPermissions.unapprove"
+              size="small"
+              @click="manage('unapprove')"
+              >反批准</v-btn
+            ><v-btn
+              v-if="managementPermissions.enable"
+              size="small"
+              @click="manage('enable')"
+              >启用</v-btn
+            ><v-btn
+              v-if="managementPermissions.disable"
+              size="small"
+              @click="manage('disable')"
+              >停用</v-btn
+            ><v-btn
+              v-if="managementPermissions.delete"
+              size="small"
+              color="error"
+              @click="manage('delete')"
               >删除</v-btn
             >
           </div>

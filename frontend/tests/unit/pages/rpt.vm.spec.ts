@@ -5,6 +5,8 @@ import {
   visibleColumns,
   initialParameters,
   reportActions,
+  reportDefinitionActions,
+  reportPageCount,
   vouDrilldown,
 } from '@/pages/rpt/shared/vm'
 
@@ -74,6 +76,21 @@ describe('RPT report center view model', () => {
       canExport: true,
       showResults: false,
     })
+  })
+
+  it('exposes every definition action independently and calculates result pages', () => {
+    expect(reportDefinitionActions).toEqual([
+      'create',
+      'create-version',
+      'save',
+      'approve',
+      'unapprove',
+      'enable',
+      'disable',
+      'delete',
+    ])
+    expect(reportPageCount(101, 50)).toBe(3)
+    expect(reportPageCount(0, 50)).toBe(1)
   })
 
   it('formats values from the approved result contract', () => {

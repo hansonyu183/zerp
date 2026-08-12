@@ -243,7 +243,7 @@ func csvCell(value any, resultType generated.RptResultType) string {
 	default:
 		text = fmt.Sprint(value)
 	}
-	if text != "" && strings.ContainsRune("=+-@", rune(text[0])) {
+	if (resultType == generated.RptResultTypeTEXT || resultType == generated.RptResultTypeID) && text != "" && strings.ContainsRune("=+-@", rune(text[0])) {
 		return "'" + text
 	}
 	return text

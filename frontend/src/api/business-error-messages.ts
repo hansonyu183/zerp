@@ -409,6 +409,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'load parent document': '上级单据加载失败，请刷新后重试。',
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',
   'object number exhausted': '资料编码已用尽，请联系管理员。',
+  'accounting book number exhausted': '会计账簿编码已用尽，请联系管理员。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
   'platform is not an effective logistics platform':

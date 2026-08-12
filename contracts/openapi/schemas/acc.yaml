@@ -1,0 +1,165 @@
+{
+  'BookQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'keyword': { 'type': 'string', 'maxLength': 200 },
+        },
+    },
+  'BookGetRequest':
+    {
+      'type': 'object',
+      'required': ['bookId'],
+      'additionalProperties': false,
+      'properties':
+        { 'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 } },
+    },
+  'BookCreateRequest':
+    {
+      'type': 'object',
+      'required': ['name', 'startMonth', 'baseCurrency'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'description': { 'type': 'string', 'maxLength': 1000 },
+          'startMonth':
+            { 'type': 'string', 'pattern': '^[0-9]{4}-(0[1-9]|1[0-2])$' },
+          'baseCurrency': { 'type': 'string', 'pattern': '^[A-Za-z]{3}$' },
+          'queryUserIds':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'operateUserIds':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+        },
+    },
+  'BookSaveRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'name', 'baseCurrency', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'description': { 'type': 'string', 'maxLength': 1000 },
+          'baseCurrency': { 'type': 'string', 'pattern': '^[A-Za-z]{3}$' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'queryUserIds':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'operateUserIds':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+        },
+    },
+  'BookDeleteRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'Book':
+    {
+      'type': 'object',
+      'required':
+        [
+          'bookId',
+          'code',
+          'name',
+          'description',
+          'startMonth',
+          'baseCurrency',
+          'controlBook',
+          'revision',
+          'queryUserIds',
+          'operateUserIds',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'description': { 'type': 'string' },
+          'startMonth': { 'type': 'string' },
+          'baseCurrency': { 'type': 'string' },
+          'controlBook': { 'type': 'boolean' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'queryUserIds': { 'type': 'array', 'items': { 'type': 'string' } },
+          'operateUserIds': { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
+  'BookPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/Book' } },
+          'total': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1 },
+        },
+    },
+  'BookEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/Book' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BookPageEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/BookPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+}

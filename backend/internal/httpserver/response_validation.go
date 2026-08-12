@@ -142,6 +142,7 @@ func validateOpenAPIResponses(swagger *openapi3.T, logger *slog.Logger) gin.Hand
 func shouldValidateJSONResponse(path string) bool {
 	return path == "/healthz" || path == "/readyz" ||
 		strings.HasPrefix(path, "/app/") ||
+		strings.HasPrefix(path, "/acc/") ||
 		strings.HasPrefix(path, "/aux/") ||
 		strings.HasPrefix(path, "/bob/") ||
 		strings.HasPrefix(path, "/vou/") ||
@@ -170,6 +171,7 @@ func replaceInvalidResponse(context *gin.Context, writer *bufferedResponseWriter
 
 func isBusinessPath(path string) bool {
 	return strings.HasPrefix(path, "/app/") ||
+		strings.HasPrefix(path, "/acc/") ||
 		strings.HasPrefix(path, "/aux/") ||
 		strings.HasPrefix(path, "/bob/") ||
 		strings.HasPrefix(path, "/vou/") ||

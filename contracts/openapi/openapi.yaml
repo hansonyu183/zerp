@@ -15,12 +15,187 @@
       { 'name': 'aux', 'description': '辅助对象' },
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
+      { 'name': 'acc', 'description': '内部会计' },
       { 'name': 'led', 'description': '业务账簿' },
       { 'name': 'files', 'description': '二进制附件端点' },
       { 'name': 'operations', 'description': '运行状态端点' },
     ],
   'paths':
     {
+      '/acc/book/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计账簿',
+              'operationId': 'accBookQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户查询范围内的会计账簿分页列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/BookPageEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/get':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取会计账簿',
+              'operationId': 'accBookGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '会计账簿详情及访问范围。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/create':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建会计账簿',
+              'operationId': 'accBookCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的会计账簿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存会计账簿',
+              'operationId': 'accBookSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的会计账簿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/delete':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '删除会计账簿',
+              'operationId': 'accBookDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookDeleteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/app/user/signin':
         {
           'post':

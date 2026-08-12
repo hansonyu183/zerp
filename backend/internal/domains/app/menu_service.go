@@ -414,9 +414,10 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		{ID: "default-aux", Name: "辅助对象", Icon: "mdi-shape-outline", Order: 30},
 		{ID: "default-vou", Name: "业务单据", Icon: "mdi-file-document-multiple-outline", Order: 40},
 		{ID: "default-wfl", Name: "业务流程", Icon: "mdi-transit-connection-variant", Order: 50},
-		{ID: "default-led", Name: "业务账簿", Icon: "mdi-book-open-page-variant-outline", Order: 60},
-		{ID: "default-system", Name: "系统管理", Icon: "mdi-cog-outline", Order: 70},
-		{ID: "default-other", Name: "其他", Icon: "mdi-folder-outline", Order: 80},
+		{ID: "default-acc", Name: "内部会计", Icon: "mdi-calculator-variant-outline", Order: 60},
+		{ID: "default-led", Name: "业务账簿", Icon: "mdi-book-open-page-variant-outline", Order: 70},
+		{ID: "default-system", Name: "系统管理", Icon: "mdi-cog-outline", Order: 80},
+		{ID: "default-other", Name: "其他", Icon: "mdi-folder-outline", Order: 90},
 	}
 	items := groupViews(groups)
 	orders := map[string]int32{}
@@ -426,7 +427,7 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		switch domain {
 		case "home":
 			parent = "default-workbench"
-		case "bob", "aux", "vou", "wfl", "led":
+		case "bob", "aux", "vou", "wfl", "acc", "led":
 			parent = "default-" + domain
 		case "admin":
 			parent = "default-system"
@@ -481,7 +482,7 @@ func classifyBusinessRoute(key string) string {
 	if domain == "bob" && entity == "employee" || domain == "aux" && (entity == "department" || entity == "position") {
 		return "menu-group-people"
 	}
-	if domain == "led" && entity == "closing" {
+	if domain == "acc" || domain == "led" && entity == "closing" {
 		return "menu-group-accounting"
 	}
 	if domain == "bob" {

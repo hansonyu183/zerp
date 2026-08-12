@@ -145,6 +145,10 @@ async function allPermissions(api: RealApi): Promise<PermissionView[]> {
 
 const bobReviewerActions = new Set([
   '/app/user/signout',
+  '/app/user/query',
+  '/acc/book/query',
+  '/acc/book/get',
+  '/acc/book/save',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer/approve',

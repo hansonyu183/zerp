@@ -57,7 +57,7 @@ const developingPage: PageLoader = () =>
 const workflowInstancePage: PageLoader = () =>
   import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
-type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'led'
+type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'led'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -88,10 +88,15 @@ const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
     domainIcon: 'mdi-transit-connection-variant',
     domainOrder: 30,
   },
+  acc: {
+    domainTitle: '内部会计',
+    domainIcon: 'mdi-calculator-variant-outline',
+    domainOrder: 40,
+  },
   led: {
     domainTitle: '业务账簿',
     domainIcon: 'mdi-book-open-page-variant-outline',
-    domainOrder: 40,
+    domainOrder: 50,
   },
 }
 
@@ -107,6 +112,13 @@ function registerPage(
 }
 
 export const pageRegistrations: readonly PageRegistration[] = [
+  registerPage('acc', {
+    entity: 'book',
+    entityTitle: '会计账簿',
+    icon: 'mdi-book-cog-outline',
+    order: 10,
+    component: () => import('@/pages/acc/book/Book.vue'),
+  }),
   registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',

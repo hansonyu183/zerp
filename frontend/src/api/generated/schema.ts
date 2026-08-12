@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/acc/book/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计账簿 */
+        post: operations["accBookQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取会计账簿 */
+        post: operations["accBookGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建会计账簿 */
+        post: operations["accBookCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存会计账簿 */
+        post: operations["accBookSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除会计账簿 */
+        post: operations["accBookDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -1946,9 +2031,70 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        SignInRequest: {
-            username: string;
-            password: string;
+        BookQueryRequest: {
+            page: number;
+            pageSize: number;
+            keyword?: string;
+        };
+        Book: {
+            bookId: string;
+            code: string;
+            name: string;
+            description: string;
+            startMonth: string;
+            baseCurrency: string;
+            controlBook: boolean;
+            /** Format: int64 */
+            revision: number;
+            queryUserIds: string[];
+            operateUserIds: string[];
+        };
+        BookPage: {
+            items: components["schemas"]["Book"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BookPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["BookPage"] | null;
+            requestId: string;
+        };
+        BookGetRequest: {
+            bookId: string;
+        };
+        BookEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Book"] | null;
+            requestId: string;
+        };
+        BookCreateRequest: {
+            name: string;
+            description?: string;
+            startMonth: string;
+            baseCurrency: string;
+            queryUserIds?: string[];
+            operateUserIds?: string[];
+        };
+        BookSaveRequest: {
+            bookId: string;
+            name: string;
+            description?: string;
+            baseCurrency: string;
+            /** Format: int64 */
+            revision: number;
+            queryUserIds?: string[];
+            operateUserIds?: string[];
+        };
+        BookDeleteRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
         };
         BusinessEnvelope: {
             /** Format: int32 */
@@ -1959,6 +2105,10 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             requestId: string;
+        };
+        SignInRequest: {
+            username: string;
+            password: string;
         };
         EmptyObject: Record<string, never>;
         /** @enum {string} */
@@ -3693,6 +3843,118 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    accBookQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户查询范围内的会计账簿分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPageEnvelope"];
+                };
+            };
+        };
+    };
+    accBookGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 会计账簿详情及访问范围。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的会计账簿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的会计账簿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookDeleteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
     appUserSignin: {
         parameters: {
             query?: never;

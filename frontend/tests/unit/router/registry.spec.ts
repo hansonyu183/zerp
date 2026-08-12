@@ -489,6 +489,22 @@ describe('permission menu registry', () => {
     ).toEqual([])
   })
 
+  it('注册 ACC 会计账簿页面', () => {
+    const router = createTestRouter()
+    const menus = buildMenus(['/acc/book/query', '/acc/book/create'])
+
+    expect(menus).toMatchObject([
+      {
+        domain: 'acc',
+        title: '内部会计',
+        children: [{ entity: 'book', title: '会计账簿' }],
+      },
+    ])
+    expect(registerMenuRoutes(router, menus)).toBe(1)
+    expect(hasRegisteredPage('acc', 'book')).toBe(true)
+    expect(router.resolve('/acc/book').meta.developing).toBe(false)
+  })
+
   it('注册 LED 七类账簿页面并保持业务顺序', () => {
     const entities = [
       'closing',

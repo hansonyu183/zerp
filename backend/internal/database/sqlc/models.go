@@ -8,6 +8,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccBook struct {
+	ID           string             `db:"id" json:"id"`
+	Code         string             `db:"code" json:"code"`
+	Name         string             `db:"name" json:"name"`
+	Description  string             `db:"description" json:"description"`
+	StartMonth   pgtype.Date        `db:"start_month" json:"start_month"`
+	BaseCurrency string             `db:"base_currency" json:"base_currency"`
+	ControlBook  bool               `db:"control_book" json:"control_book"`
+	Revision     int64              `db:"revision" json:"revision"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy    string             `db:"created_by" json:"created_by"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy    string             `db:"updated_by" json:"updated_by"`
+}
+
+type AccBookUserScope struct {
+	BookID        string             `db:"book_id" json:"book_id"`
+	UserID        string             `db:"user_id" json:"user_id"`
+	QueryAccess   bool               `db:"query_access" json:"query_access"`
+	OperateAccess bool               `db:"operate_access" json:"operate_access"`
+	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy     string             `db:"created_by" json:"created_by"`
+}
+
 type AppAuditEvent struct {
 	ID          string             `db:"id" json:"id"`
 	EventType   string             `db:"event_type" json:"event_type"`

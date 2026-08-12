@@ -444,7 +444,14 @@
   'OpeningAsset':
     {
       'type': 'object',
-      'required': ['assetId', 'currency', 'originalValue', 'accumulatedDepreciation', 'createObject'],
+      'required':
+        [
+          'assetId',
+          'currency',
+          'originalValue',
+          'accumulatedDepreciation',
+          'createObject',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -469,14 +476,22 @@
       'additionalProperties': false,
       'properties':
         {
-          'billId': { 'type': 'string' }, 'billNo': { 'type': 'string' },
-          'billType': { 'type': 'string' }, 'positionType': { 'type': 'string' },
-          'medium': { 'type': 'string' }, 'currency': { 'type': 'string' },
-          'faceAmount': { 'type': 'string' }, 'issueDate': { 'type': 'string', 'format': 'date' },
-          'maturityDate': { 'type': 'string', 'format': 'date' }, 'drawer': { 'type': 'string' },
-          'acceptor': { 'type': 'string' }, 'payee': { 'type': 'string' },
-          'annualRateBps': { 'type': 'integer' }, 'interestDays': { 'type': 'integer' },
-          'interestAmount': { 'type': 'string' }, 'customerCostAmount': { 'type': 'string' },
+          'billId': { 'type': 'string' },
+          'billNo': { 'type': 'string' },
+          'billType': { 'type': 'string' },
+          'positionType': { 'type': 'string' },
+          'medium': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string', 'format': 'date' },
+          'maturityDate': { 'type': 'string', 'format': 'date' },
+          'drawer': { 'type': 'string' },
+          'acceptor': { 'type': 'string' },
+          'payee': { 'type': 'string' },
+          'annualRateBps': { 'type': 'integer' },
+          'interestDays': { 'type': 'integer' },
+          'interestAmount': { 'type': 'string' },
+          'customerCostAmount': { 'type': 'string' },
           'valueAmount': { 'type': 'string' },
           'originatingParty': { '$ref': '#/OpeningPartyInput' },
         },
@@ -488,14 +503,22 @@
       'additionalProperties': false,
       'properties':
         {
-          'billId': { 'type': 'string' }, 'billNo': { 'type': 'string' },
-          'billType': { 'type': 'string' }, 'positionType': { 'type': 'string' },
-          'medium': { 'type': 'string' }, 'currency': { 'type': 'string' },
-          'faceAmount': { 'type': 'string' }, 'issueDate': { 'type': 'string' },
-          'maturityDate': { 'type': 'string' }, 'drawer': { 'type': 'string' },
-          'acceptor': { 'type': 'string' }, 'payee': { 'type': 'string' },
-          'annualRateBps': { 'type': 'integer' }, 'interestDays': { 'type': 'integer' },
-          'interestAmount': { 'type': 'string' }, 'customerCostAmount': { 'type': 'string' },
+          'billId': { 'type': 'string' },
+          'billNo': { 'type': 'string' },
+          'billType': { 'type': 'string' },
+          'positionType': { 'type': 'string' },
+          'medium': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'faceAmount': { 'type': 'string' },
+          'issueDate': { 'type': 'string' },
+          'maturityDate': { 'type': 'string' },
+          'drawer': { 'type': 'string' },
+          'acceptor': { 'type': 'string' },
+          'payee': { 'type': 'string' },
+          'annualRateBps': { 'type': 'integer' },
+          'interestDays': { 'type': 'integer' },
+          'interestAmount': { 'type': 'string' },
+          'customerCostAmount': { 'type': 'string' },
           'valueAmount': { 'type': 'string' },
           'originatingParty': { '$ref': '#/OpeningPartyInput' },
           'createObject': { 'type': 'boolean' },
@@ -516,7 +539,8 @@
   'OpeningSaveRequest':
     {
       'type': 'object',
-      'required': ['bookId', 'revision', 'lines', 'assets', 'bills', 'containers'],
+      'required':
+        ['bookId', 'revision', 'lines', 'assets', 'bills', 'containers'],
       'additionalProperties': false,
       'properties':
         {
@@ -528,9 +552,24 @@
               'maxItems': 2000,
               'items': { '$ref': '#/OpeningLineInput' },
             },
-          'assets': { 'type': 'array', 'maxItems': 1000, 'items': { '$ref': '#/OpeningAssetInput' } },
-          'bills': { 'type': 'array', 'maxItems': 1000, 'items': { '$ref': '#/OpeningBillInput' } },
-          'containers': { 'type': 'array', 'maxItems': 1000, 'items': { '$ref': '#/OpeningContainerInput' } },
+          'assets':
+            {
+              'type': 'array',
+              'maxItems': 1000,
+              'items': { '$ref': '#/OpeningAssetInput' },
+            },
+          'bills':
+            {
+              'type': 'array',
+              'maxItems': 1000,
+              'items': { '$ref': '#/OpeningBillInput' },
+            },
+          'containers':
+            {
+              'type': 'array',
+              'maxItems': 1000,
+              'items': { '$ref': '#/OpeningContainerInput' },
+            },
         },
     },
   'OpeningLine':
@@ -588,7 +627,8 @@
           'lines': { 'type': 'array', 'items': { '$ref': '#/OpeningLine' } },
           'assets': { 'type': 'array', 'items': { '$ref': '#/OpeningAsset' } },
           'bills': { 'type': 'array', 'items': { '$ref': '#/OpeningBill' } },
-          'containers': { 'type': 'array', 'items': { '$ref': '#/OpeningContainerInput' } },
+          'containers':
+            { 'type': 'array', 'items': { '$ref': '#/OpeningContainerInput' } },
         },
     },
   'OpeningEnvelope':
@@ -636,7 +676,11 @@
       'properties':
         {
           'conditions':
-            { 'type': 'array', 'minItems': 1, 'items': { '$ref': '#/MappingCondition' } },
+            {
+              'type': 'array',
+              'minItems': 1,
+              'items': { '$ref': '#/MappingCondition' },
+            },
           'result': { '$ref': '#/MappingResult' },
           'templateId': { 'type': 'string', 'nullable': true },
         },
@@ -653,8 +697,8 @@
           'currencyField',
           'dimensions',
           'quantityField',
-		  'costCounterpartSubjectId',
-		  'costCounterpartDimensions',
+          'costCounterpartSubjectId',
+          'costCounterpartDimensions',
         ],
       'additionalProperties': false,
       'properties':
@@ -667,10 +711,15 @@
           'dimensions':
             { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
           'quantityField': { 'type': 'string', 'nullable': true },
-		  'costCounterpartSubjectId':
-			{ 'type': 'string', 'minLength': 26, 'maxLength': 26, 'nullable': true },
-		  'costCounterpartDimensions':
-			{ 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'costCounterpartSubjectId':
+            {
+              'type': 'string',
+              'minLength': 26,
+              'maxLength': 26,
+              'nullable': true,
+            },
+          'costCounterpartDimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
         },
     },
   'PostingTemplate':
@@ -683,7 +732,11 @@
           'templateId': { 'type': 'string', 'minLength': 1 },
           'collection': { 'type': 'string', 'nullable': true },
           'lines':
-            { 'type': 'array', 'minItems': 2, 'items': { '$ref': '#/PostingLineTemplate' } },
+            {
+              'type': 'array',
+              'minItems': 2,
+              'items': { '$ref': '#/PostingLineTemplate' },
+            },
         },
     },
   'AssetAccountingConfiguration':
@@ -701,12 +754,18 @@
       'additionalProperties': false,
       'properties':
         {
-          'assetSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'assetDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
-          'accumulatedDepreciationSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'accumulatedDepreciationDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
-          'depreciationExpenseSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'depreciationExpenseDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'assetSubjectId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'assetDimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'accumulatedDepreciationSubjectId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'accumulatedDepreciationDimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'depreciationExpenseSubjectId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'depreciationExpenseDimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
         },
     },
   'MappingDefinition':
@@ -718,7 +777,8 @@
         {
           'defaultTemplateId': { 'type': 'string', 'nullable': true },
           'rules': { 'type': 'array', 'items': { '$ref': '#/MappingRule' } },
-          'templates': { 'type': 'array', 'items': { '$ref': '#/PostingTemplate' } },
+          'templates':
+            { 'type': 'array', 'items': { '$ref': '#/PostingTemplate' } },
           'assetConfiguration':
             {
               'type': 'object',
@@ -767,7 +827,8 @@
   'MappingSaveRequest':
     {
       'type': 'object',
-      'required': ['bookId', 'mappingId', 'defaultResult', 'definition', 'revision'],
+      'required':
+        ['bookId', 'mappingId', 'defaultResult', 'definition', 'revision'],
       'additionalProperties': false,
       'properties':
         {
@@ -824,7 +885,8 @@
           'defaultResult': { '$ref': '#/MappingResult' },
           'definition': { '$ref': '#/MappingDefinition' },
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'approvedAt': { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'approvedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
           'approvedBy': { 'type': 'string', 'nullable': true },
         },
     },
@@ -867,7 +929,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/Mapping' }] },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/Mapping' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -880,7 +947,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/MappingPage' }] },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/MappingPage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -893,7 +965,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/MappingCatalog' }] },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/MappingCatalog' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -902,7 +979,10 @@
       'type': 'object',
       'required': ['bookId'],
       'additionalProperties': false,
-      'properties': { 'bookId': { 'type': 'string', 'pattern': '^[0-9A-HJKMNP-TV-Z]{26}$' } },
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'pattern': '^[0-9A-HJKMNP-TV-Z]{26}$' },
+        },
     },
   'PeriodActionRequest':
     {
@@ -912,7 +992,8 @@
       'properties':
         {
           'bookId': { 'type': 'string', 'pattern': '^[0-9A-HJKMNP-TV-Z]{26}$' },
-          'month': { 'type': 'string', 'pattern': '^[0-9]{4}-(0[1-9]|1[0-2])$' },
+          'month':
+            { 'type': 'string', 'pattern': '^[0-9]{4}-(0[1-9]|1[0-2])$' },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
         },
     },
@@ -940,7 +1021,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/Period' }] },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/Period' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -953,7 +1039,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { 'type': 'array', 'nullable': true, 'items': { '$ref': '#/Period' } },
+          'data':
+            {
+              'type': 'array',
+              'nullable': true,
+              'items': { '$ref': '#/Period' },
+            },
           'requestId': { 'type': 'string' },
         },
     },

@@ -561,7 +561,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingQueryRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingQueryRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -572,7 +577,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingPageEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingPageEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -592,7 +602,10 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingGetRequest' } },
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/MappingGetRequest' },
+                        },
                     },
                 },
               'responses':
@@ -603,7 +616,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -623,7 +641,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingCreateRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingCreateRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -634,7 +657,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -654,7 +682,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingSaveRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingSaveRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -665,7 +698,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -685,7 +723,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingActionRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -696,7 +739,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -716,7 +764,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingActionRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -727,7 +780,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -747,7 +805,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/MappingCatalogRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingCatalogRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -758,7 +821,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/MappingCatalogEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingCatalogEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -778,7 +846,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodQueryRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodQueryRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -789,7 +862,12 @@
                       'content':
                         {
                           'application/json':
-                            { 'schema': { '$ref': './schemas/acc.yaml#/PeriodListEnvelope' } },
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodListEnvelope',
+                                },
+                            },
                         },
                     },
                 },
@@ -809,7 +887,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodActionRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodActionRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -818,7 +901,15 @@
                     {
                       'description': '锁定后的期间。',
                       'content':
-                        { 'application/json': { 'schema': { '$ref': './schemas/acc.yaml#/PeriodEnvelope' } } },
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodEnvelope',
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -837,7 +928,12 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodActionRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodActionRequest',
+                            },
+                        },
                     },
                 },
               'responses':
@@ -846,7 +942,15 @@
                     {
                       'description': '解锁后的期间。',
                       'content':
-                        { 'application/json': { 'schema': { '$ref': './schemas/acc.yaml#/PeriodEnvelope' } } },
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodEnvelope',
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -2623,7 +2727,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/vou.yaml#/VouAvailableBillQueryRequest' },
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAvailableBillQueryRequest',
+                            },
                         },
                     },
                 },
@@ -2637,7 +2743,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/vou.yaml#/VouAvailableBillQueryResponse' },
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAvailableBillQueryResponse',
+                                },
                             },
                         },
                     },
@@ -2661,7 +2769,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryRequest' },
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryRequest',
+                            },
                         },
                     },
                 },
@@ -2675,7 +2785,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryResponse' },
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryResponse',
+                                },
                             },
                         },
                     },

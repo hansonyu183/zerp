@@ -949,8 +949,7 @@
         {
           'page': { 'type': 'integer', 'minimum': 1 },
           'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
-          'positionType':
-            { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
+          'positionType': { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
           'billNo': { 'type': 'string', 'maxLength': 200 },
         },
     },
@@ -1048,7 +1047,11 @@
           'billId': { 'type': 'string' },
           'positionType': { 'type': 'string', 'enum': ['ASSET', 'LIABILITY'] },
           'billType':
-            { 'type': 'string', 'enum': ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'] },
+            {
+              'type': 'string',
+              'enum':
+                ['BANK_ACCEPTANCE', 'COMMERCIAL_ACCEPTANCE', 'CHECK', 'OTHER'],
+            },
           'billNo': { 'type': 'string' },
           'medium': { 'type': 'string', 'enum': ['PAPER', 'ELECTRONIC'] },
           'currency': { 'type': 'string' },

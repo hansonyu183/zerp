@@ -1,27 +1,72 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import type { ListRowAction } from '@/components/common/list-row-actions'
 import { mappingEntities, createAccountingMappingViewModel } from './vm'
 import type { AccountingMapping } from './api'
 
 const vm = createAccountingMappingViewModel()
 
-function actions(mapping: AccountingMapping) {
+function actions(mapping: AccountingMapping): {
+  primary: ListRowAction[]
+  more: ListRowAction[]
+} {
   if (mapping.state === 'DRAFT') {
-    return [
-      vm.canEdit ? { title: '编辑', action: () => vm.openEdit(mapping) } : null,
-      vm.canApprove
-        ? { title: '批准', action: () => vm.changeState(mapping, true) }
-        : null,
-    ].filter((action) => action !== null)
+    return {
+      primary: vm.canEdit
+        ? [
+            {
+              key: 'edit',
+              label: '编辑',
+              icon: 'mdi-pencil-outline',
+              color: 'primary',
+            },
+          ]
+        : [],
+      more: vm.canApprove
+        ? [
+            {
+              key: 'approve',
+              label: '批准',
+              icon: 'mdi-check-circle-outline',
+            },
+          ]
+        : [],
+    }
   }
-  return [
-    vm.canCreate
-      ? { title: '基于此版本新建', action: () => vm.openCreate(mapping) }
-      : null,
-    vm.canUnapprove
-      ? { title: '反批准', action: () => vm.changeState(mapping, false) }
-      : null,
-  ].filter((action) => action !== null)
+  return {
+    primary: vm.canCreate
+      ? [
+          {
+            key: 'create',
+            label: '基于此版本新建',
+            icon: 'mdi-content-copy',
+            color: 'primary',
+          },
+        ]
+      : [],
+    more: vm.canUnapprove
+      ? [
+          {
+            key: 'unapprove',
+            label: '反批准',
+            icon: 'mdi-backup-restore',
+          },
+        ]
+      : [],
+  }
+}
+
+function selectAction(mapping: AccountingMapping, action: string): void {
+  if (action === 'edit') {
+    void vm.openEdit(mapping)
+    return
+  }
+  if (action === 'create') {
+    void vm.openCreate(mapping)
+    return
+  }
+  void vm.changeState(mapping, action === 'approve')
 }
 
 void vm.initialize()
@@ -101,16 +146,12 @@ void vm.initialize()
           {{ item.defaultResult === 'POST' ? '生成凭证' : '忽略' }}
         </template>
         <template #[`item.actions`]="{ item }">
-          <v-btn
-            v-for="action in actions(item)"
-            :key="action.title"
-            class="mr-2"
-            size="small"
-            variant="text"
-            @click="action.action"
-          >
-            {{ action.title }}
-          </v-btn>
+          <ListRowActions
+            :label="`操作 ${item.vouEntity} 版本 ${item.version}`"
+            :more="actions(item).more"
+            :primary="actions(item).primary"
+            @select="selectAction(item, $event)"
+          />
         </template>
       </v-data-table-server>
     </v-card>

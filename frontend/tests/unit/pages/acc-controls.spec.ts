@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import { createAccountingMappingViewModel } from '@/pages/acc/mapping/vm'
 import mappingSource from '@/pages/acc/mapping/Mapping.vue?raw'
+import { createAccountingOpeningViewModel } from '@/pages/acc/opening/vm'
 import openingSource from '@/pages/acc/opening/Opening.vue?raw'
 import { createAccountingPeriodViewModel } from '@/pages/acc/period/vm'
 import periodSource from '@/pages/acc/period/Period.vue?raw'
+import { createAccountingSubjectViewModel } from '@/pages/acc/subject/vm'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({ apiClient: { post: vi.fn() } }))
@@ -73,6 +75,60 @@ describe('ACC mapping and period controls', () => {
     expect(vm.canUnlock).toBe(true)
   })
 
+  it('requires complete query permissions for subject mutations', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/acc/subject/create',
+      '/acc/subject/get',
+      '/acc/subject/save',
+      '/acc/subject/delete',
+    ]
+    const vm = createAccountingSubjectViewModel()
+    vm.selectedBookId = '01JACC00000000000000000001'
+    const subject = { referenced: false, leaf: true } as Parameters<
+      typeof vm.canDelete
+    >[0]
+    expect(vm.canCreate).toBe(false)
+    expect(vm.canEdit).toBe(false)
+    expect(vm.canDelete(subject)).toBe(false)
+
+    session.permissions.push('/acc/book/query', '/acc/subject/query')
+    expect(vm.canCreate).toBe(true)
+    expect(vm.canEdit).toBe(true)
+    expect(vm.canDelete(subject)).toBe(true)
+  })
+
+  it('requires complete query permissions for opening mutations', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/acc/opening/save',
+      '/acc/opening/approve',
+      '/acc/opening/unapprove',
+    ]
+    const vm = createAccountingOpeningViewModel()
+    vm.opening = {
+      state: 'DRAFT',
+      trialBalance: [],
+    } as typeof vm.opening
+    expect(vm.canSave).toBe(false)
+    expect(vm.canApprove).toBe(false)
+
+    session.permissions.push(
+      '/acc/book/query',
+      '/acc/subject/query',
+      '/acc/opening/query',
+    )
+    expect(vm.canSave).toBe(true)
+    expect(vm.canApprove).toBe(true)
+
+    vm.opening = { state: 'APPROVED' } as typeof vm.opening
+    expect(vm.canUnapprove).toBe(true)
+    session.permissions = session.permissions.filter(
+      (permission) => permission !== '/acc/subject/query',
+    )
+    expect(vm.canUnapprove).toBe(false)
+  })
+
   it('uses labeled phone cards for ACC tables', () => {
     for (const source of [openingSource, periodSource]) {
       expect(source).toContain('@media (max-width: 700px)')
@@ -80,5 +136,6 @@ describe('ACC mapping and period controls', () => {
     }
     expect(openingSource).not.toContain('overflow-x-auto')
     expect(mappingSource).toContain(':mobile-breakpoint="700"')
+    expect(mappingSource).toContain('<ListRowActions')
   })
 })

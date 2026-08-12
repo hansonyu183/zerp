@@ -82,10 +82,16 @@ export function createAccountingSubjectViewModel() {
     () => session.can('/acc/book/query') && session.can('/acc/subject/query'),
   )
   const canCreate = computed(
-    () => Boolean(selectedBookId.value) && session.can('/acc/subject/create'),
+    () =>
+      canQuery.value &&
+      Boolean(selectedBookId.value) &&
+      session.can('/acc/subject/create'),
   )
   const canEdit = computed(
-    () => session.can('/acc/subject/get') && session.can('/acc/subject/save'),
+    () =>
+      canQuery.value &&
+      session.can('/acc/subject/get') &&
+      session.can('/acc/subject/save'),
   )
   const bookOptions = computed(() =>
     books.value.map((book) => ({
@@ -134,7 +140,10 @@ export function createAccountingSubjectViewModel() {
 
   function canDelete(subject: AccountingSubject): boolean {
     return (
-      !subject.referenced && subject.leaf && session.can('/acc/subject/delete')
+      canQuery.value &&
+      !subject.referenced &&
+      subject.leaf &&
+      session.can('/acc/subject/delete')
     )
   }
 

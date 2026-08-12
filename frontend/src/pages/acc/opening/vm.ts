@@ -117,12 +117,14 @@ export function createAccountingOpeningViewModel() {
   )
   const canSave = computed(
     () =>
+      canQuery.value &&
       opening.value?.state === 'DRAFT' &&
       session.can('/acc/opening/save') &&
       validationError.value === '',
   )
   const canApprove = computed(
     () =>
+      canQuery.value &&
       opening.value?.state === 'DRAFT' &&
       !dirty.value &&
       trialBalanced.value &&
@@ -130,6 +132,7 @@ export function createAccountingOpeningViewModel() {
   )
   const canUnapprove = computed(
     () =>
+      canQuery.value &&
       opening.value?.state === 'APPROVED' &&
       session.can('/acc/opening/unapprove'),
   )

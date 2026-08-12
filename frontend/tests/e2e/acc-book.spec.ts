@@ -48,12 +48,14 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
     .fill(workerState.reviewer.username)
   await page
     .getByRole('option', { name: new RegExp(workerState.reviewer.username) })
+    .last()
     .click()
   await drawer
     .getByRole('combobox', { name: '可操作用户' })
     .fill(workerState.reviewer.username)
   await page
     .getByRole('option', { name: new RegExp(workerState.reviewer.username) })
+    .last()
     .click()
   await drawer.getByRole('button', { name: '保存', exact: true }).click()
 

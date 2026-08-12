@@ -259,24 +259,23 @@ func (q *Queries) CountVouDocuments(ctx context.Context, arg CountVouDocumentsPa
 
 const countVouInventoryCountBookBalances = `-- name: CountVouInventoryCountBookBalances :one
 SELECT count(*) FROM (
-    SELECT product_object_id
-    FROM led_inventory_entries
-    WHERE generation_id=$1
-      AND warehouse_object_id=$2
-      AND effective_date <= $3
-    GROUP BY product_object_id
+    SELECT entry.product_id
+    FROM acc_inventory_entries entry
+    JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+    WHERE entry.warehouse_id=$1
+      AND entry.business_date <= $2
+    GROUP BY entry.product_id
     HAVING sum(quantity_delta_micros) <> 0
 ) balances
 `
 
 type CountVouInventoryCountBookBalancesParams struct {
-	GenerationID      string      `db:"generation_id" json:"generation_id"`
 	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
 	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
 }
 
 func (q *Queries) CountVouInventoryCountBookBalances(ctx context.Context, arg CountVouInventoryCountBookBalancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countVouInventoryCountBookBalances, arg.GenerationID, arg.WarehouseObjectID, arg.AsOfDate)
+	row := q.db.QueryRow(ctx, countVouInventoryCountBookBalances, arg.WarehouseObjectID, arg.AsOfDate)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -319,15 +318,6 @@ DELETE FROM vou_asset_acquisition_lines WHERE document_id=$1
 
 func (q *Queries) DeleteVouAssetAcquisitionLines(ctx context.Context, documentID string) error {
 	_, err := q.db.Exec(ctx, deleteVouAssetAcquisitionLines, documentID)
-	return err
-}
-
-const deleteVouAssetDepreciationLines = `-- name: DeleteVouAssetDepreciationLines :exec
-DELETE FROM vou_asset_depreciation_lines WHERE document_id=$1
-`
-
-func (q *Queries) DeleteVouAssetDepreciationLines(ctx context.Context, documentID string) error {
-	_, err := q.db.Exec(ctx, deleteVouAssetDepreciationLines, documentID)
 	return err
 }
 
@@ -594,45 +584,71 @@ func (q *Queries) FindVouSalePriceReference(ctx context.Context, arg FindVouSale
 	return i, err
 }
 
-const getActiveLedAssetForVou = `-- name: GetActiveLedAssetForVou :one
-SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
-WHERE c.singleton=true AND c.status='ACTIVE' AND a.id=$1
+const getAccountingBillAvailableBalance = `-- name: GetAccountingBillAvailableBalance :one
+SELECT CASE WHEN EXISTS (
+  SELECT 1 FROM acc_bills bill
+  LEFT JOIN vou_documents settlement ON settlement.id=bill.settled_by_document_id
+  WHERE bill.id=$1
+    AND bill.position_type=$2
+    AND bill.issue_date<=$3
+    AND (bill.state='AVAILABLE' OR settlement.business_date>$3)
+) THEN 1::bigint ELSE 0::bigint END
 `
 
-func (q *Queries) GetActiveLedAssetForVou(ctx context.Context, assetID string) (LedAsset, error) {
-	row := q.db.QueryRow(ctx, getActiveLedAssetForVou, assetID)
-	var i LedAsset
+type GetAccountingBillAvailableBalanceParams struct {
+	BillID       string      `db:"bill_id" json:"bill_id"`
+	PositionType string      `db:"position_type" json:"position_type"`
+	AsOfDate     pgtype.Date `db:"as_of_date" json:"as_of_date"`
+}
+
+func (q *Queries) GetAccountingBillAvailableBalance(ctx context.Context, arg GetAccountingBillAvailableBalanceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getAccountingBillAvailableBalance, arg.BillID, arg.PositionType, arg.AsOfDate)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getAccountingControlBookForVou = `-- name: GetAccountingControlBookForVou :one
+SELECT id,start_month FROM acc_books WHERE control_book
+`
+
+type GetAccountingControlBookForVouRow struct {
+	ID         string      `db:"id" json:"id"`
+	StartMonth pgtype.Date `db:"start_month" json:"start_month"`
+}
+
+func (q *Queries) GetAccountingControlBookForVou(ctx context.Context) (GetAccountingControlBookForVouRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingControlBookForVou)
+	var i GetAccountingControlBookForVouRow
+	err := row.Scan(&i.ID, &i.StartMonth)
+	return i, err
+}
+
+const getActiveAccountingAssetForVou = `-- name: GetActiveAccountingAssetForVou :one
+SELECT id,asset_no,name,acquired_on,state,disposed_on
+FROM acc_assets
+WHERE id=$1 AND state='ACTIVE'
+`
+
+type GetActiveAccountingAssetForVouRow struct {
+	ID         string      `db:"id" json:"id"`
+	AssetNo    string      `db:"asset_no" json:"asset_no"`
+	Name       string      `db:"name" json:"name"`
+	AcquiredOn pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	State      string      `db:"state" json:"state"`
+	DisposedOn pgtype.Date `db:"disposed_on" json:"disposed_on"`
+}
+
+func (q *Queries) GetActiveAccountingAssetForVou(ctx context.Context, assetID string) (GetActiveAccountingAssetForVouRow, error) {
+	row := q.db.QueryRow(ctx, getActiveAccountingAssetForVou, assetID)
+	var i GetActiveAccountingAssetForVouRow
 	err := row.Scan(
-		&i.GenerationID,
 		&i.ID,
 		&i.AssetNo,
-		&i.AssetName,
-		&i.Specification,
-		&i.CategoryObjectID,
-		&i.CategoryVersionID,
-		&i.CategoryCode,
-		&i.CategoryName,
-		&i.DepartmentObjectID,
-		&i.DepartmentVersionID,
-		&i.DepartmentCode,
-		&i.DepartmentName,
-		&i.CustodianObjectID,
-		&i.CustodianVersionID,
-		&i.CustodianCode,
-		&i.CustodianName,
-		&i.Location,
-		&i.AcquisitionDate,
-		&i.DepreciationStartMonth,
-		&i.OriginalValueCents,
-		&i.ResidualValueCents,
-		&i.UsefulLifeMonths,
-		&i.AccumulatedDepreciationCents,
-		&i.LastDepreciationMonth,
-		&i.Status,
-		&i.SourceDocumentID,
-		&i.SourceLineID,
-		&i.SourceRevision,
-		&i.Remark,
+		&i.Name,
+		&i.AcquiredOn,
+		&i.State,
+		&i.DisposedOn,
 	)
 	return i, err
 }
@@ -705,17 +721,6 @@ func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID s
 		&i.SupplierName,
 		&i.PartyAccountType,
 	)
-	return i, err
-}
-
-const getVouAssetDepreciationDetail = `-- name: GetVouAssetDepreciationDetail :one
-SELECT document_id, entity, depreciation_month FROM vou_asset_depreciation_details WHERE document_id=$1
-`
-
-func (q *Queries) GetVouAssetDepreciationDetail(ctx context.Context, documentID string) (VouAssetDepreciationDetail, error) {
-	row := q.db.QueryRow(ctx, getVouAssetDepreciationDetail, documentID)
-	var i VouAssetDepreciationDetail
-	err := row.Scan(&i.DocumentID, &i.Entity, &i.DepreciationMonth)
 	return i, err
 }
 
@@ -892,42 +897,24 @@ func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, document
 
 const getVouInventoryCountBookQuantity = `-- name: GetVouInventoryCountBookQuantity :one
 SELECT COALESCE(sum(quantity_delta_micros),0)::bigint
-FROM led_inventory_entries
-WHERE generation_id=$1
-  AND warehouse_object_id=$2
-  AND product_object_id=$3
-  AND effective_date <= $4
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+WHERE entry.warehouse_id=$1
+  AND entry.product_id=$2
+  AND entry.business_date <= $3
 `
 
 type GetVouInventoryCountBookQuantityParams struct {
-	GenerationID      string      `db:"generation_id" json:"generation_id"`
 	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
 	ProductObjectID   string      `db:"product_object_id" json:"product_object_id"`
 	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
 }
 
 func (q *Queries) GetVouInventoryCountBookQuantity(ctx context.Context, arg GetVouInventoryCountBookQuantityParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getVouInventoryCountBookQuantity,
-		arg.GenerationID,
-		arg.WarehouseObjectID,
-		arg.ProductObjectID,
-		arg.AsOfDate,
-	)
+	row := q.db.QueryRow(ctx, getVouInventoryCountBookQuantity, arg.WarehouseObjectID, arg.ProductObjectID, arg.AsOfDate)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
-}
-
-const getVouInventoryCountClosingDate = `-- name: GetVouInventoryCountClosingDate :one
-SELECT closing_date FROM led_closings
-WHERE id=$1 AND status='ACTIVE'
-`
-
-func (q *Queries) GetVouInventoryCountClosingDate(ctx context.Context, id string) (pgtype.Date, error) {
-	row := q.db.QueryRow(ctx, getVouInventoryCountClosingDate, id)
-	var closing_date pgtype.Date
-	err := row.Scan(&closing_date)
-	return closing_date, err
 }
 
 const getVouInventoryCountDetail = `-- name: GetVouInventoryCountDetail :one
@@ -1263,57 +1250,6 @@ func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertV
 		arg.CustodianCode,
 		arg.CustodianName,
 		arg.Location,
-		arg.Remark,
-	)
-	return err
-}
-
-const insertVouAssetDepreciationDetail = `-- name: InsertVouAssetDepreciationDetail :exec
-INSERT INTO vou_asset_depreciation_details(document_id,entity,depreciation_month)
-VALUES($1,'asset-depreciation',$2)
-`
-
-type InsertVouAssetDepreciationDetailParams struct {
-	DocumentID        string      `db:"document_id" json:"document_id"`
-	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-}
-
-func (q *Queries) InsertVouAssetDepreciationDetail(ctx context.Context, arg InsertVouAssetDepreciationDetailParams) error {
-	_, err := q.db.Exec(ctx, insertVouAssetDepreciationDetail, arg.DocumentID, arg.DepreciationMonth)
-	return err
-}
-
-const insertVouAssetDepreciationLine = `-- name: InsertVouAssetDepreciationLine :exec
-INSERT INTO vou_asset_depreciation_lines(id,document_id,line_no,depreciation_month,asset_id,asset_no,asset_name,amount_cents,opening_accumulated_cents,closing_accumulated_cents,remark)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-`
-
-type InsertVouAssetDepreciationLineParams struct {
-	ID                      string      `db:"id" json:"id"`
-	DocumentID              string      `db:"document_id" json:"document_id"`
-	LineNo                  int32       `db:"line_no" json:"line_no"`
-	DepreciationMonth       pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-	AssetID                 string      `db:"asset_id" json:"asset_id"`
-	AssetNo                 string      `db:"asset_no" json:"asset_no"`
-	AssetName               string      `db:"asset_name" json:"asset_name"`
-	AmountCents             int64       `db:"amount_cents" json:"amount_cents"`
-	OpeningAccumulatedCents int64       `db:"opening_accumulated_cents" json:"opening_accumulated_cents"`
-	ClosingAccumulatedCents int64       `db:"closing_accumulated_cents" json:"closing_accumulated_cents"`
-	Remark                  *string     `db:"remark" json:"remark"`
-}
-
-func (q *Queries) InsertVouAssetDepreciationLine(ctx context.Context, arg InsertVouAssetDepreciationLineParams) error {
-	_, err := q.db.Exec(ctx, insertVouAssetDepreciationLine,
-		arg.ID,
-		arg.DocumentID,
-		arg.LineNo,
-		arg.DepreciationMonth,
-		arg.AssetID,
-		arg.AssetNo,
-		arg.AssetName,
-		arg.AmountCents,
-		arg.OpeningAccumulatedCents,
-		arg.ClosingAccumulatedCents,
 		arg.Remark,
 	)
 	return err
@@ -2631,11 +2567,10 @@ const isVouDocumentInClosedPeriod = `-- name: IsVouDocumentInClosedPeriod :one
 SELECT EXISTS(
     SELECT 1
     FROM vou_documents document
-    JOIN led_control control ON control.singleton = true
-    JOIN led_closings closing
-      ON closing.id = control.last_closing_id AND closing.status = 'ACTIVE'
+    JOIN acc_periods period
+      ON period.period_month=date_trunc('month',document.business_date)::date
+     AND period.state='LOCKED'
     WHERE document.id = $1
-      AND document.business_date <= closing.closing_date
 )
 `
 
@@ -2663,75 +2598,6 @@ func (q *Queries) ListAllVouStorageKeys(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		items = append(items, storage_key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDepreciableLedAssetsForVou = `-- name: ListDepreciableLedAssetsForVou :many
-SELECT a.generation_id, a.id, a.asset_no, a.asset_name, a.specification, a.category_object_id, a.category_version_id, a.category_code, a.category_name, a.department_object_id, a.department_version_id, a.department_code, a.department_name, a.custodian_object_id, a.custodian_version_id, a.custodian_code, a.custodian_name, a.location, a.acquisition_date, a.depreciation_start_month, a.original_value_cents, a.residual_value_cents, a.useful_life_months, a.accumulated_depreciation_cents, a.last_depreciation_month, a.status, a.source_document_id, a.source_line_id, a.source_revision, a.remark FROM led_assets a JOIN led_control c ON c.active_generation_id=a.generation_id
-WHERE c.singleton=true AND c.status='ACTIVE' AND a.status='ACTIVE'
-  AND a.depreciation_start_month<=$1
-  AND ((a.last_depreciation_month IS NULL AND a.depreciation_start_month=$1)
-    OR a.last_depreciation_month + interval '1 month'=$1)
-  AND a.accumulated_depreciation_cents<a.original_value_cents-a.residual_value_cents
-  AND ($2::text='' OR a.category_object_id=$2)
-  AND ($3::text='' OR a.department_object_id=$3)
-ORDER BY a.asset_no
-`
-
-type ListDepreciableLedAssetsForVouParams struct {
-	DepreciationMonth  pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-	CategoryObjectID   string      `db:"category_object_id" json:"category_object_id"`
-	DepartmentObjectID string      `db:"department_object_id" json:"department_object_id"`
-}
-
-func (q *Queries) ListDepreciableLedAssetsForVou(ctx context.Context, arg ListDepreciableLedAssetsForVouParams) ([]LedAsset, error) {
-	rows, err := q.db.Query(ctx, listDepreciableLedAssetsForVou, arg.DepreciationMonth, arg.CategoryObjectID, arg.DepartmentObjectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []LedAsset{}
-	for rows.Next() {
-		var i LedAsset
-		if err := rows.Scan(
-			&i.GenerationID,
-			&i.ID,
-			&i.AssetNo,
-			&i.AssetName,
-			&i.Specification,
-			&i.CategoryObjectID,
-			&i.CategoryVersionID,
-			&i.CategoryCode,
-			&i.CategoryName,
-			&i.DepartmentObjectID,
-			&i.DepartmentVersionID,
-			&i.DepartmentCode,
-			&i.DepartmentName,
-			&i.CustodianObjectID,
-			&i.CustodianVersionID,
-			&i.CustodianCode,
-			&i.CustodianName,
-			&i.Location,
-			&i.AcquisitionDate,
-			&i.DepreciationStartMonth,
-			&i.OriginalValueCents,
-			&i.ResidualValueCents,
-			&i.UsefulLifeMonths,
-			&i.AccumulatedDepreciationCents,
-			&i.LastDepreciationMonth,
-			&i.Status,
-			&i.SourceDocumentID,
-			&i.SourceLineID,
-			&i.SourceRevision,
-			&i.Remark,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2807,42 +2673,6 @@ func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID s
 			&i.CustodianCode,
 			&i.CustodianName,
 			&i.Location,
-			&i.Remark,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listVouAssetDepreciationLines = `-- name: ListVouAssetDepreciationLines :many
-SELECT id, document_id, line_no, depreciation_month, asset_id, asset_no, asset_name, amount_cents, opening_accumulated_cents, closing_accumulated_cents, remark FROM vou_asset_depreciation_lines WHERE document_id=$1 ORDER BY line_no
-`
-
-func (q *Queries) ListVouAssetDepreciationLines(ctx context.Context, documentID string) ([]VouAssetDepreciationLine, error) {
-	rows, err := q.db.Query(ctx, listVouAssetDepreciationLines, documentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouAssetDepreciationLine{}
-	for rows.Next() {
-		var i VouAssetDepreciationLine
-		if err := rows.Scan(
-			&i.ID,
-			&i.DocumentID,
-			&i.LineNo,
-			&i.DepreciationMonth,
-			&i.AssetID,
-			&i.AssetNo,
-			&i.AssetName,
-			&i.AmountCents,
-			&i.OpeningAccumulatedCents,
-			&i.ClosingAccumulatedCents,
 			&i.Remark,
 		); err != nil {
 			return nil, err
@@ -3331,24 +3161,25 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 }
 
 const listVouInventoryCountBookBalances = `-- name: ListVouInventoryCountBookBalances :many
-SELECT product_object_id,
-       (array_agg(product_version_id ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(26) AS product_version_id,
-       max(product_code)::varchar(64) AS product_code,
-       (array_agg(product_name ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(200) AS product_name,
-       (array_agg(product_unit ORDER BY effective_date DESC,occurred_at DESC,id DESC))[1]::varchar(32) AS product_unit,
-       sum(quantity_delta_micros)::bigint AS quantity_micros
-FROM led_inventory_entries
-WHERE generation_id=$1
-  AND warehouse_object_id=$2
-  AND effective_date <= $3
-GROUP BY product_object_id
-HAVING sum(quantity_delta_micros) <> 0
-ORDER BY max(product_code),product_object_id
-LIMIT $5 OFFSET $4
+SELECT entry.product_id AS product_object_id,
+       object.effective_version_id AS product_version_id,
+       object.code AS product_code,
+       version.name AS product_name,
+       version.unit AS product_unit,
+       sum(entry.quantity_delta_micros)::bigint AS quantity_micros
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
+JOIN bob_product_versions version ON version.version_id=object.effective_version_id
+WHERE entry.warehouse_id=$1
+  AND entry.business_date <= $2
+GROUP BY entry.product_id,object.effective_version_id,object.code,version.name,version.unit
+HAVING sum(entry.quantity_delta_micros) <> 0
+ORDER BY object.code,entry.product_id
+LIMIT $4 OFFSET $3
 `
 
 type ListVouInventoryCountBookBalancesParams struct {
-	GenerationID      string      `db:"generation_id" json:"generation_id"`
 	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
 	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
 	PageOffset        int32       `db:"page_offset" json:"page_offset"`
@@ -3356,17 +3187,16 @@ type ListVouInventoryCountBookBalancesParams struct {
 }
 
 type ListVouInventoryCountBookBalancesRow struct {
-	ProductObjectID  string `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID string `db:"product_version_id" json:"product_version_id"`
-	ProductCode      string `db:"product_code" json:"product_code"`
-	ProductName      string `db:"product_name" json:"product_name"`
-	ProductUnit      string `db:"product_unit" json:"product_unit"`
-	QuantityMicros   int64  `db:"quantity_micros" json:"quantity_micros"`
+	ProductObjectID  string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID *string `db:"product_version_id" json:"product_version_id"`
+	ProductCode      string  `db:"product_code" json:"product_code"`
+	ProductName      string  `db:"product_name" json:"product_name"`
+	ProductUnit      string  `db:"product_unit" json:"product_unit"`
+	QuantityMicros   int64   `db:"quantity_micros" json:"quantity_micros"`
 }
 
 func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error) {
 	rows, err := q.db.Query(ctx, listVouInventoryCountBookBalances,
-		arg.GenerationID,
 		arg.WarehouseObjectID,
 		arg.AsOfDate,
 		arg.PageOffset,
@@ -3610,6 +3440,83 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAccountingBillForVou = `-- name: LockAccountingBillForVou :one
+SELECT bill.id,bill.bill_no,bill.bill_type,bill.position_type,bill.currency,
+       bill.medium,bill.face_amount_minor AS face_amount_cents,
+       bill.issue_date,bill.maturity_date,bill.drawer,bill.acceptor,bill.payee,
+       bill.annual_rate_bps,bill.interest_days,bill.interest_amount_minor AS interest_amount_cents,
+       bill.customer_cost_amount_minor AS customer_cost_amount_cents,bill.state,bill.source_document_id,
+       bill.settled_by_document_id
+FROM acc_bills bill
+WHERE bill.id=$1
+FOR UPDATE OF bill
+`
+
+type LockAccountingBillForVouRow struct {
+	ID                      string      `db:"id" json:"id"`
+	BillNo                  string      `db:"bill_no" json:"bill_no"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	PositionType            string      `db:"position_type" json:"position_type"`
+	Currency                string      `db:"currency" json:"currency"`
+	Medium                  string      `db:"medium" json:"medium"`
+	FaceAmountCents         int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                  string      `db:"drawer" json:"drawer"`
+	Acceptor                string      `db:"acceptor" json:"acceptor"`
+	Payee                   string      `db:"payee" json:"payee"`
+	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays            int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountCents     int64       `db:"interest_amount_cents" json:"interest_amount_cents"`
+	CustomerCostAmountCents int64       `db:"customer_cost_amount_cents" json:"customer_cost_amount_cents"`
+	State                   string      `db:"state" json:"state"`
+	SourceDocumentID        string      `db:"source_document_id" json:"source_document_id"`
+	SettledByDocumentID     *string     `db:"settled_by_document_id" json:"settled_by_document_id"`
+}
+
+func (q *Queries) LockAccountingBillForVou(ctx context.Context, billID string) (LockAccountingBillForVouRow, error) {
+	row := q.db.QueryRow(ctx, lockAccountingBillForVou, billID)
+	var i LockAccountingBillForVouRow
+	err := row.Scan(
+		&i.ID,
+		&i.BillNo,
+		&i.BillType,
+		&i.PositionType,
+		&i.Currency,
+		&i.Medium,
+		&i.FaceAmountCents,
+		&i.IssueDate,
+		&i.MaturityDate,
+		&i.Drawer,
+		&i.Acceptor,
+		&i.Payee,
+		&i.AnnualRateBps,
+		&i.InterestDays,
+		&i.InterestAmountCents,
+		&i.CustomerCostAmountCents,
+		&i.State,
+		&i.SourceDocumentID,
+		&i.SettledByDocumentID,
+	)
+	return i, err
+}
+
+const lockAccountingControlBookForVou = `-- name: LockAccountingControlBookForVou :one
+SELECT id,start_month FROM acc_books WHERE control_book FOR UPDATE
+`
+
+type LockAccountingControlBookForVouRow struct {
+	ID         string      `db:"id" json:"id"`
+	StartMonth pgtype.Date `db:"start_month" json:"start_month"`
+}
+
+func (q *Queries) LockAccountingControlBookForVou(ctx context.Context) (LockAccountingControlBookForVouRow, error) {
+	row := q.db.QueryRow(ctx, lockAccountingControlBookForVou)
+	var i LockAccountingControlBookForVouRow
+	err := row.Scan(&i.ID, &i.StartMonth)
+	return i, err
 }
 
 const lockExpiredPendingVouFile = `-- name: LockExpiredPendingVouFile :one
@@ -4000,23 +3907,6 @@ func (q *Queries) UpdateVouAssetAcquisitionDetail(ctx context.Context, arg Updat
 		arg.SupplierName,
 		arg.DocumentID,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const updateVouAssetDepreciationDetail = `-- name: UpdateVouAssetDepreciationDetail :execrows
-UPDATE vou_asset_depreciation_details SET depreciation_month=$1 WHERE document_id=$2
-`
-
-type UpdateVouAssetDepreciationDetailParams struct {
-	DepreciationMonth pgtype.Date `db:"depreciation_month" json:"depreciation_month"`
-	DocumentID        string      `db:"document_id" json:"document_id"`
-}
-
-func (q *Queries) UpdateVouAssetDepreciationDetail(ctx context.Context, arg UpdateVouAssetDepreciationDetailParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateVouAssetDepreciationDetail, arg.DepreciationMonth, arg.DocumentID)
 	if err != nil {
 		return 0, err
 	}

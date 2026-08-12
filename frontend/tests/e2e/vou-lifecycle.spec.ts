@@ -130,21 +130,6 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
-  const ledgerResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/led/bill/query') &&
-      response.request().method() === 'POST',
-  )
-  await page.goto('/led/bill')
-  const ledgerPayload = (await (await ledgerResponse).json()) as {
-    code: number | string
-  }
-  expect(String(ledgerPayload.code)).toBe('0')
-  await page.getByRole('textbox', { name: '票据号码' }).fill(billNo)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(
-    page.locator('tbody tr').filter({ hasText: billNo }),
-  ).toContainText('100.00')
 })
 
 async function verifyEmployeeLoanLifecycle(

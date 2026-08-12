@@ -423,7 +423,6 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('vou', 'intermediary-trade')).toBe(false)
 
     const menus = buildMenus([
-      '/led/closing/get',
       '/wfl/process-definition/query',
       '/wfl/process-instance/query',
       '/wfl/purchase-fulfillment/query',
@@ -431,7 +430,7 @@ describe('permission menu registry', () => {
       '/vou/purchase-order/query',
     ])
 
-    expect(menus.map((item) => item.domain)).toEqual(['vou', 'wfl', 'led'])
+    expect(menus.map((item) => item.domain)).toEqual(['vou', 'wfl'])
     expect(menus[1]).toMatchObject({
       domain: 'wfl',
       title: '业务流程',
@@ -465,7 +464,7 @@ describe('permission menu registry', () => {
     })
 
     const router = createTestRouter()
-    expect(registerMenuRoutes(router, menus)).toBe(6)
+    expect(registerMenuRoutes(router, menus)).toBe(5)
     expect(router.resolve('/wfl/purchase-fulfillment').meta).toMatchObject({
       developing: false,
       processName: 'purchase-fulfillment',
@@ -489,29 +488,20 @@ describe('permission menu registry', () => {
     ).toEqual([])
   })
 
-  it('注册 LED 七类账簿页面并保持业务顺序', () => {
-    const entities = [
-      'closing',
-      'inventory',
-      'fund',
-      'customer',
-      'supplier',
-      'other',
-      'container',
-    ]
+  it('注册 ACC 会计账簿页面', () => {
     const router = createTestRouter()
-    const menus = buildMenus([
-      '/led/closing/get',
-      ...entities.slice(1).map((entity) => `/led/${entity}/query`),
-    ])
+    const menus = buildMenus(['/acc/book/query', '/acc/book/create'])
 
-    expect(menus[0]?.domain).toBe('led')
-    expect(menus[0]?.title).toBe('业务账簿')
-    expect(menus[0]?.children.map((item) => item.entity)).toEqual(entities)
-    expect(registerMenuRoutes(router, menus)).toBe(entities.length)
-    for (const entity of entities) {
-      expect(hasRegisteredPage('led', entity)).toBe(true)
-      expect(router.resolve(`/led/${entity}`).meta.developing).toBe(false)
-    }
+    expect(menus).toMatchObject([
+      {
+        domain: 'acc',
+        title: '内部会计',
+        children: [{ entity: 'book', title: '会计账簿' }],
+      },
+    ])
+    expect(registerMenuRoutes(router, menus)).toBe(1)
+    expect(hasRegisteredPage('acc', 'book')).toBe(true)
+    expect(router.resolve('/acc/book').meta.developing).toBe(false)
   })
+
 })

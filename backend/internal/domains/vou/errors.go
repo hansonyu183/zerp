@@ -20,6 +20,9 @@ func (s *Service) writeError(operation string, err error) error {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23514" && pgErr.Message == "accounting period is locked" {
+			return domainError(ErrorConflict, pgErr.Message, map[string]any{"locked": true}, err)
+		}
 		if pgErr.Code == "P0001" && strings.Contains(pgErr.Message, "closed through") {
 			return domainError(
 				ErrorConflict,

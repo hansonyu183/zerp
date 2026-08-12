@@ -22,7 +22,6 @@ type applicationService interface {
 	Get(context.Context, string, GetInput) (DocumentView, error)
 	FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error)
 	PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error)
-	AssetDepreciationPreview(context.Context, AssetDepreciationPreviewInput) (AssetDepreciationPreviewView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
 	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
 	Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error)
@@ -32,6 +31,8 @@ type applicationService interface {
 	Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	InventoryCountBookBalance(context.Context, InventoryCountBalanceInput) (Page[InventoryCountBalanceItem], error)
+	AvailableBills(context.Context, AvailableBillQueryInput) (Page[AvailableBillItem], error)
+	AvailableAssets(context.Context, AvailableAssetQueryInput) (Page[AvailableAssetItem], error)
 	InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error)
 	CreateDownload(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error)
 	RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (MutationResult, error)
@@ -57,9 +58,10 @@ var actionRoutes = [...]actionRoute{
 	{action: "query", handle: (*Handler).query},
 	{action: "get", handle: (*Handler).get},
 	{action: "book-balance", handle: (*Handler).inventoryCountBookBalance},
+	{action: "bill-source", handle: (*Handler).availableBills},
+	{action: "asset-source", handle: (*Handler).availableAssets},
 	{action: "formula-default", handle: (*Handler).formulaDefault},
 	{action: "price-reference", handle: (*Handler).priceReference},
-	{action: "preview", handle: (*Handler).assetDepreciationPreview},
 	{action: "create", handle: (*Handler).create},
 	{action: "save", handle: (*Handler).save},
 	{action: "check", handle: (*Handler).check},
@@ -106,7 +108,11 @@ func (h *Handler) Register(router *gin.Engine) {
 			if route.action == "book-balance" && entity != EntityInventoryCount {
 				continue
 			}
-			if route.action == "preview" && entity != EntityAssetDepreciation {
+			if route.action == "bill-source" && entity != EntityBillPayment &&
+				entity != EntityBillDiscount && entity != EntityBillMaturity {
+				continue
+			}
+			if route.action == "asset-source" && entity != EntityAssetSale && entity != EntityAssetLiquidation {
 				continue
 			}
 			if (route.action == "source" || route.action == "script-get" || route.action == "script-save") &&
@@ -116,7 +122,11 @@ func (h *Handler) Register(router *gin.Engine) {
 			action := route.action
 			handle := route.handle
 			path := "/vou/" + entity + "/" + action
-			entityGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
+			permissionPath := path
+			if action == "bill-source" || action == "asset-source" {
+				permissionPath = "/vou/" + entity + "/query"
+			}
+			entityGroup.POST("/"+action, h.authorize(permissionPath), func(c *gin.Context) {
 				handle(h, c, entity)
 			})
 		}
@@ -173,14 +183,18 @@ func (h *Handler) inventoryCountBookBalance(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) assetDepreciationPreview(c *gin.Context, entity string) {
-	if entity != EntityAssetDepreciation {
-		h.result(c, AssetDepreciationPreviewView{}, domainError(ErrorValidation, "invalid entity", nil, nil))
-		return
-	}
-	var input AssetDepreciationPreviewInput
+func (h *Handler) availableBills(c *gin.Context, _ string) {
+	var input AvailableBillQueryInput
 	if h.bind(c, &input) {
-		result, err := h.service.AssetDepreciationPreview(c.Request.Context(), input)
+		result, err := h.service.AvailableBills(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) availableAssets(c *gin.Context, _ string) {
+	var input AvailableAssetQueryInput
+	if h.bind(c, &input) {
+		result, err := h.service.AvailableAssets(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }

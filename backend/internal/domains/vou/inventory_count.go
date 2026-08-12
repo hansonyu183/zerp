@@ -21,26 +21,21 @@ func (s *Service) InventoryCountBookBalance(
 	if err != nil {
 		return Page[InventoryCountBalanceItem]{}, domainError(ErrorValidation, "invalid asOfDate", nil, err)
 	}
-	control, err := s.queries.GetLedControl(ctx)
+	_, err = s.queries.GetAccountingControlBookForVou(ctx)
 	if err != nil {
-		return Page[InventoryCountBalanceItem]{}, s.internal("read inventory ledger", err)
-	}
-	if control.Status != "ACTIVE" || control.ActiveGenerationID == nil {
-		return Page[InventoryCountBalanceItem]{}, domainError(ErrorConflict, "inventory ledger is not active", nil, nil)
+		return Page[InventoryCountBalanceItem]{}, domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	date := pgtype.Date{Time: asOfDate, Valid: true}
 	total, err := s.queries.CountVouInventoryCountBookBalances(ctx,
 		dbsqlc.CountVouInventoryCountBookBalancesParams{
-			GenerationID: *control.ActiveGenerationID, WarehouseObjectID: input.WarehouseObjectID,
-			AsOfDate: date,
+			WarehouseObjectID: input.WarehouseObjectID, AsOfDate: date,
 		})
 	if err != nil {
 		return Page[InventoryCountBalanceItem]{}, s.internal("count inventory count balances", err)
 	}
 	rows, err := s.queries.ListVouInventoryCountBookBalances(ctx,
 		dbsqlc.ListVouInventoryCountBookBalancesParams{
-			GenerationID: *control.ActiveGenerationID, WarehouseObjectID: input.WarehouseObjectID,
-			AsOfDate: date, PageSize: int32(input.PageSize),
+			WarehouseObjectID: input.WarehouseObjectID, AsOfDate: date, PageSize: int32(input.PageSize),
 			PageOffset: int32((input.Page - 1) * input.PageSize),
 		})
 	if err != nil {
@@ -49,7 +44,7 @@ func (s *Service) InventoryCountBookBalance(
 	items := make([]InventoryCountBalanceItem, 0, len(rows))
 	for _, row := range rows {
 		item := InventoryCountBalanceItem{Product: ReferenceView{
-			ObjectID: row.ProductObjectID, VersionID: row.ProductVersionID, Entity: "product",
+			ObjectID: row.ProductObjectID, VersionID: deref(row.ProductVersionID), Entity: "product",
 			Code: row.ProductCode, Name: row.ProductName, Unit: row.ProductUnit,
 		}, Quantity: formatQuantity(row.QuantityMicros)}
 		items = append(items, item)
@@ -60,25 +55,13 @@ func (s *Service) InventoryCountBookBalance(
 func (s *Service) prepareInventoryCountFinalization(
 	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, document dbsqlc.VouDocument,
 ) (map[string]any, error) {
-	control, err := q.LockLedControl(ctx)
+	control, err := q.LockAccountingControlBookForVou(ctx)
 	if err != nil {
-		return nil, s.internal("lock inventory ledger", err)
-	}
-	if control.Status != "ACTIVE" || control.ActiveGenerationID == nil || !control.CutoverDate.Valid {
-		return nil, domainError(ErrorConflict, "inventory ledger is not active", nil, nil)
+		return nil, domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	businessDate := document.BusinessDate.Time
-	if businessDate.Before(control.CutoverDate.Time) {
-		return nil, domainError(ErrorConflict, "inventory count predates the active ledger", nil, nil)
-	}
-	if control.LastClosingID != nil {
-		latestClosingDate, closingErr := q.GetVouInventoryCountClosingDate(ctx, *control.LastClosingID)
-		if closingErr != nil {
-			return nil, s.internal("read latest inventory closing", closingErr)
-		}
-		if !businessDate.After(latestClosingDate.Time) {
-			return nil, domainError(ErrorConflict, "inventory count date is already closed", nil, nil)
-		}
+	if businessDate.Before(control.StartMonth.Time) {
+		return nil, domainError(ErrorConflict, "inventory count predates the accounting control book", nil, nil)
 	}
 	detail, err := q.GetVouInventoryCountDetail(ctx, document.ID)
 	if err != nil {
@@ -99,8 +82,8 @@ func (s *Service) prepareInventoryCountFinalization(
 		}
 		bookQuantity, bookErr := q.GetVouInventoryCountBookQuantity(ctx,
 			dbsqlc.GetVouInventoryCountBookQuantityParams{
-				GenerationID: *control.ActiveGenerationID, WarehouseObjectID: detail.WarehouseObjectID,
-				ProductObjectID: line.ProductObjectID, AsOfDate: document.BusinessDate,
+				WarehouseObjectID: detail.WarehouseObjectID, ProductObjectID: line.ProductObjectID,
+				AsOfDate: document.BusinessDate,
 			})
 		if bookErr != nil {
 			return nil, s.internal("read inventory count quantity", bookErr)

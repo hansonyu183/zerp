@@ -32,7 +32,6 @@ const (
 	EntityExpensePayment          = "expense-payment"
 	EntityOtherIncome             = "other-income"
 	EntityAssetAcquisition        = "asset-acquisition"
-	EntityAssetDepreciation       = "asset-depreciation"
 	EntityAssetSale               = "asset-sale"
 	EntityAssetLiquidation        = "asset-liquidation"
 	EntityBillReceipt             = "bill-receipt"
@@ -73,7 +72,6 @@ var entities = [...]string{
 	EntityExpensePayment,
 	EntityOtherIncome,
 	EntityAssetAcquisition,
-	EntityAssetDepreciation,
 	EntityAssetSale,
 	EntityAssetLiquidation,
 	EntityBillReceipt,
@@ -93,7 +91,7 @@ func publicCreateEntity(entity string) bool {
 		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment,
 		EntityEmployeeLoan, EntityEmployeeRepayment, EntityEmployeeLoanWriteoff,
 		EntityExpenseReimbursement, EntityOtherIncome,
-		EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation,
+		EntityAssetAcquisition, EntityAssetSale, EntityAssetLiquidation,
 		EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity,
 		EntityIntermediaryCalculation:
 		return true
@@ -256,11 +254,6 @@ type AssetAcquisitionLineInput struct {
 	Remark           string          `json:"remark,omitempty"`
 }
 
-type AssetDepreciationLineInput struct {
-	AssetID string `json:"assetId"`
-	Remark  string `json:"remark,omitempty"`
-}
-
 type AssetSaleLineInput struct {
 	AssetID    string `json:"assetId"`
 	SaleAmount string `json:"saleAmount"`
@@ -306,9 +299,7 @@ type DraftInput struct {
 	ReturnLines             []ReturnLineInput             `json:"returnLines,omitempty"`
 	ProductionLines         []ProductionOutputInput       `json:"productionLines,omitempty"`
 	InventoryCountLines     []InventoryCountLineInput     `json:"inventoryCountLines,omitempty"`
-	DepreciationMonth       string                        `json:"depreciationMonth,omitempty"`
 	AssetAcquisitionLines   []AssetAcquisitionLineInput   `json:"assetAcquisitionLines,omitempty"`
-	AssetDepreciationLines  []AssetDepreciationLineInput  `json:"assetDepreciationLines,omitempty"`
 	AssetSaleLines          []AssetSaleLineInput          `json:"assetSaleLines,omitempty"`
 	AssetLiquidationLines   []AssetLiquidationLineInput   `json:"assetLiquidationLines,omitempty"`
 	BillLines               []BillLineInput               `json:"billLines,omitempty"`
@@ -440,30 +431,6 @@ type IntermediaryScriptSaveInput struct {
 	Revision int64  `json:"revision"`
 	Name     string `json:"name"`
 	Source   string `json:"source"`
-}
-
-type AssetDepreciationPreviewInput struct {
-	DepreciationMonth  string `json:"depreciationMonth"`
-	CategoryObjectID   string `json:"categoryObjectId,omitempty"`
-	DepartmentObjectID string `json:"departmentObjectId,omitempty"`
-}
-
-type AssetDepreciationPreviewItem struct {
-	AssetID                 string        `json:"assetId"`
-	AssetNo                 string        `json:"assetNo"`
-	AssetName               string        `json:"assetName"`
-	Category                ReferenceView `json:"category"`
-	Department              ReferenceView `json:"department"`
-	OriginalValue           string        `json:"originalValue"`
-	AccumulatedDepreciation string        `json:"accumulatedDepreciation"`
-	DepreciationAmount      string        `json:"depreciationAmount"`
-	NetValue                string        `json:"netValue"`
-}
-
-type AssetDepreciationPreviewView struct {
-	DepreciationMonth string                         `json:"depreciationMonth"`
-	Items             []AssetDepreciationPreviewItem `json:"items"`
-	TotalAmount       string                         `json:"totalAmount"`
 }
 
 type CreateInput struct {
@@ -716,6 +683,49 @@ type InventoryCountBalanceInput struct {
 	AsOfDate          string `json:"asOfDate"`
 }
 
+type AvailableBillQueryInput struct {
+	Page         int    `json:"page"`
+	PageSize     int    `json:"pageSize"`
+	PositionType string `json:"positionType"`
+	BillNo       string `json:"billNo,omitempty"`
+}
+
+type AvailableAssetQueryInput struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+type AvailableAssetItem struct {
+	AssetID                 string `json:"assetId"`
+	AssetNo                 string `json:"assetNo"`
+	AssetName               string `json:"assetName"`
+	OriginalValue           string `json:"originalValue"`
+	AccumulatedDepreciation string `json:"accumulatedDepreciation"`
+	NetValue                string `json:"netValue"`
+}
+
+type AvailableBillItem struct {
+	BillID             string        `json:"billId"`
+	PositionType       string        `json:"positionType"`
+	BillType           string        `json:"billType"`
+	BillNo             string        `json:"billNo"`
+	Medium             string        `json:"medium"`
+	Currency           string        `json:"currency"`
+	FaceAmount         string        `json:"faceAmount"`
+	IssueDate          string        `json:"issueDate"`
+	MaturityDate       string        `json:"maturityDate"`
+	Drawer             string        `json:"drawer"`
+	Acceptor           string        `json:"acceptor"`
+	Payee              string        `json:"payee"`
+	AnnualRateBps      int32         `json:"annualRateBps"`
+	InterestDays       int32         `json:"interestDays"`
+	InterestAmount     string        `json:"interestAmount"`
+	CustomerCostAmount string        `json:"customerCostAmount"`
+	OriginatingParty   ReferenceView `json:"originatingParty"`
+	SourceEntity       string        `json:"sourceEntity"`
+	SourceDocumentNo   string        `json:"sourceDocumentNo"`
+}
+
 type InventoryCountBalanceItem struct {
 	Product  ReferenceView `json:"product"`
 	Quantity string        `json:"quantity"`
@@ -734,18 +744,6 @@ type AssetAcquisitionLineView struct {
 	Custodian        *ReferenceView `json:"custodian,omitempty"`
 	Location         string         `json:"location,omitempty"`
 	Remark           string         `json:"remark,omitempty"`
-}
-
-type AssetDepreciationLineView struct {
-	LineID             string `json:"lineId"`
-	LineNo             int32  `json:"lineNo"`
-	AssetID            string `json:"assetId"`
-	AssetNo            string `json:"assetNo"`
-	AssetName          string `json:"assetName"`
-	Amount             string `json:"amount"`
-	OpeningAccumulated string `json:"openingAccumulated"`
-	ClosingAccumulated string `json:"closingAccumulated"`
-	Remark             string `json:"remark,omitempty"`
 }
 
 type AssetSaleLineView struct {
@@ -880,9 +878,7 @@ type DocumentDataView struct {
 	ReturnedSolventContainers int64                         `json:"returnedSolventContainers,omitempty"`
 	ReturnedResinContainers   int64                         `json:"returnedResinContainers,omitempty"`
 	ContainerDifferenceReason string                        `json:"containerDifferenceReason,omitempty"`
-	DepreciationMonth         string                        `json:"depreciationMonth,omitempty"`
 	AssetAcquisitionLines     []AssetAcquisitionLineView    `json:"assetAcquisitionLines,omitempty"`
-	AssetDepreciationLines    []AssetDepreciationLineView   `json:"assetDepreciationLines,omitempty"`
 	AssetSaleLines            []AssetSaleLineView           `json:"assetSaleLines,omitempty"`
 	AssetLiquidationLines     []AssetLiquidationLineView    `json:"assetLiquidationLines,omitempty"`
 	BillLines                 []BillLineView                `json:"billLines,omitempty"`

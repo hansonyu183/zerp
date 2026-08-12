@@ -198,7 +198,7 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
     ['/aux/product-category', '产品分类'],
     ['/vou/sale-order', '销售订单'],
     ['/wfl/sales-fulfillment', '销售履约'],
-    ['/led/inventory', '库存台账'],
+    ['/acc/book', '会计账簿'],
   ] as const
 
   for (const [path, title] of pages) {

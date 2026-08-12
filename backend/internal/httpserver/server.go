@@ -14,10 +14,10 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
+	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	leddomain "github.com/hansonyu183/zerp/backend/internal/domains/led"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -41,9 +41,10 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	auxService := auxdomain.NewService(db)
 	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
 	eventBus := txevent.NewBus()
+	accService := accdomain.NewService(db)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryrefs.New(auxService), eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, logger)
+	}, logger, voudomain.WithAccountingControl(accService))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -52,14 +53,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
-	ledService, err := leddomain.NewService(db, bobService, vouService)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = ledService.RegisterSubscriptions(eventBus); err != nil {
-		return nil, nil, err
-	}
-	if err = ledService.EnsureReady(context.Background()); err != nil {
+	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}
 	var publisher *appdomain.FeedbackPublisher
@@ -73,11 +67,11 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
 		appdomain.NewHandler(appService, cfg, logger).Register(router)
 		authorizer := appAuthorizer{service: appService, cfg: cfg}
+		accdomain.NewHandler(accService, authorizer, logger).Register(router)
 		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)
-		leddomain.NewHandler(ledService, authorizer, logger).Register(router)
 	})
 	return router, publisher, nil
 }

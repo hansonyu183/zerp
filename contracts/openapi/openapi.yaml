@@ -15,12 +15,946 @@
       { 'name': 'aux', 'description': '辅助对象' },
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
-      { 'name': 'led', 'description': '业务账簿' },
+      { 'name': 'acc', 'description': '内部会计' },
       { 'name': 'files', 'description': '二进制附件端点' },
       { 'name': 'operations', 'description': '运行状态端点' },
     ],
   'paths':
     {
+      '/acc/book/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计账簿',
+              'operationId': 'accBookQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户查询范围内的会计账簿分页列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/BookPageEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/get':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取会计账簿',
+              'operationId': 'accBookGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '会计账簿详情及访问范围。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/create':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建会计账簿',
+              'operationId': 'accBookCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookCreateRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的会计账簿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存会计账簿',
+              'operationId': 'accBookSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookSaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的会计账簿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                { '$ref': './schemas/acc.yaml#/BookEnvelope' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/book/delete':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '删除会计账簿',
+              'operationId': 'accBookDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/BookDeleteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/acc/subject/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计科目',
+              'operationId': 'accSubjectQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户账簿查询范围内的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectPageEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/get':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取会计科目',
+              'operationId': 'accSubjectGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/SubjectGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '会计科目详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/create':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建会计科目',
+              'operationId': 'accSubjectCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存会计科目',
+              'operationId': 'accSubjectSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/delete':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '删除会计科目',
+              'operationId': 'accSubjectDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectDeleteRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/acc/opening/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取账簿期初',
+              'operationId': 'accOpeningQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿期初及批准状态。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存账簿期初',
+              'operationId': 'accOpeningSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/approve':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '批准账簿期初',
+              'operationId': 'accOpeningApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的账簿期初及系统凭证标识。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/unapprove':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '反批准账簿期初',
+              'operationId': 'accOpeningUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的可编辑账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询 VOU 会计映射版本',
+              'operationId': 'accMappingQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿内的映射版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingPageEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/get':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取 VOU 会计映射版本',
+              'operationId': 'accMappingGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/MappingGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '映射版本详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/create':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建 VOU 会计映射草稿版本',
+              'operationId': 'accMappingCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的映射草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存 VOU 会计映射草稿',
+              'operationId': 'accMappingSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的映射草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/approve':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '批准 VOU 会计映射版本',
+              'operationId': 'accMappingApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的映射版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/unapprove':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '反批准未引用的 VOU 会计映射版本',
+              'operationId': 'accMappingUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的映射草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/catalog':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取稳定 VOU 映射字段目录',
+              'operationId': 'accMappingCatalog',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingCatalogRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '指定 VOU 类型可用于映射的头字段与行集合字段。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingCatalogEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/period/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计期间',
+              'operationId': 'accPeriodQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿期间列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodListEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/period/lock':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '锁定会计期间',
+              'operationId': 'accPeriodLock',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '锁定后的期间。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/period/unlock':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '解锁会计期间',
+              'operationId': 'accPeriodUnlock',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/PeriodActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '解锁后的期间。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/PeriodEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/user/signin':
         {
           'post':
@@ -1776,6 +2710,90 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/vou/{entity}/bill-source':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '选择 ACC 登记的可用票据',
+              'operationId': 'vouAvailableBillQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAvailableBillQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '可用票据分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAvailableBillQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/vou/{entity}/asset-source':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '选择 ACC 登记的在用资产',
+              'operationId': 'vouAvailableAssetQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '在用资产分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAvailableAssetQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/vou/{entity}/formula-default':
         {
           'post':
@@ -1864,33 +2882,6 @@
                         {
                           'schema':
                             { '$ref': './schemas/vou.yaml#/VouCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/vou/{entity}/preview':
-        {
-          'post':
-            {
-              'tags': ['vou'],
-              'summary': '预览固定资产折旧',
-              'operationId': 'vouassetdepreciationpreview',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/vou.yaml#/VouAssetDepreciationPreviewRequest',
-                            },
                         },
                     },
                 },
@@ -2597,487 +3588,6 @@
                           'schema':
                             {
                               '$ref': './schemas/wfl.yaml#/WflInstanceHistoryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/get':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '读取最近结账与期初余额',
-              'operationId': 'ledclosingget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/common.yaml#/EmptyObject' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/close':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '执行月末结账',
-              'operationId': 'ledclosingclose',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedClosingRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/unclose':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '反结最近一期',
-              'operationId': 'ledclosingunclose',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedUncloseRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/closing/history':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询月末结账历史',
-              'operationId': 'ledclosinghistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/inventory/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询库存流水',
-              'operationId': 'ledinventoryquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/bill/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询票据台账',
-              'operationId': 'ledbillquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedBillQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '票据台账分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/led.yaml#/LedBillQueryResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/led/inventory/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询库存余额',
-              'operationId': 'ledinventorybalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/fund/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询资金流水',
-              'operationId': 'ledfundquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/fund/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询资金余额',
-              'operationId': 'ledfundbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/customer/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询客户往来流水',
-              'operationId': 'ledcustomerquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/customer/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询客户往来余额',
-              'operationId': 'ledcustomerbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/supplier/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询供应商往来流水',
-              'operationId': 'ledsupplierquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/supplier/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询供应商往来余额',
-              'operationId': 'ledsupplierbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询其他往来流水',
-              'operationId': 'ledotherquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedOtherQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/other/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询其他往来余额',
-              'operationId': 'ledotherbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedOtherBalanceRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/container/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询容器流水',
-              'operationId': 'ledcontainerquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedQueryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/container/balance':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询容器余额',
-              'operationId': 'ledcontainerbalance',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/led.yaml#/LedBalanceRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/asset/query':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查询固定资产台账',
-              'operationId': 'ledassetquery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedAssetQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/led/asset/get':
-        {
-          'post':
-            {
-              'tags': ['led'],
-              'summary': '查看固定资产台账',
-              'operationId': 'ledassetget',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/led.yaml#/LedAssetGetRequest',
                             },
                         },
                     },

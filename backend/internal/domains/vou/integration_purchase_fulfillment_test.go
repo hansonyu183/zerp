@@ -16,19 +16,9 @@ import (
 func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
-	closingID := newID()
-	t.Cleanup(func() {
-		cleanupContext := context.Background()
-		if _, err := pool.Exec(cleanupContext, `UPDATE led_control
-			SET last_closing_id=NULL WHERE singleton=true`); err != nil {
-			t.Errorf("clear closing control: %v", err)
-		}
-		if _, err := pool.Exec(cleanupContext, `DELETE FROM led_closings WHERE id=$1`, closingID); err != nil {
-			t.Errorf("delete closing: %v", err)
-		}
-		truncateVOU(t, pool)
-	})
+	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
+	activateSettlementLedgerForParty(t, pool, "supplier", refs.supplier, 0, "2026-07-01")
 	service := newIntegrationService(t, pool)
 	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
@@ -81,16 +71,11 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	if err != nil {
 		t.Fatalf("get purchase inbound: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO led_closings(
-		id,closing_date,opening_date,revision,closed_by,request_id
-	) VALUES($1,$2::date,$3::date,1,$4,$5)`, closingID, "2026-07-31", "2026-08-01",
-		integrationActorOne, "closed-purchase-closing"); err != nil {
-		t.Fatalf("insert closing: %v", err)
-	}
-	if _, err = pool.Exec(t.Context(), `UPDATE led_control SET
-		last_closing_id=$1,revision=revision+1,updated_at=now(),updated_by=$2
-		WHERE singleton=true`, closingID, integrationActorOne); err != nil {
-		t.Fatalf("set closing control: %v", err)
+	if _, err = pool.Exec(t.Context(), `INSERT INTO acc_periods(
+		book_id,period_month,state,locked_at,locked_by,updated_by
+	) SELECT id,'2026-07-01','LOCKED',now(),$1,$1 FROM acc_books WHERE control_book`,
+		integrationActorOne); err != nil {
+		t.Fatalf("lock accounting period: %v", err)
 	}
 	returnDraft, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-08-01", Warehouse: &refs.warehouse,
@@ -140,33 +125,23 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	registerSettlementPosting := func(entity string, sign int64) {
 		t.Helper()
-		if err := bus.Subscribe(DocumentApprovedTopic(entity), "test-led-posting",
+		if err := bus.Subscribe(DocumentApprovedTopic(entity), "test-acc-posting",
 			func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
 				event := raw.(DocumentApprovedEvent)
 				var amount int64
 				if err := tx.QueryRow(ctx, `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, event.DocumentID).Scan(&amount); err != nil {
 					return err
 				}
-				_, err := tx.Exec(ctx, `INSERT INTO led_party_entries(
-					id,generation_id,entry_type,source_entity,source_document_id,source_document_no,
-					source_line_id,source_revision,effective_date,occurred_at,actor_id,request_id,
-					counterparty_entity,counterparty_object_id,counterparty_version_id,
-					counterparty_code,counterparty_name,currency,amount_delta_cents
-				) SELECT $1,active_generation_id,'POSTING',$2,$3,$4,'',$5,$6::date,now(),$7,$8,
-					'supplier',$9,$10,'SUPPLIER','VOU 预付供应商','CNY',$11
-				FROM led_control WHERE singleton AND status='ACTIVE'`,
-					newID(), entity, event.DocumentID, event.DocumentNo, event.Revision,
-					businessdate.Today(), event.ActorID, event.RequestID,
-					refs.supplier.ObjectID, refs.supplier.VersionID, sign*amount)
-				return err
+				return insertAccountingPartyEntry(ctx, tx, "supplier", refs.supplier.ObjectID,
+					"PREPAID", sign*amount, businessdate.Today().Format(businessdate.Layout), event.DocumentID)
 			}); err != nil {
 			t.Fatalf("register %s settlement posting: %v", entity, err)
 		}
-		if err := bus.Subscribe(DocumentUnapprovedTopic(entity), "test-led-reversal",
+		if err := bus.Subscribe(DocumentUnapprovedTopic(entity), "test-acc-reversal",
 			func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
 				event := raw.(DocumentUnapprovedEvent)
-				_, err := tx.Exec(ctx, `DELETE FROM led_party_entries
-					WHERE source_entity=$1 AND source_document_id=$2`, entity, event.DocumentID)
+				_, err := tx.Exec(ctx, `DELETE FROM acc_vouchers
+					WHERE source_id=$1`, event.DocumentID)
 				return err
 			}); err != nil {
 			t.Fatalf("register %s settlement reversal: %v", entity, err)
@@ -195,12 +170,13 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	}
 	var orderAmount, prepaidBalance int64
 	if err = pool.QueryRow(t.Context(), `SELECT document.total_amount_cents,
-		COALESCE(sum(entry.amount_delta_cents),0)::bigint
+		COALESCE(sum(line.debit_minor-line.credit_minor),0)::bigint
 		FROM vou_documents document
 		JOIN vou_purchase_order_details detail ON detail.document_id=document.id
-		LEFT JOIN led_party_entries entry ON entry.counterparty_entity='supplier'
-		 AND entry.counterparty_object_id=detail.supplier_object_id
-		 AND entry.currency=document.currency AND entry.account_type='TRADE'
+		LEFT JOIN acc_books book ON book.control_book
+		LEFT JOIN acc_subjects subject ON subject.book_id=book.id AND subject.settlement_purpose='PREPAID'
+		LEFT JOIN acc_voucher_lines line ON line.book_id=book.id AND line.subject_id=subject.id
+		 AND line.dimensions->>'SUPPLIER'=detail.supplier_object_id AND line.currency=document.currency
 		WHERE document.id=$1 GROUP BY document.total_amount_cents`, order.DocumentID).
 		Scan(&orderAmount, &prepaidBalance); err != nil || orderAmount != 12000 || prepaidBalance != 12000 {
 		t.Fatalf("prepaid purchase setup = amount:%d balance:%d err=%v", orderAmount, prepaidBalance, err)

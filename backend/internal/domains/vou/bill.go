@@ -28,6 +28,61 @@ type fixedBillCashLine struct {
 	Remark                *string
 }
 
+func (s *Service) AvailableBills(ctx context.Context, input AvailableBillQueryInput) (Page[AvailableBillItem], error) {
+	input.BillNo = strings.TrimSpace(input.BillNo)
+	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 100 ||
+		(input.PositionType != "ASSET" && input.PositionType != "LIABILITY") {
+		return Page[AvailableBillItem]{}, domainError(ErrorValidation, "invalid available bill query", nil, nil)
+	}
+	var total int64
+	if err := s.pool.QueryRow(ctx, `SELECT count(*)
+		FROM acc_bills bill
+		WHERE bill.state='AVAILABLE' AND bill.position_type=$1
+		  AND ($2='' OR bill.bill_no ILIKE '%'||$2||'%')`, input.PositionType, input.BillNo).Scan(&total); err != nil {
+		return Page[AvailableBillItem]{}, s.internal("count available accounting bills", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT bill.id,bill.position_type,bill.bill_type,bill.bill_no,bill.medium,bill.currency,
+		bill.face_amount_minor,bill.issue_date,bill.maturity_date,bill.drawer,bill.acceptor,bill.payee,
+		bill.annual_rate_bps,bill.interest_days,bill.interest_amount_minor,bill.customer_cost_amount_minor,
+		bill.origin_party_object_id,bill.origin_party_version_id,bill.origin_party_entity,
+		bill.origin_party_code,bill.origin_party_name,
+		COALESCE(document.entity,'acc-opening'),COALESCE(document.document_no,'期初')
+		FROM acc_bills bill
+		LEFT JOIN vou_documents document ON document.id=bill.source_document_id
+		WHERE bill.state='AVAILABLE' AND bill.position_type=$1
+		  AND ($2='' OR bill.bill_no ILIKE '%'||$2||'%')
+		ORDER BY bill.maturity_date,bill.bill_no,bill.id
+		LIMIT $3 OFFSET $4`, input.PositionType, input.BillNo, input.PageSize, (input.Page-1)*input.PageSize)
+	if err != nil {
+		return Page[AvailableBillItem]{}, s.internal("list available accounting bills", err)
+	}
+	defer rows.Close()
+	items := make([]AvailableBillItem, 0)
+	for rows.Next() {
+		var item AvailableBillItem
+		var face, interest, customerCost int64
+		var issue, maturity time.Time
+		var partyObjectID, partyVersionID, partyEntity, partyCode, partyName *string
+		if err = rows.Scan(&item.BillID, &item.PositionType, &item.BillType, &item.BillNo, &item.Medium,
+			&item.Currency, &face, &issue, &maturity, &item.Drawer, &item.Acceptor, &item.Payee,
+			&item.AnnualRateBps, &item.InterestDays, &interest, &customerCost, &partyObjectID,
+			&partyVersionID, &partyEntity, &partyCode, &partyName, &item.SourceEntity, &item.SourceDocumentNo); err != nil {
+			return Page[AvailableBillItem]{}, s.internal("scan available accounting bill", err)
+		}
+		if partyObjectID == nil || partyVersionID == nil || partyEntity == nil || partyCode == nil || partyName == nil {
+			return Page[AvailableBillItem]{}, domainError(ErrorConflict, "source bill has no originating party", map[string]any{"billId": item.BillID}, nil)
+		}
+		item.FaceAmount, item.InterestAmount, item.CustomerCostAmount = formatMoney(face), formatMoney(interest), formatMoney(customerCost)
+		item.IssueDate, item.MaturityDate = issue.Format(dateLayout), maturity.Format(dateLayout)
+		item.OriginatingParty = *reference(*partyObjectID, *partyVersionID, *partyEntity, *partyCode, *partyName, "", "", "")
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return Page[AvailableBillItem]{}, s.internal("iterate available accounting bills", err)
+	}
+	return Page[AvailableBillItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
 func validateBillReceiptDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
 	if input.Counterparty == nil {
 		return result, domainError(ErrorValidation, "bill receipt requires customer counterparty", nil, nil)
@@ -464,7 +519,7 @@ func validateBillMaturityDraft(input DraftInput, result validatedDraft) (validat
 func (s *Service) billPaymentTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine, businessDate time.Time) (int64, error) {
 	var total int64
 	for _, line := range lines {
-		bill, err := q.LockLedBill(ctx, line.BillID)
+		bill, err := q.LockAccountingBillForVou(ctx, line.BillID)
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -548,7 +603,7 @@ func (s *Service) replaceBillLines(ctx context.Context, q *dbsqlc.Queries, entit
 	for _, l := range d.BillLines {
 		if l.Purpose == "CHANGE" || entity == EntityBillPayment || entity == EntityBillDiscount || entity == EntityBillMaturity {
 			discountRate := l.AnnualRateBps
-			b, err := q.LockLedBill(ctx, l.BillID)
+			b, err := q.LockAccountingBillForVou(ctx, l.BillID)
 			if err != nil {
 				return domainError(ErrorConflict, "source bill is not available", nil, err)
 			}
@@ -703,7 +758,7 @@ func optionalBillPartyName(ref *bobdomain.EffectiveReference) *string {
 func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, lines []fixedBillLine, businessDate time.Time) (int64, error) {
 	var total int64
 	for _, line := range lines {
-		bill, err := q.LockLedBill(ctx, line.BillID)
+		bill, err := q.LockAccountingBillForVou(ctx, line.BillID)
 		if err != nil {
 			return 0, domainError(ErrorConflict, "source bill is not available", nil, err)
 		}
@@ -723,12 +778,8 @@ func (s *Service) billMaturityTotal(ctx context.Context, q *dbsqlc.Queries, line
 }
 
 func billAvailableBalance(ctx context.Context, q *dbsqlc.Queries, billID, positionType string, asOfDate time.Time) (int64, error) {
-	control, err := q.GetLedControl(ctx)
-	if err != nil || control.Status != "ACTIVE" || control.ActiveGenerationID == nil {
-		return 0, err
-	}
-	return q.GetLedBillAvailableBalance(ctx, dbsqlc.GetLedBillAvailableBalanceParams{
-		GenerationID: *control.ActiveGenerationID, BillID: billID, PositionType: positionType,
+	return q.GetAccountingBillAvailableBalance(ctx, dbsqlc.GetAccountingBillAvailableBalanceParams{
+		BillID: billID, PositionType: positionType,
 		AsOfDate: dateValue(asOfDate),
 	})
 }

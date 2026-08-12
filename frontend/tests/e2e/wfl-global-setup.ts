@@ -3,7 +3,6 @@ import { mkdir, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { request, type APIRequestContext } from '@playwright/test'
-import type { ClosingView } from '../../src/pages/led/opening/types'
 
 interface Envelope<T> {
   code: number | string
@@ -29,6 +28,37 @@ interface Page<T> {
 
 interface RoleView {
   id: string
+}
+
+interface UserView {
+  id: string
+}
+
+interface AccountingBookView {
+  bookId: string
+  name: string
+  description: string
+  baseCurrency: string
+  controlBook: boolean
+  revision: number
+  queryUserIds: string[]
+  operateUserIds: string[]
+}
+
+interface AccountingOpeningView {
+  state: 'DRAFT' | 'APPROVED'
+  revision: number
+}
+
+interface AccountingSubjectView {
+  subjectId: string
+  code: string
+}
+
+interface AccountingMappingView {
+  mappingId: string
+  state: 'DRAFT' | 'APPROVED'
+  revision: number
 }
 
 interface BobMutation {
@@ -80,10 +110,6 @@ export interface WflWorkerState {
   reviewer: E2ECredentials
   fixtures: WflFixtures
   storageState: Awaited<ReturnType<APIRequestContext['storageState']>>
-}
-
-async function ensureLedgerReady(api: RealApi): Promise<void> {
-  await api.post<ClosingView>('led/closing/get', {})
 }
 
 class RealApi {
@@ -145,6 +171,10 @@ async function allPermissions(api: RealApi): Promise<PermissionView[]> {
 
 const bobReviewerActions = new Set([
   '/app/user/signout',
+  '/app/user/query',
+  '/acc/book/query',
+  '/acc/book/get',
+  '/acc/book/save',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer/approve',
@@ -282,6 +312,140 @@ async function seedInventoryThroughLifecycle(
   })
 }
 
+async function ensureAccountingControlBook(
+  api: RealApi,
+  queryUserIds: string[],
+  operateUserIds: string[],
+  vouEntities: string[],
+): Promise<void> {
+  const books = await api.post<Page<AccountingBookView>>('acc/book/query', {
+    page: 1,
+    pageSize: 200,
+  })
+  let book = books.items.find((item) => item.controlBook)
+  if (!book) {
+    book = await api.post<AccountingBookView>('acc/book/create', {
+      name: 'E2E 控制账簿',
+      description: '隔离 E2E 显式会计前置配置',
+      startMonth: new Date().toISOString().slice(0, 7),
+      baseCurrency: 'CNY',
+      subjectTemplate: 'ENTERPRISE',
+      queryUserIds,
+      operateUserIds,
+    })
+  } else {
+    const nextQueryUserIds = [
+      ...new Set([...book.queryUserIds, ...queryUserIds]),
+    ]
+    const nextOperateUserIds = [
+      ...new Set([...book.operateUserIds, ...operateUserIds]),
+    ]
+    if (
+      nextQueryUserIds.length !== book.queryUserIds.length ||
+      nextOperateUserIds.length !== book.operateUserIds.length
+    ) {
+      book = await api.post<AccountingBookView>('acc/book/save', {
+        bookId: book.bookId,
+        name: book.name,
+        description: book.description,
+        baseCurrency: book.baseCurrency,
+        revision: book.revision,
+        queryUserIds: nextQueryUserIds,
+        operateUserIds: nextOperateUserIds,
+      })
+    }
+  }
+
+  const opening = await api.post<AccountingOpeningView>('acc/opening/query', {
+    bookId: book.bookId,
+  })
+  if (opening.state === 'DRAFT') {
+    await api.post<AccountingOpeningView>('acc/opening/approve', {
+      bookId: book.bookId,
+      revision: opening.revision,
+    })
+  }
+
+  const subjects = await api.post<Page<AccountingSubjectView>>(
+    'acc/subject/query',
+    { bookId: book.bookId, page: 1, pageSize: 200 },
+  )
+  const subjectIdByCode = new Map(
+    subjects.items.map((subject) => [subject.code, subject.subjectId]),
+  )
+
+  for (const vouEntity of vouEntities) {
+    const mappings = await api.post<Page<AccountingMappingView>>(
+      'acc/mapping/query',
+      { bookId: book.bookId, vouEntity, page: 1, pageSize: 200 },
+    )
+    if (mappings.items.some((item) => item.state === 'APPROVED')) continue
+    const inventorySubjectId = subjectIdByCode.get('1405')
+    const payableSubjectId = subjectIdByCode.get('2202')
+    if (
+      vouEntity === 'purchase-inbound' &&
+      (!inventorySubjectId || !payableSubjectId)
+    ) {
+      throw new Error('ACC E2E inventory subjects are missing.')
+    }
+    const purchaseInboundTemplate = {
+      defaultTemplateId: 'e2e-purchase-inbound',
+      rules: [],
+      templates: [
+        {
+          templateId: 'e2e-purchase-inbound',
+          collection: 'productLines',
+          lines: [
+            {
+              subjectSource: 'FIXED',
+              subjectValue: inventorySubjectId,
+              direction: 'DEBIT',
+              amountField: 'lineAmount',
+              currencyField: 'currency',
+              dimensions: {
+                PRODUCT: 'product.objectId',
+                WAREHOUSE: 'warehouse.objectId',
+              },
+              quantityField: 'orderedQuantity',
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+            {
+              subjectSource: 'FIXED',
+              subjectValue: payableSubjectId,
+              direction: 'CREDIT',
+              amountField: 'lineAmount',
+              currencyField: 'currency',
+              dimensions: { SUPPLIER: 'supplier.objectId' },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+          ],
+        },
+      ],
+    }
+    const defaultResult = vouEntity === 'purchase-inbound' ? 'POST' : 'UN_POST'
+    const definition =
+      vouEntity === 'purchase-inbound'
+        ? purchaseInboundTemplate
+        : { defaultTemplateId: null, rules: [], templates: [] }
+    const draft =
+      mappings.items.find((item) => item.state === 'DRAFT') ??
+      (await api.post<AccountingMappingView>('acc/mapping/create', {
+        bookId: book.bookId,
+        vouEntity,
+        defaultResult,
+        definition,
+      }))
+    await api.post<AccountingMappingView>('acc/mapping/approve', {
+      bookId: book.bookId,
+      mappingId: draft.mappingId,
+      revision: draft.revision,
+    })
+  }
+}
+
 async function withLedgerProvisioningLock<T>(
   work: () => Promise<T>,
 ): Promise<T> {
@@ -352,12 +516,15 @@ export async function createWflWorkerState(options: {
       },
     )
     const operatorUsername = `e2e-operator-${suffix}`.toLowerCase()
-    await bootstrapSession.api.post('app/user/create', {
-      username: operatorUsername,
-      displayName: `E2E 操作员 ${suffix}`,
-      password: operatorPassword,
-      roleIds: [operatorRole.id],
-    })
+    const operatorUser = await bootstrapSession.api.post<UserView>(
+      'app/user/create',
+      {
+        username: operatorUsername,
+        displayName: `E2E 操作员 ${suffix}`,
+        password: operatorPassword,
+        roleIds: [operatorRole.id],
+      },
+    )
     const operatorSession = await signIn(
       options.baseURL,
       operatorUsername,
@@ -375,12 +542,15 @@ export async function createWflWorkerState(options: {
       },
     )
     const reviewerUsername = `e2e-wfl-${suffix}`.toLowerCase()
-    await bootstrapSession.api.post('app/user/create', {
-      username: reviewerUsername,
-      displayName: `E2E WFL 复核 ${suffix}`,
-      password: reviewerPassword,
-      roleIds: [reviewerRole.id],
-    })
+    const reviewerUser = await bootstrapSession.api.post<UserView>(
+      'app/user/create',
+      {
+        username: reviewerUsername,
+        displayName: `E2E WFL 复核 ${suffix}`,
+        password: reviewerPassword,
+        roleIds: [reviewerRole.id],
+      },
+    )
     const reviewerSession = await signIn(
       options.baseURL,
       reviewerUsername,
@@ -484,7 +654,18 @@ export async function createWflWorkerState(options: {
     )
 
     await withLedgerProvisioningLock(async () => {
-      await ensureLedgerReady(operatorSession.api)
+      const vouEntities = enabledPermissions
+        .map(
+          (permission) =>
+            /^\/vou\/([^/]+)\/approve$/.exec(permission.path)?.[1],
+        )
+        .filter((entity): entity is string => Boolean(entity))
+      await ensureAccountingControlBook(
+        bootstrapSession.api,
+        [operatorUser.id, reviewerUser.id],
+        [operatorUser.id, reviewerUser.id],
+        vouEntities,
+      )
       await seedInventoryThroughLifecycle(
         operatorSession.api,
         supplier,

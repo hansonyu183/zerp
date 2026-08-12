@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, reactive, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { apiClient, type ApiPostPath } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { getErrorMessage, type PageResult } from '@/api/types'
 import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -110,7 +110,8 @@ type VouRevisionRequest = components['schemas']['VouDocumentRevisionRequest']
 type VouReverseRequest = components['schemas']['VouReverseRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
 type BobListPage = components['schemas']['BobListPage']
-type LedBillQueryRequest = components['schemas']['LedBillQueryRequest']
+type AvailableBillQueryRequest = components['schemas']['VouAvailableBillQueryRequest']
+type AvailableBillItem = components['schemas']['VouAvailableBillItem']
 type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
 type BillIssueData = ReturnType<typeof buildBillIssuePayload>
 type BillDiscountData = ReturnType<typeof buildBillDiscountPayload>
@@ -209,7 +210,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const requiresHeldBillAccess = ['payment', 'discount', 'maturity'].includes(
     config.mode,
   )
-  const canSelectHeldBills = computed(() => session.can('/led/bill/query'))
+  const canSelectHeldBills = canQuery
   const hasRequiredHeldBillAccess = computed(
     () => !requiresHeldBillAccess || canSelectHeldBills.value,
   )
@@ -702,21 +703,20 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     heldController?.abort()
     const requestController = new AbortController()
     heldController = requestController
-    const request: LedBillQueryRequest = {
+    const request: AvailableBillQueryRequest = {
       page: 1,
       pageSize: 20,
-      filters: {
-        availability: config.mode === 'maturity' ? 'HELD' : 'AVAILABLE',
-        positionType:
-          config.mode === 'maturity' && form.maturityType === 'PAYMENT'
-            ? 'LIABILITY'
-            : 'ASSET',
-        ...(value ? { billNo: value } : {}),
-      },
-      sort: [{ field: 'maturityDate', order: 'asc' }],
+      positionType:
+        config.mode === 'maturity' && form.maturityType === 'PAYMENT'
+          ? 'LIABILITY'
+          : 'ASSET',
+      ...(value ? { billNo: value } : {}),
     }
     try {
-      const result = await apiClient.postContract('led/bill/query', request, {
+      const result = await apiClient.post<
+        PageResult<AvailableBillItem>,
+        AvailableBillQueryRequest
+      >(`vou/${config.entity}/bill-source` as ApiPostPath, request, {
         signal: requestController.signal,
       })
       if (current !== heldSequence) return

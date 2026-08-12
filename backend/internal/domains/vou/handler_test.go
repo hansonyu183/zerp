@@ -33,9 +33,6 @@ func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) 
 func (*handlerServiceStub) PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error) {
 	return PriceReferenceView{}, nil
 }
-func (*handlerServiceStub) AssetDepreciationPreview(context.Context, AssetDepreciationPreviewInput) (AssetDepreciationPreviewView, error) {
-	return AssetDepreciationPreviewView{Items: []AssetDepreciationPreviewItem{}}, nil
-}
 func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, string) (MutationResult, error) {
 	return MutationResult{}, nil
 }
@@ -62,6 +59,12 @@ func (*handlerServiceStub) AuditHistory(context.Context, string, HistoryInput) (
 }
 func (*handlerServiceStub) InventoryCountBookBalance(context.Context, InventoryCountBalanceInput) (Page[InventoryCountBalanceItem], error) {
 	return Page[InventoryCountBalanceItem]{Items: []InventoryCountBalanceItem{}}, nil
+}
+func (*handlerServiceStub) AvailableBills(context.Context, AvailableBillQueryInput) (Page[AvailableBillItem], error) {
+	return Page[AvailableBillItem]{Items: []AvailableBillItem{}}, nil
+}
+func (*handlerServiceStub) AvailableAssets(context.Context, AvailableAssetQueryInput) (Page[AvailableAssetItem], error) {
+	return Page[AvailableAssetItem]{Items: []AvailableAssetItem{}}, nil
 }
 func (*handlerServiceStub) InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error) {
 	return AttachmentInitiateResult{}, nil
@@ -119,7 +122,11 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 			if route.action == "book-balance" && entity != EntityInventoryCount {
 				continue
 			}
-			if route.action == "preview" && entity != EntityAssetDepreciation {
+			if route.action == "bill-source" && entity != EntityBillPayment &&
+				entity != EntityBillDiscount && entity != EntityBillMaturity {
+				continue
+			}
+			if route.action == "asset-source" && entity != EntityAssetSale && entity != EntityAssetLiquidation {
 				continue
 			}
 			wanted["/vou/"+entity+"/"+route.action] = http.MethodPost

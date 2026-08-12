@@ -241,12 +241,6 @@ export function validateVoucherDraft(
     if (value.assetLines.length < 1 || value.assetLines.length > 500) {
       return '资产明细不能为空。'
     }
-    if (
-      config.lineKind === 'asset-depreciation' &&
-      !/^\d{4}-(0[1-9]|1[0-2])$/.test(value.depreciationMonth)
-    ) {
-      return '请选择有效的折旧月份。'
-    }
     const seen = new Set<string>()
     for (const [index, line] of value.assetLines.entries()) {
       if (config.lineKind === 'asset-acquisition') {

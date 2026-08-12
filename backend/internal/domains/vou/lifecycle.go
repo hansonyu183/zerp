@@ -466,6 +466,14 @@ func (s *Service) forwardTransition(
 	); err != nil {
 		return MutationResult{}, err
 	}
+	current, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	if err != nil {
+		return MutationResult{}, s.internal("read approved document", err)
+	}
+	snapshot, err := s.eventSnapshot(ctx, q, current)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
 		Action: event, Entity: entity, DocumentID: document.ID,
 		DocumentNo: document.DocumentNo, Status: to, Revision: revision,
@@ -476,6 +484,7 @@ func (s *Service) forwardTransition(
 	if err = s.events.Publish(ctx, tx, DocumentApprovedEvent{
 		Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
 		Revision: revision, ActorID: actorID, RequestID: requestID,
+		Snapshot: snapshot,
 	}); err != nil {
 		return MutationResult{}, s.eventError("publish document approved", err)
 	}
@@ -483,10 +492,6 @@ func (s *Service) forwardTransition(
 		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
-	}
-	current, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
-	if err != nil {
-		return MutationResult{}, s.internal("read approved document", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit transition", err)
@@ -518,6 +523,13 @@ func (s *Service) reverseTransition(
 		return MutationResult{}, domainError(ErrorConflict, "document status changed", map[string]any{
 			"expectedStatus": from, "actualStatus": document.Status,
 		}, nil)
+	}
+	var unapprovalSnapshot DocumentView
+	if from == StatusApproved && to == StatusChecked {
+		unapprovalSnapshot, err = s.eventSnapshot(ctx, q, document)
+		if err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if from == StatusApproved && to == StatusChecked {
 		if err = s.prepareUnapproval(ctx, tx, document, actorID, requestID); err != nil {
@@ -575,6 +587,7 @@ func (s *Service) reverseTransition(
 		if err = s.events.Publish(ctx, tx, DocumentUnapprovedEvent{
 			Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
 			Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
+			Snapshot: unapprovalSnapshot,
 		}); err != nil {
 			return MutationResult{}, s.eventError("publish document unapproved", err)
 		}

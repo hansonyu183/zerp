@@ -292,14 +292,6 @@ export const voucherEntityConfigs: Readonly<
     partyMode: 'supplier',
     lineKind: 'asset-acquisition',
   },
-  'asset-depreciation': {
-    entity: 'asset-depreciation',
-    title: '资产折旧',
-    icon: 'mdi-chart-timeline-variant-shimmer',
-    order: 121,
-    partyMode: 'none',
-    lineKind: 'asset-depreciation',
-  },
   'asset-sale': {
     entity: 'asset-sale',
     title: '资产出让',

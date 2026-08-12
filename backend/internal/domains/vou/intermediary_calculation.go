@@ -128,28 +128,24 @@ func (s *Service) IntermediarySource(ctx context.Context, input IntermediarySour
 func (s *Service) intermediarySource(
 	ctx context.Context, q *dbsqlc.Queries, periodStart, periodEnd time.Time,
 ) (IntermediarySourceView, error) {
-	control, err := q.GetLedControl(ctx)
+	control, err := q.GetAccountingControlBookForVou(ctx)
 	if err != nil {
-		return IntermediarySourceView{}, s.internal("read ledger control", err)
-	}
-	if control.Status != "ACTIVE" || control.ActiveGenerationID == nil || !control.CutoverDate.Valid {
-		return IntermediarySourceView{}, domainError(ErrorConflict, "ledger must be active before calculation", nil, nil)
+		return IntermediarySourceView{}, domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	rows, err := q.ListIntermediarySignoffSourceRows(ctx, dbsqlc.ListIntermediarySignoffSourceRowsParams{
-		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+		CutoverDate: control.StartMonth, PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source signoffs", err)
 	}
 	returnRows, err := q.ListIntermediarySignoffReturnTimelineRows(ctx, dbsqlc.ListIntermediarySignoffReturnTimelineRowsParams{
-		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+		CutoverDate: control.StartMonth, PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source return timeline", err)
 	}
 	events, err := q.ListIntermediaryCustomerTradeEvents(ctx, dbsqlc.ListIntermediaryCustomerTradeEventsParams{
-		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
-		GenerationID: *control.ActiveGenerationID,
+		CutoverDate: control.StartMonth, PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read customer collection events", err)
@@ -381,13 +377,13 @@ func (s *Service) intermediarySource(
 		}
 	}
 	if err = s.appendIntermediaryReturnAdjustments(
-		ctx, q, control.CutoverDate.Time, periodStart, periodEnd, &source,
+		ctx, q, control.StartMonth.Time, periodStart, periodEnd, &source,
 	); err != nil {
 		return IntermediarySourceView{}, err
 	}
 
 	bills, err := q.ListIntermediaryBillSourceRows(ctx, dbsqlc.ListIntermediaryBillSourceRowsParams{
-		CutoverDate: control.CutoverDate, PeriodEnd: dateValue(periodEnd),
+		CutoverDate: control.StartMonth, PeriodEnd: dateValue(periodEnd),
 	})
 	if err != nil {
 		return IntermediarySourceView{}, s.internal("read intermediary source bills", err)
@@ -590,8 +586,8 @@ func (s *Service) prepareIntermediaryCalculation(
 	if strings.ToUpper(strings.TrimSpace(input.Currency)) != intermediaryCurrency || input.IntermediaryCalculation == nil {
 		return prepared, domainError(ErrorValidation, "intermediary calculation must use CNY and include its calculation draft", nil, nil)
 	}
-	if _, err := q.LockLedControl(ctx); err != nil {
-		return prepared, s.internal("lock ledger control for intermediary calculation", err)
+	if _, err := q.LockAccountingControlBookForVou(ctx); err != nil {
+		return prepared, domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	calculation := input.IntermediaryCalculation
 	currentSource, err := s.intermediarySource(ctx, q, periodStart, date)
@@ -821,8 +817,8 @@ func (s *Service) prepareIntermediaryCalculation(
 func (s *Service) validateStoredIntermediaryCalculation(
 	ctx context.Context, q *dbsqlc.Queries, documentID string,
 ) error {
-	if _, err := q.LockLedControl(ctx); err != nil {
-		return s.internal("lock ledger control for intermediary calculation validation", err)
+	if _, err := q.LockAccountingControlBookForVou(ctx); err != nil {
+		return domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	detail, err := q.GetVouIntermediaryCalculationDetail(ctx, documentID)
 	if err != nil {
@@ -1051,8 +1047,8 @@ func (s *Service) SaveIntermediaryCalculation(
 func (s *Service) requireNoIntermediaryCalculationDependents(
 	ctx context.Context, q *dbsqlc.Queries, documentID string,
 ) error {
-	if _, err := q.LockLedControl(ctx); err != nil {
-		return s.internal("lock ledger control for intermediary calculation mutation", err)
+	if _, err := q.LockAccountingControlBookForVou(ctx); err != nil {
+		return domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	hasDependents, err := q.HasIntermediaryCalculationDependents(ctx, stringPtr(documentID))
 	if err != nil {

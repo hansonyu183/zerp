@@ -51,7 +51,12 @@ func appIntegrationPool(t *testing.T) *pgxpool.Pool {
 func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
-		TRUNCATE vou_intermediary_scripts,
+		TRUNCATE acc_depreciation_entries, acc_period_balances, acc_inventory_cost_allocations,
+			acc_opening_containers, acc_opening_bills, acc_opening_assets,
+			acc_container_entries, acc_bill_book_values, acc_bills, acc_asset_book_values, acc_assets, acc_register_events,
+			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, acc_mapping_versions,
+			acc_subject_usages, acc_subject_dimensions, acc_subjects,
+			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
 			app_business_menu_items, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users;

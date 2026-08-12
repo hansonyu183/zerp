@@ -374,7 +374,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
               <v-expansion-panel-text>
                 <div class="voucher-form__grid">
                   <v-text-field
-                    v-if="vm.config.entity !== 'asset-depreciation'"
                     v-model="vm.form.businessDate"
                     :disabled="!vm.editing"
                     :label="businessDateLabel"
@@ -710,7 +709,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
           <VoucherAssetLinesEditor
             v-if="vm.config.lineKind.startsWith('asset-')"
             v-model="vm.form.assetLines"
-            v-model:depreciation-month="vm.form.depreciationMonth"
             :editable="vm.editing"
             :kind="assetLineKind"
           />

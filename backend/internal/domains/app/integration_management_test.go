@@ -45,7 +45,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "independent-close", Name: "独立结账权限",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/led/closing/close"),
+		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/acc/period/lock"),
 	}, admin.ID, "allow-led-role-without-get"); err != nil {
 		t.Fatalf("independent close permission error = %v", err)
 	}
@@ -54,7 +54,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		Code: "user-reader", Name: "用户查看",
 		PermissionIDs: permissionIDsByPath(
 			t, pool, signoutPath, "/app/user/query", "/app/user/get",
-			"/led/closing/get", "/led/closing/close",
+			"/acc/book/get", "/acc/period/lock",
 		),
 	}, admin.ID, "create-role")
 	if err != nil {
@@ -62,17 +62,19 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	expectedPermissionIDs := permissionIDsByPath(
 		t, pool, "/app/user/get", "/app/user/query", signoutPath,
-		"/led/closing/close", "/led/closing/get",
+		"/acc/book/get", "/acc/period/lock",
 	)
 	gotRole, err := service.GetRole(t.Context(), role.ID)
+	slices.Sort(expectedPermissionIDs)
+	slices.Sort(gotRole.PermissionIDs)
 	if err != nil || !slices.Equal(gotRole.PermissionIDs, expectedPermissionIDs) {
 		t.Fatalf("role permissions = %v, want %v, err=%v", gotRole.PermissionIDs, expectedPermissionIDs, err)
 	}
 	role, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: role.ID, Name: "用户与账簿查看", PermissionIDs: expectedPermissionIDs, Revision: gotRole.Revision,
-	}, admin.ID, "save-role-with-led-permission")
+	}, admin.ID, "save-role-with-acc-permission")
 	if err != nil {
-		t.Fatalf("save role with LED permission: %v", err)
+		t.Fatalf("save role with ACC permission: %v", err)
 	}
 	user, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "managed", DisplayName: "初始名称", Password: integrationUserPassword, RoleIDs: []string{role.ID},
@@ -211,10 +213,10 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	if !slices.Equal(actual, expectedProtected) {
 		t.Fatalf("APP permission catalog = %v, want %v", actual, expectedProtected)
 	}
-	ledPermissionID := permissionIDsByPath(t, pool, "/led/closing/get")[0]
-	ledPermission, err := service.GetPermission(t.Context(), ledPermissionID)
-	if err != nil || ledPermission.ID != ledPermissionID || ledPermission.Path != "/led/closing/get" {
-		t.Fatalf("get LED permission = %+v, err=%v", ledPermission, err)
+	accPermissionID := permissionIDsByPath(t, pool, "/acc/book/get")[0]
+	accPermission, err := service.GetPermission(t.Context(), accPermissionID)
+	if err != nil || accPermission.ID != accPermissionID || accPermission.Path != "/acc/book/get" {
+		t.Fatalf("get ACC permission = %+v, err=%v", accPermission, err)
 	}
 }
 

@@ -50,31 +50,27 @@ func (s *Service) reserveOrderSettlementAmount(
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
 		return s.internal("lock settlement balance", err)
 	}
-	var activeGenerationID string
-	if err = tx.QueryRow(ctx, `SELECT active_generation_id
-		FROM led_control
-		WHERE singleton=true AND status='ACTIVE' AND active_generation_id IS NOT NULL
-		FOR SHARE`).Scan(&activeGenerationID); err == pgx.ErrNoRows {
-		return domainError(ErrorConflict, "settlement ledger is not active", nil, nil)
-	} else if err != nil {
-		return s.internal("read settlement ledger state", err)
+	if s.accounting == nil {
+		return domainError(ErrorConflict, "accounting control is not configured", nil, nil)
 	}
-	var balance int64
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(entry.amount_delta_cents),0)::bigint
-		FROM led_party_entries entry
-		WHERE entry.generation_id=$1
-		  AND entry.account_type='TRADE'
-		  AND entry.counterparty_entity=$2 AND entry.counterparty_object_id=$3
-		  AND entry.currency=$4 AND entry.effective_date<=$5::date`,
-		activeGenerationID, gate.CounterpartyEntity, gate.CounterpartyObjectID, gate.Currency,
-		businessdate.Today()).Scan(&balance); err != nil {
-		return s.internal("read settlement balance", err)
+	dimension := "CUSTOMER"
+	prepaidPurpose, tradePurpose := "ADVANCE_RECEIPT", "RECEIVABLE"
+	if gate.CounterpartyEntity == "supplier" {
+		dimension, prepaidPurpose, tradePurpose = "SUPPLIER", "PREPAID", "PAYABLE"
+	}
+	purpose := tradePurpose
+	if gate.TermCode == bobSettlementPrepaid {
+		purpose = prepaidPurpose
+	}
+	balance, err := s.accounting.PartyBalance(ctx, tx, PartyBalanceQuery{
+		CounterpartyDimension: dimension, CounterpartyObjectID: gate.CounterpartyObjectID,
+		Currency: gate.Currency, SettlementPurpose: purpose, AsOfDate: businessdate.Today(),
+	})
+	if err != nil {
+		return domainError(ErrorConflict, "accounting settlement balance is unavailable", nil, err)
 	}
 	if gate.TermCode == bobSettlementPrepaid {
 		available := balance
-		if gate.CounterpartyEntity == "customer" {
-			available = -balance
-		}
 		if available < 0 {
 			available = 0
 		}
@@ -96,16 +92,14 @@ func (s *Service) reserveOrderSettlementAmount(
 			}, nil)
 		}
 	} else {
-		ownTradeBalance, tradeBalanceErr := loadOrderTradeBalance(
-			ctx, tx, activeGenerationID, gate, businessdate.Today(),
+		ownTradeBalance, tradeBalanceErr := s.loadOrderTradeBalance(
+			ctx, tx, gate, dimension, tradePurpose, businessdate.Today(),
 		)
 		if tradeBalanceErr != nil {
-			return s.internal("read order trade balance", tradeBalanceErr)
+			return domainError(ErrorConflict, "accounting order balance is unavailable", nil, tradeBalanceErr)
 		}
 		externalBalance := balance - ownTradeBalance
-		outstandingDebt := (gate.CounterpartyEntity == "customer" && externalBalance > 0) ||
-			(gate.CounterpartyEntity == "supplier" && externalBalance < 0)
-		if outstandingDebt {
+		if externalBalance > 0 {
 			return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
 				"currency":           gate.Currency,
 				"orderAmount":        formatMoney(reservedAmount),
@@ -146,11 +140,12 @@ func (s *Service) reserveOrderSettlementAmount(
 	return nil
 }
 
-func loadOrderTradeBalance(
+func (s *Service) loadOrderTradeBalance(
 	ctx context.Context,
 	tx pgx.Tx,
-	generationID string,
 	gate orderSettlementGate,
+	dimension string,
+	purpose string,
 	effectiveDate time.Time,
 ) (int64, error) {
 	var seedQuery string
@@ -171,17 +166,16 @@ func loadOrderTradeBalance(
 		FROM vou_documents child
 		JOIN order_documents parent ON child.parent_document_id=parent.document_id
 	)
-	SELECT COALESCE(sum(entry.amount_delta_cents),0)::bigint
-	FROM led_party_entries entry
-	WHERE entry.generation_id=$2
-	  AND entry.account_type='TRADE'
-	  AND entry.counterparty_entity=$3 AND entry.counterparty_object_id=$4
-	  AND entry.currency=$5 AND entry.effective_date<=$6::date
-	  AND entry.source_document_id IN (SELECT document_id FROM order_documents)`
-	var balance int64
-	err := tx.QueryRow(ctx, query, gate.OrderID, generationID, gate.CounterpartyEntity,
-		gate.CounterpartyObjectID, gate.Currency, effectiveDate).Scan(&balance)
-	return balance, err
+	SELECT COALESCE(array_agg(document_id),ARRAY[]::varchar[]) FROM order_documents`
+	var sourceDocumentIDs []string
+	if err := tx.QueryRow(ctx, query, gate.OrderID).Scan(&sourceDocumentIDs); err != nil {
+		return 0, err
+	}
+	return s.accounting.PartyBalance(ctx, tx, PartyBalanceQuery{
+		CounterpartyDimension: dimension, CounterpartyObjectID: gate.CounterpartyObjectID,
+		Currency: gate.Currency, SettlementPurpose: purpose, AsOfDate: effectiveDate,
+		SourceDocumentIDs: sourceDocumentIDs,
+	})
 }
 
 func (s *Service) restoreOrderSettlement(

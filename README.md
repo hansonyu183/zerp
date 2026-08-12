@@ -113,7 +113,7 @@ make generate
 https://zerp-preview.bytesucceed.com
 ```
 
-首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并按 AUX、BOB、VOU/WFL、LED 顺序补齐全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
+首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并按 AUX、BOB、VOU/WFL、ACC 顺序补齐全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
 
 临时检查可用 `make preview-up` 构建当前工作区。需要固定预览的 Ready PR，必须从 `HEAD == origin/main` 的受信任控制 checkout 使用准确 head SHA 执行 `make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>`，禁止在 PR worktree 运行预览控制命令；随后运行 `make preview-status` 和 `make preview-accept PREVIEW_PR=<number>`，验收人取当前 `gh` 登录身份。合并后的 `main` 由生产代理自动发布。完整生命周期、状态晋升、回退和验收方法见固定预览运维说明。
 
@@ -124,7 +124,8 @@ https://zerp-preview.bytesucceed.com
 - [AUX：辅助对象](docs/domains/aux.md)
 - [VOU：业务单据](docs/domains/vou.md)
 - [WFL：业务流程](docs/domains/wfl.md)
-- [LED：业务账簿](docs/domains/led.md)
+- [ACC：内部会计](docs/domains/acc.md)
+- [ACC：内部会计](docs/domains/acc.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)
 - [开发、PR 与自动上线规范](docs/operations/development-release.md)

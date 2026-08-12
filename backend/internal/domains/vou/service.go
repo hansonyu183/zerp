@@ -30,16 +30,39 @@ type eventPublisher interface {
 	Publish(context.Context, pgx.Tx, txevent.Event) error
 }
 
+// AccountingControl is the narrow business-control view exposed by ACC to VOU.
+// Balances are read inside the caller transaction so approval and accounting
+// facts share one atomic decision boundary.
+type AccountingControl interface {
+	PartyBalance(context.Context, pgx.Tx, PartyBalanceQuery) (int64, error)
+}
+
+type PartyBalanceQuery struct {
+	CounterpartyDimension string
+	CounterpartyObjectID  string
+	Currency              string
+	SettlementPurpose     string
+	AsOfDate              time.Time
+	SourceDocumentIDs     []string
+}
+
 type Service struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
 	resolver    effectiveReferenceResolver
 	auxResolver auxiliaryReferenceResolver
 	events      eventPublisher
+	accounting  AccountingControl
 	storage     *localStorage
 	uploadTTL   time.Duration
 	downloadTTL time.Duration
 	logger      *slog.Logger
+}
+
+type ServiceOption func(*Service)
+
+func WithAccountingControl(control AccountingControl) ServiceOption {
+	return func(service *Service) { service.accounting = control }
 }
 
 type AttachmentOptions struct {
@@ -61,6 +84,7 @@ func NewService(
 	events eventPublisher,
 	options AttachmentOptions,
 	logger *slog.Logger,
+	serviceOptions ...ServiceOption,
 ) (*Service, error) {
 	if pool == nil || resolver == nil || auxResolver == nil || events == nil {
 		return nil, errors.New("VOU pool, BOB/AUX resolvers, and event publisher are required")
@@ -78,10 +102,16 @@ func NewService(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{
+	service := &Service{
 		pool: pool, queries: dbsqlc.New(pool), resolver: resolver, auxResolver: auxResolver, events: events, storage: storage,
 		uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL, logger: logger,
-	}, nil
+	}
+	for _, option := range serviceOptions {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service, nil
 }
 
 func insertAudit(ctx context.Context, q *dbsqlc.Queries, input auditInput) error {
@@ -135,8 +165,8 @@ func entityPrefix(entity string) string {
 		EntityEmployeeLoan: "ELN", EntityEmployeeRepayment: "ERP", EntityEmployeeLoanWriteoff: "ELW",
 		EntityExpenseReimbursement: "EXR",
 		EntityExpensePayment:       "EXP", EntityOtherIncome: "OIN",
-		EntityAssetAcquisition: "ACQ", EntityAssetDepreciation: "DEP",
-		EntityAssetSale: "DSL", EntityAssetLiquidation: "LIQ",
+		EntityAssetAcquisition: "ACQ",
+		EntityAssetSale:        "DSL", EntityAssetLiquidation: "LIQ",
 		EntityBillReceipt: "BRE", EntityBillPayment: "BLP", EntityBillIssue: "BLI",
 		EntityBillDiscount:            "BLD",
 		EntityBillMaturity:            "BLM",

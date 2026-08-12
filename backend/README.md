@@ -127,7 +127,7 @@ unset APP_BOOTSTRAP_PASSWORD
 ```
 
 该命令在已有用户时拒绝执行。`make seed-bob` 只允许在 `development` 或 `test` 环境运行。
-`make seed-preview` 允许在 `development` 或隔离的 `test` 环境运行，按 AUX、BOB、VOU/WFL、LED
+`make seed-preview` 允许在 `development` 或隔离的 `test` 环境运行，按 AUX、BOB、VOU/WFL、ACC
 顺序补齐预览数据；重复执行只恢复 seed 自身中断的步骤，不覆盖测试人员已经修改或推进的样本。
 
 ## 隔离 E2E 后端
@@ -207,7 +207,7 @@ backend/
 - [AUX：辅助对象](../docs/domains/aux.md)
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
-- [LED：业务账簿](../docs/domains/led.md)
+- [ACC：内部会计](../docs/domains/acc.md)
 
 同源 Web 与 Cloudflare Pages 两种部署共享相同 API。Origin、Cookie 和前端基址配置见[前端 API 配置手册](../docs/operations/frontend-api-configuration.md)。
 

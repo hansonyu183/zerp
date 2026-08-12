@@ -4,6 +4,414 @@
  */
 
 export interface paths {
+    "/acc/book/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计账簿 */
+        post: operations["accBookQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取会计账簿 */
+        post: operations["accBookGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建会计账簿 */
+        post: operations["accBookCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存会计账簿 */
+        post: operations["accBookSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/book/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除会计账簿 */
+        post: operations["accBookDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计科目 */
+        post: operations["accSubjectQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取会计科目 */
+        post: operations["accSubjectGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建会计科目 */
+        post: operations["accSubjectCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存会计科目 */
+        post: operations["accSubjectSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除会计科目 */
+        post: operations["accSubjectDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取账簿期初 */
+        post: operations["accOpeningQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存账簿期初 */
+        post: operations["accOpeningSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准账簿期初 */
+        post: operations["accOpeningApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准账簿期初 */
+        post: operations["accOpeningUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询 VOU 会计映射版本 */
+        post: operations["accMappingQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取 VOU 会计映射版本 */
+        post: operations["accMappingGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建 VOU 会计映射草稿版本 */
+        post: operations["accMappingCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存 VOU 会计映射草稿 */
+        post: operations["accMappingSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准 VOU 会计映射版本 */
+        post: operations["accMappingApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准未引用的 VOU 会计映射版本 */
+        post: operations["accMappingUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取稳定 VOU 映射字段目录 */
+        post: operations["accMappingCatalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/period/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计期间 */
+        post: operations["accPeriodQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/period/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 锁定会计期间 */
+        post: operations["accPeriodLock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/period/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解锁会计期间 */
+        post: operations["accPeriodUnlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -1041,6 +1449,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vou/{entity}/bill-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 选择 ACC 登记的可用票据 */
+        post: operations["vouAvailableBillQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vou/{entity}/asset-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 选择 ACC 登记的在用资产 */
+        post: operations["vouAvailableAssetQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vou/{entity}/formula-default": {
         parameters: {
             query?: never;
@@ -1086,23 +1528,6 @@ export interface paths {
         put?: never;
         /** 创建业务单据 */
         post: operations["voucreate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/vou/{entity}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 预览固定资产折旧 */
-        post: operations["vouassetdepreciationpreview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1534,329 +1959,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/led/closing/get": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 读取最近结账与期初余额 */
-        post: operations["ledclosingget"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/closing/close": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 执行月末结账 */
-        post: operations["ledclosingclose"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/closing/unclose": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 反结最近一期 */
-        post: operations["ledclosingunclose"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/closing/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询月末结账历史 */
-        post: operations["ledclosinghistory"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/inventory/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询库存流水 */
-        post: operations["ledinventoryquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/bill/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询票据台账 */
-        post: operations["ledbillquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/inventory/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询库存余额 */
-        post: operations["ledinventorybalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/fund/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询资金流水 */
-        post: operations["ledfundquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/fund/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询资金余额 */
-        post: operations["ledfundbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/customer/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询客户往来流水 */
-        post: operations["ledcustomerquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/customer/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询客户往来余额 */
-        post: operations["ledcustomerbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/supplier/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询供应商往来流水 */
-        post: operations["ledsupplierquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/supplier/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询供应商往来余额 */
-        post: operations["ledsupplierbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/other/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询其他往来流水 */
-        post: operations["ledotherquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/other/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询其他往来余额 */
-        post: operations["ledotherbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/container/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询容器流水 */
-        post: operations["ledcontainerquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/container/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询容器余额 */
-        post: operations["ledcontainerbalance"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/asset/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查询固定资产台账 */
-        post: operations["ledassetquery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/led/asset/get": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 查看固定资产台账 */
-        post: operations["ledassetget"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/files/feedback/attachments/upload/{token}": {
         parameters: {
             query?: never;
@@ -1946,9 +2048,74 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        SignInRequest: {
-            username: string;
-            password: string;
+        BookQueryRequest: {
+            page: number;
+            pageSize: number;
+            keyword?: string;
+        };
+        /** @enum {string} */
+        SubjectTemplate: "ENTERPRISE" | "SMALL_BUSINESS" | "EMPTY";
+        Book: {
+            bookId: string;
+            code: string;
+            name: string;
+            description: string;
+            startMonth: string;
+            baseCurrency: string;
+            subjectTemplate: components["schemas"]["SubjectTemplate"];
+            controlBook: boolean;
+            /** Format: int64 */
+            revision: number;
+            queryUserIds: string[];
+            operateUserIds: string[];
+        };
+        BookPage: {
+            items: components["schemas"]["Book"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BookPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["BookPage"] | null;
+            requestId: string;
+        };
+        BookGetRequest: {
+            bookId: string;
+        };
+        BookEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Book"] | null;
+            requestId: string;
+        };
+        BookCreateRequest: {
+            name: string;
+            description?: string;
+            startMonth: string;
+            baseCurrency: string;
+            subjectTemplate: components["schemas"]["SubjectTemplate"];
+            queryUserIds?: string[];
+            operateUserIds?: string[];
+        };
+        BookSaveRequest: {
+            bookId: string;
+            name: string;
+            description?: string;
+            baseCurrency: string;
+            /** Format: int64 */
+            revision: number;
+            queryUserIds?: string[];
+            operateUserIds?: string[];
+        };
+        BookDeleteRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
         };
         BusinessEnvelope: {
             /** Format: int32 */
@@ -1959,6 +2126,412 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             requestId: string;
+        };
+        SubjectQueryRequest: {
+            bookId: string;
+            page: number;
+            pageSize: number;
+            keyword?: string;
+        };
+        /** @enum {string} */
+        BalanceDirection: "DEBIT" | "CREDIT";
+        /** @enum {string} */
+        SubjectDimension: "CUSTOMER" | "SUPPLIER" | "OTHER_PARTY" | "EMPLOYEE" | "DEPARTMENT" | "PRODUCT" | "WAREHOUSE" | "FUND_ACCOUNT" | "ASSET" | "BILL";
+        /** @enum {string} */
+        SettlementPurpose: "NONE" | "RECEIVABLE" | "PREPAID" | "PAYABLE" | "ADVANCE_RECEIPT" | "OTHER";
+        Subject: {
+            subjectId: string;
+            bookId: string;
+            code: string;
+            name: string;
+            parentSubjectId: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            leaf: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+            referenced: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        SubjectPage: {
+            items: components["schemas"]["Subject"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SubjectPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SubjectPage"] | null;
+            requestId: string;
+        };
+        SubjectGetRequest: {
+            bookId: string;
+            subjectId: string;
+        };
+        SubjectEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Subject"] | null;
+            requestId: string;
+        };
+        SubjectCreateRequest: {
+            bookId: string;
+            code: string;
+            name: string;
+            parentSubjectId?: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+        };
+        SubjectSaveRequest: {
+            bookId: string;
+            subjectId: string;
+            code: string;
+            name: string;
+            parentSubjectId?: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+            /** Format: int64 */
+            revision: number;
+        };
+        SubjectDeleteRequest: {
+            bookId: string;
+            subjectId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        OpeningQueryRequest: {
+            bookId: string;
+        };
+        /** @enum {string} */
+        OpeningState: "DRAFT" | "APPROVED";
+        OpeningLine: {
+            lineId: string;
+            subjectId: string;
+            currency: string;
+            debitAmount: string;
+            creditAmount: string;
+            quantity: string | null;
+            dimensions: {
+                [key: string]: string;
+            };
+        };
+        OpeningAsset: {
+            assetId: string;
+            assetNo?: string;
+            name?: string;
+            categoryId?: string;
+            departmentId?: string;
+            usefulLifeMonths?: number;
+            residualRate?: string;
+            acquiredOn?: string;
+            currency: string;
+            originalValue: string;
+            accumulatedDepreciation: string;
+            createObject: boolean;
+        };
+        OpeningPartyInput: {
+            entity: string;
+            objectId: string;
+            versionId: string;
+            code: string;
+            name: string;
+        };
+        OpeningBill: {
+            billId: string;
+            billNo?: string;
+            billType?: string;
+            positionType?: string;
+            medium?: string;
+            currency: string;
+            faceAmount?: string;
+            issueDate?: string;
+            maturityDate?: string;
+            drawer?: string;
+            acceptor?: string;
+            payee?: string;
+            annualRateBps?: number;
+            interestDays?: number;
+            interestAmount?: string;
+            customerCostAmount?: string;
+            valueAmount: string;
+            originatingParty?: components["schemas"]["OpeningPartyInput"];
+            createObject: boolean;
+        };
+        OpeningContainerInput: {
+            customerId: string;
+            /** @enum {string} */
+            containerType: "SOLVENT" | "RESIN";
+            quantity: number;
+        };
+        Opening: {
+            bookId: string;
+            state: components["schemas"]["OpeningState"];
+            voucherId: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            approvedAt: string | null;
+            approvedBy: string | null;
+            lines: components["schemas"]["OpeningLine"][];
+            assets: components["schemas"]["OpeningAsset"][];
+            bills: components["schemas"]["OpeningBill"][];
+            containers: components["schemas"]["OpeningContainerInput"][];
+        };
+        OpeningEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Opening"] | null;
+            requestId: string;
+        };
+        OpeningLineInput: {
+            subjectId: string;
+            currency: string;
+            debitAmount: string;
+            creditAmount: string;
+            quantity?: string;
+            dimensions: {
+                [key: string]: string;
+            };
+        };
+        OpeningAssetInput: {
+            assetId?: string;
+            assetNo?: string;
+            name?: string;
+            categoryId?: string;
+            departmentId?: string;
+            usefulLifeMonths?: number;
+            residualRate?: string;
+            /** Format: date */
+            acquiredOn?: string;
+            currency: string;
+            originalValue: string;
+            accumulatedDepreciation: string;
+        };
+        OpeningBillInput: {
+            billId?: string;
+            billNo?: string;
+            billType?: string;
+            positionType?: string;
+            medium?: string;
+            currency: string;
+            faceAmount?: string;
+            /** Format: date */
+            issueDate?: string;
+            /** Format: date */
+            maturityDate?: string;
+            drawer?: string;
+            acceptor?: string;
+            payee?: string;
+            annualRateBps?: number;
+            interestDays?: number;
+            interestAmount?: string;
+            customerCostAmount?: string;
+            valueAmount: string;
+            originatingParty?: components["schemas"]["OpeningPartyInput"];
+        };
+        OpeningSaveRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
+            lines: components["schemas"]["OpeningLineInput"][];
+            assets: components["schemas"]["OpeningAssetInput"][];
+            bills: components["schemas"]["OpeningBillInput"][];
+            containers: components["schemas"]["OpeningContainerInput"][];
+        };
+        OpeningActionRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        MappingQueryRequest: {
+            bookId: string;
+            vouEntity?: string;
+            page: number;
+            pageSize: number;
+        };
+        /** @enum {string} */
+        MappingState: "DRAFT" | "APPROVED";
+        /** @enum {string} */
+        MappingResult: "POST" | "UN_POST";
+        /** @enum {string} */
+        MappingConditionOperator: "EQ" | "NE" | "IN" | "NOT_IN" | "IS_EMPTY" | "IS_NOT_EMPTY";
+        MappingCondition: {
+            field: string;
+            operator: components["schemas"]["MappingConditionOperator"];
+            values: string[];
+        };
+        MappingRule: {
+            conditions: components["schemas"]["MappingCondition"][];
+            result: components["schemas"]["MappingResult"];
+            templateId: string | null;
+        };
+        PostingLineTemplate: {
+            /** @enum {string} */
+            subjectSource: "FIXED" | "FIELD";
+            subjectValue: string;
+            direction: components["schemas"]["BalanceDirection"];
+            amountField: string;
+            currencyField: string;
+            dimensions: {
+                [key: string]: string;
+            };
+            quantityField: string | null;
+            costCounterpartSubjectId: string | null;
+            costCounterpartDimensions: {
+                [key: string]: string;
+            };
+        };
+        PostingTemplate: {
+            templateId: string;
+            collection: string | null;
+            lines: components["schemas"]["PostingLineTemplate"][];
+        };
+        AssetAccountingConfiguration: {
+            assetSubjectId: string;
+            assetDimensions: {
+                [key: string]: string;
+            };
+            accumulatedDepreciationSubjectId: string;
+            accumulatedDepreciationDimensions: {
+                [key: string]: string;
+            };
+            depreciationExpenseSubjectId: string;
+            depreciationExpenseDimensions: {
+                [key: string]: string;
+            };
+        };
+        MappingDefinition: {
+            defaultTemplateId: string | null;
+            rules: components["schemas"]["MappingRule"][];
+            templates: components["schemas"]["PostingTemplate"][];
+            assetConfiguration?: components["schemas"]["AssetAccountingConfiguration"] | null;
+        };
+        Mapping: {
+            mappingId: string;
+            bookId: string;
+            vouEntity: string;
+            version: number;
+            state: components["schemas"]["MappingState"];
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            approvedAt: string | null;
+            approvedBy: string | null;
+        };
+        MappingPage: {
+            items: components["schemas"]["Mapping"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        MappingPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MappingPage"] | null;
+            requestId: string;
+        };
+        MappingGetRequest: {
+            bookId: string;
+            mappingId: string;
+        };
+        MappingEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Mapping"] | null;
+            requestId: string;
+        };
+        MappingCreateRequest: {
+            bookId: string;
+            vouEntity: string;
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+        };
+        MappingSaveRequest: {
+            bookId: string;
+            mappingId: string;
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+            /** Format: int64 */
+            revision: number;
+        };
+        MappingActionRequest: {
+            bookId: string;
+            mappingId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        MappingCatalogRequest: {
+            vouEntity: string;
+        };
+        MappingCatalog: {
+            vouEntity: string;
+            headerFields: string[];
+            collections: {
+                [key: string]: string[];
+            };
+        };
+        MappingCatalogEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MappingCatalog"] | null;
+            requestId: string;
+        };
+        PeriodQueryRequest: {
+            bookId: string;
+        };
+        Period: {
+            bookId: string;
+            month: string;
+            /** @enum {string} */
+            state: "UNLOCKED" | "LOCKED";
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            lockedAt?: string;
+            lockedBy?: string;
+        };
+        PeriodListEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Period"][] | null;
+            requestId: string;
+        };
+        PeriodActionRequest: {
+            bookId: string;
+            month: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        PeriodEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Period"] | null;
+            requestId: string;
+        };
+        SignInRequest: {
+            username: string;
+            password: string;
         };
         EmptyObject: Record<string, never>;
         /** @enum {string} */
@@ -1998,7 +2571,7 @@ export interface components {
             name: string;
         };
         /** @enum {string} */
-        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouEntity: "sale-pricing" | "sale-order" | "sale-outbound" | "sale-delivery" | "sale-signoff" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "expense-payment" | "other-income" | "asset-acquisition" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         WorkbenchDocumentItem: {
             /** @enum {string} */
             category: "VOU";
@@ -2694,6 +3267,81 @@ export interface components {
             /** Format: date */
             asOfDate: string;
         };
+        VouAvailableBillQueryRequest: {
+            page: number;
+            pageSize: number;
+            /** @enum {string} */
+            positionType: "ASSET" | "LIABILITY";
+            billNo?: string;
+        };
+        VouBillReferenceView: {
+            objectId: string;
+            versionId: string;
+            entity?: string;
+            code: string;
+            name: string;
+            currency?: string;
+        };
+        VouAvailableBillItem: {
+            billId: string;
+            /** @enum {string} */
+            positionType: "ASSET" | "LIABILITY";
+            /** @enum {string} */
+            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
+            billNo: string;
+            /** @enum {string} */
+            medium: "PAPER" | "ELECTRONIC";
+            currency: string;
+            faceAmount: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            maturityDate: string;
+            drawer: string;
+            acceptor: string;
+            payee: string;
+            annualRateBps: number;
+            interestDays: number;
+            interestAmount: string;
+            customerCostAmount: string;
+            originatingParty: components["schemas"]["VouBillReferenceView"];
+            sourceEntity: string;
+            sourceDocumentNo: string;
+        };
+        VouAvailableBillQueryResponse: {
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["VouAvailableBillItem"][];
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
+        };
+        VouAvailableAssetQueryRequest: {
+            page: number;
+            pageSize: number;
+        };
+        VouAvailableAssetItem: {
+            assetId: string;
+            assetNo: string;
+            assetName: string;
+            originalValue: string;
+            accumulatedDepreciation: string;
+            netValue: string;
+        };
+        VouAvailableAssetQueryResponse: {
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["VouAvailableAssetItem"][];
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
+        };
         VouFormulaDefaultRequest: {
             customer?: {
                 objectId: string;
@@ -2734,7 +3382,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-depreciation" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
+        VouCreatableEntity: "sale-pricing" | "sale-order" | "sale-return" | "purchase-order" | "purchase-inbound" | "purchase-return" | "purchase-inquiry" | "order-production" | "self-production" | "inventory-count" | "sales-receipt" | "purchase-refund" | "other-receipt" | "sales-refund" | "purchase-payment" | "other-payment" | "employee-loan" | "employee-repayment" | "employee-loan-writeoff" | "expense-reimbursement" | "other-income" | "asset-acquisition" | "asset-sale" | "asset-liquidation" | "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity" | "intermediary-calculation";
         VouIntermediaryResultLine: {
             sourceSignoffLineId: string;
             premiumUnitPrice: string;
@@ -2801,10 +3449,6 @@ export interface components {
             department: components["schemas"]["VouAssetReferenceInput"];
             custodian?: components["schemas"]["VouAssetReferenceInput"];
             location?: string;
-            remark?: string;
-        };
-        VouAssetDepreciationLineInput: {
-            assetId: string;
             remark?: string;
         };
         VouAssetSaleLineInput: {
@@ -2992,9 +3636,7 @@ export interface components {
                     versionId: string;
                 };
                 productionLines?: components["schemas"]["VouProductionOutputInput"][];
-                depreciationMonth?: string;
                 assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
-                assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
                 assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
                 assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
                 platform?: {
@@ -3063,11 +3705,6 @@ export interface components {
                 }[];
             };
         };
-        VouAssetDepreciationPreviewRequest: {
-            depreciationMonth: string;
-            categoryObjectId?: string;
-            departmentObjectId?: string;
-        };
         VouSaveRequest: {
             documentId: string;
             /** Format: int64 */
@@ -3124,9 +3761,7 @@ export interface components {
                     versionId: string;
                 };
                 productionLines?: components["schemas"]["VouProductionOutputInput"][];
-                depreciationMonth?: string;
                 assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
-                assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
                 assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
                 assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
                 platform?: {
@@ -3345,9 +3980,7 @@ export interface components {
                 versionId: string;
             };
             productionLines?: components["schemas"]["VouProductionOutputInput"][];
-            depreciationMonth?: string;
             assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
-            assetDepreciationLines?: components["schemas"]["VouAssetDepreciationLineInput"][];
             assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
             assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
             platform?: {
@@ -3475,174 +4108,6 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        LedClosingRequest: {
-            /** Format: int64 */
-            revision: number;
-            /** Format: date */
-            closingDate: string;
-        };
-        LedUncloseRequest: {
-            /** Format: int64 */
-            revision: number;
-            reason: string;
-        };
-        LedHistoryRequest: {
-            page: number;
-            pageSize: number;
-        };
-        LedQueryRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                /** Format: date */
-                dateFrom: string;
-                /** Format: date */
-                dateTo: string;
-                objectId?: string;
-                sourceEntity?: string;
-                documentNo?: string;
-                direction?: string[];
-            };
-            sort: {
-                field: string;
-                /** @enum {string} */
-                order: "asc" | "desc";
-            }[];
-        };
-        LedBillQueryRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                /** @enum {string} */
-                positionType?: "ASSET" | "LIABILITY";
-                /** @enum {string} */
-                availability?: "AVAILABLE" | "USED" | "MATURED" | "HELD";
-                /** @enum {string} */
-                billType?: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
-                billNo?: string;
-                /** Format: date */
-                maturityDateFrom?: string;
-                /** Format: date */
-                maturityDateTo?: string;
-                /** @enum {string} */
-                originatingPartyType?: "customer" | "supplier" | "other-party";
-                originatingPartyObjectId?: string;
-                /** @enum {string} */
-                sourceEntity?: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
-            };
-            sort: {
-                /** @enum {string} */
-                field: "maturityDate" | "billNo" | "faceAmount" | "sourceDocumentNo";
-                /** @enum {string} */
-                order: "asc" | "desc";
-            }[];
-        };
-        LedBillListItem: {
-            billId: string;
-            /** @enum {string} */
-            positionType: "ASSET" | "LIABILITY";
-            /** @enum {string} */
-            availability: "AVAILABLE" | "USED" | "MATURED";
-            /** @enum {string} */
-            billType: "BANK_ACCEPTANCE" | "COMMERCIAL_ACCEPTANCE" | "CHECK" | "OTHER";
-            billNo: string;
-            /** @enum {string} */
-            medium: "PAPER" | "ELECTRONIC";
-            currency: string;
-            faceAmount: string;
-            /** Format: date */
-            maturityDate: string;
-            /** Format: date */
-            issueDate: string;
-            drawer: string;
-            acceptor: string;
-            payee: string;
-            annualRateBps: number;
-            interestDays: number;
-            interestAmount: string;
-            originatingParty: {
-                objectId: string;
-                versionId: string;
-                /** @enum {string} */
-                entity: "customer" | "supplier" | "other-party";
-                code: string;
-                name: string;
-            };
-            customerCostAmount: string;
-            /** @enum {string} */
-            sourceEntity: "bill-receipt" | "bill-payment" | "bill-issue" | "bill-discount" | "bill-maturity";
-            sourceDocumentNo: string;
-        };
-        LedBillQueryResponse: {
-            /** Format: int32 */
-            code: number;
-            message: string;
-            data: {
-                items: components["schemas"]["LedBillListItem"][];
-                /** Format: int64 */
-                total: number;
-                page: number;
-                pageSize: number;
-            };
-            requestId: string;
-        };
-        LedBalanceRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                /** Format: date */
-                asOfDate: string;
-                objectId?: string;
-            };
-        };
-        LedOtherQueryRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                /** Format: date */
-                dateFrom: string;
-                /** Format: date */
-                dateTo: string;
-                objectId?: string;
-                sourceEntity?: string;
-                documentNo?: string;
-                direction?: string[];
-                /** @enum {string} */
-                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
-                /** @enum {string} */
-                otherCategory?: "COMMISSION" | "INTERMEDIARY" | "REBATE";
-            };
-            sort: {
-                field: string;
-                /** @enum {string} */
-                order: "asc" | "desc";
-            }[];
-        };
-        LedOtherBalanceRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                /** Format: date */
-                asOfDate: string;
-                objectId?: string;
-                /** @enum {string} */
-                counterpartyType?: "customer" | "supplier" | "other-party" | "employee";
-            };
-        };
-        LedAssetQueryRequest: {
-            page: number;
-            pageSize: number;
-            filters: {
-                keyword?: string;
-                status?: ("ACTIVE" | "SOLD" | "RETIRED")[];
-                categoryObjectId?: string;
-                departmentObjectId?: string;
-                custodianObjectId?: string;
-            };
-        };
-        LedAssetGetRequest: {
-            assetId: string;
-        };
         TechnicalError: {
             error: string;
             requestId: string;
@@ -3693,6 +4158,566 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    accBookQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户查询范围内的会计账簿分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPageEnvelope"];
+                };
+            };
+        };
+    };
+    accBookGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 会计账簿详情及访问范围。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的会计账簿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的会计账簿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookEnvelope"];
+                };
+            };
+        };
+    };
+    accBookDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookDeleteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    accSubjectQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户账簿查询范围内的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectPageEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 会计科目详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectDeleteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    accOpeningQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿期初及批准状态。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的账簿期初。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 批准后的账簿期初及系统凭证标识。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 反批准后的可编辑账簿期初。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿内的映射版本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingPageEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 映射版本详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 批准后的映射版本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 反批准后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingCatalogRequest"];
+            };
+        };
+        responses: {
+            /** @description 指定 VOU 类型可用于映射的头字段与行集合字段。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingCatalogEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿期间列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodListEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 锁定后的期间。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 解锁后的期间。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodEnvelope"];
+                };
+            };
+        };
+    };
     appUserSignin: {
         parameters: {
             query?: never;
@@ -4839,6 +5864,58 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    vouAvailableBillQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouAvailableBillQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 可用票据分页。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouAvailableBillQueryResponse"];
+                };
+            };
+        };
+    };
+    vouAvailableAssetQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: components["parameters"]["VouEntity"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouAvailableAssetQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 在用资产分页。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VouAvailableAssetQueryResponse"];
+                };
+            };
+        };
+    };
     vouSaleOrderFormulaDefault: {
         parameters: {
             query?: never;
@@ -4895,24 +5972,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VouCreateRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    vouassetdepreciationpreview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity: components["parameters"]["VouEntity"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VouAssetDepreciationPreviewRequest"];
             };
         };
         responses: {
@@ -5355,318 +6414,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflInstanceHistoryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledclosingget: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EmptyObject"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledclosingclose: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedClosingRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledclosingunclose: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedUncloseRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledclosinghistory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedHistoryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledinventoryquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledbillquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBillQueryRequest"];
-            };
-        };
-        responses: {
-            /** @description 票据台账分页响应。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LedBillQueryResponse"];
-                };
-            };
-        };
-    };
-    ledinventorybalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledfundquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledfundbalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledcustomerquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledcustomerbalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledsupplierquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledsupplierbalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledotherquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedOtherQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledotherbalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedOtherBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledcontainerquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledcontainerbalance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedBalanceRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledassetquery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedAssetQueryRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    ledassetget: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LedAssetGetRequest"];
             };
         };
         responses: {

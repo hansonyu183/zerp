@@ -17,7 +17,7 @@ import (
 
 func isAssetEntity(entity string) bool {
 	switch entity {
-	case EntityAssetAcquisition, EntityAssetDepreciation, EntityAssetSale, EntityAssetLiquidation:
+	case EntityAssetAcquisition, EntityAssetSale, EntityAssetLiquidation:
 		return true
 	default:
 		return false
@@ -32,35 +32,65 @@ type preparedAssetAcquisitionLine struct {
 	residualRateBps      int32
 }
 
-type preparedAssetDepreciationLine struct {
-	input  AssetDepreciationLineInput
-	asset  dbsqlc.LedAsset
-	amount int64
-}
-
 type preparedAssetSaleLine struct {
 	input  AssetSaleLineInput
-	asset  dbsqlc.LedAsset
+	asset  dbsqlc.GetActiveAccountingAssetForVouRow
 	amount int64
 }
 
 type preparedAssetLiquidationLine struct {
 	input            AssetLiquidationLineInput
-	asset            dbsqlc.LedAsset
+	asset            dbsqlc.GetActiveAccountingAssetForVouRow
 	salvage, expense int64
 }
 
 type preparedAssetDraft struct {
 	businessDate           time.Time
-	depreciationMonth      time.Time
 	remark                 *string
 	total                  int64
 	supplier, counterparty *bobdomain.EffectiveReference
 	counterpartyType       string
 	acquisitions           []preparedAssetAcquisitionLine
-	depreciations          []preparedAssetDepreciationLine
 	sales                  []preparedAssetSaleLine
 	liquidations           []preparedAssetLiquidationLine
+}
+
+func (s *Service) AvailableAssets(ctx context.Context, input AvailableAssetQueryInput) (Page[AvailableAssetItem], error) {
+	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
+		return Page[AvailableAssetItem]{}, domainError(ErrorValidation, "invalid available asset query", nil, nil)
+	}
+	var total int64
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM acc_assets WHERE state='ACTIVE'`).Scan(&total); err != nil {
+		return Page[AvailableAssetItem]{}, s.internal("count available accounting assets", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT asset.id,asset.asset_no,asset.name,value.original_minor,
+		value.accumulated_depreciation_minor
+		FROM acc_assets asset
+		JOIN acc_asset_book_values value ON value.asset_id=asset.id
+		JOIN acc_books book ON book.id=value.book_id AND book.control_book
+		WHERE asset.state='ACTIVE'
+		ORDER BY asset.asset_no,asset.id
+		LIMIT $1 OFFSET $2`, input.PageSize, (input.Page-1)*input.PageSize)
+	if err != nil {
+		return Page[AvailableAssetItem]{}, s.internal("list available accounting assets", err)
+	}
+	defer rows.Close()
+	items := make([]AvailableAssetItem, 0)
+	for rows.Next() {
+		var item AvailableAssetItem
+		var original, accumulated int64
+		if err = rows.Scan(&item.AssetID, &item.AssetNo, &item.AssetName, &original, &accumulated); err != nil {
+			return Page[AvailableAssetItem]{}, s.internal("scan available accounting asset", err)
+		}
+		item.OriginalValue = formatMoney(original)
+		item.AccumulatedDepreciation = formatMoney(accumulated)
+		item.NetValue = formatMoney(original - accumulated)
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return Page[AvailableAssetItem]{}, s.internal("iterate available accounting assets", err)
+	}
+	return Page[AvailableAssetItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func validateAssetText(value, field string, required bool, max int) (string, error) {
@@ -69,20 +99,6 @@ func validateAssetText(value, field string, required bool, max int) (string, err
 		return "", domainError(ErrorValidation, field+" is invalid", nil, nil)
 	}
 	return value, nil
-}
-
-func monthStart(value string) (time.Time, error) {
-	parsed, err := time.Parse("2006-01", strings.TrimSpace(value))
-	if err != nil {
-		return time.Time{}, domainError(ErrorValidation, "depreciationMonth must use YYYY-MM", nil, err)
-	}
-	return parsed, nil
-}
-
-func monthEnd(month time.Time) time.Time { return month.AddDate(0, 1, -1) }
-
-func sameMonth(left, right time.Time) bool {
-	return left.Year() == right.Year() && left.Month() == right.Month()
 }
 
 func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity string, input DraftInput) (preparedAssetDraft, error) {
@@ -95,23 +111,9 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		return result, domainError(ErrorValidation, "remark is too long", nil, nil)
 	}
 	var err error
-	if entity == EntityAssetDepreciation {
-		result.depreciationMonth, err = monthStart(input.DepreciationMonth)
-		if err != nil {
-			return result, err
-		}
-		result.businessDate = monthEnd(result.depreciationMonth)
-		if input.BusinessDate != "" {
-			provided, dateErr := time.Parse(dateLayout, input.BusinessDate)
-			if dateErr != nil || !provided.Equal(result.businessDate) {
-				return result, domainError(ErrorValidation, "depreciation businessDate must be month end", nil, dateErr)
-			}
-		}
-	} else {
-		result.businessDate, err = time.Parse(dateLayout, input.BusinessDate)
-		if err != nil {
-			return result, domainError(ErrorValidation, "invalid businessDate", nil, err)
-		}
+	result.businessDate, err = time.Parse(dateLayout, input.BusinessDate)
+	if err != nil {
+		return result, domainError(ErrorValidation, "invalid businessDate", nil, err)
 	}
 	switch entity {
 	case EntityAssetAcquisition:
@@ -178,40 +180,6 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			result.total += original
 			result.acquisitions = append(result.acquisitions, preparedAssetAcquisitionLine{input: line, category: category, department: department, custodian: custodian, originalValue: original, residualRateBps: int32(rate)})
 		}
-	case EntityAssetDepreciation:
-		if len(input.AssetDepreciationLines) < 1 || len(input.AssetDepreciationLines) > 500 {
-			return result, domainError(ErrorValidation, "asset depreciation requires 1-500 lines", nil, nil)
-		}
-		seen := map[string]bool{}
-		for _, line := range input.AssetDepreciationLines {
-			if !validID(line.AssetID) || seen[line.AssetID] {
-				return result, domainError(ErrorValidation, "assetId is invalid or duplicated", nil, nil)
-			}
-			seen[line.AssetID] = true
-			asset, loadErr := q.GetActiveLedAssetForVou(ctx, line.AssetID)
-			if loadErr != nil {
-				return result, domainError(ErrorConflict, "asset is unavailable", nil, loadErr)
-			}
-			if asset.Status != "ACTIVE" || asset.DepreciationStartMonth.Time.After(result.depreciationMonth) ||
-				(asset.LastDepreciationMonth.Valid && !asset.LastDepreciationMonth.Time.AddDate(0, 1, 0).Equal(result.depreciationMonth)) ||
-				(!asset.LastDepreciationMonth.Valid && !asset.DepreciationStartMonth.Time.Equal(result.depreciationMonth)) {
-				return result, domainError(ErrorConflict, "asset is not due for this depreciation month", map[string]any{"assetId": line.AssetID}, nil)
-			}
-			depreciable := asset.OriginalValueCents - asset.ResidualValueCents
-			remaining := depreciable - asset.AccumulatedDepreciationCents
-			amount := (depreciable + int64(asset.UsefulLifeMonths)/2) / int64(asset.UsefulLifeMonths)
-			if amount < 1 {
-				amount = 1
-			}
-			if amount > remaining {
-				amount = remaining
-			}
-			if amount <= 0 {
-				return result, domainError(ErrorConflict, "asset is fully depreciated", nil, nil)
-			}
-			result.total += amount
-			result.depreciations = append(result.depreciations, preparedAssetDepreciationLine{input: line, asset: asset, amount: amount})
-		}
 	case EntityAssetSale:
 		if input.CounterpartyType != "customer" && input.CounterpartyType != "other-party" {
 			return result, domainError(ErrorValidation, "counterpartyType must be customer or other-party", nil, nil)
@@ -233,7 +201,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				return result, domainError(ErrorValidation, "assetId is invalid or duplicated", nil, nil)
 			}
 			seen[line.AssetID] = true
-			asset, loadErr := q.GetActiveLedAssetForVou(ctx, line.AssetID)
+			asset, loadErr := q.GetActiveAccountingAssetForVou(ctx, line.AssetID)
 			if loadErr != nil {
 				return result, domainError(ErrorConflict, "asset is unavailable", nil, loadErr)
 			}
@@ -257,7 +225,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				return result, domainError(ErrorValidation, "assetId is invalid or duplicated", nil, nil)
 			}
 			seen[line.AssetID] = true
-			asset, loadErr := q.GetActiveLedAssetForVou(ctx, line.AssetID)
+			asset, loadErr := q.GetActiveAccountingAssetForVou(ctx, line.AssetID)
 			if loadErr != nil {
 				return result, domainError(ErrorConflict, "asset is unavailable", nil, loadErr)
 			}
@@ -288,20 +256,12 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 	return result, nil
 }
 
-func validateAssetDisposal(asset dbsqlc.LedAsset, date time.Time) error {
-	if asset.Status != "ACTIVE" {
+func validateAssetDisposal(asset dbsqlc.GetActiveAccountingAssetForVouRow, date time.Time) error {
+	if asset.State != "ACTIVE" {
 		return domainError(ErrorConflict, "asset is not active", map[string]any{"assetId": asset.ID}, nil)
 	}
-	month := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, time.UTC)
-	if asset.AcquisitionDate.Valid && date.Before(asset.AcquisitionDate.Time) {
+	if asset.AcquiredOn.Valid && date.Before(asset.AcquiredOn.Time) {
 		return domainError(ErrorConflict, "asset cannot be disposed before acquisition", map[string]any{"assetId": asset.ID}, nil)
-	}
-	if asset.LastDepreciationMonth.Valid && month.Before(asset.LastDepreciationMonth.Time) {
-		return domainError(ErrorConflict, "asset cannot be disposed before existing depreciation history", map[string]any{"assetId": asset.ID}, nil)
-	}
-	fullyDepreciated := asset.AccumulatedDepreciationCents >= asset.OriginalValueCents-asset.ResidualValueCents
-	if !fullyDepreciated && !asset.DepreciationStartMonth.Time.After(month) && (!asset.LastDepreciationMonth.Valid || !sameMonth(asset.LastDepreciationMonth.Time, month)) {
-		return domainError(ErrorConflict, "asset must be depreciated through the disposal month", map[string]any{"assetId": asset.ID}, nil)
 	}
 	return nil
 }
@@ -415,23 +375,6 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 				return err
 			}
 		}
-	case EntityAssetDepreciation:
-		params := dbsqlc.InsertVouAssetDepreciationDetailParams{DocumentID: documentID, DepreciationMonth: dateValue(draft.depreciationMonth)}
-		if update {
-			if err := oneRow(q.UpdateVouAssetDepreciationDetail(ctx, dbsqlc.UpdateVouAssetDepreciationDetailParams{DepreciationMonth: params.DepreciationMonth, DocumentID: documentID})); err != nil {
-				return err
-			}
-		} else if err := q.InsertVouAssetDepreciationDetail(ctx, params); err != nil {
-			return err
-		}
-		if err := q.DeleteVouAssetDepreciationLines(ctx, documentID); err != nil {
-			return err
-		}
-		for i, line := range draft.depreciations {
-			if err := q.InsertVouAssetDepreciationLine(ctx, dbsqlc.InsertVouAssetDepreciationLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), DepreciationMonth: dateValue(draft.depreciationMonth), AssetID: line.asset.ID, AssetNo: line.asset.AssetNo, AssetName: line.asset.AssetName, AmountCents: line.amount, OpeningAccumulatedCents: line.asset.AccumulatedDepreciationCents, ClosingAccumulatedCents: line.asset.AccumulatedDepreciationCents + line.amount, Remark: optionalText(line.input.Remark)}); err != nil {
-				return err
-			}
-		}
 	case EntityAssetSale:
 		params := dbsqlc.InsertVouAssetSaleDetailParams{DocumentID: documentID, CounterpartyEntity: draft.counterpartyType, CounterpartyObjectID: draft.counterparty.ObjectID, CounterpartyVersionID: draft.counterparty.VersionID, CounterpartyCode: draft.counterparty.Code, CounterpartyName: draft.counterparty.Data.Name}
 		if update {
@@ -445,7 +388,7 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			return err
 		}
 		for i, line := range draft.sales {
-			if err := q.InsertVouAssetSaleLine(ctx, dbsqlc.InsertVouAssetSaleLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetID: line.asset.ID, AssetNo: line.asset.AssetNo, AssetName: line.asset.AssetName, SaleAmountCents: line.amount, Remark: optionalText(line.input.Remark)}); err != nil {
+			if err := q.InsertVouAssetSaleLine(ctx, dbsqlc.InsertVouAssetSaleLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetID: line.asset.ID, AssetNo: line.asset.AssetNo, AssetName: line.asset.Name, SaleAmountCents: line.amount, Remark: optionalText(line.input.Remark)}); err != nil {
 				return err
 			}
 		}
@@ -459,40 +402,12 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			return err
 		}
 		for i, line := range draft.liquidations {
-			if err := q.InsertVouAssetLiquidationLine(ctx, dbsqlc.InsertVouAssetLiquidationLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetID: line.asset.ID, AssetNo: line.asset.AssetNo, AssetName: line.asset.AssetName, Reason: line.input.Reason, SalvageIncomeCents: line.salvage, DisposalExpenseCents: line.expense, Remark: optionalText(line.input.Remark)}); err != nil {
+			if err := q.InsertVouAssetLiquidationLine(ctx, dbsqlc.InsertVouAssetLiquidationLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetID: line.asset.ID, AssetNo: line.asset.AssetNo, AssetName: line.asset.Name, Reason: line.input.Reason, SalvageIncomeCents: line.salvage, DisposalExpenseCents: line.expense, Remark: optionalText(line.input.Remark)}); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
-}
-
-func (s *Service) AssetDepreciationPreview(ctx context.Context, input AssetDepreciationPreviewInput) (AssetDepreciationPreviewView, error) {
-	month, err := monthStart(input.DepreciationMonth)
-	if err != nil {
-		return AssetDepreciationPreviewView{}, err
-	}
-	assets, err := s.queries.ListDepreciableLedAssetsForVou(ctx, dbsqlc.ListDepreciableLedAssetsForVouParams{DepreciationMonth: dateValue(month), CategoryObjectID: input.CategoryObjectID, DepartmentObjectID: input.DepartmentObjectID})
-	if err != nil {
-		return AssetDepreciationPreviewView{}, s.internal("preview asset depreciation", err)
-	}
-	view := AssetDepreciationPreviewView{DepreciationMonth: month.Format("2006-01"), Items: make([]AssetDepreciationPreviewItem, 0, len(assets))}
-	var total int64
-	for _, asset := range assets {
-		depreciable := asset.OriginalValueCents - asset.ResidualValueCents
-		remaining := depreciable - asset.AccumulatedDepreciationCents
-		amount := (depreciable + int64(asset.UsefulLifeMonths)/2) / int64(asset.UsefulLifeMonths)
-		if amount < 1 {
-			amount = 1
-		}
-		if amount > remaining {
-			amount = remaining
-		}
-		total += amount
-		view.Items = append(view.Items, AssetDepreciationPreviewItem{AssetID: asset.ID, AssetNo: asset.AssetNo, AssetName: asset.AssetName, Category: *reference(asset.CategoryObjectID, asset.CategoryVersionID, auxdomain.EntityAssetCategory, asset.CategoryCode, asset.CategoryName, "", "", ""), Department: *reference(asset.DepartmentObjectID, asset.DepartmentVersionID, auxdomain.EntityDepartment, asset.DepartmentCode, asset.DepartmentName, "", "", ""), OriginalValue: formatMoney(asset.OriginalValueCents), AccumulatedDepreciation: formatMoney(asset.AccumulatedDepreciationCents), DepreciationAmount: formatMoney(amount), NetValue: formatMoney(asset.OriginalValueCents - asset.AccumulatedDepreciationCents - amount)})
-	}
-	view.TotalAmount = formatMoney(total)
-	return view, nil
 }
 
 func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument, data DocumentDataView) (DocumentDataView, error) {
@@ -514,20 +429,6 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 				item.Custodian = reference(deref(row.CustodianObjectID), deref(row.CustodianVersionID), bobdomain.EntityEmployee, deref(row.CustodianCode), deref(row.CustodianName), "", "", "")
 			}
 			data.AssetAcquisitionLines = append(data.AssetAcquisitionLines, item)
-		}
-	case EntityAssetDepreciation:
-		detail, err := q.GetVouAssetDepreciationDetail(ctx, document.ID)
-		if err != nil {
-			return data, err
-		}
-		data.DepreciationMonth = detail.DepreciationMonth.Time.Format("2006-01")
-		rows, err := q.ListVouAssetDepreciationLines(ctx, document.ID)
-		if err != nil {
-			return data, err
-		}
-		data.AssetDepreciationLines = make([]AssetDepreciationLineView, 0, len(rows))
-		for _, row := range rows {
-			data.AssetDepreciationLines = append(data.AssetDepreciationLines, AssetDepreciationLineView{LineID: row.ID, LineNo: row.LineNo, AssetID: row.AssetID, AssetNo: row.AssetNo, AssetName: row.AssetName, Amount: formatMoney(row.AmountCents), OpeningAccumulated: formatMoney(row.OpeningAccumulatedCents), ClosingAccumulated: formatMoney(row.ClosingAccumulatedCents), Remark: deref(row.Remark)})
 		}
 	case EntityAssetSale:
 		detail, err := q.GetVouAssetSaleDetail(ctx, document.ID)

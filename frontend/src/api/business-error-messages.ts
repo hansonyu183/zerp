@@ -165,6 +165,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'inventory count currency must be CNY': '盘点单币种必须为人民币。',
   'inventory count date is already closed': '盘点日期所在期间已关账。',
   'inventory count predates the active ledger': '盘点日期早于台账启用日期。',
+  'inventory count predates the accounting control book':
+    '盘点日期早于会计控制账簿启用月份。',
   'inventory count result is incomplete': '盘点结果不完整，请补全实盘数量。',
   'inventory count line changed during replay':
     '盘点明细在台账重建期间发生变化，请重试。',
@@ -172,10 +174,35 @@ const exactMessages: Readonly<Record<string, string>> = {
   'ledger cannot be activated': '当前台账不能启用。',
   'ledger cannot be reopened': '当前台账不能重新打开。',
   'fixed asset currency must be CNY': '固定资产业务币种必须为人民币。',
+  'accounting control book is not ready': '会计控制账簿尚未完成期初批准。',
+  'accounting control is not configured': '会计控制服务尚未配置。',
+  'accumulated depreciation dimensions must identify the acquired asset':
+    '累计折旧科目的辅助核算必须标识所购资产。',
+  'asset accounting configuration is missing': '缺少固定资产会计映射配置。',
+  'asset accounting dimensions must match the subject':
+    '固定资产会计辅助核算与科目要求不一致。',
+  'asset acquisition mapping requires asset accounting configuration':
+    '资产购置映射必须配置固定资产会计科目。',
+  'asset is not available': '固定资产不存在或当前不可处置。',
+  'asset subject dimensions must identify the acquired asset':
+    '固定资产科目的辅助核算必须标识所购资产。',
+  'cost counterpart dimensions are incomplete': '成本对方科目辅助核算不完整。',
+  'cost counterpart dimensions must match the subject':
+    '成本对方科目辅助核算与科目要求不一致。',
+  'cost dimensions require a cost counterpart subject':
+    '配置成本辅助核算时必须选择成本对方科目。',
+  'depreciation only supports CNY': '自动折旧仅支持人民币账簿。',
+  'encode asset accounting snapshot': '固定资产会计快照生成失败。',
+  'encode cost counterpart dimensions': '成本对方科目辅助核算生成失败。',
+  'insufficient control book funds': '会计控制账簿资金余额不足。',
+  'inventory cost counterpart mapping is missing': '缺少库存成本对方科目映射。',
+  'inventory costing only supports CNY': '库存成本结算仅支持人民币账簿。',
+  'source bill has no originating party': '来源票据缺少原始往来方。',
+  'unknown asset accounting dimension field': '固定资产会计辅助字段不受支持。',
+  'unknown cost counterpart dimension field': '成本对方科目辅助字段不受支持。',
   'asset is fully depreciated': '固定资产已提足折旧。',
   'asset is not active': '固定资产当前未启用。',
   'depreciation businessDate must be month end': '折旧业务日期必须为月末。',
-  'depreciationMonth must use YYYY-MM': '折旧月份格式必须为 YYYY-MM。',
   'useful life or residual rate is invalid': '使用年限或残值率不正确。',
   'unsupported transition': '当前状态不支持该操作。',
   'unsupported reverse transition': '当前状态不支持撤销该操作。',
@@ -353,8 +380,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '固定资产不能在购置日期之前处置。',
   'asset cannot be disposed before existing depreciation history':
     '固定资产处置日期不能早于已有折旧记录。',
-  'asset depreciation requires 1-500 lines':
-    '固定资产折旧单必须包含 1 至 500 条明细。',
   'asset has later depreciation or disposal':
     '固定资产已有更晚的折旧或处置记录，不能执行当前操作。',
   'asset is not due for this depreciation month':
@@ -409,6 +434,77 @@ const exactMessages: Readonly<Record<string, string>> = {
   'load parent document': '上级单据加载失败，请刷新后重试。',
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',
   'object number exhausted': '资料编码已用尽，请联系管理员。',
+  'accounting book number exhausted': '会计账簿编码已用尽，请联系管理员。',
+  'accounting subject cannot be its own parent':
+    '会计科目不能以自身作为上级科目。',
+  'accounting subject hierarchy cycle': '会计科目层级不能形成循环。',
+  'accounting subject template parent missing':
+    '建账科目模板缺少上级科目，请联系管理员。',
+  'approved accounting opening cannot be edited':
+    '已批准的账簿期初不能编辑，请先反批准。',
+  'encode accounting opening dimensions':
+    '期初辅助核算处理失败，请刷新后重试。',
+  'POST result requires a posting template':
+    '生成凭证的映射结果必须选择凭证模板。',
+  'UN_POST result cannot have a posting template':
+    '忽略映射不能同时选择凭证模板。',
+  'accounting mapping changed or is approved':
+    '映射已被修改或批准，请刷新后重试。',
+  'accounting mapping is not approved': '当前映射不是已批准状态。',
+  'accounting mapping is not draft': '当前映射不是草稿状态。',
+  'accounting opening is not approved': '请先批准账簿期初。',
+  'opening asset is not available': '期初资产不存在或当前不可用。',
+  'opening asset values do not reconcile': '期初资产价值与会计科目余额不一致。',
+  'opening bill is not available': '期初票据不存在或当前不可用。',
+  'opening bill value does not reconcile': '期初票据价值与会计科目余额不一致。',
+  'opening global object is used by another book':
+    '期初创建的对象已被其他账簿使用，不能反批准。',
+  'accounting period has missing VOU mappings':
+    '本期已批准单据存在缺失的会计映射，不能锁定。',
+  'accounting period has not ended': '自然月结束后才能锁定该会计期间。',
+  'accounting period has unfinished VOU documents':
+    '本期仍有未批准单据，不能锁定。',
+  'accounting period is locked': '该业务月份已被会计账簿锁定，不能修改单据。',
+  'accounting period inventory is negative': '本期存在负库存，不能锁定。',
+  'accounting period trial balance failed':
+    '本期会计事实试算不平衡，不能锁定。',
+  'accounting periods must be locked continuously':
+    '会计期间必须从账簿开始月份起逐月连续锁定。',
+  'only the latest accounting period can be unlocked':
+    '只能解锁本账簿最后一个已锁期间。',
+  'mapping rule requires conditions': '每条映射规则至少需要一个条件。',
+  'mapping requires enabled leaf accounting subjects':
+    '映射只能使用本账簿已启用的末级会计科目。',
+  'mapping rules may match simultaneously':
+    '映射规则存在同时命中的可能，请调整条件。',
+  'posting template requires an id and at least two lines':
+    '凭证模板必须有标识且至少包含两行分录。',
+  'referenced accounting mapping cannot be unapproved':
+    '该映射版本已生成会计事实，不能反批准。',
+  'VOU source already has accounting facts from another revision':
+    '该单据的其他批准版本已经生成会计凭证，不能重复覆盖。',
+  'approved accounting mapping is missing':
+    '当前账簿缺少该单据类型的已批准会计映射。',
+  'automatic accounting voucher is not balanced by currency':
+    '自动生成的会计凭证未按币种试算平衡，请检查映射。',
+  'automatic accounting voucher has no facts':
+    '当前映射没有生成任何会计或数量事实。',
+  'automatic accounting voucher requires at least two nonzero lines':
+    '自动生成的会计凭证至少需要两条非零分录。',
+  'encode mapped accounting dimensions': '会计辅助核算处理失败，请刷新后重试。',
+  'inventory accounting subject requires quantity':
+    '库存商品科目的映射必须提供数量。',
+  'insufficient control book inventory': '业务控制账簿库存不足，单据不能批准。',
+  'mapped accounting dimensions are incomplete':
+    '自动记账缺少会计科目要求的辅助核算信息。',
+  'multiple accounting mapping rules matched':
+    '当前单据同时命中多条会计映射规则，请调整映射。',
+  'unknown mapping condition field': '映射条件引用了未知字段。',
+  'unknown posting amount or currency field':
+    '凭证模板引用了未知的金额或币种字段。',
+  'unknown posting dimension field': '凭证模板引用了未知的辅助核算字段。',
+  'unknown posting quantity field': '凭证模板引用了未知的数量字段。',
+  'unknown posting template collection': '凭证模板引用了未知的单据行集合。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
   'platform is not an effective logistics platform':
@@ -468,10 +564,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'vehicle does not belong to platform': '车辆不属于所选物流平台，请重新选择。',
   'IN condition value must be an array': 'IN 条件的值必须是列表。',
   'IN requires array': 'IN 条件必须提供列表值。',
-  'LED pool and BOB resolver are required':
-    '账簿服务配置不完整，请联系管理员。',
-  'LED pool, BOB resolver, and intermediary validator are required':
-    '账簿服务配置不完整，请联系管理员。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',
   'WFL pool, event bus, and document service are required':

@@ -34,6 +34,26 @@ func TestInitialBusinessMenuClassifiesEveryCashRoute(t *testing.T) {
 	}
 }
 
+func TestAccountingBookMenuBelongsToAccounting(t *testing.T) {
+	if got := classifyBusinessRoute("acc/book"); got != "menu-group-accounting" {
+		t.Fatalf("ACC book group = %q, want accounting", got)
+	}
+	catalog := []registeredMenuRoute{{
+		RouteKey: "acc/book", RoutePath: "/acc/book", DisplayName: "会计账簿",
+		PermissionCode: "/acc/book/query", Order: 10,
+	}}
+	menu := buildDefaultMenu(catalog)
+	found := false
+	for _, item := range menu.Items {
+		if item.RouteKey != nil && *item.RouteKey == "acc/book" {
+			found = item.ParentID != nil && *item.ParentID == "default-acc"
+		}
+	}
+	if !found {
+		t.Fatal("ACC book was not placed in the default accounting group")
+	}
+}
+
 func TestAppendUnclassifiedRoutesSkipsTombstonedRoutes(t *testing.T) {
 	otherID := "other"
 	customer := registeredMenuRoute{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query"}

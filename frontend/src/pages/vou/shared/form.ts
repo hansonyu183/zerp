@@ -33,7 +33,6 @@ export interface DraftPayload {
   fundAccount?: VoucherReferenceInput
   sourceName?: string
   amount?: string
-  depreciationMonth?: string
   productLines?: Array<{
     product: VoucherReferenceInput
     orderedQuantity: string
@@ -66,7 +65,6 @@ export interface DraftPayload {
     location?: string
     remark?: string
   }>
-  assetDepreciationLines?: Array<{ assetId: string; remark?: string }>
   assetSaleLines?: Array<{
     assetId: string
     saleAmount: string
@@ -144,7 +142,6 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
-    depreciationMonth: localDate().slice(0, 7),
     parentDocumentId: '',
     parentDocumentNo: '',
     productLines:
@@ -222,7 +219,6 @@ export function emptyAssetLine() {
     residualRate: '',
     location: '',
     accumulatedDepreciation: '',
-    depreciationAmount: '',
     netValue: '',
     saleAmount: '',
     reason: '',
@@ -289,7 +285,6 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
-    depreciationMonth: data.depreciationMonth ?? localDate().slice(0, 7),
     parentDocumentId: document.parentDocumentId ?? '',
     parentDocumentNo: document.parentDocumentNo ?? '',
     productLines: (data.productLines ?? []).map((line) => ({
@@ -325,7 +320,6 @@ export function formFromDocument(
     })),
     assetLines: [
       ...(data.assetAcquisitionLines ?? []),
-      ...(data.assetDepreciationLines ?? []),
       ...(data.assetSaleLines ?? []),
       ...(data.assetLiquidationLines ?? []),
     ].map((line) => ({
@@ -343,9 +337,7 @@ export function formFromDocument(
       usefulLifeMonths: String(line.usefulLifeMonths ?? ''),
       residualRate: line.residualRate ?? '',
       location: line.location ?? '',
-      accumulatedDepreciation:
-        line.accumulatedDepreciation ?? line.openingAccumulated ?? '',
-      depreciationAmount: line.depreciationAmount ?? line.amount ?? '',
+      accumulatedDepreciation: line.accumulatedDepreciation ?? '',
       netValue: line.netValue ?? '',
       saleAmount: line.saleAmount ?? '',
       reason: line.reason ?? '',

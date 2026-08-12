@@ -13,10 +13,7 @@ export function buildVoucherDraftPayload(
   personnelDirty: ReadonlySet<string>,
 ): DraftPayload {
   const payload: DraftPayload = {
-    businessDate:
-      config.lineKind === 'asset-depreciation'
-        ? depreciationMonthEnd(value.depreciationMonth)
-        : value.businessDate,
+    businessDate: value.businessDate,
     ...(config.productionMode
       ? {}
       : { currency: value.currency.trim().toUpperCase() || 'CNY' }),
@@ -155,13 +152,6 @@ export function buildVoucherDraftPayload(
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }
-  if (config.lineKind === 'asset-depreciation') {
-    payload.depreciationMonth = value.depreciationMonth
-    payload.assetDepreciationLines = value.assetLines.map((line) => ({
-      assetId: line.assetId,
-      ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
-    }))
-  }
   if (config.lineKind === 'asset-sale') {
     payload.assetSaleLines = value.assetLines.map((line) => ({
       assetId: line.assetId,
@@ -180,10 +170,4 @@ export function buildVoucherDraftPayload(
   }
   appendSalesChainPayload(config, value, payload)
   return payload
-}
-
-function depreciationMonthEnd(month: string): string {
-  const [year, monthNumber] = month.split('-').map(Number)
-  if (!year || !monthNumber) return ''
-  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
 }

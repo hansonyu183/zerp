@@ -310,3 +310,74 @@ SELECT EXISTS(
   SELECT 1 FROM acc_openings
   WHERE book_id = sqlc.arg(book_id) AND state = 'APPROVED'
 );
+
+-- name: NextAccountingMappingVersion :one
+SELECT COALESCE(max(version), 0)::integer + 1
+FROM acc_mapping_versions
+WHERE book_id = sqlc.arg(book_id) AND vou_entity = sqlc.arg(vou_entity);
+
+-- name: CreateAccountingMappingVersion :exec
+INSERT INTO acc_mapping_versions (
+  id, book_id, vou_entity, version, state, default_result, definition,
+  created_by, updated_by
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(vou_entity), sqlc.arg(version),
+  'DRAFT', sqlc.arg(default_result), sqlc.arg(definition),
+  sqlc.arg(actor_id), sqlc.arg(actor_id)
+);
+
+-- name: ListAccountingMappings :many
+SELECT id, book_id, vou_entity, version, state, default_result, definition,
+       revision, approved_at, approved_by, count(*) OVER() AS total
+FROM acc_mapping_versions
+WHERE book_id = sqlc.arg(book_id)
+  AND (sqlc.arg(vou_entity)::text = '' OR vou_entity = sqlc.arg(vou_entity))
+ORDER BY vou_entity, version DESC
+OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
+
+-- name: GetAccountingMapping :one
+SELECT id, book_id, vou_entity, version, state, default_result, definition,
+       revision, approved_at, approved_by
+FROM acc_mapping_versions
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id);
+
+-- name: GetAccountingMappingForUpdate :one
+SELECT m.id, m.book_id, m.vou_entity, m.version, m.state, m.default_result, m.definition,
+       m.revision, m.approved_at, m.approved_by,
+		 EXISTS(SELECT 1 FROM acc_vouchers v WHERE v.mapping_version_id = m.id) AS referenced
+FROM acc_mapping_versions m
+WHERE m.book_id = sqlc.arg(book_id) AND m.id = sqlc.arg(mapping_id)
+FOR UPDATE;
+
+-- name: UpdateAccountingMappingDraft :one
+UPDATE acc_mapping_versions SET
+  default_result = sqlc.arg(default_result), definition = sqlc.arg(definition),
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
+  AND state = 'DRAFT' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: ApproveAccountingMapping :one
+UPDATE acc_mapping_versions SET
+  state = 'APPROVED', approved_at = now(), approved_by = sqlc.arg(actor_id),
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
+  AND state = 'DRAFT' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: UnapproveAccountingMapping :one
+UPDATE acc_mapping_versions SET
+  state = 'DRAFT', approved_at = NULL, approved_by = NULL,
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
+  AND state = 'APPROVED' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: GetCurrentApprovedAccountingMapping :one
+SELECT id, book_id, vou_entity, version, state, default_result, definition,
+       revision, approved_at, approved_by
+FROM acc_mapping_versions
+WHERE book_id = sqlc.arg(book_id) AND vou_entity = sqlc.arg(vou_entity)
+  AND state = 'APPROVED'
+ORDER BY version DESC
+LIMIT 1;

@@ -419,6 +419,29 @@ const exactMessages: Readonly<Record<string, string>> = {
     '已批准的账簿期初不能编辑，请先反批准。',
   'encode accounting opening dimensions':
     '期初辅助核算处理失败，请刷新后重试。',
+  'POST result requires a posting template':
+    '生成凭证的映射结果必须选择凭证模板。',
+  'UN_POST result cannot have a posting template':
+    '忽略映射不能同时选择凭证模板。',
+  'accounting mapping changed or is approved':
+    '映射已被修改或批准，请刷新后重试。',
+  'accounting mapping is not approved': '当前映射不是已批准状态。',
+  'accounting mapping is not draft': '当前映射不是草稿状态。',
+  'mapping rule requires conditions': '每条映射规则至少需要一个条件。',
+  'mapping requires enabled leaf accounting subjects':
+    '映射只能使用本账簿已启用的末级会计科目。',
+  'mapping rules may match simultaneously':
+    '映射规则存在同时命中的可能，请调整条件。',
+  'posting template requires an id and at least two lines':
+    '凭证模板必须有标识且至少包含两行分录。',
+  'referenced accounting mapping cannot be unapproved':
+    '该映射版本已生成会计事实，不能反批准。',
+  'unknown mapping condition field': '映射条件引用了未知字段。',
+  'unknown posting amount or currency field':
+    '凭证模板引用了未知的金额或币种字段。',
+  'unknown posting dimension field': '凭证模板引用了未知的辅助核算字段。',
+  'unknown posting quantity field': '凭证模板引用了未知的数量字段。',
+  'unknown posting template collection': '凭证模板引用了未知的单据行集合。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
   'platform is not an effective logistics platform':

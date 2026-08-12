@@ -33,6 +33,23 @@ type AccBookUserScope struct {
 	CreatedBy     string             `db:"created_by" json:"created_by"`
 }
 
+type AccMappingVersion struct {
+	ID            string             `db:"id" json:"id"`
+	BookID        string             `db:"book_id" json:"book_id"`
+	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
+	Version       int32              `db:"version" json:"version"`
+	State         string             `db:"state" json:"state"`
+	DefaultResult string             `db:"default_result" json:"default_result"`
+	Definition    []byte             `db:"definition" json:"definition"`
+	Revision      int64              `db:"revision" json:"revision"`
+	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
+	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy     string             `db:"created_by" json:"created_by"`
+	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy     string             `db:"updated_by" json:"updated_by"`
+}
+
 type AccOpening struct {
 	BookID     string             `db:"book_id" json:"book_id"`
 	State      string             `db:"state" json:"state"`
@@ -88,13 +105,14 @@ type AccSubjectUsage struct {
 }
 
 type AccVoucher struct {
-	ID           string             `db:"id" json:"id"`
-	BookID       string             `db:"book_id" json:"book_id"`
-	SourceType   string             `db:"source_type" json:"source_type"`
-	SourceID     string             `db:"source_id" json:"source_id"`
-	BusinessDate pgtype.Date        `db:"business_date" json:"business_date"`
-	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy    string             `db:"created_by" json:"created_by"`
+	ID               string             `db:"id" json:"id"`
+	BookID           string             `db:"book_id" json:"book_id"`
+	SourceType       string             `db:"source_type" json:"source_type"`
+	SourceID         string             `db:"source_id" json:"source_id"`
+	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy        string             `db:"created_by" json:"created_by"`
+	MappingVersionID *string            `db:"mapping_version_id" json:"mapping_version_id"`
 }
 
 type AccVoucherLine struct {

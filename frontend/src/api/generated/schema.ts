@@ -242,6 +242,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acc/mapping/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询 VOU 会计映射版本 */
+        post: operations["accMappingQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取 VOU 会计映射版本 */
+        post: operations["accMappingGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建 VOU 会计映射草稿版本 */
+        post: operations["accMappingCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存 VOU 会计映射草稿 */
+        post: operations["accMappingSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准 VOU 会计映射版本 */
+        post: operations["accMappingApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准未引用的 VOU 会计映射版本 */
+        post: operations["accMappingUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/mapping/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取稳定 VOU 映射字段目录 */
+        post: operations["accMappingCatalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -2402,6 +2521,126 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        MappingQueryRequest: {
+            bookId: string;
+            vouEntity?: string;
+            page: number;
+            pageSize: number;
+        };
+        /** @enum {string} */
+        MappingState: "DRAFT" | "APPROVED";
+        /** @enum {string} */
+        MappingResult: "POST" | "UN_POST";
+        /** @enum {string} */
+        MappingConditionOperator: "EQ" | "NE" | "IN" | "NOT_IN" | "IS_EMPTY" | "IS_NOT_EMPTY";
+        MappingCondition: {
+            field: string;
+            operator: components["schemas"]["MappingConditionOperator"];
+            values: string[];
+        };
+        MappingRule: {
+            conditions: components["schemas"]["MappingCondition"][];
+            result: components["schemas"]["MappingResult"];
+            templateId: string | null;
+        };
+        PostingLineTemplate: {
+            /** @enum {string} */
+            subjectSource: "FIXED" | "FIELD";
+            subjectValue: string;
+            direction: components["schemas"]["BalanceDirection"];
+            amountField: string;
+            currencyField: string;
+            dimensions: {
+                [key: string]: string;
+            };
+            quantityField: string | null;
+        };
+        PostingTemplate: {
+            templateId: string;
+            collection: string | null;
+            lines: components["schemas"]["PostingLineTemplate"][];
+        };
+        MappingDefinition: {
+            defaultTemplateId: string | null;
+            rules: components["schemas"]["MappingRule"][];
+            templates: components["schemas"]["PostingTemplate"][];
+        };
+        Mapping: {
+            mappingId: string;
+            bookId: string;
+            vouEntity: string;
+            version: number;
+            state: components["schemas"]["MappingState"];
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            approvedAt: string | null;
+            approvedBy: string | null;
+        };
+        MappingPage: {
+            items: components["schemas"]["Mapping"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        MappingPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MappingPage"] | null;
+            requestId: string;
+        };
+        MappingGetRequest: {
+            bookId: string;
+            mappingId: string;
+        };
+        MappingEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Mapping"] | null;
+            requestId: string;
+        };
+        MappingCreateRequest: {
+            bookId: string;
+            vouEntity: string;
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+        };
+        MappingSaveRequest: {
+            bookId: string;
+            mappingId: string;
+            defaultResult: components["schemas"]["MappingResult"];
+            definition: components["schemas"]["MappingDefinition"];
+            /** Format: int64 */
+            revision: number;
+        };
+        MappingActionRequest: {
+            bookId: string;
+            mappingId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        MappingCatalogRequest: {
+            vouEntity: string;
+        };
+        MappingCatalog: {
+            vouEntity: string;
+            headerFields: string[];
+            collections: {
+                [key: string]: string[];
+            };
+        };
+        MappingCatalogEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["MappingCatalog"] | null;
+            requestId: string;
+        };
         SignInRequest: {
             username: string;
             password: string;
@@ -4455,6 +4694,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿内的映射版本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingPageEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 映射版本详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 批准后的映射版本。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 反批准后的映射草稿。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingEnvelope"];
+                };
+            };
+        };
+    };
+    accMappingCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingCatalogRequest"];
+            };
+        };
+        responses: {
+            /** @description 指定 VOU 类型可用于映射的头字段与行集合字段。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingCatalogEnvelope"];
                 };
             };
         };

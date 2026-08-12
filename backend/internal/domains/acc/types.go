@@ -155,6 +155,95 @@ type OpeningView struct {
 	Lines      []OpeningLineView `json:"lines"`
 }
 
+const (
+	MappingStateDraft    = "DRAFT"
+	MappingStateApproved = "APPROVED"
+	MappingResultPost    = "POST"
+	MappingResultUnpost  = "UN_POST"
+)
+
+type MappingCondition struct {
+	Field    string   `json:"field"`
+	Operator string   `json:"operator"`
+	Values   []string `json:"values"`
+}
+
+type MappingRule struct {
+	Conditions []MappingCondition `json:"conditions"`
+	Result     string             `json:"result"`
+	TemplateID *string            `json:"templateId"`
+}
+
+type PostingLineTemplate struct {
+	SubjectSource string            `json:"subjectSource"`
+	SubjectValue  string            `json:"subjectValue"`
+	Direction     string            `json:"direction"`
+	AmountField   string            `json:"amountField"`
+	CurrencyField string            `json:"currencyField"`
+	Dimensions    map[string]string `json:"dimensions"`
+	QuantityField *string           `json:"quantityField"`
+}
+
+type PostingTemplate struct {
+	ID         string                `json:"templateId"`
+	Collection *string               `json:"collection"`
+	Lines      []PostingLineTemplate `json:"lines"`
+}
+
+type MappingDefinition struct {
+	DefaultTemplateID *string           `json:"defaultTemplateId"`
+	Rules             []MappingRule     `json:"rules"`
+	Templates         []PostingTemplate `json:"templates"`
+}
+
+type QueryMappingsInput struct {
+	BookID    string
+	VouEntity string
+	Page      int
+	PageSize  int
+}
+
+type CreateMappingInput struct {
+	BookID        string
+	VouEntity     string
+	DefaultResult string
+	Definition    MappingDefinition
+}
+
+type SaveMappingInput struct {
+	BookID        string
+	MappingID     string
+	DefaultResult string
+	Definition    MappingDefinition
+	Revision      int64
+}
+
+type MappingView struct {
+	ID            string            `json:"mappingId"`
+	BookID        string            `json:"bookId"`
+	VouEntity     string            `json:"vouEntity"`
+	Version       int               `json:"version"`
+	State         string            `json:"state"`
+	DefaultResult string            `json:"defaultResult"`
+	Definition    MappingDefinition `json:"definition"`
+	Revision      int64             `json:"revision"`
+	ApprovedAt    *string           `json:"approvedAt"`
+	ApprovedBy    *string           `json:"approvedBy"`
+}
+
+type MappingPage struct {
+	Items    []MappingView `json:"items"`
+	Total    int64         `json:"total"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"pageSize"`
+}
+
+type MappingCatalog struct {
+	VouEntity    string              `json:"vouEntity"`
+	HeaderFields []string            `json:"headerFields"`
+	Collections  map[string][]string `json:"collections"`
+}
+
 type BookPage struct {
 	Items    []BookView `json:"items"`
 	Total    int64      `json:"total"`

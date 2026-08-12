@@ -494,6 +494,259 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'MappingState': { 'type': 'string', 'enum': ['DRAFT', 'APPROVED'] },
+  'MappingResult': { 'type': 'string', 'enum': ['POST', 'UN_POST'] },
+  'MappingConditionOperator':
+    {
+      'type': 'string',
+      'enum': ['EQ', 'NE', 'IN', 'NOT_IN', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+    },
+  'MappingCondition':
+    {
+      'type': 'object',
+      'required': ['field', 'operator', 'values'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'field': { 'type': 'string', 'minLength': 1 },
+          'operator': { '$ref': '#/MappingConditionOperator' },
+          'values': { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
+  'MappingRule':
+    {
+      'type': 'object',
+      'required': ['conditions', 'result', 'templateId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'conditions':
+            { 'type': 'array', 'minItems': 1, 'items': { '$ref': '#/MappingCondition' } },
+          'result': { '$ref': '#/MappingResult' },
+          'templateId': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'PostingLineTemplate':
+    {
+      'type': 'object',
+      'required':
+        [
+          'subjectSource',
+          'subjectValue',
+          'direction',
+          'amountField',
+          'currencyField',
+          'dimensions',
+          'quantityField',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'subjectSource': { 'type': 'string', 'enum': ['FIXED', 'FIELD'] },
+          'subjectValue': { 'type': 'string', 'minLength': 1 },
+          'direction': { '$ref': '#/BalanceDirection' },
+          'amountField': { 'type': 'string', 'minLength': 1 },
+          'currencyField': { 'type': 'string', 'minLength': 1 },
+          'dimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'quantityField': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'PostingTemplate':
+    {
+      'type': 'object',
+      'required': ['templateId', 'collection', 'lines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'templateId': { 'type': 'string', 'minLength': 1 },
+          'collection': { 'type': 'string', 'nullable': true },
+          'lines':
+            { 'type': 'array', 'minItems': 2, 'items': { '$ref': '#/PostingLineTemplate' } },
+        },
+    },
+  'MappingDefinition':
+    {
+      'type': 'object',
+      'required': ['defaultTemplateId', 'rules', 'templates'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'defaultTemplateId': { 'type': 'string', 'nullable': true },
+          'rules': { 'type': 'array', 'items': { '$ref': '#/MappingRule' } },
+          'templates': { 'type': 'array', 'items': { '$ref': '#/PostingTemplate' } },
+        },
+    },
+  'MappingQueryRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+  'MappingGetRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'mappingId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+        },
+    },
+  'MappingCreateRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'defaultResult', 'definition'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'defaultResult': { '$ref': '#/MappingResult' },
+          'definition': { '$ref': '#/MappingDefinition' },
+        },
+    },
+  'MappingSaveRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'mappingId', 'defaultResult', 'definition', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'defaultResult': { '$ref': '#/MappingResult' },
+          'definition': { '$ref': '#/MappingDefinition' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'MappingActionRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'mappingId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'MappingCatalogRequest':
+    {
+      'type': 'object',
+      'required': ['vouEntity'],
+      'additionalProperties': false,
+      'properties': { 'vouEntity': { 'type': 'string', 'minLength': 1 } },
+    },
+  'Mapping':
+    {
+      'type': 'object',
+      'required':
+        [
+          'mappingId',
+          'bookId',
+          'vouEntity',
+          'version',
+          'state',
+          'defaultResult',
+          'definition',
+          'revision',
+          'approvedAt',
+          'approvedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'mappingId': { 'type': 'string' },
+          'bookId': { 'type': 'string' },
+          'vouEntity': { 'type': 'string' },
+          'version': { 'type': 'integer', 'minimum': 1 },
+          'state': { '$ref': '#/MappingState' },
+          'defaultResult': { '$ref': '#/MappingResult' },
+          'definition': { '$ref': '#/MappingDefinition' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvedAt': { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'approvedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'MappingPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/Mapping' } },
+          'total': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1 },
+        },
+    },
+  'MappingCatalog':
+    {
+      'type': 'object',
+      'required': ['vouEntity', 'headerFields', 'collections'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'vouEntity': { 'type': 'string' },
+          'headerFields': { 'type': 'array', 'items': { 'type': 'string' } },
+          'collections':
+            {
+              'type': 'object',
+              'additionalProperties':
+                { 'type': 'array', 'items': { 'type': 'string' } },
+            },
+        },
+    },
+  'MappingEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/Mapping' }] },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'MappingPageEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/MappingPage' }] },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'MappingCatalogEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/MappingCatalog' }] },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BookPage':
     {
       'type': 'object',

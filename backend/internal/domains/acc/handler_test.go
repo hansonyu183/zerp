@@ -76,6 +76,30 @@ func (stub *bookServiceStub) UnapproveOpening(_ context.Context, _ string, _ int
 	stub.actions = append(stub.actions, "opening-unapprove")
 	return OpeningView{}, nil
 }
+func (stub *bookServiceStub) QueryMappings(_ context.Context, input QueryMappingsInput, _ string) (MappingPage, error) {
+	stub.actions = append(stub.actions, "mapping-query")
+	return MappingPage{Items: []MappingView{}, Page: input.Page, PageSize: input.PageSize}, nil
+}
+func (stub *bookServiceStub) GetMapping(_ context.Context, _, _, _ string) (MappingView, error) {
+	stub.actions = append(stub.actions, "mapping-get")
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) CreateMapping(_ context.Context, _ CreateMappingInput, _ string) (MappingView, error) {
+	stub.actions = append(stub.actions, "mapping-create")
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) SaveMapping(_ context.Context, _ SaveMappingInput, _ string) (MappingView, error) {
+	stub.actions = append(stub.actions, "mapping-save")
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) ApproveMapping(_ context.Context, _, _ string, _ int64, _ string) (MappingView, error) {
+	stub.actions = append(stub.actions, "mapping-approve")
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) UnapproveMapping(_ context.Context, _, _ string, _ int64, _ string) (MappingView, error) {
+	stub.actions = append(stub.actions, "mapping-unapprove")
+	return MappingView{}, nil
+}
 
 func testRouter(service bookApplicationService, authorizer authorization.Authorizer) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -188,6 +212,42 @@ func TestOpeningHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
 			}
 			if permission != "/acc/opening/"+test.action || len(service.actions) != 1 || service.actions[0] != "opening-"+test.action {
+				t.Fatalf("permission = %q, actions = %v", permission, service.actions)
+			}
+		})
+	}
+}
+
+func TestMappingHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) {
+	definition := `"definition":{"defaultTemplateId":null,"rules":[],"templates":[]}`
+	tests := []struct{ action, body string }{
+		{"query", `{"bookId":"01JACC00000000000000000001","page":1,"pageSize":20}`},
+		{"get", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002"}`},
+		{"create", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","defaultResult":"UN_POST",` + definition + `}`},
+		{"save", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","defaultResult":"UN_POST","revision":1,` + definition + `}`},
+		{"approve", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","revision":1}`},
+		{"unapprove", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","revision":2}`},
+	}
+	for _, test := range tests {
+		t.Run(test.action, func(t *testing.T) {
+			service := &bookServiceStub{}
+			var permission string
+			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+				permission = path
+				return authorization.Principal{ActorID: handlerActorID}, nil
+			})
+			request := httptest.NewRequest(http.MethodPost, "/acc/mapping/"+test.action, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			testRouter(service, authorizer).ServeHTTP(recorder, request)
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if recorder.Code != http.StatusOK || envelope.Code != response.CodeOK {
+				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
+			}
+			if permission != "/acc/mapping/"+test.action || len(service.actions) != 1 || service.actions[0] != "mapping-"+test.action {
 				t.Fatalf("permission = %q, actions = %v", permission, service.actions)
 			}
 		})

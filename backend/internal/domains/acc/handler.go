@@ -30,6 +30,12 @@ type bookApplicationService interface {
 	SaveOpening(context.Context, SaveOpeningInput, string) (OpeningView, error)
 	ApproveOpening(context.Context, string, int64, string) (OpeningView, error)
 	UnapproveOpening(context.Context, string, int64, string) (OpeningView, error)
+	QueryMappings(context.Context, QueryMappingsInput, string) (MappingPage, error)
+	GetMapping(context.Context, string, string, string) (MappingView, error)
+	CreateMapping(context.Context, CreateMappingInput, string) (MappingView, error)
+	SaveMapping(context.Context, SaveMappingInput, string) (MappingView, error)
+	ApproveMapping(context.Context, string, string, int64, string) (MappingView, error)
+	UnapproveMapping(context.Context, string, string, int64, string) (MappingView, error)
 }
 
 type Handler struct {
@@ -68,6 +74,15 @@ func (h *Handler) Register(router *gin.Engine) {
 	openings.POST("/save", h.authorize("/acc/opening/save"), h.saveOpening)
 	openings.POST("/approve", h.authorize("/acc/opening/approve"), h.approveOpening)
 	openings.POST("/unapprove", h.authorize("/acc/opening/unapprove"), h.unapproveOpening)
+
+	mappings := router.Group("/acc/mapping")
+	mappings.POST("/query", h.authorize("/acc/mapping/query"), h.queryMappings)
+	mappings.POST("/get", h.authorize("/acc/mapping/get"), h.getMapping)
+	mappings.POST("/create", h.authorize("/acc/mapping/create"), h.createMapping)
+	mappings.POST("/save", h.authorize("/acc/mapping/save"), h.saveMapping)
+	mappings.POST("/approve", h.authorize("/acc/mapping/approve"), h.approveMapping)
+	mappings.POST("/unapprove", h.authorize("/acc/mapping/unapprove"), h.unapproveMapping)
+	mappings.POST("/catalog", h.authorize("/acc/mapping/catalog"), h.mappingCatalog)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -242,6 +257,94 @@ func (h *Handler) unapproveOpening(c *gin.Context) {
 		return
 	}
 	result, err := h.service.UnapproveOpening(c.Request.Context(), body.BookId, body.Revision, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func mappingDefinition(input generated.MappingDefinition) MappingDefinition {
+	rules := make([]MappingRule, 0, len(input.Rules))
+	for _, rule := range input.Rules {
+		conditions := make([]MappingCondition, 0, len(rule.Conditions))
+		for _, condition := range rule.Conditions {
+			conditions = append(conditions, MappingCondition{Field: condition.Field, Operator: string(condition.Operator), Values: condition.Values})
+		}
+		rules = append(rules, MappingRule{Conditions: conditions, Result: string(rule.Result), TemplateID: rule.TemplateId})
+	}
+	templates := make([]PostingTemplate, 0, len(input.Templates))
+	for _, template := range input.Templates {
+		lines := make([]PostingLineTemplate, 0, len(template.Lines))
+		for _, line := range template.Lines {
+			lines = append(lines, PostingLineTemplate{
+				SubjectSource: string(line.SubjectSource), SubjectValue: line.SubjectValue,
+				Direction: string(line.Direction), AmountField: line.AmountField,
+				CurrencyField: line.CurrencyField, Dimensions: line.Dimensions,
+				QuantityField: line.QuantityField,
+			})
+		}
+		templates = append(templates, PostingTemplate{ID: template.TemplateId, Collection: template.Collection, Lines: lines})
+	}
+	return MappingDefinition{DefaultTemplateID: input.DefaultTemplateId, Rules: rules, Templates: templates}
+}
+
+func (h *Handler) queryMappings(c *gin.Context) {
+	var body generated.MappingQueryRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.QueryMappings(c.Request.Context(), QueryMappingsInput{BookID: body.BookId, VouEntity: optionalString(body.VouEntity), Page: body.Page, PageSize: body.PageSize}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) getMapping(c *gin.Context) {
+	var body generated.MappingGetRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.GetMapping(c.Request.Context(), body.BookId, body.MappingId, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) createMapping(c *gin.Context) {
+	var body generated.MappingCreateRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.CreateMapping(c.Request.Context(), CreateMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition)}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) saveMapping(c *gin.Context) {
+	var body generated.MappingSaveRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.SaveMapping(c.Request.Context(), SaveMappingInput{BookID: body.BookId, MappingID: body.MappingId, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition), Revision: body.Revision}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) approveMapping(c *gin.Context) {
+	var body generated.MappingActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.ApproveMapping(c.Request.Context(), body.BookId, body.MappingId, body.Revision, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) unapproveMapping(c *gin.Context) {
+	var body generated.MappingActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.UnapproveMapping(c.Request.Context(), body.BookId, body.MappingId, body.Revision, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) mappingCatalog(c *gin.Context) {
+	var body generated.MappingCatalogRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := MappingFieldCatalog(body.VouEntity)
 	h.result(c, result, err)
 }
 

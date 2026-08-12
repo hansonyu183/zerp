@@ -133,6 +133,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 30,
     component: () => import('@/pages/acc/opening/Opening.vue'),
   }),
+  registerPage('acc', {
+    entity: 'mapping',
+    entityTitle: 'VOU 会计映射',
+    icon: 'mdi-source-branch',
+    order: 40,
+    component: () => import('@/pages/acc/mapping/Mapping.vue'),
+  }),
   registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',

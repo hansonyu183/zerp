@@ -383,7 +383,7 @@ ORDER BY version DESC
 LIMIT 1;
 
 -- name: ListAccountingPostingBooks :many
-SELECT b.id
+SELECT b.id, b.control_book
 FROM acc_books b
 JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
 WHERE b.start_month <= sqlc.arg(business_date)::date
@@ -415,3 +415,73 @@ WHERE source_type = 'VOU'
   AND source_id = sqlc.arg(source_id)
   AND source_revision = sqlc.arg(source_revision)
 RETURNING id;
+
+-- name: InsertAccountingInventoryEntry :exec
+INSERT INTO acc_inventory_entries (
+  id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
+  warehouse_id, business_date, quantity_delta_micros, source_line_id
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(voucher_line_id),
+  sqlc.arg(subject_id), sqlc.arg(product_id), sqlc.arg(warehouse_id),
+  sqlc.arg(business_date), sqlc.arg(quantity_delta_micros), sqlc.arg(source_line_id)
+);
+
+-- name: LockAccountingInventory :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key), 0));
+
+-- name: GetAccountingInventoryQuantity :one
+SELECT COALESCE(sum(quantity_delta_micros), 0)::bigint
+FROM acc_inventory_entries
+WHERE book_id = sqlc.arg(book_id)
+  AND subject_id = sqlc.arg(subject_id)
+  AND product_id = sqlc.arg(product_id)
+  AND warehouse_id = sqlc.arg(warehouse_id)
+  AND business_date <= sqlc.arg(business_date);
+
+-- name: GetMinimumAccountingInventoryQuantity :one
+SELECT COALESCE(min(running_quantity), 0)::bigint
+FROM (
+  SELECT sum(sum(quantity_delta_micros)) OVER (ORDER BY business_date) AS running_quantity
+  FROM acc_inventory_entries
+  WHERE book_id = sqlc.arg(book_id)
+    AND subject_id = sqlc.arg(subject_id)
+    AND product_id = sqlc.arg(product_id)
+    AND warehouse_id = sqlc.arg(warehouse_id)
+  GROUP BY business_date
+) daily_balances;
+
+-- name: ListAccountingPeriods :many
+SELECT to_char(period_month, 'YYYY-MM') AS period_month, state, revision,
+       locked_at, locked_by
+FROM acc_periods
+WHERE book_id = sqlc.arg(book_id)
+ORDER BY period_month DESC;
+
+-- name: GetLatestLockedAccountingPeriod :one
+SELECT period_month, revision
+FROM acc_periods
+WHERE book_id = sqlc.arg(book_id) AND state = 'LOCKED'
+ORDER BY period_month DESC
+LIMIT 1
+FOR UPDATE;
+
+-- name: LockAccountingPeriodRow :one
+INSERT INTO acc_periods (
+  book_id, period_month, state, locked_at, locked_by, updated_by
+) VALUES (
+  sqlc.arg(book_id), sqlc.arg(period_month), 'LOCKED', now(), sqlc.arg(actor_id), sqlc.arg(actor_id)
+)
+ON CONFLICT (book_id, period_month) DO UPDATE SET
+  state = 'LOCKED', revision = acc_periods.revision + 1,
+  locked_at = now(), locked_by = sqlc.arg(actor_id),
+  updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE acc_periods.state = 'UNLOCKED' AND acc_periods.revision = sqlc.arg(revision)
+RETURNING revision, locked_at;
+
+-- name: UnlockAccountingPeriodRow :one
+UPDATE acc_periods SET
+  state = 'UNLOCKED', revision = revision + 1,
+  locked_at = NULL, locked_by = NULL, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND period_month = sqlc.arg(period_month)
+  AND state = 'LOCKED' AND revision = sqlc.arg(revision)
+RETURNING revision;

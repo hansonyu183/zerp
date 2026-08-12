@@ -244,6 +244,26 @@ type MappingCatalog struct {
 	Collections  map[string][]string `json:"collections"`
 }
 
+const (
+	PeriodStateUnlocked = "UNLOCKED"
+	PeriodStateLocked   = "LOCKED"
+)
+
+type PeriodActionInput struct {
+	BookID   string
+	Month    string
+	Revision int64
+}
+
+type PeriodView struct {
+	BookID   string  `json:"bookId"`
+	Month    string  `json:"month"`
+	State    string  `json:"state"`
+	Revision int64   `json:"revision"`
+	LockedAt *string `json:"lockedAt"`
+	LockedBy *string `json:"lockedBy"`
+}
+
 type BookPage struct {
 	Items    []BookView `json:"items"`
 	Total    int64      `json:"total"`

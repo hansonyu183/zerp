@@ -36,6 +36,9 @@ type bookApplicationService interface {
 	SaveMapping(context.Context, SaveMappingInput, string) (MappingView, error)
 	ApproveMapping(context.Context, string, string, int64, string) (MappingView, error)
 	UnapproveMapping(context.Context, string, string, int64, string) (MappingView, error)
+	QueryPeriods(context.Context, string, string) ([]PeriodView, error)
+	LockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
+	UnlockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
 }
 
 type Handler struct {
@@ -83,6 +86,11 @@ func (h *Handler) Register(router *gin.Engine) {
 	mappings.POST("/approve", h.authorize("/acc/mapping/approve"), h.approveMapping)
 	mappings.POST("/unapprove", h.authorize("/acc/mapping/unapprove"), h.unapproveMapping)
 	mappings.POST("/catalog", h.authorize("/acc/mapping/catalog"), h.mappingCatalog)
+
+	periods := router.Group("/acc/period")
+	periods.POST("/query", h.authorize("/acc/period/query"), h.queryPeriods)
+	periods.POST("/lock", h.authorize("/acc/period/lock"), h.lockPeriod)
+	periods.POST("/unlock", h.authorize("/acc/period/unlock"), h.unlockPeriod)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -345,6 +353,37 @@ func (h *Handler) mappingCatalog(c *gin.Context) {
 		return
 	}
 	result, err := MappingFieldCatalog(body.VouEntity)
+	h.result(c, result, err)
+}
+
+func (h *Handler) queryPeriods(c *gin.Context) {
+	var body generated.PeriodQueryRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.QueryPeriods(c.Request.Context(), body.BookId, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func periodActionInput(body generated.PeriodActionRequest) PeriodActionInput {
+	return PeriodActionInput{BookID: body.BookId, Month: body.Month, Revision: body.Revision}
+}
+
+func (h *Handler) lockPeriod(c *gin.Context) {
+	var body generated.PeriodActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.LockPeriod(c.Request.Context(), periodActionInput(body), h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) unlockPeriod(c *gin.Context) {
+	var body generated.PeriodActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.UnlockPeriod(c.Request.Context(), periodActionInput(body), h.actorID(c))
 	h.result(c, result, err)
 }
 

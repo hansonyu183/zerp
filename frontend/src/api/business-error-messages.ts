@@ -427,6 +427,19 @@ const exactMessages: Readonly<Record<string, string>> = {
     '映射已被修改或批准，请刷新后重试。',
   'accounting mapping is not approved': '当前映射不是已批准状态。',
   'accounting mapping is not draft': '当前映射不是草稿状态。',
+  'accounting opening is not approved': '请先批准账簿期初。',
+  'accounting period has missing VOU mappings':
+    '本期已批准单据存在缺失的会计映射，不能锁定。',
+  'accounting period has not ended': '自然月结束后才能锁定该会计期间。',
+  'accounting period has unfinished VOU documents':
+    '本期仍有未批准单据，不能锁定。',
+  'accounting period is locked': '该业务月份已被会计账簿锁定，不能修改单据。',
+  'accounting period inventory is negative': '本期存在负库存，不能锁定。',
+  'accounting period trial balance failed': '本期会计事实试算不平衡，不能锁定。',
+  'accounting periods must be locked continuously':
+    '会计期间必须从账簿开始月份起逐月连续锁定。',
+  'only the latest accounting period can be unlocked':
+    '只能解锁本账簿最后一个已锁期间。',
   'mapping rule requires conditions': '每条映射规则至少需要一个条件。',
   'mapping requires enabled leaf accounting subjects':
     '映射只能使用本账簿已启用的末级会计科目。',
@@ -442,12 +455,15 @@ const exactMessages: Readonly<Record<string, string>> = {
     '当前账簿缺少该单据类型的已批准会计映射。',
   'automatic accounting voucher is not balanced by currency':
     '自动生成的会计凭证未按币种试算平衡，请检查映射。',
+  'automatic accounting voucher has no facts':
+    '当前映射没有生成任何会计或数量事实。',
   'automatic accounting voucher requires at least two nonzero lines':
     '自动生成的会计凭证至少需要两条非零分录。',
   'encode mapped accounting dimensions':
     '会计辅助核算处理失败，请刷新后重试。',
   'inventory accounting subject requires quantity':
     '库存商品科目的映射必须提供数量。',
+  'insufficient control book inventory': '业务控制账簿库存不足，单据不能批准。',
   'mapped accounting dimensions are incomplete':
     '自动记账缺少会计科目要求的辅助核算信息。',
   'multiple accounting mapping rules matched':

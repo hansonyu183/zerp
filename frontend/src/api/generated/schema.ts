@@ -361,6 +361,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acc/period/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计期间 */
+        post: operations["accPeriodQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/period/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 锁定会计期间 */
+        post: operations["accPeriodLock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/period/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解锁会计期间 */
+        post: operations["accPeriodUnlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -2641,6 +2692,40 @@ export interface components {
             data: components["schemas"]["MappingCatalog"] | null;
             requestId: string;
         };
+        PeriodQueryRequest: {
+            bookId: string;
+        };
+        Period: {
+            bookId: string;
+            month: string;
+            /** @enum {string} */
+            state: "UNLOCKED" | "LOCKED";
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            lockedAt?: string;
+            lockedBy?: string;
+        };
+        PeriodListEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Period"][] | null;
+            requestId: string;
+        };
+        PeriodActionRequest: {
+            bookId: string;
+            month: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        PeriodEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Period"] | null;
+            requestId: string;
+        };
         SignInRequest: {
             username: string;
             password: string;
@@ -4862,6 +4947,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MappingCatalogEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿期间列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodListEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 锁定后的期间。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodEnvelope"];
+                };
+            };
+        };
+    };
+    accPeriodUnlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 解锁后的期间。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodEnvelope"];
                 };
             };
         };

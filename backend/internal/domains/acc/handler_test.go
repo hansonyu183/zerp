@@ -100,6 +100,18 @@ func (stub *bookServiceStub) UnapproveMapping(_ context.Context, _, _ string, _ 
 	stub.actions = append(stub.actions, "mapping-unapprove")
 	return MappingView{}, nil
 }
+func (stub *bookServiceStub) QueryPeriods(_ context.Context, _, _ string) ([]PeriodView, error) {
+	stub.actions = append(stub.actions, "period-query")
+	return []PeriodView{}, nil
+}
+func (stub *bookServiceStub) LockPeriod(_ context.Context, _ PeriodActionInput, _ string) (PeriodView, error) {
+	stub.actions = append(stub.actions, "period-lock")
+	return PeriodView{}, nil
+}
+func (stub *bookServiceStub) UnlockPeriod(_ context.Context, _ PeriodActionInput, _ string) (PeriodView, error) {
+	stub.actions = append(stub.actions, "period-unlock")
+	return PeriodView{}, nil
+}
 
 func testRouter(service bookApplicationService, authorizer authorization.Authorizer) *gin.Engine {
 	gin.SetMode(gin.TestMode)

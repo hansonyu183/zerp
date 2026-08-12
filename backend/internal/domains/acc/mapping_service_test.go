@@ -83,3 +83,13 @@ func TestAutomaticTrialBalanceIsPerCurrency(t *testing.T) {
 		t.Fatalf("per-currency balanced lines rejected: %v", err)
 	}
 }
+
+func TestAutomaticTrialBalanceAllowsQuantityOnlyFacts(t *testing.T) {
+	quantity := int64(1_000_000)
+	lines := []automaticPostingLine{{
+		subjectID: ulid.Make().String(), currency: "CNY", quantityMicros: &quantity,
+	}}
+	if err := validateAutomaticTrialBalance(lines); err != nil {
+		t.Fatalf("quantity-only facts rejected: %v", err)
+	}
+}

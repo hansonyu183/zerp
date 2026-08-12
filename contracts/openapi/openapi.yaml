@@ -765,6 +765,93 @@
                 },
             },
         },
+      '/acc/period/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计期间',
+              'operationId': 'accPeriodQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodQueryRequest' } },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿期间列表。',
+                      'content':
+                        {
+                          'application/json':
+                            { 'schema': { '$ref': './schemas/acc.yaml#/PeriodListEnvelope' } },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/period/lock':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '锁定会计期间',
+              'operationId': 'accPeriodLock',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodActionRequest' } },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '锁定后的期间。',
+                      'content':
+                        { 'application/json': { 'schema': { '$ref': './schemas/acc.yaml#/PeriodEnvelope' } } },
+                    },
+                },
+            },
+        },
+      '/acc/period/unlock':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '解锁会计期间',
+              'operationId': 'accPeriodUnlock',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': './schemas/acc.yaml#/PeriodActionRequest' } },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '解锁后的期间。',
+                      'content':
+                        { 'application/json': { 'schema': { '$ref': './schemas/acc.yaml#/PeriodEnvelope' } } },
+                    },
+                },
+            },
+        },
       '/app/user/signin':
         {
           'post':

@@ -325,13 +325,23 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 		return OpeningView{}, databaseError("create accounting opening voucher", err)
 	}
 	for index, line := range lines {
+		lineID := ulid.Make().String()
 		if err = qtx.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
-			ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
+			ID: lineID, BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
 			Currency: line.currency, DebitMinor: line.debitMinor, CreditMinor: line.creditMinor,
 			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON,
 			SourceLineID: line.id, LineOrder: int32(index),
 		}); err != nil {
 			return OpeningView{}, databaseError("create accounting opening voucher line", err)
+		}
+		if line.quantityMicros != nil {
+			if err = qtx.InsertAccountingInventoryEntry(ctx, dbsqlc.InsertAccountingInventoryEntryParams{
+				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
+				SubjectID: line.subjectID, ProductID: line.dimensions[DimensionProduct], WarehouseID: line.dimensions[DimensionWarehouse],
+				BusinessDate: pgtype.Date{Time: startDate, Valid: true}, QuantityDeltaMicros: *line.quantityMicros, SourceLineID: line.id,
+			}); err != nil {
+				return OpeningView{}, databaseError("create opening inventory entry", err)
+			}
 		}
 		if err = qtx.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{
 			SubjectID: line.subjectID, UsageType: "OPENING", UsageID: bookID,

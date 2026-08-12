@@ -140,6 +140,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 40,
     component: () => import('@/pages/acc/mapping/Mapping.vue'),
   }),
+  registerPage('acc', {
+    entity: 'period',
+    entityTitle: '会计期间',
+    icon: 'mdi-calendar-lock-outline',
+    order: 50,
+    component: () => import('@/pages/acc/period/Period.vue'),
+  }),
   registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',

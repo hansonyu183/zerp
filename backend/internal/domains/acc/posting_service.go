@@ -30,6 +30,8 @@ type automaticPostingLine struct {
 	subjectID, currency, sourceLineID string
 	debitMinor, creditMinor           int64
 	quantityMicros                    *int64
+	quantityDeltaMicros               int64
+	productID, warehouseID            string
 	dimensionsJSON                    []byte
 }
 
@@ -66,8 +68,8 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txe
 	if err != nil {
 		return databaseError("list accounting posting books", err)
 	}
-	for _, bookID := range books {
-		if err = s.postSnapshotToBook(ctx, q, bookID, event, businessDate, snapshot); err != nil {
+	for _, book := range books {
+		if err = s.postSnapshotToBook(ctx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
 			return postingDeliveryError(err)
 		}
 	}
@@ -82,7 +84,7 @@ func postingDeliveryError(err error) error {
 	return err
 }
 
-func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, bookID string, event voudomain.DocumentApprovedEvent, businessDate time.Time, snapshot postingSnapshot) error {
+func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, bookID string, controlBook bool, event voudomain.DocumentApprovedEvent, businessDate time.Time, snapshot postingSnapshot) error {
 	existing, err := q.GetAutomaticAccountingVoucher(ctx, dbsqlc.GetAutomaticAccountingVoucherParams{BookID: bookID, SourceEntity: &event.Entity, SourceID: event.DocumentID})
 	if err == nil {
 		if existing.SourceRevision != nil && *existing.SourceRevision == event.Revision {
@@ -122,6 +124,17 @@ func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, boo
 	if err = validateAutomaticTrialBalance(lines); err != nil {
 		return err
 	}
+	if controlBook {
+		for _, line := range lines {
+			if line.quantityMicros == nil {
+				continue
+			}
+			lockKey := bookID + ":" + line.subjectID + ":" + line.warehouseID + ":" + line.productID
+			if err = q.LockAccountingInventory(ctx, lockKey); err != nil {
+				return databaseError("lock accounting inventory", err)
+			}
+		}
+	}
 	voucherID := ulid.Make().String()
 	entity, revision, documentNo, mappingID := event.Entity, event.Revision, event.DocumentNo, mapping.ID
 	if err = q.CreateAutomaticAccountingVoucher(ctx, dbsqlc.CreateAutomaticAccountingVoucherParams{
@@ -132,17 +145,43 @@ func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, boo
 	}); err != nil {
 		return databaseError("create automatic accounting voucher", err)
 	}
+	controlDimensions := map[string]automaticPostingLine{}
 	for index, line := range lines {
+		lineID := ulid.Make().String()
 		if err = q.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
-			ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
+			ID: lineID, BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
 			Currency: line.currency, DebitMinor: line.debitMinor, CreditMinor: line.creditMinor,
 			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON,
 			SourceLineID: line.sourceLineID, LineOrder: int32(index),
 		}); err != nil {
 			return databaseError("create automatic accounting voucher line", err)
 		}
+		if line.quantityMicros != nil {
+			if err = q.InsertAccountingInventoryEntry(ctx, dbsqlc.InsertAccountingInventoryEntryParams{
+				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
+				SubjectID: line.subjectID, ProductID: line.productID, WarehouseID: line.warehouseID,
+				BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, QuantityDeltaMicros: line.quantityDeltaMicros, SourceLineID: line.sourceLineID,
+			}); err != nil {
+				return databaseError("create accounting inventory entry", err)
+			}
+			if controlBook {
+				controlDimensions[line.subjectID+":"+line.warehouseID+":"+line.productID] = line
+			}
+		}
 		if err = q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: line.subjectID, UsageType: "VOUCHER", UsageID: voucherID}); err != nil {
 			return databaseError("register automatic voucher accounting subject", err)
+		}
+	}
+	for _, line := range controlDimensions {
+		balance, balanceErr := q.GetMinimumAccountingInventoryQuantity(ctx, dbsqlc.GetMinimumAccountingInventoryQuantityParams{
+			BookID: bookID, SubjectID: line.subjectID, ProductID: line.productID,
+			WarehouseID: line.warehouseID,
+		})
+		if balanceErr != nil {
+			return databaseError("read accounting inventory balance", balanceErr)
+		}
+		if balance < 0 {
+			return domainError(ErrorConflict, "insufficient control book inventory", nil)
 		}
 	}
 	return nil
@@ -245,9 +284,6 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 	if err != nil {
 		return automaticPostingLine{}, false, domainError(ErrorValidation, "invalid mapped accounting amount", err)
 	}
-	if amount == 0 {
-		return automaticPostingLine{}, false, nil
-	}
 	currency := strings.ToUpper(strings.TrimSpace(mappingValue(header, item, template.CurrencyField)))
 	if !currencyPattern.MatchString(currency) {
 		return automaticPostingLine{}, false, domainError(ErrorValidation, "invalid mapped accounting currency", nil)
@@ -282,6 +318,9 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 	} else if subject.InventoryQuantity {
 		return automaticPostingLine{}, false, domainError(ErrorValidation, "inventory accounting subject requires quantity", nil)
 	}
+	if amount == 0 && quantityMicros == nil {
+		return automaticPostingLine{}, false, nil
+	}
 	sourceLineID := documentID
 	if item != nil {
 		sourceLineID = strings.TrimSpace(item["lineId"])
@@ -290,6 +329,13 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 		}
 	}
 	line := automaticPostingLine{subjectID: subject.ID, currency: currency, sourceLineID: sourceLineID, quantityMicros: quantityMicros, dimensionsJSON: dimensionsJSON}
+	if quantityMicros != nil {
+		line.productID, line.warehouseID = dimensions[DimensionProduct], dimensions[DimensionWarehouse]
+		line.quantityDeltaMicros = *quantityMicros
+		if template.Direction == BalanceDirectionCredit {
+			line.quantityDeltaMicros = -line.quantityDeltaMicros
+		}
+	}
 	if template.Direction == BalanceDirectionDebit {
 		line.debitMinor = amount
 	} else {
@@ -299,12 +345,13 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 }
 
 func validateAutomaticTrialBalance(lines []automaticPostingLine) error {
-	if len(lines) < 2 {
-		return domainError(ErrorConflict, "automatic accounting voucher requires at least two nonzero lines", nil)
-	}
 	type totals struct{ debit, credit int64 }
 	byCurrency := map[string]totals{}
+	nonzeroLines := 0
 	for _, line := range lines {
+		if line.debitMinor > 0 || line.creditMinor > 0 {
+			nonzeroLines++
+		}
 		total := byCurrency[line.currency]
 		if line.debitMinor > math.MaxInt64-total.debit || line.creditMinor > math.MaxInt64-total.credit {
 			return domainError(ErrorValidation, "automatic accounting trial balance is out of range", nil)
@@ -312,6 +359,12 @@ func validateAutomaticTrialBalance(lines []automaticPostingLine) error {
 		total.debit += line.debitMinor
 		total.credit += line.creditMinor
 		byCurrency[line.currency] = total
+	}
+	if nonzeroLines != 0 && nonzeroLines < 2 {
+		return domainError(ErrorConflict, "automatic accounting voucher requires at least two nonzero lines", nil)
+	}
+	if nonzeroLines == 0 && len(lines) == 0 {
+		return domainError(ErrorConflict, "automatic accounting voucher has no facts", nil)
 	}
 	for _, total := range byCurrency {
 		if total.debit != total.credit {

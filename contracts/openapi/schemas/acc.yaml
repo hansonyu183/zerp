@@ -747,6 +747,66 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'PeriodQueryRequest':
+    {
+      'type': 'object',
+      'required': ['bookId'],
+      'additionalProperties': false,
+      'properties': { 'bookId': { 'type': 'string', 'pattern': '^[0-9A-HJKMNP-TV-Z]{26}$' } },
+    },
+  'PeriodActionRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'month', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'pattern': '^[0-9A-HJKMNP-TV-Z]{26}$' },
+          'month': { 'type': 'string', 'pattern': '^[0-9]{4}-(0[1-9]|1[0-2])$' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+        },
+    },
+  'Period':
+    {
+      'type': 'object',
+      'required': ['bookId', 'month', 'state', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'month': { 'type': 'string' },
+          'state': { 'type': 'string', 'enum': ['UNLOCKED', 'LOCKED'] },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'lockedAt': { 'type': 'string', 'format': 'date-time' },
+          'lockedBy': { 'type': 'string' },
+        },
+    },
+  'PeriodEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/Period' }] },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PeriodListEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { 'type': 'array', 'nullable': true, 'items': { '$ref': '#/Period' } },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BookPage':
     {
       'type': 'object',

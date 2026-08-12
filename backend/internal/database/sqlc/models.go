@@ -33,6 +33,19 @@ type AccBookUserScope struct {
 	CreatedBy     string             `db:"created_by" json:"created_by"`
 }
 
+type AccInventoryEntry struct {
+	ID                  string      `db:"id" json:"id"`
+	BookID              string      `db:"book_id" json:"book_id"`
+	VoucherID           string      `db:"voucher_id" json:"voucher_id"`
+	VoucherLineID       string      `db:"voucher_line_id" json:"voucher_line_id"`
+	SubjectID           string      `db:"subject_id" json:"subject_id"`
+	ProductID           string      `db:"product_id" json:"product_id"`
+	WarehouseID         string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate        pgtype.Date `db:"business_date" json:"business_date"`
+	QuantityDeltaMicros int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	SourceLineID        string      `db:"source_line_id" json:"source_line_id"`
+}
+
 type AccMappingVersion struct {
 	ID            string             `db:"id" json:"id"`
 	BookID        string             `db:"book_id" json:"book_id"`
@@ -73,6 +86,17 @@ type AccOpeningLine struct {
 	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
 	Dimensions     []byte `db:"dimensions" json:"dimensions"`
 	LineOrder      int32  `db:"line_order" json:"line_order"`
+}
+
+type AccPeriod struct {
+	BookID      string             `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date        `db:"period_month" json:"period_month"`
+	State       string             `db:"state" json:"state"`
+	Revision    int64              `db:"revision" json:"revision"`
+	LockedAt    pgtype.Timestamptz `db:"locked_at" json:"locked_at"`
+	LockedBy    *string            `db:"locked_by" json:"locked_by"`
+	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
 }
 
 type AccSubject struct {

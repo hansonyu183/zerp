@@ -501,6 +501,37 @@ func (q *Queries) GetAccountingBookUserScope(ctx context.Context, arg GetAccount
 	return i, err
 }
 
+const getAccountingInventoryQuantity = `-- name: GetAccountingInventoryQuantity :one
+SELECT COALESCE(sum(quantity_delta_micros), 0)::bigint
+FROM acc_inventory_entries
+WHERE book_id = $1
+  AND subject_id = $2
+  AND product_id = $3
+  AND warehouse_id = $4
+  AND business_date <= $5
+`
+
+type GetAccountingInventoryQuantityParams struct {
+	BookID       string      `db:"book_id" json:"book_id"`
+	SubjectID    string      `db:"subject_id" json:"subject_id"`
+	ProductID    string      `db:"product_id" json:"product_id"`
+	WarehouseID  string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+}
+
+func (q *Queries) GetAccountingInventoryQuantity(ctx context.Context, arg GetAccountingInventoryQuantityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getAccountingInventoryQuantity,
+		arg.BookID,
+		arg.SubjectID,
+		arg.ProductID,
+		arg.WarehouseID,
+		arg.BusinessDate,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getAccountingMapping = `-- name: GetAccountingMapping :one
 SELECT id, book_id, vou_entity, version, state, default_result, definition,
        revision, approved_at, approved_by
@@ -850,6 +881,59 @@ func (q *Queries) GetCurrentApprovedAccountingMapping(ctx context.Context, arg G
 	return i, err
 }
 
+const getLatestLockedAccountingPeriod = `-- name: GetLatestLockedAccountingPeriod :one
+SELECT period_month, revision
+FROM acc_periods
+WHERE book_id = $1 AND state = 'LOCKED'
+ORDER BY period_month DESC
+LIMIT 1
+FOR UPDATE
+`
+
+type GetLatestLockedAccountingPeriodRow struct {
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+	Revision    int64       `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetLatestLockedAccountingPeriod(ctx context.Context, bookID string) (GetLatestLockedAccountingPeriodRow, error) {
+	row := q.db.QueryRow(ctx, getLatestLockedAccountingPeriod, bookID)
+	var i GetLatestLockedAccountingPeriodRow
+	err := row.Scan(&i.PeriodMonth, &i.Revision)
+	return i, err
+}
+
+const getMinimumAccountingInventoryQuantity = `-- name: GetMinimumAccountingInventoryQuantity :one
+SELECT COALESCE(min(running_quantity), 0)::bigint
+FROM (
+  SELECT sum(sum(quantity_delta_micros)) OVER (ORDER BY business_date) AS running_quantity
+  FROM acc_inventory_entries
+  WHERE book_id = $1
+    AND subject_id = $2
+    AND product_id = $3
+    AND warehouse_id = $4
+  GROUP BY business_date
+) daily_balances
+`
+
+type GetMinimumAccountingInventoryQuantityParams struct {
+	BookID      string `db:"book_id" json:"book_id"`
+	SubjectID   string `db:"subject_id" json:"subject_id"`
+	ProductID   string `db:"product_id" json:"product_id"`
+	WarehouseID string `db:"warehouse_id" json:"warehouse_id"`
+}
+
+func (q *Queries) GetMinimumAccountingInventoryQuantity(ctx context.Context, arg GetMinimumAccountingInventoryQuantityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getMinimumAccountingInventoryQuantity,
+		arg.BookID,
+		arg.SubjectID,
+		arg.ProductID,
+		arg.WarehouseID,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const hasAccountingBookOperateAccess = `-- name: HasAccountingBookOperateAccess :one
 SELECT EXISTS(
   SELECT 1 FROM acc_book_user_scopes
@@ -890,6 +974,46 @@ func (q *Queries) HasAccountingBookQueryAccess(ctx context.Context, arg HasAccou
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const insertAccountingInventoryEntry = `-- name: InsertAccountingInventoryEntry :exec
+INSERT INTO acc_inventory_entries (
+  id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
+  warehouse_id, business_date, quantity_delta_micros, source_line_id
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9, $10
+)
+`
+
+type InsertAccountingInventoryEntryParams struct {
+	ID                  string      `db:"id" json:"id"`
+	BookID              string      `db:"book_id" json:"book_id"`
+	VoucherID           string      `db:"voucher_id" json:"voucher_id"`
+	VoucherLineID       string      `db:"voucher_line_id" json:"voucher_line_id"`
+	SubjectID           string      `db:"subject_id" json:"subject_id"`
+	ProductID           string      `db:"product_id" json:"product_id"`
+	WarehouseID         string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate        pgtype.Date `db:"business_date" json:"business_date"`
+	QuantityDeltaMicros int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	SourceLineID        string      `db:"source_line_id" json:"source_line_id"`
+}
+
+func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg InsertAccountingInventoryEntryParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingInventoryEntry,
+		arg.ID,
+		arg.BookID,
+		arg.VoucherID,
+		arg.VoucherLineID,
+		arg.SubjectID,
+		arg.ProductID,
+		arg.WarehouseID,
+		arg.BusinessDate,
+		arg.QuantityDeltaMicros,
+		arg.SourceLineID,
+	)
+	return err
 }
 
 const insertAccountingOpeningLine = `-- name: InsertAccountingOpeningLine :exec
@@ -1255,8 +1379,50 @@ func (q *Queries) ListAccountingOpeningLines(ctx context.Context, bookID string)
 	return items, nil
 }
 
+const listAccountingPeriods = `-- name: ListAccountingPeriods :many
+SELECT to_char(period_month, 'YYYY-MM') AS period_month, state, revision,
+       locked_at, locked_by
+FROM acc_periods
+WHERE book_id = $1
+ORDER BY period_month DESC
+`
+
+type ListAccountingPeriodsRow struct {
+	PeriodMonth string             `db:"period_month" json:"period_month"`
+	State       string             `db:"state" json:"state"`
+	Revision    int64              `db:"revision" json:"revision"`
+	LockedAt    pgtype.Timestamptz `db:"locked_at" json:"locked_at"`
+	LockedBy    *string            `db:"locked_by" json:"locked_by"`
+}
+
+func (q *Queries) ListAccountingPeriods(ctx context.Context, bookID string) ([]ListAccountingPeriodsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingPeriods, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingPeriodsRow{}
+	for rows.Next() {
+		var i ListAccountingPeriodsRow
+		if err := rows.Scan(
+			&i.PeriodMonth,
+			&i.State,
+			&i.Revision,
+			&i.LockedAt,
+			&i.LockedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAccountingPostingBooks = `-- name: ListAccountingPostingBooks :many
-SELECT b.id
+SELECT b.id, b.control_book
 FROM acc_books b
 JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
 WHERE b.start_month <= $1::date
@@ -1264,19 +1430,24 @@ ORDER BY b.code
 FOR SHARE OF b, opening
 `
 
-func (q *Queries) ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]string, error) {
+type ListAccountingPostingBooksRow struct {
+	ID          string `db:"id" json:"id"`
+	ControlBook bool   `db:"control_book" json:"control_book"`
+}
+
+func (q *Queries) ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]ListAccountingPostingBooksRow, error) {
 	rows, err := q.db.Query(ctx, listAccountingPostingBooks, businessDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []ListAccountingPostingBooksRow{}
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var i ListAccountingPostingBooksRow
+		if err := rows.Scan(&i.ID, &i.ControlBook); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1403,6 +1574,53 @@ func (q *Queries) LockAccountingBooksForCreate(ctx context.Context) error {
 	return err
 }
 
+const lockAccountingInventory = `-- name: LockAccountingInventory :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
+`
+
+func (q *Queries) LockAccountingInventory(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, lockAccountingInventory, lockKey)
+	return err
+}
+
+const lockAccountingPeriodRow = `-- name: LockAccountingPeriodRow :one
+INSERT INTO acc_periods (
+  book_id, period_month, state, locked_at, locked_by, updated_by
+) VALUES (
+  $1, $2, 'LOCKED', now(), $3, $3
+)
+ON CONFLICT (book_id, period_month) DO UPDATE SET
+  state = 'LOCKED', revision = acc_periods.revision + 1,
+  locked_at = now(), locked_by = $3,
+  updated_at = now(), updated_by = $3
+WHERE acc_periods.state = 'UNLOCKED' AND acc_periods.revision = $4
+RETURNING revision, locked_at
+`
+
+type LockAccountingPeriodRowParams struct {
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+	ActorID     *string     `db:"actor_id" json:"actor_id"`
+	Revision    int64       `db:"revision" json:"revision"`
+}
+
+type LockAccountingPeriodRowRow struct {
+	Revision int64              `db:"revision" json:"revision"`
+	LockedAt pgtype.Timestamptz `db:"locked_at" json:"locked_at"`
+}
+
+func (q *Queries) LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error) {
+	row := q.db.QueryRow(ctx, lockAccountingPeriodRow,
+		arg.BookID,
+		arg.PeriodMonth,
+		arg.ActorID,
+		arg.Revision,
+	)
+	var i LockAccountingPeriodRowRow
+	err := row.Scan(&i.Revision, &i.LockedAt)
+	return i, err
+}
+
 const nextAccountingBookNumber = `-- name: NextAccountingBookNumber :one
 INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('acc', 'book', 1)
@@ -1518,6 +1736,34 @@ type UnapproveAccountingOpeningParams struct {
 
 func (q *Queries) UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error) {
 	row := q.db.QueryRow(ctx, unapproveAccountingOpening, arg.ActorID, arg.BookID, arg.Revision)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const unlockAccountingPeriodRow = `-- name: UnlockAccountingPeriodRow :one
+UPDATE acc_periods SET
+  state = 'UNLOCKED', revision = revision + 1,
+  locked_at = NULL, locked_by = NULL, updated_at = now(), updated_by = $1
+WHERE book_id = $2 AND period_month = $3
+  AND state = 'LOCKED' AND revision = $4
+RETURNING revision
+`
+
+type UnlockAccountingPeriodRowParams struct {
+	ActorID     string      `db:"actor_id" json:"actor_id"`
+	BookID      string      `db:"book_id" json:"book_id"`
+	PeriodMonth pgtype.Date `db:"period_month" json:"period_month"`
+	Revision    int64       `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error) {
+	row := q.db.QueryRow(ctx, unlockAccountingPeriodRow,
+		arg.ActorID,
+		arg.BookID,
+		arg.PeriodMonth,
+		arg.Revision,
+	)
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err

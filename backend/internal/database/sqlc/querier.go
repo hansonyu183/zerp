@@ -174,6 +174,7 @@ type Querier interface {
 	GetAccountingBook(ctx context.Context, bookID string) (GetAccountingBookRow, error)
 	GetAccountingBookDeletionState(ctx context.Context, bookID string) (GetAccountingBookDeletionStateRow, error)
 	GetAccountingBookUserScope(ctx context.Context, arg GetAccountingBookUserScopeParams) (GetAccountingBookUserScopeRow, error)
+	GetAccountingInventoryQuantity(ctx context.Context, arg GetAccountingInventoryQuantityParams) (int64, error)
 	GetAccountingMapping(ctx context.Context, arg GetAccountingMappingParams) (GetAccountingMappingRow, error)
 	GetAccountingMappingForUpdate(ctx context.Context, arg GetAccountingMappingForUpdateParams) (GetAccountingMappingForUpdateRow, error)
 	GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error)
@@ -203,10 +204,12 @@ type Querier interface {
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
 	GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
+	GetLatestLockedAccountingPeriod(ctx context.Context, bookID string) (GetLatestLockedAccountingPeriodRow, error)
 	GetLedBillAvailableBalance(ctx context.Context, arg GetLedBillAvailableBalanceParams) (int64, error)
 	GetLedControl(ctx context.Context) (LedControl, error)
 	GetLedOtherBalanceAtDate(ctx context.Context, arg GetLedOtherBalanceAtDateParams) (int64, error)
 	GetLedPartyBalanceAtDate(ctx context.Context, arg GetLedPartyBalanceAtDateParams) (int64, error)
+	GetMinimumAccountingInventoryQuantity(ctx context.Context, arg GetMinimumAccountingInventoryQuantityParams) (int64, error)
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
 	GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error)
 	GetVouAssetDepreciationDetail(ctx context.Context, documentID string) (VouAssetDepreciationDetail, error)
@@ -240,6 +243,7 @@ type Querier interface {
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
+	InsertAccountingInventoryEntry(ctx context.Context, arg InsertAccountingInventoryEntryParams) error
 	InsertAccountingOpeningLine(ctx context.Context, arg InsertAccountingOpeningLineParams) error
 	InsertAccountingSubject(ctx context.Context, arg InsertAccountingSubjectParams) error
 	InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error
@@ -338,7 +342,8 @@ type Querier interface {
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
 	ListAccountingMappings(ctx context.Context, arg ListAccountingMappingsParams) ([]ListAccountingMappingsRow, error)
 	ListAccountingOpeningLines(ctx context.Context, bookID string) ([]AccOpeningLine, error)
-	ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]string, error)
+	ListAccountingPeriods(ctx context.Context, bookID string) ([]ListAccountingPeriodsRow, error)
+	ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]ListAccountingPostingBooksRow, error)
 	ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error)
 	ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
@@ -420,6 +425,8 @@ type Querier interface {
 	ListWorkflowDefinitionNodes(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodesRow, error)
 	ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error)
 	LockAccountingBooksForCreate(ctx context.Context) error
+	LockAccountingInventory(ctx context.Context, lockKey string) error
+	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
 	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
@@ -485,6 +492,7 @@ type Querier interface {
 	UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error)
 	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
+	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
 	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
 	UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error)

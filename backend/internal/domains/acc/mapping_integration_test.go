@@ -43,8 +43,10 @@ func TestAccountingMappingVersionsAndAccessScopes(t *testing.T) {
 		t.Fatalf("create next version = %+v, err = %v", second, err)
 	}
 	if _, err = pool.Exec(t.Context(), `
-		INSERT INTO acc_vouchers (id, book_id, source_type, source_id, business_date, mapping_version_id, created_by)
-		VALUES ($1, $2, 'VOU', $3, '2026-08-12', $4, $5)
+		INSERT INTO acc_vouchers (
+			id, book_id, source_type, source_id, source_entity, source_revision,
+			source_document_no, business_date, mapping_version_id, created_by
+		) VALUES ($1, $2, 'VOU', $3, 'sale-order', 1, 'SO-1', '2026-08-12', $4, $5)
 	`, ulid.Make().String(), book.ID, ulid.Make().String(), approved.ID, adminID); err != nil {
 		t.Fatalf("reference approved mapping: %v", err)
 	}

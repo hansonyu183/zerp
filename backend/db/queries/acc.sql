@@ -381,3 +381,37 @@ WHERE book_id = sqlc.arg(book_id) AND vou_entity = sqlc.arg(vou_entity)
   AND state = 'APPROVED'
 ORDER BY version DESC
 LIMIT 1;
+
+-- name: ListAccountingPostingBooks :many
+SELECT b.id
+FROM acc_books b
+JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
+WHERE b.start_month <= sqlc.arg(business_date)::date
+ORDER BY b.code
+FOR SHARE OF b, opening;
+
+-- name: GetAutomaticAccountingVoucher :one
+SELECT id, source_revision
+FROM acc_vouchers
+WHERE book_id = sqlc.arg(book_id)
+  AND source_type = 'VOU'
+  AND source_entity = sqlc.arg(source_entity)
+  AND source_id = sqlc.arg(source_id);
+
+-- name: CreateAutomaticAccountingVoucher :exec
+INSERT INTO acc_vouchers (
+  id, book_id, source_type, source_id, source_entity, source_revision,
+  source_document_no, business_date, mapping_version_id, created_by
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), 'VOU', sqlc.arg(source_id),
+  sqlc.arg(source_entity), sqlc.arg(source_revision), sqlc.arg(source_document_no),
+  sqlc.arg(business_date), sqlc.arg(mapping_version_id), sqlc.arg(actor_id)
+);
+
+-- name: DeleteAutomaticAccountingVoucher :many
+DELETE FROM acc_vouchers
+WHERE source_type = 'VOU'
+  AND source_entity = sqlc.arg(source_entity)
+  AND source_id = sqlc.arg(source_id)
+  AND source_revision = sqlc.arg(source_revision)
+RETURNING id;

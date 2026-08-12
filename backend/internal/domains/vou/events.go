@@ -74,6 +74,7 @@ type DocumentApprovedEvent struct {
 	Revision   int64
 	ActorID    string
 	RequestID  string
+	Snapshot   DocumentView
 }
 
 func (event DocumentApprovedEvent) Topic() string {
@@ -92,6 +93,7 @@ type DocumentUnapprovedEvent struct {
 	ActorID    string
 	RequestID  string
 	Reason     string
+	Snapshot   DocumentView
 }
 
 func (event DocumentUnapprovedEvent) Topic() string {

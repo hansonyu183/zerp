@@ -54,6 +54,9 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	}
 	appService := appdomain.NewService(db, cfg, logger)
 	accService := accdomain.NewService(db)
+	if err = accService.RegisterSubscriptions(eventBus); err != nil {
+		return nil, nil, err
+	}
 	ledService, err := leddomain.NewService(db, bobService, vouService)
 	if err != nil {
 		return nil, nil, err

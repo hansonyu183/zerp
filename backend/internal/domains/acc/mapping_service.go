@@ -20,7 +20,7 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 		"order-production", "self-production", "inventory-count",
 		"sales-receipt", "purchase-refund", "other-receipt", "sales-refund", "purchase-payment", "other-payment",
 		"employee-loan", "employee-repayment", "employee-loan-writeoff", "expense-reimbursement", "expense-payment", "other-income",
-		"asset-acquisition", "asset-sale", "asset-liquidation",
+		"asset-acquisition", "asset-depreciation", "asset-sale", "asset-liquidation",
 		"bill-receipt", "bill-payment", "bill-issue", "bill-discount", "bill-maturity", "intermediary-calculation",
 	}
 	result := make(map[string]struct{}, len(entities))
@@ -31,13 +31,27 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 }()
 
 var mappingHeaderFields = []string{
-	"businessDate", "currency", "documentId", "documentNo", "entity", "parentDocumentId",
-	"remark", "revision", "status", "totalAmount",
+	"amount", "businessDate", "containerDifferenceReason", "currency", "depreciationMonth", "differenceReason",
+	"documentId", "documentNo", "dueDate", "entity", "fulfillmentStatus", "interestMode", "maturityType",
+	"otherCategory", "parentDocumentId", "parentEntity", "remark", "returnKind", "returnReason", "revision",
+	"settlementMode", "sourceName", "specialApproval", "status", "totalAmount", "withRecourse",
+	"counterparty.objectId", "customer.objectId", "employee.objectId", "finishedWarehouse.objectId",
+	"fundAccount.objectId", "handler.objectId", "interestParty.objectId", "materialWarehouse.objectId",
+	"platform.objectId", "purchaser.objectId", "salesperson.objectId", "supplier.objectId", "vehicle.objectId",
+	"warehouse.objectId",
 }
 
 var mappingLineFields = []string{
-	"amount", "category", "departmentId", "description", "employeeId", "fundAccountId", "lineId",
-	"otherPartyId", "productId", "quantity", "supplierId", "taxAmount", "unitPrice", "warehouseId",
+	"actualQuantity", "amount", "assetId", "billId", "billLineId", "category", "description", "direction",
+	"disposalExpense", "faceAmount", "interestAmount", "lineAmount", "lineId", "orderedQuantity", "originalValue",
+	"outputQuantity", "quantity", "rejectedQuantity", "saleAmount", "salvageIncome", "signedQuantity", "unitPrice",
+	"actualMaterial.objectId", "category.objectId", "custodian.objectId", "department.objectId", "fundAccount.objectId",
+	"formulaMaterial.objectId", "material.objectId", "product.objectId",
+}
+
+var mappingCollections = []string{
+	"assetAcquisitionLines", "assetDepreciationLines", "assetLiquidationLines", "assetSaleLines", "billCashLines",
+	"billLines", "expenseLines", "inventoryCountLines", "lines", "priceLines", "productLines", "productionLines", "signoffLines",
 }
 
 func SupportedMappingEntities() []string {
@@ -54,11 +68,11 @@ func MappingFieldCatalog(entity string) (MappingCatalog, error) {
 	if _, ok := supportedMappingEntitySet[entity]; !ok {
 		return MappingCatalog{}, domainError(ErrorValidation, "unsupported VOU entity", nil)
 	}
-	return MappingCatalog{
-		VouEntity:    entity,
-		HeaderFields: append([]string(nil), mappingHeaderFields...),
-		Collections:  map[string][]string{"lines": append([]string(nil), mappingLineFields...)},
-	}, nil
+	collections := make(map[string][]string, len(mappingCollections))
+	for _, collection := range mappingCollections {
+		collections[collection] = append([]string(nil), mappingLineFields...)
+	}
+	return MappingCatalog{VouEntity: entity, HeaderFields: append([]string(nil), mappingHeaderFields...), Collections: collections}, nil
 }
 
 func mappingFieldExists(catalog MappingCatalog, field string, allowLine bool) bool {

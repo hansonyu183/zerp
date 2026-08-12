@@ -136,6 +136,12 @@ func TestVOUTransactionalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 			if !ok {
 				return errors.New("unexpected approved event type")
 			}
+			if event.Snapshot.DocumentID != event.DocumentID || event.Snapshot.Status != StatusApproved ||
+				event.Snapshot.Revision != event.Revision || event.Snapshot.Data.BusinessDate != "2026-07-24" ||
+				event.Snapshot.Data.FundAccount == nil || event.Snapshot.Data.Counterparty == nil ||
+				event.Snapshot.Amount != "100.00" {
+				return errors.New("approved event does not carry the complete typed document snapshot")
+			}
 			var status string
 			var revision, audits int64
 			if err := tx.QueryRow(ctx, `
@@ -160,6 +166,10 @@ func TestVOUTransactionalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 			event, ok := raw.(DocumentUnapprovedEvent)
 			if !ok || event.Reason != "冲销错误入账" {
 				return errors.New("unexpected unapproved event")
+			}
+			if event.Snapshot.DocumentID != event.DocumentID || event.Snapshot.Status != StatusApproved ||
+				event.Snapshot.Revision+1 != event.Revision || event.Snapshot.Data.FundAccount == nil {
+				return errors.New("unapproved event does not carry the approved typed document snapshot")
 			}
 			var status string
 			var revision, audits int64

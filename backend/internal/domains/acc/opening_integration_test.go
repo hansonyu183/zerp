@@ -121,7 +121,7 @@ func TestAccountingOpeningInventoryValidationZeroApprovalAndLaterFactGuardIntegr
 	}
 	if _, err = pool.Exec(t.Context(), `
 		INSERT INTO acc_vouchers (id, book_id, source_type, source_id, business_date, created_by)
-		VALUES ('01JACC00000000000000000999', $1, 'VOU', 'vou-after-opening', '2026-08-02', $2)
+		VALUES ('01JACC00000000000000000999', $1, 'COST_SETTLEMENT', 'later-fact', '2026-08-02', $2)
 	`, book.ID, adminID); err != nil {
 		t.Fatalf("insert later accounting fact: %v", err)
 	}

@@ -436,6 +436,22 @@ const exactMessages: Readonly<Record<string, string>> = {
     '凭证模板必须有标识且至少包含两行分录。',
   'referenced accounting mapping cannot be unapproved':
     '该映射版本已生成会计事实，不能反批准。',
+  'VOU source already has accounting facts from another revision':
+    '该单据的其他批准版本已经生成会计凭证，不能重复覆盖。',
+  'approved accounting mapping is missing':
+    '当前账簿缺少该单据类型的已批准会计映射。',
+  'automatic accounting voucher is not balanced by currency':
+    '自动生成的会计凭证未按币种试算平衡，请检查映射。',
+  'automatic accounting voucher requires at least two nonzero lines':
+    '自动生成的会计凭证至少需要两条非零分录。',
+  'encode mapped accounting dimensions':
+    '会计辅助核算处理失败，请刷新后重试。',
+  'inventory accounting subject requires quantity':
+    '库存商品科目的映射必须提供数量。',
+  'mapped accounting dimensions are incomplete':
+    '自动记账缺少会计科目要求的辅助核算信息。',
+  'multiple accounting mapping rules matched':
+    '当前单据同时命中多条会计映射规则，请调整映射。',
   'unknown mapping condition field': '映射条件引用了未知字段。',
   'unknown posting amount or currency field':
     '凭证模板引用了未知的金额或币种字段。',

@@ -113,6 +113,9 @@ type AccVoucher struct {
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy        string             `db:"created_by" json:"created_by"`
 	MappingVersionID *string            `db:"mapping_version_id" json:"mapping_version_id"`
+	SourceEntity     *string            `db:"source_entity" json:"source_entity"`
+	SourceRevision   *int64             `db:"source_revision" json:"source_revision"`
+	SourceDocumentNo *string            `db:"source_document_no" json:"source_document_no"`
 }
 
 type AccVoucherLine struct {

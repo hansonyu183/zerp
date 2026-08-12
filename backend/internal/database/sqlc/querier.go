@@ -100,6 +100,7 @@ type Querier interface {
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error
+	CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error
 	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
 	DeleteAccountingBookScopes(ctx context.Context, bookID string) error
@@ -113,6 +114,7 @@ type Querier interface {
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
 	DeleteAppUserRoles(ctx context.Context, userID string) error
+	DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error)
 	DeleteBobAuditEventsForDraft(ctx context.Context, arg DeleteBobAuditEventsForDraftParams) (int64, error)
 	DeleteBobCategoryDetail(ctx context.Context, versionID string) (int64, error)
 	DeleteBobCustomerDetail(ctx context.Context, versionID string) (int64, error)
@@ -195,6 +197,7 @@ type Querier interface {
 	GetAppUserByUsername(ctx context.Context, username string) (AppUser, error)
 	GetAppUserPermissions(ctx context.Context, userID string) ([]string, error)
 	GetAppUserRoleIDs(ctx context.Context, userID string) ([]string, error)
+	GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error)
 	GetBobObjectEnabled(ctx context.Context, arg GetBobObjectEnabledParams) (bool, error)
 	GetBobProductFormula(ctx context.Context, productVersionID string) (int64, error)
 	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
@@ -335,6 +338,7 @@ type Querier interface {
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
 	ListAccountingMappings(ctx context.Context, arg ListAccountingMappingsParams) ([]ListAccountingMappingsRow, error)
 	ListAccountingOpeningLines(ctx context.Context, bookID string) ([]AccOpeningLine, error)
+	ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]string, error)
 	ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error)
 	ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)

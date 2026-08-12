@@ -45,6 +45,7 @@ func seedUsers(t *testing.T, pool *pgxpool.Pool) {
 	if _, err := pool.Exec(t.Context(), `
 		DELETE FROM acc_openings;
 		DELETE FROM acc_vouchers;
+		DELETE FROM acc_subject_usages;
 		DELETE FROM acc_mapping_versions;
 		DELETE FROM acc_books;
 		DELETE FROM object_number_counters WHERE domain = 'acc';

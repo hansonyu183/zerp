@@ -258,6 +258,44 @@ func (q *Queries) CreateApprovedZeroAccountingOpening(ctx context.Context, arg C
 	return err
 }
 
+const createAutomaticAccountingVoucher = `-- name: CreateAutomaticAccountingVoucher :exec
+INSERT INTO acc_vouchers (
+  id, book_id, source_type, source_id, source_entity, source_revision,
+  source_document_no, business_date, mapping_version_id, created_by
+) VALUES (
+  $1, $2, 'VOU', $3,
+  $4, $5, $6,
+  $7, $8, $9
+)
+`
+
+type CreateAutomaticAccountingVoucherParams struct {
+	ID               string      `db:"id" json:"id"`
+	BookID           string      `db:"book_id" json:"book_id"`
+	SourceID         string      `db:"source_id" json:"source_id"`
+	SourceEntity     *string     `db:"source_entity" json:"source_entity"`
+	SourceRevision   *int64      `db:"source_revision" json:"source_revision"`
+	SourceDocumentNo *string     `db:"source_document_no" json:"source_document_no"`
+	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	MappingVersionID *string     `db:"mapping_version_id" json:"mapping_version_id"`
+	ActorID          string      `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error {
+	_, err := q.db.Exec(ctx, createAutomaticAccountingVoucher,
+		arg.ID,
+		arg.BookID,
+		arg.SourceID,
+		arg.SourceEntity,
+		arg.SourceRevision,
+		arg.SourceDocumentNo,
+		arg.BusinessDate,
+		arg.MappingVersionID,
+		arg.ActorID,
+	)
+	return err
+}
+
 const deleteAccountingBook = `-- name: DeleteAccountingBook :exec
 DELETE FROM acc_books WHERE id = $1
 `
@@ -336,6 +374,41 @@ type DeleteAccountingVoucherParams struct {
 func (q *Queries) DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error {
 	_, err := q.db.Exec(ctx, deleteAccountingVoucher, arg.BookID, arg.VoucherID)
 	return err
+}
+
+const deleteAutomaticAccountingVoucher = `-- name: DeleteAutomaticAccountingVoucher :many
+DELETE FROM acc_vouchers
+WHERE source_type = 'VOU'
+  AND source_entity = $1
+  AND source_id = $2
+  AND source_revision = $3
+RETURNING id
+`
+
+type DeleteAutomaticAccountingVoucherParams struct {
+	SourceEntity   *string `db:"source_entity" json:"source_entity"`
+	SourceID       string  `db:"source_id" json:"source_id"`
+	SourceRevision *int64  `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, deleteAutomaticAccountingVoucher, arg.SourceEntity, arg.SourceID, arg.SourceRevision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAccountingAccessUserEnabled = `-- name: GetAccountingAccessUserEnabled :one
@@ -701,6 +774,33 @@ func (q *Queries) GetAccountingSubjectStateForUpdate(ctx context.Context, arg Ge
 		&i.HasChildren,
 		&i.Referenced,
 	)
+	return i, err
+}
+
+const getAutomaticAccountingVoucher = `-- name: GetAutomaticAccountingVoucher :one
+SELECT id, source_revision
+FROM acc_vouchers
+WHERE book_id = $1
+  AND source_type = 'VOU'
+  AND source_entity = $2
+  AND source_id = $3
+`
+
+type GetAutomaticAccountingVoucherParams struct {
+	BookID       string  `db:"book_id" json:"book_id"`
+	SourceEntity *string `db:"source_entity" json:"source_entity"`
+	SourceID     string  `db:"source_id" json:"source_id"`
+}
+
+type GetAutomaticAccountingVoucherRow struct {
+	ID             string `db:"id" json:"id"`
+	SourceRevision *int64 `db:"source_revision" json:"source_revision"`
+}
+
+func (q *Queries) GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error) {
+	row := q.db.QueryRow(ctx, getAutomaticAccountingVoucher, arg.BookID, arg.SourceEntity, arg.SourceID)
+	var i GetAutomaticAccountingVoucherRow
+	err := row.Scan(&i.ID, &i.SourceRevision)
 	return i, err
 }
 
@@ -1148,6 +1248,35 @@ func (q *Queries) ListAccountingOpeningLines(ctx context.Context, bookID string)
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingPostingBooks = `-- name: ListAccountingPostingBooks :many
+SELECT b.id
+FROM acc_books b
+JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
+WHERE b.start_month <= $1::date
+ORDER BY b.code
+FOR SHARE OF b, opening
+`
+
+func (q *Queries) ListAccountingPostingBooks(ctx context.Context, businessDate pgtype.Date) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAccountingPostingBooks, businessDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

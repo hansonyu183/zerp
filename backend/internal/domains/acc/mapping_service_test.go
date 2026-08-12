@@ -1,6 +1,10 @@
 package acc
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/oklog/ulid/v2"
+)
 
 func TestValidateMappingRejectsUnknownFieldsAndOverlappingRules(t *testing.T) {
 	catalog, err := MappingFieldCatalog("sale-order")
@@ -39,5 +43,43 @@ func TestValidateMappingAcceptsDisjointPostingRules(t *testing.T) {
 	}
 	if err := validateMapping(MappingResultPost, definition, catalog); err != nil {
 		t.Fatalf("valid mapping rejected: %v", err)
+	}
+}
+
+func TestSelectMappingResultUsesOneRuleOrDefault(t *testing.T) {
+	defaultTemplateID := "default"
+	matchedTemplateID := "matched"
+	definition := MappingDefinition{
+		DefaultTemplateID: &defaultTemplateID,
+		Rules: []MappingRule{{
+			Conditions: []MappingCondition{{Field: "currency", Operator: "EQ", Values: []string{"CNY"}}},
+			Result:     MappingResultPost,
+			TemplateID: &matchedTemplateID,
+		}},
+	}
+	result, templateID, err := selectMappingResult(MappingResultPost, definition, map[string]string{"currency": "CNY"})
+	if err != nil || result != MappingResultPost || templateID != matchedTemplateID {
+		t.Fatalf("matched selection = %s/%s, err=%v", result, templateID, err)
+	}
+	result, templateID, err = selectMappingResult(MappingResultPost, definition, map[string]string{"currency": "USD"})
+	if err != nil || result != MappingResultPost || templateID != defaultTemplateID {
+		t.Fatalf("default selection = %s/%s, err=%v", result, templateID, err)
+	}
+}
+
+func TestAutomaticTrialBalanceIsPerCurrency(t *testing.T) {
+	lines := []automaticPostingLine{
+		{subjectID: ulid.Make().String(), currency: "CNY", debitMinor: 100},
+		{subjectID: ulid.Make().String(), currency: "USD", creditMinor: 100},
+	}
+	if err := validateAutomaticTrialBalance(lines); !IsKind(err, ErrorConflict) {
+		t.Fatalf("cross-currency balancing error = %v", err)
+	}
+	lines = append(lines,
+		automaticPostingLine{subjectID: ulid.Make().String(), currency: "CNY", creditMinor: 100},
+		automaticPostingLine{subjectID: ulid.Make().String(), currency: "USD", debitMinor: 100},
+	)
+	if err := validateAutomaticTrialBalance(lines); err != nil {
+		t.Fatalf("per-currency balanced lines rejected: %v", err)
 	}
 }

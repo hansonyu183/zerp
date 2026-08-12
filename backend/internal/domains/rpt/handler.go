@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"strings"
 	"time"
 
@@ -35,12 +36,82 @@ func NewHandler(service *Service, authorizer authorization.Authorizer, logger *s
 	}
 	return &Handler{service: service, authorizer: authorizer, logger: logger}
 }
+
+func value(source *string) string {
+	if source == nil {
+		return ""
+	}
+	return *source
+}
+
+func versionDataFromAPI(source generated.RptVersionData) VersionData {
+	parameters := make([]Parameter, len(source.Parameters))
+	for index, parameter := range source.Parameters {
+		var referenceType *ReferenceType
+		if parameter.ReferenceType != nil {
+			converted := ReferenceType(*parameter.ReferenceType)
+			referenceType = &converted
+		}
+		parameters[index] = Parameter{
+			DefaultValue:  parameter.DefaultValue,
+			EnumValues:    parameter.EnumValues,
+			Key:           parameter.Key,
+			Name:          parameter.Name,
+			ReferenceType: referenceType,
+			Required:      parameter.Required,
+			Type:          ParameterType(parameter.Type),
+		}
+	}
+	columns := make([]ResultColumn, len(source.Columns))
+	for index, column := range source.Columns {
+		var drilldownEntity *string
+		if column.DrilldownEntity != nil {
+			converted := string(*column.DrilldownEntity)
+			drilldownEntity = &converted
+		}
+		columns[index] = ResultColumn{
+			Alias:           column.Alias,
+			DrilldownEntity: drilldownEntity,
+			Format:          column.Format,
+			Name:            column.Name,
+			Order:           column.Order,
+			Type:            ResultType(column.Type),
+			Visible:         column.Visible,
+			Width:           column.Width,
+		}
+	}
+	return VersionData{SQL: source.Sql, Parameters: parameters, Columns: columns}
+}
+
+func definitionQueryInput(source generated.RptDefinitionQueryRequest) DefinitionQueryInput {
+	return DefinitionQueryInput{
+		IncludeDisabled: source.IncludeDisabled != nil && *source.IncludeDisabled,
+		Keyword:         value(source.Keyword),
+		Page:            source.Page,
+		PageSize:        source.PageSize,
+	}
+}
+
+func versionRevisionInput(source generated.RptVersionRevisionRequest) VersionRevisionInput {
+	parameters := map[string]any{}
+	if source.ValidationParameters != nil {
+		parameters = *source.ValidationParameters
+	}
+	return VersionRevisionInput{Code: source.Code, VersionID: source.VersionId, Revision: source.Revision, ValidationParameters: parameters}
+}
+
+func executeInput(source generated.RptExecuteRequest) ExecuteInput {
+	return ExecuteInput{Parameters: source.Parameters, Page: source.Page, PageSize: source.PageSize}
+}
+
 func (h *Handler) Register(router *gin.Engine) {
 	management := map[string]gin.HandlerFunc{"query": h.definitionQuery, "get": h.definitionGet, "create": h.definitionCreate, "create-version": h.createVersion, "save": h.saveVersion, "approve": h.approve, "unapprove": h.unapprove, "enable": h.enable, "disable": h.disable, "delete": h.delete}
 	for action, handle := range management {
 		path := "/rpt/definition/" + action
 		router.POST(path, authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError), handle)
 	}
+	directoryPath := "/rpt/directory/query"
+	router.POST(directoryPath, authmiddleware.Require(h.authorizer, directoryPath, principalContextKey, h.writeAuthorizationError), h.directoryQuery)
 	for _, route := range []struct {
 		action string
 		handle gin.HandlerFunc
@@ -56,6 +127,15 @@ func (h *Handler) Register(router *gin.Engine) {
 		}(route.action, route.handle))
 	}
 	router.POST("/rpt/:report/reference-query", h.requireReportAccess(h.referenceQuery))
+}
+
+func (h *Handler) directoryQuery(c *gin.Context) {
+	var in generated.RptDirectoryQueryRequest
+	if !h.bind(c, &in) {
+		return
+	}
+	result, err := h.service.QueryDirectory(c, DirectoryQueryInput{Page: in.Page, PageSize: in.PageSize}, h.principal(c).Permissions)
+	h.result(c, result, err)
 }
 
 func (h *Handler) requireReportAccess(next gin.HandlerFunc) gin.HandlerFunc {
@@ -101,7 +181,7 @@ func (h *Handler) definitionQuery(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.QueryDefinitions(c, in, h.principal(c).Permissions)
+	result, err := h.service.QueryDefinitions(c, definitionQueryInput(in))
 	h.result(c, result, err)
 }
 func (h *Handler) definitionGet(c *gin.Context) {
@@ -109,7 +189,7 @@ func (h *Handler) definitionGet(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.GetDefinition(c, in, h.principal(c).Permissions)
+	result, err := h.service.GetDefinition(c, DefinitionGetInput{Code: in.Code, VersionID: value(in.VersionId)})
 	h.result(c, result, err)
 }
 func (h *Handler) definitionCreate(c *gin.Context) {
@@ -117,7 +197,7 @@ func (h *Handler) definitionCreate(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.CreateDefinition(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.CreateDefinition(c, DefinitionCreateInput{Code: in.Code, Name: in.Name, Description: in.Description, Data: versionDataFromAPI(in.Data)}, h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) createVersion(c *gin.Context) {
@@ -125,7 +205,7 @@ func (h *Handler) createVersion(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.CreateVersion(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.CreateVersion(c, VersionCreateInput{Code: in.Code, Data: versionDataFromAPI(in.Data)}, h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) saveVersion(c *gin.Context) {
@@ -133,7 +213,7 @@ func (h *Handler) saveVersion(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.SaveVersion(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.SaveVersion(c, VersionSaveInput{Code: in.Code, VersionID: in.VersionId, Revision: in.Revision, Name: in.Name, Description: in.Description, Data: versionDataFromAPI(in.Data)}, h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) approve(c *gin.Context) {
@@ -141,7 +221,7 @@ func (h *Handler) approve(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.ApproveVersion(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.ApproveVersion(c, versionRevisionInput(in), h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) unapprove(c *gin.Context) {
@@ -149,7 +229,7 @@ func (h *Handler) unapprove(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.UnapproveVersion(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.UnapproveVersion(c, versionRevisionInput(in), h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) definitionState(c *gin.Context, enabled bool) {
@@ -157,7 +237,7 @@ func (h *Handler) definitionState(c *gin.Context, enabled bool) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.SetEnabled(c, in, enabled, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.SetEnabled(c, DefinitionRevisionInput{Code: in.Code, Revision: in.Revision}, enabled, h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) enable(c *gin.Context)  { h.definitionState(c, true) }
@@ -167,7 +247,7 @@ func (h *Handler) delete(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.DeleteDefinition(c, in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.DeleteDefinition(c, DefinitionRevisionInput{Code: in.Code, Revision: in.Revision}, h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) reportQuery(c *gin.Context) {
@@ -175,7 +255,7 @@ func (h *Handler) reportQuery(c *gin.Context) {
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.Execute(c, c.Param("report"), in, h.principal(c).ActorID, response.RequestID(c))
+	result, err := h.service.Execute(c, c.Param("report"), executeInput(in), h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
 func (h *Handler) reportExport(c *gin.Context) {
@@ -184,7 +264,7 @@ func (h *Handler) reportExport(c *gin.Context) {
 		return
 	}
 	name := c.Param("report") + ".csv"
-	err := h.service.StreamExport(c, c.Param("report"), in, h.principal(c).ActorID, response.RequestID(c), func(columns []generated.RptResultColumn, rows pgx.Rows) error {
+	err := h.service.StreamExport(c, c.Param("report"), executeInput(in), h.principal(c).ActorID, response.RequestID(c), func(columns []ResultColumn, rows pgx.Rows) error {
 		c.Header("Content-Type", "text/csv; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -204,7 +284,7 @@ func (h *Handler) reportExport(c *gin.Context) {
 			}
 			record := make([]string, len(values))
 			for index, value := range values {
-				record[index] = csvCell(value, columns[index].Type)
+				record[index] = csvCell(value, columns[index])
 			}
 			if err = writer.Write(record); err != nil {
 				return err
@@ -221,7 +301,7 @@ func (h *Handler) reportExport(c *gin.Context) {
 	}
 }
 
-func csvCell(value any, resultType generated.RptResultType) string {
+func csvCell(value any, column ResultColumn) string {
 	if value == nil {
 		return ""
 	}
@@ -233,8 +313,10 @@ func csvCell(value any, resultType generated.RptResultType) string {
 			text = fmt.Sprint(driverValue)
 		}
 	case time.Time:
-		if resultType == generated.RptResultTypeDATE {
+		if column.Type == ResultTypeDate {
 			text = typed.Format(time.DateOnly)
+		} else if column.Type == ResultTypeDateTime {
+			text = typed.Format("2006/1/2 15:04:05")
 		} else {
 			text = typed.Format(time.RFC3339Nano)
 		}
@@ -243,17 +325,67 @@ func csvCell(value any, resultType generated.RptResultType) string {
 	default:
 		text = fmt.Sprint(value)
 	}
-	if (resultType == generated.RptResultTypeTEXT || resultType == generated.RptResultTypeID) && text != "" && strings.ContainsRune("=+-@", rune(text[0])) {
+	if column.Type == ResultTypeBoolean {
+		if text == "true" {
+			return "是"
+		}
+		if text == "false" {
+			return "否"
+		}
+	}
+	if column.Type == ResultTypeDecimal || column.Type == ResultTypeInteger {
+		format := ""
+		if column.Format != nil {
+			format = *column.Format
+		}
+		if formatted, ok := formatNumber(text, format); ok {
+			return formatted
+		}
+	}
+	if (column.Type == ResultTypeText || column.Type == ResultTypeID) && text != "" && strings.ContainsRune("=+-@", rune(text[0])) {
 		return "'" + text
 	}
 	return text
 }
+
+func formatNumber(text, format string) (string, bool) {
+	value, ok := new(big.Rat).SetString(text)
+	if !ok {
+		return "", false
+	}
+	digits := 0
+	trim := false
+	switch format {
+	case "money":
+		digits = 2
+	case "quantity":
+		digits, trim = 6, true
+	case "":
+		digits, trim = 20, true
+	default:
+		return "", false
+	}
+	formatted := value.FloatString(digits)
+	if trim && strings.Contains(formatted, ".") {
+		formatted = strings.TrimRight(strings.TrimRight(formatted, "0"), ".")
+	}
+	sign := ""
+	if strings.HasPrefix(formatted, "-") {
+		sign, formatted = "-", formatted[1:]
+	}
+	parts := strings.SplitN(formatted, ".", 2)
+	for index := len(parts[0]) - 3; index > 0; index -= 3 {
+		parts[0] = parts[0][:index] + "," + parts[0][index:]
+	}
+	return sign + strings.Join(parts, "."), true
+}
+
 func (h *Handler) referenceQuery(c *gin.Context) {
 	var in generated.RptReferenceQueryRequest
 	if !h.bind(c, &in) {
 		return
 	}
-	result, err := h.service.QueryReferences(c, c.Param("report"), in)
+	result, err := h.service.QueryReferences(c, c.Param("report"), ReferenceQueryInput{ParameterKey: in.ParameterKey, Keyword: value(in.Keyword), SelectedID: value(in.SelectedId), Page: in.Page, PageSize: in.PageSize})
 	h.result(c, result, err)
 }
 func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {

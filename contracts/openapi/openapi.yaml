@@ -3883,6 +3883,30 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/rpt/directory/query':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '查询当前会话可用报表目录',
+              'operationId': 'rptDirectoryQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/rpt.yaml#/RptDirectoryQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/rpt/{report}/export':
         {
           'post':

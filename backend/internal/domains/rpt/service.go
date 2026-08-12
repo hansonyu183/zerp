@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/generated"
+	db "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -23,34 +23,32 @@ const reportExportTimeout = 30 * time.Second
 
 var codePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}[a-z0-9]$`)
 
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	pool    *pgxpool.Pool
+	queries *db.Queries
+}
 
 func NewService(pool *pgxpool.Pool) (*Service, error) {
 	if pool == nil {
 		return nil, errors.New("RPT pool is required")
 	}
-	return &Service{pool: pool}, nil
+	return &Service{pool: pool, queries: db.New(pool)}, nil
 }
 func newID() string { return ulid.Make().String() }
 
-func permissionSet(permissions []string) map[string]bool {
-	result := map[string]bool{}
-	for _, p := range permissions {
-		result[p] = true
-	}
-	return result
-}
+func stringPointer(value string) *string { return &value }
+
 func permissionPath(code, action string) string { return "/rpt/" + code + "/" + action }
 
-func (s *Service) QueryReferences(ctx context.Context, code string, in generated.RptReferenceQueryRequest) (Page, error) {
+func (s *Service) QueryReferences(ctx context.Context, code string, in ReferenceQueryInput) (Page, error) {
 	definition, err := s.loadActive(ctx, code)
 	if err != nil {
 		return Page{}, err
 	}
-	var referenceType generated.RptReferenceType
+	var referenceType ReferenceType
 	found := false
 	for _, parameter := range definition.Data.Parameters {
-		if parameter.Key == in.ParameterKey && parameter.Type == generated.RptParameterTypeREFERENCE && parameter.ReferenceType != nil {
+		if parameter.Key == in.ParameterKey && parameter.Type == ParameterTypeReference && parameter.ReferenceType != nil {
 			referenceType, found = *parameter.ReferenceType, true
 			break
 		}
@@ -69,136 +67,171 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in generated
 		return Page{}, validation("invalid reference pagination", nil)
 	}
 	keyword, selectedID := "", ""
-	if in.Keyword != nil {
-		keyword = strings.TrimSpace(*in.Keyword)
-	}
-	if in.SelectedId != nil {
-		selectedID = *in.SelectedId
-	}
+	keyword = strings.TrimSpace(in.Keyword)
+	selectedID = in.SelectedID
 
-	var sql string
-	var args []any
+	items, total := []ReferenceItem{}, int64(0)
+	offset, limit := int32((page-1)*pageSize), int32(pageSize)
 	switch referenceType {
-	case generated.RptReferenceTypeACCOUNTINGBOOK:
-		sql, args = `SELECT id,code,name,count(*) OVER() FROM acc_books WHERE ($1='' OR id=$1 OR code ILIKE '%'||$2||'%' OR name ILIKE '%'||$2||'%') ORDER BY code OFFSET $3 LIMIT $4`, []any{selectedID, keyword, (page - 1) * pageSize, pageSize}
-	case generated.RptReferenceTypeACCOUNTSUBJECT:
-		sql, args = `SELECT id,code,name,count(*) OVER() FROM acc_subjects WHERE enabled AND ($1='' OR id=$1 OR code ILIKE '%'||$2||'%' OR name ILIKE '%'||$2||'%') ORDER BY code,id OFFSET $3 LIMIT $4`, []any{selectedID, keyword, (page - 1) * pageSize, pageSize}
-	case generated.RptReferenceTypeASSET:
-		sql, args = `SELECT id,asset_no,name,count(*) OVER() FROM acc_assets WHERE ($1='' OR id=$1 OR asset_no ILIKE '%'||$2||'%' OR name ILIKE '%'||$2||'%') ORDER BY asset_no OFFSET $3 LIMIT $4`, []any{selectedID, keyword, (page - 1) * pageSize, pageSize}
-	case generated.RptReferenceTypeBILL:
-		sql, args = `SELECT id,bill_no,bill_no,count(*) OVER() FROM acc_bills WHERE ($1='' OR id=$1 OR bill_no ILIKE '%'||$2||'%') ORDER BY bill_no OFFSET $3 LIMIT $4`, []any{selectedID, keyword, (page - 1) * pageSize, pageSize}
+	case ReferenceTypeAccountingBook:
+		rows, err := s.queries.RptListBookReferences(ctx, db.RptListBookReferencesParams{SelectedID: selectedID, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if err != nil {
+			return Page{}, internal("query report reference", err)
+		}
+		for _, row := range rows {
+			items = append(items, ReferenceItem{ID: row.ID, Code: row.Code, Name: row.Name})
+			total = row.Total
+		}
+	case ReferenceTypeAccountSubject:
+		rows, err := s.queries.RptListSubjectReferences(ctx, db.RptListSubjectReferencesParams{SelectedID: selectedID, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if err != nil {
+			return Page{}, internal("query report reference", err)
+		}
+		for _, row := range rows {
+			items = append(items, ReferenceItem{ID: row.ID, Code: row.Code, Name: row.Name})
+			total = row.Total
+		}
+	case ReferenceTypeAsset:
+		rows, err := s.queries.RptListAssetReferences(ctx, db.RptListAssetReferencesParams{SelectedID: selectedID, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if err != nil {
+			return Page{}, internal("query report reference", err)
+		}
+		for _, row := range rows {
+			items = append(items, ReferenceItem{ID: row.ID, Code: row.Code, Name: row.Name})
+			total = row.Total
+		}
+	case ReferenceTypeBill:
+		rows, err := s.queries.RptListBillReferences(ctx, db.RptListBillReferencesParams{SelectedID: selectedID, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if err != nil {
+			return Page{}, internal("query report reference", err)
+		}
+		for _, row := range rows {
+			items = append(items, ReferenceItem{ID: row.ID, Code: row.Code, Name: row.Name})
+			total = row.Total
+		}
 	default:
-		entity := map[generated.RptReferenceType]string{
-			generated.RptReferenceTypeCUSTOMER: "customer", generated.RptReferenceTypeSUPPLIER: "supplier",
-			generated.RptReferenceTypeOTHERPARTY: "other-party", generated.RptReferenceTypeEMPLOYEE: "employee",
-			generated.RptReferenceTypeDEPARTMENT: "department", generated.RptReferenceTypePRODUCT: "product",
-			generated.RptReferenceTypeWAREHOUSE: "warehouse", generated.RptReferenceTypeFUNDACCOUNT: "fund-account",
+		entity := map[ReferenceType]string{
+			ReferenceTypeCustomer: "customer", ReferenceTypeSupplier: "supplier",
+			ReferenceTypeOtherParty: "other-party", ReferenceTypeEmployee: "employee",
+			ReferenceTypeDepartment: "department", ReferenceTypeProduct: "product",
+			ReferenceTypeWarehouse: "warehouse", ReferenceTypeFundAccount: "fund-account",
 		}[referenceType]
 		if entity == "" {
 			return Page{}, validation("report reference type is unsupported", nil)
 		}
-		sql, args = `SELECT object_id,code,name,count(*) OVER() FROM bob_version_views WHERE entity=$1 AND version_id=effective_version_id AND ($2='' OR object_id=$2 OR code ILIKE '%'||$3||'%' OR name ILIKE '%'||$3||'%') ORDER BY code OFFSET $4 LIMIT $5`, []any{entity, selectedID, keyword, (page - 1) * pageSize, pageSize}
-	}
-	rows, err := s.pool.Query(ctx, sql, args...)
-	if err != nil {
-		return Page{}, internal("query report reference", err)
-	}
-	defer rows.Close()
-	items, total := []ReferenceItem{}, int64(0)
-	for rows.Next() {
-		var item ReferenceItem
-		if err = rows.Scan(&item.ID, &item.Code, &item.Name, &total); err != nil {
-			return Page{}, internal("read report reference", err)
+		rows, err := s.queries.RptListBOBReferences(ctx, db.RptListBOBReferencesParams{Entity: entity, SelectedID: selectedID, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if err != nil {
+			return Page{}, internal("query report reference", err)
 		}
-		items = append(items, item)
-	}
-	if err = rows.Err(); err != nil {
-		return Page{}, internal("read report reference", err)
+		for _, row := range rows {
+			items = append(items, ReferenceItem{ID: row.ID, Code: row.Code, Name: row.Name})
+			total = row.Total
+		}
 	}
 	return Page{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-func (s *Service) QueryDefinitions(ctx context.Context, in generated.RptDefinitionQueryRequest, permissions []string) (Page, error) {
-	keyword := ""
-	if in.Keyword != nil {
-		keyword = strings.TrimSpace(*in.Keyword)
+func (s *Service) QueryDefinitions(ctx context.Context, in DefinitionQueryInput) (Page, error) {
+	if in.Page < 1 || in.PageSize < 1 || in.PageSize > 200 {
+		return Page{}, validation("invalid definition pagination", nil)
 	}
-	includeDisabled := false
-	if in.IncludeDisabled != nil {
-		includeDisabled = *in.IncludeDisabled
-	}
-	admin := permissionSet(permissions)["/rpt/definition/query"]
-	allowed := permissionSet(permissions)
-	allowedCodes := []string{}
-	for permission := range allowed {
-		parts := strings.Split(strings.Trim(permission, "/"), "/")
-		if len(parts) == 3 && parts[0] == "rpt" && parts[1] != "definition" && (parts[2] == "query" || parts[2] == "export") {
-			allowedCodes = append(allowedCodes, parts[1])
-		}
-	}
-	rows, err := s.pool.Query(ctx, `SELECT d.id,d.code,d.name,d.description,d.enabled,d.ever_approved,
-		coalesce(d.current_version_id,''),d.revision,coalesce(v.id,''),coalesce(v.version_no,0),coalesce(v.status,''),
-		coalesce(v.validity,''),coalesce(v.revision,0),coalesce(v.sql_text,''),coalesce(v.parameters,'[]'),coalesce(v.columns,'[]'),count(*) OVER()
-		FROM rpt_definitions d LEFT JOIN rpt_versions v ON v.id=d.current_version_id
-		WHERE (($1 AND ($3 OR d.enabled)) OR (NOT $1 AND d.enabled AND v.validity='VALID' AND d.code=ANY($2::text[])))
-		AND ($4='' OR d.code ILIKE '%'||$4||'%' OR d.name ILIKE '%'||$4||'%')
-		ORDER BY d.code OFFSET $5 LIMIT $6`, admin, allowedCodes, includeDisabled, keyword, (in.Page-1)*in.PageSize, in.PageSize)
+	keyword := strings.TrimSpace(in.Keyword)
+	rows, err := s.queries.RptQueryDefinitions(ctx, db.RptQueryDefinitionsParams{
+		IncludeDisabled: in.IncludeDisabled,
+		Keyword:         keyword,
+		RowOffset:       int32((in.Page - 1) * in.PageSize),
+		RowLimit:        int32(in.PageSize),
+	})
 	if err != nil {
 		return Page{}, internal("query report definitions", err)
 	}
-	defer rows.Close()
 	items := []DefinitionView{}
 	var total int64
-	for rows.Next() {
-		var v DefinitionView
-		var sql string
-		var parameters, columns []byte
-		if err = rows.Scan(&v.DefinitionID, &v.Code, &v.Name, &v.Description, &v.Enabled, &v.EverApproved, &v.CurrentVersionID, &v.Revision, &v.VersionID, &v.VersionNo, &v.Status, &v.Validity, &v.VersionRevision, &sql, &parameters, &columns, &total); err != nil {
-			return Page{}, err
+	for _, row := range rows {
+		v, decodeErr := definitionView(row.ID, row.Code, row.Name, row.Description, row.Enabled, row.EverApproved,
+			row.CurrentVersionID, row.Revision, row.VersionID, row.VersionNo, row.Status, row.Validity,
+			row.VersionRevision, row.SqlText, row.Parameters, row.Columns)
+		if decodeErr != nil {
+			return Page{}, decodeErr
 		}
-		v.CanQuery = allowed[permissionPath(v.Code, "query")]
-		v.CanExport = allowed[permissionPath(v.Code, "export")]
-		if admin {
-			v.Data.Sql = sql
-		}
-		_ = json.Unmarshal(parameters, &v.Data.Parameters)
-		_ = json.Unmarshal(columns, &v.Data.Columns)
+		total = row.Total
 		items = append(items, v)
 	}
-	return Page{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, rows.Err()
+	return Page{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
 
-func (s *Service) GetDefinition(ctx context.Context, in generated.RptDefinitionGetRequest, permissions []string) (DefinitionView, error) {
-	versionID := ""
-	if in.VersionId != nil {
-		versionID = *in.VersionId
+func (s *Service) QueryDirectory(ctx context.Context, in DirectoryQueryInput, permissions []string) (Page, error) {
+	if in.Page < 1 || in.PageSize < 1 || in.PageSize > 200 {
+		return Page{}, validation("invalid report directory pagination", nil)
 	}
-	var v DefinitionView
-	var sql string
-	var parameters, columns []byte
-	err := s.pool.QueryRow(ctx, `SELECT d.id,d.code,d.name,d.description,d.enabled,d.ever_approved,coalesce(d.current_version_id,''),d.revision,
-		v.id,v.version_no,v.status,v.validity,v.revision,v.sql_text,v.parameters,v.columns
-		FROM rpt_definitions d JOIN rpt_versions v ON v.definition_id=d.id
-		WHERE d.code=$1 AND (v.id=$2 OR ($2='' AND v.id=coalesce(d.current_version_id,(SELECT id FROM rpt_versions WHERE definition_id=d.id ORDER BY version_no DESC LIMIT 1))))`, in.Code, versionID).
-		Scan(&v.DefinitionID, &v.Code, &v.Name, &v.Description, &v.Enabled, &v.EverApproved, &v.CurrentVersionID, &v.Revision, &v.VersionID, &v.VersionNo, &v.Status, &v.Validity, &v.VersionRevision, &sql, &parameters, &columns)
+	usePermissions := make(map[string]map[string]bool)
+	for _, permission := range permissions {
+		parts := strings.Split(strings.Trim(permission, "/"), "/")
+		if len(parts) != 3 || parts[0] != "rpt" || (parts[2] != "query" && parts[2] != "export") || parts[1] == "definition" || parts[1] == "directory" {
+			continue
+		}
+		if usePermissions[parts[1]] == nil {
+			usePermissions[parts[1]] = map[string]bool{}
+		}
+		usePermissions[parts[1]][parts[2]] = true
+	}
+	allowedCodes := make([]string, 0, len(usePermissions))
+	for code := range usePermissions {
+		allowedCodes = append(allowedCodes, code)
+	}
+	rows, err := s.queries.RptQueryDirectory(ctx, db.RptQueryDirectoryParams{AllowedCodes: allowedCodes,
+		RowOffset: int32((in.Page - 1) * in.PageSize), RowLimit: int32(in.PageSize)})
+	if err != nil {
+		return Page{}, internal("query report directory", err)
+	}
+	items := make([]ReportMetadata, 0, len(rows))
+	var total int64
+	for _, row := range rows {
+		var parameters []Parameter
+		var columns []ResultColumn
+		if err = json.Unmarshal(row.Parameters, &parameters); err != nil {
+			return Page{}, internal("decode report parameters", err)
+		}
+		if err = json.Unmarshal(row.Columns, &columns); err != nil {
+			return Page{}, internal("decode report columns", err)
+		}
+		items = append(items, ReportMetadata{Code: row.Code, Name: row.Name, Description: row.Description,
+			Parameters: parameters, Columns: columns, CanQuery: usePermissions[row.Code]["query"], CanExport: usePermissions[row.Code]["export"]})
+		total = row.Total
+	}
+	return Page{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
+}
+
+func (s *Service) GetDefinition(ctx context.Context, in DefinitionGetInput) (DefinitionView, error) {
+	versionID := in.VersionID
+	row, err := s.queries.RptGetDefinition(ctx, db.RptGetDefinitionParams{Code: in.Code, VersionID: versionID})
 	if err != nil {
 		return DefinitionView{}, domainError(ErrorConflict, "report not found", nil, err)
 	}
-	allowed := permissionSet(permissions)
-	admin := allowed["/rpt/definition/get"]
-	v.CanQuery = allowed[permissionPath(v.Code, "query")]
-	v.CanExport = allowed[permissionPath(v.Code, "export")]
-	if !admin && !v.CanQuery && !v.CanExport {
-		return DefinitionView{}, domainError(ErrorForbidden, "permission denied", nil, nil)
-	}
-	v.Data.Sql = sql
-	_ = json.Unmarshal(parameters, &v.Data.Parameters)
-	_ = json.Unmarshal(columns, &v.Data.Columns)
-	return v, nil
+	return definitionView(row.ID, row.Code, row.Name, row.Description, row.Enabled, row.EverApproved,
+		row.CurrentVersionID, row.Revision, row.VersionID, row.VersionNo, row.Status, row.Validity,
+		row.VersionRevision, row.SqlText, row.Parameters, row.Columns)
 }
 
-func (s *Service) CreateDefinition(ctx context.Context, in generated.RptDefinitionCreateRequest, actorID, requestID string) (MutationResult, error) {
-	if !codePattern.MatchString(in.Code) || strings.TrimSpace(in.Name) == "" {
+func definitionView(definitionID, code, name, description string, enabled, everApproved bool,
+	currentVersionID string, revision int64, versionID string, versionNo int32, status, validity string,
+	versionRevision int64, sqlText string, parameters, columns []byte,
+) (DefinitionView, error) {
+	view := DefinitionView{DefinitionID: definitionID, Code: code, Name: name, Description: description,
+		Enabled: enabled, EverApproved: everApproved, CurrentVersionID: currentVersionID, Revision: revision,
+		VersionID: versionID, VersionNo: versionNo, Status: status, Validity: validity, VersionRevision: versionRevision}
+	view.Data.SQL = sqlText
+	if err := json.Unmarshal(parameters, &view.Data.Parameters); err != nil {
+		return DefinitionView{}, internal("decode report parameters", err)
+	}
+	if err := json.Unmarshal(columns, &view.Data.Columns); err != nil {
+		return DefinitionView{}, internal("decode report columns", err)
+	}
+	return view, nil
+}
+
+func (s *Service) CreateDefinition(ctx context.Context, in DefinitionCreateInput, actorID, requestID string) (MutationResult, error) {
+	if !codePattern.MatchString(in.Code) || in.Code == "definition" || in.Code == "directory" || strings.TrimSpace(in.Name) == "" {
 		return MutationResult{}, validation("invalid report identity", nil)
 	}
 	if err := validateVersionData(in.Data); err != nil {
@@ -209,20 +242,27 @@ func (s *Service) CreateDefinition(ctx context.Context, in generated.RptDefiniti
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
+	queries := s.queries.WithTx(tx)
 	definitionID, versionID := newID(), newID()
 	description := ""
 	if in.Description != nil {
 		description = *in.Description
 	}
-	parameters, _ := json.Marshal(in.Data.Parameters)
-	columns, _ := json.Marshal(in.Data.Columns)
-	if _, err = tx.Exec(ctx, `INSERT INTO rpt_definitions(id,code,name,description,created_by,updated_by)VALUES($1,$2,$3,$4,$5,$5)`, definitionID, in.Code, strings.TrimSpace(in.Name), description, actorID); err != nil {
+	parameters, err := json.Marshal(in.Data.Parameters)
+	if err != nil {
+		return MutationResult{}, validation("invalid report parameters", nil)
+	}
+	columns, err := json.Marshal(in.Data.Columns)
+	if err != nil {
+		return MutationResult{}, validation("invalid report columns", nil)
+	}
+	if err = queries.RptInsertDefinition(ctx, db.RptInsertDefinitionParams{ID: definitionID, Code: in.Code, Name: strings.TrimSpace(in.Name), Description: description, ActorID: actorID}); err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report code already exists", nil, err)
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO rpt_versions(id,definition_id,version_no,status,validity,sql_text,parameters,columns,created_by,updated_by)VALUES($1,$2,1,'DRAFT','VALID',$3,$4,$5,$6,$6)`, versionID, definitionID, in.Data.Sql, parameters, columns, actorID); err != nil {
+	if err = queries.RptInsertVersion(ctx, db.RptInsertVersionParams{ID: versionID, DefinitionID: definitionID, VersionNo: 1, SqlText: in.Data.SQL, Parameters: parameters, Columns: columns, ActorID: actorID}); err != nil {
 		return MutationResult{}, err
 	}
-	if err = audit(ctx, tx, definitionID, in.Code, versionID, "CREATED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, definitionID, in.Code, versionID, "CREATED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report creation", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -231,7 +271,7 @@ func (s *Service) CreateDefinition(ctx context.Context, in generated.RptDefiniti
 	return MutationResult{ID: versionID, Status: "DRAFT", Revision: 1}, nil
 }
 
-func (s *Service) CreateVersion(ctx context.Context, in generated.RptVersionCreateRequest, actorID, requestID string) (MutationResult, error) {
+func (s *Service) CreateVersion(ctx context.Context, in VersionCreateInput, actorID, requestID string) (MutationResult, error) {
 	if err := validateVersionData(in.Data); err != nil {
 		return MutationResult{}, err
 	}
@@ -240,20 +280,26 @@ func (s *Service) CreateVersion(ctx context.Context, in generated.RptVersionCrea
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	var definitionID string
-	var versionNo int32
-	err = tx.QueryRow(ctx, `UPDATE rpt_definitions SET next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=$1 WHERE code=$2 RETURNING id,next_version_no-1`, actorID, in.Code).Scan(&definitionID, &versionNo)
+	queries := s.queries.WithTx(tx)
+	allocated, err := queries.RptAllocateVersionNumber(ctx, db.RptAllocateVersionNumberParams{ActorID: actorID, Code: in.Code})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report not found or draft exists", nil, err)
 	}
-	parameters, _ := json.Marshal(in.Data.Parameters)
-	columns, _ := json.Marshal(in.Data.Columns)
+	definitionID, versionNo := allocated.ID, allocated.VersionNo
+	parameters, err := json.Marshal(in.Data.Parameters)
+	if err != nil {
+		return MutationResult{}, validation("invalid report parameters", nil)
+	}
+	columns, err := json.Marshal(in.Data.Columns)
+	if err != nil {
+		return MutationResult{}, validation("invalid report columns", nil)
+	}
 	id := newID()
-	_, err = tx.Exec(ctx, `INSERT INTO rpt_versions(id,definition_id,version_no,status,validity,sql_text,parameters,columns,created_by,updated_by)VALUES($1,$2,$3,'DRAFT','VALID',$4,$5,$6,$7,$7)`, id, definitionID, versionNo, in.Data.Sql, parameters, columns, actorID)
+	err = queries.RptInsertVersion(ctx, db.RptInsertVersionParams{ID: id, DefinitionID: definitionID, VersionNo: versionNo, SqlText: in.Data.SQL, Parameters: parameters, Columns: columns, ActorID: actorID})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report already has a draft", nil, err)
 	}
-	if err = audit(ctx, tx, definitionID, in.Code, id, "VERSION_CREATED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, definitionID, in.Code, id, "VERSION_CREATED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report version creation", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -262,170 +308,178 @@ func (s *Service) CreateVersion(ctx context.Context, in generated.RptVersionCrea
 	return MutationResult{ID: id, Status: "DRAFT", Revision: 1}, nil
 }
 
-func audit(ctx context.Context, tx pgx.Tx, definitionID, code, versionID, event, actorID, requestID string, summary any) error {
-	raw, _ := json.Marshal(summary)
+func audit(ctx context.Context, queries *db.Queries, definitionID, code, versionID, event, actorID, requestID string, summary any) error {
+	raw, err := json.Marshal(summary)
+	if err != nil {
+		return err
+	}
 	if summary == nil {
 		raw = []byte(`{}`)
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO rpt_audit_events(id,definition_id,report_code,version_id,event_type,actor_id,request_id,summary)VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, newID(), definitionID, code, nullable(versionID), event, actorID, requestID, raw)
-	return err
-}
-func nullable(value string) any {
-	if value == "" {
-		return nil
+	var definitionPointer, versionPointer *string
+	if definitionID != "" {
+		definitionPointer = &definitionID
 	}
-	return value
+	if versionID != "" {
+		versionPointer = &versionID
+	}
+	return queries.RptInsertAuditEvent(ctx, db.RptInsertAuditEventParams{ID: newID(), DefinitionID: definitionPointer,
+		ReportCode: code, VersionID: versionPointer, EventType: event, ActorID: actorID, RequestID: requestID, Summary: raw})
 }
 
-func (s *Service) SaveVersion(ctx context.Context, in generated.RptVersionSaveRequest, actorID, requestID string) (MutationResult, error) {
+func (s *Service) SaveVersion(ctx context.Context, in VersionSaveInput, actorID, requestID string) (MutationResult, error) {
 	if err := validateVersionData(in.Data); err != nil {
 		return MutationResult{}, err
 	}
-	parameters, _ := json.Marshal(in.Data.Parameters)
-	columns, _ := json.Marshal(in.Data.Columns)
-	name, description := any(nil), any(nil)
-	if in.Name != nil {
-		name = *in.Name
+	parameters, err := json.Marshal(in.Data.Parameters)
+	if err != nil {
+		return MutationResult{}, validation("invalid report parameters", nil)
 	}
-	if in.Description != nil {
-		description = *in.Description
+	columns, err := json.Marshal(in.Data.Columns)
+	if err != nil {
+		return MutationResult{}, validation("invalid report columns", nil)
 	}
+	name, description := in.Name, in.Description
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	var id string
-	var revision int64
-	err = tx.QueryRow(ctx, `UPDATE rpt_versions v SET sql_text=$1,parameters=$2,columns=$3,revision=revision+1,updated_at=now(),updated_by=$4 FROM rpt_definitions d WHERE v.id=$5 AND v.definition_id=d.id AND d.code=$6 AND v.status='DRAFT' AND v.revision=$7 RETURNING d.id,v.revision`, in.Data.Sql, parameters, columns, actorID, in.VersionId, in.Code, in.Revision).Scan(&id, &revision)
+	queries := s.queries.WithTx(tx)
+	saved, err := queries.RptSaveDraft(ctx, db.RptSaveDraftParams{SqlText: in.Data.SQL, Parameters: parameters, Columns: columns,
+		ActorID: actorID, VersionID: in.VersionID, Code: in.Code, Revision: in.Revision})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report draft changed", nil, err)
 	}
+	id, revision := saved.DefinitionID, saved.Revision
 	if name != nil || description != nil {
-		_, err = tx.Exec(ctx, `UPDATE rpt_definitions SET name=coalesce($1,name),description=coalesce($2,description),revision=revision+1,updated_at=now(),updated_by=$3 WHERE id=$4`, name, description, actorID, id)
+		err = queries.RptUpdateDefinitionText(ctx, db.RptUpdateDefinitionTextParams{Name: name, Description: description, ActorID: actorID, ID: id})
 		if err != nil {
 			return MutationResult{}, err
 		}
 	}
-	if err = audit(ctx, tx, id, in.Code, in.VersionId, "SAVED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, id, in.Code, in.VersionID, "SAVED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report save", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{ID: in.VersionId, Status: "DRAFT", Revision: revision}, nil
+	return MutationResult{ID: in.VersionID, Status: "DRAFT", Revision: revision}, nil
 }
 
-func enablePermissions(ctx context.Context, tx pgx.Tx, code, name, actorID string) error {
+func enablePermissions(ctx context.Context, queries *db.Queries, code, name, actorID string) error {
 	for _, action := range []string{"query", "export"} {
 		path := permissionPath(code, action)
-		_, err := tx.Exec(ctx, `INSERT INTO app_permissions(id,path,domain,entity,action,description,status,created_by,updated_by)VALUES($1,$2,'rpt',$3,$4,$5,'ENABLED',$6,$6) ON CONFLICT(path) DO UPDATE SET status='ENABLED',description=excluded.description,revision=app_permissions.revision+1,updated_at=now(),updated_by=excluded.updated_by`, newID(), path, code, action, map[string]string{"query": "查询", "export": "导出"}[action]+name+"报表", actorID)
+		description := map[string]string{"query": "查询", "export": "导出"}[action] + name + "报表"
+		err := queries.RptUpsertUsePermission(ctx, db.RptUpsertUsePermissionParams{ID: newID(), Path: path, Code: code,
+			Action: action, Description: &description, ActorID: stringPointer(actorID)})
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func disablePermissions(ctx context.Context, tx pgx.Tx, code, actorID string) error {
-	_, err := tx.Exec(ctx, `UPDATE app_permissions SET status='DISABLED',revision=revision+1,updated_at=now(),updated_by=$1 WHERE domain='rpt' AND entity=$2 AND action IN ('query','export') AND status='ENABLED'`, actorID, code)
-	return err
+func disablePermissions(ctx context.Context, queries *db.Queries, code, actorID string) error {
+	return queries.RptDisableUsePermissions(ctx, db.RptDisableUsePermissionsParams{ActorID: stringPointer(actorID), Code: code})
 }
 
-func (s *Service) ApproveVersion(ctx context.Context, in generated.RptVersionRevisionRequest, actorID, requestID string) (MutationResult, error) {
+func (s *Service) ApproveVersion(ctx context.Context, in VersionRevisionInput, actorID, requestID string) (MutationResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	var id, name, sql string
-	var enabled bool
-	var parameters, columns []byte
-	err = tx.QueryRow(ctx, `SELECT d.id,d.name,d.enabled,v.sql_text,v.parameters,v.columns FROM rpt_definitions d JOIN rpt_versions v ON v.definition_id=d.id WHERE d.code=$1 AND v.id=$2 AND v.status='DRAFT' AND v.revision=$3 FOR UPDATE OF d,v`, in.Code, in.VersionId, in.Revision).Scan(&id, &name, &enabled, &sql, &parameters, &columns)
+	queries := s.queries.WithTx(tx)
+	locked, err := queries.RptLockDraftForApproval(ctx, db.RptLockDraftForApprovalParams{Code: in.Code, VersionID: in.VersionID, Revision: in.Revision})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report draft changed", nil, err)
 	}
-	var data generated.RptVersionData
-	data.Sql = sql
-	_ = json.Unmarshal(parameters, &data.Parameters)
-	_ = json.Unmarshal(columns, &data.Columns)
+	id, name, enabled := locked.ID, locked.Name, locked.Enabled
+	var data VersionData
+	data.SQL = locked.SqlText
+	if err = json.Unmarshal(locked.Parameters, &data.Parameters); err != nil {
+		return MutationResult{}, internal("decode report parameters", err)
+	}
+	if err = json.Unmarshal(locked.Columns, &data.Columns); err != nil {
+		return MutationResult{}, internal("decode report columns", err)
+	}
 	if err = validateVersionData(data); err != nil {
 		return MutationResult{}, err
 	}
-	params := map[string]any{}
-	if in.ValidationParameters != nil {
-		params = *in.ValidationParameters
+	params := in.ValidationParameters
+	if params == nil {
+		params = map[string]any{}
 	}
 	if err = s.validateDatabaseContract(ctx, data, params); err != nil {
 		return MutationResult{}, err
 	}
-	_, err = tx.Exec(ctx, `UPDATE rpt_versions SET status='APPROVED',validity='VALID',revision=revision+1,approved_at=now(),approved_by=$1,updated_at=now(),updated_by=$1 WHERE id=$2`, actorID, in.VersionId)
+	err = queries.RptApproveVersion(ctx, db.RptApproveVersionParams{ActorID: stringPointer(actorID), VersionID: in.VersionID})
 	if err != nil {
 		return MutationResult{}, err
 	}
-	_, err = tx.Exec(ctx, `UPDATE rpt_definitions SET current_version_id=$1,ever_approved=true,revision=revision+1,updated_at=now(),updated_by=$2 WHERE id=$3`, in.VersionId, actorID, id)
+	err = queries.RptActivateVersion(ctx, db.RptActivateVersionParams{VersionID: stringPointer(in.VersionID), ActorID: actorID, ID: id})
 	if err != nil {
 		return MutationResult{}, err
 	}
 	if enabled {
-		if err = enablePermissions(ctx, tx, in.Code, name, actorID); err != nil {
+		if err = enablePermissions(ctx, queries, in.Code, name, actorID); err != nil {
 			return MutationResult{}, err
 		}
 	}
-	if err = audit(ctx, tx, id, in.Code, in.VersionId, "APPROVED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, id, in.Code, in.VersionID, "APPROVED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report approval", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{ID: in.VersionId, Status: "APPROVED", Revision: in.Revision + 1}, nil
+	return MutationResult{ID: in.VersionID, Status: "APPROVED", Revision: in.Revision + 1}, nil
 }
 
-func (s *Service) UnapproveVersion(ctx context.Context, in generated.RptVersionRevisionRequest, actorID, requestID string) (MutationResult, error) {
+func (s *Service) UnapproveVersion(ctx context.Context, in VersionRevisionInput, actorID, requestID string) (MutationResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	var id string
-	err = tx.QueryRow(ctx, `SELECT d.id FROM rpt_definitions d JOIN rpt_versions v ON v.definition_id=d.id WHERE d.code=$1 AND d.current_version_id=v.id AND v.id=$2 AND v.status='APPROVED' AND v.revision=$3 FOR UPDATE OF d,v`, in.Code, in.VersionId, in.Revision).Scan(&id)
+	queries := s.queries.WithTx(tx)
+	id, err := queries.RptLockCurrentApprovedVersion(ctx, db.RptLockCurrentApprovedVersionParams{Code: in.Code, VersionID: in.VersionID, Revision: in.Revision})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report version changed", nil, err)
 	}
-	_, err = tx.Exec(ctx, `UPDATE rpt_definitions SET current_version_id=NULL,revision=revision+1,updated_at=now(),updated_by=$1 WHERE id=$2 AND current_version_id=$3`, actorID, id, in.VersionId)
+	err = queries.RptClearCurrentVersion(ctx, db.RptClearCurrentVersionParams{ActorID: actorID, ID: id, VersionID: stringPointer(in.VersionID)})
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = disablePermissions(ctx, tx, in.Code, actorID); err != nil {
+	if err = disablePermissions(ctx, queries, in.Code, actorID); err != nil {
 		return MutationResult{}, err
 	}
-	if err = audit(ctx, tx, id, in.Code, in.VersionId, "UNAPPROVED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, id, in.Code, in.VersionID, "UNAPPROVED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report unapproval", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{ID: in.VersionId, Status: "APPROVED", Revision: in.Revision}, nil
+	return MutationResult{ID: in.VersionID, Status: "APPROVED", Revision: in.Revision}, nil
 }
 
-func (s *Service) SetEnabled(ctx context.Context, in generated.RptDefinitionRevisionRequest, enabled bool, actorID, requestID string) (MutationResult, error) {
+func (s *Service) SetEnabled(ctx context.Context, in DefinitionRevisionInput, enabled bool, actorID, requestID string) (MutationResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	var id, name string
-	var currentValid bool
-	var revision int64
-	err = tx.QueryRow(ctx, `UPDATE rpt_definitions d SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2 WHERE code=$3 AND revision=$4 RETURNING id,name,EXISTS(SELECT 1 FROM rpt_versions v WHERE v.id=d.current_version_id AND v.validity='VALID'),revision`, enabled, actorID, in.Code, in.Revision).Scan(&id, &name, &currentValid, &revision)
+	queries := s.queries.WithTx(tx)
+	changed, err := queries.RptSetDefinitionEnabled(ctx, db.RptSetDefinitionEnabledParams{Enabled: enabled, ActorID: actorID, Code: in.Code, Revision: in.Revision})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report changed", nil, err)
 	}
+	id, name, currentValid, revision := changed.ID, changed.Name, changed.CurrentValid, changed.Revision
 	if enabled && currentValid {
-		if err = enablePermissions(ctx, tx, in.Code, name, actorID); err != nil {
+		if err = enablePermissions(ctx, queries, in.Code, name, actorID); err != nil {
 			return MutationResult{}, err
 		}
 	} else {
-		if err = disablePermissions(ctx, tx, in.Code, actorID); err != nil {
+		if err = disablePermissions(ctx, queries, in.Code, actorID); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -433,7 +487,7 @@ func (s *Service) SetEnabled(ctx context.Context, in generated.RptDefinitionRevi
 	if enabled {
 		event = "ENABLED"
 	}
-	if err = audit(ctx, tx, id, in.Code, "", event, actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, id, in.Code, "", event, actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report state change", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -441,21 +495,21 @@ func (s *Service) SetEnabled(ctx context.Context, in generated.RptDefinitionRevi
 	}
 	return MutationResult{ID: id, Status: event, Revision: revision}, nil
 }
-func (s *Service) DeleteDefinition(ctx context.Context, in generated.RptDefinitionRevisionRequest, actorID, requestID string) (MutationResult, error) {
+func (s *Service) DeleteDefinition(ctx context.Context, in DefinitionRevisionInput, actorID, requestID string) (MutationResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, internal("begin report delete", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	var id string
-	err = tx.QueryRow(ctx, `SELECT id FROM rpt_definitions WHERE code=$1 AND revision=$2 AND ever_approved=false FOR UPDATE`, in.Code, in.Revision).Scan(&id)
+	queries := s.queries.WithTx(tx)
+	id, err := queries.RptLockDeletableDefinition(ctx, db.RptLockDeletableDefinitionParams{Code: in.Code, Revision: in.Revision})
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "approved report cannot be deleted", nil, err)
 	}
-	if err = audit(ctx, tx, id, in.Code, "", "DELETED", actorID, requestID, nil); err != nil {
+	if err = audit(ctx, queries, id, in.Code, "", "DELETED", actorID, requestID, nil); err != nil {
 		return MutationResult{}, internal("audit report delete", err)
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM rpt_definitions WHERE id=$1`, id); err != nil {
+	if err = queries.RptDeleteDefinition(ctx, id); err != nil {
 		return MutationResult{}, internal("delete report", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -481,20 +535,27 @@ func (s *Service) markInvalid(ctx context.Context, definitionID, code, versionID
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `UPDATE rpt_versions SET validity='INVALID',invalidated_at=now(),invalid_reason='STRUCTURE_CHANGED',revision=revision+1 WHERE id=$1 AND validity='VALID'`, versionID)
+	queries := s.queries.WithTx(tx)
+	isCurrent, err := queries.RptLockDefinitionCurrentVersion(ctx, db.RptLockDefinitionCurrentVersionParams{VersionID: stringPointer(versionID), ID: definitionID})
 	if err != nil {
 		return err
 	}
-	if err = disablePermissions(ctx, tx, code, actorID); err != nil {
+	err = queries.RptInvalidateVersion(ctx, versionID)
+	if err != nil {
 		return err
 	}
-	if err = audit(ctx, tx, definitionID, code, versionID, "INVALIDATED", actorID, requestID, nil); err != nil {
+	if isCurrent {
+		if err = disablePermissions(ctx, queries, code, actorID); err != nil {
+			return err
+		}
+	}
+	if err = audit(ctx, queries, definitionID, code, versionID, "INVALIDATED", actorID, requestID, nil); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func bindParameters(definitions []generated.RptParameter, values map[string]any) ([]any, error) {
+func bindParameters(definitions []Parameter, values map[string]any) ([]any, error) {
 	known := make(map[string]bool, len(definitions))
 	for _, definition := range definitions {
 		known[definition.Key] = true
@@ -518,18 +579,18 @@ func bindParameters(definitions []generated.RptParameter, values map[string]any)
 			continue
 		}
 		switch p.Type {
-		case generated.RptParameterTypeTEXT, generated.RptParameterTypeREFERENCE:
+		case ParameterTypeText, ParameterTypeReference:
 			if _, ok = value.(string); !ok {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
-		case generated.RptParameterTypeDATE:
+		case ParameterTypeDate:
 			text, valid := value.(string)
 			parsed, parseErr := time.Parse(time.DateOnly, text)
 			if !valid || parseErr != nil {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
 			value = parsed
-		case generated.RptParameterTypeDATERANGE:
+		case ParameterTypeDateRange:
 			pair, valid := value.([]any)
 			if !valid || len(pair) != 2 {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
@@ -542,7 +603,7 @@ func bindParameters(definitions []generated.RptParameter, values map[string]any)
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
 			value = pgtype.Range[time.Time]{Lower: from, Upper: to.AddDate(0, 0, 1), LowerType: pgtype.Inclusive, UpperType: pgtype.Exclusive, Valid: true}
-		case generated.RptParameterTypeENUM:
+		case ParameterTypeEnum:
 			text, ok := value.(string)
 			valid := false
 			if ok && p.EnumValues != nil {
@@ -555,20 +616,20 @@ func bindParameters(definitions []generated.RptParameter, values map[string]any)
 			if !valid {
 				return nil, validation("report enum value is invalid", map[string]any{"key": p.Key})
 			}
-		case generated.RptParameterTypeINTEGER:
+		case ParameterTypeInteger:
 			number, valid := value.(float64)
 			if !valid || math.Trunc(number) != number || number < math.MinInt64 || number > math.MaxInt64 {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
 			value = int64(number)
-		case generated.RptParameterTypeDECIMAL:
+		case ParameterTypeDecimal:
 			text, valid := value.(string)
 			var number pgtype.Numeric
 			if !valid || number.Scan(text) != nil || !number.Valid {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
 			value = number
-		case generated.RptParameterTypeBOOLEAN:
+		case ParameterTypeBoolean:
 			if _, ok := value.(bool); !ok {
 				return nil, validation("report parameter type is invalid", map[string]any{"key": p.Key})
 			}
@@ -578,7 +639,7 @@ func bindParameters(definitions []generated.RptParameter, values map[string]any)
 	return result, nil
 }
 
-func (s *Service) validateDatabaseContract(ctx context.Context, data generated.RptVersionData, values map[string]any) error {
+func (s *Service) validateDatabaseContract(ctx context.Context, data VersionData, values map[string]any) error {
 	args, err := bindParameters(data.Parameters, values)
 	if err != nil {
 		return err
@@ -591,17 +652,17 @@ func (s *Service) validateDatabaseContract(ctx context.Context, data generated.R
 	if err = configureReadOnlyTransaction(ctx, tx, "2s"); err != nil {
 		return err
 	}
-	prepared, err := tx.Prepare(ctx, "rpt_validate", data.Sql)
+	prepared, err := tx.Prepare(ctx, "rpt_validate", data.SQL)
 	if err != nil {
 		return validation("report SQL database validation failed", nil)
 	}
 	defer tx.Conn().Deallocate(ctx, prepared.Name)
-	rows, err := tx.Query(ctx, `EXPLAIN `+data.Sql, args...)
+	rows, err := tx.Query(ctx, `EXPLAIN `+data.SQL, args...)
 	if err != nil {
 		return validation("report SQL database validation failed", nil)
 	}
 	rows.Close()
-	rows, err = tx.Query(ctx, `SELECT * FROM (`+data.Sql+`) rpt_validation LIMIT 1`, args...)
+	rows, err = tx.Query(ctx, `SELECT * FROM (`+data.SQL+`) rpt_validation LIMIT 1`, args...)
 	if err != nil {
 		return validation("report SQL database validation failed", nil)
 	}
@@ -631,19 +692,19 @@ func configureReadOnlyTransaction(ctx context.Context, tx pgx.Tx, timeout string
 	return nil
 }
 
-func resultTypeMatchesOID(resultType generated.RptResultType, oid uint32) bool {
+func resultTypeMatchesOID(resultType ResultType, oid uint32) bool {
 	switch resultType {
-	case generated.RptResultTypeBOOLEAN:
+	case ResultTypeBoolean:
 		return oid == pgtype.BoolOID
-	case generated.RptResultTypeINTEGER:
+	case ResultTypeInteger:
 		return oid == pgtype.Int2OID || oid == pgtype.Int4OID || oid == pgtype.Int8OID
-	case generated.RptResultTypeDECIMAL:
+	case ResultTypeDecimal:
 		return oid == pgtype.NumericOID || oid == pgtype.Float4OID || oid == pgtype.Float8OID
-	case generated.RptResultTypeDATE:
+	case ResultTypeDate:
 		return oid == pgtype.DateOID
-	case generated.RptResultTypeDATETIME:
+	case ResultTypeDateTime:
 		return oid == pgtype.TimestampOID || oid == pgtype.TimestamptzOID
-	case generated.RptResultTypeTEXT, generated.RptResultTypeID:
+	case ResultTypeText, ResultTypeID:
 		return oid == pgtype.TextOID || oid == pgtype.VarcharOID || oid == pgtype.BPCharOID || oid == pgtype.UUIDOID
 	default:
 		return false
@@ -651,19 +712,20 @@ func resultTypeMatchesOID(resultType generated.RptResultType, oid uint32) bool {
 }
 
 func (s *Service) loadActive(ctx context.Context, code string) (DefinitionView, error) {
-	var v DefinitionView
-	var sql string
-	var parameters, columns []byte
-	err := s.pool.QueryRow(ctx, `SELECT d.id,d.code,d.name,d.description,d.enabled,d.ever_approved,d.current_version_id,d.revision,v.id,v.version_no,v.status,v.validity,v.revision,v.sql_text,v.parameters,v.columns FROM rpt_definitions d JOIN rpt_versions v ON v.id=d.current_version_id WHERE d.code=$1 AND d.enabled AND v.validity='VALID'`, code).Scan(&v.DefinitionID, &v.Code, &v.Name, &v.Description, &v.Enabled, &v.EverApproved, &v.CurrentVersionID, &v.Revision, &v.VersionID, &v.VersionNo, &v.Status, &v.Validity, &v.VersionRevision, &sql, &parameters, &columns)
+	row, err := s.queries.RptGetActiveDefinition(ctx, code)
 	if err != nil {
-		return v, domainError(ErrorConflict, "report is unavailable", nil, err)
+		return DefinitionView{}, domainError(ErrorConflict, "report is unavailable", nil, err)
 	}
-	v.Data.Sql = sql
-	_ = json.Unmarshal(parameters, &v.Data.Parameters)
-	_ = json.Unmarshal(columns, &v.Data.Columns)
-	return v, nil
+	currentVersionID := ""
+	if row.CurrentVersionID != nil {
+		currentVersionID = *row.CurrentVersionID
+	}
+	return definitionView(row.ID, row.Code, row.Name, row.Description, row.Enabled, row.EverApproved,
+		currentVersionID, row.Revision, row.VersionID, row.VersionNo, row.Status, row.Validity,
+		row.VersionRevision, row.SqlText, row.Parameters, row.Columns)
 }
-func (s *Service) Execute(ctx context.Context, code string, in generated.RptExecuteRequest, actorID, requestID string) (QueryResult, error) {
+
+func (s *Service) Execute(ctx context.Context, code string, in ExecuteInput, actorID, requestID string) (QueryResult, error) {
 	page, pageSize := 1, 50
 	if in.Page != nil {
 		page = *in.Page
@@ -693,33 +755,18 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 		return QueryResult{}, internal("prepare report query", err)
 	}
 	var total int64
-	if err = tx.QueryRow(runCtx, `SELECT count(*) FROM (`+definition.Data.Sql+`) rpt_count`, args...).Scan(&total); err != nil {
-		if isStructuralError(err) {
-			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
-				return QueryResult{}, internal("invalidate report", invalidErr)
-			}
-			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
-		}
-		return QueryResult{}, internal("count report rows", err)
+	if err = tx.QueryRow(runCtx, `SELECT count(*) FROM (`+definition.Data.SQL+`) rpt_count`, args...).Scan(&total); err != nil {
+		return QueryResult{}, s.handleExecutionError(ctx, definition, actorID, requestID, "count report rows", err)
 	}
-	sql := fmt.Sprintf(`SELECT * FROM (%s) rpt_query LIMIT %d OFFSET %d`, definition.Data.Sql, pageSize+1, (page-1)*pageSize)
+	sql := fmt.Sprintf(`SELECT * FROM (%s) rpt_query LIMIT %d OFFSET %d`, definition.Data.SQL, pageSize+1, (page-1)*pageSize)
 	rows, err := tx.Query(runCtx, sql, args...)
 	if err != nil {
-		if isStructuralError(err) {
-			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
-				return QueryResult{}, internal("invalidate report", invalidErr)
-			}
-			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
-		}
-		return QueryResult{}, internal("run report query", err)
+		return QueryResult{}, s.handleExecutionError(ctx, definition, actorID, requestID, "run report query", err)
 	}
 	defer rows.Close()
 	fields := rows.FieldDescriptions()
 	if !fieldsMatchContract(fields, definition.Data.Columns) {
-		if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
-			return QueryResult{}, internal("invalidate report", invalidErr)
-		}
-		return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
+		return QueryResult{}, s.invalidateContractMismatch(ctx, definition, actorID, requestID)
 	}
 	items := []map[string]any{}
 	for rows.Next() {
@@ -737,13 +784,7 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 		items = items[:pageSize]
 	}
 	if err = rows.Err(); err != nil {
-		if isStructuralError(err) {
-			if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, code, definition.VersionID, actorID, requestID); invalidErr != nil {
-				return QueryResult{}, internal("invalidate report", invalidErr)
-			}
-			return QueryResult{}, domainError(ErrorConflict, "report is invalid", nil, nil)
-		}
-		return QueryResult{}, internal("read report rows", err)
+		return QueryResult{}, s.handleExecutionError(ctx, definition, actorID, requestID, "read report rows", err)
 	}
 	return QueryResult{Columns: definition.Data.Columns, Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
@@ -751,9 +792,9 @@ func (s *Service) Execute(ctx context.Context, code string, in generated.RptExec
 func (s *Service) StreamExport(
 	ctx context.Context,
 	code string,
-	in generated.RptExecuteRequest,
+	in ExecuteInput,
 	actorID, requestID string,
-	consume func([]generated.RptResultColumn, pgx.Rows) error,
+	consume func([]ResultColumn, pgx.Rows) error,
 ) error {
 	definition, err := s.loadActive(ctx, code)
 	if err != nil {
@@ -774,22 +815,19 @@ func (s *Service) StreamExport(
 		return internal("prepare report export", err)
 	}
 	var total int64
-	if err = tx.QueryRow(runCtx, `SELECT count(*) FROM (`+definition.Data.Sql+`) rpt_export_count`, args...).Scan(&total); err != nil {
+	if err = tx.QueryRow(runCtx, `SELECT count(*) FROM (`+definition.Data.SQL+`) rpt_export_count`, args...).Scan(&total); err != nil {
 		return s.handleExecutionError(ctx, definition, actorID, requestID, "count report export rows", err)
 	}
 	if total > 100000 {
 		return validation("report export exceeds row limit", map[string]any{"limit": 100000})
 	}
-	rows, err := tx.Query(runCtx, `SELECT * FROM (`+definition.Data.Sql+`) rpt_export`, args...)
+	rows, err := tx.Query(runCtx, `SELECT * FROM (`+definition.Data.SQL+`) rpt_export`, args...)
 	if err != nil {
 		return s.handleExecutionError(ctx, definition, actorID, requestID, "run report export", err)
 	}
 	defer rows.Close()
 	if !fieldsMatchContract(rows.FieldDescriptions(), definition.Data.Columns) {
-		if invalidErr := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID); invalidErr != nil {
-			return internal("invalidate report", invalidErr)
-		}
-		return domainError(ErrorConflict, "report is invalid", nil, nil)
+		return s.invalidateContractMismatch(ctx, definition, actorID, requestID)
 	}
 	if err = consume(definition.Data.Columns, rows); err != nil {
 		return internal("stream report export", err)
@@ -798,6 +836,13 @@ func (s *Service) StreamExport(
 		return s.handleExecutionError(ctx, definition, actorID, requestID, "read report export", err)
 	}
 	return nil
+}
+
+func (s *Service) invalidateContractMismatch(ctx context.Context, definition DefinitionView, actorID, requestID string) error {
+	if err := s.markInvalid(context.WithoutCancel(ctx), definition.DefinitionID, definition.Code, definition.VersionID, actorID, requestID); err != nil {
+		return internal("invalidate report", err)
+	}
+	return domainError(ErrorConflict, "report is invalid", nil, nil)
 }
 
 func (s *Service) handleExecutionError(ctx context.Context, definition DefinitionView, actorID, requestID, operation string, err error) error {
@@ -810,7 +855,7 @@ func (s *Service) handleExecutionError(ctx context.Context, definition Definitio
 	return internal(operation, err)
 }
 
-func fieldsMatchContract(fields []pgconn.FieldDescription, columns []generated.RptResultColumn) bool {
+func fieldsMatchContract(fields []pgconn.FieldDescription, columns []ResultColumn) bool {
 	if len(fields) != len(columns) {
 		return false
 	}

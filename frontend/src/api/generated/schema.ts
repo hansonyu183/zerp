@@ -2146,6 +2146,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rpt/directory/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询当前会话可用报表目录 */
+        post: operations["rptDirectoryQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rpt/{report}/export": {
         parameters: {
             query?: never;
@@ -4410,6 +4427,10 @@ export interface components {
             /** @default 1 */
             page: number;
             /** @default 50 */
+            pageSize: number;
+        };
+        RptDirectoryQueryRequest: {
+            page: number;
             pageSize: number;
         };
         RptReferenceQueryRequest: {
@@ -6906,6 +6927,22 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RptExecuteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDirectoryQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDirectoryQueryRequest"];
             };
         };
         responses: {

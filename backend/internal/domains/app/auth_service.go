@@ -163,12 +163,12 @@ func permissionAllowsPath(permissions []string, path string) bool {
 	if slices.Contains(permissions, path) {
 		return true
 	}
-	if path != "/rpt/definition/query" {
+	if path != "/rpt/directory/query" {
 		return false
 	}
 	for _, permission := range permissions {
-		if strings.HasPrefix(permission, "/rpt/") &&
-			(strings.HasSuffix(permission, "/query") || strings.HasSuffix(permission, "/export")) {
+		parts := strings.Split(strings.Trim(permission, "/"), "/")
+		if len(parts) == 3 && parts[0] == "rpt" && parts[1] != "definition" && parts[1] != "directory" && (parts[2] == "query" || parts[2] == "export") {
 			return true
 		}
 	}

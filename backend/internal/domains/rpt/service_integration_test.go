@@ -17,7 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	"github.com/hansonyu183/zerp/backend/internal/api/generated"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,7 +43,7 @@ func TestRPTDefinitionApprovalAndUnapprovalIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
 		Code: code, Name: "集成报表", Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path`, "value"),
 	}, rptIntegrationActor, "rpt-definition-create")
 	if err != nil {
@@ -53,8 +53,8 @@ func TestRPTDefinitionApprovalAndUnapprovalIntegration(t *testing.T) {
 		t.Fatalf("created report = %+v", created)
 	}
 
-	approved, err := service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: created.ID, Revision: created.Revision,
+	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: created.ID, Revision: created.Revision,
 	}, rptIntegrationActor, "rpt-definition-approve")
 	if err != nil {
 		t.Fatalf("approve report definition: %v", err)
@@ -77,8 +77,8 @@ func TestRPTDefinitionApprovalAndUnapprovalIntegration(t *testing.T) {
 		t.Fatalf("approved permission statuses = query %q export %q", queryStatus, exportStatus)
 	}
 
-	unapproved, err := service.UnapproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: created.ID, Revision: approved.Revision,
+	unapproved, err := service.UnapproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: created.ID, Revision: approved.Revision,
 	}, rptIntegrationActor, "rpt-definition-unapprove")
 	if err != nil {
 		t.Fatalf("unapprove report definition: %v", err)
@@ -108,19 +108,19 @@ func TestRPTVersionCreateAndAtomicSwitchIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := rptCode()
-	first, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{
+	first, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
 		Code: code, Name: "版本切换报表", Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path`, "value"),
 	}, rptIntegrationActor, "rpt-version-create")
 	if err != nil {
 		t.Fatalf("create first version: %v", err)
 	}
-	_, err = service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: first.ID, Revision: first.Revision,
+	_, err = service.ApproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: first.ID, Revision: first.Revision,
 	}, rptIntegrationActor, "rpt-version-approve-first")
 	if err != nil {
 		t.Fatalf("approve first version: %v", err)
 	}
-	second, err := service.CreateVersion(t.Context(), generated.RptVersionCreateRequest{
+	second, err := service.CreateVersion(t.Context(), VersionCreateInput{
 		Code: code, Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path DESC`, "value"),
 	}, rptIntegrationActor, "rpt-version-create-second")
 	if err != nil {
@@ -138,8 +138,8 @@ func TestRPTVersionCreateAndAtomicSwitchIntegration(t *testing.T) {
 	if currentVersion != first.ID || firstStatus != "APPROVED" || secondStatus != "DRAFT" {
 		t.Fatalf("draft version state = current %q first %q second %q", currentVersion, firstStatus, secondStatus)
 	}
-	secondApproved, err := service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: second.ID, Revision: second.Revision,
+	secondApproved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: second.ID, Revision: second.Revision,
 	}, rptIntegrationActor, "rpt-version-approve-second")
 	if err != nil {
 		t.Fatalf("approve second version: %v", err)
@@ -154,8 +154,8 @@ func TestRPTVersionCreateAndAtomicSwitchIntegration(t *testing.T) {
 		t.Fatalf("switched current version = %q, want %q", currentVersion, second.ID)
 	}
 
-	if _, err = service.UnapproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: second.ID, Revision: secondApproved.Revision,
+	if _, err = service.UnapproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: second.ID, Revision: secondApproved.Revision,
 	}, rptIntegrationActor, "rpt-version-unapprove-second"); err != nil {
 		t.Fatalf("unapprove second version: %v", err)
 	}
@@ -169,6 +169,78 @@ func TestRPTVersionCreateAndAtomicSwitchIntegration(t *testing.T) {
 	}
 }
 
+func TestRPTReservedCodeAndHistoricalVersionRulesIntegration(t *testing.T) {
+	pool := rptIntegrationPool(t)
+	service, err := NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreateDefinition(t.Context(), DefinitionCreateInput{
+		Code: "definition", Name: "冲突编码", Data: rptData(`SELECT 'x'::text AS value`, "value"),
+	}, rptIntegrationActor, "rpt-reserved-code"); !rptErrorKind(err, ErrorValidation) {
+		t.Fatalf("reserved code error = %v", err)
+	}
+
+	code := rptCode()
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
+		Code: code, Name: "历史版本规则", Data: rptData(`SELECT 'v1'::text AS value`, "value"),
+	}, rptIntegrationActor, "rpt-history-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-history-approve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.UnapproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: created.ID, Revision: approved.Revision}, rptIntegrationActor, "rpt-history-unapprove"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.GetDefinition(t.Context(), DefinitionGetInput{Code: code}); !rptErrorKind(err, ErrorConflict) {
+		t.Fatalf("definition without current version error = %v", err)
+	}
+	historical, err := service.GetDefinition(t.Context(), DefinitionGetInput{Code: code, VersionID: created.ID})
+	if err != nil || historical.VersionID != created.ID {
+		t.Fatalf("explicit historical version = %+v err=%v", historical, err)
+	}
+}
+
+func TestRPTHistoricalInvalidationDoesNotDisableCurrentVersionIntegration(t *testing.T) {
+	pool := rptIntegrationPool(t)
+	service, err := NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := rptCode()
+	first, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "并发失效", Data: rptData(`SELECT 'v1'::text AS value`, "value")}, rptIntegrationActor, "rpt-stale-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: first.ID, Revision: first.Revision}, rptIntegrationActor, "rpt-stale-first-approve"); err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.CreateVersion(t.Context(), VersionCreateInput{Code: code, Data: rptData(`SELECT 'v2'::text AS value`, "value")}, rptIntegrationActor, "rpt-stale-second-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: second.ID, Revision: second.Revision}, rptIntegrationActor, "rpt-stale-second-approve"); err != nil {
+		t.Fatal(err)
+	}
+	var definitionID string
+	if err = pool.QueryRow(t.Context(), `SELECT id FROM rpt_definitions WHERE code=$1`, code).Scan(&definitionID); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.markInvalid(t.Context(), definitionID, code, first.ID, rptIntegrationActor, "rpt-stale-invalidate"); err != nil {
+		t.Fatal(err)
+	}
+	var currentVersionID, queryStatus, exportStatus string
+	if err = pool.QueryRow(t.Context(), `SELECT d.current_version_id,q.status,e.status FROM rpt_definitions d JOIN app_permissions q ON q.path='/rpt/'||d.code||'/query' JOIN app_permissions e ON e.path='/rpt/'||d.code||'/export' WHERE d.code=$1`, code).Scan(&currentVersionID, &queryStatus, &exportStatus); err != nil {
+		t.Fatal(err)
+	}
+	if currentVersionID != second.ID || queryStatus != "ENABLED" || exportStatus != "ENABLED" {
+		t.Fatalf("current=%q query=%q export=%q", currentVersionID, queryStatus, exportStatus)
+	}
+}
+
 func TestRPTDynamicPermissionsSynchronizeAndRetainRoleGrantsIntegration(t *testing.T) {
 	pool := rptIntegrationPool(t)
 	service, err := NewService(pool)
@@ -176,34 +248,34 @@ func TestRPTDynamicPermissionsSynchronizeAndRetainRoleGrantsIntegration(t *testi
 		t.Fatal(err)
 	}
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
 		Code: code, Name: "权限报表", Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path`, "value"),
 	}, rptIntegrationActor, "rpt-permission-create")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	approved, err := service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: created.ID, Revision: created.Revision,
+	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: created.ID, Revision: created.Revision,
 	}, rptIntegrationActor, "rpt-permission-approve")
 	if err != nil {
 		t.Fatalf("approve report: %v", err)
 	}
 	queryPermissionID, _ := rptPermission(t, pool, code, "query")
-	page, err := service.QueryDefinitions(t.Context(), generated.RptDefinitionQueryRequest{Page: 1, PageSize: 20}, []string{permissionPath(code, "query")})
+	directory, err := service.QueryDirectory(t.Context(), DirectoryQueryInput{Page: 1, PageSize: 20}, []string{permissionPath(code, "query")})
 	if err != nil {
 		t.Fatalf("discover authorized report: %v", err)
 	}
-	discovered := page.Items.([]DefinitionView)
-	if len(discovered) != 1 || discovered[0].Code != code || discovered[0].Data.Sql != "" {
-		t.Fatalf("ordinary discovery leaked or omitted report: %+v", discovered)
+	metadata := directory.Items.([]ReportMetadata)
+	if len(metadata) != 1 || metadata[0].Code != code || len(metadata[0].Columns) == 0 || !metadata[0].CanQuery || metadata[0].CanExport {
+		t.Fatalf("report directory = %+v", metadata)
 	}
-	adminPage, err := service.QueryDefinitions(t.Context(), generated.RptDefinitionQueryRequest{Page: 1, PageSize: 200}, []string{"/rpt/definition/query"})
+	adminPage, err := service.QueryDefinitions(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 200})
 	if err != nil {
 		t.Fatalf("admin report discovery: %v", err)
 	}
 	foundAdminSQL := false
 	for _, definition := range adminPage.Items.([]DefinitionView) {
-		if definition.Code == code && definition.Data.Sql != "" {
+		if definition.Code == code && definition.Data.SQL != "" {
 			foundAdminSQL = true
 		}
 	}
@@ -223,7 +295,7 @@ func TestRPTDynamicPermissionsSynchronizeAndRetainRoleGrantsIntegration(t *testi
 		t.Fatalf("grant query permission: %v", err)
 	}
 
-	disabled, err := service.SetEnabled(t.Context(), generated.RptDefinitionRevisionRequest{Code: code, Revision: approved.Revision}, false, rptIntegrationActor, "rpt-permission-disable")
+	disabled, err := service.SetEnabled(t.Context(), DefinitionRevisionInput{Code: code, Revision: approved.Revision}, false, rptIntegrationActor, "rpt-permission-disable")
 	if err != nil {
 		t.Fatalf("disable report: %v", err)
 	}
@@ -239,7 +311,7 @@ func TestRPTDynamicPermissionsSynchronizeAndRetainRoleGrantsIntegration(t *testi
 		t.Fatalf("role grant after disable = %d, err=%v", grantCount, err)
 	}
 
-	enabled, err := service.SetEnabled(t.Context(), generated.RptDefinitionRevisionRequest{Code: code, Revision: disabled.Revision}, true, rptIntegrationActor, "rpt-permission-enable")
+	enabled, err := service.SetEnabled(t.Context(), DefinitionRevisionInput{Code: code, Revision: disabled.Revision}, true, rptIntegrationActor, "rpt-permission-enable")
 	if err != nil {
 		t.Fatalf("enable report: %v", err)
 	}
@@ -262,14 +334,14 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
 		Code: code, Name: "分页报表", Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path`, "value"),
 	}, rptIntegrationActor, "rpt-page-create")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	approved, err := service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{
-		Code: code, VersionId: created.ID, Revision: created.Revision,
+	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{
+		Code: code, VersionID: created.ID, Revision: created.Revision,
 	}, rptIntegrationActor, "rpt-page-approve")
 	if err != nil {
 		t.Fatalf("approve report: %v", err)
@@ -279,7 +351,7 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 		t.Fatalf("count report rows: %v", err)
 	}
 	page, pageSize := 1, 2
-	first, err := service.Execute(t.Context(), code, generated.RptExecuteRequest{Page: &page, PageSize: &pageSize, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-query-1")
+	first, err := service.Execute(t.Context(), code, ExecuteInput{Page: &page, PageSize: &pageSize, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-query-1")
 	if err != nil {
 		t.Fatalf("query first page: %v", err)
 	}
@@ -287,7 +359,7 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 		t.Fatalf("first page = items %d total %d page %d size %d, want items %d total %d", len(first.Items), first.Total, first.Page, first.PageSize, pageSize, expectedTotal)
 	}
 	page = 2
-	second, err := service.Execute(t.Context(), code, generated.RptExecuteRequest{Page: &page, PageSize: &pageSize, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-query-2")
+	second, err := service.Execute(t.Context(), code, ExecuteInput{Page: &page, PageSize: &pageSize, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-query-2")
 	if err != nil {
 		t.Fatalf("query second page: %v", err)
 	}
@@ -296,11 +368,11 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 	}
 
 	tooLarge := 101
-	if _, err = service.Execute(t.Context(), code, generated.RptExecuteRequest{PageSize: &tooLarge, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-too-large"); !rptErrorKind(err, ErrorValidation) {
+	if _, err = service.Execute(t.Context(), code, ExecuteInput{PageSize: &tooLarge, Parameters: map[string]any{}}, rptIntegrationActor, "rpt-page-too-large"); !rptErrorKind(err, ErrorValidation) {
 		t.Fatalf("page size 101 error = %v", err)
 	}
 	zero, negative := 0, -1
-	for _, request := range []generated.RptExecuteRequest{
+	for _, request := range []ExecuteInput{
 		{Page: &zero, Parameters: map[string]any{}},
 		{Page: &negative, Parameters: map[string]any{}},
 		{PageSize: &zero, Parameters: map[string]any{}},
@@ -328,18 +400,18 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	}
 	serviceSQL := fmt.Sprintf(`SELECT value AS value FROM %s`, tableName)
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: code, Name: "失效报表", Data: rptData(serviceSQL, "value")}, rptIntegrationActor, "rpt-invalid-create")
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "失效报表", Data: rptData(serviceSQL, "value")}, rptIntegrationActor, "rpt-invalid-create")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	approved, err := service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{Code: code, VersionId: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-invalid-approve")
+	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-invalid-approve")
 	if err != nil {
 		t.Fatalf("approve report: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), fmt.Sprintf(`DROP TABLE %s`, tableName)); err != nil {
 		t.Fatalf("drop report fixture table: %v", err)
 	}
-	_, err = service.Execute(t.Context(), code, generated.RptExecuteRequest{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-invalid-query")
+	_, err = service.Execute(t.Context(), code, ExecuteInput{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-invalid-query")
 	if err == nil || err.Error() != "report is invalid" {
 		t.Fatalf("invalid report query error = %v", err)
 	}
@@ -355,7 +427,7 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	if queryStatus != "DISABLED" || exportStatus != "DISABLED" {
 		t.Fatalf("invalid report permissions = query %q export %q", queryStatus, exportStatus)
 	}
-	if _, err = service.Execute(t.Context(), code, generated.RptExecuteRequest{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-invalid-query-again"); err == nil || err.Error() != "report is unavailable" {
+	if _, err = service.Execute(t.Context(), code, ExecuteInput{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-invalid-query-again"); err == nil || err.Error() != "report is unavailable" {
 		t.Fatalf("second invalid report query error = %v", err)
 	}
 	_ = approved
@@ -368,19 +440,19 @@ func TestRPTReadOnlySQLAndApprovalTimeoutIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, sql := range []string{"DELETE FROM app_permissions", "SELECT 1; SELECT 2", "WITH removed AS (DELETE FROM app_permissions RETURNING id) SELECT * FROM removed"} {
-		if _, err = service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: rptCode(), Name: "只读校验", Data: rptData(sql, "value")}, rptIntegrationActor, "rpt-readonly-create"); !rptErrorKind(err, ErrorValidation) {
+		if _, err = service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: rptCode(), Name: "只读校验", Data: rptData(sql, "value")}, rptIntegrationActor, "rpt-readonly-create"); !rptErrorKind(err, ErrorValidation) {
 			t.Fatalf("unsafe SQL %q error = %v", sql, err)
 		}
 	}
 
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: code, Name: "超时报表", Data: rptData(`SELECT pg_sleep(3) AS value`, "value")}, rptIntegrationActor, "rpt-timeout-create")
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "超时报表", Data: rptData(`SELECT pg_sleep(3) AS value`, "value")}, rptIntegrationActor, "rpt-timeout-create")
 	if err != nil {
 		t.Fatalf("create timeout report: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
 	defer cancel()
-	if _, err = service.ApproveVersion(ctx, generated.RptVersionRevisionRequest{Code: code, VersionId: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-timeout-approve"); !rptErrorKind(err, ErrorValidation) {
+	if _, err = service.ApproveVersion(ctx, VersionRevisionInput{Code: code, VersionID: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-timeout-approve"); !rptErrorKind(err, ErrorValidation) {
 		t.Fatalf("timeout approval error = %v", err)
 	}
 }
@@ -406,7 +478,7 @@ func TestRPTBuiltInReportsUseOrdinaryExecutionPathIntegration(t *testing.T) {
 			if err != nil || status != "APPROVED" || validity != "VALID" || queryStatus != "ENABLED" || exportStatus != "ENABLED" {
 				t.Fatalf("built-in state: status=%q validity=%q query=%q export=%q err=%v", status, validity, queryStatus, exportStatus, err)
 			}
-			result, err := service.Execute(t.Context(), code, generated.RptExecuteRequest{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-built-in")
+			result, err := service.Execute(t.Context(), code, ExecuteInput{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-built-in")
 			if err != nil {
 				t.Fatalf("execute built-in: %v", err)
 			}
@@ -521,7 +593,7 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		t.Fatalf("customer fact fixture count = %d, err=%v", customerFacts, err)
 	}
 	execute := func(code string, parameters map[string]any) map[string]any {
-		result, queryErr := service.Execute(t.Context(), code, generated.RptExecuteRequest{Parameters: parameters}, actor, "rpt-semantics-"+code)
+		result, queryErr := service.Execute(t.Context(), code, ExecuteInput{Parameters: parameters}, actor, "rpt-semantics-"+code)
 		if queryErr != nil {
 			t.Fatalf("execute %s: %v", code, queryErr)
 		}
@@ -614,12 +686,12 @@ func TestRPTCSVExportStreamsAndRejectsOversizeIntegration(t *testing.T) {
 	}
 	code := rptCode()
 	data := rptData(`SELECT i::bigint AS value FROM generate_series(1,3) i ORDER BY i`, "value")
-	data.Columns[0].Type = generated.RptResultTypeINTEGER
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: code, Name: "CSV 导出", Data: data}, rptIntegrationActor, "rpt-export-create")
+	data.Columns[0].Type = ResultTypeInteger
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "CSV 导出", Data: data}, rptIntegrationActor, "rpt-export-create")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{Code: code, VersionId: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-export-approve"); err != nil {
+	if _, err = service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-export-approve"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -629,6 +701,32 @@ func TestRPTCSVExportStreamsAndRejectsOversizeIntegration(t *testing.T) {
 		return authorization.Principal{ActorID: rptIntegrationActor, Permissions: []string{permissionPath(code, "export")}}, nil
 	})
 	NewHandler(service, authorizer, slog.Default()).Register(router)
+	metadataRequest := httptest.NewRequest(http.MethodPost, "/rpt/directory/query", bytes.NewBufferString(`{"page":1,"pageSize":20}`))
+	metadataRequest.Header.Set("Content-Type", "application/json")
+	metadataRecorder := httptest.NewRecorder()
+	router.ServeHTTP(metadataRecorder, metadataRequest)
+	var metadataEnvelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err = json.Unmarshal(metadataRecorder.Body.Bytes(), &metadataEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if metadataRecorder.Code != http.StatusOK || metadataEnvelope.Data["items"] == nil || metadataEnvelope.Data["sql"] != nil {
+		t.Fatalf("metadata status=%d data=%+v", metadataRecorder.Code, metadataEnvelope.Data)
+	}
+	unknownRequest := httptest.NewRequest(http.MethodPost, "/rpt/directory/query", bytes.NewBufferString(`{"page":1,"pageSize":20,"unexpected":true}`))
+	unknownRequest.Header.Set("Content-Type", "application/json")
+	unknownRecorder := httptest.NewRecorder()
+	router.ServeHTTP(unknownRecorder, unknownRequest)
+	var unknownEnvelope struct {
+		Code int `json:"code"`
+	}
+	if err = json.Unmarshal(unknownRecorder.Body.Bytes(), &unknownEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if unknownRecorder.Code != http.StatusOK || unknownEnvelope.Code != response.CodeValidation {
+		t.Fatalf("directory accepted unknown request field: status=%d body=%s", unknownRecorder.Code, unknownRecorder.Body.String())
+	}
 	request := httptest.NewRequest(http.MethodPost, "/rpt/"+code+"/export", bytes.NewBufferString(`{"parameters":{}}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -642,15 +740,15 @@ func TestRPTCSVExportStreamsAndRejectsOversizeIntegration(t *testing.T) {
 
 	oversizeCode := rptCode()
 	oversize := rptData(`SELECT i::text AS value FROM generate_series(1,100001) i`, "value")
-	created, err = service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: oversizeCode, Name: "超限导出", Data: oversize}, rptIntegrationActor, "rpt-oversize-create")
+	created, err = service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: oversizeCode, Name: "超限导出", Data: oversize}, rptIntegrationActor, "rpt-oversize-create")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{Code: oversizeCode, VersionId: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-oversize-approve"); err != nil {
+	if _, err = service.ApproveVersion(t.Context(), VersionRevisionInput{Code: oversizeCode, VersionID: created.ID, Revision: created.Revision}, rptIntegrationActor, "rpt-oversize-approve"); err != nil {
 		t.Fatal(err)
 	}
 	consumed := false
-	err = service.StreamExport(t.Context(), oversizeCode, generated.RptExecuteRequest{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-oversize-export", func([]generated.RptResultColumn, pgx.Rows) error { consumed = true; return nil })
+	err = service.StreamExport(t.Context(), oversizeCode, ExecuteInput{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-oversize-export", func([]ResultColumn, pgx.Rows) error { consumed = true; return nil })
 	if !rptErrorKind(err, ErrorValidation) || consumed {
 		t.Fatalf("oversize export err=%v consumed=%t", err, consumed)
 	}
@@ -664,17 +762,17 @@ func TestRPTExecutionStatementTimeoutIntegration(t *testing.T) {
 	}
 	code := rptCode()
 	data := rptData(`SELECT value FROM (SELECT pg_sleep($1), 'ok'::text AS value) rpt_sleep`, "value")
-	data.Parameters = []generated.RptParameter{{Key: "delay", Name: "延迟秒数", Type: generated.RptParameterTypeINTEGER, Required: true}}
-	created, err := service.CreateDefinition(t.Context(), generated.RptDefinitionCreateRequest{Code: code, Name: "执行超时报表", Data: data}, rptIntegrationActor, "rpt-execution-timeout-create")
+	data.Parameters = []Parameter{{Key: "delay", Name: "延迟秒数", Type: ParameterTypeInteger, Required: true}}
+	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "执行超时报表", Data: data}, rptIntegrationActor, "rpt-execution-timeout-create")
 	if err != nil {
 		t.Fatalf("create execution timeout report: %v", err)
 	}
 	validationParameters := map[string]any{"delay": float64(0)}
-	if _, err = service.ApproveVersion(t.Context(), generated.RptVersionRevisionRequest{Code: code, VersionId: created.ID, Revision: created.Revision, ValidationParameters: &validationParameters}, rptIntegrationActor, "rpt-execution-timeout-approve"); err != nil {
+	if _, err = service.ApproveVersion(t.Context(), VersionRevisionInput{Code: code, VersionID: created.ID, Revision: created.Revision, ValidationParameters: validationParameters}, rptIntegrationActor, "rpt-execution-timeout-approve"); err != nil {
 		t.Fatalf("approve execution timeout report: %v", err)
 	}
 	queryParameters := map[string]any{"delay": float64(6)}
-	_, err = service.Execute(t.Context(), code, generated.RptExecuteRequest{Parameters: queryParameters}, rptIntegrationActor, "rpt-execution-timeout-query")
+	_, err = service.Execute(t.Context(), code, ExecuteInput{Parameters: queryParameters}, rptIntegrationActor, "rpt-execution-timeout-query")
 	if err == nil || !rptErrorKind(err, ErrorInternal) {
 		t.Fatalf("execution timeout error = %v", err)
 	}

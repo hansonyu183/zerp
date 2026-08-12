@@ -16,7 +16,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO zerp_report_
 
 CREATE TABLE rpt_definitions (
     id varchar(26) PRIMARY KEY,
-    code varchar(64) NOT NULL UNIQUE CHECK (code ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'),
+    code varchar(64) NOT NULL UNIQUE CHECK (code ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$' AND code NOT IN ('definition','directory')),
     name varchar(200) NOT NULL CHECK (btrim(name) <> ''),
     description varchar(1000) NOT NULL DEFAULT '',
     enabled boolean NOT NULL DEFAULT true,
@@ -452,7 +452,7 @@ SELECT rpt_seed_builtin(
     'bills','票据',
     $report$
     SELECT book.code::text AS book_code,bill.id::text AS bill_id,bill.bill_no::text AS bill_no,
-      CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$5::date THEN 'SETTLED' ELSE 'AVAILABLE' END::text AS business_status,
+      CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN 'SETTLED' ELSE 'AVAILABLE' END::text AS business_status,
       bill.position_type::text AS position_type,bill.currency::text AS currency,
       (bill.face_amount_minor::numeric/100) AS original_amount,
       (value.value_minor::numeric/100) AS carrying_amount,bill.maturity_date::date AS maturity_date,
@@ -465,8 +465,8 @@ SELECT rpt_seed_builtin(
     LEFT JOIN vou_documents settled ON settled.id=bill.settled_by_document_id
     WHERE ($1::text='' OR value.book_id=$1) AND ($2::text='' OR bill.id=$2)
       AND ($3::text='' OR bill.origin_party_object_id=$3)
-      AND ($4::text='' OR CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$5::date THEN 'SETTLED' ELSE 'AVAILABLE' END=$4)
-      AND bill.issue_date<=$5::date
+      AND ($4::text='' OR CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN 'SETTLED' ELSE 'AVAILABLE' END=$4)
+      AND bill.maturity_date <@ $5::daterange AND bill.issue_date<=$6::date
     ORDER BY book.code,bill.bill_no,bill.id
     $report$,
     $json$[
@@ -474,6 +474,7 @@ SELECT rpt_seed_builtin(
       {"key":"billId","name":"票据","type":"REFERENCE","required":false,"defaultValue":"","referenceType":"BILL"},
       {"key":"partyId","name":"往来方","type":"REFERENCE","required":false,"defaultValue":"","referenceType":"OTHER_PARTY"},
       {"key":"status","name":"状态","type":"ENUM","required":false,"defaultValue":"","enumValues":["","AVAILABLE","SETTLED"]},
+      {"key":"maturityRange","name":"到期日范围","type":"DATE_RANGE","required":false,"defaultValue":["1900-01-01","9999-12-31"]},
       {"key":"asOfDate","name":"截止日","type":"DATE","required":false,"defaultValue":"9999-12-31"}
     ]$json$,
     $json$[

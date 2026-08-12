@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	pgquery "github.com/wasilibs/go-pgquery"
 )
 
@@ -40,8 +39,8 @@ func validateReadOnlySQL(sql string) error {
 	return nil
 }
 
-func validateVersionData(data generated.RptVersionData) error {
-	if err := validateReadOnlySQL(data.Sql); err != nil {
+func validateVersionData(data VersionData) error {
+	if err := validateReadOnlySQL(data.SQL); err != nil {
 		return err
 	}
 	keys := map[string]bool{}
@@ -50,16 +49,16 @@ func validateVersionData(data generated.RptVersionData) error {
 			return validation("report parameter keys must be unique", nil)
 		}
 		keys[parameter.Key] = true
-		if parameter.Type == generated.RptParameterTypeENUM && (parameter.EnumValues == nil || len(*parameter.EnumValues) == 0) {
+		if parameter.Type == ParameterTypeEnum && (parameter.EnumValues == nil || len(*parameter.EnumValues) == 0) {
 			return validation("ENUM parameter requires values", map[string]any{"key": parameter.Key})
 		}
-		if parameter.Type == generated.RptParameterTypeREFERENCE && parameter.ReferenceType == nil {
+		if parameter.Type == ParameterTypeReference && parameter.ReferenceType == nil {
 			return validation("REFERENCE parameter requires reference type", map[string]any{"key": parameter.Key})
 		}
-		if parameter.Type != generated.RptParameterTypeENUM && parameter.EnumValues != nil {
+		if parameter.Type != ParameterTypeEnum && parameter.EnumValues != nil {
 			return validation("enum values only apply to ENUM", map[string]any{"key": parameter.Key})
 		}
-		if parameter.Type != generated.RptParameterTypeREFERENCE && parameter.ReferenceType != nil {
+		if parameter.Type != ParameterTypeReference && parameter.ReferenceType != nil {
 			return validation("reference type only applies to REFERENCE", map[string]any{"key": parameter.Key})
 		}
 	}
@@ -68,7 +67,7 @@ func validateVersionData(data generated.RptVersionData) error {
 		wanted[index] = index + 1
 	}
 	found := []int{}
-	for _, match := range placeholderPattern.FindAllStringSubmatch(data.Sql, -1) {
+	for _, match := range placeholderPattern.FindAllStringSubmatch(data.SQL, -1) {
 		var value int
 		_, _ = fmt.Sscanf(match[1], "%d", &value)
 		found = append(found, value)

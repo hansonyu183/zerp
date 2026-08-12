@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -54,10 +53,10 @@ func resetRPTIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 
 func rptCode() string { return "it-" + strings.ToLower(newID()) }
 
-func rptData(sql, alias string) generated.RptVersionData {
-	return generated.RptVersionData{
-		Sql:        sql,
-		Parameters: []generated.RptParameter{},
-		Columns:    []generated.RptResultColumn{{Alias: alias, Name: alias, Order: 1, Type: generated.RptResultTypeTEXT, Width: 160, Visible: true}},
+func rptData(sql, alias string) VersionData {
+	return VersionData{
+		SQL:        sql,
+		Parameters: []Parameter{},
+		Columns:    []ResultColumn{{Alias: alias, Name: alias, Order: 1, Type: ResultTypeText, Width: 160, Visible: true}},
 	}
 }

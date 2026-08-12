@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -18,19 +17,19 @@ func TestValidateReadOnlySQLAcceptsOneSelect(t *testing.T) {
 
 func TestResultColumnTypeMatchesDatabaseOID(t *testing.T) {
 	tests := []struct {
-		typ generated.RptResultType
+		typ ResultType
 		oid uint32
 		ok  bool
 	}{
-		{generated.RptResultTypeBOOLEAN, pgtype.BoolOID, true},
-		{generated.RptResultTypeINTEGER, pgtype.Int8OID, true},
-		{generated.RptResultTypeDECIMAL, pgtype.NumericOID, true},
-		{generated.RptResultTypeDATE, pgtype.DateOID, true},
-		{generated.RptResultTypeDATETIME, pgtype.TimestamptzOID, true},
-		{generated.RptResultTypeID, pgtype.VarcharOID, true},
-		{generated.RptResultTypeTEXT, pgtype.TextOID, true},
-		{generated.RptResultTypeINTEGER, pgtype.TextOID, false},
-		{generated.RptResultTypeTEXT, pgtype.JSONBOID, false},
+		{ResultTypeBoolean, pgtype.BoolOID, true},
+		{ResultTypeInteger, pgtype.Int8OID, true},
+		{ResultTypeDecimal, pgtype.NumericOID, true},
+		{ResultTypeDate, pgtype.DateOID, true},
+		{ResultTypeDateTime, pgtype.TimestamptzOID, true},
+		{ResultTypeID, pgtype.VarcharOID, true},
+		{ResultTypeText, pgtype.TextOID, true},
+		{ResultTypeInteger, pgtype.TextOID, false},
+		{ResultTypeText, pgtype.JSONBOID, false},
 	}
 	for _, test := range tests {
 		if got := resultTypeMatchesOID(test.typ, test.oid); got != test.ok {
@@ -41,9 +40,9 @@ func TestResultColumnTypeMatchesDatabaseOID(t *testing.T) {
 
 func TestBindParametersUsesDefaultsAndRejectsUnknownKeys(t *testing.T) {
 	defaultValue := "CNY"
-	parameters := []generated.RptParameter{
-		{Key: "book", Type: generated.RptParameterTypeREFERENCE, Required: true},
-		{Key: "currency", Type: generated.RptParameterTypeTEXT, DefaultValue: defaultValue},
+	parameters := []Parameter{
+		{Key: "book", Type: ParameterTypeReference, Required: true},
+		{Key: "currency", Type: ParameterTypeText, DefaultValue: defaultValue},
 	}
 	values, err := bindParameters(parameters, map[string]any{"book": "book-1"})
 	if err != nil || len(values) != 2 || values[1] != defaultValue {
@@ -55,11 +54,11 @@ func TestBindParametersUsesDefaultsAndRejectsUnknownKeys(t *testing.T) {
 }
 
 func TestBindParametersConvertsClosedTypes(t *testing.T) {
-	parameters := []generated.RptParameter{
-		{Key: "integer", Type: generated.RptParameterTypeINTEGER, Required: true},
-		{Key: "decimal", Type: generated.RptParameterTypeDECIMAL, Required: true},
-		{Key: "date", Type: generated.RptParameterTypeDATE, Required: true},
-		{Key: "range", Type: generated.RptParameterTypeDATERANGE, Required: true},
+	parameters := []Parameter{
+		{Key: "integer", Type: ParameterTypeInteger, Required: true},
+		{Key: "decimal", Type: ParameterTypeDecimal, Required: true},
+		{Key: "date", Type: ParameterTypeDate, Required: true},
+		{Key: "range", Type: ParameterTypeDateRange, Required: true},
 	}
 	values, err := bindParameters(parameters, map[string]any{
 		"integer": float64(7), "decimal": "12.34", "date": "2026-08-12",
@@ -78,11 +77,11 @@ func TestBindParametersConvertsClosedTypes(t *testing.T) {
 
 func TestCSVCellNeutralizesSpreadsheetFormula(t *testing.T) {
 	for _, value := range []string{"=1+1", "+cmd", "-2+3", "@SUM(A1)"} {
-		if got := csvCell(value, generated.RptResultTypeTEXT); got != "'"+value {
+		if got := csvCell(value, ResultColumn{Type: ResultTypeText}); got != "'"+value {
 			t.Fatalf("csvCell(%q) = %q", value, got)
 		}
 	}
-	if got := csvCell("normal", generated.RptResultTypeTEXT); got != "normal" {
+	if got := csvCell("normal", ResultColumn{Type: ResultTypeText}); got != "normal" {
 		t.Fatalf("normal text changed: %q", got)
 	}
 }
@@ -92,19 +91,30 @@ func TestCSVCellFormatsDatabaseTypes(t *testing.T) {
 	if err := decimal.Scan("-12.34"); err != nil {
 		t.Fatal(err)
 	}
-	if got := csvCell(decimal, generated.RptResultTypeDECIMAL); got != "-12.34" {
+	if got := csvCell(decimal, ResultColumn{Type: ResultTypeDecimal}); got != "-12.34" {
 		t.Fatalf("decimal = %q", got)
 	}
-	if got := csvCell("-12.34", generated.RptResultTypeDECIMAL); got != "-12.34" {
+	if got := csvCell("-12.34", ResultColumn{Type: ResultTypeDecimal}); got != "-12.34" {
 		t.Fatalf("decimal string = %q", got)
 	}
 	date := time.Date(2026, time.August, 12, 0, 0, 0, 0, time.UTC)
-	if got := csvCell(date, generated.RptResultTypeDATE); got != "2026-08-12" {
+	if got := csvCell(date, ResultColumn{Type: ResultTypeDate}); got != "2026-08-12" {
 		t.Fatalf("date = %q", got)
 	}
 	instant := time.Date(2026, time.August, 12, 15, 4, 5, 0, time.FixedZone("CST", 8*60*60))
-	if got := csvCell(instant, generated.RptResultTypeDATETIME); got != "2026-08-12T15:04:05+08:00" {
+	if got := csvCell(instant, ResultColumn{Type: ResultTypeDateTime}); got != "2026/8/12 15:04:05" {
 		t.Fatalf("datetime = %q", got)
+	}
+}
+
+func TestCSVCellUsesColumnFormatContract(t *testing.T) {
+	money := "money"
+	quantity := "quantity"
+	if got := csvCell("1000", ResultColumn{Type: ResultTypeDecimal, Format: &money}); got != "1,000.00" {
+		t.Fatalf("money = %q", got)
+	}
+	if got := csvCell("1234.560000", ResultColumn{Type: ResultTypeDecimal, Format: &quantity}); got != "1,234.56" {
+		t.Fatalf("quantity = %q", got)
 	}
 }
 

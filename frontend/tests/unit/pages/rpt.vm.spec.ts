@@ -9,6 +9,23 @@ import {
   reportPageCount,
   vouDrilldown,
 } from '@/pages/rpt/shared/vm'
+import {
+  parseDefinitionPage,
+  parseQueryResult,
+  parseReferenceItems,
+  parseReportMetadata,
+} from '@/pages/rpt/vm'
+
+const resultColumns = [
+  {
+    alias: 'amount',
+    name: '金额',
+    order: 1,
+    type: 'DECIMAL' as const,
+    width: 120,
+    visible: true,
+  },
+]
 
 describe('RPT report center view model', () => {
   it('initializes every supported parameter from its contract default', () => {
@@ -151,5 +168,46 @@ describe('RPT report center view model', () => {
     expect(
       vouDrilldown({ ...row, source_entity: '../admin' }, column, () => true),
     ).toBeNull()
+  })
+
+  it('accepts the single definition and metadata contract shapes', () => {
+    expect(
+      parseDefinitionPage({
+        items: [
+          {
+            code: 'account-journal',
+            name: '科目流水',
+            description: '说明',
+            enabled: true,
+            revision: 1,
+            versionId: '01K00000000000000000000000',
+            versionRevision: 1,
+            data: { sql: 'SELECT 1', parameters: [], columns: resultColumns },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 200,
+      })[0]?.data?.sql,
+    ).toBe('SELECT 1')
+    expect(
+      parseReportMetadata({
+        code: 'account-journal',
+        name: '科目流水',
+        description: '说明',
+        parameters: [],
+        columns: resultColumns,
+      }).data,
+    ).toBeUndefined()
+  })
+
+  it('rejects guessed legacy response shapes', () => {
+    expect(() => parseDefinitionPage({ records: [] })).toThrow(
+      '报表接口返回格式错误',
+    )
+    expect(() => parseQueryResult({ rows: [] })).toThrow('报表接口返回格式错误')
+    expect(() => parseReferenceItems({ items: [{ value: 'id' }] })).toThrow(
+      '报表接口返回格式错误',
+    )
   })
 })

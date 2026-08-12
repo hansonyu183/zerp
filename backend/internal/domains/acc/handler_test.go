@@ -60,6 +60,22 @@ func (stub *bookServiceStub) DeleteSubject(_ context.Context, _, _ string, _ int
 	stub.actions = append(stub.actions, "subject-delete")
 	return nil
 }
+func (stub *bookServiceStub) GetOpening(_ context.Context, _, _ string) (OpeningView, error) {
+	stub.actions = append(stub.actions, "opening-query")
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) SaveOpening(_ context.Context, _ SaveOpeningInput, _ string) (OpeningView, error) {
+	stub.actions = append(stub.actions, "opening-save")
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) ApproveOpening(_ context.Context, _ string, _ int64, _ string) (OpeningView, error) {
+	stub.actions = append(stub.actions, "opening-approve")
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) UnapproveOpening(_ context.Context, _ string, _ int64, _ string) (OpeningView, error) {
+	stub.actions = append(stub.actions, "opening-unapprove")
+	return OpeningView{}, nil
+}
 
 func testRouter(service bookApplicationService, authorizer authorization.Authorizer) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -140,6 +156,39 @@ func TestSubjectHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 			}
 			if len(service.actions) != 1 || service.actions[0] != "subject-"+test.action {
 				t.Fatalf("service actions = %v", service.actions)
+			}
+		})
+	}
+}
+
+func TestOpeningHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) {
+	tests := []struct{ action, body string }{
+		{"query", `{"bookId":"01JACC00000000000000000001"}`},
+		{"save", `{"bookId":"01JACC00000000000000000001","revision":0,"lines":[]}`},
+		{"approve", `{"bookId":"01JACC00000000000000000001","revision":0}`},
+		{"unapprove", `{"bookId":"01JACC00000000000000000001","revision":1}`},
+	}
+	for _, test := range tests {
+		t.Run(test.action, func(t *testing.T) {
+			service := &bookServiceStub{}
+			var permission string
+			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+				permission = path
+				return authorization.Principal{ActorID: handlerActorID}, nil
+			})
+			request := httptest.NewRequest(http.MethodPost, "/acc/opening/"+test.action, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			testRouter(service, authorizer).ServeHTTP(recorder, request)
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if recorder.Code != http.StatusOK || envelope.Code != response.CodeOK {
+				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
+			}
+			if permission != "/acc/opening/"+test.action || len(service.actions) != 1 || service.actions[0] != "opening-"+test.action {
+				t.Fatalf("permission = %q, actions = %v", permission, service.actions)
 			}
 		})
 	}

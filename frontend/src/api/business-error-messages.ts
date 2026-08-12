@@ -415,6 +415,10 @@ const exactMessages: Readonly<Record<string, string>> = {
   'accounting subject hierarchy cycle': '会计科目层级不能形成循环。',
   'accounting subject template parent missing':
     '建账科目模板缺少上级科目，请联系管理员。',
+  'approved accounting opening cannot be edited':
+    '已批准的账簿期初不能编辑，请先反批准。',
+  'encode accounting opening dimensions':
+    '期初辅助核算处理失败，请刷新后重试。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
   'platform is not an effective logistics platform':

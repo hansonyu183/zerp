@@ -33,6 +33,31 @@ type AccBookUserScope struct {
 	CreatedBy     string             `db:"created_by" json:"created_by"`
 }
 
+type AccOpening struct {
+	BookID     string             `db:"book_id" json:"book_id"`
+	State      string             `db:"state" json:"state"`
+	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
+	Revision   int64              `db:"revision" json:"revision"`
+	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy  string             `db:"created_by" json:"created_by"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy  string             `db:"updated_by" json:"updated_by"`
+}
+
+type AccOpeningLine struct {
+	ID             string `db:"id" json:"id"`
+	BookID         string `db:"book_id" json:"book_id"`
+	SubjectID      string `db:"subject_id" json:"subject_id"`
+	Currency       string `db:"currency" json:"currency"`
+	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions     []byte `db:"dimensions" json:"dimensions"`
+	LineOrder      int32  `db:"line_order" json:"line_order"`
+}
+
 type AccSubject struct {
 	ID                string             `db:"id" json:"id"`
 	BookID            string             `db:"book_id" json:"book_id"`
@@ -60,6 +85,30 @@ type AccSubjectUsage struct {
 	UsageType string             `db:"usage_type" json:"usage_type"`
 	UsageID   string             `db:"usage_id" json:"usage_id"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type AccVoucher struct {
+	ID           string             `db:"id" json:"id"`
+	BookID       string             `db:"book_id" json:"book_id"`
+	SourceType   string             `db:"source_type" json:"source_type"`
+	SourceID     string             `db:"source_id" json:"source_id"`
+	BusinessDate pgtype.Date        `db:"business_date" json:"business_date"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy    string             `db:"created_by" json:"created_by"`
+}
+
+type AccVoucherLine struct {
+	ID             string `db:"id" json:"id"`
+	BookID         string `db:"book_id" json:"book_id"`
+	VoucherID      string `db:"voucher_id" json:"voucher_id"`
+	SubjectID      string `db:"subject_id" json:"subject_id"`
+	Currency       string `db:"currency" json:"currency"`
+	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions     []byte `db:"dimensions" json:"dimensions"`
+	SourceLineID   string `db:"source_line_id" json:"source_line_id"`
+	LineOrder      int32  `db:"line_order" json:"line_order"`
 }
 
 type AppAuditEvent struct {

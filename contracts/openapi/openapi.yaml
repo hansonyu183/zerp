@@ -384,6 +384,170 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/acc/opening/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取账簿期初',
+              'operationId': 'accOpeningQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿期初及批准状态。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存账簿期初',
+              'operationId': 'accOpeningSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/approve':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '批准账簿期初',
+              'operationId': 'accOpeningApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的账簿期初及系统凭证标识。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/unapprove':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '反批准账簿期初',
+              'operationId': 'accOpeningUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的可编辑账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/user/signin':
         {
           'post':

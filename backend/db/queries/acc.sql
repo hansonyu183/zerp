@@ -209,3 +209,104 @@ WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(subject_id);
 INSERT INTO acc_subject_usages (subject_id, usage_type, usage_id)
 VALUES (sqlc.arg(subject_id), sqlc.arg(usage_type), sqlc.arg(usage_id))
 ON CONFLICT DO NOTHING;
+
+-- name: DeleteAccountingSubjectUsages :exec
+DELETE FROM acc_subject_usages
+WHERE usage_type = sqlc.arg(usage_type) AND usage_id = sqlc.arg(usage_id);
+
+-- name: GetAccountingOpening :one
+SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+FROM acc_openings o
+WHERE o.book_id = sqlc.arg(book_id);
+
+-- name: GetAccountingOpeningForUpdate :one
+SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+FROM acc_openings o
+WHERE o.book_id = sqlc.arg(book_id)
+FOR UPDATE;
+
+-- name: ListAccountingOpeningLines :many
+SELECT id, book_id, subject_id, currency, debit_minor, credit_minor,
+       quantity_micros, dimensions, line_order
+FROM acc_opening_lines
+WHERE book_id = sqlc.arg(book_id)
+ORDER BY line_order;
+
+-- name: CreateAccountingOpening :exec
+INSERT INTO acc_openings (book_id, state, revision, created_by, updated_by)
+VALUES (sqlc.arg(book_id), 'DRAFT', 1, sqlc.arg(actor_id), sqlc.arg(actor_id));
+
+-- name: TouchAccountingOpeningDraft :one
+UPDATE acc_openings SET
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND state = 'DRAFT' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: DeleteAccountingOpeningLines :exec
+DELETE FROM acc_opening_lines WHERE book_id = sqlc.arg(book_id);
+
+-- name: InsertAccountingOpeningLine :exec
+INSERT INTO acc_opening_lines (
+  id, book_id, subject_id, currency, debit_minor, credit_minor,
+  quantity_micros, dimensions, line_order
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(subject_id), sqlc.arg(currency),
+  sqlc.arg(debit_minor), sqlc.arg(credit_minor), sqlc.narg(quantity_micros),
+  sqlc.arg(dimensions), sqlc.arg(line_order)
+);
+
+-- name: CreateAccountingVoucher :exec
+INSERT INTO acc_vouchers (id, book_id, source_type, source_id, business_date, created_by)
+VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(source_type), sqlc.arg(source_id),
+  sqlc.arg(business_date), sqlc.arg(actor_id)
+);
+
+-- name: InsertAccountingVoucherLine :exec
+INSERT INTO acc_voucher_lines (
+  id, book_id, voucher_id, subject_id, currency, debit_minor, credit_minor,
+  quantity_micros, dimensions, source_line_id, line_order
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(subject_id), sqlc.arg(currency),
+  sqlc.arg(debit_minor), sqlc.arg(credit_minor), sqlc.narg(quantity_micros),
+  sqlc.arg(dimensions), sqlc.arg(source_line_id), sqlc.arg(line_order)
+);
+
+-- name: ApproveAccountingOpening :one
+UPDATE acc_openings SET
+  state = 'APPROVED', voucher_id = sqlc.arg(voucher_id),
+  approved_at = now(), approved_by = sqlc.arg(actor_id),
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND state = 'DRAFT' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: CreateApprovedZeroAccountingOpening :exec
+INSERT INTO acc_openings (
+  book_id, state, voucher_id, revision, approved_at, approved_by,
+  created_by, updated_by
+) VALUES (
+  sqlc.arg(book_id), 'APPROVED', sqlc.arg(voucher_id), 1, now(), sqlc.arg(actor_id),
+  sqlc.arg(actor_id), sqlc.arg(actor_id)
+);
+
+-- name: AccountingBookHasLaterFacts :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers
+  WHERE book_id = sqlc.arg(book_id) AND source_type <> 'OPENING'
+);
+
+-- name: DeleteAccountingVoucher :exec
+DELETE FROM acc_vouchers WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(voucher_id);
+
+-- name: UnapproveAccountingOpening :one
+UPDATE acc_openings SET
+  state = 'DRAFT', voucher_id = NULL, approved_at = NULL, approved_by = NULL,
+  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id) AND state = 'APPROVED' AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: IsAccountingBookReadyForPosting :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_openings
+  WHERE book_id = sqlc.arg(book_id) AND state = 'APPROVED'
+);

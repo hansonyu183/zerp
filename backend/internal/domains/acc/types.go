@@ -115,6 +115,46 @@ type SubjectPage struct {
 	PageSize int           `json:"pageSize"`
 }
 
+const (
+	OpeningStateDraft    = "DRAFT"
+	OpeningStateApproved = "APPROVED"
+)
+
+type OpeningLineInput struct {
+	SubjectID    string
+	Currency     string
+	DebitAmount  string
+	CreditAmount string
+	Quantity     *string
+	Dimensions   map[string]string
+}
+
+type SaveOpeningInput struct {
+	BookID   string
+	Revision int64
+	Lines    []OpeningLineInput
+}
+
+type OpeningLineView struct {
+	ID           string            `json:"lineId"`
+	SubjectID    string            `json:"subjectId"`
+	Currency     string            `json:"currency"`
+	DebitAmount  string            `json:"debitAmount"`
+	CreditAmount string            `json:"creditAmount"`
+	Quantity     *string           `json:"quantity"`
+	Dimensions   map[string]string `json:"dimensions"`
+}
+
+type OpeningView struct {
+	BookID     string            `json:"bookId"`
+	State      string            `json:"state"`
+	VoucherID  *string           `json:"voucherId"`
+	Revision   int64             `json:"revision"`
+	ApprovedAt *string           `json:"approvedAt"`
+	ApprovedBy *string           `json:"approvedBy"`
+	Lines      []OpeningLineView `json:"lines"`
+}
+
 type BookPage struct {
 	Items    []BookView `json:"items"`
 	Total    int64      `json:"total"`

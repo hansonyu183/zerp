@@ -174,6 +174,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acc/opening/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取账簿期初 */
+        post: operations["accOpeningQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存账簿期初 */
+        post: operations["accOpeningSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准账簿期初 */
+        post: operations["accOpeningApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/opening/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准账簿期初 */
+        post: operations["accOpeningUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -2279,6 +2347,61 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        OpeningQueryRequest: {
+            bookId: string;
+        };
+        /** @enum {string} */
+        OpeningState: "DRAFT" | "APPROVED";
+        OpeningLine: {
+            lineId: string;
+            subjectId: string;
+            currency: string;
+            debitAmount: string;
+            creditAmount: string;
+            quantity: string | null;
+            dimensions: {
+                [key: string]: string;
+            };
+        };
+        Opening: {
+            bookId: string;
+            state: components["schemas"]["OpeningState"];
+            voucherId: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            approvedAt: string | null;
+            approvedBy: string | null;
+            lines: components["schemas"]["OpeningLine"][];
+        };
+        OpeningEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Opening"] | null;
+            requestId: string;
+        };
+        OpeningLineInput: {
+            subjectId: string;
+            currency: string;
+            debitAmount: string;
+            creditAmount: string;
+            quantity?: string;
+            dimensions: {
+                [key: string]: string;
+            };
+        };
+        OpeningSaveRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
+            lines: components["schemas"]["OpeningLineInput"][];
+        };
+        OpeningActionRequest: {
+            bookId: string;
+            /** Format: int64 */
+            revision: number;
+        };
         SignInRequest: {
             username: string;
             password: string;
@@ -4238,6 +4361,102 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    accOpeningQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 账簿期初及批准状态。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的账簿期初。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 批准后的账簿期初及系统凭证标识。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
+        };
+    };
+    accOpeningUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 反批准后的可编辑账簿期初。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningEnvelope"];
+                };
+            };
         };
     };
     appUserSignin: {

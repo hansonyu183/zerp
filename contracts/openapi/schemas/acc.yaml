@@ -354,6 +354,146 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'OpeningState': { 'type': 'string', 'enum': ['DRAFT', 'APPROVED'] },
+  'OpeningQueryRequest':
+    {
+      'type': 'object',
+      'required': ['bookId'],
+      'additionalProperties': false,
+      'properties':
+        { 'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 } },
+    },
+  'OpeningActionRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+        },
+    },
+  'OpeningLineInput':
+    {
+      'type': 'object',
+      'required':
+        ['subjectId', 'currency', 'debitAmount', 'creditAmount', 'dimensions'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'subjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'currency': { 'type': 'string', 'pattern': '^[A-Za-z]{3}$' },
+          'debitAmount':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+          'creditAmount':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+          'quantity':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$',
+            },
+          'dimensions':
+            {
+              'type': 'object',
+              'additionalProperties':
+                { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+            },
+        },
+    },
+  'OpeningSaveRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'revision', 'lines'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+          'lines':
+            {
+              'type': 'array',
+              'maxItems': 2000,
+              'items': { '$ref': '#/OpeningLineInput' },
+            },
+        },
+    },
+  'OpeningLine':
+    {
+      'type': 'object',
+      'required':
+        [
+          'lineId',
+          'subjectId',
+          'currency',
+          'debitAmount',
+          'creditAmount',
+          'quantity',
+          'dimensions',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'subjectId': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'debitAmount': { 'type': 'string' },
+          'creditAmount': { 'type': 'string' },
+          'quantity': { 'type': 'string', 'nullable': true },
+          'dimensions':
+            { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+        },
+    },
+  'Opening':
+    {
+      'type': 'object',
+      'required':
+        [
+          'bookId',
+          'state',
+          'voucherId',
+          'revision',
+          'approvedAt',
+          'approvedBy',
+          'lines',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'state': { '$ref': '#/OpeningState' },
+          'voucherId': { 'type': 'string', 'nullable': true },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'approvedBy': { 'type': 'string', 'nullable': true },
+          'lines': { 'type': 'array', 'items': { '$ref': '#/OpeningLine' } },
+        },
+    },
+  'OpeningEnvelope':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/Opening' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BookPage':
     {
       'type': 'object',

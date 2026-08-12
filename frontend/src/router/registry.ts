@@ -126,6 +126,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 20,
     component: () => import('@/pages/acc/subject/Subject.vue'),
   }),
+  registerPage('acc', {
+    entity: 'opening',
+    entityTitle: '账簿期初',
+    icon: 'mdi-book-open-variant-outline',
+    order: 30,
+    component: () => import('@/pages/acc/opening/Opening.vue'),
+  }),
   registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',

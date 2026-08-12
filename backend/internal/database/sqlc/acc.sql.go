@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const accountingBookExists = `-- name: AccountingBookExists :one
@@ -18,6 +20,48 @@ func (q *Queries) AccountingBookExists(ctx context.Context) (bool, error) {
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const accountingBookHasLaterFacts = `-- name: AccountingBookHasLaterFacts :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers
+  WHERE book_id = $1 AND source_type <> 'OPENING'
+)
+`
+
+func (q *Queries) AccountingBookHasLaterFacts(ctx context.Context, bookID string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingBookHasLaterFacts, bookID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const approveAccountingOpening = `-- name: ApproveAccountingOpening :one
+UPDATE acc_openings SET
+  state = 'APPROVED', voucher_id = $1,
+  approved_at = now(), approved_by = $2,
+  revision = revision + 1, updated_at = now(), updated_by = $2
+WHERE book_id = $3 AND state = 'DRAFT' AND revision = $4
+RETURNING revision
+`
+
+type ApproveAccountingOpeningParams struct {
+	VoucherID *string `db:"voucher_id" json:"voucher_id"`
+	ActorID   *string `db:"actor_id" json:"actor_id"`
+	BookID    string  `db:"book_id" json:"book_id"`
+	Revision  int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error) {
+	row := q.db.QueryRow(ctx, approveAccountingOpening,
+		arg.VoucherID,
+		arg.ActorID,
+		arg.BookID,
+		arg.Revision,
+	)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
 }
 
 const createAccountingBook = `-- name: CreateAccountingBook :exec
@@ -87,6 +131,71 @@ func (q *Queries) CreateAccountingBookScope(ctx context.Context, arg CreateAccou
 	return err
 }
 
+const createAccountingOpening = `-- name: CreateAccountingOpening :exec
+INSERT INTO acc_openings (book_id, state, revision, created_by, updated_by)
+VALUES ($1, 'DRAFT', 1, $2, $2)
+`
+
+type CreateAccountingOpeningParams struct {
+	BookID  string `db:"book_id" json:"book_id"`
+	ActorID string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateAccountingOpening(ctx context.Context, arg CreateAccountingOpeningParams) error {
+	_, err := q.db.Exec(ctx, createAccountingOpening, arg.BookID, arg.ActorID)
+	return err
+}
+
+const createAccountingVoucher = `-- name: CreateAccountingVoucher :exec
+INSERT INTO acc_vouchers (id, book_id, source_type, source_id, business_date, created_by)
+VALUES (
+  $1, $2, $3, $4,
+  $5, $6
+)
+`
+
+type CreateAccountingVoucherParams struct {
+	ID           string      `db:"id" json:"id"`
+	BookID       string      `db:"book_id" json:"book_id"`
+	SourceType   string      `db:"source_type" json:"source_type"`
+	SourceID     string      `db:"source_id" json:"source_id"`
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+	ActorID      string      `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateAccountingVoucher(ctx context.Context, arg CreateAccountingVoucherParams) error {
+	_, err := q.db.Exec(ctx, createAccountingVoucher,
+		arg.ID,
+		arg.BookID,
+		arg.SourceType,
+		arg.SourceID,
+		arg.BusinessDate,
+		arg.ActorID,
+	)
+	return err
+}
+
+const createApprovedZeroAccountingOpening = `-- name: CreateApprovedZeroAccountingOpening :exec
+INSERT INTO acc_openings (
+  book_id, state, voucher_id, revision, approved_at, approved_by,
+  created_by, updated_by
+) VALUES (
+  $1, 'APPROVED', $2, 1, now(), $3,
+  $3, $3
+)
+`
+
+type CreateApprovedZeroAccountingOpeningParams struct {
+	BookID    string  `db:"book_id" json:"book_id"`
+	VoucherID *string `db:"voucher_id" json:"voucher_id"`
+	ActorID   *string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error {
+	_, err := q.db.Exec(ctx, createApprovedZeroAccountingOpening, arg.BookID, arg.VoucherID, arg.ActorID)
+	return err
+}
+
 const deleteAccountingBook = `-- name: DeleteAccountingBook :exec
 DELETE FROM acc_books WHERE id = $1
 `
@@ -102,6 +211,15 @@ DELETE FROM acc_book_user_scopes WHERE book_id = $1
 
 func (q *Queries) DeleteAccountingBookScopes(ctx context.Context, bookID string) error {
 	_, err := q.db.Exec(ctx, deleteAccountingBookScopes, bookID)
+	return err
+}
+
+const deleteAccountingOpeningLines = `-- name: DeleteAccountingOpeningLines :exec
+DELETE FROM acc_opening_lines WHERE book_id = $1
+`
+
+func (q *Queries) DeleteAccountingOpeningLines(ctx context.Context, bookID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingOpeningLines, bookID)
 	return err
 }
 
@@ -126,6 +244,35 @@ DELETE FROM acc_subject_dimensions WHERE subject_id = $1
 
 func (q *Queries) DeleteAccountingSubjectDimensions(ctx context.Context, subjectID string) error {
 	_, err := q.db.Exec(ctx, deleteAccountingSubjectDimensions, subjectID)
+	return err
+}
+
+const deleteAccountingSubjectUsages = `-- name: DeleteAccountingSubjectUsages :exec
+DELETE FROM acc_subject_usages
+WHERE usage_type = $1 AND usage_id = $2
+`
+
+type DeleteAccountingSubjectUsagesParams struct {
+	UsageType string `db:"usage_type" json:"usage_type"`
+	UsageID   string `db:"usage_id" json:"usage_id"`
+}
+
+func (q *Queries) DeleteAccountingSubjectUsages(ctx context.Context, arg DeleteAccountingSubjectUsagesParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingSubjectUsages, arg.UsageType, arg.UsageID)
+	return err
+}
+
+const deleteAccountingVoucher = `-- name: DeleteAccountingVoucher :exec
+DELETE FROM acc_vouchers WHERE book_id = $1 AND id = $2
+`
+
+type DeleteAccountingVoucherParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	VoucherID string `db:"voucher_id" json:"voucher_id"`
+}
+
+func (q *Queries) DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingVoucher, arg.BookID, arg.VoucherID)
 	return err
 }
 
@@ -216,6 +363,65 @@ func (q *Queries) GetAccountingBookUserScope(ctx context.Context, arg GetAccount
 	row := q.db.QueryRow(ctx, getAccountingBookUserScope, arg.BookID, arg.UserID)
 	var i GetAccountingBookUserScopeRow
 	err := row.Scan(&i.QueryAccess, &i.OperateAccess)
+	return i, err
+}
+
+const getAccountingOpening = `-- name: GetAccountingOpening :one
+SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+FROM acc_openings o
+WHERE o.book_id = $1
+`
+
+type GetAccountingOpeningRow struct {
+	BookID     string             `db:"book_id" json:"book_id"`
+	State      string             `db:"state" json:"state"`
+	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
+	Revision   int64              `db:"revision" json:"revision"`
+	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
+}
+
+func (q *Queries) GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingOpening, bookID)
+	var i GetAccountingOpeningRow
+	err := row.Scan(
+		&i.BookID,
+		&i.State,
+		&i.VoucherID,
+		&i.Revision,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+	)
+	return i, err
+}
+
+const getAccountingOpeningForUpdate = `-- name: GetAccountingOpeningForUpdate :one
+SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+FROM acc_openings o
+WHERE o.book_id = $1
+FOR UPDATE
+`
+
+type GetAccountingOpeningForUpdateRow struct {
+	BookID     string             `db:"book_id" json:"book_id"`
+	State      string             `db:"state" json:"state"`
+	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
+	Revision   int64              `db:"revision" json:"revision"`
+	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
+}
+
+func (q *Queries) GetAccountingOpeningForUpdate(ctx context.Context, bookID string) (GetAccountingOpeningForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingOpeningForUpdate, bookID)
+	var i GetAccountingOpeningForUpdateRow
+	err := row.Scan(
+		&i.BookID,
+		&i.State,
+		&i.VoucherID,
+		&i.Revision,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+	)
 	return i, err
 }
 
@@ -388,6 +594,44 @@ func (q *Queries) HasAccountingBookQueryAccess(ctx context.Context, arg HasAccou
 	return exists, err
 }
 
+const insertAccountingOpeningLine = `-- name: InsertAccountingOpeningLine :exec
+INSERT INTO acc_opening_lines (
+  id, book_id, subject_id, currency, debit_minor, credit_minor,
+  quantity_micros, dimensions, line_order
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9
+)
+`
+
+type InsertAccountingOpeningLineParams struct {
+	ID             string `db:"id" json:"id"`
+	BookID         string `db:"book_id" json:"book_id"`
+	SubjectID      string `db:"subject_id" json:"subject_id"`
+	Currency       string `db:"currency" json:"currency"`
+	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions     []byte `db:"dimensions" json:"dimensions"`
+	LineOrder      int32  `db:"line_order" json:"line_order"`
+}
+
+func (q *Queries) InsertAccountingOpeningLine(ctx context.Context, arg InsertAccountingOpeningLineParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingOpeningLine,
+		arg.ID,
+		arg.BookID,
+		arg.SubjectID,
+		arg.Currency,
+		arg.DebitMinor,
+		arg.CreditMinor,
+		arg.QuantityMicros,
+		arg.Dimensions,
+		arg.LineOrder,
+	)
+	return err
+}
+
 const insertAccountingSubject = `-- name: InsertAccountingSubject :exec
 INSERT INTO acc_subjects (
   id, book_id, code, name, parent_subject_id, balance_direction,
@@ -442,6 +686,62 @@ type InsertAccountingSubjectDimensionParams struct {
 func (q *Queries) InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error {
 	_, err := q.db.Exec(ctx, insertAccountingSubjectDimension, arg.SubjectID, arg.Dimension)
 	return err
+}
+
+const insertAccountingVoucherLine = `-- name: InsertAccountingVoucherLine :exec
+INSERT INTO acc_voucher_lines (
+  id, book_id, voucher_id, subject_id, currency, debit_minor, credit_minor,
+  quantity_micros, dimensions, source_line_id, line_order
+) VALUES (
+  $1, $2, $3, $4, $5,
+  $6, $7, $8,
+  $9, $10, $11
+)
+`
+
+type InsertAccountingVoucherLineParams struct {
+	ID             string `db:"id" json:"id"`
+	BookID         string `db:"book_id" json:"book_id"`
+	VoucherID      string `db:"voucher_id" json:"voucher_id"`
+	SubjectID      string `db:"subject_id" json:"subject_id"`
+	Currency       string `db:"currency" json:"currency"`
+	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions     []byte `db:"dimensions" json:"dimensions"`
+	SourceLineID   string `db:"source_line_id" json:"source_line_id"`
+	LineOrder      int32  `db:"line_order" json:"line_order"`
+}
+
+func (q *Queries) InsertAccountingVoucherLine(ctx context.Context, arg InsertAccountingVoucherLineParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingVoucherLine,
+		arg.ID,
+		arg.BookID,
+		arg.VoucherID,
+		arg.SubjectID,
+		arg.Currency,
+		arg.DebitMinor,
+		arg.CreditMinor,
+		arg.QuantityMicros,
+		arg.Dimensions,
+		arg.SourceLineID,
+		arg.LineOrder,
+	)
+	return err
+}
+
+const isAccountingBookReadyForPosting = `-- name: IsAccountingBookReadyForPosting :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_openings
+  WHERE book_id = $1 AND state = 'APPROVED'
+)
+`
+
+func (q *Queries) IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error) {
+	row := q.db.QueryRow(ctx, isAccountingBookReadyForPosting, bookID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listAccountingBookScopes = `-- name: ListAccountingBookScopes :many
@@ -540,6 +840,44 @@ func (q *Queries) ListAccountingBooks(ctx context.Context, arg ListAccountingBoo
 			&i.SubjectTemplate,
 			&i.Revision,
 			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingOpeningLines = `-- name: ListAccountingOpeningLines :many
+SELECT id, book_id, subject_id, currency, debit_minor, credit_minor,
+       quantity_micros, dimensions, line_order
+FROM acc_opening_lines
+WHERE book_id = $1
+ORDER BY line_order
+`
+
+func (q *Queries) ListAccountingOpeningLines(ctx context.Context, bookID string) ([]AccOpeningLine, error) {
+	rows, err := q.db.Query(ctx, listAccountingOpeningLines, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccOpeningLine{}
+	for rows.Next() {
+		var i AccOpeningLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.BookID,
+			&i.SubjectID,
+			&i.Currency,
+			&i.DebitMinor,
+			&i.CreditMinor,
+			&i.QuantityMicros,
+			&i.Dimensions,
+			&i.LineOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -701,6 +1039,47 @@ type RegisterAccountingSubjectUsageParams struct {
 func (q *Queries) RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error {
 	_, err := q.db.Exec(ctx, registerAccountingSubjectUsage, arg.SubjectID, arg.UsageType, arg.UsageID)
 	return err
+}
+
+const touchAccountingOpeningDraft = `-- name: TouchAccountingOpeningDraft :one
+UPDATE acc_openings SET
+  revision = revision + 1, updated_at = now(), updated_by = $1
+WHERE book_id = $2 AND state = 'DRAFT' AND revision = $3
+RETURNING revision
+`
+
+type TouchAccountingOpeningDraftParams struct {
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	BookID   string `db:"book_id" json:"book_id"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error) {
+	row := q.db.QueryRow(ctx, touchAccountingOpeningDraft, arg.ActorID, arg.BookID, arg.Revision)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const unapproveAccountingOpening = `-- name: UnapproveAccountingOpening :one
+UPDATE acc_openings SET
+  state = 'DRAFT', voucher_id = NULL, approved_at = NULL, approved_by = NULL,
+  revision = revision + 1, updated_at = now(), updated_by = $1
+WHERE book_id = $2 AND state = 'APPROVED' AND revision = $3
+RETURNING revision
+`
+
+type UnapproveAccountingOpeningParams struct {
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	BookID   string `db:"book_id" json:"book_id"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error) {
+	row := q.db.QueryRow(ctx, unapproveAccountingOpening, arg.ActorID, arg.BookID, arg.Revision)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
 }
 
 const updateAccountingBook = `-- name: UpdateAccountingBook :one

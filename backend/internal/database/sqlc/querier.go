@@ -12,11 +12,13 @@ import (
 
 type Querier interface {
 	AccountingBookExists(ctx context.Context) (bool, error)
+	AccountingBookHasLaterFacts(ctx context.Context, bookID string) (bool, error)
 	AcquireAppAuthorizationLock(ctx context.Context) error
 	AcquireAppMenuLock(ctx context.Context) error
 	ActivateLedControl(ctx context.Context, arg ActivateLedControlParams) (int64, error)
 	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
 	ApplyLedAssetDepreciation(ctx context.Context, arg ApplyLedAssetDepreciationParams) (int64, error)
+	ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error)
 	ApproveBobVersion(ctx context.Context, arg ApproveBobVersionParams) (int64, error)
 	ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error)
 	ArchiveActiveLedGeneration(ctx context.Context, generationID string) error
@@ -91,13 +93,19 @@ type Querier interface {
 	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CreateAccountingBook(ctx context.Context, arg CreateAccountingBookParams) error
 	CreateAccountingBookScope(ctx context.Context, arg CreateAccountingBookScopeParams) error
+	CreateAccountingOpening(ctx context.Context, arg CreateAccountingOpeningParams) error
+	CreateAccountingVoucher(ctx context.Context, arg CreateAccountingVoucherParams) error
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
+	CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error
 	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
 	DeleteAccountingBookScopes(ctx context.Context, bookID string) error
+	DeleteAccountingOpeningLines(ctx context.Context, bookID string) error
 	DeleteAccountingSubject(ctx context.Context, arg DeleteAccountingSubjectParams) error
 	DeleteAccountingSubjectDimensions(ctx context.Context, subjectID string) error
+	DeleteAccountingSubjectUsages(ctx context.Context, arg DeleteAccountingSubjectUsagesParams) error
+	DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error
 	DeleteAppBusinessMenuItems(ctx context.Context) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
@@ -162,6 +170,8 @@ type Querier interface {
 	GetAccountingBook(ctx context.Context, bookID string) (GetAccountingBookRow, error)
 	GetAccountingBookDeletionState(ctx context.Context, bookID string) (GetAccountingBookDeletionStateRow, error)
 	GetAccountingBookUserScope(ctx context.Context, arg GetAccountingBookUserScopeParams) (GetAccountingBookUserScopeRow, error)
+	GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error)
+	GetAccountingOpeningForUpdate(ctx context.Context, bookID string) (GetAccountingOpeningForUpdateRow, error)
 	GetAccountingSubject(ctx context.Context, arg GetAccountingSubjectParams) (GetAccountingSubjectRow, error)
 	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
 	GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error)
@@ -222,8 +232,10 @@ type Querier interface {
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
+	InsertAccountingOpeningLine(ctx context.Context, arg InsertAccountingOpeningLineParams) error
 	InsertAccountingSubject(ctx context.Context, arg InsertAccountingSubjectParams) error
 	InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error
+	InsertAccountingVoucherLine(ctx context.Context, arg InsertAccountingVoucherLineParams) error
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
 	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
@@ -312,9 +324,11 @@ type Querier interface {
 	InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error
 	InsertVouSalePricingDetail(ctx context.Context, documentID string) error
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
+	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	ListAccountingBookScopes(ctx context.Context, bookID string) ([]ListAccountingBookScopesRow, error)
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
+	ListAccountingOpeningLines(ctx context.Context, bookID string) ([]AccOpeningLine, error)
 	ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error)
 	ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
@@ -452,9 +466,11 @@ type Querier interface {
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
+	TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error
 	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
+	UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error)
 	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)

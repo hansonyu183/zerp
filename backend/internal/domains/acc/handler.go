@@ -26,6 +26,10 @@ type bookApplicationService interface {
 	CreateSubject(context.Context, CreateSubjectInput, string) (SubjectView, error)
 	SaveSubject(context.Context, SaveSubjectInput, string) (SubjectView, error)
 	DeleteSubject(context.Context, string, string, int64, string) error
+	GetOpening(context.Context, string, string) (OpeningView, error)
+	SaveOpening(context.Context, SaveOpeningInput, string) (OpeningView, error)
+	ApproveOpening(context.Context, string, int64, string) (OpeningView, error)
+	UnapproveOpening(context.Context, string, int64, string) (OpeningView, error)
 }
 
 type Handler struct {
@@ -58,6 +62,12 @@ func (h *Handler) Register(router *gin.Engine) {
 	subjects.POST("/create", h.authorize("/acc/subject/create"), h.createSubject)
 	subjects.POST("/save", h.authorize("/acc/subject/save"), h.saveSubject)
 	subjects.POST("/delete", h.authorize("/acc/subject/delete"), h.deleteSubject)
+
+	openings := router.Group("/acc/opening")
+	openings.POST("/query", h.authorize("/acc/opening/query"), h.queryOpening)
+	openings.POST("/save", h.authorize("/acc/opening/save"), h.saveOpening)
+	openings.POST("/approve", h.authorize("/acc/opening/approve"), h.approveOpening)
+	openings.POST("/unapprove", h.authorize("/acc/opening/unapprove"), h.unapproveOpening)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -187,6 +197,52 @@ func (h *Handler) deleteSubject(c *gin.Context) {
 		return
 	}
 	h.result(c, nil, h.service.DeleteSubject(c.Request.Context(), body.BookId, body.SubjectId, body.Revision, h.actorID(c)))
+}
+
+func (h *Handler) queryOpening(c *gin.Context) {
+	var body generated.OpeningQueryRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.GetOpening(c.Request.Context(), body.BookId, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) saveOpening(c *gin.Context) {
+	var body generated.OpeningSaveRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	lines := make([]OpeningLineInput, 0, len(body.Lines))
+	for _, line := range body.Lines {
+		lines = append(lines, OpeningLineInput{
+			SubjectID: line.SubjectId, Currency: line.Currency,
+			DebitAmount: line.DebitAmount, CreditAmount: line.CreditAmount,
+			Quantity: line.Quantity, Dimensions: line.Dimensions,
+		})
+	}
+	result, err := h.service.SaveOpening(c.Request.Context(), SaveOpeningInput{
+		BookID: body.BookId, Revision: body.Revision, Lines: lines,
+	}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) approveOpening(c *gin.Context) {
+	var body generated.OpeningActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.ApproveOpening(c.Request.Context(), body.BookId, body.Revision, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) unapproveOpening(c *gin.Context) {
+	var body generated.OpeningActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.UnapproveOpening(c.Request.Context(), body.BookId, body.Revision, h.actorID(c))
+	h.result(c, result, err)
 }
 
 func (h *Handler) save(c *gin.Context) {

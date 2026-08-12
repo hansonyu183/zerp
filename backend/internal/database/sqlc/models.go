@@ -9,18 +9,19 @@ import (
 )
 
 type AccBook struct {
-	ID           string             `db:"id" json:"id"`
-	Code         string             `db:"code" json:"code"`
-	Name         string             `db:"name" json:"name"`
-	Description  string             `db:"description" json:"description"`
-	StartMonth   pgtype.Date        `db:"start_month" json:"start_month"`
-	BaseCurrency string             `db:"base_currency" json:"base_currency"`
-	ControlBook  bool               `db:"control_book" json:"control_book"`
-	Revision     int64              `db:"revision" json:"revision"`
-	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy    string             `db:"created_by" json:"created_by"`
-	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy    string             `db:"updated_by" json:"updated_by"`
+	ID              string             `db:"id" json:"id"`
+	Code            string             `db:"code" json:"code"`
+	Name            string             `db:"name" json:"name"`
+	Description     string             `db:"description" json:"description"`
+	StartMonth      pgtype.Date        `db:"start_month" json:"start_month"`
+	BaseCurrency    string             `db:"base_currency" json:"base_currency"`
+	ControlBook     bool               `db:"control_book" json:"control_book"`
+	Revision        int64              `db:"revision" json:"revision"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
+	SubjectTemplate string             `db:"subject_template" json:"subject_template"`
 }
 
 type AccBookUserScope struct {
@@ -30,6 +31,35 @@ type AccBookUserScope struct {
 	OperateAccess bool               `db:"operate_access" json:"operate_access"`
 	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy     string             `db:"created_by" json:"created_by"`
+}
+
+type AccSubject struct {
+	ID                string             `db:"id" json:"id"`
+	BookID            string             `db:"book_id" json:"book_id"`
+	Code              string             `db:"code" json:"code"`
+	Name              string             `db:"name" json:"name"`
+	ParentSubjectID   *string            `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string             `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool               `db:"enabled" json:"enabled"`
+	InventoryQuantity bool               `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string             `db:"settlement_purpose" json:"settlement_purpose"`
+	Revision          int64              `db:"revision" json:"revision"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+}
+
+type AccSubjectDimension struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	Dimension string `db:"dimension" json:"dimension"`
+}
+
+type AccSubjectUsage struct {
+	SubjectID string             `db:"subject_id" json:"subject_id"`
+	UsageType string             `db:"usage_type" json:"usage_type"`
+	UsageID   string             `db:"usage_id" json:"usage_id"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type AppAuditEvent struct {

@@ -15,11 +15,12 @@ RETURNING last_value;
 -- name: CreateAccountingBook :exec
 INSERT INTO acc_books (
   id, code, name, description, start_month, base_currency,
-  control_book, created_by, updated_by
+  control_book, subject_template, created_by, updated_by
 ) VALUES (
   sqlc.arg(id), sqlc.arg(code), sqlc.arg(name), sqlc.arg(description),
   to_date(sqlc.arg(start_month)::text, 'YYYY-MM'), sqlc.arg(base_currency),
-  sqlc.arg(control_book), sqlc.arg(actor_id), sqlc.arg(actor_id)
+  sqlc.arg(control_book), sqlc.arg(subject_template),
+  sqlc.arg(actor_id), sqlc.arg(actor_id)
 );
 
 -- name: HasAccountingBookQueryAccess :one
@@ -60,7 +61,8 @@ INSERT INTO acc_book_user_scopes (
 -- name: ListAccountingBooks :many
 SELECT b.id, b.code, b.name, b.description,
        to_char(b.start_month, 'YYYY-MM') AS start_month,
-       b.base_currency, b.control_book, b.revision, count(*) OVER() AS total
+       b.base_currency, b.control_book, b.subject_template,
+       b.revision, count(*) OVER() AS total
 FROM acc_books b
 JOIN acc_book_user_scopes s ON s.book_id = b.id
 WHERE s.user_id = sqlc.arg(user_id)
@@ -76,7 +78,7 @@ OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
 -- name: GetAccountingBook :one
 SELECT id, code, name, description,
        to_char(start_month, 'YYYY-MM') AS start_month,
-       base_currency, control_book, revision
+       base_currency, control_book, subject_template, revision
 FROM acc_books
 WHERE id = sqlc.arg(book_id);
 
@@ -105,3 +107,105 @@ FOR UPDATE;
 
 -- name: DeleteAccountingBook :exec
 DELETE FROM acc_books WHERE id = sqlc.arg(book_id);
+
+-- name: InsertAccountingSubject :exec
+INSERT INTO acc_subjects (
+  id, book_id, code, name, parent_subject_id, balance_direction,
+  enabled, inventory_quantity, settlement_purpose, created_by, updated_by
+) VALUES (
+  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(code), sqlc.arg(name),
+  sqlc.narg(parent_subject_id), sqlc.arg(balance_direction), sqlc.arg(enabled),
+  sqlc.arg(inventory_quantity), sqlc.arg(settlement_purpose),
+  sqlc.arg(actor_id), sqlc.arg(actor_id)
+);
+
+-- name: InsertAccountingSubjectDimension :exec
+INSERT INTO acc_subject_dimensions (subject_id, dimension)
+VALUES (sqlc.arg(subject_id), sqlc.arg(dimension));
+
+-- name: DeleteAccountingSubjectDimensions :exec
+DELETE FROM acc_subject_dimensions WHERE subject_id = sqlc.arg(subject_id);
+
+-- name: ListAccountingSubjectDimensions :many
+SELECT dimension FROM acc_subject_dimensions
+WHERE subject_id = sqlc.arg(subject_id)
+ORDER BY dimension;
+
+-- name: ListAccountingSubjects :many
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       NOT EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS leaf,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced,
+       count(*) OVER() AS total
+FROM acc_subjects s
+WHERE s.book_id = sqlc.arg(book_id)
+  AND (
+    sqlc.arg(keyword)::text = ''
+    OR s.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR s.name ILIKE '%' || sqlc.arg(keyword) || '%'
+  )
+ORDER BY s.code, s.id
+OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
+
+-- name: GetAccountingSubject :one
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       NOT EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS leaf,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced
+FROM acc_subjects s
+WHERE s.book_id = sqlc.arg(book_id) AND s.id = sqlc.arg(subject_id);
+
+-- name: GetAccountingSubjectStateForUpdate :one
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS has_children,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced
+FROM acc_subjects s
+WHERE s.book_id = sqlc.arg(book_id) AND s.id = sqlc.arg(subject_id)
+FOR UPDATE;
+
+-- name: GetAccountingSubjectParent :one
+SELECT parent_subject_id
+FROM acc_subjects
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(subject_id);
+
+-- name: UpdateAccountingSubject :one
+UPDATE acc_subjects SET
+  code = sqlc.arg(code),
+  name = sqlc.arg(name),
+  parent_subject_id = sqlc.narg(parent_subject_id),
+  balance_direction = sqlc.arg(balance_direction),
+  enabled = sqlc.arg(enabled),
+  inventory_quantity = sqlc.arg(inventory_quantity),
+  settlement_purpose = sqlc.arg(settlement_purpose),
+  revision = revision + 1,
+  updated_at = now(),
+  updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id)
+  AND id = sqlc.arg(subject_id)
+  AND revision = sqlc.arg(revision)
+RETURNING revision;
+
+-- name: DeleteAccountingSubject :exec
+DELETE FROM acc_subjects
+WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(subject_id);
+
+-- name: RegisterAccountingSubjectUsage :exec
+INSERT INTO acc_subject_usages (subject_id, usage_type, usage_id)
+VALUES (sqlc.arg(subject_id), sqlc.arg(usage_type), sqlc.arg(usage_id))
+ON CONFLICT DO NOTHING;

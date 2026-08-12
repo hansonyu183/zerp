@@ -196,6 +196,194 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/acc/subject/query':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '查询会计科目',
+              'operationId': 'accSubjectQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户账簿查询范围内的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectPageEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/get':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取会计科目',
+              'operationId': 'accSubjectGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/acc.yaml#/SubjectGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '会计科目详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/create':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建会计科目',
+              'operationId': 'accSubjectCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/save':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '保存会计科目',
+              'operationId': 'accSubjectSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的会计科目。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/SubjectEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/subject/delete':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '删除会计科目',
+              'operationId': 'accSubjectDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/SubjectDeleteRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/app/user/signin':
         {
           'post':

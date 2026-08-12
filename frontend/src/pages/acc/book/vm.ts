@@ -41,6 +41,7 @@ export function createAccountingBookViewModel() {
     description: '',
     startMonth: '',
     baseCurrency: 'CNY',
+    subjectTemplate: 'ENTERPRISE' as AccountingBook['subjectTemplate'],
     queryUserIds: [] as string[],
     operateUserIds: [] as string[],
   })
@@ -136,6 +137,7 @@ export function createAccountingBookViewModel() {
     form.description = ''
     form.startMonth = ''
     form.baseCurrency = 'CNY'
+    form.subjectTemplate = 'ENTERPRISE'
     form.queryUserIds = []
     form.operateUserIds = []
   }
@@ -176,6 +178,7 @@ export function createAccountingBookViewModel() {
       form.description = detail.data.description
       form.startMonth = detail.data.startMonth
       form.baseCurrency = detail.data.baseCurrency
+      form.subjectTemplate = detail.data.subjectTemplate
       form.queryUserIds = [...detail.data.queryUserIds]
       form.operateUserIds = [...detail.data.operateUserIds]
       editorOpen.value = true
@@ -216,7 +219,11 @@ export function createAccountingBookViewModel() {
           revision: editing.value.revision,
         })
       } else {
-        await createAccountingBook({ ...common, startMonth: form.startMonth })
+        await createAccountingBook({
+          ...common,
+          startMonth: form.startMonth,
+          subjectTemplate: form.subjectTemplate,
+        })
       }
       if (!active) return
       successMessage.value = editing.value ? '账簿已保存。' : '账簿已创建。'

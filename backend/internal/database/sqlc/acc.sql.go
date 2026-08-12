@@ -23,23 +23,25 @@ func (q *Queries) AccountingBookExists(ctx context.Context) (bool, error) {
 const createAccountingBook = `-- name: CreateAccountingBook :exec
 INSERT INTO acc_books (
   id, code, name, description, start_month, base_currency,
-  control_book, created_by, updated_by
+  control_book, subject_template, created_by, updated_by
 ) VALUES (
   $1, $2, $3, $4,
   to_date($5::text, 'YYYY-MM'), $6,
-  $7, $8, $8
+  $7, $8,
+  $9, $9
 )
 `
 
 type CreateAccountingBookParams struct {
-	ID           string `db:"id" json:"id"`
-	Code         string `db:"code" json:"code"`
-	Name         string `db:"name" json:"name"`
-	Description  string `db:"description" json:"description"`
-	StartMonth   string `db:"start_month" json:"start_month"`
-	BaseCurrency string `db:"base_currency" json:"base_currency"`
-	ControlBook  bool   `db:"control_book" json:"control_book"`
-	ActorID      string `db:"actor_id" json:"actor_id"`
+	ID              string `db:"id" json:"id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	StartMonth      string `db:"start_month" json:"start_month"`
+	BaseCurrency    string `db:"base_currency" json:"base_currency"`
+	ControlBook     bool   `db:"control_book" json:"control_book"`
+	SubjectTemplate string `db:"subject_template" json:"subject_template"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) CreateAccountingBook(ctx context.Context, arg CreateAccountingBookParams) error {
@@ -51,6 +53,7 @@ func (q *Queries) CreateAccountingBook(ctx context.Context, arg CreateAccounting
 		arg.StartMonth,
 		arg.BaseCurrency,
 		arg.ControlBook,
+		arg.SubjectTemplate,
 		arg.ActorID,
 	)
 	return err
@@ -102,6 +105,30 @@ func (q *Queries) DeleteAccountingBookScopes(ctx context.Context, bookID string)
 	return err
 }
 
+const deleteAccountingSubject = `-- name: DeleteAccountingSubject :exec
+DELETE FROM acc_subjects
+WHERE book_id = $1 AND id = $2
+`
+
+type DeleteAccountingSubjectParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) DeleteAccountingSubject(ctx context.Context, arg DeleteAccountingSubjectParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountingSubject, arg.BookID, arg.SubjectID)
+	return err
+}
+
+const deleteAccountingSubjectDimensions = `-- name: DeleteAccountingSubjectDimensions :exec
+DELETE FROM acc_subject_dimensions WHERE subject_id = $1
+`
+
+func (q *Queries) DeleteAccountingSubjectDimensions(ctx context.Context, subjectID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingSubjectDimensions, subjectID)
+	return err
+}
+
 const getAccountingAccessUserEnabled = `-- name: GetAccountingAccessUserEnabled :one
 SELECT status = 'ENABLED' AS enabled FROM app_users WHERE id = $1
 `
@@ -116,20 +143,21 @@ func (q *Queries) GetAccountingAccessUserEnabled(ctx context.Context, userID str
 const getAccountingBook = `-- name: GetAccountingBook :one
 SELECT id, code, name, description,
        to_char(start_month, 'YYYY-MM') AS start_month,
-       base_currency, control_book, revision
+       base_currency, control_book, subject_template, revision
 FROM acc_books
 WHERE id = $1
 `
 
 type GetAccountingBookRow struct {
-	ID           string `db:"id" json:"id"`
-	Code         string `db:"code" json:"code"`
-	Name         string `db:"name" json:"name"`
-	Description  string `db:"description" json:"description"`
-	StartMonth   string `db:"start_month" json:"start_month"`
-	BaseCurrency string `db:"base_currency" json:"base_currency"`
-	ControlBook  bool   `db:"control_book" json:"control_book"`
-	Revision     int64  `db:"revision" json:"revision"`
+	ID              string `db:"id" json:"id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	StartMonth      string `db:"start_month" json:"start_month"`
+	BaseCurrency    string `db:"base_currency" json:"base_currency"`
+	ControlBook     bool   `db:"control_book" json:"control_book"`
+	SubjectTemplate string `db:"subject_template" json:"subject_template"`
+	Revision        int64  `db:"revision" json:"revision"`
 }
 
 func (q *Queries) GetAccountingBook(ctx context.Context, bookID string) (GetAccountingBookRow, error) {
@@ -143,6 +171,7 @@ func (q *Queries) GetAccountingBook(ctx context.Context, bookID string) (GetAcco
 		&i.StartMonth,
 		&i.BaseCurrency,
 		&i.ControlBook,
+		&i.SubjectTemplate,
 		&i.Revision,
 	)
 	return i, err
@@ -190,6 +219,133 @@ func (q *Queries) GetAccountingBookUserScope(ctx context.Context, arg GetAccount
 	return i, err
 }
 
+const getAccountingSubject = `-- name: GetAccountingSubject :one
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       NOT EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS leaf,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced
+FROM acc_subjects s
+WHERE s.book_id = $1 AND s.id = $2
+`
+
+type GetAccountingSubjectParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+type GetAccountingSubjectRow struct {
+	ID                string  `db:"id" json:"id"`
+	BookID            string  `db:"book_id" json:"book_id"`
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	ParentSubjectID   *string `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string  `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool    `db:"enabled" json:"enabled"`
+	InventoryQuantity bool    `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string  `db:"settlement_purpose" json:"settlement_purpose"`
+	Revision          int64   `db:"revision" json:"revision"`
+	Leaf              bool    `db:"leaf" json:"leaf"`
+	Referenced        bool    `db:"referenced" json:"referenced"`
+}
+
+func (q *Queries) GetAccountingSubject(ctx context.Context, arg GetAccountingSubjectParams) (GetAccountingSubjectRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingSubject, arg.BookID, arg.SubjectID)
+	var i GetAccountingSubjectRow
+	err := row.Scan(
+		&i.ID,
+		&i.BookID,
+		&i.Code,
+		&i.Name,
+		&i.ParentSubjectID,
+		&i.BalanceDirection,
+		&i.Enabled,
+		&i.InventoryQuantity,
+		&i.SettlementPurpose,
+		&i.Revision,
+		&i.Leaf,
+		&i.Referenced,
+	)
+	return i, err
+}
+
+const getAccountingSubjectParent = `-- name: GetAccountingSubjectParent :one
+SELECT parent_subject_id
+FROM acc_subjects
+WHERE book_id = $1 AND id = $2
+`
+
+type GetAccountingSubjectParentParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error) {
+	row := q.db.QueryRow(ctx, getAccountingSubjectParent, arg.BookID, arg.SubjectID)
+	var parent_subject_id *string
+	err := row.Scan(&parent_subject_id)
+	return parent_subject_id, err
+}
+
+const getAccountingSubjectStateForUpdate = `-- name: GetAccountingSubjectStateForUpdate :one
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS has_children,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced
+FROM acc_subjects s
+WHERE s.book_id = $1 AND s.id = $2
+FOR UPDATE
+`
+
+type GetAccountingSubjectStateForUpdateParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+type GetAccountingSubjectStateForUpdateRow struct {
+	ID                string  `db:"id" json:"id"`
+	BookID            string  `db:"book_id" json:"book_id"`
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	ParentSubjectID   *string `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string  `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool    `db:"enabled" json:"enabled"`
+	InventoryQuantity bool    `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string  `db:"settlement_purpose" json:"settlement_purpose"`
+	Revision          int64   `db:"revision" json:"revision"`
+	HasChildren       bool    `db:"has_children" json:"has_children"`
+	Referenced        bool    `db:"referenced" json:"referenced"`
+}
+
+func (q *Queries) GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingSubjectStateForUpdate, arg.BookID, arg.SubjectID)
+	var i GetAccountingSubjectStateForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.BookID,
+		&i.Code,
+		&i.Name,
+		&i.ParentSubjectID,
+		&i.BalanceDirection,
+		&i.Enabled,
+		&i.InventoryQuantity,
+		&i.SettlementPurpose,
+		&i.Revision,
+		&i.HasChildren,
+		&i.Referenced,
+	)
+	return i, err
+}
+
 const hasAccountingBookOperateAccess = `-- name: HasAccountingBookOperateAccess :one
 SELECT EXISTS(
   SELECT 1 FROM acc_book_user_scopes
@@ -232,6 +388,62 @@ func (q *Queries) HasAccountingBookQueryAccess(ctx context.Context, arg HasAccou
 	return exists, err
 }
 
+const insertAccountingSubject = `-- name: InsertAccountingSubject :exec
+INSERT INTO acc_subjects (
+  id, book_id, code, name, parent_subject_id, balance_direction,
+  enabled, inventory_quantity, settlement_purpose, created_by, updated_by
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9,
+  $10, $10
+)
+`
+
+type InsertAccountingSubjectParams struct {
+	ID                string  `db:"id" json:"id"`
+	BookID            string  `db:"book_id" json:"book_id"`
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	ParentSubjectID   *string `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string  `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool    `db:"enabled" json:"enabled"`
+	InventoryQuantity bool    `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string  `db:"settlement_purpose" json:"settlement_purpose"`
+	ActorID           string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertAccountingSubject(ctx context.Context, arg InsertAccountingSubjectParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingSubject,
+		arg.ID,
+		arg.BookID,
+		arg.Code,
+		arg.Name,
+		arg.ParentSubjectID,
+		arg.BalanceDirection,
+		arg.Enabled,
+		arg.InventoryQuantity,
+		arg.SettlementPurpose,
+		arg.ActorID,
+	)
+	return err
+}
+
+const insertAccountingSubjectDimension = `-- name: InsertAccountingSubjectDimension :exec
+INSERT INTO acc_subject_dimensions (subject_id, dimension)
+VALUES ($1, $2)
+`
+
+type InsertAccountingSubjectDimensionParams struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	Dimension string `db:"dimension" json:"dimension"`
+}
+
+func (q *Queries) InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error {
+	_, err := q.db.Exec(ctx, insertAccountingSubjectDimension, arg.SubjectID, arg.Dimension)
+	return err
+}
+
 const listAccountingBookScopes = `-- name: ListAccountingBookScopes :many
 SELECT user_id, query_access, operate_access
 FROM acc_book_user_scopes
@@ -268,7 +480,8 @@ func (q *Queries) ListAccountingBookScopes(ctx context.Context, bookID string) (
 const listAccountingBooks = `-- name: ListAccountingBooks :many
 SELECT b.id, b.code, b.name, b.description,
        to_char(b.start_month, 'YYYY-MM') AS start_month,
-       b.base_currency, b.control_book, b.revision, count(*) OVER() AS total
+       b.base_currency, b.control_book, b.subject_template,
+       b.revision, count(*) OVER() AS total
 FROM acc_books b
 JOIN acc_book_user_scopes s ON s.book_id = b.id
 WHERE s.user_id = $1
@@ -290,15 +503,16 @@ type ListAccountingBooksParams struct {
 }
 
 type ListAccountingBooksRow struct {
-	ID           string `db:"id" json:"id"`
-	Code         string `db:"code" json:"code"`
-	Name         string `db:"name" json:"name"`
-	Description  string `db:"description" json:"description"`
-	StartMonth   string `db:"start_month" json:"start_month"`
-	BaseCurrency string `db:"base_currency" json:"base_currency"`
-	ControlBook  bool   `db:"control_book" json:"control_book"`
-	Revision     int64  `db:"revision" json:"revision"`
-	Total        int64  `db:"total" json:"total"`
+	ID              string `db:"id" json:"id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	StartMonth      string `db:"start_month" json:"start_month"`
+	BaseCurrency    string `db:"base_currency" json:"base_currency"`
+	ControlBook     bool   `db:"control_book" json:"control_book"`
+	SubjectTemplate string `db:"subject_template" json:"subject_template"`
+	Revision        int64  `db:"revision" json:"revision"`
+	Total           int64  `db:"total" json:"total"`
 }
 
 func (q *Queries) ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error) {
@@ -323,7 +537,118 @@ func (q *Queries) ListAccountingBooks(ctx context.Context, arg ListAccountingBoo
 			&i.StartMonth,
 			&i.BaseCurrency,
 			&i.ControlBook,
+			&i.SubjectTemplate,
 			&i.Revision,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingSubjectDimensions = `-- name: ListAccountingSubjectDimensions :many
+SELECT dimension FROM acc_subject_dimensions
+WHERE subject_id = $1
+ORDER BY dimension
+`
+
+func (q *Queries) ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAccountingSubjectDimensions, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var dimension string
+		if err := rows.Scan(&dimension); err != nil {
+			return nil, err
+		}
+		items = append(items, dimension)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountingSubjects = `-- name: ListAccountingSubjects :many
+SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
+       s.balance_direction, s.enabled, s.inventory_quantity,
+       s.settlement_purpose, s.revision,
+       NOT EXISTS (
+         SELECT 1 FROM acc_subjects child WHERE child.parent_subject_id = s.id
+       ) AS leaf,
+       EXISTS (
+         SELECT 1 FROM acc_subject_usages usage WHERE usage.subject_id = s.id
+       ) AS referenced,
+       count(*) OVER() AS total
+FROM acc_subjects s
+WHERE s.book_id = $1
+  AND (
+    $2::text = ''
+    OR s.code ILIKE '%' || $2 || '%'
+    OR s.name ILIKE '%' || $2 || '%'
+  )
+ORDER BY s.code, s.id
+OFFSET $3 LIMIT $4
+`
+
+type ListAccountingSubjectsParams struct {
+	BookID     string `db:"book_id" json:"book_id"`
+	Keyword    string `db:"keyword" json:"keyword"`
+	PageOffset int32  `db:"page_offset" json:"page_offset"`
+	PageSize   int32  `db:"page_size" json:"page_size"`
+}
+
+type ListAccountingSubjectsRow struct {
+	ID                string  `db:"id" json:"id"`
+	BookID            string  `db:"book_id" json:"book_id"`
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	ParentSubjectID   *string `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string  `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool    `db:"enabled" json:"enabled"`
+	InventoryQuantity bool    `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string  `db:"settlement_purpose" json:"settlement_purpose"`
+	Revision          int64   `db:"revision" json:"revision"`
+	Leaf              bool    `db:"leaf" json:"leaf"`
+	Referenced        bool    `db:"referenced" json:"referenced"`
+	Total             int64   `db:"total" json:"total"`
+}
+
+func (q *Queries) ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingSubjects,
+		arg.BookID,
+		arg.Keyword,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingSubjectsRow{}
+	for rows.Next() {
+		var i ListAccountingSubjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BookID,
+			&i.Code,
+			&i.Name,
+			&i.ParentSubjectID,
+			&i.BalanceDirection,
+			&i.Enabled,
+			&i.InventoryQuantity,
+			&i.SettlementPurpose,
+			&i.Revision,
+			&i.Leaf,
+			&i.Referenced,
 			&i.Total,
 		); err != nil {
 			return nil, err
@@ -361,6 +686,23 @@ func (q *Queries) NextAccountingBookNumber(ctx context.Context) (int32, error) {
 	return last_value, err
 }
 
+const registerAccountingSubjectUsage = `-- name: RegisterAccountingSubjectUsage :exec
+INSERT INTO acc_subject_usages (subject_id, usage_type, usage_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type RegisterAccountingSubjectUsageParams struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	UsageType string `db:"usage_type" json:"usage_type"`
+	UsageID   string `db:"usage_id" json:"usage_id"`
+}
+
+func (q *Queries) RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error {
+	_, err := q.db.Exec(ctx, registerAccountingSubjectUsage, arg.SubjectID, arg.UsageType, arg.UsageID)
+	return err
+}
+
 const updateAccountingBook = `-- name: UpdateAccountingBook :one
 UPDATE acc_books SET
   name = $1,
@@ -389,6 +731,57 @@ func (q *Queries) UpdateAccountingBook(ctx context.Context, arg UpdateAccounting
 		arg.BaseCurrency,
 		arg.ActorID,
 		arg.BookID,
+		arg.Revision,
+	)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const updateAccountingSubject = `-- name: UpdateAccountingSubject :one
+UPDATE acc_subjects SET
+  code = $1,
+  name = $2,
+  parent_subject_id = $3,
+  balance_direction = $4,
+  enabled = $5,
+  inventory_quantity = $6,
+  settlement_purpose = $7,
+  revision = revision + 1,
+  updated_at = now(),
+  updated_by = $8
+WHERE book_id = $9
+  AND id = $10
+  AND revision = $11
+RETURNING revision
+`
+
+type UpdateAccountingSubjectParams struct {
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	ParentSubjectID   *string `db:"parent_subject_id" json:"parent_subject_id"`
+	BalanceDirection  string  `db:"balance_direction" json:"balance_direction"`
+	Enabled           bool    `db:"enabled" json:"enabled"`
+	InventoryQuantity bool    `db:"inventory_quantity" json:"inventory_quantity"`
+	SettlementPurpose string  `db:"settlement_purpose" json:"settlement_purpose"`
+	ActorID           string  `db:"actor_id" json:"actor_id"`
+	BookID            string  `db:"book_id" json:"book_id"`
+	SubjectID         string  `db:"subject_id" json:"subject_id"`
+	Revision          int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error) {
+	row := q.db.QueryRow(ctx, updateAccountingSubject,
+		arg.Code,
+		arg.Name,
+		arg.ParentSubjectID,
+		arg.BalanceDirection,
+		arg.Enabled,
+		arg.InventoryQuantity,
+		arg.SettlementPurpose,
+		arg.ActorID,
+		arg.BookID,
+		arg.SubjectID,
 		arg.Revision,
 	)
 	var revision int64

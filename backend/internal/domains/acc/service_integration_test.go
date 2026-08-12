@@ -77,7 +77,7 @@ func TestConcurrentFirstBookCreationKeepsOneControlBook(t *testing.T) {
 		go func(name string) {
 			defer wait.Done()
 			result, err := service.CreateBook(t.Context(), CreateBookInput{
-				Name: name, StartMonth: "2026-08", BaseCurrency: "CNY",
+				Name: name, StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 			}, adminID)
 			if err != nil {
 				errors <- err
@@ -111,7 +111,8 @@ func TestAccountingBooksAreIsolatedByQueryAndOperationScopes(t *testing.T) {
 	control, err := service.CreateBook(t.Context(), CreateBookInput{
 		Name: "管理账簿", Description: "内部管理",
 		StartMonth: "2026-08", BaseCurrency: "cny",
-		QueryUserIDs: []string{queryID}, OperateUserIDs: []string{operatorID},
+		SubjectTemplate: SubjectTemplateEmpty,
+		QueryUserIDs:    []string{queryID}, OperateUserIDs: []string{operatorID},
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create first accounting book: %v", err)
@@ -158,7 +159,7 @@ func TestAccountingBooksAreIsolatedByQueryAndOperationScopes(t *testing.T) {
 	}
 
 	second, err := service.CreateBook(t.Context(), CreateBookInput{
-		Name: "税务口径", StartMonth: "2026-09", BaseCurrency: "CNY",
+		Name: "税务口径", StartMonth: "2026-09", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create second accounting book: %v", err)
@@ -180,13 +181,13 @@ func TestAccountingBookIdentityAndConcurrencyRules(t *testing.T) {
 	service := NewService(pool)
 
 	created, err := service.CreateBook(t.Context(), CreateBookInput{
-		Name: "主账簿", StartMonth: "2026-08", BaseCurrency: "CNY",
+		Name: "主账簿", StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create accounting book: %v", err)
 	}
 	second, err := service.CreateBook(t.Context(), CreateBookInput{
-		Name: "第二账簿", StartMonth: "2026-08", BaseCurrency: "CNY",
+		Name: "第二账簿", StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 	}, adminID)
 	if err != nil || created.Code != "ACC-0001" || second.Code != "ACC-0002" {
 		t.Fatalf("generated codes = %q, %q, err = %v", created.Code, second.Code, err)
@@ -198,7 +199,7 @@ func TestAccountingBookIdentityAndConcurrencyRules(t *testing.T) {
 		t.Fatalf("stale revision error = %v, want conflict", err)
 	}
 	if _, err = service.CreateBook(t.Context(), CreateBookInput{
-		Name: "无效月份", StartMonth: "2026-8", BaseCurrency: "CNY",
+		Name: "无效月份", StartMonth: "2026-8", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 	}, adminID); !IsKind(err, ErrorValidation) {
 		t.Fatalf("invalid month error = %v, want validation", err)
 	}

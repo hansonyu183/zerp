@@ -96,6 +96,8 @@ type Querier interface {
 	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
 	DeleteAccountingBookScopes(ctx context.Context, bookID string) error
+	DeleteAccountingSubject(ctx context.Context, arg DeleteAccountingSubjectParams) error
+	DeleteAccountingSubjectDimensions(ctx context.Context, subjectID string) error
 	DeleteAppBusinessMenuItems(ctx context.Context) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
@@ -160,6 +162,9 @@ type Querier interface {
 	GetAccountingBook(ctx context.Context, bookID string) (GetAccountingBookRow, error)
 	GetAccountingBookDeletionState(ctx context.Context, bookID string) (GetAccountingBookDeletionStateRow, error)
 	GetAccountingBookUserScope(ctx context.Context, arg GetAccountingBookUserScopeParams) (GetAccountingBookUserScopeRow, error)
+	GetAccountingSubject(ctx context.Context, arg GetAccountingSubjectParams) (GetAccountingSubjectRow, error)
+	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
+	GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error)
 	GetActiveLedAsset(ctx context.Context, assetID string) (LedAsset, error)
 	GetActiveLedAssetForVou(ctx context.Context, assetID string) (LedAsset, error)
 	GetAppBusinessMenuRevision(ctx context.Context) (int64, error)
@@ -217,6 +222,8 @@ type Querier interface {
 	HasLaterLedAssetEntries(ctx context.Context, arg HasLaterLedAssetEntriesParams) (bool, error)
 	HasLedEntriesForSource(ctx context.Context, arg HasLedEntriesForSourceParams) (bool, error)
 	HasNegativeLedInventoryTimeline(ctx context.Context, generationID string) (bool, error)
+	InsertAccountingSubject(ctx context.Context, arg InsertAccountingSubjectParams) error
+	InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
 	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
@@ -308,6 +315,8 @@ type Querier interface {
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	ListAccountingBookScopes(ctx context.Context, bookID string) ([]ListAccountingBookScopesRow, error)
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
+	ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error)
+	ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
 	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
@@ -418,6 +427,7 @@ type Querier interface {
 	Ping(ctx context.Context) (int32, error)
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
 	RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error)
+	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	ReopenLedControl(ctx context.Context, arg ReopenLedControlParams) (int64, error)
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
@@ -449,6 +459,7 @@ type Querier interface {
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
+	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)
 	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppSystemParameter, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
 	UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error)

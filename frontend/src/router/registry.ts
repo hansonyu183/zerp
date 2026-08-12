@@ -119,6 +119,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 10,
     component: () => import('@/pages/acc/book/Book.vue'),
   }),
+  registerPage('acc', {
+    entity: 'subject',
+    entityTitle: '会计科目',
+    icon: 'mdi-file-tree-outline',
+    order: 20,
+    component: () => import('@/pages/acc/subject/Subject.vue'),
+  }),
   registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',

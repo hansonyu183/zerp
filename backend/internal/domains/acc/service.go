@@ -140,6 +140,10 @@ func (s *Service) CreateBook(ctx context.Context, input CreateBookInput, actorID
 	if err = validateMonth(input.StartMonth); err != nil {
 		return BookView{}, err
 	}
+	templateLines, ok := subjectTemplateLines(input.SubjectTemplate)
+	if !ok {
+		return BookView{}, domainError(ErrorValidation, "invalid accounting subject template", nil)
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return BookView{}, databaseError("begin accounting book creation", err)
@@ -165,7 +169,7 @@ func (s *Service) CreateBook(ctx context.Context, input CreateBookInput, actorID
 	err = qtx.CreateAccountingBook(ctx, dbsqlc.CreateAccountingBookParams{
 		ID: bookID, Code: code, Name: name, Description: description,
 		StartMonth: input.StartMonth, BaseCurrency: currency,
-		ControlBook: !exists, ActorID: actorID,
+		ControlBook: !exists, SubjectTemplate: input.SubjectTemplate, ActorID: actorID,
 	})
 	if err != nil {
 		return BookView{}, databaseError("accounting book cannot be created", err)
@@ -173,6 +177,9 @@ func (s *Service) CreateBook(ctx context.Context, input CreateBookInput, actorID
 	accesses := accessMap(input.QueryUserIDs, input.OperateUserIDs)
 	accesses[actorID] = accessGrant{query: true, operate: true}
 	if err = replaceAccess(ctx, qtx, bookID, actorID, accesses); err != nil {
+		return BookView{}, err
+	}
+	if err = copySubjectTemplate(ctx, qtx, bookID, actorID, templateLines); err != nil {
 		return BookView{}, err
 	}
 	result, err := loadBook(ctx, qtx, bookID)
@@ -203,7 +210,8 @@ func (s *Service) QueryBooks(ctx context.Context, input QueryBooksInput, actorID
 		item := BookView{QueryUserIDs: []string{}, OperateUserIDs: []string{}}
 		item.ID, item.Code, item.Name = row.ID, row.Code, row.Name
 		item.Description, item.StartMonth = row.Description, row.StartMonth
-		item.BaseCurrency, item.ControlBook = row.BaseCurrency, row.ControlBook
+		item.BaseCurrency, item.SubjectTemplate = row.BaseCurrency, row.SubjectTemplate
+		item.ControlBook = row.ControlBook
 		item.Revision, page.Total = row.Revision, row.Total
 		page.Items = append(page.Items, item)
 	}
@@ -228,7 +236,7 @@ func loadBook(ctx context.Context, q *dbsqlc.Queries, bookID string) (BookView, 
 	result := BookView{
 		ID: row.ID, Code: row.Code, Name: row.Name, Description: row.Description,
 		StartMonth: row.StartMonth, BaseCurrency: row.BaseCurrency,
-		ControlBook: row.ControlBook, Revision: row.Revision,
+		SubjectTemplate: row.SubjectTemplate, ControlBook: row.ControlBook, Revision: row.Revision,
 		QueryUserIDs: []string{}, OperateUserIDs: []string{},
 	}
 	scopes, err := q.ListAccountingBookScopes(ctx, bookID)

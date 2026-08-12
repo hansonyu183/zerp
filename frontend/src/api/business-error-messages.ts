@@ -410,6 +410,11 @@ const exactMessages: Readonly<Record<string, string>> = {
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',
   'object number exhausted': '资料编码已用尽，请联系管理员。',
   'accounting book number exhausted': '会计账簿编码已用尽，请联系管理员。',
+  'accounting subject cannot be its own parent':
+    '会计科目不能以自身作为上级科目。',
+  'accounting subject hierarchy cycle': '会计科目层级不能形成循环。',
+  'accounting subject template parent missing':
+    '建账科目模板缺少上级科目，请联系管理员。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
   'platform is not an effective logistics platform':

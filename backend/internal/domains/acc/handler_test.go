@@ -40,6 +40,26 @@ func (stub *bookServiceStub) DeleteBook(_ context.Context, _ string, _ int64, _ 
 	stub.actions = append(stub.actions, "delete")
 	return nil
 }
+func (stub *bookServiceStub) QuerySubjects(_ context.Context, input QuerySubjectsInput, _ string) (SubjectPage, error) {
+	stub.actions = append(stub.actions, "subject-query")
+	return SubjectPage{Items: []SubjectView{}, Page: input.Page, PageSize: input.PageSize}, nil
+}
+func (stub *bookServiceStub) GetSubject(_ context.Context, _, _, _ string) (SubjectView, error) {
+	stub.actions = append(stub.actions, "subject-get")
+	return SubjectView{}, nil
+}
+func (stub *bookServiceStub) CreateSubject(_ context.Context, _ CreateSubjectInput, _ string) (SubjectView, error) {
+	stub.actions = append(stub.actions, "subject-create")
+	return SubjectView{}, nil
+}
+func (stub *bookServiceStub) SaveSubject(_ context.Context, _ SaveSubjectInput, _ string) (SubjectView, error) {
+	stub.actions = append(stub.actions, "subject-save")
+	return SubjectView{}, nil
+}
+func (stub *bookServiceStub) DeleteSubject(_ context.Context, _, _ string, _ int64, _ string) error {
+	stub.actions = append(stub.actions, "subject-delete")
+	return nil
+}
 
 func testRouter(service bookApplicationService, authorizer authorization.Authorizer) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -53,7 +73,7 @@ func TestBookHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) 
 	tests := []struct{ action, body string }{
 		{"query", `{"page":1,"pageSize":20}`},
 		{"get", `{"bookId":"01JACC00000000000000000001"}`},
-		{"create", `{"name":"主账簿","startMonth":"2026-08","baseCurrency":"CNY"}`},
+		{"create", `{"name":"主账簿","startMonth":"2026-08","baseCurrency":"CNY","subjectTemplate":"EMPTY"}`},
 		{"save", `{"bookId":"01JACC00000000000000000001","name":"主账簿","baseCurrency":"CNY","revision":1}`},
 		{"delete", `{"bookId":"01JACC00000000000000000001","revision":1}`},
 	}
@@ -81,6 +101,44 @@ func TestBookHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) 
 				t.Fatalf("permission = %q", permission)
 			}
 			if len(service.actions) != 1 || service.actions[0] != test.action {
+				t.Fatalf("service actions = %v", service.actions)
+			}
+		})
+	}
+}
+
+func TestSubjectHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) {
+	tests := []struct{ action, body string }{
+		{"query", `{"bookId":"01JACC00000000000000000001","page":1,"pageSize":20}`},
+		{"get", `{"bookId":"01JACC00000000000000000001","subjectId":"01JACC00000000000000000002"}`},
+		{"create", `{"bookId":"01JACC00000000000000000001","code":"1001","name":"库存现金","balanceDirection":"DEBIT","enabled":true,"requiredDimensions":[],"inventoryQuantity":false,"settlementPurpose":"NONE"}`},
+		{"save", `{"bookId":"01JACC00000000000000000001","subjectId":"01JACC00000000000000000002","code":"1001","name":"库存现金","balanceDirection":"DEBIT","enabled":true,"requiredDimensions":[],"inventoryQuantity":false,"settlementPurpose":"NONE","revision":1}`},
+		{"delete", `{"bookId":"01JACC00000000000000000001","subjectId":"01JACC00000000000000000002","revision":1}`},
+	}
+	for _, test := range tests {
+		t.Run(test.action, func(t *testing.T) {
+			service := &bookServiceStub{}
+			var permission string
+			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+				permission = path
+				return authorization.Principal{ActorID: handlerActorID}, nil
+			})
+			request := httptest.NewRequest(http.MethodPost, "/acc/subject/"+test.action, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			testRouter(service, authorizer).ServeHTTP(recorder, request)
+
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if recorder.Code != http.StatusOK || envelope.Code != response.CodeOK {
+				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
+			}
+			if permission != "/acc/subject/"+test.action {
+				t.Fatalf("permission = %q", permission)
+			}
+			if len(service.actions) != 1 || service.actions[0] != "subject-"+test.action {
 				t.Fatalf("service actions = %v", service.actions)
 			}
 		})

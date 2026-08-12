@@ -18,6 +18,7 @@ const controlBook = {
   description: '内部管理',
   startMonth: '2026-08',
   baseCurrency: 'CNY',
+  subjectTemplate: 'ENTERPRISE' as const,
   controlBook: true,
   revision: 1,
   queryUserIds: ['01JACC00000000000000000002'],
@@ -143,6 +144,7 @@ describe('ACC accounting book view model', () => {
       description: '内部管理',
       startMonth: '2026-08',
       baseCurrency: 'CNY',
+      subjectTemplate: 'ENTERPRISE',
       queryUserIds: ['01JACC00000000000000000002'],
       operateUserIds: ['01JACC00000000000000000003'],
     })

@@ -21,6 +21,11 @@ type bookApplicationService interface {
 	CreateBook(context.Context, CreateBookInput, string) (BookView, error)
 	SaveBook(context.Context, SaveBookInput, string) (BookView, error)
 	DeleteBook(context.Context, string, int64, string) error
+	QuerySubjects(context.Context, QuerySubjectsInput, string) (SubjectPage, error)
+	GetSubject(context.Context, string, string, string) (SubjectView, error)
+	CreateSubject(context.Context, CreateSubjectInput, string) (SubjectView, error)
+	SaveSubject(context.Context, SaveSubjectInput, string) (SubjectView, error)
+	DeleteSubject(context.Context, string, string, int64, string) error
 }
 
 type Handler struct {
@@ -40,12 +45,19 @@ func NewHandler(service bookApplicationService, authorizer authorization.Authori
 }
 
 func (h *Handler) Register(router *gin.Engine) {
-	group := router.Group("/acc/book")
-	group.POST("/query", h.authorize("/acc/book/query"), h.query)
-	group.POST("/get", h.authorize("/acc/book/get"), h.get)
-	group.POST("/create", h.authorize("/acc/book/create"), h.create)
-	group.POST("/save", h.authorize("/acc/book/save"), h.save)
-	group.POST("/delete", h.authorize("/acc/book/delete"), h.delete)
+	books := router.Group("/acc/book")
+	books.POST("/query", h.authorize("/acc/book/query"), h.query)
+	books.POST("/get", h.authorize("/acc/book/get"), h.get)
+	books.POST("/create", h.authorize("/acc/book/create"), h.create)
+	books.POST("/save", h.authorize("/acc/book/save"), h.save)
+	books.POST("/delete", h.authorize("/acc/book/delete"), h.delete)
+
+	subjects := router.Group("/acc/subject")
+	subjects.POST("/query", h.authorize("/acc/subject/query"), h.querySubjects)
+	subjects.POST("/get", h.authorize("/acc/subject/get"), h.getSubject)
+	subjects.POST("/create", h.authorize("/acc/subject/create"), h.createSubject)
+	subjects.POST("/save", h.authorize("/acc/subject/save"), h.saveSubject)
+	subjects.POST("/delete", h.authorize("/acc/subject/delete"), h.deleteSubject)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -99,9 +111,82 @@ func (h *Handler) create(c *gin.Context) {
 	result, err := h.service.CreateBook(c.Request.Context(), CreateBookInput{
 		Name: body.Name, Description: optionalString(body.Description),
 		StartMonth: body.StartMonth, BaseCurrency: body.BaseCurrency,
-		QueryUserIDs: optionalStrings(body.QueryUserIds), OperateUserIDs: optionalStrings(body.OperateUserIds),
+		SubjectTemplate: string(body.SubjectTemplate),
+		QueryUserIDs:    optionalStrings(body.QueryUserIds), OperateUserIDs: optionalStrings(body.OperateUserIds),
 	}, h.actorID(c))
 	h.result(c, result, err)
+}
+
+func subjectDimensions(values []generated.SubjectDimension) []string {
+	result := make([]string, len(values))
+	for index, value := range values {
+		result[index] = string(value)
+	}
+	return result
+}
+
+func subjectInput(bookID, code, name string, parentSubjectID *string, balanceDirection generated.BalanceDirection, enabled bool, dimensions []generated.SubjectDimension, inventoryQuantity bool, settlementPurpose generated.SettlementPurpose) CreateSubjectInput {
+	return CreateSubjectInput{
+		BookID: bookID, Code: code, Name: name, ParentSubjectID: parentSubjectID,
+		BalanceDirection: string(balanceDirection), Enabled: enabled,
+		RequiredDimensions: subjectDimensions(dimensions), InventoryQuantity: inventoryQuantity,
+		SettlementPurpose: string(settlementPurpose),
+	}
+}
+
+func (h *Handler) querySubjects(c *gin.Context) {
+	var body generated.SubjectQueryRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.QuerySubjects(c.Request.Context(), QuerySubjectsInput{
+		BookID: body.BookId, Page: body.Page, PageSize: body.PageSize, Keyword: optionalString(body.Keyword),
+	}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) getSubject(c *gin.Context) {
+	var body generated.SubjectGetRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.GetSubject(c.Request.Context(), body.BookId, body.SubjectId, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) createSubject(c *gin.Context) {
+	var body generated.SubjectCreateRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.CreateSubject(c.Request.Context(), subjectInput(
+		body.BookId, body.Code, body.Name, body.ParentSubjectId, body.BalanceDirection,
+		body.Enabled, body.RequiredDimensions, body.InventoryQuantity, body.SettlementPurpose,
+	), h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) saveSubject(c *gin.Context) {
+	var body generated.SubjectSaveRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	result, err := h.service.SaveSubject(c.Request.Context(), SaveSubjectInput{
+		CreateSubjectInput: subjectInput(
+			body.BookId, body.Code, body.Name, body.ParentSubjectId, body.BalanceDirection,
+			body.Enabled, body.RequiredDimensions, body.InventoryQuantity, body.SettlementPurpose,
+		),
+		SubjectID: body.SubjectId, Revision: body.Revision,
+	}, h.actorID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) deleteSubject(c *gin.Context) {
+	var body generated.SubjectDeleteRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	h.result(c, nil, h.service.DeleteSubject(c.Request.Context(), body.BookId, body.SubjectId, body.Revision, h.actorID(c)))
 }
 
 func (h *Handler) save(c *gin.Context) {

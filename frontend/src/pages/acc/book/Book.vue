@@ -20,6 +20,16 @@ const columns: readonly BusinessObjectColumn<AccountingBook>[] = [
   },
   { key: 'startMonth', label: '开始月份', value: (book) => book.startMonth },
   {
+    key: 'subjectTemplate',
+    label: '建账模板',
+    value: (book) =>
+      book.subjectTemplate === 'ENTERPRISE'
+        ? '企业会计准则'
+        : book.subjectTemplate === 'SMALL_BUSINESS'
+          ? '小企业会计准则'
+          : '空白',
+  },
+  {
     key: 'baseCurrency',
     label: '基础币种',
     value: (book) => book.baseCurrency,
@@ -144,6 +154,20 @@ void vm.query()
               label="开始月份"
               required
               type="month"
+              variant="outlined"
+            />
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-select
+              v-model="vm.form.subjectTemplate"
+              :disabled="Boolean(vm.editing)"
+              :items="[
+                { title: '企业会计准则', value: 'ENTERPRISE' },
+                { title: '小企业会计准则', value: 'SMALL_BUSINESS' },
+                { title: '空白', value: 'EMPTY' },
+              ]"
+              label="建账科目模板"
+              required
               variant="outlined"
             />
           </v-col>

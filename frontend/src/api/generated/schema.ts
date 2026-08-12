@@ -89,6 +89,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acc/subject/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询会计科目 */
+        post: operations["accSubjectQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取会计科目 */
+        post: operations["accSubjectGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建会计科目 */
+        post: operations["accSubjectCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存会计科目 */
+        post: operations["accSubjectSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acc/subject/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除会计科目 */
+        post: operations["accSubjectDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/user/signin": {
         parameters: {
             query?: never;
@@ -2036,6 +2121,8 @@ export interface components {
             pageSize: number;
             keyword?: string;
         };
+        /** @enum {string} */
+        SubjectTemplate: "ENTERPRISE" | "SMALL_BUSINESS" | "EMPTY";
         Book: {
             bookId: string;
             code: string;
@@ -2043,6 +2130,7 @@ export interface components {
             description: string;
             startMonth: string;
             baseCurrency: string;
+            subjectTemplate: components["schemas"]["SubjectTemplate"];
             controlBook: boolean;
             /** Format: int64 */
             revision: number;
@@ -2078,6 +2166,7 @@ export interface components {
             description?: string;
             startMonth: string;
             baseCurrency: string;
+            subjectTemplate: components["schemas"]["SubjectTemplate"];
             queryUserIds?: string[];
             operateUserIds?: string[];
         };
@@ -2105,6 +2194,90 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             requestId: string;
+        };
+        SubjectQueryRequest: {
+            bookId: string;
+            page: number;
+            pageSize: number;
+            keyword?: string;
+        };
+        /** @enum {string} */
+        BalanceDirection: "DEBIT" | "CREDIT";
+        /** @enum {string} */
+        SubjectDimension: "CUSTOMER" | "SUPPLIER" | "OTHER_PARTY" | "EMPLOYEE" | "DEPARTMENT" | "PRODUCT" | "WAREHOUSE" | "FUND_ACCOUNT" | "ASSET" | "BILL";
+        /** @enum {string} */
+        SettlementPurpose: "NONE" | "RECEIVABLE" | "PREPAID" | "PAYABLE" | "ADVANCE_RECEIPT" | "OTHER";
+        Subject: {
+            subjectId: string;
+            bookId: string;
+            code: string;
+            name: string;
+            parentSubjectId: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            leaf: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+            referenced: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        SubjectPage: {
+            items: components["schemas"]["Subject"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SubjectPageEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SubjectPage"] | null;
+            requestId: string;
+        };
+        SubjectGetRequest: {
+            bookId: string;
+            subjectId: string;
+        };
+        SubjectEnvelope: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["Subject"] | null;
+            requestId: string;
+        };
+        SubjectCreateRequest: {
+            bookId: string;
+            code: string;
+            name: string;
+            parentSubjectId?: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+        };
+        SubjectSaveRequest: {
+            bookId: string;
+            subjectId: string;
+            code: string;
+            name: string;
+            parentSubjectId?: string | null;
+            balanceDirection: components["schemas"]["BalanceDirection"];
+            enabled: boolean;
+            requiredDimensions: components["schemas"]["SubjectDimension"][];
+            inventoryQuantity: boolean;
+            settlementPurpose: components["schemas"]["SettlementPurpose"];
+            /** Format: int64 */
+            revision: number;
+        };
+        SubjectDeleteRequest: {
+            bookId: string;
+            subjectId: string;
+            /** Format: int64 */
+            revision: number;
         };
         SignInRequest: {
             username: string;
@@ -3949,6 +4122,118 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["BookDeleteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    accSubjectQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户账簿查询范围内的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectPageEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 会计科目详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建后的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的会计科目。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectEnvelope"];
+                };
+            };
+        };
+    };
+    accSubjectDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectDeleteRequest"];
             };
         };
         responses: {
